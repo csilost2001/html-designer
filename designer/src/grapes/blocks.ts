@@ -102,6 +102,34 @@ export const appBlocks: (BlockProperties & { id: string })[] = [
         field("項目4", textInput())
     ),
   },
+  {
+    id: "grid-1col",
+    label: "1カラムグリッド（空）",
+    category: CAT_LAYOUT,
+    media: icon("square"),
+    content: `<div class="form-row fcol-1"></div>`,
+  },
+  {
+    id: "grid-2col",
+    label: "2カラムグリッド（空）",
+    category: CAT_LAYOUT,
+    media: icon("layout-split"),
+    content: `<div class="form-row fcol-2"></div>`,
+  },
+  {
+    id: "grid-3col",
+    label: "3カラムグリッド（空）",
+    category: CAT_LAYOUT,
+    media: icon("grid-3x2"),
+    content: `<div class="form-row fcol-3"></div>`,
+  },
+  {
+    id: "grid-4col",
+    label: "4カラムグリッド（空）",
+    category: CAT_LAYOUT,
+    media: icon("grid"),
+    content: `<div class="form-row fcol-4"></div>`,
+  },
 
   // ==========================================================================
   // フィールド（1行 = form-row fcol-1 に包んで単体配置可能）
