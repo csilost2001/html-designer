@@ -142,6 +142,32 @@ body {
   gap: 0;
 }
 
+.form-row:empty {
+  min-height: 56px;
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 8px,
+      rgba(0, 0, 0, 0.025) 8px,
+      rgba(0, 0, 0, 0.025) 16px
+    );
+  position: relative;
+}
+
+.form-row:empty::before {
+  content: "ここにフィールドをドロップ";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-muted, #888);
+  font-size: 12px;
+  pointer-events: none;
+}
+
 .form-field {
   display: flex;
   align-items: stretch;
