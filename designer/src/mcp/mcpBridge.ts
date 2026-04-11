@@ -297,7 +297,17 @@ class McpBridgeImpl {
             target.setClass(classes);
           }
           if (typeof text === "string") {
-            target.components(text);
+            const leaf = findFirstTextLeaf(target);
+            if (leaf) {
+              leaf.components(text);
+            } else if (target.components().length === 0) {
+              target.components(text);
+            } else {
+              respondError(
+                `要素 ${id} にテキストを含む子孫が見つかりません。text 更新対象には、テキストを含む要素または末端要素を指定してください`
+              );
+              break;
+            }
           }
           respond({ success: true });
         } catch (e) {
@@ -329,6 +339,24 @@ class McpBridgeImpl {
         respondError(`未知のメソッド: ${method}`);
     }
   }
+}
+
+function findFirstTextLeaf(c: Component): Component | null {
+  const children = c.components();
+  if (
+    children.length > 0 &&
+    children.at(0).get("type") === "textnode" &&
+    children.length === 1
+  ) {
+    return c;
+  }
+  for (let i = 0; i < children.length; i++) {
+    const child = children.at(i) as Component;
+    if (child.get("type") === "textnode") continue;
+    const found = findFirstTextLeaf(child);
+    if (found) return found;
+  }
+  return null;
 }
 
 function findComponentById(root: Component, id: string): Component | null {

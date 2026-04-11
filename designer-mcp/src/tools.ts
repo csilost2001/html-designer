@@ -107,7 +107,8 @@ export const tools = [
         },
         text: {
           type: "string",
-          description: "要素の内部テキストを置換します（子要素を置換するので注意）。",
+          description:
+            "要素内の最初のテキストノードの内容を更新します。構造（子要素）は保持されるため、section-header のように装飾付きの見出しでもタイトル文字だけ安全に差し替え可能。対象にテキストノードが無い場合はエラーになります。",
         },
         classes: {
           type: "array",
