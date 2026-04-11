@@ -140,7 +140,7 @@ body {
   border-bottom: 1px solid var(--app-border);
   gap: 0;
 }
-.form-row:last-child {
+.form-section .form-row:last-child {
   border-bottom: none;
 }
 
