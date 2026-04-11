@@ -104,174 +104,174 @@ export const appBlocks: (BlockProperties & { id: string })[] = [
   },
 
   // ==========================================================================
-  // フィールド（単独の1項目）
+  // フィールド（1行 = form-row fcol-1 に包んで単体配置可能）
   // ==========================================================================
   {
     id: "field-text",
     label: "テキスト",
     category: CAT_FIELD,
     media: icon("input-cursor-text"),
-    content: field("テキスト", textInput()),
+    content: row(1, field("テキスト", textInput())),
   },
   {
     id: "field-kana",
     label: "フリガナ",
     category: CAT_FIELD,
     media: icon("fonts"),
-    content: field("フリガナ", textInput("カタカナ")),
+    content: row(1, field("フリガナ", textInput("カタカナ"))),
   },
   {
     id: "field-email",
     label: "メール",
     category: CAT_FIELD,
     media: icon("envelope"),
-    content: field(
+    content: row(1, field(
       "メール",
       `<input type="email" class="form-control form-control-sm" placeholder="name@example.com">`
-    ),
+    )),
   },
   {
     id: "field-tel",
     label: "電話",
     category: CAT_FIELD,
     media: icon("telephone"),
-    content: field(
+    content: row(1, field(
       "電話",
       `<input type="tel" class="form-control form-control-sm" placeholder="00-0000-0000">`
-    ),
+    )),
   },
   {
     id: "field-url",
     label: "URL",
     category: CAT_FIELD,
     media: icon("link-45deg"),
-    content: field(
+    content: row(1, field(
       "URL",
       `<input type="url" class="form-control form-control-sm" placeholder="https://">`
-    ),
+    )),
   },
   {
     id: "field-password",
     label: "パスワード",
     category: CAT_FIELD,
     media: icon("key"),
-    content: field(
+    content: row(1, field(
       "パスワード",
       `<input type="password" class="form-control form-control-sm">`
-    ),
+    )),
   },
   {
     id: "field-number",
     label: "数値",
     category: CAT_FIELD,
     media: icon("123"),
-    content: field("数値", numberInput()),
+    content: row(1, field("数値", numberInput())),
   },
   {
     id: "field-money",
     label: "金額",
     category: CAT_FIELD,
     media: icon("currency-yen"),
-    content: field("金額", `${numberInput()}<span>円</span>`),
+    content: row(1, field("金額", `${numberInput()}<span>円</span>`)),
   },
   {
     id: "field-percent",
     label: "パーセント",
     category: CAT_FIELD,
     media: icon("percent"),
-    content: field("割合", `${numberInput()}<span>%</span>`),
+    content: row(1, field("割合", `${numberInput()}<span>%</span>`)),
   },
   {
     id: "field-date",
     label: "日付",
     category: CAT_FIELD,
     media: icon("calendar"),
-    content: field("日付", dateInput()),
+    content: row(1, field("日付", dateInput())),
   },
   {
     id: "field-datetime",
     label: "日時",
     category: CAT_FIELD,
     media: icon("calendar-event"),
-    content: field(
+    content: row(1, field(
       "日時",
       `<input type="datetime-local" class="form-control form-control-sm">`
-    ),
+    )),
   },
   {
     id: "field-time",
     label: "時刻",
     category: CAT_FIELD,
     media: icon("clock"),
-    content: field(
+    content: row(1, field(
       "時刻",
       `<input type="time" class="form-control form-control-sm">`
-    ),
+    )),
   },
   {
     id: "field-select",
     label: "セレクト",
     category: CAT_FIELD,
     media: icon("menu-button-wide"),
-    content: field("選択", selectInput()),
+    content: row(1, field("選択", selectInput())),
   },
   {
     id: "field-radio",
     label: "ラジオ",
     category: CAT_FIELD,
     media: icon("ui-radios"),
-    content: field(
+    content: row(1, field(
       "選択",
       `<div class="radio-group">
         <label><input type="radio" name="r1"> 選択1</label>
         <label><input type="radio" name="r1"> 選択2</label>
         <label><input type="radio" name="r1"> 選択3</label>
       </div>`
-    ),
+    )),
   },
   {
     id: "field-checkbox",
     label: "チェックボックス",
     category: CAT_FIELD,
     media: icon("ui-checks"),
-    content: field(
+    content: row(1, field(
       "チェック",
       `<div class="check-group">
         <label><input type="checkbox"> 項目1</label>
         <label><input type="checkbox"> 項目2</label>
         <label><input type="checkbox"> 項目3</label>
       </div>`
-    ),
+    )),
   },
   {
     id: "field-switch",
     label: "スイッチ",
     category: CAT_FIELD,
     media: icon("toggle-on"),
-    content: field(
+    content: row(1, field(
       "有効",
       `<div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" role="switch">
       </div>`
-    ),
+    )),
   },
   {
     id: "field-textarea",
     label: "テキストエリア",
     category: CAT_FIELD,
     media: icon("textarea-resize"),
-    content: field(
+    content: row(1, field(
       "備考",
       `<textarea class="form-control form-control-sm" rows="3"></textarea>`,
       { full: true }
-    ),
+    )),
   },
   {
     id: "field-file",
     label: "ファイル",
     category: CAT_FIELD,
     media: icon("cloud-upload"),
-    content: field(
+    content: row(1, field(
       "添付",
       `<div class="file-upload">
         <label class="drop-zone">
@@ -282,7 +282,7 @@ export const appBlocks: (BlockProperties & { id: string })[] = [
         <ul class="file-list"></ul>
       </div>`,
       { full: true }
-    ),
+    )),
   },
 
   // ==========================================================================
@@ -293,47 +293,47 @@ export const appBlocks: (BlockProperties & { id: string })[] = [
     label: "郵便番号+住所検索",
     category: CAT_COMPOUND,
     media: icon("geo-alt"),
-    content: field(
+    content: row(1, field(
       "郵便番号",
       `<input type="text" class="form-control form-control-sm" placeholder="000-0000" style="max-width:130px">
        <button type="button" class="btn btn-outline-secondary btn-sm">住所検索</button>`
-    ),
+    )),
   },
   {
     id: "compound-lookup",
     label: "コード+名称ルックアップ",
     category: CAT_COMPOUND,
     media: icon("search"),
-    content: field(
+    content: row(1, field(
       "コード",
       `<input type="text" class="form-control form-control-sm" style="max-width:120px" placeholder="コード">
        <button type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-search"></i></button>
        <input type="text" class="form-control form-control-sm" placeholder="名称" readonly>`
-    ),
+    )),
   },
   {
     id: "compound-date-range",
     label: "日付範囲",
     category: CAT_COMPOUND,
     media: icon("calendar-range"),
-    content: field(
+    content: row(1, field(
       "期間",
       `${dateInput()}<span>〜</span>${dateInput()}`
-    ),
+    )),
   },
   {
     id: "compound-quantity-price",
     label: "単価×数量=金額",
     category: CAT_COMPOUND,
     media: icon("calculator"),
-    content: field(
+    content: row(1, field(
       "単価/数量",
       `<input type="number" class="form-control form-control-sm" placeholder="単価">
        <span>×</span>
        <input type="number" class="form-control form-control-sm" placeholder="数量">
        <span>=</span>
        <input type="number" class="form-control form-control-sm" placeholder="金額" readonly>`
-    ),
+    )),
   },
   {
     id: "compound-name-kana",
