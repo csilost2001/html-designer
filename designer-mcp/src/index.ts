@@ -9,8 +9,23 @@ import {
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 
-// WebSocketブリッジを起動
-wsBridge.start();
+// 親プロセス（Claude Code）が死んだら自動終了
+function setupLifecycle(): void {
+  const exitHandler = (reason: string) => {
+    console.error(`[MCP] Exiting: ${reason}`);
+    process.exit(0);
+  };
+  process.stdin.on("end", () => exitHandler("stdin ended"));
+  process.stdin.on("close", () => exitHandler("stdin closed"));
+  process.on("SIGTERM", () => exitHandler("SIGTERM"));
+  process.on("SIGINT", () => exitHandler("SIGINT"));
+  process.on("disconnect", () => exitHandler("disconnected from parent"));
+}
+
+setupLifecycle();
+
+// WebSocketブリッジを起動（古いプロセスが残っていれば自動終了を待つ）
+await wsBridge.start();
 wsBridge.on("connected", () => console.error("[MCP] Designer connected via WebSocket"));
 wsBridge.on("disconnected", () => console.error("[MCP] Designer disconnected"));
 
