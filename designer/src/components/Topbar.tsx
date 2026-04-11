@@ -1,14 +1,26 @@
 import { useEffect, useState } from "react";
 import { useEditor } from "@grapesjs/react";
-import type { PanelMode } from "./Designer";
+import type { PanelMode, ThemeId } from "./Designer";
+import type { McpStatus } from "../mcp/mcpBridge";
+
+const THEMES: { id: ThemeId; label: string; icon: string; color: string }[] = [
+  { id: "standard", label: "標準",    icon: "bi-grid-3x3",     color: "#6c757d" },
+  { id: "card",     label: "カード型", icon: "bi-layers",       color: "#6366f1" },
+  { id: "compact",  label: "コンパクト", icon: "bi-table",      color: "#0284c7" },
+  { id: "dark",     label: "ダーク",   icon: "bi-moon-stars",   color: "#0f172a" },
+];
 
 interface Props {
   ready: boolean;
   panelMode: PanelMode;
   onOpenPanel: () => void;
+  activeTheme: ThemeId;
+  onThemeChange: (theme: ThemeId) => void;
+  mcpStatus: McpStatus;
 }
 
-export function Topbar({ ready, panelMode, onOpenPanel }: Props) {
+export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus }: Props) {
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -52,6 +64,34 @@ export function Topbar({ ready, panelMode, onOpenPanel }: Props) {
     }
   };
   const handleSaveNow = () => editor?.store();
+
+  const handleExportHtml = () => {
+    if (!editor) return;
+    const html = editor.getHtml();
+    const css = editor.getCss();
+    const fullHtml = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>エクスポート</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+  <style>${css}</style>
+</head>
+<body>
+${html}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>`;
+    const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "design-export.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <header className="topbar">
@@ -101,6 +141,34 @@ export function Topbar({ ready, panelMode, onOpenPanel }: Props) {
       </div>
 
       <div className="topbar-right">
+        {/* テーマ選択 */}
+        <div className="theme-selector">
+          <button
+            className="theme-selector-btn"
+            onClick={() => setThemeMenuOpen((v) => !v)}
+            title="デザインテーマを選択"
+          >
+            <i className={`bi ${THEMES.find((t) => t.id === activeTheme)?.icon ?? "bi-palette"}`} />
+            <span>{THEMES.find((t) => t.id === activeTheme)?.label ?? "テーマ"}</span>
+            <i className="bi bi-chevron-down" style={{ fontSize: 10 }} />
+          </button>
+          {themeMenuOpen && (
+            <div className="theme-menu">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  className={`theme-menu-item${activeTheme === t.id ? " active" : ""}`}
+                  onClick={() => { onThemeChange(t.id); setThemeMenuOpen(false); }}
+                >
+                  <span className="theme-swatch" style={{ background: t.color }} />
+                  <i className={`bi ${t.icon}`} />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="divider" />
         <span className={`save-indicator ${saveState}`}>
           {saveState === "saving" && (
             <>
@@ -121,7 +189,30 @@ export function Topbar({ ready, panelMode, onOpenPanel }: Props) {
         <button className="btn-primary-sm" onClick={handleSaveNow}>
           <i className="bi bi-save" /> 今すぐ保存
         </button>
+        <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
+          <i className="bi bi-download" /> HTMLエクスポート
+        </button>
+        <div className="divider" />
+        <McpIndicator status={mcpStatus} />
       </div>
     </header>
+  );
+}
+
+function McpIndicator({ status }: { status: McpStatus }) {
+  const label =
+    status === "connected" ? "MCP接続中" :
+    status === "connecting" ? "MCP接続試行中" :
+    "MCP未接続";
+  const title =
+    status === "connected" ? "MCPサーバーに接続されています" :
+    status === "connecting" ? "MCPサーバーへの接続を試みています..." :
+    "MCPサーバーに接続されていません。designer-mcpサーバーを起動してください。";
+
+  return (
+    <div className={`mcp-indicator mcp-${status}`} title={title}>
+      <span className="mcp-dot" />
+      <span className="mcp-label">{label}</span>
+    </div>
   );
 }

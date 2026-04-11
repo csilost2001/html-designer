@@ -161,6 +161,87 @@
 .btn-primary-sm:hover {
   background-color: var(--dz-accent-hover);
 }
+.btn-secondary-sm {
+  background-color: transparent;
+  color: var(--dz-text);
+  border: 1px solid var(--dz-border);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-secondary-sm:hover {
+  background-color: var(--dz-hover);
+}
+
+/* ==========================================================================
+   テーマセレクター
+   ========================================================================== */
+.theme-selector {
+  position: relative;
+}
+.theme-selector-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--dz-hover);
+  border: 1px solid var(--dz-border);
+  color: var(--dz-text);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.theme-selector-btn:hover {
+  background: var(--dz-border);
+}
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--dz-bg);
+  border: 1px solid var(--dz-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  z-index: 9999;
+  min-width: 150px;
+  overflow: hidden;
+}
+.theme-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  color: var(--dz-text);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.theme-menu-item:hover {
+  background: var(--dz-hover);
+}
+.theme-menu-item.active {
+  background: var(--dz-accent);
+  color: #fff;
+}
+.theme-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.3);
+  flex-shrink: 0;
+}
 
 /* ==========================================================================
    Left Panel — Blocks（3モード対応）
@@ -539,6 +620,49 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   color: var(--dz-text);
   gap: 16px;
 }
+/* ==========================================================================
+   MCP Status Indicator
+   ========================================================================== */
+.mcp-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--dz-text-dim);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+.mcp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mcp-connected .mcp-dot {
+  background: #22c55e;
+  box-shadow: 0 0 4px #22c55e99;
+}
+.mcp-connected {
+  color: #86efac;
+}
+.mcp-connecting .mcp-dot {
+  background: #f59e0b;
+  animation: mcp-blink 1s ease-in-out infinite;
+}
+.mcp-connecting {
+  color: #fcd34d;
+}
+.mcp-disconnected .mcp-dot {
+  background: #6b7280;
+}
+@keyframes mcp-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 .loading-screen .spinner {
   width: 40px;
   height: 40px;

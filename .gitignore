@@ -1,8 +1,10 @@
 # Dependencies
 designer/node_modules/
+designer-mcp/node_modules/
 
 # Build output
 designer/dist/
+designer-mcp/dist/
 
 # Playwright MCP artifacts
 .playwright-mcp/

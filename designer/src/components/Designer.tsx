@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Editor as GEditor } from "grapesjs";
 import GjsEditor, {
   Canvas,
@@ -16,11 +16,40 @@ import { registerBlocks } from "../grapes/blocks";
 import { Topbar } from "./Topbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
+import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 
 const STORAGE_KEY = "gjs-designer-project";
 const PANEL_MODE_KEY = "designer-panel-left-mode";
+const THEME_KEY = "designer-theme";
 
 export type PanelMode = "pinned" | "autohide" | "hidden";
+export type ThemeId = "standard" | "card" | "compact" | "dark";
+
+const THEME_URLS: Record<ThemeId, string | null> = {
+  standard: null,
+  card: new URL("../styles/theme-card.css", import.meta.url).href,
+  compact: new URL("../styles/theme-compact.css", import.meta.url).href,
+  dark: new URL("../styles/theme-dark.css", import.meta.url).href,
+};
+
+function applyThemeToCanvas(editor: GEditor, themeId: ThemeId) {
+  try {
+    const canvasDoc = editor.Canvas.getDocument();
+    if (!canvasDoc) return;
+    const existing = canvasDoc.getElementById("dz-theme-override");
+    if (existing) existing.remove();
+    const url = THEME_URLS[themeId];
+    if (url) {
+      const link = canvasDoc.createElement("link");
+      link.id = "dz-theme-override";
+      link.rel = "stylesheet";
+      link.href = url;
+      canvasDoc.head.appendChild(link);
+    }
+  } catch {
+    // canvas not ready
+  }
+}
 
 const gjsOptions = {
   height: "100%",
@@ -50,6 +79,10 @@ const gjsOptions = {
 
 export function Designer() {
   const [ready, setReady] = useState(false);
+  const [activeTheme, setActiveThemeState] = useState<ThemeId>(
+    () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
+  );
+  const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
 
   // パネルモード管理
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => {
@@ -74,8 +107,19 @@ export function Designer() {
   const closePanel = useCallback(() => setPanelMode("hidden"), [setPanelMode]);
   const openPanel = useCallback(() => setPanelMode(prevMode), [prevMode, setPanelMode]);
 
+  const editorRef = useRef<GEditor | null>(null);
+
+  const handleThemeChange = useCallback((themeId: ThemeId) => {
+    setActiveThemeState(themeId);
+    localStorage.setItem(THEME_KEY, themeId);
+    if (editorRef.current) {
+      applyThemeToCanvas(editorRef.current, themeId);
+    }
+  }, []);
+
   // ドラッグ中フラグ（auto-hide でドラッグ中にパネルを閉じないため）
   const onEditor = useCallback((editor: GEditor) => {
+    editorRef.current = editor;
     registerBlocks(editor);
     (window as unknown as { editor?: GEditor }).editor = editor;
 
@@ -85,9 +129,23 @@ export function Designer() {
     editor.on("block:drag:stop", () => {
       document.body.removeAttribute("data-gjs-dragging");
     });
+
+    // MCPブリッジ起動
+    const unsubscribe = mcpBridge.onStatusChange(setMcpStatus);
+    mcpBridge.start(editor);
+
+    return () => {
+      unsubscribe();
+      mcpBridge.stop();
+    };
   }, []);
 
-  const onReady = useCallback(() => setReady(true), []);
+  const onReady = useCallback(() => {
+    setReady(true);
+    if (editorRef.current && activeTheme !== "standard") {
+      applyThemeToCanvas(editorRef.current, activeTheme);
+    }
+  }, [activeTheme]);
 
   // topbar-left の幅を panelMode に合わせて同期
   useEffect(() => {
@@ -119,6 +177,9 @@ export function Designer() {
             ready={ready}
             panelMode={panelMode}
             onOpenPanel={openPanel}
+            activeTheme={activeTheme}
+            onThemeChange={handleThemeChange}
+            mcpStatus={mcpStatus}
           />
         </WithEditor>
 
@@ -158,14 +219,12 @@ export function Designer() {
           </main>
 
           <aside className="panel-right">
-            <WithEditor>
-              <RightPanel
-                StylesProvider={StylesProvider}
-                SelectorsProvider={SelectorsProvider}
-                TraitsProvider={TraitsProvider}
-                LayersProvider={LayersProvider}
-              />
-            </WithEditor>
+            <RightPanel
+              StylesProvider={StylesProvider}
+              SelectorsProvider={SelectorsProvider}
+              TraitsProvider={TraitsProvider}
+              LayersProvider={LayersProvider}
+            />
           </aside>
         </div>
       </div>
