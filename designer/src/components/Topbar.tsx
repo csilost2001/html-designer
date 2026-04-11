@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { useEditor } from "@grapesjs/react";
+import type { PanelMode } from "./Designer";
 
 interface Props {
   ready: boolean;
+  panelMode: PanelMode;
+  onOpenPanel: () => void;
 }
 
-export function Topbar({ ready }: Props) {
+export function Topbar({ ready, panelMode, onOpenPanel }: Props) {
   const editor = useEditor();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -55,6 +58,16 @@ export function Topbar({ ready }: Props) {
       <div className="topbar-left">
         <i className="bi bi-palette2 topbar-logo" />
         <span className="topbar-title">業務システム デザイナー</span>
+        {panelMode === "hidden" && (
+          <button
+            className="icon-btn"
+            onClick={onOpenPanel}
+            title="ブロックパネルを開く"
+            style={{ marginLeft: 4 }}
+          >
+            <i className="bi bi-layout-sidebar" />
+          </button>
+        )}
       </div>
 
       <div className="topbar-center">

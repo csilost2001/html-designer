@@ -57,7 +57,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: var(--panel-left-w);
+  min-width: var(--topbar-left-w, var(--panel-left-w));
+  transition: min-width 0.2s ease;
 }
 .topbar-logo {
   font-size: 22px;
@@ -162,8 +163,30 @@
 }
 
 /* ==========================================================================
-   Left Panel — Blocks
+   Left Panel — Blocks（3モード対応）
    ========================================================================== */
+
+/* ラッパー: flex アイテムとして幅を制御 */
+.panel-left-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+}
+.panel-left-wrapper.is-pinned {
+  width: var(--panel-left-w);
+}
+.panel-left-wrapper.is-autohide {
+  width: 6px;
+  background-color: var(--dz-bg-3);
+  border-right: 1px solid var(--dz-border);
+  cursor: e-resize;
+}
+.panel-left-wrapper.is-hidden {
+  width: 0;
+  overflow: hidden;
+}
+
+/* パネル本体 */
 .panel-left {
   width: var(--panel-left-w);
   flex-shrink: 0;
@@ -174,8 +197,27 @@
   min-height: 0;
 }
 
+/* Auto-hide: パネルを絶対配置でスライドイン */
+.panel-left-wrapper.is-autohide .panel-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 200;
+  transform: translateX(-100%);
+  transition: transform 0.2s ease;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.5);
+}
+.panel-left-wrapper.is-autohide:hover .panel-left {
+  transform: translateX(0);
+}
+/* ドラッグ中はauto-hideでも開いたまま */
+body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
+  transform: translateX(0);
+}
+
 .panel-section-title {
-  padding: 12px 16px;
+  padding: 10px 12px 10px 16px;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -185,6 +227,40 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.panel-section-title .title-text {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-section-title .panel-ctrl-btns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.panel-ctrl-btn {
+  background: transparent;
+  border: none;
+  color: var(--dz-text-dim);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+  padding: 0;
+}
+.panel-ctrl-btn:hover {
+  background-color: var(--dz-bg-3);
+  color: var(--dz-text);
+}
+.panel-ctrl-btn.pin-active {
+  color: var(--dz-accent);
 }
 
 .blocks-panel {

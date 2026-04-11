@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Editor as GEditor } from "grapesjs";
 import GjsEditor, {
   Canvas,
@@ -18,6 +18,9 @@ import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 
 const STORAGE_KEY = "gjs-designer-project";
+const PANEL_MODE_KEY = "designer-panel-left-mode";
+
+export type PanelMode = "pinned" | "autohide" | "hidden";
 
 const gjsOptions = {
   height: "100%",
@@ -36,31 +39,65 @@ const gjsOptions = {
     styles: [
       "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css",
       "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css",
-      // キャンバス内に共通CSSを注入
       new URL("../styles/common.css", import.meta.url).href,
     ],
     scripts: [
       "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js",
     ],
   },
-  // GrapesJSのデフォルトUIは使わずカスタムパネルでレンダリングするため
-  // blockManager/styleManager等の appendTo は指定しない
   blockManager: { blocks: [] },
 };
 
 export function Designer() {
   const [ready, setReady] = useState(false);
 
+  // パネルモード管理
+  const [panelMode, setPanelModeState] = useState<PanelMode>(() => {
+    const saved = localStorage.getItem(PANEL_MODE_KEY) as PanelMode | null;
+    return saved ?? "pinned";
+  });
+  // hidden から復帰するときに戻る先を記憶
+  const [prevMode, setPrevMode] = useState<"pinned" | "autohide">("pinned");
+
+  const setPanelMode = useCallback((mode: PanelMode) => {
+    setPanelModeState((cur) => {
+      if (cur !== "hidden") setPrevMode(cur as "pinned" | "autohide");
+      return mode;
+    });
+    localStorage.setItem(PANEL_MODE_KEY, mode);
+  }, []);
+
+  const togglePin = useCallback(() => {
+    setPanelMode(panelMode === "pinned" ? "autohide" : "pinned");
+  }, [panelMode, setPanelMode]);
+
+  const closePanel = useCallback(() => setPanelMode("hidden"), [setPanelMode]);
+  const openPanel = useCallback(() => setPanelMode(prevMode), [prevMode, setPanelMode]);
+
+  // ドラッグ中フラグ（auto-hide でドラッグ中にパネルを閉じないため）
   const onEditor = useCallback((editor: GEditor) => {
     registerBlocks(editor);
-    // ドラッグ中の見た目を少し改善
-    editor.on("component:selected", () => {
-      /* no-op hook */
-    });
     (window as unknown as { editor?: GEditor }).editor = editor;
+
+    editor.on("block:drag:start", () => {
+      document.body.setAttribute("data-gjs-dragging", "1");
+    });
+    editor.on("block:drag:stop", () => {
+      document.body.removeAttribute("data-gjs-dragging");
+    });
   }, []);
 
   const onReady = useCallback(() => setReady(true), []);
+
+  // topbar-left の幅を panelMode に合わせて同期
+  useEffect(() => {
+    const root = document.documentElement;
+    if (panelMode === "pinned") {
+      root.style.setProperty("--topbar-left-w", "var(--panel-left-w)");
+    } else {
+      root.style.setProperty("--topbar-left-w", "160px");
+    }
+  }, [panelMode]);
 
   return (
     <GjsEditor
@@ -78,18 +115,43 @@ export function Designer() {
     >
       <div className="designer-layout">
         <WithEditor>
-          <Topbar ready={ready} />
+          <Topbar
+            ready={ready}
+            panelMode={panelMode}
+            onOpenPanel={openPanel}
+          />
         </WithEditor>
 
         <div className="designer-body">
-          <aside className="panel-left">
-            <div className="panel-section-title">
-              <i className="bi bi-grid-3x3-gap-fill" /> ブロック
-            </div>
-            <BlocksProvider>
-              {(props) => <BlocksPanel {...props} />}
-            </BlocksProvider>
-          </aside>
+          {/* Left panel wrapper — 3モードを制御 */}
+          <div className={`panel-left-wrapper is-${panelMode}`}>
+            <aside className="panel-left">
+              <div className="panel-section-title">
+                <span className="title-text">
+                  <i className="bi bi-grid-3x3-gap-fill" /> ブロック
+                </span>
+                <div className="panel-ctrl-btns">
+                  <button
+                    className={`panel-ctrl-btn${panelMode === "pinned" ? " pin-active" : ""}`}
+                    onClick={togglePin}
+                    title={panelMode === "pinned" ? "ピンを外す（ホバー表示に切替）" : "ピンで固定"}
+                  >
+                    <i className={`bi bi-pin${panelMode === "pinned" ? "-fill" : ""}`} />
+                  </button>
+                  <button
+                    className="panel-ctrl-btn"
+                    onClick={closePanel}
+                    title="パネルを閉じる"
+                  >
+                    <i className="bi bi-x-lg" />
+                  </button>
+                </div>
+              </div>
+              <BlocksProvider>
+                {(props) => <BlocksPanel {...props} />}
+              </BlocksProvider>
+            </aside>
+          </div>
 
           <main className="panel-canvas">
             <Canvas className="designer-canvas" />
