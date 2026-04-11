@@ -1,0 +1,26 @@
+# Dependencies
+designer/node_modules/
+
+# Build output
+designer/dist/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+*.png
+
+# Claude Code local settings
+.claude/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.suo
+.vscode/settings.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local env
+.env
+.env.local

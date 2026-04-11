@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>業務システム HTMLデザインツール（GrapesJS）</title>
+  <meta name="viewport" content="width=1280">
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+  <!-- GrapesJS -->
+  <link rel="stylesheet" href="https://unpkg.com/grapesjs/dist/css/grapes.min.css">
+  <script src="https://unpkg.com/grapesjs"></script>
+
+  <!-- 共通スタイル + カスタムブロック -->
+  <link rel="stylesheet" href="common.css">
+
+  <style>
+    body { margin: 0; font-family: "Yu Gothic UI", "Meiryo", "Segoe UI", sans-serif; }
+    .tool-header {
+      height: 48px;
+      background-color: #212529;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+    }
+    .tool-header .title { font-weight: 700; font-size: 15px; }
+    .tool-header .spacer { flex: 1 1 auto; }
+    .tool-header button { font-size: 13px; }
+    #gjs { height: calc(100vh - 48px); border-top: 1px solid #343a40; }
+    .toast-notify {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #198754;
+      color: #ffffff;
+      padding: 10px 20px;
+      border-radius: 4px;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .toast-notify.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="tool-header">
+    <i class="bi bi-layout-wtf"></i>
+    <span class="title">業務システム HTMLデザインツール</span>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn-outline-light btn-sm" id="btn-preview">
+      <i class="bi bi-eye"></i> プレビュー
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" id="btn-copy-html">
+      <i class="bi bi-clipboard"></i> HTMLを出力
+    </button>
+  </div>
+
+  <div id="gjs"></div>
+
+  <div class="toast-notify" id="toast">コピーしました</div>
+
+  <script src="blocks.js"></script>
+  <script>
+    const editor = grapesjs.init({
+      container: "#gjs",
+      height: "calc(100vh - 48px)",
+      width: "auto",
+      storageManager: false,
+      fromElement: false,
+      canvas: {
+        styles: [
+          "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css",
+          "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css",
+          "common.css"
+        ],
+        scripts: [
+          "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        ]
+      },
+      blockManager: { appendTo: ".blocks-container" },
+      panels: {
+        defaults: [
+          {
+            id: "layers",
+            el: ".panel__right",
+            resizable: {
+              maxDim: 500, minDim: 200, tc: false, cl: true, cr: false, bc: false,
+              keyWidth: "flex-basis"
+            }
+          },
+          {
+            id: "panel-switcher",
+            el: ".panel__switcher",
+            buttons: [
+              { id: "show-blocks", active: true, label: "ブロック", command: "show-blocks",
+                togglable: false },
+              { id: "show-style", label: "スタイル",
+                command: "show-styles", togglable: false },
+              { id: "show-layers", label: "レイヤー",
+                command: "show-layers", togglable: false }
+            ]
+          }
+        ]
+      },
+      selectorManager: { appendTo: ".styles-container" },
+      styleManager: { appendTo: ".styles-container" },
+      layerManager: { appendTo: ".layers-container" },
+      traitManager: { appendTo: ".styles-container" }
+    });
+
+    // カスタムコマンド: パネル切替
+    editor.Commands.add("show-blocks", {
+      getRowEl(e) { return e.getContainer().closest(".editor-row"); },
+      getLayersEl(r) { return r.querySelector(".layers-container"); },
+      getStyleEl(r) { return r.querySelector(".styles-container"); },
+      getBlocksEl(r) { return r.querySelector(".blocks-container"); },
+      run(ed, s, opts) {
+        const r = this.getRowEl(ed);
+        this.getBlocksEl(r).style.display = "";
+        this.getLayersEl(r).style.display = "none";
+        this.getStyleEl(r).style.display = "none";
+      }
+    });
+    editor.Commands.add("show-styles", {
+      run(ed) {
+        const row = ed.getContainer().closest(".editor-row");
+        row.querySelector(".blocks-container").style.display = "none";
+        row.querySelector(".layers-container").style.display = "none";
+        row.querySelector(".styles-container").style.display = "";
+      }
+    });
+    editor.Commands.add("show-layers", {
+      run(ed) {
+        const row = ed.getContainer().closest(".editor-row");
+        row.querySelector(".blocks-container").style.display = "none";
+        row.querySelector(".styles-container").style.display = "none";
+        row.querySelector(".layers-container").style.display = "";
+      }
+    });
+
+    // カスタムブロック登録
+    if (typeof registerAppBlocks === "function") {
+      registerAppBlocks(editor);
+    }
+
+    // 「HTMLを出力」ボタン
+    const toast = document.getElementById("toast");
+    function showToast(msg, ok = true) {
+      toast.textContent = msg;
+      toast.style.backgroundColor = ok ? "#198754" : "#dc3545";
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    document.getElementById("btn-copy-html").addEventListener("click", async () => {
+      const html = editor.getHtml();
+      const css = editor.getCss();
+      const output =
+`<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Generated</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+<link rel="stylesheet" href="common.css">
+<style>
+${css}
+</style>
+</head>
+<body>
+${html}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"><\/script>
+</body>
+</html>`;
+      try {
+        await navigator.clipboard.writeText(output);
+        showToast("HTMLをクリップボードにコピーしました");
+      } catch (e) {
+        console.error(e);
+        showToast("コピーに失敗しました", false);
+      }
+    });
+
+    // プレビュー
+    document.getElementById("btn-preview").addEventListener("click", () => {
+      editor.runCommand("preview");
+    });
+  </script>
+</body>
+</html>

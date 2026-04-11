@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>顧客登録 — 業務システム</title>
+  <meta name="viewport" content="width=1280">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="common.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1 class="app-title"><i class="bi bi-building"></i> 顧客管理システム</h1>
+    </header>
+
+    <div class="app-body">
+      <aside class="app-sidebar">
+        <ul>
+          <li><a href="#" class="active"><i class="bi bi-people"></i> 顧客一覧</a></li>
+          <li><a href="#"><i class="bi bi-file-text"></i> 契約一覧</a></li>
+          <li><a href="#"><i class="bi bi-receipt"></i> 請求一覧</a></li>
+          <li><a href="#"><i class="bi bi-graph-up"></i> レポート</a></li>
+          <li><a href="#"><i class="bi bi-gear"></i> 設定</a></li>
+        </ul>
+      </aside>
+
+      <main class="app-main">
+        <div class="page-header">
+          <h1 class="page-title">顧客登録</h1>
+          <nav class="breadcrumb-area">ホーム &gt; 顧客管理 &gt; 顧客一覧 &gt; 新規登録</nav>
+        </div>
+
+        <form th:action="@{/customers/save}" th:object="${customer}" method="post">
+
+          <!-- ========== 基本情報 ========== -->
+          <section class="form-section">
+            <div class="form-section-title">基本情報</div>
+            <div class="form-section-body">
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">顧客コード</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{customerCode}" maxlength="10">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">旧コード</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{oldCode}" maxlength="10">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">顧客名</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{customerName}" maxlength="100">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label required">フリガナ</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{customerKana}" maxlength="100">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">法人区分</div>
+                  <div class="field-value">
+                    <div class="radio-group">
+                      <label><input type="radio" th:field="*{corpType}" value="corp"> 法人</label>
+                      <label><input type="radio" th:field="*{corpType}" value="individual"> 個人</label>
+                      <label><input type="radio" th:field="*{corpType}" value="other"> その他</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">業種</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{industry}">
+                      <option value="">（選択してください）</option>
+                      <option value="it">情報通信</option>
+                      <option value="mfg">製造業</option>
+                      <option value="retail">小売業</option>
+                      <option value="finance">金融業</option>
+                      <option value="service">サービス業</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">設立日</div>
+                  <div class="field-value">
+                    <input type="date" class="form-control form-control-sm" th:field="*{foundedDate}">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">資本金</div>
+                  <div class="field-value">
+                    <input type="number" class="form-control form-control-sm" th:field="*{capital}">
+                    <span>円</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">従業員数</div>
+                  <div class="field-value">
+                    <input type="number" class="form-control form-control-sm" th:field="*{employeeCount}">
+                    <span>人</span>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">ステータス</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{status}">
+                      <option value="active">有効</option>
+                      <option value="inactive">無効</option>
+                      <option value="pending">申請中</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- ========== 所在地情報 ========== -->
+          <section class="form-section">
+            <div class="form-section-title">所在地情報</div>
+            <div class="form-section-body">
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">郵便番号</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{postalCode}" maxlength="8" placeholder="000-0000" style="max-width:140px">
+                    <button type="button" class="btn btn-outline-secondary btn-sm">住所検索</button>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label required">都道府県</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{prefecture}">
+                      <option value="">（選択）</option>
+                      <option value="13">東京都</option>
+                      <option value="14">神奈川県</option>
+                      <option value="27">大阪府</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">市区町村</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{city}" maxlength="50">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label required">町名・番地</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{street}" maxlength="100">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">建物名</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{building}" maxlength="100">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">部屋番号</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{roomNo}" maxlength="20">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">最寄駅</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{nearestStation}" maxlength="50">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">駅から徒歩</div>
+                  <div class="field-value">
+                    <input type="number" class="form-control form-control-sm" th:field="*{walkMinutes}">
+                    <span>分</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- ========== 連絡先情報 ========== -->
+          <section class="form-section">
+            <div class="form-section-title">連絡先情報</div>
+            <div class="form-section-body">
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">代表電話</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{telMain}" maxlength="20">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">代表FAX</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{fax}" maxlength="20">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">代表メール</div>
+                  <div class="field-value">
+                    <input type="email" class="form-control form-control-sm" th:field="*{emailMain}" maxlength="100">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">Webサイト</div>
+                  <div class="field-value">
+                    <input type="url" class="form-control form-control-sm" th:field="*{webSite}" maxlength="200">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">担当者名</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{contactName}" maxlength="50">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">担当者フリガナ</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{contactKana}" maxlength="50">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">担当部署</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{contactDept}" maxlength="50">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">役職</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{contactTitle}" maxlength="50">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">担当者電話</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{contactTel}" maxlength="20">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">担当者メール</div>
+                  <div class="field-value">
+                    <input type="email" class="form-control form-control-sm" th:field="*{contactEmail}" maxlength="100">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-1">
+                <div class="form-field">
+                  <div class="field-label">連絡手段</div>
+                  <div class="field-value">
+                    <div class="check-group">
+                      <label><input type="checkbox" th:field="*{contactMethods}" value="tel"> 電話</label>
+                      <label><input type="checkbox" th:field="*{contactMethods}" value="mail"> メール</label>
+                      <label><input type="checkbox" th:field="*{contactMethods}" value="fax"> FAX</label>
+                      <label><input type="checkbox" th:field="*{contactMethods}" value="post"> 郵送</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- ========== 取引情報 ========== -->
+          <section class="form-section">
+            <div class="form-section-title">取引情報</div>
+            <div class="form-section-body">
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">取引開始日</div>
+                  <div class="field-value">
+                    <input type="date" class="form-control form-control-sm" th:field="*{tradeStartDate}">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">取引終了日</div>
+                  <div class="field-value">
+                    <input type="date" class="form-control form-control-sm" th:field="*{tradeEndDate}">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">与信限度額</div>
+                  <div class="field-value">
+                    <input type="number" class="form-control form-control-sm" th:field="*{creditLimit}">
+                    <span>円</span>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">与信ランク</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{creditRank}">
+                      <option value="">（選択）</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">支払条件</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{paymentTerm}">
+                      <option value="">（選択）</option>
+                      <option value="eom30">月末締め翌月末払い</option>
+                      <option value="eom60">月末締め翌々月末払い</option>
+                      <option value="cash">現金</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">支払方法</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{paymentMethod}">
+                      <option value="">（選択）</option>
+                      <option value="bank">銀行振込</option>
+                      <option value="check">手形</option>
+                      <option value="cash">現金</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">締め日</div>
+                  <div class="field-value">
+                    <input type="number" class="form-control form-control-sm" th:field="*{closingDay}">
+                    <span>日</span>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">通貨</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{currency}">
+                      <option value="JPY">日本円 (JPY)</option>
+                      <option value="USD">米ドル (USD)</option>
+                      <option value="EUR">ユーロ (EUR)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label required">担当営業</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{salesRep}">
+                      <option value="">（選択）</option>
+                      <option value="u01">山田 太郎</option>
+                      <option value="u02">鈴木 花子</option>
+                      <option value="u03">佐藤 一郎</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">サブ担当</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{salesSub}">
+                      <option value="">（なし）</option>
+                      <option value="u01">山田 太郎</option>
+                      <option value="u02">鈴木 花子</option>
+                      <option value="u03">佐藤 一郎</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-2">
+                <div class="form-field">
+                  <div class="field-label">紹介元</div>
+                  <div class="field-value">
+                    <input type="text" class="form-control form-control-sm" th:field="*{referrer}" maxlength="100">
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="field-label">取引チャネル</div>
+                  <div class="field-value">
+                    <select class="form-select form-select-sm" th:field="*{channel}">
+                      <option value="">（選択）</option>
+                      <option value="direct">直販</option>
+                      <option value="agent">代理店</option>
+                      <option value="web">Web</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- ========== 備考 ========== -->
+          <section class="form-section">
+            <div class="form-section-title">備考</div>
+            <div class="form-section-body">
+              <div class="form-row col-1">
+                <div class="form-field full-width">
+                  <div class="field-label">備考</div>
+                  <div class="field-value">
+                    <textarea class="form-control form-control-sm" th:field="*{remarks}" rows="4"></textarea>
+                  </div>
+                </div>
+              </div>
+              <div class="form-row col-1">
+                <div class="form-field full-width">
+                  <div class="field-label">社内メモ</div>
+                  <div class="field-value">
+                    <textarea class="form-control form-control-sm" th:field="*{internalMemo}" rows="3"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ========== ファイル添付 ========== -->
+          <section class="form-section">
+            <div class="form-section-title">ファイル添付</div>
+            <div class="form-section-body">
+
+              <div class="form-row col-1">
+                <div class="form-field full-width">
+                  <div class="field-label">契約書</div>
+                  <div class="field-value">
+                    <div class="file-upload">
+                      <label class="drop-zone">
+                        <i class="bi bi-cloud-upload"></i>
+                        契約書ファイルをドラッグ&ドロップ または クリックして選択
+                        <input type="file" th:field="*{contractFiles}" multiple hidden>
+                      </label>
+                      <ul class="file-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-1">
+                <div class="form-field full-width">
+                  <div class="field-label">見積書</div>
+                  <div class="field-value">
+                    <div class="file-upload">
+                      <label class="drop-zone">
+                        <i class="bi bi-cloud-upload"></i>
+                        見積書ファイルをドラッグ&ドロップ または クリックして選択
+                        <input type="file" th:field="*{quoteFiles}" multiple hidden>
+                      </label>
+                      <ul class="file-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row col-1">
+                <div class="form-field full-width">
+                  <div class="field-label">その他</div>
+                  <div class="field-value">
+                    <div class="file-upload">
+                      <label class="drop-zone">
+                        <i class="bi bi-cloud-upload"></i>
+                        その他ファイルをドラッグ&ドロップ または クリックして選択
+                        <input type="file" th:field="*{otherFiles}" multiple hidden>
+                      </label>
+                      <ul class="file-list"></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- フォームフッター（画面下部固定） -->
+          <div class="form-footer">
+            <button type="button" class="btn btn-outline-danger">
+              <i class="bi bi-trash"></i> 削除
+            </button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left"></i> 戻る
+            </button>
+            <button type="reset" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-counterclockwise"></i> リセット
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg"></i> 登録
+            </button>
+          </div>
+        </form>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // ファイルアップロードのD&D処理
+    document.querySelectorAll(".file-upload").forEach((wrap) => {
+      const zone = wrap.querySelector(".drop-zone");
+      const input = wrap.querySelector('input[type="file"]');
+      const list = wrap.querySelector(".file-list");
+      const render = (files) => {
+        list.innerHTML = "";
+        Array.from(files).forEach((f) => {
+          const li = document.createElement("li");
+          li.innerHTML = '<i class="bi bi-file-earmark"></i> ' + f.name + " (" + Math.round(f.size / 1024) + " KB)";
+          list.appendChild(li);
+        });
+      };
+      zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("dragover");
+        input.files = e.dataTransfer.files;
+        render(input.files);
+      });
+      input.addEventListener("change", () => render(input.files));
+    });
+  </script>
+</body>
+</html>

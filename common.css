@@ -1,0 +1,425 @@
+@charset "UTF-8";
+/* ==========================================================================
+   common.css — 業務システム向け共通スタイル（Flexboxベース）
+   - Bootstrap 5 と共存可能（独自セマンティッククラスのみ）
+   - PC業務画面専用（スマホ/IE対応なし）
+   - React対応: class→className 変換のみで動作
+   ========================================================================== */
+
+:root {
+  --app-label-width: 130px;
+  --app-label-bg: #f1f3f5;
+  --app-label-color: #212529;
+  --app-border: #dee2e6;
+  --app-border-strong: #adb5bd;
+  --app-section-bg: #ffffff;
+  --app-section-title-bg: #e9ecef;
+  --app-required: #dc3545;
+  --app-row-gap: 0;
+  --app-field-min-height: 38px;
+  --app-footer-height: 64px;
+  --app-sidebar-width: 220px;
+  --app-header-height: 56px;
+}
+
+body {
+  font-family: "Yu Gothic UI", "Meiryo", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  color: #212529;
+  background-color: #f8f9fa;
+}
+
+/* ==========================================================================
+   レイアウト: サイドバー + ヘッダー + メイン
+   ========================================================================== */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.app-header {
+  height: var(--app-header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background-color: #212529;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.app-header .app-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.app-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.app-sidebar {
+  width: var(--app-sidebar-width);
+  background-color: #343a40;
+  color: #dee2e6;
+  flex-shrink: 0;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+.app-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.app-sidebar a {
+  display: block;
+  padding: 8px 16px;
+  color: #dee2e6;
+  text-decoration: none;
+}
+.app-sidebar a:hover,
+.app-sidebar a.active {
+  background-color: #495057;
+  color: #ffffff;
+}
+.app-main {
+  flex: 1 1 auto;
+  padding: 16px 20px calc(var(--app-footer-height) + 24px) 20px;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   ページヘッダー（タイトル + パンくず）
+   ========================================================================== */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--app-border-strong);
+}
+.page-header .page-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+.page-header .breadcrumb-area {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+/* ==========================================================================
+   フォームセクション
+   ========================================================================== */
+.form-section {
+  background-color: var(--app-section-bg);
+  border: 1px solid var(--app-border);
+  margin-bottom: 16px;
+}
+.form-section > .form-section-title {
+  background-color: var(--app-section-title-bg);
+  border-bottom: 1px solid var(--app-border);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #343a40;
+}
+.form-section > .form-section-body {
+  padding: 0;
+}
+
+/* ==========================================================================
+   フォーム行 / フィールド（Flexbox）
+   ========================================================================== */
+.form-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  border-bottom: 1px solid var(--app-border);
+  gap: 0;
+}
+.form-row:last-child {
+  border-bottom: none;
+}
+
+.form-field {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 0;
+  min-width: 0;
+  border-right: 1px solid var(--app-border);
+  min-height: var(--app-field-min-height);
+}
+.form-field:last-child {
+  border-right: none;
+}
+
+.field-label {
+  flex: 0 0 var(--app-label-width);
+  width: var(--app-label-width);
+  background-color: var(--app-label-bg);
+  color: var(--app-label-color);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-weight: 600;
+  border-right: 1px solid var(--app-border);
+  gap: 4px;
+}
+.field-value {
+  flex: 1 1 auto;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.field-value > .form-control,
+.field-value > .form-select,
+.field-value > input,
+.field-value > select,
+.field-value > textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+.field-value > .radio-group,
+.field-value > .check-group,
+.field-value > .file-upload {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.field-value > input[type="number"] {
+  text-align: right;
+}
+.field-value.align-right > input,
+.field-value.align-right {
+  text-align: right;
+}
+
+/* 必須マーク */
+.required::before {
+  content: "*";
+  color: var(--app-required);
+  font-weight: 700;
+  margin-right: 2px;
+}
+
+/* ==========================================================================
+   行内カラム数指定（1行内の form-field 数）
+   各フィールドがラベル + 値で完結するので、単純な flex:1 1 0 で均等割り
+   ========================================================================== */
+.col-1 > .form-field { flex: 1 1 0; }
+.col-2 > .form-field { flex: 1 1 0; }
+.col-3 > .form-field { flex: 1 1 0; }
+.col-4 > .form-field { flex: 1 1 0; }
+
+/* 1行全幅フィールド: 値部分が行全体に広がる */
+.form-field.full-width {
+  flex: 1 1 100%;
+}
+.form-field.full-width .field-value {
+  flex: 1 1 auto;
+}
+.form-field.full-width .field-value textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* ==========================================================================
+   フォームフッター（画面下部固定）
+   ========================================================================== */
+.form-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--app-footer-height);
+  background-color: #ffffff;
+  border-top: 1px solid var(--app-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 20px;
+  z-index: 1030;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.06);
+}
+.form-footer .spacer {
+  flex: 1 1 auto;
+}
+
+/* サイドバーがある場合、フッターをメイン領域に合わせる */
+.app-body ~ .form-footer,
+.app-shell .form-footer {
+  left: var(--app-sidebar-width);
+}
+
+/* ==========================================================================
+   検索条件エリア
+   ========================================================================== */
+.search-area {
+  background-color: #ffffff;
+  border: 1px solid var(--app-border);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.search-area .search-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.search-area .search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.search-area .search-field > label {
+  font-weight: 600;
+  white-space: nowrap;
+  margin: 0;
+}
+.search-area .search-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--app-border);
+}
+
+/* ==========================================================================
+   データテーブル
+   ========================================================================== */
+.data-table-wrap {
+  background-color: #ffffff;
+  border: 1px solid var(--app-border);
+}
+.data-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+.data-table-toolbar .spacer { flex: 1 1 auto; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table thead th {
+  background-color: var(--app-section-title-bg);
+  border-bottom: 2px solid var(--app-border-strong);
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 700;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+.data-table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.data-table thead th.sortable::after {
+  content: " \2195";
+  color: #adb5bd;
+  font-size: 11px;
+}
+.data-table thead th.sort-asc::after { content: " \2191"; color: #212529; }
+.data-table thead th.sort-desc::after { content: " \2193"; color: #212529; }
+.data-table tbody td {
+  border-bottom: 1px solid var(--app-border);
+  padding: 6px 10px;
+  vertical-align: middle;
+}
+.data-table tbody tr:hover {
+  background-color: #f1f3f5;
+}
+.data-table tbody td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ページング */
+.paging-area {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--app-border);
+  gap: 12px;
+}
+.paging-area .paging-count { color: #6c757d; }
+.paging-area .spacer { flex: 1 1 auto; }
+
+/* ==========================================================================
+   ステータスバッジ
+   ========================================================================== */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #ffffff;
+}
+.status-badge.status-active   { background-color: #198754; }
+.status-badge.status-inactive { background-color: #6c757d; }
+.status-badge.status-pending  { background-color: #ffc107; color: #212529; }
+.status-badge.status-error    { background-color: #dc3545; }
+
+/* ==========================================================================
+   ファイルアップロード（D&D）
+   ========================================================================== */
+.file-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.file-upload .drop-zone {
+  border: 2px dashed var(--app-border-strong);
+  background-color: #f8f9fa;
+  padding: 16px;
+  text-align: center;
+  color: #6c757d;
+  cursor: pointer;
+}
+.file-upload .drop-zone.dragover {
+  background-color: #e7f1ff;
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+.file-upload .file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  color: #495057;
+}
+.file-upload .file-list li {
+  padding: 2px 0;
+}
+
+/* ==========================================================================
+   ラジオ / チェックボックス group
+   ========================================================================== */
+.radio-group,
+.check-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.radio-group label,
+.check-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  cursor: pointer;
+}
