@@ -137,17 +137,9 @@ body {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  border-bottom: 1px solid var(--app-border);
+  border: 1px solid var(--app-border);
+  margin-bottom: -1px;
   gap: 0;
-}
-.form-row:first-child {
-  border-top: 1px solid var(--app-border);
-}
-.form-section .form-row:first-child {
-  border-top: none;
-}
-.form-section .form-row:last-child {
-  border-bottom: none;
 }
 
 .form-field {
