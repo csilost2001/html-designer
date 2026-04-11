@@ -27,7 +27,7 @@ const field = (
   </div>`.trim();
 
 const row = (cols: 1 | 2 | 3 | 4, inner: string) =>
-  `<div class="form-row col-${cols}">${inner}</div>`;
+  `<div class="form-row fcol-${cols}">${inner}</div>`;
 
 const textInput = (ph = "") =>
   `<input type="text" class="form-control form-control-sm" placeholder="${ph}">`;
