@@ -92,6 +92,88 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case "designer__list_blocks": {
+        const result = (await wsBridge.sendCommand("listBlocks")) as {
+          blocks: Array<{ id: string; label: string; category: string }>;
+        };
+        const lines = result.blocks.map(
+          (b) => `- [${b.category}] ${b.id} — ${b.label}`
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `利用可能ブロック (${result.blocks.length}件):\n${lines.join("\n")}`,
+            },
+          ],
+        };
+      }
+
+      case "designer__add_block": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.blockId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "blockId は必須です");
+        }
+        const result = (await wsBridge.sendCommand("addBlock", {
+          blockId: a.blockId,
+          targetId: typeof a.targetId === "string" ? a.targetId : undefined,
+          position: typeof a.position === "string" ? a.position : undefined,
+        })) as { addedId: string };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `ブロック ${a.blockId} を追加しました（新要素ID: ${result.addedId}）`,
+            },
+          ],
+        };
+      }
+
+      case "designer__remove_element": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.id !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "id は必須です");
+        }
+        await wsBridge.sendCommand("removeElement", { id: a.id });
+        return {
+          content: [
+            { type: "text", text: `要素 ${a.id} を削除しました。` },
+          ],
+        };
+      }
+
+      case "designer__update_element": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.id !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "id は必須です");
+        }
+        await wsBridge.sendCommand("updateElement", {
+          id: a.id,
+          attributes: a.attributes,
+          style: a.style,
+          text: a.text,
+          classes: a.classes,
+        });
+        return {
+          content: [
+            { type: "text", text: `要素 ${a.id} を更新しました。` },
+          ],
+        };
+      }
+
+      case "designer__set_theme": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.theme !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "theme は必須です");
+        }
+        await wsBridge.sendCommand("setTheme", { theme: a.theme });
+        return {
+          content: [
+            { type: "text", text: `テーマを ${a.theme} に切り替えました。` },
+          ],
+        };
+      }
+
       default:
         throw new McpError(ErrorCode.MethodNotFound, `未知のツール: ${name}`);
     }

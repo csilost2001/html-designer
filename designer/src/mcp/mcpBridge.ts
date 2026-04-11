@@ -1,9 +1,11 @@
-import type { Editor as GEditor } from "grapesjs";
+import type { Editor as GEditor, Component, Block } from "grapesjs";
 import html2canvas from "html2canvas";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
+export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
 
 type StatusCallback = (s: McpStatus) => void;
+type ThemeHandler = (theme: ThemeIdLike) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 
@@ -22,8 +24,13 @@ class McpBridgeImpl {
   private editor: GEditor | null = null;
   private status: McpStatus = "disconnected";
   private statusCallbacks: Set<StatusCallback> = new Set();
+  private themeHandler: ThemeHandler | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+
+  setThemeHandler(handler: ThemeHandler | null): void {
+    this.themeHandler = handler;
+  }
 
   onStatusChange(cb: StatusCallback): () => void {
     this.statusCallbacks.add(cb);
@@ -168,10 +175,184 @@ class McpBridgeImpl {
         break;
       }
 
+      case "listBlocks": {
+        try {
+          const all = editor.Blocks.getAll();
+          const blocks = all.map((b: Block) => ({
+            id: b.getId(),
+            label: stripHtml(String(b.get("label") ?? "")),
+            category: categoryLabel(b.get("category")),
+          }));
+          respond({ blocks });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "addBlock": {
+        try {
+          const { blockId, targetId, position } = (params ?? {}) as {
+            blockId: string;
+            targetId?: string;
+            position?: "before" | "after" | "inside" | "append";
+          };
+          const block = editor.Blocks.get(blockId);
+          if (!block) {
+            respondError(`ブロックが見つかりません: ${blockId}`);
+            break;
+          }
+          const content = block.get("content");
+          const wrapper = editor.DomComponents.getWrapper();
+          if (!wrapper) {
+            respondError("キャンバスが初期化されていません");
+            break;
+          }
+
+          let parent: Component = wrapper;
+          let at: number | undefined = undefined;
+
+          if (targetId) {
+            const target = findComponentById(wrapper, targetId);
+            if (!target) {
+              respondError(`対象要素が見つかりません: ${targetId}`);
+              break;
+            }
+            const pos = position ?? "after";
+            if (pos === "inside" || pos === "append") {
+              parent = target;
+              at = undefined;
+            } else {
+              const tParent = target.parent();
+              if (!tParent) {
+                respondError("対象要素の親が見つかりません");
+                break;
+              }
+              parent = tParent;
+              const siblings = tParent.components();
+              const idx = siblings.indexOf(target);
+              at = pos === "before" ? idx : idx + 1;
+            }
+          }
+
+          const added = parent.append(content as never, { at }) as unknown as Component[];
+          const first = Array.isArray(added) ? added[0] : (added as unknown as Component);
+          const addedId = first && typeof (first as Component).getId === "function"
+            ? (first as Component).getId()
+            : "";
+          respond({ addedId });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "removeElement": {
+        try {
+          const { id } = (params ?? {}) as { id: string };
+          const wrapper = editor.DomComponents.getWrapper();
+          if (!wrapper) {
+            respondError("キャンバスが初期化されていません");
+            break;
+          }
+          const target = findComponentById(wrapper, id);
+          if (!target) {
+            respondError(`要素が見つかりません: ${id}`);
+            break;
+          }
+          target.remove();
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "updateElement": {
+        try {
+          const { id, attributes, style, text, classes } = (params ?? {}) as {
+            id: string;
+            attributes?: Record<string, string>;
+            style?: Record<string, string>;
+            text?: string;
+            classes?: string[];
+          };
+          const wrapper = editor.DomComponents.getWrapper();
+          if (!wrapper) {
+            respondError("キャンバスが初期化されていません");
+            break;
+          }
+          const target = findComponentById(wrapper, id);
+          if (!target) {
+            respondError(`要素が見つかりません: ${id}`);
+            break;
+          }
+          if (attributes && typeof attributes === "object") {
+            target.addAttributes(attributes);
+          }
+          if (style && typeof style === "object") {
+            target.addStyle(style);
+          }
+          if (Array.isArray(classes)) {
+            target.setClass(classes);
+          }
+          if (typeof text === "string") {
+            target.components(text);
+          }
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "setTheme": {
+        try {
+          const { theme } = (params ?? {}) as { theme: ThemeIdLike };
+          if (!["standard", "card", "compact", "dark"].includes(theme)) {
+            respondError(`不正なテーマID: ${theme}`);
+            break;
+          }
+          if (!this.themeHandler) {
+            respondError("テーマハンドラが登録されていません");
+            break;
+          }
+          this.themeHandler(theme);
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
       default:
         respondError(`未知のメソッド: ${method}`);
     }
   }
+}
+
+function findComponentById(root: Component, id: string): Component | null {
+  if (root.getId() === id) return root;
+  const children = root.components();
+  for (let i = 0; i < children.length; i++) {
+    const found = findComponentById(children.at(i) as Component, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]*>/g, "").trim();
+}
+
+function categoryLabel(cat: unknown): string {
+  if (!cat) return "";
+  if (typeof cat === "string") return cat;
+  if (typeof cat === "object" && cat !== null) {
+    const obj = cat as { id?: string; label?: string };
+    return obj.label ?? obj.id ?? "";
+  }
+  return String(cat);
 }
 
 async function captureScreenshot(editor: GEditor): Promise<string> {

@@ -117,6 +117,11 @@ export function Designer() {
     }
   }, []);
 
+  const handleThemeChangeRef = useRef(handleThemeChange);
+  useEffect(() => {
+    handleThemeChangeRef.current = handleThemeChange;
+  }, [handleThemeChange]);
+
   // ドラッグ中フラグ（auto-hide でドラッグ中にパネルを閉じないため）
   const onEditor = useCallback((editor: GEditor) => {
     editorRef.current = editor;
@@ -132,10 +137,14 @@ export function Designer() {
 
     // MCPブリッジ起動
     const unsubscribe = mcpBridge.onStatusChange(setMcpStatus);
+    mcpBridge.setThemeHandler((themeId) =>
+      handleThemeChangeRef.current(themeId as ThemeId)
+    );
     mcpBridge.start(editor);
 
     return () => {
       unsubscribe();
+      mcpBridge.setThemeHandler(null);
       mcpBridge.stop();
     };
   }, []);
