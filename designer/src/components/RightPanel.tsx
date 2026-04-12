@@ -50,27 +50,25 @@ export function RightPanel({
       </div>
 
       <div className="right-content">
-        {tab === "styles" && (
-          <>
-            <SelectorsProvider>
-              {({ Container }) => (
-                <div className="panel-block">
-                  <div className="panel-block-title">セレクタ</div>
-                  <Container />
-                </div>
-              )}
-            </SelectorsProvider>
-            <StylesProvider>
-              {({ Container }) => (
-                <div className="panel-block">
-                  <div className="panel-block-title">スタイル</div>
-                  <Container />
-                </div>
-              )}
-            </StylesProvider>
-          </>
-        )}
-        {tab === "traits" && (
+        <div hidden={tab !== "styles"}>
+          <SelectorsProvider>
+            {({ Container }) => (
+              <div className="panel-block">
+                <div className="panel-block-title">セレクタ</div>
+                <Container />
+              </div>
+            )}
+          </SelectorsProvider>
+          <StylesProvider>
+            {({ Container }) => (
+              <div className="panel-block">
+                <div className="panel-block-title">スタイル</div>
+                <Container />
+              </div>
+            )}
+          </StylesProvider>
+        </div>
+        <div hidden={tab !== "traits"}>
           <TraitsProvider>
             {({ Container }) => (
               <div className="panel-block">
@@ -79,8 +77,8 @@ export function RightPanel({
               </div>
             )}
           </TraitsProvider>
-        )}
-        {tab === "layers" && (
+        </div>
+        <div hidden={tab !== "layers"}>
           <LayersProvider>
             {({ Container }) => (
               <div className="panel-block">
@@ -89,7 +87,7 @@ export function RightPanel({
               </div>
             )}
           </LayersProvider>
-        )}
+        </div>
       </div>
     </div>
   );
