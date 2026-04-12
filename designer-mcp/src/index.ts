@@ -174,6 +174,168 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // ── フロー図操作 ──
+
+      case "designer__list_screens": {
+        const result = (await wsBridge.sendCommand("listScreens")) as {
+          screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
+        };
+        const lines = result.screens.map(
+          (s) => `- ${s.id}  ${s.name} (${s.type})${s.path ? ` [${s.path}]` : ""}${s.hasDesign ? " ✓デザイン済み" : ""}`
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: lines.length > 0
+                ? `画面一覧 (${result.screens.length}件):\n${lines.join("\n")}`
+                : "画面はまだ登録されていません。",
+            },
+          ],
+        };
+      }
+
+      case "designer__add_screen": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.name !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "name は必須です");
+        }
+        const result = (await wsBridge.sendCommand("addScreen", {
+          name: a.name,
+          type: typeof a.type === "string" ? a.type : undefined,
+          path: typeof a.path === "string" ? a.path : undefined,
+          position: a.position,
+        })) as { screenId: string };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `画面「${a.name}」を追加しました（ID: ${result.screenId}）`,
+            },
+          ],
+        };
+      }
+
+      case "designer__update_screen": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.screenId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
+        }
+        await wsBridge.sendCommand("updateScreenMeta", {
+          screenId: a.screenId,
+          name: a.name,
+          type: a.type,
+          description: a.description,
+          path: a.path,
+        });
+        return {
+          content: [
+            { type: "text", text: `画面 ${a.screenId} を更新しました。` },
+          ],
+        };
+      }
+
+      case "designer__remove_screen": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.screenId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
+        }
+        await wsBridge.sendCommand("removeScreenNode", { screenId: a.screenId });
+        return {
+          content: [
+            { type: "text", text: `画面 ${a.screenId} を削除しました。` },
+          ],
+        };
+      }
+
+      case "designer__add_edge": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.source !== "string" || typeof a.target !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "source と target は必須です");
+        }
+        const result = (await wsBridge.sendCommand("addFlowEdge", {
+          source: a.source,
+          target: a.target,
+          label: typeof a.label === "string" ? a.label : "",
+          trigger: typeof a.trigger === "string" ? a.trigger : undefined,
+        })) as { edgeId: string };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `遷移エッジを追加しました（ID: ${result.edgeId}）`,
+            },
+          ],
+        };
+      }
+
+      case "designer__remove_edge": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.edgeId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "edgeId は必須です");
+        }
+        await wsBridge.sendCommand("removeFlowEdge", { edgeId: a.edgeId });
+        return {
+          content: [
+            { type: "text", text: `エッジ ${a.edgeId} を削除しました。` },
+          ],
+        };
+      }
+
+      case "designer__get_flow": {
+        const result = (await wsBridge.sendCommand("getFlow")) as {
+          project: {
+            name: string;
+            screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
+            edges: Array<{ id: string; source: string; target: string; label: string; trigger: string }>;
+          };
+          mermaid: string;
+        };
+        const p = result.project;
+        const screenLines = p.screens.map(
+          (s) => `  - ${s.id}  ${s.name} (${s.type})${s.path ? ` [${s.path}]` : ""}`
+        );
+        const edgeLines = p.edges.map((e) => {
+          const src = p.screens.find((s) => s.id === e.source)?.name ?? e.source;
+          const tgt = p.screens.find((s) => s.id === e.target)?.name ?? e.target;
+          return `  - ${e.id}  ${src} → ${tgt}${e.label ? ` "${e.label}"` : ""} (${e.trigger})`;
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: [
+                `# プロジェクト: ${p.name}`,
+                `\n## 画面 (${p.screens.length}件)`,
+                ...screenLines,
+                `\n## 遷移 (${p.edges.length}件)`,
+                ...edgeLines,
+                `\n## Mermaid`,
+                "```mermaid",
+                result.mermaid,
+                "```",
+              ].join("\n"),
+            },
+          ],
+        };
+      }
+
+      case "designer__navigate_screen": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.screenId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
+        }
+        await wsBridge.sendCommand("navigateScreen", { screenId: a.screenId });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `画面 ${a.screenId} のデザイナーへ遷移しました。`,
+            },
+          ],
+        };
+      }
+
       default:
         throw new McpError(ErrorCode.MethodNotFound, `未知のツール: ${name}`);
     }

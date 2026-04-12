@@ -1,11 +1,24 @@
 import type { Editor as GEditor, Component, Block } from "grapesjs";
 import html2canvas from "html2canvas";
+import type { ScreenType, TransitionTrigger } from "../types/flow";
+import {
+  loadProject,
+  saveProject,
+  addScreen,
+  updateScreen,
+  removeScreen,
+  addEdge,
+  removeEdge,
+  generateMermaid,
+} from "../store/flowStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
 
 type StatusCallback = (s: McpStatus) => void;
 type ThemeHandler = (theme: ThemeIdLike) => void;
+type NavigateHandler = (path: string) => void;
+type FlowChangeHandler = () => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 
@@ -25,11 +38,21 @@ class McpBridgeImpl {
   private status: McpStatus = "disconnected";
   private statusCallbacks: Set<StatusCallback> = new Set();
   private themeHandler: ThemeHandler | null = null;
+  private navigateHandler: NavigateHandler | null = null;
+  private flowChangeHandler: FlowChangeHandler | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
 
   setThemeHandler(handler: ThemeHandler | null): void {
     this.themeHandler = handler;
+  }
+
+  setNavigateHandler(handler: NavigateHandler | null): void {
+    this.navigateHandler = handler;
+  }
+
+  setFlowChangeHandler(handler: FlowChangeHandler | null): void {
+    this.flowChangeHandler = handler;
   }
 
   onStatusChange(cb: StatusCallback): () => void {
@@ -46,6 +69,15 @@ class McpBridgeImpl {
     this.editor = editor;
     this.stopped = false;
     console.log("[mcpBridge] starting...");
+    this._connect();
+  }
+
+  /** フロー画面用: エディターなしでWebSocket接続のみ起動 */
+  startWithoutEditor(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+    if (this.status === "connecting") return;
+    this.stopped = false;
+    console.log("[mcpBridge] starting without editor (flow mode)...");
     this._connect();
   }
 
@@ -138,12 +170,18 @@ class McpBridgeImpl {
       }
     };
 
-    if (!this.editor) {
+    // フロー操作はエディター不要なので先にチェック
+    const flowMethods = [
+      "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
+      "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
+    ];
+
+    if (!this.editor && !flowMethods.includes(method)) {
       respondError("エディターが初期化されていません");
       return;
     }
 
-    const editor = this.editor;
+    const editor = this.editor!;
 
     switch (method) {
       case "getHtml": {
@@ -329,6 +367,168 @@ class McpBridgeImpl {
           }
           this.themeHandler(theme);
           respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      // ── フロー操作（エディター不要） ──
+
+      case "listScreens": {
+        try {
+          const project = loadProject();
+          const screens = project.screens.map((s) => ({
+            id: s.id,
+            name: s.name,
+            type: s.type,
+            path: s.path,
+            hasDesign: s.hasDesign,
+          }));
+          respond({ screens });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "addScreen": {
+        try {
+          const { name, type, path, position } = (params ?? {}) as {
+            name: string;
+            type?: ScreenType;
+            path?: string;
+            position?: { x: number; y: number };
+          };
+          if (!name) {
+            respondError("name は必須です");
+            break;
+          }
+          const project = loadProject();
+          const screen = addScreen(project, name, type ?? "other", path, position);
+          this.flowChangeHandler?.();
+          respond({ screenId: screen.id });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "updateScreenMeta": {
+        try {
+          const { screenId, ...patch } = (params ?? {}) as {
+            screenId: string;
+            name?: string;
+            type?: ScreenType;
+            description?: string;
+            path?: string;
+          };
+          if (!screenId) {
+            respondError("screenId は必須です");
+            break;
+          }
+          const project = loadProject();
+          const updated = updateScreen(project, screenId, patch);
+          if (!updated) {
+            respondError(`画面が見つかりません: ${screenId}`);
+            break;
+          }
+          this.flowChangeHandler?.();
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "removeScreenNode": {
+        try {
+          const { screenId } = (params ?? {}) as { screenId: string };
+          if (!screenId) {
+            respondError("screenId は必須です");
+            break;
+          }
+          const project = loadProject();
+          const ok = removeScreen(project, screenId);
+          if (!ok) {
+            respondError(`画面が見つかりません: ${screenId}`);
+            break;
+          }
+          this.flowChangeHandler?.();
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "addFlowEdge": {
+        try {
+          const { source, target, label, trigger } = (params ?? {}) as {
+            source: string;
+            target: string;
+            label: string;
+            trigger?: TransitionTrigger;
+          };
+          if (!source || !target) {
+            respondError("source と target は必須です");
+            break;
+          }
+          const project = loadProject();
+          const edge = addEdge(project, source, target, label ?? "", trigger ?? "click");
+          this.flowChangeHandler?.();
+          respond({ edgeId: edge.id });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "removeFlowEdge": {
+        try {
+          const { edgeId } = (params ?? {}) as { edgeId: string };
+          if (!edgeId) {
+            respondError("edgeId は必須です");
+            break;
+          }
+          const project = loadProject();
+          const ok = removeEdge(project, edgeId);
+          if (!ok) {
+            respondError(`エッジが見つかりません: ${edgeId}`);
+            break;
+          }
+          this.flowChangeHandler?.();
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "getFlow": {
+        try {
+          const project = loadProject();
+          const mermaid = generateMermaid(project);
+          respond({ project, mermaid });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "navigateScreen": {
+        try {
+          const { screenId } = (params ?? {}) as { screenId: string };
+          if (!screenId) {
+            respondError("screenId は必須です");
+            break;
+          }
+          if (this.navigateHandler) {
+            this.navigateHandler(`/design/${screenId}`);
+            respond({ success: true });
+          } else {
+            respondError("ナビゲーションハンドラが登録されていません");
+          }
         } catch (e) {
           respondError(String(e));
         }

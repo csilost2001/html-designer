@@ -135,4 +135,155 @@ export const tools = [
       required: ["theme"],
     },
   },
+
+  // ── フロー図操作ツール ──
+
+  {
+    name: "designer__list_screens",
+    description:
+      "フロー図に登録されている全画面の一覧を取得します。各画面のID・名前・種別・想定URL・デザイン有無を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__add_screen",
+    description:
+      "フロー図に新しい画面ノードを追加します。追加後、ブラウザのフロー図に即時反映されます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "画面名（例: 顧客一覧）",
+        },
+        type: {
+          type: "string",
+          enum: ["login","dashboard","list","detail","form","search","confirm","complete","error","modal","other"],
+          description: "画面種別。省略時は other",
+        },
+        path: {
+          type: "string",
+          description: "想定URL（例: /customers）。省略可。",
+        },
+        position: {
+          type: "object",
+          properties: {
+            x: { type: "number" },
+            y: { type: "number" },
+          },
+          description: "フロー図上の配置座標。省略時は自動配置。",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "designer__update_screen",
+    description:
+      "既存画面のメタ情報（名前・種別・説明・想定URL）を更新します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: {
+          type: "string",
+          description: "更新対象の画面ID（list_screens で取得）",
+        },
+        name: { type: "string", description: "新しい画面名" },
+        type: {
+          type: "string",
+          enum: ["login","dashboard","list","detail","form","search","confirm","complete","error","modal","other"],
+          description: "新しい画面種別",
+        },
+        description: { type: "string", description: "新しい説明" },
+        path: { type: "string", description: "新しい想定URL" },
+      },
+      required: ["screenId"],
+    },
+  },
+  {
+    name: "designer__remove_screen",
+    description:
+      "画面をフロー図から削除します。関連する遷移エッジとデザインデータも削除されます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: {
+          type: "string",
+          description: "削除する画面ID",
+        },
+      },
+      required: ["screenId"],
+    },
+  },
+  {
+    name: "designer__add_edge",
+    description:
+      "2つの画面間に遷移エッジを追加します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source: {
+          type: "string",
+          description: "遷移元の画面ID",
+        },
+        target: {
+          type: "string",
+          description: "遷移先の画面ID",
+        },
+        label: {
+          type: "string",
+          description: "遷移ラベル（例: 詳細ボタン）。省略可。",
+        },
+        trigger: {
+          type: "string",
+          enum: ["click","submit","select","cancel","auto","back","other"],
+          description: "遷移トリガー。省略時は click",
+        },
+      },
+      required: ["source", "target"],
+    },
+  },
+  {
+    name: "designer__remove_edge",
+    description:
+      "遷移エッジを削除します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        edgeId: {
+          type: "string",
+          description: "削除するエッジID（get_flow で取得）",
+        },
+      },
+      required: ["edgeId"],
+    },
+  },
+  {
+    name: "designer__get_flow",
+    description:
+      "フロー図全体のデータ（全画面・全遷移エッジ）をJSON形式で取得します。プロジェクトの全体像を把握する際に使います。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__navigate_screen",
+    description:
+      "ブラウザを指定画面のデザイナーへ遷移させます。画面のデザインを編集する前に呼びます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: {
+          type: "string",
+          description: "遷移先の画面ID",
+        },
+      },
+      required: ["screenId"],
+    },
+  },
 ];

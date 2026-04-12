@@ -10,6 +10,11 @@ const THEMES: { id: ThemeId; label: string; icon: string; color: string }[] = [
   { id: "dark",     label: "ダーク",   icon: "bi-moon-stars",   color: "#0f172a" },
 ];
 
+interface BackLink {
+  label: string;
+  onClick: () => void;
+}
+
 interface Props {
   ready: boolean;
   panelMode: PanelMode;
@@ -17,9 +22,10 @@ interface Props {
   activeTheme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
   mcpStatus: McpStatus;
+  backLink?: BackLink;
 }
 
-export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus }: Props) {
+export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
@@ -96,8 +102,24 @@ ${html}
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <i className="bi bi-palette2 topbar-logo" />
-        <span className="topbar-title">業務システム デザイナー</span>
+        {backLink ? (
+          <>
+            <button
+              className="icon-btn"
+              onClick={backLink.onClick}
+              title="フロー図に戻る"
+              style={{ marginRight: 6 }}
+            >
+              <i className="bi bi-arrow-left" />
+            </button>
+            <span className="topbar-title">{backLink.label}</span>
+          </>
+        ) : (
+          <>
+            <i className="bi bi-palette2 topbar-logo" />
+            <span className="topbar-title">業務シス���ム デ��イナー</span>
+          </>
+        )}
         {panelMode === "hidden" && (
           <button
             className="icon-btn"

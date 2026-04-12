@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@grapesjs/react": "^2.0.0",
+    "@xyflow/react": "^12.10.2",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "grapesjs": "^0.22.15",
     "html2canvas": "^1.4.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

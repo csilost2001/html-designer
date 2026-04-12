@@ -18,7 +18,7 @@ import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 
-const STORAGE_KEY = "gjs-designer-project";
+const DEFAULT_STORAGE_KEY = "gjs-designer-project";
 const PANEL_MODE_KEY = "designer-panel-left-mode";
 const THEME_KEY = "designer-theme";
 
@@ -51,33 +51,42 @@ function applyThemeToCanvas(editor: GEditor, themeId: ThemeId) {
   }
 }
 
-const gjsOptions = {
-  height: "100%",
-  width: "auto",
-  storageManager: {
-    type: "local",
-    autosave: true,
-    autoload: true,
-    stepsBeforeSave: 1,
-    options: {
-      local: { key: STORAGE_KEY },
+function buildGjsOptions(storageKey: string) {
+  return {
+    height: "100%",
+    width: "auto",
+    storageManager: {
+      type: "local",
+      autosave: true,
+      autoload: true,
+      stepsBeforeSave: 1,
+      options: {
+        local: { key: storageKey },
+      },
     },
-  },
-  undoManager: { trackSelection: false },
-  canvas: {
-    styles: [
-      "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css",
-      "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css",
-      new URL("../styles/common.css", import.meta.url).href,
-    ],
-    scripts: [
-      "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js",
-    ],
-  },
-  blockManager: { blocks: [] },
-};
+    undoManager: { trackSelection: false },
+    canvas: {
+      styles: [
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css",
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css",
+        new URL("../styles/common.css", import.meta.url).href,
+      ],
+      scripts: [
+        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js",
+      ],
+    },
+    blockManager: { blocks: [] },
+  };
+}
 
-export function Designer() {
+export interface DesignerProps {
+  storageKey?: string;
+  screenName?: string;
+  onBack?: () => void;
+}
+
+export function Designer({ storageKey, screenName, onBack }: DesignerProps = {}) {
+  const gjsOptions = buildGjsOptions(storageKey ?? DEFAULT_STORAGE_KEY);
   const [ready, setReady] = useState(false);
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
@@ -189,6 +198,7 @@ export function Designer() {
             activeTheme={activeTheme}
             onThemeChange={handleThemeChange}
             mcpStatus={mcpStatus}
+            backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
           />
         </WithEditor>
 
