@@ -6,6 +6,7 @@ import {
   Background,
   MiniMap,
   addEdge as rfAddEdge,
+  reconnectEdge,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -22,7 +23,7 @@ import "@xyflow/react/dist/style.css";
 import ScreenNodeComponent from "./ScreenNode";
 import { FlowTopbar } from "./FlowTopbar";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
-import { EdgeEditModal, type EdgeFormData } from "./EdgeEditModal";
+import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
 import type { FlowProject, ScreenNode, ScreenEdge, TransitionTrigger } from "../../types/flow";
 import { TRIGGER_LABELS } from "../../types/flow";
 import {
@@ -61,6 +62,7 @@ function toRFEdges(edges: ScreenEdge[]): RFEdge[] {
     sourceHandle: e.sourceHandle,
     targetHandle: e.targetHandle,
     label: e.label || (TRIGGER_LABELS[e.trigger] ?? ""),
+    reconnectable: true,
     markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
     style: { strokeWidth: 2, stroke: "#94a3b8" },
     labelStyle: { fontSize: 11, fill: "#475569" },
@@ -236,7 +238,12 @@ function FlowEditorInner() {
       setEdgeModal({
         open: true,
         editId: edge.id,
-        initial: { label: storeEdge.label, trigger: storeEdge.trigger },
+        initial: {
+          label: storeEdge.label,
+          trigger: storeEdge.trigger,
+          sourceHandle: (storeEdge.sourceHandle ?? "bottom") as HandlePosition,
+          targetHandle: (storeEdge.targetHandle ?? "top") as HandlePosition,
+        },
       });
     }
   }, []);
@@ -282,12 +289,16 @@ function FlowEditorInner() {
     await storeUpdateEdge(projectRef.current, edgeModal.editId, {
       label: data.label,
       trigger: data.trigger,
+      sourceHandle: data.sourceHandle,
+      targetHandle: data.targetHandle,
     });
     setEdges((eds) => eds.map((e) => {
       if (e.id !== edgeModal.editId) return e;
       return {
         ...e,
         label: data.label || (TRIGGER_LABELS[data.trigger] ?? ""),
+        sourceHandle: data.sourceHandle,
+        targetHandle: data.targetHandle,
       };
     }));
     setEdgeModal({ open: false });
@@ -366,7 +377,12 @@ function FlowEditorInner() {
       setEdgeModal({
         open: true,
         editId: storeEdge.id,
-        initial: { label: storeEdge.label, trigger: storeEdge.trigger },
+        initial: {
+          label: storeEdge.label,
+          trigger: storeEdge.trigger,
+          sourceHandle: (storeEdge.sourceHandle ?? "bottom") as HandlePosition,
+          targetHandle: (storeEdge.targetHandle ?? "top") as HandlePosition,
+        },
       });
     }
     setContextMenu(null);
@@ -378,6 +394,16 @@ function FlowEditorInner() {
     setEdges((eds) => eds.filter((e) => e.id !== contextMenu.targetId));
     setContextMenu(null);
   }, [contextMenu, setEdges]);
+
+  // ドラッグによるエッジ端点の付け替え
+  const onReconnect = useCallback((oldEdge: RFEdge, newConnection: Connection) => {
+    setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds));
+    if (!projectRef.current) return;
+    storeUpdateEdge(projectRef.current, oldEdge.id, {
+      sourceHandle: (newConnection.sourceHandle ?? oldEdge.sourceHandle ?? "bottom") as HandlePosition,
+      targetHandle: (newConnection.targetHandle ?? oldEdge.targetHandle ?? "top") as HandlePosition,
+    }).catch(console.error);
+  }, [setEdges]);
 
   const onEdgesDelete = useCallback((deletedEdges: RFEdge[]) => {
     if (!projectRef.current) return;
@@ -506,6 +532,7 @@ function FlowEditorInner() {
             onNodeContextMenu={onNodeContextMenu}
             onEdgeClick={onEdgeClick}
             onEdgeContextMenu={onEdgeContextMenu}
+            onReconnect={onReconnect}
             onEdgesDelete={onEdgesDelete}
             onNodesDelete={onNodesDelete}
             onViewportChange={(vp) => setZoomLevel(vp.zoom)}

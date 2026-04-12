@@ -216,7 +216,7 @@ export async function addEdge(
 export async function updateEdge(
   project: FlowProject,
   edgeId: string,
-  patch: Partial<Pick<ScreenEdge, "label" | "trigger">>,
+  patch: Partial<Pick<ScreenEdge, "label" | "trigger" | "sourceHandle" | "targetHandle">>,
 ): Promise<ScreenEdge | null> {
   const edge = project.edges.find((e) => e.id === edgeId);
   if (!edge) return null;

@@ -519,6 +519,67 @@
   cursor: not-allowed;
 }
 
+/* ── Edge Handle Picker ────────────────────── */
+.edge-handle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.edge-handle-group {
+  flex: 1;
+}
+
+.edge-handle-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.edge-handle-arrow {
+  display: flex;
+  align-items: center;
+  padding-top: 28px;
+  color: #94a3b8;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.edge-handle-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.edge-handle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.edge-handle-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.edge-handle-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
 /* ── Loading State ─────────────────────────── */
 .flow-loading {
   position: absolute;

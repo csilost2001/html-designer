@@ -2,9 +2,13 @@ import { useState, useEffect } from "react";
 import type { TransitionTrigger } from "../../types/flow";
 import { TRIGGER_LABELS } from "../../types/flow";
 
+export type HandlePosition = "top" | "bottom" | "left" | "right";
+
 export interface EdgeFormData {
   label: string;
   trigger: TransitionTrigger;
+  sourceHandle: HandlePosition;
+  targetHandle: HandlePosition;
 }
 
 interface Props {
@@ -18,7 +22,41 @@ interface Props {
 const defaultData: EdgeFormData = {
   label: "",
   trigger: "click",
+  sourceHandle: "bottom",
+  targetHandle: "top",
 };
+
+const HANDLE_OPTIONS: { value: HandlePosition; icon: string; label: string }[] = [
+  { value: "top",    icon: "bi-arrow-up",    label: "上" },
+  { value: "right",  icon: "bi-arrow-right", label: "右" },
+  { value: "bottom", icon: "bi-arrow-down",  label: "下" },
+  { value: "left",   icon: "bi-arrow-left",  label: "左" },
+];
+
+function HandlePicker({
+  value,
+  onChange,
+}: {
+  value: HandlePosition;
+  onChange: (v: HandlePosition) => void;
+}) {
+  return (
+    <div className="edge-handle-picker">
+      {HANDLE_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          className={`edge-handle-btn${value === opt.value ? " active" : ""}`}
+          onClick={() => onChange(opt.value)}
+          title={opt.label}
+        >
+          <i className={`bi ${opt.icon}`} />
+          <span>{opt.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function EdgeEditModal({ open, initial, onSave, onDelete, onClose }: Props) {
   const [form, setForm] = useState<EdgeFormData>({ ...defaultData, ...initial });
@@ -67,6 +105,26 @@ export function EdgeEditModal({ open, initial, onSave, onDelete, onClose }: Prop
                 <option key={key} value={key}>{label}</option>
               ))}
             </select>
+
+            <div className="edge-handle-row">
+              <div className="edge-handle-group">
+                <label>接続元（出発点）</label>
+                <HandlePicker
+                  value={form.sourceHandle}
+                  onChange={(v) => setForm((f) => ({ ...f, sourceHandle: v }))}
+                />
+              </div>
+              <div className="edge-handle-arrow">
+                <i className="bi bi-arrow-right" />
+              </div>
+              <div className="edge-handle-group">
+                <label>接続先（到達点）</label>
+                <HandlePicker
+                  value={form.targetHandle}
+                  onChange={(v) => setForm((f) => ({ ...f, targetHandle: v }))}
+                />
+              </div>
+            </div>
           </div>
           <div className="flow-modal-footer" style={{ justifyContent: "space-between" }}>
             {onDelete ? (
