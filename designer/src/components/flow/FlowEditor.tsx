@@ -8,6 +8,7 @@ import {
   addEdge as rfAddEdge,
   useNodesState,
   useEdgesState,
+  ConnectionMode,
   type Connection,
   type Edge as RFEdge,
   type Node as RFNode,
@@ -77,28 +78,52 @@ interface ContextMenu {
 
 export function FlowEditor() {
   const navigate = useNavigate();
-  const projectRef = useRef<FlowProject>(loadProject());
+  const projectRef = useRef<FlowProject | null>(null);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(toRFNodes(projectRef.current.screens));
-  const [edges, setEdges, onEdgesChange] = useEdgesState(toRFEdges(projectRef.current.edges));
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [projectName, setProjectName] = useState("読み込み中...");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // MCP bridge: フロー画面でもWebSocket接続を維持
+  // プロジェクトを読み込んで UI に反映
+  const reloadProject = useCallback(async () => {
+    const project = await loadProject();
+    projectRef.current = project;
+    setNodes(toRFNodes(project.screens));
+    setEdges(toRFEdges(project.edges));
+    setProjectName(project.name);
+    setIsLoading(false);
+  }, [setNodes, setEdges]);
+
+  // MCP bridge + 初回ロード + ブロードキャスト受信
   useEffect(() => {
+    let mounted = true;
+
     mcpBridge.setNavigateHandler((path) => navigate(path));
+
+    // MCP 経由でフローが変更されたとき（addScreen 等）
     mcpBridge.setFlowChangeHandler(() => {
-      // MCP経由でフローが変更されたらUIを再読み込み
-      const fresh = loadProject();
-      projectRef.current = fresh;
-      setNodes(toRFNodes(fresh.screens));
-      setEdges(toRFEdges(fresh.edges));
+      if (mounted) reloadProject().catch(console.error);
     });
-    // エディター無しでもWebSocketだけ起動（フロー操作用）
+
+    // 他タブ/ブラウザでプロジェクトが変更されたとき
+    const unsubProject = mcpBridge.onBroadcast("projectChanged", () => {
+      if (mounted) reloadProject().catch(console.error);
+    });
+
+    // エディターなしで WebSocket 接続を維持
     mcpBridge.startWithoutEditor();
+
+    // 初回ロード
+    reloadProject().catch(console.error);
+
     return () => {
+      mounted = false;
       mcpBridge.setNavigateHandler(null);
       mcpBridge.setFlowChangeHandler(null);
+      unsubProject();
     };
-  }, [navigate, setNodes, setEdges]);
+  }, [navigate, reloadProject]);
 
   // Modals
   const [screenModal, setScreenModal] = useState<{
@@ -115,7 +140,6 @@ export function FlowEditor() {
   // Context menu
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
-  // Close context menu on any click
   useEffect(() => {
     if (!contextMenu) return;
     const close = () => setContextMenu(null);
@@ -123,17 +147,20 @@ export function FlowEditor() {
     return () => window.removeEventListener("click", close);
   }, [contextMenu]);
 
-  // Sync project → localStorage on node position changes
+  // ノード位置変更時の保存デバウンス
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncAndSave = useCallback(() => {
+    if (!projectRef.current) return;
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
-      saveProject(projectRef.current);
+      if (projectRef.current) {
+        saveProject(projectRef.current).catch(console.error);
+      }
     }, 300);
   }, []);
 
-  // Handle node drag end → save new positions
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
+    if (!projectRef.current) return;
     const screen = projectRef.current.screens.find((s) => s.id === node.id);
     if (screen) {
       screen.position = node.position;
@@ -141,10 +168,9 @@ export function FlowEditor() {
     }
   }, [syncAndSave]);
 
-  // Handle new connection
   const onConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target) return;
-    const edge = storeAddEdge(
+    if (!connection.source || !connection.target || !projectRef.current) return;
+    storeAddEdge(
       projectRef.current,
       connection.source,
       connection.target,
@@ -152,38 +178,36 @@ export function FlowEditor() {
       "click",
       connection.sourceHandle ?? undefined,
       connection.targetHandle ?? undefined,
-    );
-    setEdges((eds) => rfAddEdge({
-      ...connection,
-      id: edge.id,
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-      style: { strokeWidth: 2, stroke: "#94a3b8" },
-      labelStyle: { fontSize: 11, fill: "#475569" },
-      labelBgStyle: { fill: "#fff", fillOpacity: 0.9 },
-      labelBgPadding: [6, 4] as [number, number],
-      labelBgBorderRadius: 4,
-    }, eds));
+    ).then((edge) => {
+      setEdges((eds) => rfAddEdge({
+        ...connection,
+        id: edge.id,
+        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+        style: { strokeWidth: 2, stroke: "#94a3b8" },
+        labelStyle: { fontSize: 11, fill: "#475569" },
+        labelBgStyle: { fill: "#fff", fillOpacity: 0.9 },
+        labelBgPadding: [6, 4] as [number, number],
+        labelBgBorderRadius: 4,
+      }, eds));
+    }).catch(console.error);
   }, [setEdges]);
 
-  // Double click → navigate to designer
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, node) => {
     navigate(`/design/${node.id}`);
   }, [navigate]);
 
-  // Right-click context menu (node)
   const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
     event.preventDefault();
     setContextMenu({ x: event.clientX, y: event.clientY, type: "node", targetId: node.id });
   }, []);
 
-  // Right-click context menu (edge)
   const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: RFEdge) => {
     event.preventDefault();
     setContextMenu({ x: event.clientX, y: event.clientY, type: "edge", targetId: edge.id });
   }, []);
 
-  // Edge click → edit modal
   const onEdgeClick = useCallback((_event: React.MouseEvent, edge: RFEdge) => {
+    if (!projectRef.current) return;
     const storeEdge = projectRef.current.edges.find((e) => e.id === edge.id);
     if (storeEdge) {
       setEdgeModal({
@@ -195,29 +219,29 @@ export function FlowEditor() {
   }, []);
 
   // ── Screen Modal Actions ──
+
   const handleOpenAddScreen = useCallback(() => {
     setScreenModal({ open: true });
   }, []);
 
-  const handleScreenSave = useCallback((data: ScreenFormData) => {
+  const handleScreenSave = useCallback(async (data: ScreenFormData) => {
+    if (!projectRef.current) return;
     if (screenModal.editId) {
-      // Edit existing
-      updateScreen(projectRef.current, screenModal.editId, {
+      await updateScreen(projectRef.current, screenModal.editId, {
         name: data.name,
         type: data.type,
         path: data.path,
         description: data.description,
       });
       setNodes((nds) => nds.map((n) => {
-        if (n.id !== screenModal.editId) return n;
+        if (n.id !== screenModal.editId || !projectRef.current) return n;
         const screen = projectRef.current.screens.find((s) => s.id === n.id)!;
         return { ...n, data: { ...screen } };
       }));
     } else {
-      // Add new
-      const screen = addScreen(projectRef.current, data.name, data.type, data.path);
+      const screen = await addScreen(projectRef.current, data.name, data.type, data.path);
       screen.description = data.description;
-      saveProject(projectRef.current);
+      await saveProject(projectRef.current);
       setNodes((nds) => [...nds, {
         id: screen.id,
         type: "screenNode" as const,
@@ -229,9 +253,10 @@ export function FlowEditor() {
   }, [screenModal.editId, setNodes]);
 
   // ── Edge Modal Actions ──
-  const handleEdgeSave = useCallback((data: EdgeFormData) => {
-    if (!edgeModal.editId) return;
-    storeUpdateEdge(projectRef.current, edgeModal.editId, {
+
+  const handleEdgeSave = useCallback(async (data: EdgeFormData) => {
+    if (!edgeModal.editId || !projectRef.current) return;
+    await storeUpdateEdge(projectRef.current, edgeModal.editId, {
       label: data.label,
       trigger: data.trigger,
     });
@@ -245,16 +270,17 @@ export function FlowEditor() {
     setEdgeModal({ open: false });
   }, [edgeModal.editId, setEdges]);
 
-  const handleEdgeDeleteFromModal = useCallback(() => {
-    if (!edgeModal.editId) return;
-    storeRemoveEdge(projectRef.current, edgeModal.editId);
+  const handleEdgeDeleteFromModal = useCallback(async () => {
+    if (!edgeModal.editId || !projectRef.current) return;
+    await storeRemoveEdge(projectRef.current, edgeModal.editId);
     setEdges((eds) => eds.filter((e) => e.id !== edgeModal.editId));
     setEdgeModal({ open: false });
   }, [edgeModal.editId, setEdges]);
 
   // ── Context Menu Actions ──
+
   const handleEditNode = useCallback(() => {
-    if (!contextMenu) return;
+    if (!contextMenu || !projectRef.current) return;
     const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
     if (screen) {
       setScreenModal({
@@ -266,11 +292,11 @@ export function FlowEditor() {
     setContextMenu(null);
   }, [contextMenu]);
 
-  const handleDuplicateNode = useCallback(() => {
-    if (!contextMenu) return;
+  const handleDuplicateNode = useCallback(async () => {
+    if (!contextMenu || !projectRef.current) return;
     const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
     if (screen) {
-      const dup = addScreen(
+      const dup = await addScreen(
         projectRef.current,
         `${screen.name} (コピー)`,
         screen.type,
@@ -278,7 +304,7 @@ export function FlowEditor() {
         { x: screen.position.x + 30, y: screen.position.y + 30 },
       );
       dup.description = screen.description;
-      saveProject(projectRef.current);
+      await saveProject(projectRef.current);
       setNodes((nds) => [...nds, {
         id: dup.id,
         type: "screenNode" as const,
@@ -289,11 +315,11 @@ export function FlowEditor() {
     setContextMenu(null);
   }, [contextMenu, setNodes]);
 
-  const handleDeleteNode = useCallback(() => {
-    if (!contextMenu) return;
+  const handleDeleteNode = useCallback(async () => {
+    if (!contextMenu || !projectRef.current) return;
     const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
     if (screen && confirm(`「${screen.name}」を削除しますか？\nデザインデータも削除されます。`)) {
-      removeScreen(projectRef.current, contextMenu.targetId);
+      await removeScreen(projectRef.current, contextMenu.targetId);
       setNodes((nds) => nds.filter((n) => n.id !== contextMenu.targetId));
       setEdges((eds) => eds.filter(
         (e) => e.source !== contextMenu.targetId && e.target !== contextMenu.targetId
@@ -309,8 +335,9 @@ export function FlowEditor() {
   }, [contextMenu, navigate]);
 
   // ── Edge Context Menu Actions ──
+
   const handleEditEdge = useCallback(() => {
-    if (!contextMenu || contextMenu.type !== "edge") return;
+    if (!contextMenu || contextMenu.type !== "edge" || !projectRef.current) return;
     const storeEdge = projectRef.current.edges.find((e) => e.id === contextMenu.targetId);
     if (storeEdge) {
       setEdgeModal({
@@ -322,50 +349,49 @@ export function FlowEditor() {
     setContextMenu(null);
   }, [contextMenu]);
 
-  const handleDeleteEdge = useCallback(() => {
-    if (!contextMenu || contextMenu.type !== "edge") return;
-    storeRemoveEdge(projectRef.current, contextMenu.targetId);
+  const handleDeleteEdge = useCallback(async () => {
+    if (!contextMenu || contextMenu.type !== "edge" || !projectRef.current) return;
+    await storeRemoveEdge(projectRef.current, contextMenu.targetId);
     setEdges((eds) => eds.filter((e) => e.id !== contextMenu.targetId));
     setContextMenu(null);
   }, [contextMenu, setEdges]);
 
-  // Handle edge deletion via keyboard
   const onEdgesDelete = useCallback((deletedEdges: RFEdge[]) => {
-    for (const e of deletedEdges) {
-      storeRemoveEdge(projectRef.current, e.id);
-    }
+    if (!projectRef.current) return;
+    Promise.all(deletedEdges.map((e) => storeRemoveEdge(projectRef.current!, e.id)))
+      .catch(console.error);
   }, []);
 
-  // Handle nodes deletion via keyboard
   const onNodesDelete = useCallback((deletedNodes: RFNode[]) => {
-    for (const n of deletedNodes) {
-      removeScreen(projectRef.current, n.id);
-    }
+    if (!projectRef.current) return;
+    Promise.all(deletedNodes.map((n) => removeScreen(projectRef.current!, n.id)))
+      .catch(console.error);
   }, []);
 
   // ── Project-level Actions ──
-  const [projectName, setProjectName] = useState(() => projectRef.current.name);
 
-  const handleRenameProject = useCallback((name: string) => {
+  const handleRenameProject = useCallback(async (name: string) => {
+    if (!projectRef.current) return;
     projectRef.current.name = name;
-    saveProject(projectRef.current);
+    await saveProject(projectRef.current);
     setProjectName(name);
   }, []);
 
-  const handleClearAll = useCallback(() => {
+  const handleClearAll = useCallback(async () => {
+    if (!projectRef.current) return;
     if (!confirm("すべての画面と遷移を削除しますか？\n各画面のデザインデータも削除されます。")) return;
-    for (const s of projectRef.current.screens) {
-      localStorage.removeItem(`gjs-screen-${s.id}`);
+    // スナップショットを取ってから削除（removeScreen が配列を変更するため）
+    for (const s of [...projectRef.current.screens]) {
+      await removeScreen(projectRef.current, s.id).catch(console.error);
     }
-    projectRef.current.screens = [];
-    projectRef.current.edges = [];
-    saveProject(projectRef.current);
     setNodes([]);
     setEdges([]);
   }, [setNodes, setEdges]);
 
   // ── ファイル操作 ──
+
   const handleExportJSON = useCallback(() => {
+    if (!projectRef.current) return;
     const json = exportProjectJSON(projectRef.current);
     const blob = new Blob([json], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -376,9 +402,9 @@ export function FlowEditor() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const handleImportJSON = useCallback((json: string) => {
+  const handleImportJSON = useCallback(async (json: string) => {
     try {
-      const imported = importProjectJSON(json);
+      const imported = await importProjectJSON(json);
       projectRef.current = imported;
       setNodes(toRFNodes(imported.screens));
       setEdges(toRFEdges(imported.edges));
@@ -389,6 +415,7 @@ export function FlowEditor() {
   }, [setNodes, setEdges]);
 
   const handleCopyMermaid = useCallback(() => {
+    if (!projectRef.current) return;
     const mermaid = generateMermaid(projectRef.current);
     navigator.clipboard.writeText(mermaid).then(
       () => alert("Mermaid 記法をクリップボードにコピーしました"),
@@ -397,6 +424,7 @@ export function FlowEditor() {
   }, []);
 
   const handleExportMarkdown = useCallback(() => {
+    if (!projectRef.current) return;
     const md = generateFlowMarkdown(projectRef.current);
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -407,7 +435,7 @@ export function FlowEditor() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const isEmpty = nodes.length === 0;
+  const isEmpty = !isLoading && nodes.length === 0;
   const screenCount = nodes.length;
 
   return (
@@ -416,45 +444,53 @@ export function FlowEditor() {
         projectName={projectName}
         screenCount={screenCount}
         onAddScreen={handleOpenAddScreen}
-        onRenameProject={handleRenameProject}
-        onClearAll={handleClearAll}
+        onRenameProject={(name) => { handleRenameProject(name).catch(console.error); }}
+        onClearAll={() => { handleClearAll().catch(console.error); }}
         onExportJSON={handleExportJSON}
-        onImportJSON={handleImportJSON}
+        onImportJSON={(json) => { handleImportJSON(json).catch(console.error); }}
         onCopyMermaid={handleCopyMermaid}
         onExportMarkdown={handleExportMarkdown}
       />
 
       <div className="flow-canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDragStop={onNodeDragStop}
-          onNodeDoubleClick={onNodeDoubleClick}
-          onNodeContextMenu={onNodeContextMenu}
-          onEdgeClick={onEdgeClick}
-          onEdgeContextMenu={onEdgeContextMenu}
-          onEdgesDelete={onEdgesDelete}
-          onNodesDelete={onNodesDelete}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.3 }}
-          deleteKeyCode={["Backspace", "Delete"]}
-          defaultEdgeOptions={{
-            markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-            style: { strokeWidth: 2, stroke: "#94a3b8" },
-          }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
-          <Controls showInteractive={false} />
-          <MiniMap
-            nodeColor="#6366f1"
-            maskColor="rgba(241,245,249,0.7)"
-            style={{ borderRadius: 8 }}
-          />
-        </ReactFlow>
+        {isLoading ? (
+          <div className="flow-loading">
+            <div className="spinner" />
+            <p>プロジェクトを読み込み中...</p>
+          </div>
+        ) : (
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeDragStop={onNodeDragStop}
+            onNodeDoubleClick={onNodeDoubleClick}
+            onNodeContextMenu={onNodeContextMenu}
+            onEdgeClick={onEdgeClick}
+            onEdgeContextMenu={onEdgeContextMenu}
+            onEdgesDelete={onEdgesDelete}
+            onNodesDelete={onNodesDelete}
+            nodeTypes={nodeTypes}
+            connectionMode={ConnectionMode.Loose}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            deleteKeyCode={["Backspace", "Delete"]}
+            defaultEdgeOptions={{
+              markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+              style: { strokeWidth: 2, stroke: "#94a3b8" },
+            }}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
+            <Controls showInteractive={false} />
+            <MiniMap
+              nodeColor="#6366f1"
+              maskColor="rgba(241,245,249,0.7)"
+              style={{ borderRadius: 8 }}
+            />
+          </ReactFlow>
+        )}
 
         {isEmpty && (
           <div className="flow-empty-state">
@@ -482,11 +518,11 @@ export function FlowEditor() {
               <button className="flow-context-menu-item" onClick={handleEditNode}>
                 <i className="bi bi-gear" /> プロパティ編集
               </button>
-              <button className="flow-context-menu-item" onClick={handleDuplicateNode}>
+              <button className="flow-context-menu-item" onClick={() => { handleDuplicateNode().catch(console.error); }}>
                 <i className="bi bi-copy" /> 複製
               </button>
               <div className="flow-context-menu-separator" />
-              <button className="flow-context-menu-item danger" onClick={handleDeleteNode}>
+              <button className="flow-context-menu-item danger" onClick={() => { handleDeleteNode().catch(console.error); }}>
                 <i className="bi bi-trash" /> 削除
               </button>
             </>
@@ -496,7 +532,7 @@ export function FlowEditor() {
                 <i className="bi bi-pencil" /> 遷移を編集
               </button>
               <div className="flow-context-menu-separator" />
-              <button className="flow-context-menu-item danger" onClick={handleDeleteEdge}>
+              <button className="flow-context-menu-item danger" onClick={() => { handleDeleteEdge().catch(console.error); }}>
                 <i className="bi bi-trash" /> 遷移を削除
               </button>
             </>
@@ -509,7 +545,7 @@ export function FlowEditor() {
         open={screenModal.open}
         initial={screenModal.initial}
         title={screenModal.editId ? "画面の編集" : "画面の追加"}
-        onSave={handleScreenSave}
+        onSave={(data) => { handleScreenSave(data).catch(console.error); }}
         onClose={() => setScreenModal({ open: false })}
       />
 
@@ -517,8 +553,8 @@ export function FlowEditor() {
       <EdgeEditModal
         open={edgeModal.open}
         initial={edgeModal.initial}
-        onSave={handleEdgeSave}
-        onDelete={edgeModal.editId ? handleEdgeDeleteFromModal : undefined}
+        onSave={(data) => { handleEdgeSave(data).catch(console.error); }}
+        onDelete={edgeModal.editId ? () => { handleEdgeDeleteFromModal().catch(console.error); } : undefined}
         onClose={() => setEdgeModal({ open: false })}
       />
     </div>

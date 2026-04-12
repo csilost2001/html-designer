@@ -9,6 +9,7 @@ import {
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
+import { readProject, readCustomBlocks } from "./projectStorage.js";
 
 // 親プロセス（Claude Code）が死んだら自動終了
 function setupLifecycle(): void {
@@ -178,10 +179,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ── フロー図操作 ──
 
       case "designer__list_screens": {
-        const result = (await wsBridge.sendCommand("listScreens")) as {
-          screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
-        };
-        const lines = result.screens.map(
+        // ファイルから直接読み込み（ブラウザ不要）。ファイルがない場合はブラウザ経由
+        const fileProject = await readProject() as { screens?: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }> } | null;
+        let screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
+        if (fileProject?.screens) {
+          screens = fileProject.screens;
+        } else {
+          const result = (await wsBridge.sendCommand("listScreens")) as {
+            screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
+          };
+          screens = result.screens;
+        }
+        const lines = screens.map(
           (s) => `- ${s.id}  ${s.name} (${s.type})${s.path ? ` [${s.path}]` : ""}${s.hasDesign ? " ✓デザイン済み" : ""}`
         );
         return {
@@ -189,7 +198,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: lines.length > 0
-                ? `画面一覧 (${result.screens.length}件):\n${lines.join("\n")}`
+                ? `画面一覧 (${screens.length}件):\n${lines.join("\n")}`
                 : "画面はまだ登録されていません。",
             },
           ],
@@ -284,7 +293,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "designer__get_flow": {
-        const result = (await wsBridge.sendCommand("getFlow")) as {
+        // ファイルから直接読み込み（ブラウザ不要）。ファイルがない場合はブラウザ経由
+        type FlowResult = {
           project: {
             name: string;
             screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
@@ -292,6 +302,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
           mermaid: string;
         };
+        let result: FlowResult;
+        const fileData = await readProject() as FlowResult["project"] | null;
+        if (fileData?.screens) {
+          // ファイルから読んで Mermaid を生成
+          const p = fileData;
+          const idMap = new Map<string, string>();
+          (p.screens ?? []).forEach((s, i) => idMap.set(s.id, `S${i}`));
+          const mLines = ["flowchart TD"];
+          for (const s of (p.screens ?? [])) {
+            const sid = idMap.get(s.id)!;
+            mLines.push(`    ${sid}["${s.name}"]`);
+          }
+          for (const e of (p.edges ?? [])) {
+            const src = idMap.get(e.source);
+            const tgt = idMap.get(e.target);
+            if (src && tgt) {
+              mLines.push(e.label ? `    ${src} -->|${e.label}| ${tgt}` : `    ${src} --> ${tgt}`);
+            }
+          }
+          result = { project: p, mermaid: mLines.join("\n") };
+        } else {
+          result = (await wsBridge.sendCommand("getFlow")) as FlowResult;
+        }
         const p = result.project;
         const screenLines = p.screens.map(
           (s) => `  - ${s.id}  ${s.name} (${s.type})${s.path ? ` [${s.path}]` : ""}`
@@ -382,22 +415,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "designer__list_custom_blocks": {
-        const result = (await wsBridge.sendCommand("listCustomBlocks")) as {
-          blocks: Array<{
-            id: string;
-            label: string;
-            category: string;
-            hasStyles: boolean;
-          }>;
-        };
-        if (result.blocks.length === 0) {
+        // ファイルから直接読み込み。ファイルがない場合はブラウザ経由
+        type BlockEntry = { id: string; label: string; category: string; styles?: string; hasStyles?: boolean };
+        let blocks: BlockEntry[];
+        const fileBlocks = (await readCustomBlocks()) as BlockEntry[];
+        if (fileBlocks.length > 0) {
+          blocks = fileBlocks.map((b) => ({ ...b, hasStyles: !!b.styles }));
+        } else {
+          const result = (await wsBridge.sendCommand("listCustomBlocks")) as {
+            blocks: BlockEntry[];
+          };
+          blocks = result.blocks;
+        }
+        if (blocks.length === 0) {
           return {
             content: [
               { type: "text", text: "カスタムブロックはまだ定義されていません。" },
             ],
           };
         }
-        const lines = result.blocks.map(
+        const lines = blocks.map(
           (b) =>
             `- ${b.id} — ${b.label} [${b.category}]${b.hasStyles ? " (CSS付き)" : ""}`
         );
@@ -405,7 +442,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: "text",
-              text: `カスタムブロック (${result.blocks.length}件):\n${lines.join("\n")}`,
+              text: `カスタムブロック (${blocks.length}件):\n${lines.join("\n")}`,
             },
           ],
         };

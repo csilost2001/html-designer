@@ -10,12 +10,16 @@ import {
   addEdge,
   removeEdge,
   generateMermaid,
+  setFlowStorageBackend,
+  type FlowStorageBackend,
 } from "../store/flowStore";
 import {
   loadCustomBlocks,
   upsertCustomBlock,
   deleteCustomBlock,
   injectCustomBlockCss,
+  setCustomBlocksBackend,
+  type CustomBlocksStorageBackend,
   type CustomBlock,
 } from "../store/customBlockStore";
 
@@ -26,13 +30,15 @@ type StatusCallback = (s: McpStatus) => void;
 type ThemeHandler = (theme: ThemeIdLike) => void;
 type NavigateHandler = (path: string) => void;
 type FlowChangeHandler = () => void;
+type BroadcastHandler = (data: unknown) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 
 const WS_URL = "ws://127.0.0.1:5179";
 const RETRY_DELAY_MS = 5000;
+const REQUEST_TIMEOUT_MS = 15000;
 
-// HMR対応: グローバルにインスタンスを保持
+// HMR 対応: グローバルにインスタンスを保持
 declare global {
   interface Window {
     __mcpBridge?: McpBridgeImpl;
@@ -47,8 +53,20 @@ class McpBridgeImpl {
   private themeHandler: ThemeHandler | null = null;
   private navigateHandler: NavigateHandler | null = null;
   private flowChangeHandler: FlowChangeHandler | null = null;
+  private broadcastHandlers = new Map<string, Set<BroadcastHandler>>();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+
+  /** ブラウザセッション固有の一意 ID（再接続でも不変） */
+  private readonly clientId = crypto.randomUUID();
+
+  /** ブラウザ→サーバーリクエストの応答待ちハンドラ */
+  private pendingRequests = new Map<
+    string,
+    { resolve: (r: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
+  >();
+
+  // ── ハンドラ setter ────────────────────────────────────────────────────
 
   setThemeHandler(handler: ThemeHandler | null): void {
     this.themeHandler = handler;
@@ -64,7 +82,7 @@ class McpBridgeImpl {
 
   onStatusChange(cb: StatusCallback): () => void {
     this.statusCallbacks.add(cb);
-    cb(this.status); // 現在の状態を即時通知
+    cb(this.status);
     return () => this.statusCallbacks.delete(cb);
   }
 
@@ -72,14 +90,30 @@ class McpBridgeImpl {
     return this.status;
   }
 
+  /** ブロードキャストイベントのサブスクライブ */
+  onBroadcast(event: string, handler: BroadcastHandler): () => void {
+    if (!this.broadcastHandlers.has(event)) {
+      this.broadcastHandlers.set(event, new Set());
+    }
+    this.broadcastHandlers.get(event)!.add(handler);
+    return () => this.broadcastHandlers.get(event)?.delete(handler);
+  }
+
+  // ── 起動 / 停止 ───────────────────────────────────────────────────────
+
   start(editor: GEditor): void {
     this.editor = editor;
     this.stopped = false;
     console.log("[mcpBridge] starting...");
+    // 既存の接続が生きていればそのまま再利用（FlowEditor からの遷移時にエディターだけ差し替え）
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log("[mcpBridge] reusing existing connection");
+      return;
+    }
     this._connect();
   }
 
-  /** フロー画面用: エディターなしでWebSocket接続のみ起動 */
+  /** フロー画面用: エディターなしで WebSocket 接続のみ起動 */
   startWithoutEditor(): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
     if (this.status === "connecting") return;
@@ -102,6 +136,31 @@ class McpBridgeImpl {
     console.log("[mcpBridge] stopped");
   }
 
+  // ── ブラウザ→サーバーリクエスト ──────────────────────────────────────
+
+  /**
+   * wsBridge へリクエストを送信し、サーバーファイル操作の結果を受け取る。
+   * { type: "request", id, method, params } → { type: "response", id, result/error }
+   */
+  request(method: string, params?: unknown): Promise<unknown> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error("wsBridge に接続されていません"));
+    }
+
+    const id = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error(`タイムアウト: ${method} (${REQUEST_TIMEOUT_MS}ms)`));
+      }, REQUEST_TIMEOUT_MS);
+
+      this.pendingRequests.set(id, { resolve, reject, timer });
+      this.ws!.send(JSON.stringify({ type: "request", id, method, params }));
+    });
+  }
+
+  // ── 内部ユーティリティ ────────────────────────────────────────────────
+
   private _setStatus(s: McpStatus): void {
     if (this.status === s) return;
     this.status = s;
@@ -118,6 +177,10 @@ class McpBridgeImpl {
 
     ws.addEventListener("open", () => {
       console.log("[mcpBridge] connected");
+      // 登録メッセージを送信
+      ws.send(JSON.stringify({ type: "register", clientId: this.clientId }));
+      // ファイルストレージバックエンドを設定
+      this._setStorageBackends();
       this._setStatus("connected");
     });
 
@@ -126,10 +189,18 @@ class McpBridgeImpl {
     });
 
     ws.addEventListener("close", () => {
-      if (this.ws !== ws) return; // 別の接続に切り替わった
+      if (this.ws !== ws) return;
       this.ws = null;
       console.log("[mcpBridge] disconnected, retrying in", RETRY_DELAY_MS, "ms");
+      // バックエンドを localStorage フォールバックに戻す
+      this._clearStorageBackends();
       this._setStatus("disconnected");
+      // 未解決リクエストを全てリジェクト
+      for (const [id, handler] of this.pendingRequests.entries()) {
+        clearTimeout(handler.timer);
+        handler.reject(new Error("WebSocket が切断されました"));
+        this.pendingRequests.delete(id);
+      }
       if (!this.stopped) {
         this.retryTimer = setTimeout(() => {
           this.retryTimer = null;
@@ -139,49 +210,105 @@ class McpBridgeImpl {
     });
 
     ws.addEventListener("error", () => {
-      // closeイベントも続いて発火するので、ここではログのみ
       console.log("[mcpBridge] connection error");
     });
   }
 
+  /** 接続時: flowStore と customBlockStore にリモートバックエンドをセット */
+  private _setStorageBackends(): void {
+    const self = this;
+
+    const flowBackend: FlowStorageBackend = {
+      loadProject: () => self.request("loadProject"),
+      saveProject: (project) => self.request("saveProject", { project }).then(() => undefined),
+      deleteScreenData: (screenId) => self.request("deleteScreen", { screenId }).then(() => undefined),
+    };
+    setFlowStorageBackend(flowBackend);
+
+    const blocksBackend: CustomBlocksStorageBackend = {
+      loadCustomBlocks: () => self.request("loadCustomBlocks").then((r) => (r ?? []) as unknown[]),
+      saveCustomBlocks: (blocks) => self.request("saveCustomBlocks", { blocks }).then(() => undefined),
+    };
+    setCustomBlocksBackend(blocksBackend);
+  }
+
+  /** 切断時: localStorage フォールバックに戻す */
+  private _clearStorageBackends(): void {
+    setFlowStorageBackend(null);
+    setCustomBlocksBackend(null);
+  }
+
+  // ── メッセージ受信 ─────────────────────────────────────────────────────
+
   private _handleMessage(data: string): void {
-    let msg: Command;
+    let msg: Record<string, unknown>;
     try {
-      msg = JSON.parse(data) as Command;
+      msg = JSON.parse(data) as Record<string, unknown>;
     } catch {
       console.error("[mcpBridge] failed to parse message:", data);
       return;
     }
 
-    // 置き換え通知（別タブが接続）
-    if ((msg as unknown as { type: string }).type === "replaced") {
-      console.log("[mcpBridge] replaced by another tab");
+    // ── ブラウザリクエストへのサーバー応答 ──
+    if (msg.type === "response") {
+      const res = msg as unknown as { type: "response"; id: string; result?: unknown; error?: string };
+      const handler = this.pendingRequests.get(res.id);
+      if (handler) {
+        clearTimeout(handler.timer);
+        this.pendingRequests.delete(res.id);
+        if (res.error) {
+          handler.reject(new Error(res.error));
+        } else {
+          handler.resolve(res.result);
+        }
+      }
       return;
     }
 
-    this._dispatch(msg);
+    // ── サーバーからのブロードキャスト ──
+    if (msg.type === "broadcast") {
+      const event = msg.event as string;
+      const broadcastData = msg.data;
+      console.log("[mcpBridge] broadcast:", event, broadcastData);
+      const handlers = this.broadcastHandlers.get(event);
+      if (handlers) {
+        handlers.forEach((h) => h(broadcastData));
+      }
+      return;
+    }
+
+    // ── MCP コマンド（サーバー→ブラウザ） ──
+    this._dispatch(msg as unknown as Command);
   }
 
+  // ── MCP コマンドディスパッチ ──────────────────────────────────────────
+
   private _dispatch(cmd: Command): void {
+    this._dispatchAsync(cmd).catch((e) => {
+      console.error("[mcpBridge] unhandled dispatch error:", e);
+    });
+  }
+
+  private async _dispatchAsync(cmd: Command): Promise<void> {
     const { id, method, params } = cmd;
 
-    const respond = (result: unknown) => {
+    const respond = (result: unknown): void => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ id, result } satisfies Response));
       }
     };
 
-    const respondError = (error: string) => {
+    const respondError = (error: string): void => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ id, error } satisfies Response));
       }
     };
 
-    // フロー操作はエディター不要なので先にチェック
+    // フロー操作はエディター不要
     const flowMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
-      "listCustomBlocks", // localStorage から読むだけ。エディター不要
+      "listCustomBlocks",
     ];
 
     if (!this.editor && !flowMethods.includes(method)) {
@@ -191,38 +318,30 @@ class McpBridgeImpl {
 
     const editor = this.editor!;
 
-    switch (method) {
-      case "getHtml": {
-        try {
+    try {
+      switch (method) {
+        case "getHtml": {
           const html = editor.getHtml();
           const css = editor.getCss() ?? "";
           respond({ html, css });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "setComponents": {
-        try {
+        case "setComponents": {
           const { html } = params as { html: string };
           editor.setComponents(html);
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "screenshot": {
-        captureScreenshot(editor)
-          .then((png) => respond({ png }))
-          .catch((e: unknown) => respondError(String(e)));
-        break;
-      }
+        case "screenshot": {
+          captureScreenshot(editor)
+            .then((png) => respond({ png }))
+            .catch((e: unknown) => respondError(String(e)));
+          break;
+        }
 
-      case "listBlocks": {
-        try {
+        case "listBlocks": {
           const all = editor.Blocks.getAll();
           const blocks = all.map((b: Block) => ({
             id: b.getId(),
@@ -230,14 +349,10 @@ class McpBridgeImpl {
             category: categoryLabel(b.get("category")),
           }));
           respond({ blocks });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "addBlock": {
-        try {
+        case "addBlock": {
           const { blockId, targetId, position } = (params ?? {}) as {
             blockId: string;
             targetId?: string;
@@ -267,7 +382,6 @@ class McpBridgeImpl {
             const pos = position ?? "after";
             if (pos === "inside" || pos === "append") {
               parent = target;
-              at = undefined;
             } else {
               const tParent = target.parent();
               if (!tParent) {
@@ -287,36 +401,28 @@ class McpBridgeImpl {
             ? (first as Component).getId()
             : "";
           respond({ addedId });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "removeElement": {
-        try {
-          const { id } = (params ?? {}) as { id: string };
+        case "removeElement": {
+          const { id: elId } = (params ?? {}) as { id: string };
           const wrapper = editor.DomComponents.getWrapper();
           if (!wrapper) {
             respondError("キャンバスが初期化されていません");
             break;
           }
-          const target = findComponentById(wrapper, id);
+          const target = findComponentById(wrapper, elId);
           if (!target) {
-            respondError(`要素が見つかりません: ${id}`);
+            respondError(`要素が見つかりません: ${elId}`);
             break;
           }
           target.remove();
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "updateElement": {
-        try {
-          const { id, attributes, style, text, classes } = (params ?? {}) as {
+        case "updateElement": {
+          const { id: elId, attributes, style, text, classes } = (params ?? {}) as {
             id: string;
             attributes?: Record<string, string>;
             style?: Record<string, string>;
@@ -328,9 +434,9 @@ class McpBridgeImpl {
             respondError("キャンバスが初期化されていません");
             break;
           }
-          const target = findComponentById(wrapper, id);
+          const target = findComponentById(wrapper, elId);
           if (!target) {
-            respondError(`要素が見つかりません: ${id}`);
+            respondError(`要素が見つかりません: ${elId}`);
             break;
           }
           if (attributes && typeof attributes === "object") {
@@ -350,20 +456,16 @@ class McpBridgeImpl {
               target.components(text);
             } else {
               respondError(
-                `要素 ${id} にテキストを含む子孫が見つかりません。text 更新対象には、テキストを含む要素または末端要素を指定してください`
+                `要素 ${elId} にテキストを含む子孫が見つかりません。`,
               );
               break;
             }
           }
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "setTheme": {
-        try {
+        case "setTheme": {
           const { theme } = (params ?? {}) as { theme: ThemeIdLike };
           if (!["standard", "card", "compact", "dark"].includes(theme)) {
             respondError(`不正なテーマID: ${theme}`);
@@ -375,17 +477,13 @@ class McpBridgeImpl {
           }
           this.themeHandler(theme);
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      // ── フロー操作（エディター不要） ──
+        // ── フロー操作（エディター不要） ──────────────────────────────
 
-      case "listScreens": {
-        try {
-          const project = loadProject();
+        case "listScreens": {
+          const project = await loadProject();
           const screens = project.screens.map((s) => ({
             id: s.id,
             name: s.name,
@@ -394,15 +492,11 @@ class McpBridgeImpl {
             hasDesign: s.hasDesign,
           }));
           respond({ screens });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "addScreen": {
-        try {
-          const { name, type, path, position } = (params ?? {}) as {
+        case "addScreen": {
+          const { name, type, path: screenPath, position } = (params ?? {}) as {
             name: string;
             type?: ScreenType;
             path?: string;
@@ -412,18 +506,14 @@ class McpBridgeImpl {
             respondError("name は必須です");
             break;
           }
-          const project = loadProject();
-          const screen = addScreen(project, name, type ?? "other", path, position);
+          const project = await loadProject();
+          const screen = await addScreen(project, name, type ?? "other", screenPath, position);
           this.flowChangeHandler?.();
           respond({ screenId: screen.id });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "updateScreenMeta": {
-        try {
+        case "updateScreenMeta": {
           const { screenId, ...patch } = (params ?? {}) as {
             screenId: string;
             name?: string;
@@ -435,43 +525,35 @@ class McpBridgeImpl {
             respondError("screenId は必須です");
             break;
           }
-          const project = loadProject();
-          const updated = updateScreen(project, screenId, patch);
+          const project = await loadProject();
+          const updated = await updateScreen(project, screenId, patch);
           if (!updated) {
             respondError(`画面が見つかりません: ${screenId}`);
             break;
           }
           this.flowChangeHandler?.();
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "removeScreenNode": {
-        try {
+        case "removeScreenNode": {
           const { screenId } = (params ?? {}) as { screenId: string };
           if (!screenId) {
             respondError("screenId は必須です");
             break;
           }
-          const project = loadProject();
-          const ok = removeScreen(project, screenId);
+          const project = await loadProject();
+          const ok = await removeScreen(project, screenId);
           if (!ok) {
             respondError(`画面が見つかりません: ${screenId}`);
             break;
           }
           this.flowChangeHandler?.();
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "addFlowEdge": {
-        try {
+        case "addFlowEdge": {
           const { source, target, label, trigger } = (params ?? {}) as {
             source: string;
             target: string;
@@ -482,50 +564,38 @@ class McpBridgeImpl {
             respondError("source と target は必須です");
             break;
           }
-          const project = loadProject();
-          const edge = addEdge(project, source, target, label ?? "", trigger ?? "click");
+          const project = await loadProject();
+          const edge = await addEdge(project, source, target, label ?? "", trigger ?? "click");
           this.flowChangeHandler?.();
           respond({ edgeId: edge.id });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "removeFlowEdge": {
-        try {
+        case "removeFlowEdge": {
           const { edgeId } = (params ?? {}) as { edgeId: string };
           if (!edgeId) {
             respondError("edgeId は必須です");
             break;
           }
-          const project = loadProject();
-          const ok = removeEdge(project, edgeId);
+          const project = await loadProject();
+          const ok = await removeEdge(project, edgeId);
           if (!ok) {
             respondError(`エッジが見つかりません: ${edgeId}`);
             break;
           }
           this.flowChangeHandler?.();
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "getFlow": {
-        try {
-          const project = loadProject();
+        case "getFlow": {
+          const project = await loadProject();
           const mermaid = generateMermaid(project);
           respond({ project, mermaid });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "navigateScreen": {
-        try {
+        case "navigateScreen": {
           const { screenId } = (params ?? {}) as { screenId: string };
           if (!screenId) {
             respondError("screenId は必須です");
@@ -537,17 +607,13 @@ class McpBridgeImpl {
           } else {
             respondError("ナビゲーションハンドラが登録されていません");
           }
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      // ── カスタムブロック管理 ──
+        // ── カスタムブロック管理 ──────────────────────────────────────
 
-      case "defineBlock": {
-        try {
-          const { id, label, category, content, styles, media } = (params ?? {}) as {
+        case "defineBlock": {
+          const { id: blockId, label, category, content, styles, media } = (params ?? {}) as {
             id: string;
             label: string;
             category: string;
@@ -556,71 +622,56 @@ class McpBridgeImpl {
             media?: string;
           };
 
-          // ビルトインブロックとの衝突チェック
-          const existing = editor.Blocks.get(id);
-          const customBlocks = loadCustomBlocks();
-          const isCustom = customBlocks.some((b) => b.id === id);
+          const existing = editor.Blocks.get(blockId);
+          const customBlocks = await loadCustomBlocks();
+          const isCustom = customBlocks.some((b) => b.id === blockId);
           if (existing && !isCustom) {
             respondError(
-              `ブロックID "${id}" はビルトインブロックと衝突します。別のIDを使用してください。`
+              `ブロックID "${blockId}" はビルトインブロックと衝突します。別のIDを使用してください。`,
             );
             break;
           }
 
-          // GrapesJS に登録（既存カスタムIDなら上書き）
-          editor.BlockManager.add(id, {
+          editor.BlockManager.add(blockId, {
             label,
             category,
             content,
             ...(media ? { media } : {}),
           });
 
-          // localStorage に永続化
-          const now = new Date().toISOString();
-          const prev = customBlocks.find((b) => b.id === id);
-          upsertCustomBlock({
-            id,
+          const blockNow = new Date().toISOString();
+          const prev = customBlocks.find((b) => b.id === blockId);
+          await upsertCustomBlock({
+            id: blockId,
             label,
             category,
             content,
             styles,
             media,
-            createdAt: prev?.createdAt ?? now,
-            updatedAt: now,
+            createdAt: prev?.createdAt ?? blockNow,
+            updatedAt: blockNow,
           } as CustomBlock);
 
-          // CSS 注入（styles がある場合も含め全量再注入）
-          injectCustomBlockCss(editor, loadCustomBlocks());
-
+          injectCustomBlockCss(editor, await loadCustomBlocks());
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "removeCustomBlock": {
-        try {
-          const { id } = (params ?? {}) as { id: string };
-          const ok = deleteCustomBlock(id);
+        case "removeCustomBlock": {
+          const { id: blockId } = (params ?? {}) as { id: string };
+          const ok = await deleteCustomBlock(blockId);
           if (!ok) {
-            respondError(`カスタムブロック "${id}" が見つかりません`);
+            respondError(`カスタムブロック "${blockId}" が見つかりません`);
             break;
           }
-          // カタログから除去
-          editor.BlockManager.remove(id);
-          // CSS 更新
-          injectCustomBlockCss(editor, loadCustomBlocks());
+          editor.BlockManager.remove(blockId);
+          injectCustomBlockCss(editor, await loadCustomBlocks());
           respond({ success: true });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      case "listCustomBlocks": {
-        try {
-          const all = loadCustomBlocks();
+        case "listCustomBlocks": {
+          const all = await loadCustomBlocks();
           const blocks = all.map((b) => ({
             id: b.id,
             label: b.label,
@@ -628,34 +679,32 @@ class McpBridgeImpl {
             hasStyles: !!b.styles,
           }));
           respond({ blocks });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      // ── React エクスポート（エディター必須） ──
+        // ── React エクスポート ────────────────────────────────────────
 
-      case "exportScreen": {
-        try {
+        case "exportScreen": {
           const { screenId } = (params ?? {}) as { screenId: string };
           const html = editor.getHtml();
-          const css  = editor.getCss() ?? "";
-          const project = loadProject();
-          const screen  = project.screens.find((s) => s.id === screenId);
+          const css = editor.getCss() ?? "";
+          const project = await loadProject();
+          const screen = project.screens.find((s) => s.id === screenId);
           const screenName = screen?.name ?? "Screen";
           respond({ html, css, screenName });
-        } catch (e) {
-          respondError(String(e));
+          break;
         }
-        break;
-      }
 
-      default:
-        respondError(`未知のメソッド: ${method}`);
+        default:
+          respondError(`未知のメソッド: ${method}`);
+      }
+    } catch (e) {
+      respondError(e instanceof Error ? e.message : String(e));
     }
   }
 }
+
+// ── ヘルパー関数 ────────────────────────────────────────────────────────────
 
 function findFirstTextLeaf(c: Component): Component | null {
   const children = c.components();
@@ -715,7 +764,8 @@ async function captureScreenshot(editor: GEditor): Promise<string> {
   return canvasEl.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 }
 
-// HMR対応: 既存インスタンスを再利用
+// ── HMR 対応: 既存インスタンスを再利用 ────────────────────────────────────
+
 if (window.__mcpBridge) {
   window.__mcpBridge.stop();
 }

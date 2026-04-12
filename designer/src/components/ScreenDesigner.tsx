@@ -1,18 +1,41 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Designer } from "./Designer";
-import { loadProject, screenStorageKey, screenExists } from "../store/flowStore";
+import { loadProject, screenExists } from "../store/flowStore";
+import type { ScreenNode } from "../types/flow";
 
 export function ScreenDesigner() {
   const { screenId } = useParams<{ screenId: string }>();
   const navigate = useNavigate();
 
-  const screen = useMemo(() => {
-    if (!screenId) return null;
-    const project = loadProject();
-    if (!screenExists(project, screenId)) return null;
-    return project.screens.find((s) => s.id === screenId) ?? null;
+  const [screen, setScreen] = useState<ScreenNode | null | undefined>(undefined); // undefined = loading
+
+  useEffect(() => {
+    if (!screenId) {
+      setScreen(null);
+      return;
+    }
+    loadProject().then((project) => {
+      if (!screenExists(project, screenId)) {
+        setScreen(null);
+        return;
+      }
+      setScreen(project.screens.find((s) => s.id === screenId) ?? null);
+    }).catch(() => setScreen(null));
   }, [screenId]);
+
+  if (screen === undefined) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "100vh", flexDirection: "column", gap: 16,
+        fontFamily: "system-ui, sans-serif", color: "#64748b",
+      }}>
+        <div className="spinner" />
+        <p>読み込み中...</p>
+      </div>
+    );
+  }
 
   if (!screenId || !screen) {
     return (
@@ -22,7 +45,7 @@ export function ScreenDesigner() {
         fontFamily: "system-ui, sans-serif", color: "#64748b",
       }}>
         <i className="bi bi-exclamation-triangle" style={{ fontSize: 48, color: "#f59e0b" }} />
-        <h2 style={{ margin: 0, color: "#334155" }}>画面が見��かりません</h2>
+        <h2 style={{ margin: 0, color: "#334155" }}>画面が見つかりません</h2>
         <p>指定された画面ID は存在しないか、削除されています。</p>
         <button
           onClick={() => navigate("/")}
@@ -39,7 +62,7 @@ export function ScreenDesigner() {
 
   return (
     <Designer
-      storageKey={screenStorageKey(screenId)}
+      screenId={screenId}
       screenName={screen.name}
       onBack={() => navigate("/")}
     />

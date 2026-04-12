@@ -1,5 +1,32 @@
+/**
+ * flowStore.ts
+ * フロープロジェクトの永続化ストア
+ *
+ * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
+ * - 未接続の場合: localStorage にフォールバック
+ *
+ * NOTE: I/O バックエンドは mcpBridge.ts が setFlowStorageBackend() で差し替える。
+ *       循環依存を避けるため flowStore は mcpBridge をインポートしない。
+ */
 import type { FlowProject, ScreenNode, ScreenEdge, ScreenType, TransitionTrigger } from "../types/flow";
 import { SCREEN_TYPE_LABELS, TRIGGER_LABELS } from "../types/flow";
+
+// ─── ストレージバックエンドインターフェース ────────────────────────────────
+
+export interface FlowStorageBackend {
+  loadProject(): Promise<unknown>;
+  saveProject(project: unknown): Promise<void>;
+  deleteScreenData(screenId: string): Promise<void>;
+}
+
+let _backend: FlowStorageBackend | null = null;
+
+/** mcpBridge が接続時にセット、切断時に null をセット */
+export function setFlowStorageBackend(b: FlowStorageBackend | null): void {
+  _backend = b;
+}
+
+// ─── localStorage キー ────────────────────────────────────────────────────
 
 const FLOW_PROJECT_KEY = "flow-project";
 const SCREEN_DATA_PREFIX = "gjs-screen-";
@@ -11,6 +38,8 @@ function now(): string {
   return new Date().toISOString();
 }
 
+// ─── ローカルユーティリティ ───────────────────────────────────────────────
+
 function createEmptyProject(): FlowProject {
   return {
     version: 1,
@@ -21,8 +50,8 @@ function createEmptyProject(): FlowProject {
   };
 }
 
-/** 旧データ (gjs-designer-project) が存在すれば新構造へマイグレーション */
-function migrateLegacy(): FlowProject | null {
+/** 旧データ (gjs-designer-project) から新構造へマイグレーション */
+function migrateLegacyLocalStorage(): FlowProject | null {
   const raw = localStorage.getItem(LEGACY_KEY);
   if (!raw) return null;
 
@@ -39,8 +68,6 @@ function migrateLegacy(): FlowProject | null {
     createdAt: now(),
     updatedAt: now(),
   };
-
-  // 旧データをスクリーン別キーにコピー
   localStorage.setItem(`${SCREEN_DATA_PREFIX}${screenId}`, raw);
 
   const project: FlowProject = {
@@ -50,45 +77,68 @@ function migrateLegacy(): FlowProject | null {
     edges: [],
     updatedAt: now(),
   };
-
   localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
-  // 旧キーは削除せず残す（安全策）
   return project;
 }
 
-/** プロジェクトを読み込み */
-export function loadProject(): FlowProject {
+/** localStorage からプロジェクトを読み込む（ファイルが存在しない場合の初期化用） */
+export function loadProjectFromLocalStorage(): FlowProject | null {
   const raw = localStorage.getItem(FLOW_PROJECT_KEY);
   if (raw) {
     try {
       return JSON.parse(raw) as FlowProject;
-    } catch {
-      // 破損時はリセット
-    }
+    } catch { /* 破損時は無視 */ }
   }
-  // マイグレーション試行
-  const migrated = migrateLegacy();
+  const migrated = migrateLegacyLocalStorage();
   if (migrated) return migrated;
-  // 新規
-  const empty = createEmptyProject();
-  localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(empty));
-  return empty;
+  return null;
+}
+
+// ─── 公開 API（非同期）────────────────────────────────────────────────────
+
+/** プロジェクトを読み込み */
+export async function loadProject(): Promise<FlowProject> {
+  if (_backend) {
+    const data = await _backend.loadProject();
+    if (data) return data as FlowProject;
+    // ファイルが存在しない → localStorage から移行
+    const local = loadProjectFromLocalStorage();
+    if (local) {
+      await _backend.saveProject(local);
+      console.log("[flowStore] Migrated project from localStorage to file");
+      return local;
+    }
+    // 新規プロジェクト
+    const empty = createEmptyProject();
+    await _backend.saveProject(empty);
+    return empty;
+  }
+  // localStorage フォールバック
+  return loadProjectFromLocalStorage() ?? (() => {
+    const empty = createEmptyProject();
+    localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(empty));
+    return empty;
+  })();
 }
 
 /** プロジェクトを保存 */
-export function saveProject(project: FlowProject): void {
+export async function saveProject(project: FlowProject): Promise<void> {
   project.updatedAt = now();
+  if (_backend) {
+    await _backend.saveProject(project);
+    return;
+  }
   localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
 }
 
 /** 画面を追加 */
-export function addScreen(
+export async function addScreen(
   project: FlowProject,
   name: string,
   type: ScreenType,
   path?: string,
   position?: { x: number; y: number },
-): ScreenNode {
+): Promise<ScreenNode> {
   const id = crypto.randomUUID();
   const screen: ScreenNode = {
     id,
@@ -103,38 +153,43 @@ export function addScreen(
     updatedAt: now(),
   };
   project.screens.push(screen);
-  saveProject(project);
+  await saveProject(project);
   return screen;
 }
 
 /** 画面メタを更新 */
-export function updateScreen(
+export async function updateScreen(
   project: FlowProject,
   screenId: string,
   patch: Partial<Pick<ScreenNode, "name" | "type" | "description" | "path" | "position" | "size">>,
-): ScreenNode | null {
+): Promise<ScreenNode | null> {
   const screen = project.screens.find((s) => s.id === screenId);
   if (!screen) return null;
   Object.assign(screen, patch, { updatedAt: now() });
-  saveProject(project);
+  await saveProject(project);
   return screen;
 }
 
 /** 画面を削除（関連エッジ + デザインデータも削除） */
-export function removeScreen(project: FlowProject, screenId: string): boolean {
+export async function removeScreen(project: FlowProject, screenId: string): Promise<boolean> {
   const idx = project.screens.findIndex((s) => s.id === screenId);
   if (idx === -1) return false;
   project.screens.splice(idx, 1);
   project.edges = project.edges.filter(
     (e) => e.source !== screenId && e.target !== screenId,
   );
-  localStorage.removeItem(`${SCREEN_DATA_PREFIX}${screenId}`);
-  saveProject(project);
+  // デザインデータを削除
+  if (_backend) {
+    await _backend.deleteScreenData(screenId);
+  } else {
+    localStorage.removeItem(`${SCREEN_DATA_PREFIX}${screenId}`);
+  }
+  await saveProject(project);
   return true;
 }
 
 /** エッジを追加 */
-export function addEdge(
+export async function addEdge(
   project: FlowProject,
   source: string,
   target: string,
@@ -142,7 +197,7 @@ export function addEdge(
   trigger: TransitionTrigger = "click",
   sourceHandle?: string,
   targetHandle?: string,
-): ScreenEdge {
+): Promise<ScreenEdge> {
   const edge: ScreenEdge = {
     id: crypto.randomUUID(),
     source,
@@ -153,42 +208,46 @@ export function addEdge(
     trigger,
   };
   project.edges.push(edge);
-  saveProject(project);
+  await saveProject(project);
   return edge;
 }
 
 /** エッジを更新 */
-export function updateEdge(
+export async function updateEdge(
   project: FlowProject,
   edgeId: string,
   patch: Partial<Pick<ScreenEdge, "label" | "trigger">>,
-): ScreenEdge | null {
+): Promise<ScreenEdge | null> {
   const edge = project.edges.find((e) => e.id === edgeId);
   if (!edge) return null;
   Object.assign(edge, patch);
-  saveProject(project);
+  await saveProject(project);
   return edge;
 }
 
 /** エッジを削除 */
-export function removeEdge(project: FlowProject, edgeId: string): boolean {
+export async function removeEdge(project: FlowProject, edgeId: string): Promise<boolean> {
   const idx = project.edges.findIndex((e) => e.id === edgeId);
   if (idx === -1) return false;
   project.edges.splice(idx, 1);
-  saveProject(project);
+  await saveProject(project);
   return true;
 }
 
 /** 画面のデザインデータ有無を更新 */
-export function markScreenHasDesign(project: FlowProject, screenId: string, has: boolean): void {
+export async function markScreenHasDesign(
+  project: FlowProject,
+  screenId: string,
+  has: boolean,
+): Promise<void> {
   const screen = project.screens.find((s) => s.id === screenId);
   if (screen && screen.hasDesign !== has) {
     screen.hasDesign = has;
-    saveProject(project);
+    await saveProject(project);
   }
 }
 
-/** 画面のGrapesJSストレージキー */
+/** 画面のストレージキー（localStorage フォールバック用） */
 export function screenStorageKey(screenId: string): string {
   return `${SCREEN_DATA_PREFIX}${screenId}`;
 }
@@ -198,47 +257,45 @@ export function screenExists(project: FlowProject, screenId: string): boolean {
   return project.screens.some((s) => s.id === screenId);
 }
 
-// ── エクスポート / インポート ──
+// ─── エクスポート / インポート ────────────────────────────────────────────
 
-/** JSON エクスポート用オブジェクト */
+/** JSON エクスポート */
 export function exportProjectJSON(project: FlowProject): string {
   return JSON.stringify(project, null, 2);
 }
 
-/** JSON インポート: バリデーション + localStorage 反映 */
-export function importProjectJSON(json: string): FlowProject {
+/** JSON インポート: バリデーション + 保存 */
+export async function importProjectJSON(json: string): Promise<FlowProject> {
   const parsed = JSON.parse(json) as FlowProject;
   if (parsed.version !== 1 || !Array.isArray(parsed.screens) || !Array.isArray(parsed.edges)) {
     throw new Error("不正なプロジェクトファイルです");
   }
   // 既存の画面デザインデータをクリア
-  const current = loadProject();
+  const current = await loadProject();
   for (const s of current.screens) {
-    localStorage.removeItem(`${SCREEN_DATA_PREFIX}${s.id}`);
+    if (_backend) {
+      await _backend.deleteScreenData(s.id);
+    } else {
+      localStorage.removeItem(`${SCREEN_DATA_PREFIX}${s.id}`);
+    }
   }
-  // 保存
-  localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(parsed));
+  await saveProject(parsed);
   return parsed;
 }
 
-// ── Mermaid 生成 ──
+// ─── Mermaid 生成 ─────────────────────────────────────────────────────────
 
-/** Mermaid フロー記法文字列を安全にエスケープ */
 function mermaidEscape(text: string): string {
   return text.replace(/"/g, "#quot;").replace(/[[\](){}]/g, "");
 }
 
-/** プロジェクトから Mermaid flowchart 記法を生成 */
 export function generateMermaid(project: FlowProject): string {
   if (project.screens.length === 0) return "flowchart TD\n  empty[画面なし]";
 
   const lines: string[] = ["flowchart TD"];
-
-  // ノード ID → 短い安全な ID (S0, S1, ...)
   const idMap = new Map<string, string>();
   project.screens.forEach((s, i) => idMap.set(s.id, `S${i}`));
 
-  // ノード定義
   for (const s of project.screens) {
     const sid = idMap.get(s.id)!;
     const label = mermaidEscape(s.name);
@@ -246,26 +303,20 @@ export function generateMermaid(project: FlowProject): string {
     const typeLabel = SCREEN_TYPE_LABELS[s.type] ?? s.type;
     lines.push(`    ${sid}["${label}${sub}<br/><small>${typeLabel}</small>"]`);
   }
-
-  // エッジ定義
   for (const e of project.edges) {
     const src = idMap.get(e.source);
     const tgt = idMap.get(e.target);
     if (!src || !tgt) continue;
-    const edgeLabel = e.label
-      ? mermaidEscape(e.label)
-      : (TRIGGER_LABELS[e.trigger] ?? "");
+    const edgeLabel = e.label ? mermaidEscape(e.label) : (TRIGGER_LABELS[e.trigger] ?? "");
     if (edgeLabel) {
       lines.push(`    ${src} -->|${edgeLabel}| ${tgt}`);
     } else {
       lines.push(`    ${src} --> ${tgt}`);
     }
   }
-
   return lines.join("\n");
 }
 
-/** Mermaid 付き Markdown ドキュメントを生成 */
 export function generateFlowMarkdown(project: FlowProject): string {
   const mermaid = generateMermaid(project);
   const screenRows = project.screens.map((s) => {

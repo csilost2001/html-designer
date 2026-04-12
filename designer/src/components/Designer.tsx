@@ -13,13 +13,13 @@ import grapesjs from "grapesjs";
 import "grapesjs/dist/css/grapes.min.css";
 
 import { registerBlocks } from "../grapes/blocks";
+import { registerRemoteStorage } from "../grapes/remoteStorage";
 import { Topbar } from "./Topbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 
-const DEFAULT_STORAGE_KEY = "gjs-designer-project";
 const PANEL_MODE_KEY = "designer-panel-left-mode";
 const THEME_KEY = "designer-theme";
 
@@ -52,18 +52,15 @@ function applyThemeToCanvas(editor: GEditor, themeId: ThemeId) {
   }
 }
 
-function buildGjsOptions(storageKey: string) {
+function buildGjsOptions(screenId: string) {
   return {
     height: "100%",
     width: "auto",
     storageManager: {
-      type: "local",
+      type: "remote",
       autosave: true,
       autoload: true,
       stepsBeforeSave: 1,
-      options: {
-        local: { key: storageKey },
-      },
     },
     undoManager: { trackSelection: false },
     canvas: {
@@ -81,25 +78,23 @@ function buildGjsOptions(storageKey: string) {
 }
 
 export interface DesignerProps {
-  storageKey?: string;
+  screenId: string;
   screenName?: string;
   onBack?: () => void;
 }
 
-export function Designer({ storageKey, screenName, onBack }: DesignerProps = {}) {
-  const gjsOptions = buildGjsOptions(storageKey ?? DEFAULT_STORAGE_KEY);
+export function Designer({ screenId, screenName, onBack }: DesignerProps) {
+  const gjsOptions = buildGjsOptions(screenId);
   const [ready, setReady] = useState(false);
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
 
-  // パネルモード管理
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => {
     const saved = localStorage.getItem(PANEL_MODE_KEY) as PanelMode | null;
     return saved ?? "pinned";
   });
-  // hidden から復帰するときに戻る先を記憶
   const [prevMode, setPrevMode] = useState<"pinned" | "autohide">("pinned");
 
   const setPanelMode = useCallback((mode: PanelMode) => {
@@ -132,22 +127,26 @@ export function Designer({ storageKey, screenName, onBack }: DesignerProps = {})
     handleThemeChangeRef.current = handleThemeChange;
   }, [handleThemeChange]);
 
-  // ドラッグ中フラグ（auto-hide でドラッグ中にパネルを閉じないため）
   const onEditor = useCallback((editor: GEditor) => {
     editorRef.current = editor;
+
+    // リモートストレージを登録（GrapesJS がロード前にセットアップ）
+    registerRemoteStorage(editor, screenId);
+
     registerBlocks(editor);
     (window as unknown as { editor?: GEditor }).editor = editor;
 
-    // カスタムブロック復元（localStorage から読み込んで GrapesJS に登録）
-    const customBlocks = loadCustomBlocks();
-    for (const cb of customBlocks) {
-      editor.BlockManager.add(cb.id, {
-        label: cb.label,
-        category: cb.category,
-        content: cb.content,
-        ...(cb.media ? { media: cb.media } : {}),
-      });
-    }
+    // カスタムブロック復元（非同期で読み込んで GrapesJS に登録）
+    loadCustomBlocks().then((customBlocks) => {
+      for (const cb of customBlocks) {
+        editor.BlockManager.add(cb.id, {
+          label: cb.label,
+          category: cb.category,
+          content: cb.content,
+          ...(cb.media ? { media: cb.media } : {}),
+        });
+      }
+    }).catch(console.error);
 
     editor.on("block:drag:start", () => {
       document.body.setAttribute("data-gjs-dragging", "1");
@@ -163,24 +162,36 @@ export function Designer({ storageKey, screenName, onBack }: DesignerProps = {})
     );
     mcpBridge.start(editor);
 
+    // 他タブで同じ画面が変更されたときにリロード
+    const unsubScreenChanged = mcpBridge.onBroadcast("screenChanged", (data) => {
+      const d = data as { screenId?: string; deleted?: boolean };
+      if (d.screenId === screenId && !d.deleted) {
+        console.log("[Designer] screenChanged broadcast, reloading...");
+        editor.store().then(() => editor.load()).catch(console.error);
+      }
+    });
+
     return () => {
       unsubscribe();
+      unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
       mcpBridge.stop();
     };
-  }, []);
+  }, [screenId]);
 
-  const onReady = useCallback(() => {
+  const onReady = useCallback(async () => {
     setReady(true);
     if (editorRef.current) {
       if (activeTheme !== "standard") {
         applyThemeToCanvas(editorRef.current, activeTheme);
       }
       // カスタムブロックの CSS をキャンバスに注入
-      const customBlocks = loadCustomBlocks();
-      if (customBlocks.some((b) => b.styles)) {
-        injectCustomBlockCss(editorRef.current, customBlocks);
-      }
+      try {
+        const customBlocks = await loadCustomBlocks();
+        if (customBlocks.some((b) => b.styles)) {
+          injectCustomBlockCss(editorRef.current, customBlocks);
+        }
+      } catch { /* ignore */ }
     }
   }, [activeTheme]);
 
@@ -222,7 +233,6 @@ export function Designer({ storageKey, screenName, onBack }: DesignerProps = {})
         </WithEditor>
 
         <div className="designer-body">
-          {/* Left panel wrapper — 3モードを制御 */}
           <div className={`panel-left-wrapper is-${panelMode}`}>
             <aside className="panel-left">
               <div className="panel-section-title">
