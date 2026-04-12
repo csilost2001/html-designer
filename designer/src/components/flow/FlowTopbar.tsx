@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 interface Props {
   projectName: string;
   screenCount: number;
+  zoomLevel: number;
   onAddScreen: () => void;
   onRenameProject: (name: string) => void;
   onClearAll: () => void;
@@ -10,12 +11,15 @@ interface Props {
   onImportJSON: (json: string) => void;
   onCopyMermaid: () => void;
   onExportMarkdown: () => void;
+  onZoomChange: (zoom: number) => void;
+  onFitView: () => void;
 }
 
 export function FlowTopbar({
-  projectName, screenCount, onAddScreen,
-  onRenameProject, onClearAll,
+  projectName, screenCount, zoomLevel,
+  onAddScreen, onRenameProject, onClearAll,
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
+  onZoomChange, onFitView,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
@@ -91,9 +95,40 @@ export function FlowTopbar({
       </div>
 
       <div className="flow-topbar-center">
-        <span style={{ fontSize: 13, color: "#64748b" }}>
-          {screenCount} 画面
-        </span>
+        <span className="flow-topbar-screen-count">{screenCount} 画面</span>
+        <span className="flow-zoom-separator" />
+        <div className="flow-zoom-control">
+          <button
+            className="flow-zoom-btn"
+            onClick={() => onZoomChange(zoomLevel - 0.1)}
+            title="縮小"
+          >
+            <i className="bi bi-dash" />
+          </button>
+          <input
+            type="range"
+            className="flow-zoom-slider"
+            min={0.25} max={2} step={0.05}
+            value={zoomLevel}
+            onChange={(e) => onZoomChange(parseFloat(e.target.value))}
+            title={`${Math.round(zoomLevel * 100)}%`}
+          />
+          <button
+            className="flow-zoom-btn"
+            onClick={() => onZoomChange(zoomLevel + 0.1)}
+            title="拡大"
+          >
+            <i className="bi bi-plus" />
+          </button>
+          <span className="flow-zoom-label">{Math.round(zoomLevel * 100)}%</span>
+        </div>
+        <button
+          className="flow-btn flow-btn-ghost flow-fit-view-btn"
+          onClick={onFitView}
+          title="全体表示"
+        >
+          <i className="bi bi-arrows-fullscreen" />
+        </button>
       </div>
 
       <div className="flow-topbar-right">

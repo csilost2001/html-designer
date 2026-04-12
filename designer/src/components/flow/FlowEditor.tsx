@@ -2,12 +2,13 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
-  Controls,
   MiniMap,
   addEdge as rfAddEdge,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   ConnectionMode,
   type Connection,
   type Edge as RFEdge,
@@ -76,14 +77,17 @@ interface ContextMenu {
   targetId: string;
 }
 
-export function FlowEditor() {
+function FlowEditorInner() {
   const navigate = useNavigate();
   const projectRef = useRef<FlowProject | null>(null);
+  const { fitView, zoomTo } = useReactFlow();
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [projectName, setProjectName] = useState("読み込み中...");
   const [isLoading, setIsLoading] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const needsFitViewRef = useRef(false);
 
   // プロジェクトを読み込んで UI に反映
   const reloadProject = useCallback(async () => {
@@ -92,8 +96,19 @@ export function FlowEditor() {
     setNodes(toRFNodes(project.screens));
     setEdges(toRFEdges(project.edges));
     setProjectName(project.name);
+    needsFitViewRef.current = project.screens.length > 0;
     setIsLoading(false);
   }, [setNodes, setEdges]);
+
+  // ロード完了 or ノード変更後に全体フィット
+  useEffect(() => {
+    if (!isLoading && needsFitViewRef.current && nodes.length > 0) {
+      needsFitViewRef.current = false;
+      requestAnimationFrame(() => {
+        fitView({ padding: 0.3, maxZoom: 1, duration: 200 });
+      });
+    }
+  }, [isLoading, nodes, fitView]);
 
   // MCP bridge + 初回ロード + ブロードキャスト受信
   useEffect(() => {
@@ -111,10 +126,17 @@ export function FlowEditor() {
       if (mounted) reloadProject().catch(console.error);
     });
 
+    // WS 接続完了時にファイルから再ロード（初回ロード時にバックエンドが未設定だった場合の補完）
+    const unsubStatus = mcpBridge.onStatusChange((status) => {
+      if (status === "connected" && mounted) {
+        reloadProject().catch(console.error);
+      }
+    });
+
     // エディターなしで WebSocket 接続を維持
     mcpBridge.startWithoutEditor();
 
-    // 初回ロード
+    // 初回ロード（WS 未接続時は localStorage フォールバック）
     reloadProject().catch(console.error);
 
     return () => {
@@ -122,6 +144,7 @@ export function FlowEditor() {
       mcpBridge.setNavigateHandler(null);
       mcpBridge.setFlowChangeHandler(null);
       unsubProject();
+      unsubStatus();
     };
   }, [navigate, reloadProject]);
 
@@ -409,10 +432,20 @@ export function FlowEditor() {
       setNodes(toRFNodes(imported.screens));
       setEdges(toRFEdges(imported.edges));
       setProjectName(imported.name);
+      needsFitViewRef.current = imported.screens.length > 0;
     } catch (e) {
       alert(`インポートに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, [setNodes, setEdges]);
+
+  const handleZoomChange = useCallback((zoom: number) => {
+    const clamped = Math.min(2, Math.max(0.25, zoom));
+    zoomTo(clamped, { duration: 150 });
+  }, [zoomTo]);
+
+  const handleFitView = useCallback(() => {
+    fitView({ padding: 0.3, maxZoom: 1, duration: 200 });
+  }, [fitView]);
 
   const handleCopyMermaid = useCallback(() => {
     if (!projectRef.current) return;
@@ -443,6 +476,7 @@ export function FlowEditor() {
       <FlowTopbar
         projectName={projectName}
         screenCount={screenCount}
+        zoomLevel={zoomLevel}
         onAddScreen={handleOpenAddScreen}
         onRenameProject={(name) => { handleRenameProject(name).catch(console.error); }}
         onClearAll={() => { handleClearAll().catch(console.error); }}
@@ -450,6 +484,8 @@ export function FlowEditor() {
         onImportJSON={(json) => { handleImportJSON(json).catch(console.error); }}
         onCopyMermaid={handleCopyMermaid}
         onExportMarkdown={handleExportMarkdown}
+        onZoomChange={handleZoomChange}
+        onFitView={handleFitView}
       />
 
       <div className="flow-canvas">
@@ -472,10 +508,9 @@ export function FlowEditor() {
             onEdgeContextMenu={onEdgeContextMenu}
             onEdgesDelete={onEdgesDelete}
             onNodesDelete={onNodesDelete}
+            onViewportChange={(vp) => setZoomLevel(vp.zoom)}
             nodeTypes={nodeTypes}
             connectionMode={ConnectionMode.Loose}
-            fitView
-            fitViewOptions={{ padding: 0.3 }}
             deleteKeyCode={["Backspace", "Delete"]}
             defaultEdgeOptions={{
               markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
@@ -483,7 +518,6 @@ export function FlowEditor() {
             }}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#cbd5e1" />
-            <Controls showInteractive={false} />
             <MiniMap
               nodeColor="#6366f1"
               maskColor="rgba(241,245,249,0.7)"
@@ -558,5 +592,13 @@ export function FlowEditor() {
         onClose={() => setEdgeModal({ open: false })}
       />
     </div>
+  );
+}
+
+export function FlowEditor() {
+  return (
+    <ReactFlowProvider>
+      <FlowEditorInner />
+    </ReactFlowProvider>
   );
 }
