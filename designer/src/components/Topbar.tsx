@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useEditor } from "@grapesjs/react";
 import type { PanelMode, ThemeId } from "./Designer";
 import type { McpStatus } from "../mcp/mcpBridge";
+import { CodeEditorModal } from "./CodeEditorModal";
 
 const THEMES: { id: ThemeId; label: string; icon: string; color: string }[] = [
   { id: "standard", label: "標準",    icon: "bi-grid-3x3",     color: "#6c757d" },
@@ -33,6 +34,10 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
   );
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [hasSelected, setHasSelected] = useState(false);
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [codeModalHtml, setCodeModalHtml] = useState("");
+  const [codeModalName, setCodeModalName] = useState("");
 
   useEffect(() => {
     if (!editor) return;
@@ -46,18 +51,24 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 1200);
     };
+    const onSelectionChange = () => {
+      setHasSelected(editor.getSelectedAll().length > 0);
+    };
 
     editor.on("component:add component:remove component:update", update);
     editor.on("undo redo", update);
     editor.on("storage:start:store", onStorageStart);
     editor.on("storage:end:store", onStorageEnd);
+    editor.on("component:selected component:deselected", onSelectionChange);
     update();
+    onSelectionChange();
 
     return () => {
       editor.off("component:add component:remove component:update", update);
       editor.off("undo redo", update);
       editor.off("storage:start:store", onStorageStart);
       editor.off("storage:end:store", onStorageEnd);
+      editor.off("component:selected component:deselected", onSelectionChange);
     };
   }, [editor]);
 
@@ -70,6 +81,33 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
     }
   };
   const handleSaveNow = () => editor?.store();
+
+  const handleOpenCodeEditor = useCallback(() => {
+    if (!editor) return;
+    const selected = editor.getSelected();
+    if (!selected) return;
+    const html = selected.toHTML();
+    const name = selected.getName() || selected.get("tagName") || "コンポーネント";
+    setCodeModalHtml(html);
+    setCodeModalName(name);
+    setCodeModalOpen(true);
+  }, [editor]);
+
+  const handleCodeApply = useCallback((newHtml: string) => {
+    if (!editor) return;
+    const selected = editor.getSelected();
+    if (!selected) return;
+    const parent = selected.parent();
+    const index = selected.index();
+    // replaceWith は新しいコンポーネントを返す
+    selected.replaceWith(newHtml);
+    // 置換後のコンポーネントを選択
+    if (parent) {
+      const newComp = parent.getChildAt(index);
+      if (newComp) editor.select(newComp);
+    }
+    setCodeModalOpen(false);
+  }, [editor]);
 
   const handleExportHtml = () => {
     if (!editor) return;
@@ -154,6 +192,14 @@ ${html}
           <i className="bi bi-eye" />
         </button>
         <button
+          className="icon-btn"
+          onClick={handleOpenCodeEditor}
+          disabled={!hasSelected}
+          title="HTMLソースを編集"
+        >
+          <i className="bi bi-code-slash" />
+        </button>
+        <button
           className="icon-btn danger"
           onClick={handleClear}
           title="キャンバスをクリア"
@@ -217,6 +263,14 @@ ${html}
         <div className="divider" />
         <McpIndicator status={mcpStatus} />
       </div>
+
+      <CodeEditorModal
+        open={codeModalOpen}
+        initialHtml={codeModalHtml}
+        componentName={codeModalName}
+        onApply={handleCodeApply}
+        onClose={() => setCodeModalOpen(false)}
+      />
     </header>
   );
 }

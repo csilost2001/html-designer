@@ -671,3 +671,161 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
+
+/* ==========================================================================
+   Code Editor Modal
+   ========================================================================== */
+
+.code-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.code-modal {
+  background: var(--dz-bg-1);
+  border: 1px solid var(--dz-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  width: 90vw;
+  max-width: 800px;
+  height: 80vh;
+  max-height: 700px;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--dz-border);
+  flex-shrink: 0;
+}
+
+.code-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dz-text);
+}
+
+.code-modal-title i {
+  color: var(--dz-accent);
+  font-size: 16px;
+}
+
+.code-modal-component-name {
+  font-weight: 400;
+  color: var(--dz-text-dim);
+  font-size: 12px;
+  background: var(--dz-bg-3);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.code-modal-close {
+  background: none;
+  border: none;
+  color: var(--dz-text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.code-modal-close:hover {
+  background: var(--dz-bg-3);
+  color: var(--dz-text);
+}
+
+.code-modal-body {
+  flex: 1;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.code-modal-error {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.code-modal-error i {
+  margin-right: 6px;
+}
+
+.code-editor-textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  background: #1a1d2e;
+  color: #e2e8f0;
+  border: 1px solid var(--dz-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", "Fira Code", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  outline: none;
+  box-sizing: border-box;
+}
+.code-editor-textarea:focus {
+  border-color: var(--dz-accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.code-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--dz-border);
+  flex-shrink: 0;
+}
+
+.code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.code-btn-primary {
+  background: var(--dz-accent);
+  color: #fff;
+}
+.code-btn-primary:hover {
+  background: var(--dz-accent-hover);
+}
+
+.code-btn-secondary {
+  background: var(--dz-bg-3);
+  color: var(--dz-text-dim);
+  border: 1px solid var(--dz-border);
+}
+.code-btn-secondary:hover {
+  background: var(--dz-border);
+  color: var(--dz-text);
+}
