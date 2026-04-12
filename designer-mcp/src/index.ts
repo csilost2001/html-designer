@@ -339,6 +339,78 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // ── React エクスポート ──
 
+      // ── カスタムブロック管理 ──
+
+      case "designer__define_block": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (
+          typeof a.id !== "string" ||
+          typeof a.label !== "string" ||
+          typeof a.content !== "string"
+        ) {
+          throw new McpError(ErrorCode.InvalidParams, "id, label, content は必須です");
+        }
+        await wsBridge.sendCommand("defineBlock", {
+          id: a.id,
+          label: a.label,
+          category: typeof a.category === "string" ? a.category : "カスタム",
+          content: a.content,
+          styles: typeof a.styles === "string" ? a.styles : undefined,
+          media: typeof a.media === "string" ? a.media : undefined,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `カスタムブロック「${a.label}」(${a.id}) を登録しました。`,
+            },
+          ],
+        };
+      }
+
+      case "designer__remove_custom_block": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.id !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "id は必須です");
+        }
+        await wsBridge.sendCommand("removeCustomBlock", { id: a.id });
+        return {
+          content: [
+            { type: "text", text: `カスタムブロック ${a.id} を削除しました。` },
+          ],
+        };
+      }
+
+      case "designer__list_custom_blocks": {
+        const result = (await wsBridge.sendCommand("listCustomBlocks")) as {
+          blocks: Array<{
+            id: string;
+            label: string;
+            category: string;
+            hasStyles: boolean;
+          }>;
+        };
+        if (result.blocks.length === 0) {
+          return {
+            content: [
+              { type: "text", text: "カスタムブロックはまだ定義されていません。" },
+            ],
+          };
+        }
+        const lines = result.blocks.map(
+          (b) =>
+            `- ${b.id} — ${b.label} [${b.category}]${b.hasStyles ? " (CSS付き)" : ""}`
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `カスタムブロック (${result.blocks.length}件):\n${lines.join("\n")}`,
+            },
+          ],
+        };
+      }
+
       case "designer__export_screen": {
         const a = (args ?? {}) as Record<string, unknown>;
         if (typeof a.screenId !== "string") {

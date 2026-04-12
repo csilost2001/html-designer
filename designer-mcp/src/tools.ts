@@ -311,4 +311,72 @@ export const tools = [
       required: ["screenId"],
     },
   },
+
+  // ── カスタムブロック管理 ──
+
+  {
+    name: "designer__define_block",
+    description:
+      "カスタムブロックを定義してデザイナーのブロックカタログに登録します。" +
+      "同じ id で再呼び出しすると定義を上書きします。" +
+      "ビルトインブロックの id と衝突する場合はエラーになります。" +
+      "ブラウザリロード後も保持されます（localStorage 永続化）。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "ブロックID（一意）。ビルトインブロックのIDとの衝突を避けてください",
+        },
+        label: {
+          type: "string",
+          description: "カタログ表示名",
+        },
+        category: {
+          type: "string",
+          description: "カテゴリ名。省略時は \"カスタム\"",
+        },
+        content: {
+          type: "string",
+          description: "ブロックの HTML コンテンツ",
+        },
+        styles: {
+          type: "string",
+          description: "ブロック用 CSS（キャンバス iframe に注入される）。省略可",
+        },
+        media: {
+          type: "string",
+          description: "サムネイル SVG/HTML（カタログに表示されるアイコン）。省略可",
+        },
+      },
+      required: ["id", "label", "content"],
+    },
+  },
+  {
+    name: "designer__remove_custom_block",
+    description:
+      "カスタムブロックをカタログと永続化ストアから削除します。" +
+      "キャンバス上の既存インスタンスは削除されません。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "削除するカスタムブロックの ID",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "designer__list_custom_blocks",
+    description:
+      "定義済みカスタムブロックの一覧を取得します。" +
+      "ビルトイン含む全ブロックは designer__list_blocks で取得できます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];

@@ -17,6 +17,7 @@ import { Topbar } from "./Topbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
+import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 
 const DEFAULT_STORAGE_KEY = "gjs-designer-project";
 const PANEL_MODE_KEY = "designer-panel-left-mode";
@@ -137,6 +138,17 @@ export function Designer({ storageKey, screenName, onBack }: DesignerProps = {})
     registerBlocks(editor);
     (window as unknown as { editor?: GEditor }).editor = editor;
 
+    // カスタムブロック復元（localStorage から読み込んで GrapesJS に登録）
+    const customBlocks = loadCustomBlocks();
+    for (const cb of customBlocks) {
+      editor.BlockManager.add(cb.id, {
+        label: cb.label,
+        category: cb.category,
+        content: cb.content,
+        ...(cb.media ? { media: cb.media } : {}),
+      });
+    }
+
     editor.on("block:drag:start", () => {
       document.body.setAttribute("data-gjs-dragging", "1");
     });
@@ -160,8 +172,15 @@ export function Designer({ storageKey, screenName, onBack }: DesignerProps = {})
 
   const onReady = useCallback(() => {
     setReady(true);
-    if (editorRef.current && activeTheme !== "standard") {
-      applyThemeToCanvas(editorRef.current, activeTheme);
+    if (editorRef.current) {
+      if (activeTheme !== "standard") {
+        applyThemeToCanvas(editorRef.current, activeTheme);
+      }
+      // カスタムブロックの CSS をキャンバスに注入
+      const customBlocks = loadCustomBlocks();
+      if (customBlocks.some((b) => b.styles)) {
+        injectCustomBlockCss(editorRef.current, customBlocks);
+      }
     }
   }, [activeTheme]);
 

@@ -11,6 +11,13 @@ import {
   removeEdge,
   generateMermaid,
 } from "../store/flowStore";
+import {
+  loadCustomBlocks,
+  upsertCustomBlock,
+  deleteCustomBlock,
+  injectCustomBlockCss,
+  type CustomBlock,
+} from "../store/customBlockStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
@@ -174,6 +181,7 @@ class McpBridgeImpl {
     const flowMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
+      "listCustomBlocks", // localStorage から読むだけ。エディター不要
     ];
 
     if (!this.editor && !flowMethods.includes(method)) {
@@ -529,6 +537,97 @@ class McpBridgeImpl {
           } else {
             respondError("ナビゲーションハンドラが登録されていません");
           }
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      // ── カスタムブロック管理 ──
+
+      case "defineBlock": {
+        try {
+          const { id, label, category, content, styles, media } = (params ?? {}) as {
+            id: string;
+            label: string;
+            category: string;
+            content: string;
+            styles?: string;
+            media?: string;
+          };
+
+          // ビルトインブロックとの衝突チェック
+          const existing = editor.Blocks.get(id);
+          const customBlocks = loadCustomBlocks();
+          const isCustom = customBlocks.some((b) => b.id === id);
+          if (existing && !isCustom) {
+            respondError(
+              `ブロックID "${id}" はビルトインブロックと衝突します。別のIDを使用してください。`
+            );
+            break;
+          }
+
+          // GrapesJS に登録（既存カスタムIDなら上書き）
+          editor.BlockManager.add(id, {
+            label,
+            category,
+            content,
+            ...(media ? { media } : {}),
+          });
+
+          // localStorage に永続化
+          const now = new Date().toISOString();
+          const prev = customBlocks.find((b) => b.id === id);
+          upsertCustomBlock({
+            id,
+            label,
+            category,
+            content,
+            styles,
+            media,
+            createdAt: prev?.createdAt ?? now,
+            updatedAt: now,
+          } as CustomBlock);
+
+          // CSS 注入（styles がある場合も含め全量再注入）
+          injectCustomBlockCss(editor, loadCustomBlocks());
+
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "removeCustomBlock": {
+        try {
+          const { id } = (params ?? {}) as { id: string };
+          const ok = deleteCustomBlock(id);
+          if (!ok) {
+            respondError(`カスタムブロック "${id}" が見つかりません`);
+            break;
+          }
+          // カタログから除去
+          editor.BlockManager.remove(id);
+          // CSS 更新
+          injectCustomBlockCss(editor, loadCustomBlocks());
+          respond({ success: true });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
+      case "listCustomBlocks": {
+        try {
+          const all = loadCustomBlocks();
+          const blocks = all.map((b) => ({
+            id: b.id,
+            label: b.label,
+            category: b.category,
+            hasStyles: !!b.styles,
+          }));
+          respond({ blocks });
         } catch (e) {
           respondError(String(e));
         }
