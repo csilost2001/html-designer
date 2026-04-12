@@ -535,6 +535,23 @@ class McpBridgeImpl {
         break;
       }
 
+      // ── React エクスポート（エディター必須） ──
+
+      case "exportScreen": {
+        try {
+          const { screenId } = (params ?? {}) as { screenId: string };
+          const html = editor.getHtml();
+          const css  = editor.getCss() ?? "";
+          const project = loadProject();
+          const screen  = project.screens.find((s) => s.id === screenId);
+          const screenName = screen?.name ?? "Screen";
+          respond({ html, css, screenName });
+        } catch (e) {
+          respondError(String(e));
+        }
+        break;
+      }
+
       default:
         respondError(`未知のメソッド: ${method}`);
     }

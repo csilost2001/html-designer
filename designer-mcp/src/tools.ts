@@ -286,4 +286,29 @@ export const tools = [
       required: ["screenId"],
     },
   },
+
+  // ── React エクスポート ──
+
+  {
+    name: "designer__export_screen",
+    description:
+      "現在デザイナーで開いている画面を React TSX コンポーネントとして出力します。" +
+      "事前に designer__navigate_screen で対象画面を開いてから呼んでください（2〜3秒待機）。" +
+      "出力されたコードを Claude Code が .tsx ファイルに書き込みます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: {
+          type: "string",
+          description: "エクスポート対象の画面ID（list_screens で取得）",
+        },
+        componentName: {
+          type: "string",
+          description:
+            "生成するコンポーネント名（PascalCase）。省略時は画面名から自動生成（例: 顧客一覧 → ScreenComponent）",
+        },
+      },
+      required: ["screenId"],
+    },
+  },
 ];

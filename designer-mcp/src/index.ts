@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
+import { htmlToReact, toPascalCase } from "./reactExporter.js";
 
 // 親プロセス（Claude Code）が死んだら自動終了
 function setupLifecycle(): void {
@@ -331,6 +332,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `画面 ${a.screenId} のデザイナーへ遷移しました。`,
+            },
+          ],
+        };
+      }
+
+      // ── React エクスポート ──
+
+      case "designer__export_screen": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.screenId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
+        }
+
+        // ブラウザ側から HTML + 画面名を取得
+        const result = (await wsBridge.sendCommand("exportScreen", {
+          screenId: a.screenId,
+        })) as { html: string; css: string; screenName: string };
+
+        // コンポーネント名を決定
+        const rawName =
+          typeof a.componentName === "string" && a.componentName.trim()
+            ? a.componentName.trim()
+            : toPascalCase(result.screenName);
+
+        // JSX 変換
+        const { code, warnings } = htmlToReact(result.html, rawName);
+
+        const warningText =
+          warnings.length > 0
+            ? `\n\n> **変換警告:**\n${warnings.map((w) => `> - ${w}`).join("\n")}`
+            : "";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `## ${rawName}.tsx\n\n\`\`\`tsx\n${code}\n\`\`\`${warningText}`,
             },
           ],
         };
