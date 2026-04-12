@@ -6,8 +6,12 @@ designer-mcp/node_modules/
 designer/dist/
 designer-mcp/dist/
 
+# Designer generated outputs
+output/
+
 # Playwright MCP artifacts
 .playwright-mcp/
+screenshots/
 *.png
 
 # Claude Code local settings
