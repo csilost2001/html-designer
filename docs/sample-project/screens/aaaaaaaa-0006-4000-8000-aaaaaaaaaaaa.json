@@ -1,0 +1,36 @@
+{
+  "dataSources": [],
+  "assets": [],
+  "styles": [],
+  "pages": [
+    {
+      "frames": [
+        {
+          "component": {
+            "type": "wrapper",
+            "stylable": [
+              "background",
+              "background-color",
+              "background-image",
+              "background-repeat",
+              "background-attachment",
+              "background-position",
+              "background-size"
+            ],
+            "head": {
+              "type": "head"
+            },
+            "docEl": {
+              "tagName": "html"
+            },
+            "components": "<div>\n  <nav class=\"navbar navbar-dark px-3 py-2\" style=\"background:#6366f1\">\n    <span class=\"navbar-brand mb-0 fw-bold small\"><i class=\"bi bi-building me-2\"></i>顧客管理システム</span>\n  </nav>\n  <div class=\"container-fluid px-3 pt-3\">\n    <div class=\"d-flex align-items-center gap-2 mb-3\">\n      <button class=\"btn btn-outline-secondary btn-sm py-0\"><i class=\"bi bi-chevron-left\"></i></button>\n      <h6 class=\"mb-0 fw-bold\"><i class=\"bi bi-pencil-square me-2 text-warning\"></i>顧客修正</h6>\n      <span class=\"badge bg-light text-muted border ms-1\">C-0001 山田 太郎</span>\n    </div>\n    <div class=\"card border-0 shadow-sm\">\n      <div class=\"card-header bg-white border-bottom py-2\">\n        <span class=\"fw-medium small text-muted\">修正する項目を変更してください</span>\n      </div>\n      <div class=\"card-body\">\n        <div class=\"row g-3\">\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">顧客名 <span class=\"text-danger\">*</span></label>\n            <input type=\"text\" class=\"form-control form-control-sm\" value=\"山田 太郎\">\n          </div>\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">フリガナ <span class=\"text-danger\">*</span></label>\n            <input type=\"text\" class=\"form-control form-control-sm\" value=\"ヤマダ タロウ\">\n          </div>\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">生年月日</label>\n            <input type=\"date\" class=\"form-control form-control-sm\" value=\"1985-03-20\">\n          </div>\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">性別</label>\n            <select class=\"form-select form-select-sm\">\n              <option selected>男性</option><option>女性</option><option>その他</option>\n            </select>\n          </div>\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">電話番号 <span class=\"text-danger\">*</span></label>\n            <input type=\"tel\" class=\"form-control form-control-sm\" value=\"03-1234-5678\">\n          </div>\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">メールアドレス</label>\n            <input type=\"email\" class=\"form-control form-control-sm\" value=\"yamada@example.com\">\n          </div>\n          <div class=\"col-md-3\">\n            <label class=\"form-label small fw-medium\">郵便番号</label>\n            <div class=\"input-group input-group-sm\">\n              <input type=\"text\" class=\"form-control\" value=\"100-0001\">\n              <button class=\"btn btn-outline-secondary btn-sm\">検索</button>\n            </div>\n          </div>\n          <div class=\"col-md-9\">\n            <label class=\"form-label small fw-medium\">住所</label>\n            <input type=\"text\" class=\"form-control form-control-sm\" value=\"東京都千代田区千代田1-1-1\">\n          </div>\n          <div class=\"col-12\">\n            <label class=\"form-label small fw-medium\">住所（建物名など）</label>\n            <input type=\"text\" class=\"form-control form-control-sm\" placeholder=\"マンション名・部屋番号など\">\n          </div>\n          <div class=\"col-md-6\">\n            <label class=\"form-label small fw-medium\">会員ランク</label>\n            <select class=\"form-select form-select-sm\">\n              <option>スタンダード</option><option>シルバー</option>\n              <option selected>ゴールド</option><option>プラチナ</option>\n            </select>\n          </div>\n          <div class=\"col-12\">\n            <label class=\"form-label small fw-medium\">備考</label>\n            <textarea class=\"form-control form-control-sm\" rows=\"2\">月次請求書を郵送希望。担当：営業部 鈴木</textarea>\n          </div>\n        </div>\n      </div>\n      <div class=\"card-footer bg-white d-flex justify-content-between align-items-center\">\n        <small class=\"text-muted\"><i class=\"bi bi-clock me-1\"></i>最終更新: 2024-11-20</small>\n        <div class=\"d-flex gap-2\">\n          <button class=\"btn btn-outline-secondary\">キャンセル</button>\n          <button class=\"btn btn-warning\"><i class=\"bi bi-check-lg me-1\"></i>更新</button>\n        </div>\n      </div>\n    </div>\n  </div>\n</div>"
+          },
+          "id": "fr-custedit-0006"
+        }
+      ],
+      "type": "main",
+      "id": "pg-custedit-0006"
+    }
+  ],
+  "symbols": []
+}

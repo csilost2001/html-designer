@@ -1,0 +1,36 @@
+{
+  "dataSources": [],
+  "assets": [],
+  "styles": [],
+  "pages": [
+    {
+      "frames": [
+        {
+          "component": {
+            "type": "wrapper",
+            "stylable": [
+              "background",
+              "background-color",
+              "background-image",
+              "background-repeat",
+              "background-attachment",
+              "background-position",
+              "background-size"
+            ],
+            "head": {
+              "type": "head"
+            },
+            "docEl": {
+              "tagName": "html"
+            },
+            "components": "<div style=\"min-height:100vh;background:#f0f4ff;display:flex;align-items:center;justify-content:center\">\n  <div style=\"width:100%;max-width:400px;padding:16px\">\n    <div class=\"card shadow\">\n      <div class=\"card-body p-4\">\n        <div class=\"text-center mb-4\">\n          <div style=\"width:56px;height:56px;background:#6366f1;border-radius:12px;display:inline-flex;align-items:center;justify-content:center\">\n            <i class=\"bi bi-building text-white fs-4\"></i>\n          </div>\n          <h5 class=\"mt-3 mb-0 fw-bold\">顧客管理システム</h5>\n          <small class=\"text-muted\">Customer Management System</small>\n        </div>\n        <div class=\"mb-3\">\n          <label class=\"form-label fw-medium small\">ユーザーID</label>\n          <div class=\"input-group\">\n            <span class=\"input-group-text\"><i class=\"bi bi-person\"></i></span>\n            <input type=\"text\" class=\"form-control\" placeholder=\"ユーザーIDを入力\">\n          </div>\n        </div>\n        <div class=\"mb-4\">\n          <label class=\"form-label fw-medium small\">パスワード</label>\n          <div class=\"input-group\">\n            <span class=\"input-group-text\"><i class=\"bi bi-lock\"></i></span>\n            <input type=\"password\" class=\"form-control\" placeholder=\"パスワードを入力\">\n          </div>\n        </div>\n        <div class=\"d-grid\">\n          <button class=\"btn btn-primary btn-lg\">ログイン</button>\n        </div>\n        <div class=\"text-center mt-3\">\n          <a href=\"#\" class=\"text-decoration-none small text-muted\">パスワードを忘れた方はこちら</a>\n        </div>\n      </div>\n    </div>\n    <p class=\"text-center text-muted small mt-3\">© 2026 顧客管理システム</p>\n  </div>\n</div>"
+          },
+          "id": "fr-login-0001"
+        }
+      ],
+      "type": "main",
+      "id": "pg-login-0001"
+    }
+  ],
+  "symbols": []
+}

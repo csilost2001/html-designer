@@ -1,0 +1,264 @@
+{
+  "version": 1,
+  "name": "顧客管理システム（サンプル）",
+  "screens": [
+    {
+      "id": "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa",
+      "name": "ログイン",
+      "type": "login",
+      "description": "ユーザー認証画面。IDとパスワードでシステムにログインする。",
+      "path": "/login",
+      "position": { "x": 370, "y": 50 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0002-4000-8000-aaaaaaaaaaaa",
+      "name": "メインメニュー",
+      "type": "dashboard",
+      "description": "システム全体のナビゲーションハブ。顧客管理・注文管理・レポートへ遷移できる。",
+      "path": "/menu",
+      "position": { "x": 370, "y": 220 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+      "name": "顧客一覧・検索",
+      "type": "search",
+      "description": "顧客名・電話番号での絞り込み検索と一覧表示。新規登録ボタンから顧客登録画面へ遷移。",
+      "path": "/customers",
+      "position": { "x": 100, "y": 400 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+      "name": "顧客詳細",
+      "type": "detail",
+      "description": "顧客の詳細情報表示。修正・削除・注文一覧の各操作ボタンあり。",
+      "path": "/customers/:id",
+      "position": { "x": 100, "y": 580 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+      "name": "顧客登録",
+      "type": "form",
+      "description": "新規顧客の入力フォーム。氏名・フリガナ・連絡先・住所を入力して登録。",
+      "path": "/customers/new",
+      "position": { "x": 100, "y": 760 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0006-4000-8000-aaaaaaaaaaaa",
+      "name": "顧客修正",
+      "type": "form",
+      "description": "既存顧客情報の修正フォーム。登録画面と同じ項目を編集できる。",
+      "path": "/customers/:id/edit",
+      "position": { "x": 340, "y": 760 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+      "name": "削除確認",
+      "type": "confirm",
+      "description": "顧客データの削除確認ダイアログ。削除実行またはキャンセルを選択する。",
+      "path": "/customers/:id/delete",
+      "position": { "x": 340, "y": 580 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa",
+      "name": "注文一覧",
+      "type": "list",
+      "description": "注文の検索・一覧表示。顧客名・期間での絞り込みができる。新規注文登録ボタンあり。",
+      "path": "/orders",
+      "position": { "x": 640, "y": 400 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+      "name": "注文登録",
+      "type": "form",
+      "description": "新規注文の入力フォーム。顧客選択・商品明細・合計金額を入力して登録。",
+      "path": "/orders/new",
+      "position": { "x": 640, "y": 580 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    },
+    {
+      "id": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+      "name": "処理完了",
+      "type": "complete",
+      "description": "登録・修正・削除の完了通知画面。処理内容のサマリーと一覧へ戻るボタンを表示。",
+      "path": "/complete",
+      "position": { "x": 490, "y": 940 },
+      "size": { "width": 200, "height": 100 },
+      "hasDesign": true,
+      "createdAt": "2026-04-12T00:00:00.000Z",
+      "updatedAt": "2026-04-12T00:00:00.000Z"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-0001",
+      "source": "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0002-4000-8000-aaaaaaaaaaaa",
+      "label": "認証成功",
+      "trigger": "submit",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0002",
+      "source": "aaaaaaaa-0002-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+      "label": "顧客管理",
+      "trigger": "click",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0003",
+      "source": "aaaaaaaa-0002-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa",
+      "label": "注文管理",
+      "trigger": "click",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0004",
+      "source": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+      "label": "行クリック",
+      "trigger": "click",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0005",
+      "source": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+      "label": "新規登録",
+      "trigger": "click",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0006",
+      "source": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0006-4000-8000-aaaaaaaaaaaa",
+      "label": "修正",
+      "trigger": "click",
+      "sourceHandle": "right",
+      "targetHandle": "left"
+    },
+    {
+      "id": "edge-0007",
+      "source": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+      "label": "削除",
+      "trigger": "click",
+      "sourceHandle": "top",
+      "targetHandle": "bottom"
+    },
+    {
+      "id": "edge-0008",
+      "source": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa",
+      "label": "注文一覧",
+      "trigger": "click",
+      "sourceHandle": "right",
+      "targetHandle": "left"
+    },
+    {
+      "id": "edge-0009",
+      "source": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+      "label": "登録完了",
+      "trigger": "submit",
+      "sourceHandle": "right",
+      "targetHandle": "left"
+    },
+    {
+      "id": "edge-0010",
+      "source": "aaaaaaaa-0006-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+      "label": "修正完了",
+      "trigger": "submit",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0011",
+      "source": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+      "label": "削除実行",
+      "trigger": "click",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0012",
+      "source": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+      "label": "キャンセル",
+      "trigger": "click",
+      "sourceHandle": "left",
+      "targetHandle": "right"
+    },
+    {
+      "id": "edge-0013",
+      "source": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+      "label": "一覧へ戻る",
+      "trigger": "click",
+      "sourceHandle": "left",
+      "targetHandle": "bottom"
+    },
+    {
+      "id": "edge-0014",
+      "source": "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+      "label": "新規注文",
+      "trigger": "click",
+      "sourceHandle": "bottom",
+      "targetHandle": "top"
+    },
+    {
+      "id": "edge-0015",
+      "source": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+      "target": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+      "label": "注文確定",
+      "trigger": "submit",
+      "sourceHandle": "bottom",
+      "targetHandle": "right"
+    }
+  ],
+  "updatedAt": "2026-04-12T00:00:00.000Z"
+}
