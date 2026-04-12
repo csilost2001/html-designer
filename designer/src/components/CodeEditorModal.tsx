@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import Editor from "@monaco-editor/react";
 
 /** HTML を整形してインデント付きで返す */
 function formatHtml(raw: string): string {
@@ -21,18 +22,15 @@ function formatHtml(raw: string): string {
     const el = node as Element;
     const tag = el.tagName.toLowerCase();
 
-    // 属性を組み立て
     let attrs = "";
     for (const attr of Array.from(el.attributes)) {
       attrs += ` ${attr.name}="${attr.value}"`;
     }
 
-    // void 要素（自己閉じ）
     if (VOID_ELEMENTS.has(tag)) {
       return `${indent}<${tag}${attrs}>\n`;
     }
 
-    // 子がテキストのみの短い要素はインラインで返す
     const children = Array.from(el.childNodes);
     if (
       children.length === 1 &&
@@ -43,7 +41,6 @@ function formatHtml(raw: string): string {
       return `${indent}<${tag}${attrs}>${text}</${tag}>\n`;
     }
 
-    // 子ノードを再帰
     let inner = "";
     for (const child of children) {
       inner += serialize(child, depth + 1);
@@ -71,13 +68,11 @@ interface Props {
 export function CodeEditorModal({ open, initialHtml, componentName, onApply, onClose }: Props) {
   const [html, setHtml] = useState(initialHtml);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) {
       setHtml(formatHtml(initialHtml));
       setError(null);
-      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   }, [open, initialHtml]);
 
@@ -89,7 +84,6 @@ export function CodeEditorModal({ open, initialHtml, componentName, onApply, onC
       setError("HTMLが空です");
       return;
     }
-    // 簡易バリデーション: パースできるか確認
     try {
       const doc = new DOMParser().parseFromString(trimmed, "text/html");
       const parseError = doc.querySelector("parsererror");
@@ -102,23 +96,6 @@ export function CodeEditorModal({ open, initialHtml, componentName, onApply, onC
     }
     setError(null);
     onApply(trimmed);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Tab キーでインデント挿入
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const ta = textareaRef.current;
-      if (!ta) return;
-      const start = ta.selectionStart;
-      const end = ta.selectionEnd;
-      const newVal = html.substring(0, start) + "  " + html.substring(end);
-      setHtml(newVal);
-      // カーソル位置を復元
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + 2;
-      });
-    }
   };
 
   return (
@@ -141,13 +118,23 @@ export function CodeEditorModal({ open, initialHtml, componentName, onApply, onC
               <i className="bi bi-exclamation-triangle" /> {error}
             </div>
           )}
-          <textarea
-            ref={textareaRef}
-            className="code-editor-textarea"
+          <Editor
+            language="html"
+            theme="vs-dark"
             value={html}
-            onChange={(e) => setHtml(e.target.value)}
-            onKeyDown={handleKeyDown}
-            spellCheck={false}
+            onChange={(v) => setHtml(v ?? "")}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              lineNumbers: "on",
+              tabSize: 2,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              folding: true,
+              bracketPairColorization: { enabled: true },
+              formatOnPaste: true,
+            }}
           />
         </div>
 

@@ -767,27 +767,16 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   margin-right: 6px;
 }
 
-.code-editor-textarea {
-  flex: 1;
-  width: 100%;
-  resize: none;
-  background: #1a1d2e;
-  color: #e2e8f0;
-  border: 1px solid var(--dz-border);
+.code-modal-body .monaco-editor,
+.code-modal-body .overflow-guard {
   border-radius: 8px;
-  padding: 14px 16px;
-  font-family: "SF Mono", "Cascadia Code", "Consolas", "Fira Code", monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  tab-size: 2;
-  white-space: pre;
-  overflow: auto;
-  outline: none;
-  box-sizing: border-box;
 }
-.code-editor-textarea:focus {
-  border-color: var(--dz-accent);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+
+.code-modal-body > section {
+  flex: 1;
+  min-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .code-modal-footer {
