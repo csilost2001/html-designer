@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Designer } from "./Designer";
 import { loadProject, screenExists } from "../store/flowStore";
+import { mcpBridge } from "../mcp/mcpBridge";
 import type { ScreenNode } from "../types/flow";
 
 export function ScreenDesigner() {
@@ -15,13 +16,35 @@ export function ScreenDesigner() {
       setScreen(null);
       return;
     }
-    loadProject().then((project) => {
-      if (!screenExists(project, screenId)) {
-        setScreen(null);
-        return;
-      }
-      setScreen(project.screens.find((s) => s.id === screenId) ?? null);
-    }).catch(() => setScreen(null));
+
+    let mounted = true;
+
+    const doLoad = () => {
+      loadProject().then((project) => {
+        if (!mounted) return;
+        if (!screenExists(project, screenId)) {
+          setScreen(null);
+          return;
+        }
+        setScreen(project.screens.find((s) => s.id === screenId) ?? null);
+      }).catch(() => { if (mounted) setScreen(null); });
+    };
+
+    // WS 接続完了時にファイルから再ロード
+    const unsubStatus = mcpBridge.onStatusChange((status) => {
+      if (status === "connected" && mounted) doLoad();
+    });
+
+    // エディターなしで WebSocket 接続を開始
+    mcpBridge.startWithoutEditor();
+
+    // 初回ロード（WS 未接続時は localStorage フォールバック）
+    doLoad();
+
+    return () => {
+      mounted = false;
+      unsubStatus();
+    };
   }, [screenId]);
 
   if (screen === undefined) {

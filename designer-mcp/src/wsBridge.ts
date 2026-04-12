@@ -271,6 +271,22 @@ class WsBridge extends EventEmitter {
         case "saveScreen": {
           const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
           await writeScreen(screenId, data);
+          // 初回デザイン保存時に project の hasDesign フラグを更新
+          try {
+            const project = await readProject() as { screens?: Array<{ id: string; hasDesign?: boolean; updatedAt?: string }>; updatedAt?: string } | null;
+            if (project?.screens) {
+              const screen = project.screens.find((s) => s.id === screenId);
+              if (screen && !screen.hasDesign) {
+                screen.hasDesign = true;
+                screen.updatedAt = new Date().toISOString();
+                project.updatedAt = new Date().toISOString();
+                await writeProject(project);
+                this.broadcast("projectChanged", {}, clientId);
+              }
+            }
+          } catch (e) {
+            console.error("[WsBridge] Failed to update hasDesign:", e);
+          }
           respond({ success: true });
           this.broadcast("screenChanged", { screenId }, clientId);
           break;
