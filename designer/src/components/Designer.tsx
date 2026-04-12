@@ -3,10 +3,6 @@ import type { Editor as GEditor } from "grapesjs";
 import GjsEditor, {
   Canvas,
   BlocksProvider,
-  StylesProvider,
-  LayersProvider,
-  TraitsProvider,
-  SelectorsProvider,
   WithEditor,
 } from "@grapesjs/react";
 import grapesjs from "grapesjs";
@@ -267,12 +263,7 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
           </main>
 
           <aside className="panel-right">
-            <RightPanel
-              StylesProvider={StylesProvider}
-              SelectorsProvider={SelectorsProvider}
-              TraitsProvider={TraitsProvider}
-              LayersProvider={LayersProvider}
-            />
+            <RightPanel />
           </aside>
         </div>
       </div>

@@ -1,30 +1,72 @@
-import { useState } from "react";
-import type {
-  StylesResultProps,
-  SelectorsResultProps,
-  TraitsResultProps,
-  LayersResultProps,
-} from "@grapesjs/react";
-import type { ComponentType } from "react";
-
-type ProviderChildren<T> = (props: T) => React.ReactElement;
-
-interface Props {
-  StylesProvider: ComponentType<{ children: ProviderChildren<StylesResultProps> }>;
-  SelectorsProvider: ComponentType<{ children: ProviderChildren<SelectorsResultProps> }>;
-  TraitsProvider: ComponentType<{ children: ProviderChildren<TraitsResultProps> }>;
-  LayersProvider: ComponentType<{ children: ProviderChildren<LayersResultProps> }>;
-}
+import { useState, useEffect, useRef } from "react";
+import { useEditorMaybe } from "@grapesjs/react";
 
 type TabId = "styles" | "traits" | "layers";
 
-export function RightPanel({
-  StylesProvider,
-  SelectorsProvider,
-  TraitsProvider,
-  LayersProvider,
-}: Props) {
+/**
+ * GrapesJS のネイティブ UI を render() メソッドで取得し、
+ * React の ref コンテナにマウントするコンポーネント。
+ *
+ * <Canvas/> 使用時は GrapesJS のパネルシステムが無効化されるため、
+ * @grapesjs/react の Provider + Container パターンは空になる。
+ * 代わりに各マネージャーの render() を直接呼び出す。
+ */
+export function RightPanel() {
   const [tab, setTab] = useState<TabId>("styles");
+  const editor = useEditorMaybe();
+  const [loaded, setLoaded] = useState(false);
+
+  const selectorRef = useRef<HTMLDivElement>(null);
+  const styleRef = useRef<HTMLDivElement>(null);
+  const traitRef = useRef<HTMLDivElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+
+  // editor:load 後にマネージャーの render() を呼ぶ
+  useEffect(() => {
+    if (!editor) return;
+
+    const onLoad = () => setLoaded(true);
+
+    // 既にロード済みならすぐセット
+    if (editor.getComponents().length > 0 || editor.getStyle().length > 0) {
+      setLoaded(true);
+    }
+    editor.on("load", onLoad);
+    return () => {
+      editor.off("load", onLoad);
+    };
+  }, [editor]);
+
+  // ロード完了後にネイティブ UI をマウント
+  useEffect(() => {
+    if (!editor || !loaded || mountedRef.current) return;
+    mountedRef.current = true;
+
+    // Selector Manager
+    if (selectorRef.current) {
+      const el = editor.SelectorManager.render([]);
+      selectorRef.current.appendChild(el);
+    }
+
+    // Style Manager
+    if (styleRef.current) {
+      const el = editor.StyleManager.render();
+      styleRef.current.appendChild(el);
+    }
+
+    // Trait Manager
+    if (traitRef.current) {
+      const el = editor.TraitManager.render();
+      traitRef.current.appendChild(el);
+    }
+
+    // Layer Manager
+    if (layerRef.current) {
+      const el = editor.LayerManager.render();
+      layerRef.current.appendChild(el);
+    }
+  }, [editor, loaded]);
 
   return (
     <div className="right-panel">
@@ -51,42 +93,26 @@ export function RightPanel({
 
       <div className="right-content">
         <div hidden={tab !== "styles"}>
-          <SelectorsProvider>
-            {({ Container }) => (
-              <div className="panel-block">
-                <div className="panel-block-title">セレクタ</div>
-                <Container />
-              </div>
-            )}
-          </SelectorsProvider>
-          <StylesProvider>
-            {({ Container }) => (
-              <div className="panel-block">
-                <div className="panel-block-title">スタイル</div>
-                <Container />
-              </div>
-            )}
-          </StylesProvider>
+          <div className="panel-block">
+            <div className="panel-block-title">セレクタ</div>
+            <div ref={selectorRef} />
+          </div>
+          <div className="panel-block">
+            <div className="panel-block-title">スタイル</div>
+            <div ref={styleRef} />
+          </div>
         </div>
         <div hidden={tab !== "traits"}>
-          <TraitsProvider>
-            {({ Container }) => (
-              <div className="panel-block">
-                <div className="panel-block-title">属性</div>
-                <Container />
-              </div>
-            )}
-          </TraitsProvider>
+          <div className="panel-block">
+            <div className="panel-block-title">属性</div>
+            <div ref={traitRef} />
+          </div>
         </div>
         <div hidden={tab !== "layers"}>
-          <LayersProvider>
-            {({ Container }) => (
-              <div className="panel-block">
-                <div className="panel-block-title">レイヤー</div>
-                <Container />
-              </div>
-            )}
-          </LayersProvider>
+          <div className="panel-block">
+            <div className="panel-block-title">レイヤー</div>
+            <div ref={layerRef} />
+          </div>
         </div>
       </div>
     </div>
