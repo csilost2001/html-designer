@@ -1,0 +1,327 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   er.css — ER図のスタイル
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── ER図ページ ───────────────────────────────────────────────────────── */
+
+.er-diagram-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+.er-diagram-canvas {
+  flex: 1;
+  position: relative;
+}
+
+/* ReactFlow 背景を暗くする */
+.er-diagram-canvas .react-flow__background {
+  background: #1a1a2e;
+}
+
+/* ── ツールバー ────────────────────────────────────────────────────────── */
+
+.er-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #222240;
+  border-top: 1px solid #333;
+}
+
+.er-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.er-toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: #444;
+  margin: 0 8px;
+}
+
+.er-toolbar-info {
+  font-size: 12px;
+  color: #888;
+  margin-left: auto;
+}
+
+/* ── テーブルノード ────────────────────────────────────────────────────── */
+
+.er-table-node {
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  min-width: 200px;
+  max-width: 280px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  cursor: grab;
+  font-size: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.er-table-node:hover {
+  border-color: #7c6bff;
+  box-shadow: 0 4px 12px rgba(124,107,255,0.15);
+}
+
+.er-table-node.selected {
+  border-color: #7c6bff;
+  box-shadow: 0 0 0 3px rgba(124,107,255,0.25);
+}
+
+/* ヘッダー */
+.er-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px 2px;
+  background: #f8fafc;
+}
+
+.er-node-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #1e293b;
+  font-family: "Consolas", "Monaco", monospace;
+}
+
+.er-node-category {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(124,107,255,0.1);
+  color: #7c6bff;
+  white-space: nowrap;
+}
+
+.er-node-logical {
+  padding: 0 10px 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* カラム一覧 */
+.er-node-columns {
+  padding: 4px 0;
+}
+
+.er-col {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  transition: background 0.1s;
+}
+
+.er-col:hover {
+  background: #f1f5f9;
+}
+
+.er-col.pk {
+  background: #fefce8;
+}
+
+.er-col.pk:hover {
+  background: #fef9c3;
+}
+
+.er-col.fk {
+  background: #eff6ff;
+}
+
+.er-col.fk:hover {
+  background: #dbeafe;
+}
+
+.er-col-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.pk-icon {
+  color: #ca8a04;
+}
+
+.fk-icon {
+  color: #3b82f6;
+}
+
+.er-col-icon-space {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.er-col-name {
+  flex: 1;
+  font-family: "Consolas", "Monaco", monospace;
+  color: #334155;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.er-col-type {
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: "Consolas", "Monaco", monospace;
+  white-space: nowrap;
+}
+
+.er-col-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  color: #7c6bff;
+  cursor: pointer;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: 2px;
+  transition: background 0.1s;
+}
+
+.er-col-toggle:hover {
+  background: #f1f5f9;
+}
+
+/* ── ハンドル ──────────────────────────────────────────────────────────── */
+
+.er-handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: #cbd5e1 !important;
+  border: 2px solid #fff !important;
+  transition: background 0.15s !important;
+}
+
+.er-handle:hover {
+  background: #7c6bff !important;
+}
+
+/* ── エッジ（リレーション線） ──────────────────────────────────────────── */
+
+.er-edge-physical {
+  stroke: #64748b;
+  stroke-width: 2;
+}
+
+.er-edge-logical {
+  stroke: #7c6bff;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+/* ── IE記法（Crow's foot）マーカー ─────────────────────────────────────── */
+
+.er-marker-one line {
+  stroke: #64748b;
+  stroke-width: 2;
+}
+
+.er-marker-many line {
+  stroke: #64748b;
+  stroke-width: 2;
+}
+
+/* ── 論理リレーション追加モーダル ──────────────────────────────────────── */
+
+.er-relation-modal {
+  background: #2a2a4a;
+  border-radius: 10px;
+  padding: 24px;
+  min-width: 420px;
+  max-width: 520px;
+  border: 1px solid #444;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.er-relation-modal .tbl-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.er-relation-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.er-relation-arrow {
+  color: #7c6bff;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.er-badge-physical {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(100,116,139,0.15);
+  color: #94a3b8;
+}
+
+.er-badge-logical {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(124,107,255,0.15);
+  color: #a99bff;
+}
+
+/* ── エクスポートメニュー ──────────────────────────────────────────────── */
+
+.er-export-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 4px;
+  background: #2a2a4a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+
+.er-export-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: #ddd;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.er-export-menu button:hover {
+  background: rgba(255,255,255,0.06);
+}

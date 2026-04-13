@@ -3,6 +3,7 @@ import { FlowEditor } from "./components/flow/FlowEditor";
 import { ScreenDesigner } from "./components/ScreenDesigner";
 import { TableListView } from "./components/table/TableListView";
 import { TableEditor } from "./components/table/TableEditor";
+import { ErDiagram } from "./components/table/ErDiagram";
 import "./styles/app.css";
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
       <Route path="/design/:screenId" element={<ScreenDesigner />} />
       <Route path="/tables" element={<TableListView />} />
       <Route path="/tables/:tableId" element={<TableEditor />} />
+      <Route path="/er" element={<ErDiagram />} />
     </Routes>
   );
 }
