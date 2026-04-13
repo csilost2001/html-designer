@@ -133,6 +133,8 @@ export function StepCard({
         onContextMenu={onContextMenu}
       >
         <div className="step-card-header" onClick={(e) => {
+          // ドラッグハンドルからのクリックは無視
+          if ((e.target as HTMLElement).closest("[data-drag-handle]")) return;
           if ((e.ctrlKey || e.metaKey || e.shiftKey) && onHeaderClick) {
             onHeaderClick(e);
           } else {
@@ -143,15 +145,9 @@ export function StepCard({
           <span
             className="step-card-drag-handle"
             title="ドラッグで移動"
+            data-drag-handle
             {...dragHandleAttributes}
             {...dragHandleListeners}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              // dnd-kit の onPointerDown を呼び出す
-              const handler = (dragHandleListeners as Record<string, (e: React.PointerEvent) => void> | undefined)?.onPointerDown;
-              if (handler) handler(e);
-            }}
           >
             <i className="bi bi-grip-vertical" />
           </span>

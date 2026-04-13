@@ -35,6 +35,9 @@ import {
   closestCenter,
   useDraggable,
   useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -144,6 +147,11 @@ export function ActionEditor() {
   } = useUndoableState<ActionGroup | null>(null, { onSave: (g) => { if (g) saveActionGroup(g); } });
 
   useUndoKeyboard(undo, redo);
+
+  // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
 
   const reload = useCallback(async () => {
     if (!actionGroupId) return;
@@ -605,7 +613,7 @@ export function ActionEditor() {
                 ステップがありません。上のボタンから追加するか、テンプレートを使用してください。
               </div>
             ) : (
-              <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+              <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
                 <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   <div className="step-list">
                     {activeAction.steps.map((step, index) => (
