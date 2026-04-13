@@ -39,6 +39,7 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
   const [codeModalHtml, setCodeModalHtml] = useState("");
   const [codeModalName, setCodeModalName] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState("desktop");
 
   useEffect(() => {
     if (!editor) return;
@@ -56,13 +57,19 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
       setHasSelected(editor.getSelectedAll().length > 0);
     };
 
+    const onDeviceChange = () => {
+      setSelectedDevice(editor.Devices.getSelected()?.get("id") ?? "desktop");
+    };
+
     editor.on("component:add component:remove component:update", update);
     editor.on("undo redo", update);
     editor.on("storage:start:store", onStorageStart);
     editor.on("storage:end:store", onStorageEnd);
     editor.on("component:selected component:deselected", onSelectionChange);
+    editor.on("device:select", onDeviceChange);
     update();
     onSelectionChange();
+    onDeviceChange();
 
     return () => {
       editor.off("component:add component:remove component:update", update);
@@ -70,6 +77,7 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
       editor.off("storage:start:store", onStorageStart);
       editor.off("storage:end:store", onStorageEnd);
       editor.off("component:selected component:deselected", onSelectionChange);
+      editor.off("device:select", onDeviceChange);
     };
   }, [editor]);
 
@@ -262,6 +270,30 @@ ${html}
         >
           <i className="bi bi-trash" />
         </button>
+        <div className="divider" />
+        <div className="device-switcher">
+          <button
+            className={`device-btn${selectedDevice === "desktop" ? " active" : ""}`}
+            onClick={() => editor?.setDevice("desktop")}
+            title="PC（全幅）"
+          >
+            <i className="bi bi-display" />
+          </button>
+          <button
+            className={`device-btn${selectedDevice === "tablet" ? " active" : ""}`}
+            onClick={() => editor?.setDevice("tablet")}
+            title="タブレット (768px)"
+          >
+            <i className="bi bi-tablet" />
+          </button>
+          <button
+            className={`device-btn${selectedDevice === "smartphone" ? " active" : ""}`}
+            onClick={() => editor?.setDevice("smartphone")}
+            title="スマートフォン (375px)"
+          >
+            <i className="bi bi-phone" />
+          </button>
+        </div>
         <div className="divider" />
         <button
           className="icon-btn"

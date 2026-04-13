@@ -946,3 +946,40 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   color: var(--dz-text-dim);
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   Device Switcher
+   ========================================================================== */
+.device-switcher {
+  display: flex;
+  gap: 2px;
+  background: var(--dz-bg-3);
+  border: 1px solid var(--dz-border);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.device-btn {
+  background: transparent;
+  border: none;
+  color: var(--dz-text-dim);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.device-btn:hover {
+  background: var(--dz-border);
+  color: var(--dz-text);
+}
+
+.device-btn.active {
+  background: var(--dz-accent);
+  color: #fff;
+}
