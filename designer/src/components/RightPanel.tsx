@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useEditorMaybe } from "@grapesjs/react";
+import { A11yPanel } from "./A11yPanel";
 
-type TabId = "styles" | "traits" | "layers";
+type TabId = "styles" | "traits" | "layers" | "a11y";
 
 /**
  * GrapesJS のネイティブ UI を render() メソッドで取得し、
@@ -100,6 +101,13 @@ export function RightPanel() {
         >
           <i className="bi bi-stack" /> レイヤー
         </button>
+        <button
+          className={tab === "a11y" ? "active" : ""}
+          onClick={() => setTab("a11y")}
+          title="アクセシビリティ"
+        >
+          <i className="bi bi-universal-access" /> a11y
+        </button>
       </div>
 
       <div className="right-content">
@@ -140,6 +148,9 @@ export function RightPanel() {
             <div className="panel-block-title">レイヤー</div>
             <div ref={layerRef} />
           </div>
+        </div>
+        <div hidden={tab !== "a11y"}>
+          <A11yPanel />
         </div>
       </div>
     </div>
