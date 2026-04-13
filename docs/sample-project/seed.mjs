@@ -816,10 +816,10 @@ for (const [screenId, { pageId, frameId, html }] of Object.entries(SCREENS)) {
   console.log(`[${count}/10] ${screenId}`);
 }
 
-// project.json も docs/sample-project/ にバックアップ
+// project.json を data/ にコピー
 fs.copyFileSync(
-  path.join(DATA_DIR, "project.json"),
   path.join(__dirname, "project.json"),
+  path.join(DATA_DIR, "project.json"),
 );
 
 console.log("\n✅ シードデータ生成完了");

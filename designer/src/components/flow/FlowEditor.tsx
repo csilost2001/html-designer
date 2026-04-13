@@ -231,7 +231,7 @@ function FlowEditorInner() {
     setContextMenu({ x: event.clientX, y: event.clientY, type: "edge", targetId: edge.id });
   }, []);
 
-  const onEdgeClick = useCallback((_event: React.MouseEvent, edge: RFEdge) => {
+  const onEdgeDoubleClick = useCallback((_event: React.MouseEvent, edge: RFEdge) => {
     if (!projectRef.current) return;
     const storeEdge = projectRef.current.edges.find((e) => e.id === edge.id);
     if (storeEdge) {
@@ -530,7 +530,7 @@ function FlowEditorInner() {
             onNodeDragStop={onNodeDragStop}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeContextMenu={onNodeContextMenu}
-            onEdgeClick={onEdgeClick}
+            onEdgeDoubleClick={onEdgeDoubleClick}
             onEdgeContextMenu={onEdgeContextMenu}
             onReconnect={onReconnect}
             onEdgesDelete={onEdgesDelete}
