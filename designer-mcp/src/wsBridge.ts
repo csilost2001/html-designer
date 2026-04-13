@@ -11,6 +11,9 @@ import {
   deleteScreen as deleteScreenFile,
   readCustomBlocks,
   writeCustomBlocks,
+  readTable,
+  writeTable,
+  deleteTable as deleteTableFile,
 } from "./projectStorage.js";
 
 type Command = { id: string; method: string; params?: unknown };
@@ -93,7 +96,7 @@ class WsBridge extends EventEmitter {
 
   private async _bind(retries = 3): Promise<void> {
     return new Promise((resolve, reject) => {
-      const wss = new WebSocketServer({ host: "127.0.0.1", port: WS_PORT });
+      const wss = new WebSocketServer({ host: "0.0.0.0", port: WS_PORT });
 
       const onError = async (err: NodeJS.ErrnoException) => {
         wss.off("listening", onListening);
@@ -116,7 +119,7 @@ class WsBridge extends EventEmitter {
       const onListening = () => {
         wss.off("error", onError);
         this.wss = wss;
-        console.error(`[WsBridge] WebSocket server listening on ws://127.0.0.1:${WS_PORT}`);
+        console.error(`[WsBridge] WebSocket server listening on ws://0.0.0.0:${WS_PORT}`);
         this._attachHandlers();
         resolve();
       };
@@ -308,6 +311,26 @@ class WsBridge extends EventEmitter {
           await writeCustomBlocks(blocks);
           respond({ success: true });
           this.broadcast("customBlocksChanged", {}, clientId);
+          break;
+        }
+        case "loadTable": {
+          const { tableId } = (params ?? {}) as { tableId: string };
+          const tableData = await readTable(tableId);
+          respond(tableData);
+          break;
+        }
+        case "saveTable": {
+          const { tableId, data } = (params ?? {}) as { tableId: string; data: unknown };
+          await writeTable(tableId, data);
+          respond({ success: true });
+          this.broadcast("tableChanged", { tableId }, clientId);
+          break;
+        }
+        case "deleteTable": {
+          const { tableId } = (params ?? {}) as { tableId: string };
+          await deleteTableFile(tableId);
+          respond({ success: true });
+          this.broadcast("tableChanged", { tableId, deleted: true }, clientId);
           break;
         }
         default:

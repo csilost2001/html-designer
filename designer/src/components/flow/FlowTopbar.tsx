@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export type ViewMode = "flow" | "table";
 
@@ -26,6 +27,7 @@ export function FlowTopbar({
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
   onZoomChange, onFitView, onViewModeChange,
 }: Props) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -96,7 +98,14 @@ export function FlowTopbar({
             {projectName} <i className="bi bi-pencil flow-topbar-edit-icon" />
           </span>
         )}
-        <span className="flow-topbar-subtitle">— 画面フロー図</span>
+        <nav className="global-nav">
+          <button className="global-nav-btn active" onClick={() => navigate("/")}>
+            <i className="bi bi-diagram-3" /> 画面フロー
+          </button>
+          <button className="global-nav-btn" onClick={() => navigate("/tables")}>
+            <i className="bi bi-table" /> テーブル設計
+          </button>
+        </nav>
       </div>
 
       <div className="flow-topbar-center">

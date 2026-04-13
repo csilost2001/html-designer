@@ -23,6 +23,10 @@ import {
   type CustomBlocksStorageBackend,
   type CustomBlock,
 } from "../store/customBlockStore";
+import {
+  setTableStorageBackend,
+  type TableStorageBackend,
+} from "../store/tableStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
@@ -231,12 +235,20 @@ class McpBridgeImpl {
       saveCustomBlocks: (blocks) => self.request("saveCustomBlocks", { blocks }).then(() => undefined),
     };
     setCustomBlocksBackend(blocksBackend);
+
+    const tableBackend: TableStorageBackend = {
+      loadTable: (tableId) => self.request("loadTable", { tableId }),
+      saveTable: (tableId, data) => self.request("saveTable", { tableId, data }).then(() => undefined),
+      deleteTable: (tableId) => self.request("deleteTable", { tableId }).then(() => undefined),
+    };
+    setTableStorageBackend(tableBackend);
   }
 
   /** 切断時: localStorage フォールバックに戻す */
   private _clearStorageBackends(): void {
     setFlowStorageBackend(null);
     setCustomBlocksBackend(null);
+    setTableStorageBackend(null);
   }
 
   // ── メッセージ受信 ─────────────────────────────────────────────────────
