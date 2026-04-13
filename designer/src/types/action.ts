@@ -195,6 +195,10 @@ export interface ActionDefinition {
   trigger: ActionTrigger;
   elementRef?: string;
   description?: string;
+  /** 入力データ（自由記述、改行区切り） */
+  inputs?: string;
+  /** 出力データ（自由記述、改行区切り） */
+  outputs?: string;
   steps: Step[];
 }
 

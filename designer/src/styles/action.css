@@ -202,6 +202,32 @@
   color: #6366f1;
 }
 
+/* ─── I/O パネル ─────────────────────────────────────────────────── */
+
+.action-io-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.action-io-field .form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.action-io-textarea {
+  font-size: 0.82rem;
+  min-height: 32px;
+  resize: vertical;
+}
+
 /* ─── ステップエディタ ────────────────────────────────────────────── */
 
 .step-editor {
