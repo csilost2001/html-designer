@@ -3,19 +3,20 @@ import { useState } from "react";
 interface Props {
   open: boolean;
   defaultName: string;
-  onSave: (name: string) => void;
+  onSave: (name: string, shared: boolean) => void;
   onClose: () => void;
 }
 
 export function SaveBlockModal({ open, defaultName, onSave, onClose }: Props) {
   const [name, setName] = useState(defaultName);
+  const [shared, setShared] = useState(false);
 
   if (!open) return null;
 
   const handleSave = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    onSave(trimmed);
+    onSave(trimmed, shared);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -47,6 +48,17 @@ export function SaveBlockModal({ open, defaultName, onSave, onClose }: Props) {
             placeholder="例: 検索フォーム"
             autoFocus
           />
+          <label className="save-block-shared-label">
+            <input
+              type="checkbox"
+              className="save-block-shared-check"
+              checked={shared}
+              onChange={(e) => setShared(e.target.checked)}
+            />
+            <i className="bi bi-share-fill" style={{ color: "#6366f1", fontSize: 12 }} />
+            <span>共有ブロックとして登録</span>
+            <span className="save-block-shared-hint">（複数画面に一括反映できます）</span>
+          </label>
         </div>
         <div className="save-block-footer">
           <button className="code-btn code-btn-secondary" onClick={onClose}>

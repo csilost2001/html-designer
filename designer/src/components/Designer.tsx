@@ -79,7 +79,7 @@ function applyThemeToCanvas(editor: GEditor, themeId: ThemeId) {
   }
 }
 
-function buildGjsOptions(screenId: string) {
+function buildGjsOptions(_screenId: string) {
   return {
     height: "100%",
     width: "auto",
@@ -180,8 +180,9 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
           label: cb.label,
           category: cb.category,
           content: cb.content,
+          ...(cb.shared ? { shared: true } : {}),
           ...(cb.media ? { media: cb.media } : {}),
-        });
+        } as Parameters<typeof editor.BlockManager.add>[1]);
       }
     }).catch(console.error);
 

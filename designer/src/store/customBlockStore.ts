@@ -14,6 +14,7 @@ export interface CustomBlock {
   content: string;
   styles?: string;
   media?: string;
+  shared?: boolean;
   createdAt: string;
   updatedAt: string;
 }
