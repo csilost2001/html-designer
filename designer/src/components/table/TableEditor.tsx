@@ -204,17 +204,21 @@ function ColumnsTab({
   const [showTemplates, setShowTemplates] = useState(false);
 
   const handleAddBlank = () => {
+    let newColId = "";
     update((t) => {
       const col = addColumn(t);
-      setEditingId(col.id);
+      newColId = col.id;
     });
+    setEditingId(newColId);
   };
 
   const handleAddFromTemplate = (tpl: ColumnTemplate) => {
+    let newColId = "";
     update((t) => {
       const col = addColumn(t, { ...tpl.column });
-      setEditingId(col.id);
+      newColId = col.id;
     });
+    setEditingId(newColId);
     setShowTemplates(false);
   };
 
@@ -249,13 +253,15 @@ function ColumnsTab({
   };
 
   const handleDuplicate = (colId: string) => {
+    let newColId = "";
     update((t) => {
       const src = t.columns.find((c) => c.id === colId);
       if (!src) return;
       const { id: _, ...rest } = src;
       const col = addColumn(t, { ...rest, name: src.name + "_copy" });
-      setEditingId(col.id);
+      newColId = col.id;
     });
+    if (newColId) setEditingId(newColId);
   };
 
   // Group templates by category
