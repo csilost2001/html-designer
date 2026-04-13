@@ -46,6 +46,7 @@ import {
   generateFlowMarkdown,
 } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import "../../styles/flow.css";
 
 const nodeTypes = {
@@ -120,6 +121,50 @@ function FlowEditorInner() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>("flow");
   const needsFitViewRef = useRef(false);
+
+  // Undo/Redo スタック
+  const undoStackRef = useRef<FlowProject[]>([]);
+  const redoStackRef = useRef<FlowProject[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const pushUndoSnapshot = useCallback(() => {
+    if (!projectRef.current) return;
+    undoStackRef.current = [...undoStackRef.current, JSON.parse(JSON.stringify(projectRef.current))].slice(-50);
+    redoStackRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0 || !projectRef.current) return;
+    redoStackRef.current = [...redoStackRef.current, JSON.parse(JSON.stringify(projectRef.current))];
+    const prev = undoStackRef.current[undoStackRef.current.length - 1];
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    projectRef.current = prev;
+    setNodes(toRFNodesWithGroups(prev.screens, prev.groups ?? []));
+    setEdges(toRFEdges(prev.edges));
+    setProjectName(prev.name);
+    saveProject(prev).catch(console.error);
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+  }, [setNodes, setEdges]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0 || !projectRef.current) return;
+    undoStackRef.current = [...undoStackRef.current, JSON.parse(JSON.stringify(projectRef.current))];
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    projectRef.current = next;
+    setNodes(toRFNodesWithGroups(next.screens, next.groups ?? []));
+    setEdges(toRFEdges(next.edges));
+    setProjectName(next.name);
+    saveProject(next).catch(console.error);
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+  }, [setNodes, setEdges]);
+
+  useUndoKeyboard(handleUndo, handleRedo);
 
   // プロジェクトを読み込んで UI に反映
   const reloadProject = useCallback(async () => {
@@ -231,6 +276,7 @@ function FlowEditorInner() {
 
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !projectRef.current) return;
+    pushUndoSnapshot();
     storeAddEdge(
       projectRef.current,
       connection.source,
@@ -293,6 +339,7 @@ function FlowEditorInner() {
 
   const handleScreenSave = useCallback(async (data: ScreenFormData) => {
     if (!projectRef.current) return;
+    pushUndoSnapshot();
     if (screenModal.editId) {
       await updateScreen(projectRef.current, screenModal.editId, {
         name: data.name,
@@ -323,6 +370,7 @@ function FlowEditorInner() {
 
   const handleEdgeSave = useCallback(async (data: EdgeFormData) => {
     if (!edgeModal.editId || !projectRef.current) return;
+    pushUndoSnapshot();
     await storeUpdateEdge(projectRef.current, edgeModal.editId, {
       label: data.label,
       trigger: data.trigger,
@@ -365,6 +413,7 @@ function FlowEditorInner() {
 
   const handleDuplicateNode = useCallback(async () => {
     if (!contextMenu || !projectRef.current) return;
+    pushUndoSnapshot();
     const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
     if (screen) {
       const dup = await addScreen(
@@ -388,6 +437,7 @@ function FlowEditorInner() {
 
   const handleDeleteNode = useCallback(async () => {
     if (!contextMenu || !projectRef.current) return;
+    pushUndoSnapshot();
     const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
     if (screen && confirm(`「${screen.name}」を削除しますか？\nデザインデータも削除されます。`)) {
       await removeScreen(projectRef.current, contextMenu.targetId);
@@ -515,6 +565,7 @@ function FlowEditorInner() {
 
   const handleDeleteEdge = useCallback(async () => {
     if (!contextMenu || contextMenu.type !== "edge" || !projectRef.current) return;
+    pushUndoSnapshot();
     await storeRemoveEdge(projectRef.current, contextMenu.targetId);
     setEdges((eds) => eds.filter((e) => e.id !== contextMenu.targetId));
     setContextMenu(null);
@@ -655,6 +706,10 @@ function FlowEditorInner() {
         onZoomChange={handleZoomChange}
         onFitView={handleFitView}
         onViewModeChange={setViewMode}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <div className="flow-canvas">

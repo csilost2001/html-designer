@@ -29,6 +29,7 @@ import { getAllRelations, autoLayout, generateErMermaid } from "../../utils/erUt
 import { generateSpecJson } from "../../utils/specExporter";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { generateUUID } from "../../utils/uuid";
+import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import html2canvas from "html2canvas";
 import "../../styles/er.css";
 
@@ -50,6 +51,50 @@ function ErDiagramInner() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutRef = useRef<ErLayout | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Undo/Redo スタック（レイアウト変更のみ対象）
+  const undoStackRef = useRef<ErLayout[]>([]);
+  const redoStackRef = useRef<ErLayout[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const pushLayoutUndo = useCallback(() => {
+    if (!layoutRef.current) return;
+    undoStackRef.current = [...undoStackRef.current, JSON.parse(JSON.stringify(layoutRef.current))].slice(-50);
+    redoStackRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) return;
+    if (layoutRef.current) {
+      redoStackRef.current = [...redoStackRef.current, JSON.parse(JSON.stringify(layoutRef.current))];
+    }
+    const prev = undoStackRef.current[undoStackRef.current.length - 1];
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    layoutRef.current = prev;
+    setLayout({ ...prev });
+    saveErLayout(prev);
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) return;
+    if (layoutRef.current) {
+      undoStackRef.current = [...undoStackRef.current, JSON.parse(JSON.stringify(layoutRef.current))];
+    }
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    layoutRef.current = next;
+    setLayout({ ...next });
+    saveErLayout(next);
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+  }, []);
+
+  useUndoKeyboard(handleUndo, handleRedo);
 
   // Load data
   useEffect(() => {
@@ -131,7 +176,16 @@ function ErDiagramInner() {
     saveTimerRef.current = setTimeout(() => saveErLayout(ly), 300);
   }, []);
 
+  const dragStartedRef = useRef(false);
+  const onNodeDragStart = useCallback(() => {
+    if (!dragStartedRef.current) {
+      pushLayoutUndo();
+      dragStartedRef.current = true;
+    }
+  }, [pushLayoutUndo]);
+
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
+    dragStartedRef.current = false;
     const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: "" };
     ly.positions[node.id] = { x: Math.round(node.position.x), y: Math.round(node.position.y) };
     layoutRef.current = ly;
@@ -157,6 +211,7 @@ function ErDiagramInner() {
 
   // Auto layout
   const handleAutoLayout = useCallback(() => {
+    pushLayoutUndo();
     const relations = getAllRelations(tables, layout);
     const autoPos = autoLayout(tables, relations);
     const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: "" };
@@ -174,6 +229,7 @@ function ErDiagramInner() {
 
   // Add logical relation
   const handleAddLogicalRelation = useCallback((rel: Omit<ErLogicalRelation, "id">) => {
+    pushLayoutUndo();
     const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: "" };
     if (!ly.logicalRelations) ly.logicalRelations = [];
     ly.logicalRelations.push({ ...rel, id: `lr-${generateUUID()}` });
@@ -185,6 +241,7 @@ function ErDiagramInner() {
 
   // Remove logical relation
   const handleRemoveEdge = useCallback((edgeId: string) => {
+    pushLayoutUndo();
     const ly = layoutRef.current;
     if (!ly?.logicalRelations) return;
     ly.logicalRelations = ly.logicalRelations.filter((r) => r.id !== edgeId);
@@ -270,6 +327,7 @@ function ErDiagramInner() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
+            onNodeDragStart={onNodeDragStart}
             onNodeDragStop={onNodeDragStop}
             onNodeDoubleClick={onNodeDoubleClick}
             onConnect={onConnect}
@@ -302,6 +360,12 @@ function ErDiagramInner() {
       {/* Toolbar */}
       <div className="er-toolbar">
         <div className="er-toolbar-group">
+          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" onClick={handleUndo} disabled={!canUndo} title="元に戻す (Ctrl+Z)">
+            <i className="bi bi-arrow-counterclockwise" />
+          </button>
+          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" onClick={handleRedo} disabled={!canRedo} title="やり直し (Ctrl+Y)">
+            <i className="bi bi-arrow-clockwise" />
+          </button>
           <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" onClick={handleAutoLayout} title="自動配置">
             <i className="bi bi-grid-3x3-gap" /> 自動配置
           </button>

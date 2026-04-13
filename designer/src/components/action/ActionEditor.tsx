@@ -30,6 +30,8 @@ import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { useUndoableState } from "../../hooks/useUndoableState";
+import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { TableTopbar } from "../table/TableTopbar";
 import { StepCard } from "./StepCard";
 import "../../styles/action.css";
@@ -44,7 +46,6 @@ const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "l
 export function ActionEditor() {
   const { actionGroupId } = useParams<{ actionGroupId: string }>();
   const navigate = useNavigate();
-  const [group, setGroup] = useState<ActionGroup | null>(null);
   const [projectName, setProjectName] = useState("プロジェクト");
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [showAddAction, setShowAddAction] = useState(false);
@@ -57,6 +58,29 @@ export function ActionEditor() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string; parentStepId?: string } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 自動保存 (debounce 500ms)
+  const scheduleSave = useCallback((updatedGroup: ActionGroup) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      await saveActionGroup(updatedGroup);
+    }, 500);
+  }, []);
+
+  // Undo/Redo 対応 state
+  const {
+    state: group,
+    update: setGroup,
+    updateAndCommit: updateGroupCommit,
+    commit: commitGroup,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    reset: resetGroup,
+  } = useUndoableState<ActionGroup | null>(null, { onSave: (g) => { if (g) saveActionGroup(g); } });
+
+  useUndoKeyboard(undo, redo);
+
   const reload = useCallback(async () => {
     if (!actionGroupId) return;
     const g = await loadActionGroup(actionGroupId);
@@ -64,7 +88,7 @@ export function ActionEditor() {
       navigate("/actions");
       return;
     }
-    setGroup(g);
+    resetGroup(g);
     if (!activeActionId && g.actions.length > 0) {
       setActiveActionId(g.actions[0].id);
     }
@@ -75,7 +99,7 @@ export function ActionEditor() {
     setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
     const t = await listTables();
     setTables(t.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
-  }, [actionGroupId, activeActionId, navigate]);
+  }, [actionGroupId, activeActionId, navigate, resetGroup]);
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
@@ -86,15 +110,22 @@ export function ActionEditor() {
     return unsub;
   }, [reload]);
 
-  // 自動保存 (debounce 500ms)
-  const scheduleSave = useCallback((updatedGroup: ActionGroup) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      await saveActionGroup(updatedGroup);
-    }, 500);
-  }, []);
-
+  /** 構造変化（履歴に積む）: ステップ追加・削除・移動、アクション追加・削除 */
   const updateGroup = useCallback(
+    (updater: (g: ActionGroup) => void) => {
+      updateGroupCommit((prev) => {
+        if (!prev) return prev;
+        const next = JSON.parse(JSON.stringify(prev)) as ActionGroup;
+        updater(next);
+        scheduleSave(next);
+        return next;
+      });
+    },
+    [updateGroupCommit, scheduleSave],
+  );
+
+  /** テキスト変更（履歴に積まない）: フィールド編集中の一時状態 */
+  const updateGroupSilent = useCallback(
     (updater: (g: ActionGroup) => void) => {
       setGroup((prev) => {
         if (!prev) return prev;
@@ -104,7 +135,7 @@ export function ActionEditor() {
         return next;
       });
     },
-    [scheduleSave],
+    [setGroup, scheduleSave],
   );
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
@@ -176,7 +207,7 @@ export function ActionEditor() {
   };
 
   const handleStepChange = (stepId: string, changes: Partial<Step>) => {
-    updateGroup((g) => {
+    updateGroupSilent((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const step = act.steps.find((s) => s.id === stepId);
@@ -211,7 +242,7 @@ export function ActionEditor() {
   };
 
   const handleGroupInfoChange = (field: string, value: string) => {
-    updateGroup((g) => {
+    updateGroupSilent((g) => {
       (g as unknown as Record<string, string>)[field] = value;
     });
   };
@@ -228,6 +259,24 @@ export function ActionEditor() {
           <Link to="/actions">処理フロー一覧</Link>
           <span className="mx-2">/</span>
           <span className="fw-semibold text-dark">{group.name}</span>
+        </div>
+        <div className="action-editor-undo-buttons">
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={undo}
+            disabled={!canUndo}
+            title="元に戻す (Ctrl+Z)"
+          >
+            <i className="bi bi-arrow-counterclockwise" />
+          </button>
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={redo}
+            disabled={!canRedo}
+            title="やり直し (Ctrl+Y)"
+          >
+            <i className="bi bi-arrow-clockwise" />
+          </button>
         </div>
       </div>
 
@@ -368,6 +417,7 @@ export function ActionEditor() {
                       screens={screens}
                       commonGroups={commonGroups}
                       onChange={(changes) => handleStepChange(step.id, changes)}
+                      onCommit={commitGroup}
                       onMoveUp={index > 0 ? () => handleMoveStep(index, index - 1) : undefined}
                       onMoveDown={index < activeAction.steps.length - 1 ? () => handleMoveStep(index, index + 1) : undefined}
                       onDelete={() => handleDeleteStep(step.id)}
