@@ -21,11 +21,12 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import ScreenNodeComponent from "./ScreenNode";
+import GroupNodeComponent from "./GroupNodeComponent";
 import { FlowTopbar, type ViewMode } from "./FlowTopbar";
 import { ScreenTableView } from "./ScreenTableView";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
-import type { FlowProject, ScreenNode, ScreenEdge, TransitionTrigger } from "../../types/flow";
+import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, TransitionTrigger } from "../../types/flow";
 import { TRIGGER_LABELS } from "../../types/flow";
 import {
   loadProject,
@@ -36,6 +37,9 @@ import {
   addEdge as storeAddEdge,
   updateEdge as storeUpdateEdge,
   removeEdge as storeRemoveEdge,
+  addGroup as storeAddGroup,
+  updateGroup as storeUpdateGroup,
+  removeGroup as storeRemoveGroup,
   exportProjectJSON,
   importProjectJSON,
   generateMermaid,
@@ -44,15 +48,39 @@ import {
 import { mcpBridge } from "../../mcp/mcpBridge";
 import "../../styles/flow.css";
 
-const nodeTypes = { screenNode: ScreenNodeComponent };
+const nodeTypes = {
+  screenNode: ScreenNodeComponent,
+  groupNode: GroupNodeComponent,
+};
 
-function toRFNodes(screens: ScreenNode[]): RFNode[] {
-  return screens.map((s) => ({
-    id: s.id,
-    type: "screenNode",
-    position: s.position,
-    data: s,
+function toRFNodesWithGroups(screens: ScreenNode[], groups: ScreenGroup[]): RFNode[] {
+  // Group nodes must come first so ReactFlow knows about parents before children
+  const groupNodes: RFNode[] = (groups ?? []).map((g) => ({
+    id: g.id,
+    type: "groupNode",
+    position: g.position,
+    style: { width: g.size.width, height: g.size.height },
+    data: { ...g },
+    zIndex: -1,
+    selectable: true,
+    draggable: true,
   }));
+
+  const screenNodes: RFNode[] = screens.map((s) => {
+    const node: RFNode = {
+      id: s.id,
+      type: "screenNode",
+      position: s.position,
+      data: { ...s },
+    };
+    if (s.groupId) {
+      node.parentId = s.groupId;
+      node.extent = "parent";
+    }
+    return node;
+  });
+
+  return [...groupNodes, ...screenNodes];
 }
 
 function toRFEdges(edges: ScreenEdge[]): RFEdge[] {
@@ -76,7 +104,7 @@ function toRFEdges(edges: ScreenEdge[]): RFEdge[] {
 interface ContextMenu {
   x: number;
   y: number;
-  type: "node" | "edge";
+  type: "node" | "group" | "edge";
   targetId: string;
 }
 
@@ -97,7 +125,7 @@ function FlowEditorInner() {
   const reloadProject = useCallback(async () => {
     const project = await loadProject();
     projectRef.current = project;
-    setNodes(toRFNodes(project.screens));
+    setNodes(toRFNodesWithGroups(project.screens, project.groups ?? []));
     setEdges(toRFEdges(project.edges));
     setProjectName(project.name);
     needsFitViewRef.current = project.screens.length > 0;
@@ -192,6 +220,12 @@ function FlowEditorInner() {
     if (screen) {
       screen.position = node.position;
       syncAndSave();
+      return;
+    }
+    const group = (projectRef.current.groups ?? []).find((g) => g.id === node.id);
+    if (group) {
+      group.position = node.position;
+      syncAndSave();
     }
   }, [syncAndSave]);
 
@@ -225,7 +259,8 @@ function FlowEditorInner() {
 
   const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
     event.preventDefault();
-    setContextMenu({ x: event.clientX, y: event.clientY, type: "node", targetId: node.id });
+    const type = node.type === "groupNode" ? "group" : "node";
+    setContextMenu({ x: event.clientX, y: event.clientY, type, targetId: node.id });
   }, []);
 
   const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: RFEdge) => {
@@ -278,7 +313,7 @@ function FlowEditorInner() {
         id: screen.id,
         type: "screenNode" as const,
         position: screen.position,
-        data: screen,
+        data: { ...screen },
       }]);
     }
     setScreenModal({ open: false });
@@ -370,6 +405,94 @@ function FlowEditorInner() {
     setContextMenu(null);
   }, [contextMenu, navigate]);
 
+  // ── Group Actions ──
+
+  const handleAddGroup = useCallback(async () => {
+    if (!projectRef.current) return;
+    const name = prompt("グループ名を入力してください", "グループ");
+    if (!name) return;
+    const group = await storeAddGroup(projectRef.current, name.trim(), { x: 80, y: 80 });
+    setNodes((nds) => [{
+      id: group.id,
+      type: "groupNode",
+      position: group.position,
+      style: { width: group.size.width, height: group.size.height },
+      data: { ...group },
+      zIndex: -1,
+      selectable: true,
+      draggable: true,
+    }, ...nds]);
+  }, [setNodes]);
+
+  const handleRenameGroup = useCallback(async () => {
+    if (!contextMenu || !projectRef.current) return;
+    const group = (projectRef.current.groups ?? []).find((g) => g.id === contextMenu.targetId);
+    if (!group) return;
+    const name = prompt("新しいグループ名を入力してください", group.name);
+    if (!name || name.trim() === group.name) { setContextMenu(null); return; }
+    await storeUpdateGroup(projectRef.current, group.id, { name: name.trim() });
+    setNodes((nds) => nds.map((n) =>
+      n.id === group.id ? { ...n, data: { ...n.data, name: name.trim() } } : n
+    ));
+    setContextMenu(null);
+  }, [contextMenu, setNodes]);
+
+  const handleDeleteGroup = useCallback(async () => {
+    if (!contextMenu || !projectRef.current) return;
+    const group = (projectRef.current.groups ?? []).find((g) => g.id === contextMenu.targetId);
+    if (!group) return;
+    if (!confirm(`グループ「${group.name}」を削除しますか？\n（画面はグループから外れますが削除されません）`)) {
+      setContextMenu(null);
+      return;
+    }
+    await storeRemoveGroup(projectRef.current, contextMenu.targetId);
+    setNodes(toRFNodesWithGroups(projectRef.current.screens, projectRef.current.groups ?? []));
+    setContextMenu(null);
+  }, [contextMenu, setNodes]);
+
+  const handleAssignGroup = useCallback(async (groupId: string) => {
+    if (!contextMenu || !projectRef.current) return;
+    const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
+    const group = (projectRef.current.groups ?? []).find((g) => g.id === groupId);
+    if (!screen || !group) return;
+    // Convert absolute position to relative within the group
+    const absPos = screen.groupId
+      ? (() => {
+          const cur = (projectRef.current!.groups ?? []).find((g) => g.id === screen.groupId);
+          return cur
+            ? { x: screen.position.x + cur.position.x, y: screen.position.y + cur.position.y }
+            : screen.position;
+        })()
+      : screen.position;
+    screen.position = {
+      x: Math.max(10, absPos.x - group.position.x),
+      y: Math.max(32, absPos.y - group.position.y),
+    };
+    screen.groupId = groupId;
+    screen.updatedAt = new Date().toISOString();
+    await saveProject(projectRef.current);
+    setNodes(toRFNodesWithGroups(projectRef.current.screens, projectRef.current.groups ?? []));
+    setContextMenu(null);
+  }, [contextMenu, setNodes]);
+
+  const handleUnassignGroup = useCallback(async () => {
+    if (!contextMenu || !projectRef.current) return;
+    const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
+    if (!screen || !screen.groupId) return;
+    const group = (projectRef.current.groups ?? []).find((g) => g.id === screen.groupId);
+    if (group) {
+      screen.position = {
+        x: screen.position.x + group.position.x,
+        y: screen.position.y + group.position.y,
+      };
+    }
+    screen.groupId = undefined;
+    screen.updatedAt = new Date().toISOString();
+    await saveProject(projectRef.current);
+    setNodes(toRFNodesWithGroups(projectRef.current.screens, projectRef.current.groups ?? []));
+    setContextMenu(null);
+  }, [contextMenu, setNodes]);
+
   // ── Edge Context Menu Actions ──
 
   const handleEditEdge = useCallback(() => {
@@ -415,9 +538,24 @@ function FlowEditorInner() {
 
   const onNodesDelete = useCallback((deletedNodes: RFNode[]) => {
     if (!projectRef.current) return;
-    Promise.all(deletedNodes.map((n) => removeScreen(projectRef.current!, n.id)))
-      .catch(console.error);
-  }, []);
+    const project = projectRef.current;
+    const promises = deletedNodes.map((n) => {
+      if (project.screens.find((s) => s.id === n.id)) {
+        return removeScreen(project, n.id);
+      }
+      if ((project.groups ?? []).find((g) => g.id === n.id)) {
+        return storeRemoveGroup(project, n.id).then(() => {
+          // Rebuild nodes to reflect ungrouped screens
+          if (projectRef.current) {
+            setNodes(toRFNodesWithGroups(projectRef.current.screens, projectRef.current.groups ?? []));
+          }
+          return true;
+        });
+      }
+      return Promise.resolve(false);
+    });
+    Promise.all(promises).catch(console.error);
+  }, [setNodes]);
 
   // ── Project-level Actions ──
 
@@ -457,7 +595,7 @@ function FlowEditorInner() {
     try {
       const imported = await importProjectJSON(json);
       projectRef.current = imported;
-      setNodes(toRFNodes(imported.screens));
+      setNodes(toRFNodesWithGroups(imported.screens, imported.groups ?? []));
       setEdges(toRFEdges(imported.edges));
       setProjectName(imported.name);
       needsFitViewRef.current = imported.screens.length > 0;
@@ -496,8 +634,8 @@ function FlowEditorInner() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const isEmpty = !isLoading && nodes.length === 0;
-  const screenCount = nodes.length;
+  const isEmpty = !isLoading && nodes.filter((n) => n.type === "screenNode").length === 0;
+  const screenCount = nodes.filter((n) => n.type === "screenNode").length;
 
   return (
     <div className="flow-root">
@@ -507,6 +645,7 @@ function FlowEditorInner() {
         zoomLevel={zoomLevel}
         viewMode={viewMode}
         onAddScreen={handleOpenAddScreen}
+        onAddGroup={() => { handleAddGroup().catch(console.error); }}
         onRenameProject={(name) => { handleRenameProject(name).catch(console.error); }}
         onClearAll={() => { handleClearAll().catch(console.error); }}
         onExportJSON={handleExportJSON}
@@ -600,7 +739,17 @@ function FlowEditorInner() {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          {contextMenu.type === "node" ? (
+          {contextMenu.type === "group" ? (
+            <>
+              <button className="flow-context-menu-item" onClick={() => { handleRenameGroup().catch(console.error); }}>
+                <i className="bi bi-pencil" /> グループ名を変更
+              </button>
+              <div className="flow-context-menu-separator" />
+              <button className="flow-context-menu-item danger" onClick={() => { handleDeleteGroup().catch(console.error); }}>
+                <i className="bi bi-trash" /> グループを削除
+              </button>
+            </>
+          ) : contextMenu.type === "node" ? (
             <>
               <button className="flow-context-menu-item" onClick={handleDesignNode}>
                 <i className="bi bi-pencil-square" /> デザインを開く
@@ -611,6 +760,34 @@ function FlowEditorInner() {
               <button className="flow-context-menu-item" onClick={() => { handleDuplicateNode().catch(console.error); }}>
                 <i className="bi bi-copy" /> 複製
               </button>
+              {(() => {
+                const screen = projectRef.current?.screens.find((s) => s.id === contextMenu.targetId);
+                const groups = projectRef.current?.groups ?? [];
+                if (!screen) return null;
+                if (screen.groupId) {
+                  return (
+                    <>
+                      <div className="flow-context-menu-separator" />
+                      <button className="flow-context-menu-item" onClick={() => { handleUnassignGroup().catch(console.error); }}>
+                        <i className="bi bi-collection" /> グループから外す
+                      </button>
+                    </>
+                  );
+                }
+                if (groups.length > 0) {
+                  return (
+                    <>
+                      <div className="flow-context-menu-separator" />
+                      {groups.map((g) => (
+                        <button key={g.id} className="flow-context-menu-item" onClick={() => { handleAssignGroup(g.id).catch(console.error); }}>
+                          <i className="bi bi-collection" /> 「{g.name}」に追加
+                        </button>
+                      ))}
+                    </>
+                  );
+                }
+                return null;
+              })()}
               <div className="flow-context-menu-separator" />
               <button className="flow-context-menu-item danger" onClick={() => { handleDeleteNode().catch(console.error); }}>
                 <i className="bi bi-trash" /> 削除

@@ -8,6 +8,7 @@ interface Props {
   zoomLevel: number;
   viewMode: ViewMode;
   onAddScreen: () => void;
+  onAddGroup: () => void;
   onRenameProject: (name: string) => void;
   onClearAll: () => void;
   onExportJSON: () => void;
@@ -21,7 +22,7 @@ interface Props {
 
 export function FlowTopbar({
   projectName, screenCount, zoomLevel, viewMode,
-  onAddScreen, onRenameProject, onClearAll,
+  onAddScreen, onAddGroup, onRenameProject, onClearAll,
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
   onZoomChange, onFitView, onViewModeChange,
 }: Props) {
@@ -197,6 +198,11 @@ export function FlowTopbar({
           />
         </div>
 
+        {viewMode === "flow" && (
+          <button className="flow-btn flow-btn-secondary" onClick={onAddGroup} title="グループを追加">
+            <i className="bi bi-collection" /> グループ
+          </button>
+        )}
         <button className="flow-btn flow-btn-primary" onClick={onAddScreen}>
           <i className="bi bi-plus-lg" /> 画面を追加
         </button>

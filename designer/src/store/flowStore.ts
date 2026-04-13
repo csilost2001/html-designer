@@ -8,7 +8,7 @@
  * NOTE: I/O バックエンドは mcpBridge.ts が setFlowStorageBackend() で差し替える。
  *       循環依存を避けるため flowStore は mcpBridge をインポートしない。
  */
-import type { FlowProject, ScreenNode, ScreenEdge, ScreenType, TransitionTrigger } from "../types/flow";
+import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, ScreenType, TransitionTrigger } from "../types/flow";
 import { SCREEN_TYPE_LABELS, TRIGGER_LABELS } from "../types/flow";
 
 // ─── ストレージバックエンドインターフェース ────────────────────────────────
@@ -45,6 +45,7 @@ function createEmptyProject(): FlowProject {
     version: 1,
     name: "新規プロジェクト",
     screens: [],
+    groups: [],
     edges: [],
     updatedAt: now(),
   };
@@ -96,11 +97,20 @@ export function loadProjectFromLocalStorage(): FlowProject | null {
 
 // ─── 公開 API（非同期）────────────────────────────────────────────────────
 
+/** 旧プロジェクトデータに不足フィールドを補完 */
+function ensureProjectDefaults(project: FlowProject): FlowProject {
+  if (!project.groups) project.groups = [];
+  for (const s of project.screens) {
+    if (s.groupId === undefined) s.groupId = undefined;
+  }
+  return project;
+}
+
 /** プロジェクトを読み込み */
 export async function loadProject(): Promise<FlowProject> {
   if (_backend) {
     const data = await _backend.loadProject();
-    if (data) return data as FlowProject;
+    if (data) return ensureProjectDefaults(data as FlowProject);
     // ファイルが存在しない → localStorage から移行
     const local = loadProjectFromLocalStorage();
     if (local) {
@@ -268,6 +278,71 @@ export function screenStorageKey(screenId: string): string {
 /** 画面が存在するか */
 export function screenExists(project: FlowProject, screenId: string): boolean {
   return project.screens.some((s) => s.id === screenId);
+}
+
+// ─── グループ操作 ─────────────────────────────────────────────────────────
+
+/** グループを追加 */
+export async function addGroup(
+  project: FlowProject,
+  name: string,
+  position: { x: number; y: number },
+): Promise<ScreenGroup> {
+  const group: ScreenGroup = {
+    id: crypto.randomUUID(),
+    name,
+    position,
+    size: { width: 360, height: 280 },
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  project.groups.push(group);
+  await saveProject(project);
+  return group;
+}
+
+/** グループを更新 */
+export async function updateGroup(
+  project: FlowProject,
+  groupId: string,
+  patch: Partial<Pick<ScreenGroup, "name" | "position" | "size" | "color">>,
+): Promise<ScreenGroup | null> {
+  const group = project.groups.find((g) => g.id === groupId);
+  if (!group) return null;
+  Object.assign(group, patch, { updatedAt: now() });
+  await saveProject(project);
+  return group;
+}
+
+/** グループを削除（所属画面は ungrouped に戻す） */
+export async function removeGroup(
+  project: FlowProject,
+  groupId: string,
+): Promise<boolean> {
+  const idx = project.groups.findIndex((g) => g.id === groupId);
+  if (idx === -1) return false;
+  project.groups.splice(idx, 1);
+  // 所属画面の groupId をクリア
+  for (const s of project.screens) {
+    if (s.groupId === groupId) {
+      s.groupId = undefined;
+    }
+  }
+  await saveProject(project);
+  return true;
+}
+
+/** 画面をグループに割り当て（null でグループ解除） */
+export async function assignScreenGroup(
+  project: FlowProject,
+  screenId: string,
+  groupId: string | undefined,
+): Promise<void> {
+  const screen = project.screens.find((s) => s.id === screenId);
+  if (!screen) return;
+  screen.groupId = groupId;
+  screen.updatedAt = now();
+  await saveProject(project);
 }
 
 // ─── エクスポート / インポート ────────────────────────────────────────────

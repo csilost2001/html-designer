@@ -899,3 +899,39 @@
   color: #ef4444;
   border-color: #fca5a5;
 }
+
+/* ==========================================================================
+   Group Node
+   ========================================================================== */
+.group-node {
+  box-sizing: border-box;
+  border: 2px dashed #6366f1;
+  border-radius: 12px;
+  position: relative;
+  pointer-events: all;
+}
+
+.group-node.selected {
+  border-style: solid;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.group-node-label {
+  position: absolute;
+  top: -1px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff;
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  user-select: none;
+  pointer-events: none;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
