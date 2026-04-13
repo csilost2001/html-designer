@@ -70,6 +70,14 @@ function buildGjsOptions(screenId: string) {
       ],
     },
     blockManager: { blocks: [] },
+    deviceManager: {
+      default: "desktop",
+      devices: [
+        { id: "desktop",     name: "PC",              width: ""      },
+        { id: "tablet",      name: "タブレット",        width: "768px" },
+        { id: "smartphone",  name: "スマートフォン",    width: "375px" },
+      ],
+    },
   };
 }
 
