@@ -21,7 +21,8 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import ScreenNodeComponent from "./ScreenNode";
-import { FlowTopbar } from "./FlowTopbar";
+import { FlowTopbar, type ViewMode } from "./FlowTopbar";
+import { ScreenTableView } from "./ScreenTableView";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
 import type { FlowProject, ScreenNode, ScreenEdge, TransitionTrigger } from "../../types/flow";
@@ -89,6 +90,7 @@ function FlowEditorInner() {
   const [projectName, setProjectName] = useState("読み込み中...");
   const [isLoading, setIsLoading] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [viewMode, setViewMode] = useState<ViewMode>("flow");
   const needsFitViewRef = useRef(false);
 
   // プロジェクトを読み込んで UI に反映
@@ -503,6 +505,7 @@ function FlowEditorInner() {
         projectName={projectName}
         screenCount={screenCount}
         zoomLevel={zoomLevel}
+        viewMode={viewMode}
         onAddScreen={handleOpenAddScreen}
         onRenameProject={(name) => { handleRenameProject(name).catch(console.error); }}
         onClearAll={() => { handleClearAll().catch(console.error); }}
@@ -512,6 +515,7 @@ function FlowEditorInner() {
         onExportMarkdown={handleExportMarkdown}
         onZoomChange={handleZoomChange}
         onFitView={handleFitView}
+        onViewModeChange={setViewMode}
       />
 
       <div className="flow-canvas">
@@ -520,6 +524,31 @@ function FlowEditorInner() {
             <div className="spinner" />
             <p>プロジェクトを読み込み中...</p>
           </div>
+        ) : viewMode === "table" ? (
+          <ScreenTableView
+            screens={projectRef.current?.screens ?? []}
+            onAdd={handleOpenAddScreen}
+            onEdit={(screenId) => {
+              if (!projectRef.current) return;
+              const s = projectRef.current.screens.find((sc) => sc.id === screenId);
+              if (s) {
+                setScreenModal({
+                  open: true,
+                  editId: screenId,
+                  initial: { name: s.name, type: s.type, path: s.path, description: s.description },
+                });
+              }
+            }}
+            onDelete={async (screenId) => {
+              if (!projectRef.current) return;
+              const s = projectRef.current.screens.find((sc) => sc.id === screenId);
+              if (s && confirm(`「${s.name}」を削除しますか？\nデザインデータも削除されます。`)) {
+                await removeScreen(projectRef.current, screenId);
+                setNodes((nds) => nds.filter((n) => n.id !== screenId));
+                setEdges((eds) => eds.filter((e) => e.source !== screenId && e.target !== screenId));
+              }
+            }}
+          />
         ) : (
           <ReactFlow
             nodes={nodes}
@@ -553,7 +582,7 @@ function FlowEditorInner() {
           </ReactFlow>
         )}
 
-        {isEmpty && (
+        {isEmpty && viewMode === "flow" && (
           <div className="flow-empty-state">
             <i className="bi bi-diagram-3" />
             <p>画面がまだありません</p>

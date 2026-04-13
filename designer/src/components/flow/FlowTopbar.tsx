@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 
+export type ViewMode = "flow" | "table";
+
 interface Props {
   projectName: string;
   screenCount: number;
   zoomLevel: number;
+  viewMode: ViewMode;
   onAddScreen: () => void;
   onRenameProject: (name: string) => void;
   onClearAll: () => void;
@@ -13,13 +16,14 @@ interface Props {
   onExportMarkdown: () => void;
   onZoomChange: (zoom: number) => void;
   onFitView: () => void;
+  onViewModeChange: (mode: ViewMode) => void;
 }
 
 export function FlowTopbar({
-  projectName, screenCount, zoomLevel,
+  projectName, screenCount, zoomLevel, viewMode,
   onAddScreen, onRenameProject, onClearAll,
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
-  onZoomChange, onFitView,
+  onZoomChange, onFitView, onViewModeChange,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
@@ -95,9 +99,26 @@ export function FlowTopbar({
       </div>
 
       <div className="flow-topbar-center">
+        <div className="flow-view-toggle">
+          <button
+            className={`flow-view-btn${viewMode === "flow" ? " active" : ""}`}
+            onClick={() => onViewModeChange("flow")}
+            title="フロー図"
+          >
+            <i className="bi bi-diagram-3" /> フロー図
+          </button>
+          <button
+            className={`flow-view-btn${viewMode === "table" ? " active" : ""}`}
+            onClick={() => onViewModeChange("table")}
+            title="一覧"
+          >
+            <i className="bi bi-table" /> 一覧
+          </button>
+        </div>
+        <span className="flow-zoom-separator" />
         <span className="flow-topbar-screen-count">{screenCount} 画面</span>
         <span className="flow-zoom-separator" />
-        <div className="flow-zoom-control">
+        <div className={`flow-zoom-control${viewMode === "table" ? " hidden" : ""}`}>
           <button
             className="flow-zoom-btn"
             onClick={() => onZoomChange(zoomLevel - 0.1)}
@@ -122,13 +143,15 @@ export function FlowTopbar({
           </button>
           <span className="flow-zoom-label">{Math.round(zoomLevel * 100)}%</span>
         </div>
-        <button
-          className="flow-btn flow-btn-ghost flow-fit-view-btn"
-          onClick={onFitView}
-          title="全体表示"
-        >
-          <i className="bi bi-arrows-fullscreen" />
-        </button>
+        {viewMode === "flow" && (
+          <button
+            className="flow-btn flow-btn-ghost flow-fit-view-btn"
+            onClick={onFitView}
+            title="全体表示"
+          >
+            <i className="bi bi-arrows-fullscreen" />
+          </button>
+        )}
       </div>
 
       <div className="flow-topbar-right">
