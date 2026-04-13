@@ -594,6 +594,96 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // ── ER図 ──
 
+      case "designer__export_spec": {
+        const specProject = (await readProject() ?? {}) as Record<string, unknown>;
+        const specTableMetas = ((specProject.tables ?? []) as Array<{ id: string }>);
+        const specTables: Array<Record<string, unknown>> = [];
+        for (const tm of specTableMetas) {
+          const td = await readTable(tm.id);
+          if (td) specTables.push(td as Record<string, unknown>);
+        }
+        const specErLayout = await readErLayout() as Record<string, unknown> | null;
+
+        // Build spec
+        const spec: Record<string, unknown> = {
+          projectName: specProject.name,
+          generatedAt: new Date().toISOString(),
+          tables: specTables.map((t) => {
+            const cols = (t.columns ?? []) as Array<Record<string, unknown>>;
+            return {
+              name: t.name,
+              logicalName: t.logicalName,
+              description: t.description,
+              category: t.category,
+              columns: cols.map((c) => {
+                const col: Record<string, unknown> = {
+                  name: c.name, logicalName: c.logicalName, dataType: c.dataType,
+                  ...(c.length != null ? { length: c.length } : {}),
+                  ...(c.scale != null ? { scale: c.scale } : {}),
+                  notNull: c.notNull, primaryKey: c.primaryKey, unique: c.unique,
+                  ...(c.autoIncrement ? { autoIncrement: true } : {}),
+                  ...(c.defaultValue ? { defaultValue: c.defaultValue } : {}),
+                  ...(c.comment ? { comment: c.comment } : {}),
+                };
+                if (c.foreignKey) {
+                  const fk = c.foreignKey as { tableId: string; columnName: string; noConstraint?: boolean };
+                  col.reference = { table: fk.tableId, column: fk.columnName, type: fk.noConstraint ? "logical" : "physical" };
+                }
+                return col;
+              }),
+              indexes: ((t.indexes ?? []) as Array<Record<string, unknown>>).map((idx) => ({
+                name: idx.name,
+                columns: ((idx.columns ?? []) as string[]).map((cid) => {
+                  const c = cols.find((cc) => cc.id === cid);
+                  return c ? c.name : cid;
+                }),
+                unique: idx.unique,
+              })),
+            };
+          }),
+          relations: [] as Array<Record<string, unknown>>,
+          screens: ((specProject.screens ?? []) as Array<Record<string, unknown>>).map((s) => ({
+            name: s.name, type: s.type, path: s.path, description: s.description, hasDesign: s.hasDesign,
+          })),
+          transitions: ((specProject.edges ?? []) as Array<Record<string, unknown>>).map((e) => {
+            const screens = (specProject.screens ?? []) as Array<Record<string, unknown>>;
+            const src = screens.find((s) => s.id === e.source);
+            const tgt = screens.find((s) => s.id === e.target);
+            return { from: src?.name ?? e.source, to: tgt?.name ?? e.target, label: e.label, trigger: e.trigger };
+          }),
+        };
+
+        // Build relations from FK + logical
+        const rels: Array<Record<string, unknown>> = [];
+        const tNameMap = new Map(specTables.map((t) => [t.name as string, t]));
+        for (const table of specTables) {
+          for (const col of (table.columns ?? []) as Array<Record<string, unknown>>) {
+            const fk = col.foreignKey as { tableId: string; columnName: string; noConstraint?: boolean } | undefined;
+            if (!fk) continue;
+            rels.push({
+              from: `${table.name}.${col.name}`, to: `${fk.tableId}.${fk.columnName}`,
+              cardinality: "one-to-many", constraintType: fk.noConstraint ? "logical" : "physical",
+            });
+          }
+        }
+        for (const lr of ((specErLayout?.logicalRelations ?? []) as Array<Record<string, unknown>>)) {
+          const srcT = specTables.find((t) => t.id === lr.sourceTableId);
+          const tgtT = specTables.find((t) => t.id === lr.targetTableId);
+          if (!srcT || !tgtT) continue;
+          const hasCol = lr.sourceColumnName && lr.targetColumnName;
+          rels.push({
+            from: hasCol ? `${srcT.name}.${lr.sourceColumnName}` : srcT.name,
+            to: hasCol ? `${tgtT.name}.${lr.targetColumnName}` : tgtT.name,
+            cardinality: lr.cardinality ?? "one-to-many",
+            constraintType: hasCol ? "logical" : "conceptual",
+            memo: lr.label,
+          });
+        }
+        spec.relations = rels;
+
+        return { content: [{ type: "text", text: JSON.stringify(spec, null, 2) }] };
+      }
+
       case "designer__get_er_diagram":
       case "designer__generate_er_mermaid": {
         const project = (await readProject() ?? {}) as Record<string, unknown>;
@@ -732,11 +822,11 @@ function generateDdl(table: Record<string, unknown>, dialect: string): string {
     colDefs.push(`  PRIMARY KEY (${pks.join(", ")})`);
   }
 
-  // Foreign keys
+  // Foreign keys (物理FK制約のみ出力、noConstraint=true は除外)
   for (const col of columns) {
     if (col.foreignKey) {
-      const fk = col.foreignKey as { tableId: string; columnName: string };
-      // tableId might be the actual table name or we need to look it up
+      const fk = col.foreignKey as { tableId: string; columnName: string; noConstraint?: boolean };
+      if (fk.noConstraint) continue;
       colDefs.push(`  FOREIGN KEY (${col.name}) REFERENCES ${fk.columnName ? fk.tableId + "(" + fk.columnName + ")" : fk.tableId}`);
     }
   }

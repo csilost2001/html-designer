@@ -625,6 +625,16 @@ function ForeignKeyEditor({
           </select>
         </div>
       )}
+      {hasFk && col.foreignKey?.tableId && (
+        <label className="column-flag-label fk-no-constraint">
+          <input
+            type="checkbox"
+            checked={col.foreignKey?.noConstraint ?? false}
+            onChange={(e) => onUpdate({ foreignKey: { ...col.foreignKey!, noConstraint: e.target.checked } })}
+          />
+          論理FKのみ（DDLにFOREIGN KEY制約を出力しない）
+        </label>
+      )}
     </div>
   );
 }

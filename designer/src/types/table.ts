@@ -69,6 +69,8 @@ export interface TableColumn {
   foreignKey?: {
     tableId: string;
     columnName: string;
+    /** true = 論理FKのみ（DDLにFOREIGN KEY制約を出力しない） */
+    noConstraint?: boolean;
   };
   comment?: string;
 }
@@ -118,11 +120,11 @@ export interface ErLayout {
 export interface ErLogicalRelation {
   id: string;
   sourceTableId: string;
-  sourceColumnName: string;
+  sourceColumnName?: string;   // 概念設計段階では未定
   targetTableId: string;
-  targetColumnName: string;
+  targetColumnName?: string;   // 概念設計段階では未定
   cardinality: ErCardinality;
-  label?: string;
+  label?: string;              // メモ（例: 「顧客は複数の注文を持つ」）
 }
 
 /** ER図リレーション（物理FK + 論理の統合ビュー） */
@@ -130,10 +132,10 @@ export interface ErRelation {
   id: string;
   sourceTableId: string;
   sourceTableName: string;
-  sourceColumnName: string;
+  sourceColumnName?: string;
   targetTableId: string;
   targetTableName: string;
-  targetColumnName: string;
+  targetColumnName?: string;
   cardinality: ErCardinality;
   physical: boolean;
   label?: string;

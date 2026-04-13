@@ -502,6 +502,16 @@ export const tools = [
     },
   },
   {
+    name: "designer__export_spec",
+    description:
+      "プロジェクトの統合仕様書をJSON形式で出力します。テーブル定義・リレーション（物理/論理/概念）・画面情報・画面遷移を含む、PG工程のAIエージェントが正確に解釈可能なフォーマットです。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: "designer__generate_er_mermaid",
     description:
       "Mermaid ER図記法を生成します。テーブル設計書の外部キー定義と論理リレーションから生成します。",

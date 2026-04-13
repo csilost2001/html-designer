@@ -22,10 +22,11 @@ import ErTableNodeComponent, { type ErTableNodeData } from "./ErTableNode";
 import { TableTopbar } from "./TableTopbar";
 import type { TableDefinition, ErLayout, ErLogicalRelation, ErCardinality, SqlDialect } from "../../types/table";
 import { CARDINALITY_LABELS } from "../../types/table";
-import { listTables, loadTable } from "../../store/tableStore";
+import { listTables, loadTable, createTable } from "../../store/tableStore";
 import { loadErLayout, saveErLayout } from "../../store/erLayoutStore";
 import { loadProject } from "../../store/flowStore";
 import { getAllRelations, autoLayout, generateErMermaid } from "../../utils/erUtils";
+import { generateSpecJson } from "../../utils/specExporter";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { generateUUID } from "../../utils/uuid";
 import html2canvas from "html2canvas";
@@ -45,6 +46,7 @@ function ErDiagramInner() {
   const [showAddRelation, setShowAddRelation] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<{ sourceTableId: string; targetTableId: string } | null>(null);
   const [showExport, setShowExport] = useState(false);
+  const [showAddTable, setShowAddTable] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutRef = useRef<ErLayout | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -104,7 +106,7 @@ function ErDiagramInner() {
       target: rel.targetTableId,
       sourceHandle: "right",
       targetHandle: "left",
-      label: rel.sourceColumnName,
+      label: rel.sourceColumnName || rel.label || "",
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
       style: {
         strokeWidth: 2,
@@ -191,6 +193,16 @@ function ErDiagramInner() {
     debouncedSave(ly);
   }, [debouncedSave]);
 
+  // Add table from ER diagram
+  const handleAddTable = useCallback(async (name: string, logicalName: string, category?: string) => {
+    const table = await createTable(name, logicalName, "", category);
+    const newTable = await loadTable(table.id);
+    if (newTable) {
+      setTables((prev) => [...prev, newTable]);
+    }
+    setShowAddTable(false);
+  }, []);
+
   // Export Mermaid
   const handleExportMermaid = useCallback(() => {
     const relations = getAllRelations(tables, layout);
@@ -198,6 +210,21 @@ function ErDiagramInner() {
     navigator.clipboard.writeText(mermaid);
     setShowExport(false);
   }, [tables, layout]);
+
+  // Export Spec JSON (AI向け統合仕様書)
+  const handleExportSpecJson = useCallback(async () => {
+    setShowExport(false);
+    const project = await loadProject();
+    const spec = generateSpecJson(project, tables, layout);
+    const json = JSON.stringify(spec, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${projectName}_spec.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [projectName, tables, layout]);
 
   // Export PNG
   const handleExportPng = useCallback(async () => {
@@ -284,11 +311,18 @@ function ErDiagramInner() {
         </div>
         <div className="er-toolbar-sep" />
         <button
+          className="tbl-btn tbl-btn-primary tbl-btn-sm"
+          onClick={() => setShowAddTable(true)}
+          title="テーブル追加"
+        >
+          <i className="bi bi-plus-lg" /> テーブル追加
+        </button>
+        <button
           className="tbl-btn tbl-btn-ghost tbl-btn-sm"
           onClick={() => setShowAddRelation(true)}
-          title="論理リレーション追加"
+          title="リレーション追加"
         >
-          <i className="bi bi-link-45deg" /> 論理リレーション追加
+          <i className="bi bi-link-45deg" /> リレーション追加
         </button>
         <div className="er-toolbar-sep" />
         <div style={{ position: "relative" }}>
@@ -297,6 +331,9 @@ function ErDiagramInner() {
           </button>
           {showExport && (
             <div className="er-export-menu">
+              <button onClick={handleExportSpecJson}>
+                <i className="bi bi-filetype-json" /> 統合仕様書 (JSON)
+              </button>
               <button onClick={handleExportMermaid}>
                 <i className="bi bi-clipboard" /> Mermaid をコピー
               </button>
@@ -311,6 +348,14 @@ function ErDiagramInner() {
           <span style={{ marginLeft: 8, fontSize: 11, color: "#666" }}>ダブルクリックでテーブル編集</span>
         </span>
       </div>
+
+      {/* Add Table Modal */}
+      {showAddTable && (
+        <AddTableFromErModal
+          onAdd={handleAddTable}
+          onClose={() => setShowAddTable(false)}
+        />
+      )}
 
       {/* Add Logical Relation Modal */}
       {showAddRelation && (
@@ -349,7 +394,6 @@ function AddRelationModal({
   const [srcCol, setSrcCol] = useState("");
   const [tgtTableId, setTgtTableId] = useState(initialTargetTableId ?? "");
   const [tgtCol, setTgtCol] = useState(() => {
-    // 参照先テーブルのPKカラムを自動選択
     if (initialTargetTableId) {
       const tgt = tables.find((t) => t.id === initialTargetTableId);
       const pk = tgt?.columns.find((c) => c.primaryKey);
@@ -358,18 +402,21 @@ function AddRelationModal({
     return "";
   });
   const [cardinality, setCardinality] = useState<ErCardinality>("one-to-many");
+  const [label, setLabel] = useState("");
 
   const srcTable = tables.find((t) => t.id === srcTableId);
   const tgtTable = tables.find((t) => t.id === tgtTableId);
+  const hasColumns = srcTable && srcTable.columns.length > 0 && tgtTable && tgtTable.columns.length > 0;
 
   const handleSubmit = () => {
-    if (!srcTableId || !srcCol || !tgtTableId || !tgtCol) return;
+    if (!srcTableId || !tgtTableId) return;
     onAdd({
       sourceTableId: srcTableId,
-      sourceColumnName: srcCol,
+      sourceColumnName: srcCol || undefined,
       targetTableId: tgtTableId,
-      targetColumnName: tgtCol,
+      targetColumnName: tgtCol || undefined,
       cardinality,
+      label: label.trim() || undefined,
     });
   };
 
@@ -377,48 +424,65 @@ function AddRelationModal({
     <div className="tbl-modal-overlay" onClick={onClose}>
       <div className="er-relation-modal" onClick={(e) => e.stopPropagation()}>
         <div className="tbl-modal-title">
-          <i className="bi bi-link-45deg" /> 論理リレーション追加
+          <i className="bi bi-link-45deg" /> リレーション追加
         </div>
         <p style={{ fontSize: 12, color: "#999", marginBottom: 16 }}>
-          FK制約なしの論理的なリレーションをER図上に追加します（点線で表示）
+          テーブル間の関連をER図に追加します（点線で表示）。カラムは後から設定できます。
         </p>
+
+        {/* メモ欄（目立つ位置に配置） */}
+        <label className="tbl-field" style={{ marginBottom: 16 }}>
+          <span><i className="bi bi-chat-left-text" /> メモ（リレーションの説明）</span>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="例: 顧客は複数の注文を持つ"
+            autoFocus
+            style={{ fontSize: 14, padding: "8px 10px" }}
+          />
+        </label>
 
         <div className="er-relation-row">
           <div style={{ flex: 1 }}>
             <label className="tbl-field">
-              <span>参照元テーブル（FK側）</span>
+              <span>参照元テーブル（多側 / FK側）</span>
               <select value={srcTableId} onChange={(e) => { setSrcTableId(e.target.value); setSrcCol(""); }}>
                 <option value="">選択...</option>
                 {tables.map((t) => <option key={t.id} value={t.id}>{t.name}（{t.logicalName}）</option>)}
               </select>
             </label>
-            <label className="tbl-field">
-              <span>参照元カラム</span>
-              <select value={srcCol} onChange={(e) => setSrcCol(e.target.value)} disabled={!srcTable}>
-                <option value="">選択...</option>
-                {srcTable?.columns.map((c) => <option key={c.id} value={c.name}>{c.name}（{c.logicalName}）</option>)}
-              </select>
-            </label>
+            {hasColumns && (
+              <label className="tbl-field">
+                <span>参照元カラム <small style={{ color: "#666" }}>（任意）</small></span>
+                <select value={srcCol} onChange={(e) => setSrcCol(e.target.value)}>
+                  <option value="">（未定）</option>
+                  {srcTable?.columns.map((c) => <option key={c.id} value={c.name}>{c.name}（{c.logicalName}）</option>)}
+                </select>
+              </label>
+            )}
           </div>
           <span className="er-relation-arrow">→</span>
           <div style={{ flex: 1 }}>
             <label className="tbl-field">
-              <span>参照先テーブル</span>
+              <span>参照先テーブル（1側）</span>
               <select value={tgtTableId} onChange={(e) => { setTgtTableId(e.target.value); setTgtCol(""); }}>
                 <option value="">選択...</option>
                 {tables.map((t) => <option key={t.id} value={t.id}>{t.name}（{t.logicalName}）</option>)}
               </select>
             </label>
-            <label className="tbl-field">
-              <span>参照先カラム</span>
-              <select value={tgtCol} onChange={(e) => setTgtCol(e.target.value)} disabled={!tgtTable}>
-                <option value="">選択...</option>
-                {tgtTable?.columns.map((c) => {
-                  const icons = c.primaryKey ? "🔑 " : c.unique ? "🔗 " : "";
-                  return <option key={c.id} value={c.name}>{icons}{c.name}（{c.logicalName}）</option>;
-                })}
-              </select>
-            </label>
+            {hasColumns && (
+              <label className="tbl-field">
+                <span>参照先カラム <small style={{ color: "#666" }}>（任意）</small></span>
+                <select value={tgtCol} onChange={(e) => setTgtCol(e.target.value)}>
+                  <option value="">（未定）</option>
+                  {tgtTable?.columns.map((c) => {
+                    const icons = c.primaryKey ? "🔑 " : c.unique ? "🔗 " : "";
+                    return <option key={c.id} value={c.name}>{icons}{c.name}（{c.logicalName}）</option>;
+                  })}
+                </select>
+              </label>
+            )}
           </div>
         </div>
 
@@ -436,7 +500,73 @@ function AddRelationModal({
           <button
             className="tbl-btn tbl-btn-primary"
             onClick={handleSubmit}
-            disabled={!srcTableId || !srcCol || !tgtTableId || !tgtCol}
+            disabled={!srcTableId || !tgtTableId}
+          >
+            追加
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ER図からテーブル追加モーダル ──────────────────────────────────────────
+
+function AddTableFromErModal({
+  onAdd, onClose,
+}: {
+  onAdd: (name: string, logicalName: string, category?: string) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [logicalName, setLogicalName] = useState("");
+  const [category, setCategory] = useState("");
+
+  return (
+    <div className="tbl-modal-overlay" onClick={onClose}>
+      <div className="tbl-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="tbl-modal-title">
+          <i className="bi bi-plus-lg" /> エンティティ（テーブル）追加
+        </div>
+        <label className="tbl-field">
+          <span>テーブル名 <small>(snake_case)</small></span>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="customers"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && logicalName.trim()) onAdd(name.trim(), logicalName.trim(), category || undefined); }}
+          />
+        </label>
+        <label className="tbl-field">
+          <span>論理名</span>
+          <input
+            type="text"
+            value={logicalName}
+            onChange={(e) => setLogicalName(e.target.value)}
+            placeholder="顧客マスタ"
+            onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && logicalName.trim()) onAdd(name.trim(), logicalName.trim(), category || undefined); }}
+          />
+        </label>
+        <label className="tbl-field">
+          <span>カテゴリ</span>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">（なし）</option>
+            <option value="マスタ">マスタ</option>
+            <option value="トランザクション">トランザクション</option>
+            <option value="中間テーブル">中間テーブル</option>
+            <option value="ログ">ログ</option>
+            <option value="設定">設定</option>
+            <option value="その他">その他</option>
+          </select>
+        </label>
+        <div className="tbl-modal-btns">
+          <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
+          <button
+            className="tbl-btn tbl-btn-primary"
+            onClick={() => onAdd(name.trim(), logicalName.trim(), category || undefined)}
+            disabled={!name.trim() || !logicalName.trim()}
           >
             追加
           </button>

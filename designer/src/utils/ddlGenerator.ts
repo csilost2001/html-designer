@@ -31,9 +31,9 @@ export function generateDdl(table: TableDefinition, dialect: SqlDialect): string
     colDefs.push(`  PRIMARY KEY (${pks.join(", ")})`);
   }
 
-  // Foreign keys
+  // Foreign keys (物理FK制約のみ出力、noConstraint=true は除外)
   for (const col of table.columns) {
-    if (col.foreignKey) {
+    if (col.foreignKey && !col.foreignKey.noConstraint) {
       const ref = col.foreignKey;
       colDefs.push(
         `  FOREIGN KEY (${col.name}) REFERENCES ${ref.tableId}(${ref.columnName})`,

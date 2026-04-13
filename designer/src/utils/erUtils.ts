@@ -113,12 +113,12 @@ export function generateErMermaid(
       : rel.cardinality === "many-to-many"
         ? "}|--|{"
         : "||--o{";
-    const label = rel.sourceColumnName;
-    const lineStyle = rel.physical ? cardStr : "..";
+    const label = rel.sourceColumnName || rel.label || "";
     if (rel.physical) {
       lines.push(`    ${rel.targetTableName} ${cardStr} ${rel.sourceTableName} : "${label}"`);
     } else {
-      lines.push(`    ${rel.targetTableName} ${lineStyle} ${rel.sourceTableName} : "${label} (論理)"`);
+      const suffix = label ? ` (論理)` : "論理";
+      lines.push(`    ${rel.targetTableName} ${cardStr} ${rel.sourceTableName} : "${label}${suffix}"`);
     }
   }
 
