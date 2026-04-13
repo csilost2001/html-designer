@@ -48,7 +48,8 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
           </div>
         )}
         {filtered.map(([cat, blocks]) => {
-          const isCollapsed = !!collapsed[cat];
+          // 検索中は強制展開して一致ブロックを見えるようにする
+          const isCollapsed = query.trim() ? false : !!collapsed[cat];
           return (
             <section key={cat} className="blocks-category">
               <header
