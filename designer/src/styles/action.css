@@ -396,7 +396,7 @@
 
 .step-card-drag-handle {
   cursor: grab;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 1.25rem;
   padding: 10px 8px;
   touch-action: none;
@@ -405,18 +405,19 @@
   display: flex;
   align-items: center;
   border-radius: 4px;
+  background-color: #f1f5f9;
   transition: color 0.15s, background-color 0.15s;
 }
 
 .step-card-drag-handle:hover {
-  color: #475569;
-  background-color: #f1f5f9;
+  color: #334155;
+  background-color: #e2e8f0;
 }
 
 .step-card-drag-handle:active {
   cursor: grabbing;
-  color: #334155;
-  background-color: #e2e8f0;
+  color: #1e293b;
+  background-color: #cbd5e1;
 }
 
 .step-card-number {
