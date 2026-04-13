@@ -15,6 +15,7 @@ export function RightPanel() {
   const [tab, setTab] = useState<TabId>("styles");
   const editor = useEditorMaybe();
   const [loaded, setLoaded] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false);
 
   const selectorRef = useRef<HTMLDivElement>(null);
   const styleRef = useRef<HTMLDivElement>(null);
@@ -35,6 +36,16 @@ export function RightPanel() {
     editor.on("load", onLoad);
     return () => {
       editor.off("load", onLoad);
+    };
+  }, [editor]);
+
+  // コンポーネント選択状態を追跡
+  useEffect(() => {
+    if (!editor) return;
+    const onToggle = () => setHasSelection(!!editor.getSelected());
+    editor.on("component:toggled", onToggle);
+    return () => {
+      editor.off("component:toggled", onToggle);
     };
   }, [editor]);
 
@@ -93,19 +104,35 @@ export function RightPanel() {
 
       <div className="right-content">
         <div hidden={tab !== "styles"}>
-          <div className="panel-block">
-            <div className="panel-block-title">セレクタ</div>
-            <div ref={selectorRef} />
-          </div>
-          <div className="panel-block">
-            <div className="panel-block-title">スタイル</div>
-            <div ref={styleRef} />
+          {!hasSelection && (
+            <div className="right-panel-empty">
+              <i className="bi bi-cursor" />
+              <p>コンポーネントを選択してください</p>
+            </div>
+          )}
+          <div style={{ display: hasSelection ? undefined : "none" }}>
+            <div className="panel-block">
+              <div className="panel-block-title">セレクタ</div>
+              <div ref={selectorRef} />
+            </div>
+            <div className="panel-block">
+              <div className="panel-block-title">スタイル</div>
+              <div ref={styleRef} />
+            </div>
           </div>
         </div>
         <div hidden={tab !== "traits"}>
-          <div className="panel-block">
-            <div className="panel-block-title">属性</div>
-            <div ref={traitRef} />
+          {!hasSelection && (
+            <div className="right-panel-empty">
+              <i className="bi bi-cursor" />
+              <p>コンポーネントを選択してください</p>
+            </div>
+          )}
+          <div style={{ display: hasSelection ? undefined : "none" }}>
+            <div className="panel-block">
+              <div className="panel-block-title">属性</div>
+              <div ref={traitRef} />
+            </div>
           </div>
         </div>
         <div hidden={tab !== "layers"}>

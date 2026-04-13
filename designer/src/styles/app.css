@@ -494,6 +494,27 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   background-color: #13141f;
   padding: 16px;
   overflow: hidden;
+  position: relative;
+}
+
+.canvas-empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 1;
+}
+.canvas-empty-hint i {
+  font-size: 48px;
+}
+.canvas-empty-hint p {
+  font-size: 13px;
+  margin: 0;
 }
 
 .designer-canvas {
@@ -561,6 +582,20 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 8px 0;
+}
+
+.right-panel-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--dz-text-dim);
+}
+.right-panel-empty i {
+  font-size: 28px;
+  opacity: 0.5;
+}
+.right-panel-empty p {
+  font-size: 12px;
+  margin: 8px 0 0;
 }
 
 .panel-block {
