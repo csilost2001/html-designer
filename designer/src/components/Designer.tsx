@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Editor as GEditor } from "grapesjs";
+import html2canvas from "html2canvas";
 import GjsEditor, {
   Canvas,
   BlocksProvider,
@@ -15,6 +16,34 @@ import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
+
+/** キャンバスの縮小サムネイルを生成して data URL で返す */
+async function captureThumbnail(editor: GEditor): Promise<string | null> {
+  try {
+    const canvasDoc = editor.Canvas.getDocument();
+    if (!canvasDoc?.body) return null;
+    const canvasEl = await html2canvas(canvasDoc.body, {
+      backgroundColor: "#ffffff",
+      scale: 0.5,
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+    });
+    // 最大幅 320px にリサイズ
+    const maxWidth = 320;
+    if (canvasEl.width <= maxWidth) {
+      return canvasEl.toDataURL("image/jpeg", 0.6);
+    }
+    const scale = maxWidth / canvasEl.width;
+    const resized = document.createElement("canvas");
+    resized.width = maxWidth;
+    resized.height = Math.round(canvasEl.height * scale);
+    resized.getContext("2d")?.drawImage(canvasEl, 0, 0, resized.width, resized.height);
+    return resized.toDataURL("image/jpeg", 0.6);
+  } catch {
+    return null;
+  }
+}
 
 const PANEL_MODE_KEY = "designer-panel-left-mode";
 const THEME_KEY = "designer-theme";
@@ -199,6 +228,26 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
       } catch { /* ignore */ }
     }
   }, [activeTheme]);
+
+  // 保存後にサムネイルを撮影してフローノードに反映
+  useEffect(() => {
+    if (!ready || !editorRef.current) return;
+    const editor = editorRef.current;
+
+    const onStoreEnd = () => {
+      // 空のキャンバスはスキップ
+      if (editor.getComponents().length === 0) return;
+      captureThumbnail(editor).then((thumbnail) => {
+        if (!thumbnail) return;
+        mcpBridge.request("updateScreenMeta", { screenId, thumbnail }).catch(() => {});
+      });
+    };
+
+    editor.on("storage:end:store", onStoreEnd);
+    return () => {
+      editor.off("storage:end:store", onStoreEnd);
+    };
+  }, [ready, screenId]);
 
   // キャンバスの空状態を追跡
   useEffect(() => {

@@ -6,6 +6,7 @@ import {
   saveProject,
   addScreen,
   updateScreen,
+  updateScreenThumbnail,
   removeScreen,
   addEdge,
   removeEdge,
@@ -514,22 +515,28 @@ class McpBridgeImpl {
         }
 
         case "updateScreenMeta": {
-          const { screenId, ...patch } = (params ?? {}) as {
+          const { screenId, thumbnail, ...patch } = (params ?? {}) as {
             screenId: string;
             name?: string;
             type?: ScreenType;
             description?: string;
             path?: string;
+            thumbnail?: string;
           };
           if (!screenId) {
             respondError("screenId は必須です");
             break;
           }
           const project = await loadProject();
-          const updated = await updateScreen(project, screenId, patch);
-          if (!updated) {
-            respondError(`画面が見つかりません: ${screenId}`);
-            break;
+          if (thumbnail !== undefined) {
+            await updateScreenThumbnail(project, screenId, thumbnail);
+          }
+          if (Object.keys(patch).length > 0) {
+            const updated = await updateScreen(project, screenId, patch);
+            if (!updated) {
+              respondError(`画面が見つかりません: ${screenId}`);
+              break;
+            }
           }
           this.flowChangeHandler?.();
           respond({ success: true });

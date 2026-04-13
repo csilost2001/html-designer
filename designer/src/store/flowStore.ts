@@ -234,6 +234,19 @@ export async function removeEdge(project: FlowProject, edgeId: string): Promise<
   return true;
 }
 
+/** 画面のサムネイルを更新 */
+export async function updateScreenThumbnail(
+  project: FlowProject,
+  screenId: string,
+  thumbnail: string,
+): Promise<void> {
+  const screen = project.screens.find((s) => s.id === screenId);
+  if (!screen) return;
+  screen.thumbnail = thumbnail;
+  screen.updatedAt = now();
+  await saveProject(project);
+}
+
 /** 画面のデザインデータ有無を更新 */
 export async function markScreenHasDesign(
   project: FlowProject,
