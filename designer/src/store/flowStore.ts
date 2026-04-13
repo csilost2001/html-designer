@@ -10,6 +10,7 @@
  */
 import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, ScreenType, TransitionTrigger } from "../types/flow";
 import { SCREEN_TYPE_LABELS, TRIGGER_LABELS } from "../types/flow";
+import { generateUUID } from "../utils/uuid";
 
 // ─── ストレージバックエンドインターフェース ────────────────────────────────
 
@@ -56,7 +57,7 @@ function migrateLegacyLocalStorage(): FlowProject | null {
   const raw = localStorage.getItem(LEGACY_KEY);
   if (!raw) return null;
 
-  const screenId = crypto.randomUUID();
+  const screenId = generateUUID();
   const screen: ScreenNode = {
     id: screenId,
     name: "メイン画面",
@@ -75,6 +76,7 @@ function migrateLegacyLocalStorage(): FlowProject | null {
     version: 1,
     name: "マイプロジェクト",
     screens: [screen],
+    groups: [],
     edges: [],
     updatedAt: now(),
   };
@@ -149,7 +151,7 @@ export async function addScreen(
   path?: string,
   position?: { x: number; y: number },
 ): Promise<ScreenNode> {
-  const id = crypto.randomUUID();
+  const id = generateUUID();
   const screen: ScreenNode = {
     id,
     name,
@@ -209,7 +211,7 @@ export async function addEdge(
   targetHandle?: string,
 ): Promise<ScreenEdge> {
   const edge: ScreenEdge = {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     source,
     target,
     sourceHandle,
@@ -289,7 +291,7 @@ export async function addGroup(
   position: { x: number; y: number },
 ): Promise<ScreenGroup> {
   const group: ScreenGroup = {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     name,
     position,
     size: { width: 360, height: 280 },

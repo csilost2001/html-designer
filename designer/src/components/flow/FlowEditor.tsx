@@ -26,7 +26,7 @@ import { FlowTopbar, type ViewMode } from "./FlowTopbar";
 import { ScreenTableView } from "./ScreenTableView";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
-import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, TransitionTrigger } from "../../types/flow";
+import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup } from "../../types/flow";
 import { TRIGGER_LABELS } from "../../types/flow";
 import {
   loadProject,
@@ -113,8 +113,8 @@ function FlowEditorInner() {
   const projectRef = useRef<FlowProject | null>(null);
   const { fitView, zoomTo } = useReactFlow();
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
   const [projectName, setProjectName] = useState("読み込み中...");
   const [isLoading, setIsLoading] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -380,7 +380,7 @@ function FlowEditorInner() {
         id: dup.id,
         type: "screenNode" as const,
         position: dup.position,
-        data: dup,
+        data: dup as unknown as RFNode["data"],
       }]);
     }
     setContextMenu(null);

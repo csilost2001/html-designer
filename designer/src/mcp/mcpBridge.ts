@@ -1,9 +1,9 @@
 import type { Editor as GEditor, Component, Block } from "grapesjs";
 import html2canvas from "html2canvas";
+import { generateUUID } from "../utils/uuid";
 import type { ScreenType, TransitionTrigger } from "../types/flow";
 import {
   loadProject,
-  saveProject,
   addScreen,
   updateScreen,
   updateScreenThumbnail,
@@ -35,7 +35,7 @@ type BroadcastHandler = (data: unknown) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 
-const WS_URL = "ws://127.0.0.1:5179";
+const WS_URL = `ws://${window.location.hostname}:5179`;
 const RETRY_DELAY_MS = 5000;
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -59,7 +59,7 @@ class McpBridgeImpl {
   private stopped = false;
 
   /** ブラウザセッション固有の一意 ID（再接続でも不変） */
-  private readonly clientId = crypto.randomUUID();
+  private readonly clientId = generateUUID();
 
   /** ブラウザ→サーバーリクエストの応答待ちハンドラ */
   private pendingRequests = new Map<
@@ -148,7 +148,7 @@ class McpBridgeImpl {
       return Promise.reject(new Error("wsBridge に接続されていません"));
     }
 
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(id);

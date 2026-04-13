@@ -8,6 +8,18 @@ import { upsertCustomBlock } from "../store/customBlockStore";
 
 export const CUSTOM_BLOCK_CATEGORY = "マイブロック";
 
+/** 共有ブロックとして保存する際、HTML のルート要素に data-shared-block-id を付与する */
+function addSharedBlockId(html: string, blockId: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<body>${html}</body>`, "text/html");
+  if (doc.body.children.length === 1) {
+    doc.body.children[0].setAttribute("data-shared-block-id", blockId);
+    return doc.body.innerHTML;
+  }
+  // 複数ルートの場合は div でラップ
+  return `<div data-shared-block-id="${blockId}">${html}</div>`;
+}
+
 const THEMES: { id: ThemeId; label: string; icon: string; color: string }[] = [
   { id: "standard", label: "標準",    icon: "bi-grid-3x3",     color: "#6c757d" },
   { id: "card",     label: "カード型", icon: "bi-layers",       color: "#6366f1" },
@@ -117,13 +129,14 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
     setSaveBlockOpen(true);
   }, [editor]);
 
-  const handleSaveBlock = useCallback(async (name: string) => {
+  const handleSaveBlock = useCallback(async (name: string, shared: boolean) => {
     if (!editor) return;
     const selected = editor.getSelected();
     if (!selected) return;
 
     const id = `custom-block-${Date.now()}`;
-    const content = selected.toHTML();
+    const rawHtml = selected.toHTML();
+    const content = shared ? addSharedBlockId(rawHtml, id) : rawHtml;
     const now = new Date().toISOString();
 
     const customBlock = {
@@ -131,6 +144,7 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
       label: name,
       category: CUSTOM_BLOCK_CATEGORY,
       content,
+      shared,
       createdAt: now,
       updatedAt: now,
     };
@@ -141,7 +155,8 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
       label: name,
       category: CUSTOM_BLOCK_CATEGORY,
       content,
-    });
+      ...(shared ? { shared: true } : {}),
+    } as Parameters<typeof editor.BlockManager.add>[1]);
 
     setSaveBlockOpen(false);
   }, [editor]);

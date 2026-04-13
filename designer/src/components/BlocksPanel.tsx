@@ -4,11 +4,19 @@ import { useEditorMaybe } from "@grapesjs/react";
 import type { Block } from "grapesjs";
 import { CUSTOM_BLOCK_CATEGORY } from "./Topbar";
 import { deleteCustomBlock } from "../store/customBlockStore";
+import { SharedBlockSyncModal } from "./SharedBlockSyncModal";
 
 export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksResultProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const editor = useEditorMaybe();
+
+  const [syncModal, setSyncModal] = useState<{
+    open: boolean;
+    blockId: string;
+    blockLabel: string;
+    content: string;
+  }>({ open: false, blockId: "", blockLabel: "", content: "" });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,6 +46,17 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
     await deleteCustomBlock(id);
   }, [editor]);
 
+  const handleOpenSyncModal = useCallback((block: Block, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSyncModal({
+      open: true,
+      blockId: block.getId(),
+      blockLabel: String(block.get("label") || block.getId()),
+      content: String(block.get("content") || ""),
+    });
+  }, []);
+
   return (
     <div className="blocks-panel">
       <div className="blocks-search">
@@ -63,7 +82,6 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
           </div>
         )}
         {filtered.map(([cat, blocks]) => {
-          // 検索中は強制展開して一致ブロックを見えるようにする
           const isCollapsed = query.trim() ? false : !!collapsed[cat];
           const isCustomCategory = cat === CUSTOM_BLOCK_CATEGORY;
           return (
@@ -80,39 +98,66 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
               </header>
               {!isCollapsed && (
                 <div className="blocks-grid">
-                  {blocks.map((block) => (
-                    <div
-                      key={block.getId()}
-                      className={`block-item${isCustomCategory ? " custom-block" : ""}`}
-                      draggable
-                      onDragStart={(ev) => dragStart(block, ev.nativeEvent)}
-                      onDragEnd={() => dragStop(false)}
-                      title={block.get("label") || ""}
-                    >
+                  {blocks.map((block) => {
+                    const isShared = isCustomCategory && (block as unknown as { get(k: string): unknown }).get("shared") === true;
+                    return (
                       <div
-                        className="block-icon"
-                        dangerouslySetInnerHTML={{
-                          __html: (block.get("media") as string) || "",
-                        }}
-                      />
-                      <div className="block-label">{block.get("label")}</div>
-                      {isCustomCategory && (
-                        <button
-                          className="block-delete-btn"
-                          onClick={(e) => handleDeleteBlock(block, e)}
-                          title="削除"
-                        >
-                          <i className="bi bi-trash3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                        key={block.getId()}
+                        className={`block-item${isCustomCategory ? " custom-block" : ""}${isShared ? " shared-block" : ""}`}
+                        draggable
+                        onDragStart={(ev) => dragStart(block, ev.nativeEvent)}
+                        onDragEnd={() => dragStop(false)}
+                        title={block.get("label") || ""}
+                      >
+                        <div
+                          className="block-icon"
+                          dangerouslySetInnerHTML={{
+                            __html: (block.get("media") as string) || "",
+                          }}
+                        />
+                        <div className="block-label">{block.get("label")}</div>
+                        {isShared && (
+                          <span className="block-shared-badge" title="共有ブロック">
+                            <i className="bi bi-share-fill" />
+                          </span>
+                        )}
+                        {isCustomCategory && (
+                          <div className="block-action-btns">
+                            {isShared && (
+                              <button
+                                className="block-propagate-btn"
+                                onClick={(e) => handleOpenSyncModal(block, e)}
+                                title="全画面に反映"
+                              >
+                                <i className="bi bi-arrow-repeat" />
+                              </button>
+                            )}
+                            <button
+                              className="block-delete-btn"
+                              onClick={(e) => handleDeleteBlock(block, e)}
+                              title="削除"
+                            >
+                              <i className="bi bi-trash3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </section>
           );
         })}
       </div>
+
+      <SharedBlockSyncModal
+        open={syncModal.open}
+        blockId={syncModal.blockId}
+        blockLabel={syncModal.blockLabel}
+        content={syncModal.content}
+        onClose={() => setSyncModal((s) => ({ ...s, open: false }))}
+      />
     </div>
   );
 }
