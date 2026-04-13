@@ -18,11 +18,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, "../../data");
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
+const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 const SEED_SCREENS_DIR = path.join(__dirname, "screens");
 const SEED_TABLES_DIR = path.join(__dirname, "tables");
+const SEED_ACTIONS_DIR = path.join(__dirname, "actions");
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });
 fs.mkdirSync(TABLES_DIR, { recursive: true });
+fs.mkdirSync(ACTIONS_DIR, { recursive: true });
 fs.mkdirSync(SEED_SCREENS_DIR, { recursive: true });
 
 // ── GrapesJS スクリーンデータ生成ヘルパー ─────────────────────────────────
@@ -839,9 +842,24 @@ if (fs.existsSync(SEED_TABLES_DIR)) {
   }
 }
 
+// ── 処理フロー定義データをコピー ──────────────────────────────────────────
+let actionCount = 0;
+if (fs.existsSync(SEED_ACTIONS_DIR)) {
+  const actionFiles = fs.readdirSync(SEED_ACTIONS_DIR).filter((f) => f.endsWith(".json"));
+  for (const file of actionFiles) {
+    fs.copyFileSync(
+      path.join(SEED_ACTIONS_DIR, file),
+      path.join(ACTIONS_DIR, file),
+    );
+    actionCount++;
+    console.log(`[action ${actionCount}/${actionFiles.length}] ${file.replace(".json", "")}`);
+  }
+}
+
 console.log("\n✅ シードデータ生成完了");
 console.log(`   data/screens/        → ${count} ファイル`);
 console.log(`   data/tables/         → ${tableCount} ファイル`);
+console.log(`   data/actions/        → ${actionCount} ファイル`);
 console.log(`   docs/sample-project/ → バックアップ済み`);
 console.log("\n復元方法:");
 console.log("   node docs/sample-project/seed.mjs");

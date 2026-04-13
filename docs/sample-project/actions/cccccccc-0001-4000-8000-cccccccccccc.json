@@ -1,0 +1,64 @@
+{
+  "id": "cccccccc-0001-4000-8000-cccccccccccc",
+  "name": "ログイン画面",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa",
+  "description": "ログイン画面の処理フロー定義",
+  "actions": [
+    {
+      "id": "act-login-001",
+      "name": "ログインボタン",
+      "trigger": "click",
+      "steps": [
+        {
+          "id": "step-login-001",
+          "type": "validation",
+          "description": "入力値チェック",
+          "conditions": "ユーザーID・パスワードの必須チェック",
+          "inlineBranch": {
+            "ok": "次のステップへ続行",
+            "ng": "エラーメッセージを表示、処理中断"
+          }
+        },
+        {
+          "id": "step-login-002",
+          "type": "commonProcess",
+          "description": "認証チェック",
+          "refId": "cccccccc-0003-4000-8000-cccccccccccc",
+          "refName": "認証チェック"
+        },
+        {
+          "id": "step-login-003",
+          "type": "dbAccess",
+          "description": "ユーザー情報取得",
+          "tableName": "users",
+          "tableId": "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "ユーザー名、権限情報"
+        },
+        {
+          "id": "step-login-004",
+          "type": "screenTransition",
+          "description": "ダッシュボードへ遷移",
+          "targetScreenId": "aaaaaaaa-0002-4000-8000-aaaaaaaaaaaa",
+          "targetScreenName": "ダッシュボード"
+        }
+      ]
+    },
+    {
+      "id": "act-login-002",
+      "name": "パスワードリセットリンク",
+      "trigger": "click",
+      "steps": [
+        {
+          "id": "step-login-005",
+          "type": "screenTransition",
+          "description": "パスワードリセット画面へ遷移",
+          "targetScreenName": "パスワードリセット画面"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-14T00:00:00.000Z",
+  "updatedAt": "2026-04-14T00:00:00.000Z"
+}

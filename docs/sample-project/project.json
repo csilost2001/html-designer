@@ -294,5 +294,37 @@
       "updatedAt": "2026-04-13T00:00:00.000Z"
     }
   ],
-  "updatedAt": "2026-04-13T00:00:00.000Z"
+  "actionGroups": [
+    {
+      "id": "cccccccc-0001-4000-8000-cccccccccccc",
+      "name": "ログイン画面",
+      "type": "screen",
+      "screenId": "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa",
+      "actionCount": 2,
+      "updatedAt": "2026-04-14T00:00:00.000Z"
+    },
+    {
+      "id": "cccccccc-0002-4000-8000-cccccccccccc",
+      "name": "顧客一覧画面",
+      "type": "screen",
+      "screenId": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+      "actionCount": 4,
+      "updatedAt": "2026-04-14T00:00:00.000Z"
+    },
+    {
+      "id": "cccccccc-0003-4000-8000-cccccccccccc",
+      "name": "認証チェック",
+      "type": "common",
+      "actionCount": 1,
+      "updatedAt": "2026-04-14T00:00:00.000Z"
+    },
+    {
+      "id": "cccccccc-0004-4000-8000-cccccccccccc",
+      "name": "月次売上集計バッチ",
+      "type": "batch",
+      "actionCount": 1,
+      "updatedAt": "2026-04-14T00:00:00.000Z"
+    }
+  ],
+  "updatedAt": "2026-04-14T00:00:00.000Z"
 }

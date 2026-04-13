@@ -521,4 +521,150 @@ export const tools = [
       required: [],
     },
   },
+
+  // ── 処理フロー定義ツール ──
+
+  {
+    name: "designer__list_action_groups",
+    description:
+      "処理フロー定義（アクショングループ）の一覧を取得します。画面・バッチ・共通処理等のタイプ別に管理されます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__get_action_group",
+    description:
+      "指定した処理フロー定義の詳細（アクション・ステップ含む）を取得します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: {
+          type: "string",
+          description: "取得するアクショングループのID",
+        },
+      },
+      required: ["actionGroupId"],
+    },
+  },
+  {
+    name: "designer__add_action_group",
+    description:
+      "新しい処理フロー定義（アクショングループ）を作成します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "処理フロー名（例: ログイン画面、月次集計バッチ）",
+        },
+        type: {
+          type: "string",
+          enum: ["screen", "batch", "scheduled", "system", "common", "other"],
+          description: "種別（screen=画面, batch=バッチ, common=共通処理 等）",
+        },
+        screenId: {
+          type: "string",
+          description: "画面ID（type=screen の場合）。省略可。",
+        },
+        description: {
+          type: "string",
+          description: "処理フローの説明。省略可。",
+        },
+      },
+      required: ["name", "type"],
+    },
+  },
+  {
+    name: "designer__update_action_group",
+    description:
+      "処理フロー定義を更新します。アクション・ステップを含む完全な定義を渡します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: {
+          type: "string",
+          description: "更新対象のアクショングループID",
+        },
+        definition: {
+          type: "object",
+          description: "アクショングループ定義の完全なJSON（ActionGroup型）",
+        },
+      },
+      required: ["actionGroupId", "definition"],
+    },
+  },
+  {
+    name: "designer__delete_action_group",
+    description:
+      "処理フロー定義を削除します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: {
+          type: "string",
+          description: "削除するアクショングループID",
+        },
+      },
+      required: ["actionGroupId"],
+    },
+  },
+  {
+    name: "designer__add_action",
+    description:
+      "アクショングループにアクション（ボタンクリック等のイベント）を追加します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: {
+          type: "string",
+          description: "対象のアクショングループID",
+        },
+        name: {
+          type: "string",
+          description: "アクション名（例: 登録ボタン、検索ボタン）",
+        },
+        trigger: {
+          type: "string",
+          enum: ["click", "submit", "select", "change", "load", "timer", "other"],
+          description: "トリガー種別",
+        },
+      },
+      required: ["actionGroupId", "name", "trigger"],
+    },
+  },
+  {
+    name: "designer__add_step",
+    description:
+      "アクションにステップ（処理手順）を追加します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: {
+          type: "string",
+          description: "対象のアクショングループID",
+        },
+        actionId: {
+          type: "string",
+          description: "対象のアクションID",
+        },
+        type: {
+          type: "string",
+          enum: ["validation", "dbAccess", "externalSystem", "commonProcess", "screenTransition", "displayUpdate", "branch", "jump", "other"],
+          description: "ステップ種別",
+        },
+        description: {
+          type: "string",
+          description: "ステップの処理概要",
+        },
+        detail: {
+          type: "object",
+          description: "ステップ種別固有の詳細（tableName, operation, refId 等）。省略可。",
+        },
+      },
+      required: ["actionGroupId", "actionId", "type", "description"],
+    },
+  },
 ];

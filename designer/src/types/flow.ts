@@ -113,6 +113,16 @@ export interface TableMeta {
   updatedAt: string;
 }
 
+/** アクショングループメタ情報（project.json 管理用） */
+export interface ActionGroupMeta {
+  id: string;
+  name: string;
+  type: string;
+  screenId?: string;
+  actionCount: number;
+  updatedAt: string;
+}
+
 /** プロジェクト全体 */
 export interface FlowProject {
   version: 1;
@@ -121,5 +131,6 @@ export interface FlowProject {
   groups: ScreenGroup[];
   edges: ScreenEdge[];
   tables?: TableMeta[];
+  actionGroups?: ActionGroupMeta[];
   updatedAt: string;
 }

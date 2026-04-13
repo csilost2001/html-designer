@@ -108,6 +108,9 @@ export function FlowTopbar({
           <button className="global-nav-btn" onClick={() => navigate("/er")}>
             <i className="bi bi-share" /> ER図
           </button>
+          <button className="global-nav-btn" onClick={() => navigate("/actions")}>
+            <i className="bi bi-lightning" /> 処理フロー
+          </button>
         </nav>
       </div>
 

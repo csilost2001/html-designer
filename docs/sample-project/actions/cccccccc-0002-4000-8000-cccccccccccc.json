@@ -1,0 +1,93 @@
+{
+  "id": "cccccccc-0002-4000-8000-cccccccccccc",
+  "name": "顧客一覧画面",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客一覧画面の処理フロー定義",
+  "actions": [
+    {
+      "id": "act-custlist-001",
+      "name": "検索ボタン",
+      "trigger": "click",
+      "steps": [
+        {
+          "id": "step-custlist-001",
+          "type": "validation",
+          "description": "検索条件チェック",
+          "conditions": "検索条件の形式チェック（電話番号、メール形式）",
+          "inlineBranch": {
+            "ok": "検索処理を実行",
+            "ng": "エラーメッセージを表示"
+          }
+        },
+        {
+          "id": "step-custlist-002",
+          "type": "dbAccess",
+          "description": "顧客データ検索",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "顧客名、フリガナ、電話番号、メールアドレス"
+        },
+        {
+          "id": "step-custlist-003",
+          "type": "displayUpdate",
+          "description": "検索結果を一覧テーブルに表示",
+          "target": "顧客一覧テーブル"
+        }
+      ]
+    },
+    {
+      "id": "act-custlist-002",
+      "name": "新規登録ボタン",
+      "trigger": "click",
+      "steps": [
+        {
+          "id": "step-custlist-004",
+          "type": "screenTransition",
+          "description": "顧客登録画面へ遷移",
+          "targetScreenId": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
+          "targetScreenName": "顧客登録"
+        }
+      ]
+    },
+    {
+      "id": "act-custlist-003",
+      "name": "詳細ボタン",
+      "trigger": "click",
+      "steps": [
+        {
+          "id": "step-custlist-005",
+          "type": "dbAccess",
+          "description": "顧客詳細データ取得",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "全カラム"
+        },
+        {
+          "id": "step-custlist-006",
+          "type": "screenTransition",
+          "description": "顧客詳細画面へ遷移",
+          "targetScreenId": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+          "targetScreenName": "顧客詳細"
+        }
+      ]
+    },
+    {
+      "id": "act-custlist-004",
+      "name": "クリアボタン",
+      "trigger": "click",
+      "steps": [
+        {
+          "id": "step-custlist-007",
+          "type": "displayUpdate",
+          "description": "検索条件と一覧をクリア",
+          "target": "検索フォーム・一覧テーブル"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-14T00:00:00.000Z",
+  "updatedAt": "2026-04-14T00:00:00.000Z"
+}
