@@ -73,8 +73,8 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
       });
   }, [screens, query, sortKey, sortDir]);
 
-  const SortIcon = ({ key }: { key: SortKey }) => {
-    if (sortKey !== key) return <i className="bi bi-arrow-down-up table-sort-icon inactive" />;
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sortKey !== column) return <i className="bi bi-arrow-down-up table-sort-icon inactive" />;
     return <i className={`bi bi-arrow-${sortDir === "asc" ? "up" : "down"} table-sort-icon`} />;
   };
 
@@ -112,19 +112,19 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
             <thead>
               <tr>
                 <th className="screen-table-th sortable" onClick={() => handleSort("name")}>
-                  画面名 <SortIcon key="name" />
+                  画面名 <SortIcon column="name" />
                 </th>
                 <th className="screen-table-th sortable" onClick={() => handleSort("type")}>
-                  種別 <SortIcon key="type" />
+                  種別 <SortIcon column="type" />
                 </th>
                 <th className="screen-table-th sortable" onClick={() => handleSort("path")}>
-                  URL <SortIcon key="path" />
+                  URL <SortIcon column="path" />
                 </th>
                 <th className="screen-table-th sortable" onClick={() => handleSort("hasDesign")}>
-                  デザイン <SortIcon key="hasDesign" />
+                  デザイン <SortIcon column="hasDesign" />
                 </th>
                 <th className="screen-table-th sortable" onClick={() => handleSort("updatedAt")}>
-                  更新日時 <SortIcon key="updatedAt" />
+                  更新日時 <SortIcon column="updatedAt" />
                 </th>
                 <th className="screen-table-th">操作</th>
               </tr>

@@ -17,6 +17,7 @@ import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
+import { loadProject, updateScreenThumbnail } from "../store/flowStore";
 
 /** キャンバスの縮小サムネイルを生成して data URL で返す */
 async function captureThumbnail(editor: GEditor): Promise<string | null> {
@@ -239,9 +240,14 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
     const onStoreEnd = () => {
       // 空のキャンバスはスキップ
       if (editor.getComponents().length === 0) return;
-      captureThumbnail(editor).then((thumbnail) => {
+      captureThumbnail(editor).then(async (thumbnail) => {
         if (!thumbnail) return;
-        mcpBridge.request("updateScreenMeta", { screenId, thumbnail }).catch(() => {});
+        try {
+          const project = await loadProject();
+          await updateScreenThumbnail(project, screenId, thumbnail);
+        } catch {
+          // サムネイル保存失敗は無視
+        }
       });
     };
 
