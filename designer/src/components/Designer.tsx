@@ -82,6 +82,7 @@ export interface DesignerProps {
 export function Designer({ screenId, screenName, onBack }: DesignerProps) {
   const gjsOptions = buildGjsOptions(screenId);
   const [ready, setReady] = useState(false);
+  const [canvasEmpty, setCanvasEmpty] = useState(true);
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
@@ -191,6 +192,20 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
     }
   }, [activeTheme]);
 
+  // キャンバスの空状態を追跡
+  useEffect(() => {
+    if (!ready || !editorRef.current) return;
+    const editor = editorRef.current;
+    const check = () => setCanvasEmpty(editor.getComponents().length === 0);
+    check();
+    editor.on("component:add", check);
+    editor.on("component:remove", check);
+    return () => {
+      editor.off("component:add", check);
+      editor.off("component:remove", check);
+    };
+  }, [ready]);
+
   // topbar-left の幅を panelMode に合わせて同期
   useEffect(() => {
     const root = document.documentElement;
@@ -260,6 +275,12 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
 
           <main className="panel-canvas">
             <Canvas className="designer-canvas" />
+            {canvasEmpty && ready && (
+              <div className="canvas-empty-hint">
+                <i className="bi bi-grid-1x2" />
+                <p>左のパネルからブロックをここにドラッグしてください</p>
+              </div>
+            )}
           </main>
 
           <aside className="panel-right">
