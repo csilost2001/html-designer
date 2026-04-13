@@ -8,7 +8,9 @@
 import type { TableDefinition } from "../types/table";
 import type { ErRelation, ErLayout } from "../types/table";
 import type { FlowProject } from "../types/flow";
+import type { ActionGroup, Step } from "../types/action";
 import { getAllRelations } from "./erUtils";
+import { getStepLabel } from "./actionUtils";
 
 export interface SpecJson {
   /** プロジェクト名 */
@@ -23,6 +25,10 @@ export interface SpecJson {
   screens: SpecScreen[];
   /** 画面遷移 */
   transitions: SpecTransition[];
+  /** 処理フロー定義 */
+  actionGroups?: SpecActionGroup[];
+  /** 共通処理定義 */
+  commonProcesses?: SpecCommonProcess[];
 }
 
 export interface SpecTable {
@@ -87,6 +93,34 @@ export interface SpecTransition {
   trigger: string;
 }
 
+export interface SpecActionGroup {
+  name: string;
+  type: string;
+  screenName?: string;
+  description: string;
+  actions: SpecAction[];
+}
+
+export interface SpecAction {
+  name: string;
+  trigger: string;
+  steps: SpecStep[];
+}
+
+export interface SpecStep {
+  number: string;
+  type: string;
+  description: string;
+  detail: Record<string, unknown>;
+}
+
+export interface SpecCommonProcess {
+  id: string;
+  name: string;
+  description: string;
+  steps: SpecStep[];
+}
+
 /**
  * 統合JSON仕様書を生成
  */
@@ -94,10 +128,15 @@ export function generateSpecJson(
   project: FlowProject,
   tables: TableDefinition[],
   erLayout: ErLayout | null,
+  actionGroups?: ActionGroup[],
 ): SpecJson {
   const relations = getAllRelations(tables, erLayout);
 
-  return {
+  // 共通処理とそれ以外を分離
+  const commonGroups = (actionGroups ?? []).filter((g) => g.type === "common");
+  const nonCommonGroups = (actionGroups ?? []).filter((g) => g.type !== "common");
+
+  const result: SpecJson = {
     projectName: project.name,
     generatedAt: new Date().toISOString(),
     tables: tables.map((t) => toSpecTable(t)),
@@ -120,6 +159,38 @@ export function generateSpecJson(
       };
     }),
   };
+
+  if (actionGroups && actionGroups.length > 0) {
+    result.actionGroups = nonCommonGroups.map((g) => {
+      const screenName = g.screenId
+        ? project.screens.find((s) => s.id === g.screenId)?.name
+        : undefined;
+      return {
+        name: g.name,
+        type: g.type,
+        screenName,
+        description: g.description,
+        actions: g.actions.map((a) => ({
+          name: a.name,
+          trigger: a.trigger,
+          steps: a.steps.map((s, i) => toSpecStep(s, i)),
+        })),
+      };
+    });
+
+    if (commonGroups.length > 0) {
+      result.commonProcesses = commonGroups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        steps: g.actions.length > 0
+          ? g.actions[0].steps.map((s, i) => toSpecStep(s, i))
+          : [],
+      }));
+    }
+  }
+
+  return result;
 }
 
 function toSpecTable(t: TableDefinition): SpecTable {
@@ -186,5 +257,48 @@ function toSpecRelation(r: ErRelation): SpecRelation {
     cardinality: r.cardinality,
     constraintType,
     memo: r.label,
+  };
+}
+
+function toSpecStep(s: Step, index: number): SpecStep {
+  const detail: Record<string, unknown> = {};
+  switch (s.type) {
+    case "validation":
+      detail.conditions = s.conditions;
+      if (s.inlineBranch) detail.inlineBranch = s.inlineBranch;
+      break;
+    case "dbAccess":
+      detail.tableName = s.tableName;
+      detail.operation = s.operation;
+      if (s.fields) detail.fields = s.fields;
+      break;
+    case "externalSystem":
+      detail.systemName = s.systemName;
+      if (s.protocol) detail.protocol = s.protocol;
+      break;
+    case "commonProcess":
+      detail.refId = s.refId;
+      detail.refName = s.refName;
+      break;
+    case "screenTransition":
+      detail.targetScreenName = s.targetScreenName;
+      break;
+    case "displayUpdate":
+      detail.target = s.target;
+      break;
+    case "branch":
+      detail.condition = s.condition;
+      detail.branchA = s.branchA;
+      detail.branchB = s.branchB;
+      break;
+    case "jump":
+      detail.jumpTo = s.jumpTo;
+      break;
+  }
+  return {
+    number: getStepLabel(index),
+    type: s.type,
+    description: s.description,
+    detail,
   };
 }

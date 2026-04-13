@@ -1,0 +1,48 @@
+{
+  "id": "cccccccc-0004-4000-8000-cccccccccccc",
+  "name": "月次売上集計バッチ",
+  "type": "batch",
+  "description": "月次の売上データを集計するバッチ処理",
+  "actions": [
+    {
+      "id": "act-batch-001",
+      "name": "集計実行",
+      "trigger": "timer",
+      "steps": [
+        {
+          "id": "step-batch-001",
+          "type": "dbAccess",
+          "description": "注文データ取得",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "対象月の全注文データ"
+        },
+        {
+          "id": "step-batch-002",
+          "type": "other",
+          "description": "売上集計処理",
+          "note": "顧客別・商品別の売上を集計"
+        },
+        {
+          "id": "step-batch-003",
+          "type": "dbAccess",
+          "description": "集計結果登録",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "UPDATE",
+          "fields": "月次集計ステータス更新"
+        },
+        {
+          "id": "step-batch-004",
+          "type": "commonProcess",
+          "description": "処理完了ログ出力",
+          "refId": "",
+          "refName": "ログ出力"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-14T00:00:00.000Z",
+  "updatedAt": "2026-04-14T00:00:00.000Z"
+}

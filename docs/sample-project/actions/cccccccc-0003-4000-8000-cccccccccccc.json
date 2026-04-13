@@ -1,0 +1,51 @@
+{
+  "id": "cccccccc-0003-4000-8000-cccccccccccc",
+  "name": "認証チェック",
+  "type": "common",
+  "description": "セッション・トークン検証を行う共通処理",
+  "actions": [
+    {
+      "id": "act-auth-001",
+      "name": "認証処理",
+      "trigger": "other",
+      "steps": [
+        {
+          "id": "step-auth-001",
+          "type": "validation",
+          "description": "セッション有効性チェック",
+          "conditions": "セッションIDの存在確認・有効期限チェック",
+          "inlineBranch": {
+            "ok": "トークン検証へ",
+            "ng": "ログイン画面へリダイレクト"
+          }
+        },
+        {
+          "id": "step-auth-002",
+          "type": "dbAccess",
+          "description": "トークン検証",
+          "tableName": "users",
+          "tableId": "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "認証トークン、有効期限"
+        },
+        {
+          "id": "step-auth-003",
+          "type": "branch",
+          "description": "認証結果判定",
+          "condition": "トークンが有効か",
+          "branchA": {
+            "label": "有効",
+            "description": "処理を続行"
+          },
+          "branchB": {
+            "label": "無効",
+            "description": "ログイン画面へリダイレクト",
+            "jumpTo": ""
+          }
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-14T00:00:00.000Z",
+  "updatedAt": "2026-04-14T00:00:00.000Z"
+}

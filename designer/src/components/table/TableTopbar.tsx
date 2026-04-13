@@ -10,6 +10,7 @@ export function TableTopbar({ projectName }: Props) {
   const isFlow = location.pathname === "/";
   const isTable = location.pathname.startsWith("/tables");
   const isEr = location.pathname === "/er";
+  const isAction = location.pathname.startsWith("/actions");
 
   return (
     <header className="flow-topbar">
@@ -34,6 +35,12 @@ export function TableTopbar({ projectName }: Props) {
             onClick={() => navigate("/er")}
           >
             <i className="bi bi-share" /> ER図
+          </button>
+          <button
+            className={`global-nav-btn${isAction ? " active" : ""}`}
+            onClick={() => navigate("/actions")}
+          >
+            <i className="bi bi-lightning" /> 処理フロー
           </button>
         </nav>
       </div>

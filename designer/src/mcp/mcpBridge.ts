@@ -31,6 +31,10 @@ import {
   setErLayoutStorageBackend,
   type ErLayoutStorageBackend,
 } from "../store/erLayoutStore";
+import {
+  setActionStorageBackend,
+  type ActionStorageBackend,
+} from "../store/actionStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
@@ -252,6 +256,14 @@ class McpBridgeImpl {
       saveErLayout: (data) => self.request("saveErLayout", { data }).then(() => undefined),
     };
     setErLayoutStorageBackend(erLayoutBackend);
+
+    const actionBackend: ActionStorageBackend = {
+      loadActionGroup: (id) => self.request("loadActionGroup", { id }),
+      saveActionGroup: (id, data) => self.request("saveActionGroup", { id, data }).then(() => undefined),
+      deleteActionGroup: (id) => self.request("deleteActionGroup", { id }).then(() => undefined),
+      listActionGroups: () => self.request("listActionGroups"),
+    };
+    setActionStorageBackend(actionBackend);
   }
 
   /** 切断時: localStorage フォールバックに戻す */
@@ -260,6 +272,7 @@ class McpBridgeImpl {
     setCustomBlocksBackend(null);
     setTableStorageBackend(null);
     setErLayoutStorageBackend(null);
+    setActionStorageBackend(null);
   }
 
   // ── メッセージ受信 ─────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import {
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
-import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout } from "./projectStorage.js";
+import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readActionGroup, writeActionGroup, deleteActionGroup as deleteActionGroupFile, listActionGroups as listActionGroupFiles } from "./projectStorage.js";
 
 // 親プロセス（Claude Code）が死んだら自動終了
 function setupLifecycle(): void {
@@ -775,6 +775,130 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ].join("\n"),
           }],
         };
+      }
+
+      // ── 処理フロー定義 ──
+
+      case "designer__list_action_groups": {
+        const agList = await listActionGroupFiles() as Array<{ id: string; name: string; type: string; screenId?: string; actions?: unknown[]; updatedAt: string }>;
+        if (agList.length === 0) {
+          return { content: [{ type: "text", text: "処理フロー定義はまだありません。" }] };
+        }
+        const lines = agList.map(
+          (ag) => `- ${ag.id}  ${ag.name}（${ag.type}）アクション:${ag.actions?.length ?? 0}件`
+        );
+        return { content: [{ type: "text", text: `処理フロー一覧 (${agList.length}件):\n${lines.join("\n")}` }] };
+      }
+
+      case "designer__get_action_group": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId は必須です");
+        }
+        const agData = await readActionGroup(a.actionGroupId);
+        if (!agData) {
+          throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        }
+        return { content: [{ type: "text", text: JSON.stringify(agData, null, 2) }] };
+      }
+
+      case "designer__add_action_group": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.name !== "string" || typeof a.type !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "name, type は必須です");
+        }
+        const agId = `ag-${Date.now()}`;
+        const agNow = new Date().toISOString();
+        const agDef = {
+          id: agId,
+          name: a.name,
+          type: a.type,
+          screenId: typeof a.screenId === "string" ? a.screenId : undefined,
+          description: typeof a.description === "string" ? a.description : "",
+          actions: [],
+          createdAt: agNow,
+          updatedAt: agNow,
+        };
+        await writeActionGroup(agId, agDef);
+        // project.json メタ更新
+        const agProject = (await readProject() ?? {}) as Record<string, unknown>;
+        const agMetas = (agProject.actionGroups ?? []) as Array<Record<string, unknown>>;
+        agMetas.push({ id: agId, name: a.name, type: a.type, screenId: a.screenId, actionCount: 0, updatedAt: agNow });
+        agProject.actionGroups = agMetas;
+        agProject.updatedAt = agNow;
+        await writeProject(agProject);
+        return { content: [{ type: "text", text: `処理フロー「${a.name}」(${a.type}) を追加しました（ID: ${agId}）` }] };
+      }
+
+      case "designer__update_action_group": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || !a.definition) {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, definition は必須です");
+        }
+        const agDef = a.definition as Record<string, unknown>;
+        agDef.updatedAt = new Date().toISOString();
+        await writeActionGroup(a.actionGroupId, agDef);
+        // project.json メタ更新
+        const agProject = (await readProject() ?? {}) as Record<string, unknown>;
+        const agMetas = (agProject.actionGroups ?? []) as Array<Record<string, unknown>>;
+        const agIdx = agMetas.findIndex((m) => m.id === a.actionGroupId);
+        const agActions = (agDef.actions ?? []) as unknown[];
+        const agMeta = { id: a.actionGroupId, name: agDef.name, type: agDef.type, screenId: agDef.screenId, actionCount: agActions.length, updatedAt: agDef.updatedAt };
+        if (agIdx >= 0) agMetas[agIdx] = agMeta; else agMetas.push(agMeta);
+        agProject.actionGroups = agMetas;
+        agProject.updatedAt = agDef.updatedAt as string;
+        await writeProject(agProject);
+        return { content: [{ type: "text", text: `処理フロー ${a.actionGroupId} を更新しました。` }] };
+      }
+
+      case "designer__delete_action_group": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId は必須です");
+        }
+        await deleteActionGroupFile(a.actionGroupId);
+        const agProject = (await readProject() ?? {}) as Record<string, unknown>;
+        const agMetas = ((agProject.actionGroups ?? []) as Array<Record<string, unknown>>).filter((m) => m.id !== a.actionGroupId);
+        agProject.actionGroups = agMetas;
+        agProject.updatedAt = new Date().toISOString();
+        await writeProject(agProject);
+        return { content: [{ type: "text", text: `処理フロー ${a.actionGroupId} を削除しました。` }] };
+      }
+
+      case "designer__add_action": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.name !== "string" || typeof a.trigger !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, name, trigger は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as Record<string, unknown> | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        const actions = (ag.actions ?? []) as Array<Record<string, unknown>>;
+        const actionId = `act-${Date.now()}`;
+        actions.push({ id: actionId, name: a.name, trigger: a.trigger, steps: [] });
+        ag.actions = actions;
+        ag.updatedAt = new Date().toISOString();
+        await writeActionGroup(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `アクション「${a.name}」を追加しました（ID: ${actionId}）` }] };
+      }
+
+      case "designer__add_step": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.actionId !== "string" || typeof a.type !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, actionId, type は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as Record<string, unknown> | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        const actions = (ag.actions ?? []) as Array<Record<string, unknown>>;
+        const action = actions.find((act) => act.id === a.actionId);
+        if (!action) throw new McpError(ErrorCode.InvalidParams, `アクション ${a.actionId} が見つかりません`);
+        const steps = (action.steps ?? []) as Array<Record<string, unknown>>;
+        const stepId = `step-${Date.now()}`;
+        const detail = (a.detail ?? {}) as Record<string, unknown>;
+        steps.push({ id: stepId, type: a.type, description: a.description ?? "", ...detail });
+        action.steps = steps;
+        ag.updatedAt = new Date().toISOString();
+        await writeActionGroup(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `ステップ（${a.type}）を追加しました（ID: ${stepId}）` }] };
       }
 
       default:

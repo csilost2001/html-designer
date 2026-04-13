@@ -15,6 +15,7 @@ export const DATA_DIR =
 
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
+const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
@@ -24,6 +25,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.mkdir(SCREENS_DIR, { recursive: true });
   await fs.mkdir(TABLES_DIR, { recursive: true });
+  await fs.mkdir(ACTIONS_DIR, { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -107,4 +109,39 @@ export async function deleteTable(tableId: string): Promise<void> {
   try {
     await fs.unlink(path.join(TABLES_DIR, `${tableId}.json`));
   } catch { /* file not found is OK */ }
+}
+
+/** actions/{actionGroupId}.json を読み込み */
+export async function readActionGroup(actionGroupId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(ACTIONS_DIR, `${actionGroupId}.json`));
+}
+
+/** actions/{actionGroupId}.json を書き込み */
+export async function writeActionGroup(actionGroupId: string, data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(path.join(ACTIONS_DIR, `${actionGroupId}.json`), data);
+}
+
+/** actions/{actionGroupId}.json を削除（存在しない場合は無視） */
+export async function deleteActionGroup(actionGroupId: string): Promise<void> {
+  try {
+    await fs.unlink(path.join(ACTIONS_DIR, `${actionGroupId}.json`));
+  } catch { /* file not found is OK */ }
+}
+
+/** actions/ ディレクトリ内の全アクショングループを読み込み */
+export async function listActionGroups(): Promise<unknown[]> {
+  try {
+    await ensureDataDir();
+    const files = await fs.readdir(ACTIONS_DIR);
+    const results: unknown[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const data = await readJSON<unknown>(path.join(ACTIONS_DIR, file));
+      if (data) results.push(data);
+    }
+    return results;
+  } catch {
+    return [];
+  }
 }

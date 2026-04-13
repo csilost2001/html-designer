@@ -16,6 +16,10 @@ import {
   deleteTable as deleteTableFile,
   readErLayout,
   writeErLayout,
+  readActionGroup,
+  writeActionGroup,
+  deleteActionGroup as deleteActionGroupFile,
+  listActionGroups as listActionGroupFiles,
 } from "./projectStorage.js";
 
 type Command = { id: string; method: string; params?: unknown };
@@ -345,6 +349,39 @@ class WsBridge extends EventEmitter {
           await writeErLayout(data);
           respond({ success: true });
           this.broadcast("erLayoutChanged", {}, clientId);
+          break;
+        }
+        case "loadActionGroup": {
+          const { id: agId } = (params ?? {}) as { id: string };
+          const agData = await readActionGroup(agId);
+          respond(agData);
+          break;
+        }
+        case "saveActionGroup": {
+          const { id: agId, data: agData } = (params ?? {}) as { id: string; data: unknown };
+          await writeActionGroup(agId, agData);
+          respond({ success: true });
+          this.broadcast("actionGroupChanged", { id: agId }, clientId);
+          break;
+        }
+        case "deleteActionGroup": {
+          const { id: agId } = (params ?? {}) as { id: string };
+          await deleteActionGroupFile(agId);
+          respond({ success: true });
+          this.broadcast("actionGroupChanged", { id: agId, deleted: true }, clientId);
+          break;
+        }
+        case "listActionGroups": {
+          const agList = await listActionGroupFiles();
+          const metas = (agList as Array<{ id: string; name: string; type: string; screenId?: string; actions?: unknown[]; updatedAt: string }>).map((ag) => ({
+            id: ag.id,
+            name: ag.name,
+            type: ag.type,
+            screenId: ag.screenId,
+            actionCount: ag.actions?.length ?? 0,
+            updatedAt: ag.updatedAt,
+          }));
+          respond(metas);
           break;
         }
         default:
