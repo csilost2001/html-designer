@@ -353,6 +353,44 @@ export function ActionEditor() {
       <div className="action-content">
         {activeAction ? (
           <div className="step-editor">
+            {/* I/O パネル */}
+            <div className="action-io-panel">
+              <div className="action-io-field">
+                <label className="form-label"><i className="bi bi-box-arrow-in-right me-1" />入力データ</label>
+                <textarea
+                  className="form-control form-control-sm action-io-textarea"
+                  rows={1}
+                  value={activeAction.inputs ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateGroupSilent((g) => {
+                      const act = g.actions.find((a) => a.id === activeActionId);
+                      if (act) act.inputs = val;
+                    });
+                  }}
+                  onBlur={commitGroup}
+                  placeholder="例: ユーザID、パスワード（改行で複数項目）"
+                />
+              </div>
+              <div className="action-io-field">
+                <label className="form-label"><i className="bi bi-box-arrow-right me-1" />出力データ</label>
+                <textarea
+                  className="form-control form-control-sm action-io-textarea"
+                  rows={1}
+                  value={activeAction.outputs ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateGroupSilent((g) => {
+                      const act = g.actions.find((a) => a.id === activeActionId);
+                      if (act) act.outputs = val;
+                    });
+                  }}
+                  onBlur={commitGroup}
+                  placeholder="例: セッションID、認証トークン（改行で複数項目）"
+                />
+              </div>
+            </div>
+
             {/* ツールバー */}
             <div className="step-toolbar">
               {ALL_STEP_TYPES.map((type) => (

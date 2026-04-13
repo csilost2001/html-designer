@@ -104,6 +104,8 @@ export interface SpecActionGroup {
 export interface SpecAction {
   name: string;
   trigger: string;
+  inputs?: string;
+  outputs?: string;
   steps: SpecStep[];
 }
 
@@ -173,6 +175,8 @@ export function generateSpecJson(
         actions: g.actions.map((a) => ({
           name: a.name,
           trigger: a.trigger,
+          inputs: a.inputs || undefined,
+          outputs: a.outputs || undefined,
           steps: a.steps.map((s, i) => toSpecStep(s, i)),
         })),
       };
