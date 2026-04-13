@@ -103,6 +103,16 @@ export interface ScreenEdge {
   trigger: TransitionTrigger;
 }
 
+/** テーブルメタ情報（project.json 管理用） */
+export interface TableMeta {
+  id: string;
+  name: string;
+  logicalName: string;
+  category?: string;
+  columnCount: number;
+  updatedAt: string;
+}
+
 /** プロジェクト全体 */
 export interface FlowProject {
   version: 1;
@@ -110,5 +120,6 @@ export interface FlowProject {
   screens: ScreenNode[];
   groups: ScreenGroup[];
   edges: ScreenEdge[];
+  tables?: TableMeta[];
   updatedAt: string;
 }

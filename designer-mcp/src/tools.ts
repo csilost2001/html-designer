@@ -379,4 +379,113 @@ export const tools = [
       required: [],
     },
   },
+
+  // ── テーブル設計書ツール ──
+
+  {
+    name: "designer__list_tables",
+    description:
+      "プロジェクトに定義されたテーブル設計書の一覧を取得します。各テーブルのID・テーブル名・論理名・カテゴリ・カラム数を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__get_table",
+    description:
+      "指定テーブルの完全な定義（カラム・インデックス含む）を取得します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tableId: {
+          type: "string",
+          description: "取得するテーブルのID（list_tables で取得）",
+        },
+      },
+      required: ["tableId"],
+    },
+  },
+  {
+    name: "designer__add_table",
+    description:
+      "新しいテーブル定義を追加します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "テーブル名（snake_case、例: customers）",
+        },
+        logicalName: {
+          type: "string",
+          description: "論理名（例: 顧客マスタ）",
+        },
+        description: {
+          type: "string",
+          description: "テーブルの説明",
+        },
+        category: {
+          type: "string",
+          description: "カテゴリ（マスタ, トランザクション 等）。省略可。",
+        },
+      },
+      required: ["name", "logicalName"],
+    },
+  },
+  {
+    name: "designer__update_table",
+    description:
+      "テーブル定義を更新します。カラムやインデックスを含む完全な定義を渡します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tableId: {
+          type: "string",
+          description: "更新対象のテーブルID",
+        },
+        definition: {
+          type: "object",
+          description: "テーブル定義の完全なJSON（TableDefinition型）",
+        },
+      },
+      required: ["tableId", "definition"],
+    },
+  },
+  {
+    name: "designer__remove_table",
+    description:
+      "テーブル定義を削除します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tableId: {
+          type: "string",
+          description: "削除するテーブルID",
+        },
+      },
+      required: ["tableId"],
+    },
+  },
+  {
+    name: "designer__generate_ddl",
+    description:
+      "指定テーブルのDDL（CREATE TABLE文）を生成します。SQLダイアレクトを指定できます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tableId: {
+          type: "string",
+          description: "DDLを生成するテーブルID。省略で全テーブル。",
+        },
+        dialect: {
+          type: "string",
+          enum: ["mysql", "postgresql", "oracle", "sqlite", "standard"],
+          description: "SQLダイアレクト。省略時は standard",
+        },
+      },
+      required: [],
+    },
+  },
 ];

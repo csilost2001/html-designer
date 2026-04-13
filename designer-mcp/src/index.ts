@@ -9,7 +9,7 @@ import {
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
-import { readProject, readCustomBlocks } from "./projectStorage.js";
+import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject } from "./projectStorage.js";
 
 // 親プロセス（Claude Code）が死んだら自動終了
 function setupLifecycle(): void {
@@ -483,6 +483,115 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // ── テーブル設計書 ──
+
+      case "designer__list_tables": {
+        const fileProject = await readProject() as { tables?: Array<{ id: string; name: string; logicalName: string; category?: string; columnCount: number; updatedAt: string }> } | null;
+        const tables = fileProject?.tables ?? [];
+        if (tables.length === 0) {
+          return { content: [{ type: "text", text: "テーブルはまだ定義されていません。" }] };
+        }
+        const lines = tables.map(
+          (t) => `- ${t.id}  ${t.name}（${t.logicalName}）${t.category ? ` [${t.category}]` : ""} カラム:${t.columnCount}`
+        );
+        return { content: [{ type: "text", text: `テーブル一覧 (${tables.length}件):\n${lines.join("\n")}` }] };
+      }
+
+      case "designer__get_table": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.tableId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "tableId は必須です");
+        }
+        const tableData = await readTable(a.tableId);
+        if (!tableData) {
+          throw new McpError(ErrorCode.InvalidParams, `テーブル ${a.tableId} が見つかりません`);
+        }
+        return { content: [{ type: "text", text: JSON.stringify(tableData, null, 2) }] };
+      }
+
+      case "designer__add_table": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.name !== "string" || typeof a.logicalName !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "name, logicalName は必須です");
+        }
+        const id = `table-${Date.now()}`;
+        const now = new Date().toISOString();
+        const tableDef = {
+          id,
+          name: a.name,
+          logicalName: a.logicalName,
+          description: typeof a.description === "string" ? a.description : "",
+          category: typeof a.category === "string" ? a.category : undefined,
+          columns: [],
+          indexes: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        await writeTable(id, tableDef);
+        // project.json のテーブルメタも更新
+        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const tables = (project.tables ?? []) as Array<Record<string, unknown>>;
+        tables.push({ id, name: a.name, logicalName: a.logicalName, category: a.category, columnCount: 0, updatedAt: now });
+        project.tables = tables;
+        project.updatedAt = now;
+        await writeProject(project);
+        return { content: [{ type: "text", text: `テーブル「${a.logicalName}」(${a.name}) を追加しました（ID: ${id}）` }] };
+      }
+
+      case "designer__update_table": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.tableId !== "string" || !a.definition) {
+          throw new McpError(ErrorCode.InvalidParams, "tableId, definition は必須です");
+        }
+        const def = a.definition as Record<string, unknown>;
+        def.updatedAt = new Date().toISOString();
+        await writeTable(a.tableId, def);
+        // project.json メタ更新
+        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const tables = (project.tables ?? []) as Array<Record<string, unknown>>;
+        const idx = tables.findIndex((t) => t.id === a.tableId);
+        const columns = (def.columns ?? []) as unknown[];
+        const meta = { id: a.tableId, name: def.name, logicalName: def.logicalName, category: def.category, columnCount: columns.length, updatedAt: def.updatedAt };
+        if (idx >= 0) tables[idx] = meta; else tables.push(meta);
+        project.tables = tables;
+        project.updatedAt = def.updatedAt as string;
+        await writeProject(project);
+        return { content: [{ type: "text", text: `テーブル ${a.tableId} を更新しました。` }] };
+      }
+
+      case "designer__remove_table": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.tableId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "tableId は必須です");
+        }
+        await deleteTableFile(a.tableId);
+        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const tables = ((project.tables ?? []) as Array<Record<string, unknown>>).filter((t) => t.id !== a.tableId);
+        project.tables = tables;
+        project.updatedAt = new Date().toISOString();
+        await writeProject(project);
+        return { content: [{ type: "text", text: `テーブル ${a.tableId} を削除しました。` }] };
+      }
+
+      case "designer__generate_ddl": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        const dialect = (typeof a.dialect === "string" ? a.dialect : "standard") as string;
+        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const tableMetas = ((project.tables ?? []) as Array<{ id: string; name: string }>);
+        const tableIds = typeof a.tableId === "string" ? [a.tableId] : tableMetas.map((t) => t.id);
+
+        const ddlParts: string[] = [];
+        for (const tid of tableIds) {
+          const td = await readTable(tid) as Record<string, unknown> | null;
+          if (!td) continue;
+          ddlParts.push(generateDdl(td, dialect));
+        }
+        if (ddlParts.length === 0) {
+          return { content: [{ type: "text", text: "DDL生成対象のテーブルが見つかりません。" }] };
+        }
+        return { content: [{ type: "text", text: `\`\`\`sql\n${ddlParts.join("\n\n")}\n\`\`\`` }] };
+      }
+
       default:
         throw new McpError(ErrorCode.MethodNotFound, `未知のツール: ${name}`);
     }
@@ -495,6 +604,125 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 });
+
+// ── DDL 生成ヘルパー ──
+
+function generateDdl(table: Record<string, unknown>, dialect: string): string {
+  const name = table.name as string;
+  const columns = (table.columns ?? []) as Array<Record<string, unknown>>;
+  const indexes = (table.indexes ?? []) as Array<Record<string, unknown>>;
+
+  const colDefs: string[] = [];
+  const pks: string[] = [];
+
+  for (const col of columns) {
+    let typeStr = mapDataType(col.dataType as string, col.length as number | undefined, col.scale as number | undefined, dialect);
+    if (col.autoIncrement) typeStr = autoIncrementType(col.dataType as string, dialect);
+
+    let line = `  ${col.name} ${typeStr}`;
+    if (col.notNull) line += " NOT NULL";
+    if (col.unique) line += " UNIQUE";
+    if (col.defaultValue && !col.autoIncrement) {
+      line += ` DEFAULT ${col.defaultValue}`;
+    }
+    if (col.comment && (dialect === "mysql" || dialect === "postgresql")) {
+      // MySQL supports inline COMMENT, others need separate statements
+      if (dialect === "mysql") line += ` COMMENT '${(col.comment as string).replace(/'/g, "''")}'`;
+    }
+    colDefs.push(line);
+    if (col.primaryKey) pks.push(col.name as string);
+  }
+
+  if (pks.length > 0) {
+    colDefs.push(`  PRIMARY KEY (${pks.join(", ")})`);
+  }
+
+  // Foreign keys
+  for (const col of columns) {
+    if (col.foreignKey) {
+      const fk = col.foreignKey as { tableId: string; columnName: string };
+      // tableId might be the actual table name or we need to look it up
+      colDefs.push(`  FOREIGN KEY (${col.name}) REFERENCES ${fk.columnName ? fk.tableId + "(" + fk.columnName + ")" : fk.tableId}`);
+    }
+  }
+
+  let ddl = `CREATE TABLE ${name} (\n${colDefs.join(",\n")}\n)`;
+
+  if (dialect === "mysql") ddl += " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+  ddl += ";";
+
+  // Indexes
+  for (const idx of indexes) {
+    const idxCols = (idx.columns ?? []) as string[];
+    // resolve column IDs to names
+    const colNames = idxCols.map((cid) => {
+      const c = columns.find((cc) => cc.id === cid);
+      return c ? c.name as string : cid;
+    });
+    const unique = idx.unique ? "UNIQUE " : "";
+    ddl += `\n\nCREATE ${unique}INDEX ${idx.name} ON ${name} (${colNames.join(", ")});`;
+  }
+
+  // PostgreSQL / Oracle comments
+  if (dialect === "postgresql" || dialect === "oracle") {
+    const logicalName = table.logicalName as string | undefined;
+    if (logicalName) {
+      ddl += `\n\nCOMMENT ON TABLE ${name} IS '${logicalName.replace(/'/g, "''")}';`;
+    }
+    for (const col of columns) {
+      if (col.comment || col.logicalName) {
+        const cmt = (col.comment || col.logicalName) as string;
+        ddl += `\nCOMMENT ON COLUMN ${name}.${col.name} IS '${cmt.replace(/'/g, "''")}';`;
+      }
+    }
+  }
+
+  return ddl;
+}
+
+function mapDataType(dt: string, length?: number, scale?: number, dialect?: string): string {
+  const d = dialect ?? "standard";
+  switch (dt) {
+    case "VARCHAR": return `VARCHAR(${length ?? 255})`;
+    case "CHAR": return `CHAR(${length ?? 1})`;
+    case "TEXT": return d === "oracle" ? "CLOB" : "TEXT";
+    case "INTEGER": return d === "oracle" ? "NUMBER(10)" : "INTEGER";
+    case "BIGINT": return d === "oracle" ? "NUMBER(19)" : "BIGINT";
+    case "SMALLINT": return d === "oracle" ? "NUMBER(5)" : "SMALLINT";
+    case "DECIMAL": return `DECIMAL(${length ?? 10}, ${scale ?? 2})`;
+    case "FLOAT": return d === "oracle" ? "BINARY_FLOAT" : "FLOAT";
+    case "BOOLEAN": {
+      if (d === "oracle") return "NUMBER(1)";
+      if (d === "mysql") return "TINYINT(1)";
+      return "BOOLEAN";
+    }
+    case "DATE": return "DATE";
+    case "TIME": return d === "oracle" ? "DATE" : "TIME";
+    case "TIMESTAMP": {
+      if (d === "oracle") return "TIMESTAMP";
+      if (d === "mysql") return "DATETIME";
+      return "TIMESTAMP";
+    }
+    case "BLOB": return d === "oracle" ? "BLOB" : "BLOB";
+    case "JSON": {
+      if (d === "oracle") return "CLOB";
+      if (d === "mysql") return "JSON";
+      if (d === "postgresql") return "JSONB";
+      return "TEXT";
+    }
+    default: return dt;
+  }
+}
+
+function autoIncrementType(dt: string, dialect: string): string {
+  switch (dialect) {
+    case "mysql": return `${mapDataType(dt, undefined, undefined, dialect)} AUTO_INCREMENT`;
+    case "postgresql": return dt === "BIGINT" ? "BIGSERIAL" : "SERIAL";
+    case "oracle": return `${mapDataType(dt, undefined, undefined, dialect)} GENERATED ALWAYS AS IDENTITY`;
+    case "sqlite": return "INTEGER"; // SQLite auto-increments INTEGER PRIMARY KEY
+    default: return mapDataType(dt, undefined, undefined, dialect);
+  }
+}
 
 // 起動
 async function main() {

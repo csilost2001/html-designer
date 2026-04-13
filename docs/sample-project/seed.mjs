@@ -17,9 +17,12 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, "../../data");
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
+const TABLES_DIR = path.join(DATA_DIR, "tables");
 const SEED_SCREENS_DIR = path.join(__dirname, "screens");
+const SEED_TABLES_DIR = path.join(__dirname, "tables");
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });
+fs.mkdirSync(TABLES_DIR, { recursive: true });
 fs.mkdirSync(SEED_SCREENS_DIR, { recursive: true });
 
 // ── GrapesJS スクリーンデータ生成ヘルパー ─────────────────────────────────
@@ -822,8 +825,23 @@ fs.copyFileSync(
   path.join(DATA_DIR, "project.json"),
 );
 
+// ── テーブル定義データをコピー ────────────────────────────────────────────
+let tableCount = 0;
+if (fs.existsSync(SEED_TABLES_DIR)) {
+  const tableFiles = fs.readdirSync(SEED_TABLES_DIR).filter((f) => f.endsWith(".json"));
+  for (const file of tableFiles) {
+    fs.copyFileSync(
+      path.join(SEED_TABLES_DIR, file),
+      path.join(TABLES_DIR, file),
+    );
+    tableCount++;
+    console.log(`[table ${tableCount}/${tableFiles.length}] ${file.replace(".json", "")}`);
+  }
+}
+
 console.log("\n✅ シードデータ生成完了");
 console.log(`   data/screens/        → ${count} ファイル`);
+console.log(`   data/tables/         → ${tableCount} ファイル`);
 console.log(`   docs/sample-project/ → バックアップ済み`);
 console.log("\n復元方法:");
 console.log("   node docs/sample-project/seed.mjs");

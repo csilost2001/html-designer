@@ -260,5 +260,39 @@
       "targetHandle": "right"
     }
   ],
-  "updatedAt": "2026-04-12T00:00:00.000Z"
+  "tables": [
+    {
+      "id": "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb",
+      "name": "users",
+      "logicalName": "ユーザーマスタ",
+      "category": "マスタ",
+      "columnCount": 10,
+      "updatedAt": "2026-04-13T00:00:00.000Z"
+    },
+    {
+      "id": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+      "name": "customers",
+      "logicalName": "顧客マスタ",
+      "category": "マスタ",
+      "columnCount": 15,
+      "updatedAt": "2026-04-13T00:00:00.000Z"
+    },
+    {
+      "id": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+      "name": "orders",
+      "logicalName": "注文テーブル",
+      "category": "トランザクション",
+      "columnCount": 14,
+      "updatedAt": "2026-04-13T00:00:00.000Z"
+    },
+    {
+      "id": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+      "name": "order_items",
+      "logicalName": "注文明細テーブル",
+      "category": "トランザクション",
+      "columnCount": 8,
+      "updatedAt": "2026-04-13T00:00:00.000Z"
+    }
+  ],
+  "updatedAt": "2026-04-13T00:00:00.000Z"
 }

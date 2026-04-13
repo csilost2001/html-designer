@@ -14,13 +14,15 @@ export const DATA_DIR =
   path.resolve(import.meta.dirname, "../../data");
 
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
+const TABLES_DIR = path.join(DATA_DIR, "tables");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 
-/** data/ と data/screens/ を作成（既存なら無視） */
+/** data/ と data/screens/ と data/tables/ を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.mkdir(SCREENS_DIR, { recursive: true });
+  await fs.mkdir(TABLES_DIR, { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -75,4 +77,22 @@ export async function readCustomBlocks(): Promise<unknown[]> {
 export async function writeCustomBlocks(blocks: unknown[]): Promise<void> {
   await ensureDataDir();
   await writeJSON(CUSTOM_BLOCKS_FILE, blocks);
+}
+
+/** tables/{tableId}.json を読み込み */
+export async function readTable(tableId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(TABLES_DIR, `${tableId}.json`));
+}
+
+/** tables/{tableId}.json を書き込み */
+export async function writeTable(tableId: string, data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(path.join(TABLES_DIR, `${tableId}.json`), data);
+}
+
+/** tables/{tableId}.json を削除（存在しない場合は無視） */
+export async function deleteTable(tableId: string): Promise<void> {
+  try {
+    await fs.unlink(path.join(TABLES_DIR, `${tableId}.json`));
+  } catch { /* file not found is OK */ }
 }

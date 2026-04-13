@@ -1,0 +1,23 @@
+{
+  "id": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+  "name": "order_items",
+  "logicalName": "注文明細テーブル",
+  "description": "注文の明細行（商品・数量・金額）を管理する。注文登録画面の明細セクションに対応。",
+  "category": "トランザクション",
+  "columns": [
+    { "id": "col-oi01", "name": "id", "logicalName": "明細ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-oi02", "name": "order_id", "logicalName": "注文ID", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "foreignKey": { "tableId": "orders", "columnName": "id" } },
+    { "id": "col-oi03", "name": "item_name", "logicalName": "商品名", "dataType": "VARCHAR", "length": 200, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-oi04", "name": "unit_price", "logicalName": "単価", "dataType": "DECIMAL", "length": 12, "scale": 2, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-oi05", "name": "quantity", "logicalName": "数量", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "1" },
+    { "id": "col-oi06", "name": "subtotal", "logicalName": "小計", "dataType": "DECIMAL", "length": 12, "scale": 2, "notNull": true, "primaryKey": false, "unique": false, "comment": "unit_price * quantity" },
+    { "id": "col-oi07", "name": "sort_order", "logicalName": "表示順", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0" },
+    { "id": "col-oi08", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-oi01", "name": "idx_order_items_order", "columns": ["col-oi02"], "unique": false },
+    { "id": "idx-oi02", "name": "idx_order_items_order_sort", "columns": ["col-oi02", "col-oi07"], "unique": false }
+  ],
+  "createdAt": "2026-04-13T00:00:00.000Z",
+  "updatedAt": "2026-04-13T00:00:00.000Z"
+}
