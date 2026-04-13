@@ -29,6 +29,10 @@ interface StepCardProps {
   onNavigateCommon: (refId: string) => void;
   /** 新規追加ステップのデフォルト展開 */
   defaultExpanded?: boolean;
+  /** D&D ドラッグハンドルの listeners（@dnd-kit 用） */
+  dragHandleListeners?: Record<string, unknown>;
+  /** D&D ドラッグハンドルの attributes（@dnd-kit 用） */
+  dragHandleAttributes?: Record<string, unknown>;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -82,6 +86,8 @@ export function StepCard({
   onContextMenu,
   onNavigateCommon,
   defaultExpanded,
+  dragHandleListeners,
+  dragHandleAttributes,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -121,7 +127,7 @@ export function StepCard({
         onContextMenu={onContextMenu}
       >
         <div className="step-card-header" onClick={() => setExpanded(!expanded)}>
-          <span className="step-card-drag-handle" title="ドラッグで移動">
+          <span className="step-card-drag-handle" title="ドラッグで移動" {...dragHandleListeners} {...dragHandleAttributes}>
             <i className="bi bi-grip-vertical" />
           </span>
           <span className="step-card-number">{label}</span>
