@@ -11,6 +11,8 @@ import {
   type Edge as RFEdge,
   type Node as RFNode,
   type NodeMouseHandler,
+  type Connection,
+  ConnectionMode,
   MarkerType,
   BackgroundVariant,
 } from "@xyflow/react";
@@ -41,6 +43,7 @@ function ErDiagramInner() {
   const [layout, setLayout] = useState<ErLayout | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddRelation, setShowAddRelation] = useState(false);
+  const [pendingConnection, setPendingConnection] = useState<{ sourceTableId: string; targetTableId: string } | null>(null);
   const [showExport, setShowExport] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutRef = useRef<ErLayout | null>(null);
@@ -139,6 +142,17 @@ function ErDiagramInner() {
     navigate(`/tables/${node.id}`);
   }, [navigate]);
 
+  // Handle drag-to-connect: open logical relation modal pre-filled
+  const onConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target) return;
+    if (connection.source === connection.target) return;
+    setPendingConnection({
+      sourceTableId: connection.source,
+      targetTableId: connection.target,
+    });
+    setShowAddRelation(true);
+  }, []);
+
   // Auto layout
   const handleAutoLayout = useCallback(() => {
     const relations = getAllRelations(tables, layout);
@@ -231,6 +245,8 @@ function ErDiagramInner() {
             nodeTypes={nodeTypes}
             onNodeDragStop={onNodeDragStop}
             onNodeDoubleClick={onNodeDoubleClick}
+            onConnect={onConnect}
+            connectionMode={ConnectionMode.Loose}
             onEdgeDoubleClick={(_e, edge) => {
               if (!(edge.data as { physical?: boolean })?.physical) {
                 if (confirm("この論理リレーションを削除しますか？")) {
@@ -300,8 +316,10 @@ function ErDiagramInner() {
       {showAddRelation && (
         <AddRelationModal
           tables={tables}
+          initialSourceTableId={pendingConnection?.sourceTableId}
+          initialTargetTableId={pendingConnection?.targetTableId}
           onAdd={handleAddLogicalRelation}
-          onClose={() => setShowAddRelation(false)}
+          onClose={() => { setShowAddRelation(false); setPendingConnection(null); }}
         />
       )}
     </div>
@@ -319,16 +337,26 @@ export function ErDiagram() {
 // ── 論理リレーション追加モーダル ──────────────────────────────────────────
 
 function AddRelationModal({
-  tables, onAdd, onClose,
+  tables, initialSourceTableId, initialTargetTableId, onAdd, onClose,
 }: {
   tables: TableDefinition[];
+  initialSourceTableId?: string;
+  initialTargetTableId?: string;
   onAdd: (rel: Omit<ErLogicalRelation, "id">) => void;
   onClose: () => void;
 }) {
-  const [srcTableId, setSrcTableId] = useState("");
+  const [srcTableId, setSrcTableId] = useState(initialSourceTableId ?? "");
   const [srcCol, setSrcCol] = useState("");
-  const [tgtTableId, setTgtTableId] = useState("");
-  const [tgtCol, setTgtCol] = useState("");
+  const [tgtTableId, setTgtTableId] = useState(initialTargetTableId ?? "");
+  const [tgtCol, setTgtCol] = useState(() => {
+    // 参照先テーブルのPKカラムを自動選択
+    if (initialTargetTableId) {
+      const tgt = tables.find((t) => t.id === initialTargetTableId);
+      const pk = tgt?.columns.find((c) => c.primaryKey);
+      return pk?.name ?? "";
+    }
+    return "";
+  });
   const [cardinality, setCardinality] = useState<ErCardinality>("one-to-many");
 
   const srcTable = tables.find((t) => t.id === srcTableId);
