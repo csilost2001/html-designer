@@ -30,10 +30,19 @@ import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import {
+  DndContext,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { TableTopbar } from "../table/TableTopbar";
-import { StepCard } from "./StepCard";
+import { SortableStepCard } from "./SortableStepCard";
 import "../../styles/action.css";
 
 const ALL_STEP_TYPES: StepType[] = [
@@ -208,6 +217,15 @@ export function ActionEditor() {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (act) moveStep(act, fromIndex, toIndex);
     });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !activeAction) return;
+    const fromIndex = activeAction.steps.findIndex((s) => s.id === active.id);
+    const toIndex = activeAction.steps.findIndex((s) => s.id === over.id);
+    if (fromIndex < 0 || toIndex < 0) return;
+    handleMoveStep(fromIndex, toIndex);
   };
 
   const handleStepChange = (stepId: string, changes: Partial<Step>) => {
@@ -437,55 +455,59 @@ export function ActionEditor() {
                 ステップがありません。上のボタンから追加するか、テンプレートを使用してください。
               </div>
             ) : (
-              <div className="step-list">
-                {activeAction.steps.map((step, index) => (
-                  <div key={step.id}>
-                    {/* 挿入ポイント */}
-                    <div className="step-insert-point">
+              <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+                <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="step-list">
+                    {activeAction.steps.map((step, index) => (
+                      <div key={step.id}>
+                        {/* 挿入ポイント */}
+                        <div className="step-insert-point">
+                          <button
+                            className="step-insert-btn"
+                            onClick={() => handleAddStep("other", index)}
+                            title="ステップを挿入"
+                          >
+                            <i className="bi bi-plus" />
+                          </button>
+                        </div>
+                        <SortableStepCard
+                          step={step}
+                          index={index}
+                          label={getStepLabel(index)}
+                          allSteps={activeAction.steps}
+                          tables={tables}
+                          screens={screens}
+                          commonGroups={commonGroups}
+                          onChange={(changes) => handleStepChange(step.id, changes)}
+                          onCommit={commitGroup}
+                          onMoveUp={index > 0 ? () => handleMoveStep(index, index - 1) : undefined}
+                          onMoveDown={index < activeAction.steps.length - 1 ? () => handleMoveStep(index, index + 1) : undefined}
+                          onDelete={() => handleDeleteStep(step.id)}
+                          onDuplicate={() => handleDuplicateStep(step.id)}
+                          onAddSubStep={(type) => handleAddSubStep(step.id, type)}
+                          onDeleteSubStep={(subId) => handleDeleteStep(subId, step.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
+                          }}
+                          onNavigateCommon={(refId) => navigate(`/actions/${refId}`)}
+                          defaultExpanded={newStepIdsRef.current.has(step.id)}
+                        />
+                      </div>
+                    ))}
+                    {/* 末尾の挿入ポイント */}
+                    <div className="step-insert-point" style={{ opacity: 1 }}>
                       <button
                         className="step-insert-btn"
-                        onClick={() => handleAddStep("other", index)}
-                        title="ステップを挿入"
+                        onClick={() => handleAddStep("other")}
+                        title="ステップを末尾に追加"
                       >
                         <i className="bi bi-plus" />
                       </button>
                     </div>
-                    <StepCard
-                      step={step}
-                      index={index}
-                      label={getStepLabel(index)}
-                      allSteps={activeAction.steps}
-                      tables={tables}
-                      screens={screens}
-                      commonGroups={commonGroups}
-                      onChange={(changes) => handleStepChange(step.id, changes)}
-                      onCommit={commitGroup}
-                      onMoveUp={index > 0 ? () => handleMoveStep(index, index - 1) : undefined}
-                      onMoveDown={index < activeAction.steps.length - 1 ? () => handleMoveStep(index, index + 1) : undefined}
-                      onDelete={() => handleDeleteStep(step.id)}
-                      onDuplicate={() => handleDuplicateStep(step.id)}
-                      onAddSubStep={(type) => handleAddSubStep(step.id, type)}
-                      onDeleteSubStep={(subId) => handleDeleteStep(subId, step.id)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
-                      }}
-                      onNavigateCommon={(refId) => navigate(`/actions/${refId}`)}
-                      defaultExpanded={newStepIdsRef.current.has(step.id)}
-                    />
                   </div>
-                ))}
-                {/* 末尾の挿入ポイント */}
-                <div className="step-insert-point" style={{ opacity: 1 }}>
-                  <button
-                    className="step-insert-btn"
-                    onClick={() => handleAddStep("other")}
-                    title="ステップを末尾に追加"
-                  >
-                    <i className="bi bi-plus" />
-                  </button>
-                </div>
-              </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         ) : (
