@@ -5,9 +5,10 @@ import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, SQL_DIALECT_LABELS, DATA_TYPES_WITH
 import type { DataType } from "../../types/table";
 import { loadTable, saveTable, addColumn, removeColumn, addIndex, removeIndex } from "../../store/tableStore";
 import { listTables } from "../../store/tableStore";
-import { loadProject } from "../../store/flowStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { useUndoableState } from "../../hooks/useUndoableState";
+import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import "../../styles/table.css";
 
 type TabId = "columns" | "indexes" | "ddl";
@@ -15,11 +16,9 @@ type TabId = "columns" | "indexes" | "ddl";
 export function TableEditor() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
-  const [table, setTable] = useState<TableDefinition | null>(null);
   const [tab, setTab] = useState<TabId>("columns");
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
   const [editingMeta, setEditingMeta] = useState(false);
-  const [projectName, setProjectName] = useState("プロジェクト");
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -30,15 +29,27 @@ export function TableEditor() {
     }, 500);
   }, []);
 
+  // Undo/Redo 対応 state
+  const {
+    state: table,
+    update: setTable,
+    updateAndCommit,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    reset: resetTable,
+  } = useUndoableState<TableDefinition | null>(null, { onSave: (t) => { if (t) saveTable(t); } });
+
+  useUndoKeyboard(undo, redo);
+
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     if (!tableId) return;
     (async () => {
       const t = await loadTable(tableId);
-      if (t) setTable(t);
+      if (t) resetTable(t);
       else navigate("/tables");
-      const p = await loadProject();
-      setProjectName(p.name);
       const tl = await listTables();
       const allTds: TableDefinition[] = [];
       for (const m of tl) {
@@ -47,7 +58,7 @@ export function TableEditor() {
       }
       setAllTables(allTds);
     })();
-  }, [tableId, navigate]);
+  }, [tableId, navigate, resetTable]);
 
   // Cleanup save timer
   useEffect(() => {
@@ -56,15 +67,17 @@ export function TableEditor() {
     };
   }, []);
 
+  /** 構造変化（履歴に積む）: カラム追加・削除・移動 */
   const update = useCallback((fn: (t: TableDefinition) => void) => {
-    setTable((prev) => {
+    updateAndCommit((prev) => {
       if (!prev) return prev;
       const next = structuredClone(prev);
       fn(next);
       autoSave(next);
       return next;
     });
-  }, [autoSave]);
+  }, [updateAndCommit, autoSave]);
+
 
   if (!table) {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
@@ -99,6 +112,22 @@ export function TableEditor() {
           )}
         </div>
         <div className="table-editor-header-actions">
+          <button
+            className="tbl-btn tbl-btn-ghost"
+            onClick={undo}
+            disabled={!canUndo}
+            title="元に戻す (Ctrl+Z)"
+          >
+            <i className="bi bi-arrow-counterclockwise" />
+          </button>
+          <button
+            className="tbl-btn tbl-btn-ghost"
+            onClick={redo}
+            disabled={!canRedo}
+            title="やり直し (Ctrl+Y)"
+          >
+            <i className="bi bi-arrow-clockwise" />
+          </button>
           <button
             className="tbl-btn tbl-btn-ghost"
             onClick={() => {

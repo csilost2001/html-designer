@@ -17,6 +17,8 @@ interface StepCardProps {
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
   onChange: (changes: Partial<Step>) => void;
+  /** Undo 履歴にスナップショットを積む（テキストフィールドの onBlur 時に呼ぶ） */
+  onCommit?: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDelete: () => void;
@@ -38,6 +40,7 @@ export function StepCard({
   screens,
   commonGroups,
   onChange,
+  onCommit,
   onMoveUp,
   onMoveDown,
   onDelete,
@@ -151,6 +154,7 @@ export function StepCard({
                   className="form-control form-control-sm"
                   value={step.description}
                   onChange={(e) => onChange({ description: e.target.value })}
+                  onBlur={onCommit}
                   placeholder="処理の説明"
                 />
               </div>
@@ -166,6 +170,7 @@ export function StepCard({
                       className="form-control form-control-sm"
                       value={step.conditions}
                       onChange={(e) => onChange({ conditions: e.target.value } as Partial<Step>)}
+                      onBlur={onCommit}
                       placeholder="必須チェック、形式チェック等"
                     />
                   </div>
@@ -181,6 +186,7 @@ export function StepCard({
                           onChange({ inlineBranch: { ...step.inlineBranch!, ok: e.target.value } } as Partial<Step>)
                         }
                         placeholder="OK時の処理"
+                        onBlur={onCommit}
                       />
                     </div>
                     <div className="step-branch-box ng">
@@ -192,6 +198,7 @@ export function StepCard({
                           onChange({ inlineBranch: { ...step.inlineBranch!, ng: e.target.value } } as Partial<Step>)
                         }
                         placeholder="NG時の処理"
+                        onBlur={onCommit}
                       />
                     </div>
                   </div>
@@ -235,6 +242,7 @@ export function StepCard({
                     className="form-control form-control-sm"
                     value={step.fields ?? ""}
                     onChange={(e) => onChange({ fields: e.target.value } as Partial<Step>)}
+                    onBlur={onCommit}
                     placeholder="概要"
                   />
                 </div>
@@ -249,6 +257,7 @@ export function StepCard({
                     className="form-control form-control-sm"
                     value={step.systemName}
                     onChange={(e) => onChange({ systemName: e.target.value } as Partial<Step>)}
+                    onBlur={onCommit}
                     placeholder="システム名"
                   />
                 </div>
@@ -258,6 +267,7 @@ export function StepCard({
                     className="form-control form-control-sm"
                     value={step.protocol ?? ""}
                     onChange={(e) => onChange({ protocol: e.target.value } as Partial<Step>)}
+                    onBlur={onCommit}
                     placeholder="REST / SOAP / gRPC"
                   />
                 </div>
@@ -306,6 +316,7 @@ export function StepCard({
                     className="form-control form-control-sm mt-1"
                     value={step.targetScreenName}
                     onChange={(e) => onChange({ targetScreenName: e.target.value } as Partial<Step>)}
+                    onBlur={onCommit}
                     placeholder="画面名を直接入力"
                   />
                 </div>
@@ -320,6 +331,7 @@ export function StepCard({
                     className="form-control form-control-sm"
                     value={step.target}
                     onChange={(e) => onChange({ target: e.target.value } as Partial<Step>)}
+                    onBlur={onCommit}
                     placeholder="メッセージ表示、一覧テーブル更新 等"
                   />
                 </div>
@@ -335,6 +347,7 @@ export function StepCard({
                       className="form-control form-control-sm"
                       value={step.condition}
                       onChange={(e) => onChange({ condition: e.target.value } as Partial<Step>)}
+                      onBlur={onCommit}
                       placeholder="条件式"
                     />
                   </div>
@@ -349,6 +362,7 @@ export function StepCard({
                         onChange({ branchA: { ...step.branchA, description: e.target.value } } as Partial<Step>)
                       }
                       placeholder="A分岐の処理"
+                      onBlur={onCommit}
                     />
                   </div>
                   <div className="step-branch-box ng">
@@ -360,6 +374,7 @@ export function StepCard({
                         onChange({ branchB: { ...step.branchB, description: e.target.value } } as Partial<Step>)
                       }
                       placeholder="B分岐の処理"
+                      onBlur={onCommit}
                     />
                   </div>
                 </div>
@@ -394,6 +409,7 @@ export function StepCard({
                   className="form-control form-control-sm"
                   value={step.note ?? ""}
                   onChange={(e) => onChange({ note: e.target.value })}
+                  onBlur={onCommit}
                   placeholder="補足情報"
                 />
               </div>

@@ -19,6 +19,10 @@ interface Props {
   onZoomChange: (zoom: number) => void;
   onFitView: () => void;
   onViewModeChange: (mode: ViewMode) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export function FlowTopbar({
@@ -26,6 +30,7 @@ export function FlowTopbar({
   onAddScreen, onAddGroup, onRenameProject, onClearAll,
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
   onZoomChange, onFitView, onViewModeChange,
+  onUndo, onRedo, canUndo, canRedo,
 }: Props) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
@@ -171,6 +176,27 @@ export function FlowTopbar({
       </div>
 
       <div className="flow-topbar-right">
+        {/* Undo/Redo */}
+        {onUndo && (
+          <button
+            className="flow-btn flow-btn-secondary"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="元に戻す (Ctrl+Z)"
+          >
+            <i className="bi bi-arrow-counterclockwise" />
+          </button>
+        )}
+        {onRedo && (
+          <button
+            className="flow-btn flow-btn-secondary"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="やり直し (Ctrl+Y)"
+          >
+            <i className="bi bi-arrow-clockwise" />
+          </button>
+        )}
         {/* ファイルメニュー */}
         <div style={{ position: "relative" }}>
           <button
