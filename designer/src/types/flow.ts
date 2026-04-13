@@ -73,8 +73,21 @@ export interface ScreenNode {
   position: { x: number; y: number };
   size: { width: number; height: number };
   hasDesign: boolean;
+  /** 所属グループID */
+  groupId?: string;
   /** デザインのサムネイル（data:image/jpeg;base64,...） */
   thumbnail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 画面グループ */
+export interface ScreenGroup {
+  id: string;
+  name: string;
+  color?: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
   createdAt: string;
   updatedAt: string;
 }
@@ -95,6 +108,7 @@ export interface FlowProject {
   version: 1;
   name: string;
   screens: ScreenNode[];
+  groups: ScreenGroup[];
   edges: ScreenEdge[];
   updatedAt: string;
 }
