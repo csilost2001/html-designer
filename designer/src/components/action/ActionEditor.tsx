@@ -33,6 +33,8 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import {
   DndContext,
   closestCenter,
+  useDraggable,
+  useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -41,9 +43,47 @@ import {
 } from "@dnd-kit/sortable";
 import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableTopbar } from "../table/TableTopbar";
 import { SortableStepCard } from "./SortableStepCard";
 import "../../styles/action.css";
+
+/** ツールバーのドラッグ可能なステップ種別ボタン */
+function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `toolbar-${type}`,
+    data: { kind: "toolbar-step", stepType: type },
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`step-toolbar-btn${isDragging ? " dragging" : ""}`}
+      onClick={onClick}
+      title={`${STEP_TYPE_LABELS[type]}（ドラッグで挿入）`}
+      style={isDragging ? { opacity: 0.5, borderColor: STEP_TYPE_COLORS[type] } : undefined}
+    >
+      <i className={STEP_TYPE_ICONS[type]} />
+      {STEP_TYPE_LABELS[type]}
+    </button>
+  );
+}
+
+/** ステップ間のドロップゾーン */
+function StepInsertZone({ index, onClick }: { index: number; onClick: () => void }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `insert-${index}`,
+    data: { kind: "insert-zone", insertIndex: index },
+  });
+  return (
+    <div ref={setNodeRef} className={`step-insert-point${isOver ? " drop-active" : ""}`}>
+      <button className="step-insert-btn" onClick={onClick} title="ステップを挿入">
+        <i className="bi bi-plus" />
+      </button>
+    </div>
+  );
+}
 
 const ALL_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
@@ -221,11 +261,23 @@ export function ActionEditor() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id || !activeAction) return;
-    const fromIndex = activeAction.steps.findIndex((s) => s.id === active.id);
-    const toIndex = activeAction.steps.findIndex((s) => s.id === over.id);
-    if (fromIndex < 0 || toIndex < 0) return;
-    handleMoveStep(fromIndex, toIndex);
+    if (!over || !activeAction) return;
+
+    const dragKind = active.data.current?.kind;
+
+    if (dragKind === "toolbar-step") {
+      // #46: ツールバーからドロップ → 新規ステップを挿入
+      const stepType = active.data.current?.stepType as StepType;
+      const insertIndex = over.data.current?.insertIndex as number | undefined;
+      handleAddStep(stepType, insertIndex ?? activeAction.steps.length);
+    } else {
+      // #47: ステップカードの並べ替え
+      if (active.id === over.id) return;
+      const fromIndex = activeAction.steps.findIndex((s) => s.id === active.id);
+      const toIndex = activeAction.steps.findIndex((s) => s.id === over.id);
+      if (fromIndex < 0 || toIndex < 0) return;
+      handleMoveStep(fromIndex, toIndex);
+    }
   };
 
   const handleStepChange = (stepId: string, changes: Partial<Step>) => {
@@ -412,15 +464,7 @@ export function ActionEditor() {
             {/* ツールバー */}
             <div className="step-toolbar">
               {ALL_STEP_TYPES.map((type) => (
-                <button
-                  key={type}
-                  className="step-toolbar-btn"
-                  onClick={() => handleAddStep(type)}
-                  title={STEP_TYPE_LABELS[type]}
-                >
-                  <i className={STEP_TYPE_ICONS[type]} />
-                  {STEP_TYPE_LABELS[type]}
-                </button>
+                <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} />
               ))}
               <div className="step-toolbar-sep" />
               <div style={{ position: "relative" }}>
@@ -460,16 +504,7 @@ export function ActionEditor() {
                   <div className="step-list">
                     {activeAction.steps.map((step, index) => (
                       <div key={step.id}>
-                        {/* 挿入ポイント */}
-                        <div className="step-insert-point">
-                          <button
-                            className="step-insert-btn"
-                            onClick={() => handleAddStep("other", index)}
-                            title="ステップを挿入"
-                          >
-                            <i className="bi bi-plus" />
-                          </button>
-                        </div>
+                        <StepInsertZone index={index} onClick={() => handleAddStep("other", index)} />
                         <SortableStepCard
                           step={step}
                           index={index}
@@ -496,15 +531,10 @@ export function ActionEditor() {
                       </div>
                     ))}
                     {/* 末尾の挿入ポイント */}
-                    <div className="step-insert-point" style={{ opacity: 1 }}>
-                      <button
-                        className="step-insert-btn"
-                        onClick={() => handleAddStep("other")}
-                        title="ステップを末尾に追加"
-                      >
-                        <i className="bi bi-plus" />
-                      </button>
-                    </div>
+                    <StepInsertZone
+                      index={activeAction.steps.length}
+                      onClick={() => handleAddStep("other")}
+                    />
                   </div>
                 </SortableContext>
               </DndContext>

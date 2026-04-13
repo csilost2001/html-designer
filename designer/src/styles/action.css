@@ -315,6 +315,14 @@
   opacity: 1;
 }
 
+.step-insert-point.drop-active {
+  opacity: 1;
+  padding: 12px 0;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 6px;
+  border: 2px dashed #6366f1;
+}
+
 .step-insert-btn {
   width: 24px;
   height: 24px;
