@@ -39,6 +39,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -152,6 +153,19 @@ export function ActionEditor() {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
+
+  // D&D: ステップリストの境界外でのドロップをキャンセルするための ref
+  const stepListRef = useRef<HTMLDivElement>(null);
+
+  // ポインターがステップリスト内にあるときのみ衝突判定を行う
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const pointer = args.pointerCoordinates;
+    if (pointer && stepListRef.current) {
+      const { top, bottom } = stepListRef.current.getBoundingClientRect();
+      if (pointer.y < top || pointer.y > bottom) return [];
+    }
+    return closestCenter(args);
+  }, []);
 
   const reload = useCallback(async () => {
     if (!actionGroupId) return;
@@ -575,7 +589,7 @@ export function ActionEditor() {
               </div>
             </div>
 
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={collisionDetection}>
               {/* ツールバー */}
               <div className="step-toolbar">
                 {ALL_STEP_TYPES.map((type) => (
@@ -615,7 +629,7 @@ export function ActionEditor() {
                 </div>
               ) : (
                 <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                  <div className="step-list">
+                  <div className="step-list" ref={stepListRef}>
                     {activeAction.steps.map((step, index) => (
                       <div key={step.id}>
                         <StepInsertZone
