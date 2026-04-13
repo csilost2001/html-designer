@@ -300,6 +300,27 @@
   color: #cbd5e1;
 }
 
+/* ── Thumbnail ─────────────────────────────── */
+.screen-node-thumbnail {
+  width: 100%;
+  overflow: hidden;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0 0 8px 8px;
+  background: #f8fafc;
+  max-height: 120px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.screen-node-thumbnail img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  max-height: 120px;
+}
+
 /* ── Handles ───────────────────────────────── */
 .screen-node .react-flow__handle {
   width: 10px;

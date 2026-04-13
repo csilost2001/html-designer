@@ -73,6 +73,8 @@ export interface ScreenNode {
   position: { x: number; y: number };
   size: { width: number; height: number };
   hasDesign: boolean;
+  /** デザインのサムネイル（data:image/jpeg;base64,...） */
+  thumbnail?: string;
   createdAt: string;
   updatedAt: string;
 }

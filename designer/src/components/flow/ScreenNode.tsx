@@ -21,18 +21,24 @@ function ScreenNodeComponent({ data, selected }: ScreenNodeProps) {
           <i className={`bi ${icon} screen-node-icon`} />
           <span className="screen-node-name">{data.name}</span>
         </div>
-        <div className="screen-node-body">
-          <span className="screen-node-type">
-            {typeLabel}
-          </span>
-          {data.path && (
-            <div className="screen-node-path">{data.path}</div>
-          )}
-          <div className={`screen-node-design-badge${data.hasDesign ? "" : " empty"}`}>
-            <i className={`bi ${data.hasDesign ? "bi-brush-fill" : "bi-brush"}`} />
-            {data.hasDesign ? "デザイン済み" : "未デザイン"}
+        {data.thumbnail ? (
+          <div className="screen-node-thumbnail">
+            <img src={data.thumbnail} alt={data.name} draggable={false} />
           </div>
-        </div>
+        ) : (
+          <div className="screen-node-body">
+            <span className="screen-node-type">
+              {typeLabel}
+            </span>
+            {data.path && (
+              <div className="screen-node-path">{data.path}</div>
+            )}
+            <div className={`screen-node-design-badge${data.hasDesign ? "" : " empty"}`}>
+              <i className={`bi ${data.hasDesign ? "bi-brush-fill" : "bi-brush"}`} />
+              {data.hasDesign ? "デザイン済み" : "未デザイン"}
+            </div>
+          </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} id="bottom" />
       <Handle type="source" position={Position.Right} id="right" />
