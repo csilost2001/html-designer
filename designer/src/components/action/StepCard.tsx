@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Step, StepType, DbOperation } from "../../types/action";
 import {
   STEP_TYPE_LABELS,
@@ -27,9 +27,41 @@ interface StepCardProps {
   onDeleteSubStep: (subStepId: string) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onNavigateCommon: (refId: string) => void;
+  /** 新規追加ステップのデフォルト展開 */
+  defaultExpanded?: boolean;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+
+/** 内容に応じて自動伸縮する textarea */
+function AutoResizeTextarea({
+  value, onChange, onBlur, placeholder, className,
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onBlur?: () => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.style.height = "auto";
+      ref.current.style.height = `${ref.current.scrollHeight}px`;
+    }
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      className={className ?? "form-control form-control-sm auto-resize"}
+      value={value}
+      rows={1}
+      onChange={onChange}
+      onBlur={onBlur}
+      placeholder={placeholder}
+    />
+  );
+}
 
 export function StepCard({
   step,
@@ -49,8 +81,9 @@ export function StepCard({
   onDeleteSubStep,
   onContextMenu,
   onNavigateCommon,
+  defaultExpanded,
 }: StepCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
 
   const color = STEP_TYPE_COLORS[step.type];
@@ -150,8 +183,7 @@ export function StepCard({
             <div className="row g-2 mb-2">
               <div className="col-12">
                 <label className="form-label">処理概要</label>
-                <input
-                  className="form-control form-control-sm"
+                <AutoResizeTextarea
                   value={step.description}
                   onChange={(e) => onChange({ description: e.target.value })}
                   onBlur={onCommit}
@@ -207,8 +239,8 @@ export function StepCard({
             )}
 
             {step.type === "dbAccess" && (
-              <div className="row g-2 mb-2">
-                <div className="col-md-6">
+              <>
+                <div className="form-group">
                   <label className="form-label">テーブル</label>
                   <select
                     className="form-select form-select-sm"
@@ -224,34 +256,36 @@ export function StepCard({
                     ))}
                   </select>
                 </div>
-                <div className="col-md-3">
-                  <label className="form-label">操作</label>
-                  <select
-                    className="form-select form-select-sm"
-                    value={step.operation}
-                    onChange={(e) => onChange({ operation: e.target.value as DbOperation } as Partial<Step>)}
-                  >
-                    {DB_OPS.map((op) => (
-                      <option key={op} value={op}>{DB_OPERATION_LABELS[op]}</option>
-                    ))}
-                  </select>
+                <div className="form-row-pair">
+                  <div className="form-group">
+                    <label className="form-label">操作</label>
+                    <select
+                      className="form-select form-select-sm"
+                      value={step.operation}
+                      onChange={(e) => onChange({ operation: e.target.value as DbOperation } as Partial<Step>)}
+                    >
+                      {DB_OPS.map((op) => (
+                        <option key={op} value={op}>{DB_OPERATION_LABELS[op]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">対象フィールド</label>
+                    <input
+                      className="form-control form-control-sm"
+                      value={step.fields ?? ""}
+                      onChange={(e) => onChange({ fields: e.target.value } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="概要"
+                    />
+                  </div>
                 </div>
-                <div className="col-md-3">
-                  <label className="form-label">対象フィールド</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={step.fields ?? ""}
-                    onChange={(e) => onChange({ fields: e.target.value } as Partial<Step>)}
-                    onBlur={onCommit}
-                    placeholder="概要"
-                  />
-                </div>
-              </div>
+              </>
             )}
 
             {step.type === "externalSystem" && (
-              <div className="row g-2 mb-2">
-                <div className="col-md-6">
+              <div className="form-row-pair">
+                <div className="form-group">
                   <label className="form-label">接続先</label>
                   <input
                     className="form-control form-control-sm"
@@ -261,7 +295,7 @@ export function StepCard({
                     placeholder="システム名"
                   />
                 </div>
-                <div className="col-md-6">
+                <div className="form-group">
                   <label className="form-label">プロトコル</label>
                   <input
                     className="form-control form-control-sm"
@@ -405,8 +439,7 @@ export function StepCard({
             <div className="row g-2">
               <div className="col-12">
                 <label className="form-label">メモ</label>
-                <input
-                  className="form-control form-control-sm"
+                <AutoResizeTextarea
                   value={step.note ?? ""}
                   onChange={(e) => onChange({ note: e.target.value })}
                   onBlur={onCommit}

@@ -57,6 +57,7 @@ export function ActionEditor() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string; parentStepId?: string } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const newStepIdsRef = useRef<Set<string>>(new Set());
 
   // 自動保存 (debounce 500ms)
   const scheduleSave = useCallback((updatedGroup: ActionGroup) => {
@@ -166,7 +167,10 @@ export function ActionEditor() {
     if (!activeAction) return;
     updateGroup((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
-      if (act) addStep(act, type, insertIndex);
+      if (act) {
+        const step = addStep(act, type, insertIndex);
+        newStepIdsRef.current.add(step.id);
+      }
     });
   };
 
@@ -429,6 +433,7 @@ export function ActionEditor() {
                         setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
                       }}
                       onNavigateCommon={(refId) => navigate(`/actions/${refId}`)}
+                      defaultExpanded={newStepIdsRef.current.has(step.id)}
                     />
                   </div>
                 ))}

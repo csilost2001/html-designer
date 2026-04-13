@@ -407,11 +407,34 @@
 
 .step-card-body .form-control,
 .step-card-body .form-select {
+  width: 100%;
   font-size: 0.85rem;
+}
+
+.step-card-body .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+/* ペアフィールド用 2カラム grid */
+.step-card-body .form-row-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .step-card-body .row {
   gap: 8px 0;
+}
+
+/* textarea 自動伸縮 */
+.step-card-body .auto-resize {
+  resize: none;
+  overflow: hidden;
+  min-height: 32px;
 }
 
 /* ─── インライン分岐 ──────────────────────────────────────────────── */
