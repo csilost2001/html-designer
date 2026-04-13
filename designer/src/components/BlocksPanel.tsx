@@ -1,10 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import type { BlocksResultProps } from "@grapesjs/react";
+import { useEditorMaybe } from "@grapesjs/react";
 import type { Block } from "grapesjs";
+import { CUSTOM_BLOCK_CATEGORY } from "./Topbar";
+import { deleteCustomBlock } from "../store/customBlockStore";
 
 export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksResultProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const editor = useEditorMaybe();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -22,6 +26,17 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
 
   const toggle = (cat: string) =>
     setCollapsed((s) => ({ ...s, [cat]: !s[cat] }));
+
+  const handleDeleteBlock = useCallback(async (block: Block, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!editor) return;
+    const id = block.getId();
+    const label = block.get("label") || id;
+    if (!confirm(`「${label}」を削除しますか？`)) return;
+    editor.BlockManager.remove(id);
+    await deleteCustomBlock(id);
+  }, [editor]);
 
   return (
     <div className="blocks-panel">
@@ -50,6 +65,7 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
         {filtered.map(([cat, blocks]) => {
           // 検索中は強制展開して一致ブロックを見えるようにする
           const isCollapsed = query.trim() ? false : !!collapsed[cat];
+          const isCustomCategory = cat === CUSTOM_BLOCK_CATEGORY;
           return (
             <section key={cat} className="blocks-category">
               <header
@@ -67,7 +83,7 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
                   {blocks.map((block) => (
                     <div
                       key={block.getId()}
-                      className="block-item"
+                      className={`block-item${isCustomCategory ? " custom-block" : ""}`}
                       draggable
                       onDragStart={(ev) => dragStart(block, ev.nativeEvent)}
                       onDragEnd={() => dragStop(false)}
@@ -80,6 +96,15 @@ export function BlocksPanel({ mapCategoryBlocks, dragStart, dragStop }: BlocksRe
                         }}
                       />
                       <div className="block-label">{block.get("label")}</div>
+                      {isCustomCategory && (
+                        <button
+                          className="block-delete-btn"
+                          onClick={(e) => handleDeleteBlock(block, e)}
+                          title="削除"
+                        >
+                          <i className="bi bi-trash3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

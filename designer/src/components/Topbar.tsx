@@ -3,6 +3,10 @@ import { useEditor } from "@grapesjs/react";
 import type { PanelMode, ThemeId } from "./Designer";
 import type { McpStatus } from "../mcp/mcpBridge";
 import { CodeEditorModal } from "./CodeEditorModal";
+import { SaveBlockModal } from "./SaveBlockModal";
+import { upsertCustomBlock } from "../store/customBlockStore";
+
+export const CUSTOM_BLOCK_CATEGORY = "マイブロック";
 
 const THEMES: { id: ThemeId; label: string; icon: string; color: string }[] = [
   { id: "standard", label: "標準",    icon: "bi-grid-3x3",     color: "#6c757d" },
@@ -40,6 +44,8 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
   const [codeModalName, setCodeModalName] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState("desktop");
+  const [saveBlockOpen, setSaveBlockOpen] = useState(false);
+  const [saveBlockDefaultName, setSaveBlockDefaultName] = useState("");
 
   useEffect(() => {
     if (!editor) return;
@@ -100,6 +106,44 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
     setCodeModalHtml(html);
     setCodeModalName(name);
     setCodeModalOpen(true);
+  }, [editor]);
+
+  const handleOpenSaveBlock = useCallback(() => {
+    if (!editor) return;
+    const selected = editor.getSelected();
+    if (!selected) return;
+    const defaultName = selected.getName() || selected.get("tagName") || "マイブロック";
+    setSaveBlockDefaultName(defaultName as string);
+    setSaveBlockOpen(true);
+  }, [editor]);
+
+  const handleSaveBlock = useCallback(async (name: string) => {
+    if (!editor) return;
+    const selected = editor.getSelected();
+    if (!selected) return;
+
+    const id = `custom-block-${Date.now()}`;
+    const content = selected.toHTML();
+    const now = new Date().toISOString();
+
+    const customBlock = {
+      id,
+      label: name,
+      category: CUSTOM_BLOCK_CATEGORY,
+      content,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await upsertCustomBlock(customBlock);
+
+    editor.BlockManager.add(id, {
+      label: name,
+      category: CUSTOM_BLOCK_CATEGORY,
+      content,
+    });
+
+    setSaveBlockOpen(false);
   }, [editor]);
 
   const handleCodeApply = useCallback((newHtml: string) => {
@@ -264,6 +308,14 @@ ${html}
           <i className="bi bi-code-slash" />
         </button>
         <button
+          className="icon-btn"
+          onClick={handleOpenSaveBlock}
+          disabled={!hasSelected}
+          title="マイブロックとして保存"
+        >
+          <i className="bi bi-bookmark-plus" />
+        </button>
+        <button
           className="icon-btn danger"
           onClick={handleClear}
           title="キャンバスをクリア"
@@ -369,6 +421,13 @@ ${html}
       />
 
       {helpOpen && <ShortcutsHelp onClose={() => setHelpOpen(false)} />}
+
+      <SaveBlockModal
+        open={saveBlockOpen}
+        defaultName={saveBlockDefaultName}
+        onSave={handleSaveBlock}
+        onClose={() => setSaveBlockOpen(false)}
+      />
     </header>
   );
 }
