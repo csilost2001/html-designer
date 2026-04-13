@@ -10,6 +10,7 @@ import grapesjs from "grapesjs";
 import "grapesjs/dist/css/grapes.min.css";
 
 import { registerBlocks } from "../grapes/blocks";
+import { registerValidationTraits } from "../grapes/validationTraits";
 import { registerRemoteStorage } from "../grapes/remoteStorage";
 import { Topbar } from "./Topbar";
 import { BlocksPanel } from "./BlocksPanel";
@@ -168,6 +169,7 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
     registerRemoteStorage(editor, screenId);
 
     registerBlocks(editor);
+    registerValidationTraits(editor);
     (window as unknown as { editor?: GEditor }).editor = editor;
 
     // カスタムブロック復元（非同期で読み込んで GrapesJS に登録）
