@@ -43,6 +43,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableTopbar } from "../table/TableTopbar";
 import { SortableStepCard } from "./SortableStepCard";
@@ -71,16 +72,21 @@ function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => v
 }
 
 /** ステップ間のドロップゾーン */
-function StepInsertZone({ index, onClick }: { index: number; onClick: () => void }) {
+function StepInsertZone({ index, onClick, onPaste }: { index: number; onClick: () => void; onPaste?: () => void }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `insert-${index}`,
     data: { kind: "insert-zone", insertIndex: index },
   });
   return (
-    <div ref={setNodeRef} className={`step-insert-point${isOver ? " drop-active" : ""}`}>
+    <div ref={setNodeRef} className={`step-insert-point${isOver ? " drop-active" : ""}${onPaste ? " has-paste" : ""}`}>
       <button className="step-insert-btn" onClick={onClick} title="ステップを挿入">
         <i className="bi bi-plus" />
       </button>
+      {onPaste && (
+        <button className="step-paste-btn" onClick={onPaste} title="ここに貼り付け">
+          <i className="bi bi-clipboard-plus me-1" />貼り付け
+        </button>
+      )}
     </div>
   );
 }
@@ -107,6 +113,14 @@ export function ActionEditor() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string; parentStepId?: string } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newStepIdsRef = useRef<Set<string>>(new Set());
+
+  // 選択・クリップボード state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [clipboard, setClipboard] = useState<{
+    steps: Step[];
+    mode: "cut" | "copy";
+  } | null>(null);
+  const lastSelectedIdRef = useRef<string | null>(null);
 
   // 自動保存 (debounce 500ms)
   const scheduleSave = useCallback((updatedGroup: ActionGroup) => {
@@ -321,6 +335,98 @@ export function ActionEditor() {
     });
   };
 
+  // ── 選択操作 ──────────────────────────────────────────────────
+  const handleStepClick = (stepId: string, e: React.MouseEvent) => {
+    if (!activeAction) return;
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl+Click: トグル
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(stepId)) next.delete(stepId);
+        else next.add(stepId);
+        return next;
+      });
+      lastSelectedIdRef.current = stepId;
+    } else if (e.shiftKey && lastSelectedIdRef.current) {
+      // Shift+Click: 範囲選択
+      const steps = activeAction.steps;
+      const lastIdx = steps.findIndex((s) => s.id === lastSelectedIdRef.current);
+      const curIdx = steps.findIndex((s) => s.id === stepId);
+      if (lastIdx >= 0 && curIdx >= 0) {
+        const [from, to] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
+        const range = new Set<string>();
+        for (let i = from; i <= to; i++) range.add(steps[i].id);
+        setSelectedIds(range);
+      }
+    } else {
+      // 通常クリック: 選択解除（展開/折りたたみはStepCard内で処理）
+      setSelectedIds(new Set());
+      lastSelectedIdRef.current = null;
+    }
+  };
+
+  // ── クリップボード操作 ────────────────────────────────────────
+  const handleCut = useCallback(() => {
+    if (selectedIds.size === 0 || !activeAction) return;
+    const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
+    setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "cut" });
+    updateGroup((g) => {
+      const act = g.actions.find((a) => a.id === activeActionId);
+      if (!act) return;
+      for (const id of selectedIds) {
+        clearJumpReferences(act.steps, id);
+        removeStep(act, id);
+      }
+    });
+    setSelectedIds(new Set());
+  }, [selectedIds, activeAction, activeActionId, updateGroup]);
+
+  const handleCopy = useCallback(() => {
+    if (selectedIds.size === 0 || !activeAction) return;
+    const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
+    setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "copy" });
+  }, [selectedIds, activeAction]);
+
+  const handlePaste = useCallback((insertIndex?: number) => {
+    if (!clipboard || !activeAction) return;
+    const targetIndex = insertIndex ?? (() => {
+      // 選択中のステップがある場合: 最後の選択ステップの直後
+      if (selectedIds.size > 0) {
+        const lastIdx = Math.max(...activeAction.steps.map((s, i) => selectedIds.has(s.id) ? i : -1));
+        return lastIdx >= 0 ? lastIdx + 1 : activeAction.steps.length;
+      }
+      return activeAction.steps.length;
+    })();
+
+    updateGroup((g) => {
+      const act = g.actions.find((a) => a.id === activeActionId);
+      if (!act) return;
+      const newSteps = clipboard.steps.map((s) => {
+        const clone = JSON.parse(JSON.stringify(s)) as Step;
+        clone.id = generateUUID();
+        if (clone.subSteps) {
+          clone.subSteps = clone.subSteps.map((sub: Step) => ({ ...sub, id: generateUUID() }));
+        }
+        return clone;
+      });
+      act.steps.splice(targetIndex, 0, ...newSteps);
+    });
+    if (clipboard.mode === "cut") setClipboard(null);
+    setSelectedIds(new Set());
+  }, [clipboard, activeAction, activeActionId, selectedIds, updateGroup]);
+
+  const handleEscapeSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  useSelectionKeyboard({
+    onCut: handleCut,
+    onCopy: handleCopy,
+    onPaste: () => handlePaste(),
+    onEscape: handleEscapeSelection,
+    enabled: selectedIds.size > 0 || clipboard !== null,
+  });
+
   if (!group) return null;
 
   return (
@@ -504,7 +610,11 @@ export function ActionEditor() {
                   <div className="step-list">
                     {activeAction.steps.map((step, index) => (
                       <div key={step.id}>
-                        <StepInsertZone index={index} onClick={() => handleAddStep("other", index)} />
+                        <StepInsertZone
+                          index={index}
+                          onClick={() => handleAddStep("other", index)}
+                          onPaste={clipboard ? () => handlePaste(index) : undefined}
+                        />
                         <SortableStepCard
                           step={step}
                           index={index}
@@ -527,6 +637,8 @@ export function ActionEditor() {
                           }}
                           onNavigateCommon={(refId) => navigate(`/actions/${refId}`)}
                           defaultExpanded={newStepIdsRef.current.has(step.id)}
+                          selected={selectedIds.has(step.id)}
+                          onHeaderClick={(e) => handleStepClick(step.id, e)}
                         />
                       </div>
                     ))}
@@ -534,6 +646,7 @@ export function ActionEditor() {
                     <StepInsertZone
                       index={activeAction.steps.length}
                       onClick={() => handleAddStep("other")}
+                      onPaste={clipboard ? () => handlePaste(activeAction.steps.length) : undefined}
                     />
                   </div>
                 </SortableContext>

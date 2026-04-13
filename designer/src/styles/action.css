@@ -344,6 +344,25 @@
   background: #f5f3ff;
 }
 
+.step-insert-point.has-paste {
+  opacity: 1;
+}
+
+.step-paste-btn {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border: 1px dashed #6366f1;
+  border-radius: 4px;
+  background: #f5f3ff;
+  color: #6366f1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.step-paste-btn:hover {
+  background: #ede9fe;
+}
+
 .step-card {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -367,6 +386,12 @@
   gap: 8px;
   padding: 10px 12px;
   cursor: pointer;
+}
+
+/* 選択状態 */
+.step-card.selected {
+  outline: 2px solid #6366f1;
+  background-color: rgba(99, 102, 241, 0.05);
 }
 
 .step-card-drag-handle {

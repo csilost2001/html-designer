@@ -33,6 +33,10 @@ interface StepCardProps {
   dragHandleListeners?: Record<string, unknown>;
   /** D&D ドラッグハンドルの attributes（@dnd-kit 用） */
   dragHandleAttributes?: Record<string, unknown>;
+  /** 選択状態 */
+  selected?: boolean;
+  /** ヘッダークリック（Ctrl/Shift選択用） */
+  onHeaderClick?: (e: React.MouseEvent) => void;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -88,6 +92,8 @@ export function StepCard({
   defaultExpanded,
   dragHandleListeners,
   dragHandleAttributes,
+  selected,
+  onHeaderClick,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -122,11 +128,18 @@ export function StepCard({
   return (
     <div>
       <div
-        className="step-card"
+        className={`step-card${selected ? " selected" : ""}`}
         style={{ borderLeftColor: color }}
         onContextMenu={onContextMenu}
       >
-        <div className="step-card-header" onClick={() => setExpanded(!expanded)}>
+        <div className="step-card-header" onClick={(e) => {
+          if ((e.ctrlKey || e.metaKey || e.shiftKey) && onHeaderClick) {
+            onHeaderClick(e);
+          } else {
+            if (onHeaderClick) onHeaderClick(e); // clear selection on normal click
+            setExpanded(!expanded);
+          }
+        }}>
           <span className="step-card-drag-handle" title="ドラッグで移動" {...dragHandleListeners} {...dragHandleAttributes}>
             <i className="bi bi-grip-vertical" />
           </span>

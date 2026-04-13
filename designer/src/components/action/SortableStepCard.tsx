@@ -22,6 +22,8 @@ interface SortableStepCardProps {
   onContextMenu: (e: React.MouseEvent) => void;
   onNavigateCommon: (refId: string) => void;
   defaultExpanded?: boolean;
+  selected?: boolean;
+  onHeaderClick?: (e: React.MouseEvent) => void;
 }
 
 export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
