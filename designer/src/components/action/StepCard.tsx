@@ -140,7 +140,19 @@ export function StepCard({
             setExpanded(!expanded);
           }
         }}>
-          <span className="step-card-drag-handle" title="ドラッグで移動" {...dragHandleListeners} {...dragHandleAttributes}>
+          <span
+            className="step-card-drag-handle"
+            title="ドラッグで移動"
+            {...dragHandleAttributes}
+            {...dragHandleListeners}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              // dnd-kit の onPointerDown を呼び出す
+              const handler = (dragHandleListeners as Record<string, (e: React.PointerEvent) => void> | undefined)?.onPointerDown;
+              if (handler) handler(e);
+            }}
+          >
             <i className="bi bi-grip-vertical" />
           </span>
           <span className="step-card-number">{label}</span>
