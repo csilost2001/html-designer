@@ -575,45 +575,45 @@ export function ActionEditor() {
               </div>
             </div>
 
-            {/* ツールバー */}
-            <div className="step-toolbar">
-              {ALL_STEP_TYPES.map((type) => (
-                <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} />
-              ))}
-              <div className="step-toolbar-sep" />
-              <div style={{ position: "relative" }}>
-                <button
-                  className="step-template-btn"
-                  onClick={() => setShowTemplates(!showTemplates)}
-                >
-                  <i className="bi bi-collection" />
-                  テンプレート
-                </button>
-                {showTemplates && (
-                  <div className="template-dropdown">
-                    {STEP_TEMPLATES.map((tpl) => (
-                      <div
-                        key={tpl.id}
-                        className="template-dropdown-item"
-                        onClick={() => handleAddTemplate(tpl.id)}
-                      >
-                        <div className="template-dropdown-item-label">{tpl.label}</div>
-                        <div className="template-dropdown-item-desc">{tpl.description}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+              {/* ツールバー */}
+              <div className="step-toolbar">
+                {ALL_STEP_TYPES.map((type) => (
+                  <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} />
+                ))}
+                <div className="step-toolbar-sep" />
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="step-template-btn"
+                    onClick={() => setShowTemplates(!showTemplates)}
+                  >
+                    <i className="bi bi-collection" />
+                    テンプレート
+                  </button>
+                  {showTemplates && (
+                    <div className="template-dropdown">
+                      {STEP_TEMPLATES.map((tpl) => (
+                        <div
+                          key={tpl.id}
+                          className="template-dropdown-item"
+                          onClick={() => handleAddTemplate(tpl.id)}
+                        >
+                          <div className="template-dropdown-item-label">{tpl.label}</div>
+                          <div className="template-dropdown-item-desc">{tpl.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* ステップリスト */}
-            {activeAction.steps.length === 0 ? (
-              <div className="step-empty">
-                <i className="bi bi-plus-circle" />
-                ステップがありません。上のボタンから追加するか、テンプレートを使用してください。
-              </div>
-            ) : (
-              <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+              {/* ステップリスト */}
+              {activeAction.steps.length === 0 ? (
+                <div className="step-empty">
+                  <i className="bi bi-plus-circle" />
+                  ステップがありません。上のボタンから追加するか、テンプレートを使用してください。
+                </div>
+              ) : (
                 <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   <div className="step-list">
                     {activeAction.steps.map((step, index) => (
@@ -658,8 +658,8 @@ export function ActionEditor() {
                     />
                   </div>
                 </SortableContext>
-              </DndContext>
-            )}
+              )}
+            </DndContext>
           </div>
         ) : (
           <div className="step-empty">
