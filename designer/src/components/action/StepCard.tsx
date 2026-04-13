@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import type { Step, StepType, DbOperation } from "../../types/action";
 import {
   STEP_TYPE_LABELS,
@@ -30,9 +31,9 @@ interface StepCardProps {
   /** 新規追加ステップのデフォルト展開 */
   defaultExpanded?: boolean;
   /** D&D ドラッグハンドルの listeners（@dnd-kit 用） */
-  dragHandleListeners?: Record<string, unknown>;
+  dragHandleListeners?: DraggableSyntheticListeners;
   /** D&D ドラッグハンドルの attributes（@dnd-kit 用） */
-  dragHandleAttributes?: Record<string, unknown>;
+  dragHandleAttributes?: DraggableAttributes;
   /** 選択状態 */
   selected?: boolean;
   /** ヘッダークリック（Ctrl/Shift選択用） */
