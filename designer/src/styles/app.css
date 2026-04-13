@@ -983,3 +983,109 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   background: var(--dz-accent);
   color: #fff;
 }
+
+/* ==========================================================================
+   Save Block Modal
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.save-block-modal {
+  background: var(--dz-bg-2);
+  border: 1px solid var(--dz-border);
+  border-radius: 12px;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.save-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dz-border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dz-text);
+}
+
+.save-block-header i {
+  font-size: 16px;
+  color: var(--dz-accent);
+}
+
+.save-block-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.save-block-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dz-text-dim);
+}
+
+.save-block-input {
+  background: var(--dz-bg-3);
+  border: 1px solid var(--dz-border);
+  border-radius: 6px;
+  color: var(--dz-text);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.save-block-input:focus {
+  border-color: var(--dz-accent);
+}
+
+.save-block-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--dz-border);
+}
+
+/* Custom block delete button */
+.block-item.custom-block {
+  position: relative;
+}
+
+.block-delete-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(239, 68, 68, 0.85);
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.block-item.custom-block:hover .block-delete-btn {
+  display: flex;
+}
+
+.block-delete-btn:hover {
+  background: rgb(220, 38, 38);
+}
