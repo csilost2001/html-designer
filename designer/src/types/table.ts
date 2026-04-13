@@ -104,6 +104,49 @@ export interface TableMeta {
   updatedAt: string;
 }
 
+// ── ER図関連 ──────────────────────────────────────────────────────────────
+
+/** ER図レイアウト（data/er-layout.json） */
+export interface ErLayout {
+  positions: Record<string, { x: number; y: number }>;
+  /** 論理リレーション（FK定義なしだが事実上のリレーション） */
+  logicalRelations?: ErLogicalRelation[];
+  updatedAt: string;
+}
+
+/** 論理リレーション（ER図上のみ、テーブル定義には反映しない） */
+export interface ErLogicalRelation {
+  id: string;
+  sourceTableId: string;
+  sourceColumnName: string;
+  targetTableId: string;
+  targetColumnName: string;
+  cardinality: ErCardinality;
+  label?: string;
+}
+
+/** ER図リレーション（物理FK + 論理の統合ビュー） */
+export interface ErRelation {
+  id: string;
+  sourceTableId: string;
+  sourceTableName: string;
+  sourceColumnName: string;
+  targetTableId: string;
+  targetTableName: string;
+  targetColumnName: string;
+  cardinality: ErCardinality;
+  physical: boolean;
+  label?: string;
+}
+
+export type ErCardinality = "one-to-many" | "one-to-one" | "many-to-many";
+
+export const CARDINALITY_LABELS: Record<ErCardinality, string> = {
+  "one-to-many": "1:N",
+  "one-to-one": "1:1",
+  "many-to-many": "N:N",
+};
+
 /** テーブルカテゴリ */
 export const TABLE_CATEGORIES = [
   "マスタ",

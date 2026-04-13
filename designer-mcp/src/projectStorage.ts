@@ -17,6 +17,7 @@ const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
+export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
 
 /** data/ と data/screens/ と data/tables/ を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
@@ -77,6 +78,17 @@ export async function readCustomBlocks(): Promise<unknown[]> {
 export async function writeCustomBlocks(blocks: unknown[]): Promise<void> {
   await ensureDataDir();
   await writeJSON(CUSTOM_BLOCKS_FILE, blocks);
+}
+
+/** er-layout.json を読み込み */
+export async function readErLayout(): Promise<unknown | null> {
+  return readJSON<unknown>(ER_LAYOUT_FILE);
+}
+
+/** er-layout.json を書き込み */
+export async function writeErLayout(data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(ER_LAYOUT_FILE, data);
 }
 
 /** tables/{tableId}.json を読み込み */

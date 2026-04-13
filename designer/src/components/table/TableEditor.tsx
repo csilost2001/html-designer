@@ -20,7 +20,7 @@ export function TableEditor() {
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
   const [editingMeta, setEditingMeta] = useState(false);
   const [projectName, setProjectName] = useState("プロジェクト");
-  const [allTables, setAllTables] = useState<Array<{ id: string; name: string }>>([]);
+  const [allTables, setAllTables] = useState<TableDefinition[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const autoSave = useCallback((t: TableDefinition) => {
@@ -40,7 +40,12 @@ export function TableEditor() {
       const p = await loadProject();
       setProjectName(p.name);
       const tl = await listTables();
-      setAllTables(tl.map((m) => ({ id: m.id, name: m.name })));
+      const allTds: TableDefinition[] = [];
+      for (const m of tl) {
+        const td = await loadTable(m.id);
+        if (td) allTds.push(td);
+      }
+      setAllTables(allTds);
     })();
   }, [tableId, navigate]);
 
@@ -198,7 +203,7 @@ function ColumnsTab({
 }: {
   table: TableDefinition;
   update: (fn: (t: TableDefinition) => void) => void;
-  allTables: Array<{ id: string; name: string }>;
+  allTables: TableDefinition[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -376,7 +381,7 @@ function ColumnRow({
   isEditing: boolean;
   isFirst: boolean;
   isLast: boolean;
-  allTables: Array<{ id: string; name: string }>;
+  allTables: TableDefinition[];
   onEdit: () => void;
   onUpdate: (patch: Partial<TableColumn>) => void;
   onRemove: () => void;
@@ -441,7 +446,7 @@ function ColumnDetailEditor({
 }: {
   col: TableColumn;
   onUpdate: (patch: Partial<TableColumn>) => void;
-  allTables: Array<{ id: string; name: string }>;
+  allTables: TableDefinition[];
   showLength: boolean;
   showScale: boolean;
 }) {
@@ -544,42 +549,82 @@ function ColumnDetailEditor({
           />
         </label>
 
-        <div className="column-fk-section">
-          <label className="column-flag-label">
-            <input
-              type="checkbox"
-              checked={hasFk}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  onUpdate({ foreignKey: { tableId: "", columnName: "" } });
-                } else {
-                  onUpdate({ foreignKey: undefined });
-                }
-              }}
-            />
-            外部キー (FK)
-          </label>
-          {hasFk && (
-            <div className="column-fk-fields">
-              <select
-                value={col.foreignKey?.tableId ?? ""}
-                onChange={(e) => onUpdate({ foreignKey: { ...col.foreignKey!, tableId: e.target.value } })}
-              >
-                <option value="">参照先テーブル...</option>
-                {allTables.map((t) => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={col.foreignKey?.columnName ?? ""}
-                onChange={(e) => onUpdate({ foreignKey: { ...col.foreignKey!, columnName: e.target.value } })}
-                placeholder="参照先カラム名 (例: id)"
-              />
-            </div>
-          )}
-        </div>
+        <ForeignKeyEditor col={col} allTables={allTables} onUpdate={onUpdate} />
       </div>
+    </div>
+  );
+}
+
+// ── FK入力コンポーネント ──────────────────────────────────────────────────────
+
+function ForeignKeyEditor({
+  col, allTables, onUpdate,
+}: {
+  col: TableColumn;
+  allTables: TableDefinition[];
+  onUpdate: (patch: Partial<TableColumn>) => void;
+}) {
+  const hasFk = !!col.foreignKey;
+  const refTable = allTables.find((t) => t.name === col.foreignKey?.tableId);
+
+  const handleTableChange = (tableName: string) => {
+    const table = allTables.find((t) => t.name === tableName);
+    // PKカラムを自動選択
+    const pkCol = table?.columns.find((c) => c.primaryKey);
+    onUpdate({
+      foreignKey: {
+        tableId: tableName,
+        columnName: pkCol?.name ?? "",
+      },
+    });
+  };
+
+  return (
+    <div className="column-fk-section">
+      <label className="column-flag-label">
+        <input
+          type="checkbox"
+          checked={hasFk}
+          onChange={(e) => {
+            if (e.target.checked) {
+              onUpdate({ foreignKey: { tableId: "", columnName: "" } });
+            } else {
+              onUpdate({ foreignKey: undefined });
+            }
+          }}
+        />
+        外部キー (FK)
+      </label>
+      {hasFk && (
+        <div className="column-fk-fields">
+          <select
+            value={col.foreignKey?.tableId ?? ""}
+            onChange={(e) => handleTableChange(e.target.value)}
+          >
+            <option value="">参照先テーブル...</option>
+            {allTables.map((t) => (
+              <option key={t.id} value={t.name}>
+                {t.name}（{t.logicalName}）
+              </option>
+            ))}
+          </select>
+          <select
+            value={col.foreignKey?.columnName ?? ""}
+            onChange={(e) => onUpdate({ foreignKey: { ...col.foreignKey!, columnName: e.target.value } })}
+            disabled={!refTable}
+          >
+            <option value="">参照先カラム...</option>
+            {refTable?.columns.map((c) => {
+              const icon = c.primaryKey ? "🔑 " : c.unique ? "✦ " : "";
+              return (
+                <option key={c.id} value={c.name}>
+                  {icon}{c.name}（{c.logicalName}）— {c.dataType}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

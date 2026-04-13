@@ -9,7 +9,7 @@ import {
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
-import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject } from "./projectStorage.js";
+import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout } from "./projectStorage.js";
 
 // 親プロセス（Claude Code）が死んだら自動終了
 function setupLifecycle(): void {
@@ -590,6 +590,101 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return { content: [{ type: "text", text: "DDL生成対象のテーブルが見つかりません。" }] };
         }
         return { content: [{ type: "text", text: `\`\`\`sql\n${ddlParts.join("\n\n")}\n\`\`\`` }] };
+      }
+
+      // ── ER図 ──
+
+      case "designer__get_er_diagram":
+      case "designer__generate_er_mermaid": {
+        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const tableMetas = ((project.tables ?? []) as Array<{ id: string; name: string }>);
+        const allTables: Array<Record<string, unknown>> = [];
+        for (const tm of tableMetas) {
+          const td = await readTable(tm.id);
+          if (td) allTables.push(td as Record<string, unknown>);
+        }
+        const erLayout = await readErLayout() as { logicalRelations?: Array<Record<string, unknown>> } | null;
+
+        // Derive relations from FK
+        const relations: Array<{ source: string; sourceCol: string; target: string; targetCol: string; physical: boolean }> = [];
+        const tableNameMap = new Map(allTables.map((t) => [t.name as string, t]));
+        for (const table of allTables) {
+          const cols = (table.columns ?? []) as Array<Record<string, unknown>>;
+          for (const col of cols) {
+            const fk = col.foreignKey as { tableId: string; columnName: string } | undefined;
+            if (!fk) continue;
+            const target = tableNameMap.get(fk.tableId);
+            if (!target) continue;
+            relations.push({
+              source: table.name as string,
+              sourceCol: col.name as string,
+              target: target.name as string,
+              targetCol: fk.columnName,
+              physical: true,
+            });
+          }
+        }
+        // Add logical relations
+        for (const lr of erLayout?.logicalRelations ?? []) {
+          const srcTable = allTables.find((t) => t.id === lr.sourceTableId);
+          const tgtTable = allTables.find((t) => t.id === lr.targetTableId);
+          if (srcTable && tgtTable) {
+            relations.push({
+              source: srcTable.name as string,
+              sourceCol: lr.sourceColumnName as string,
+              target: tgtTable.name as string,
+              targetCol: lr.targetColumnName as string,
+              physical: false,
+            });
+          }
+        }
+
+        // Build Mermaid
+        const mLines = ["erDiagram"];
+        for (const table of allTables) {
+          mLines.push(`    ${table.name} {`);
+          for (const col of (table.columns ?? []) as Array<Record<string, unknown>>) {
+            const markers: string[] = [];
+            if (col.primaryKey) markers.push("PK");
+            if (col.foreignKey) markers.push("FK");
+            const m = markers.length > 0 ? ` ${markers.join(",")}` : "";
+            mLines.push(`        ${col.dataType} ${col.name}${m}`);
+          }
+          mLines.push("    }");
+        }
+        for (const rel of relations) {
+          const card = rel.physical ? "||--o{" : "..o{";
+          mLines.push(`    ${rel.target} ${card} ${rel.source} : "${rel.sourceCol}"`);
+        }
+        const mermaid = mLines.join("\n");
+
+        if (name === "designer__generate_er_mermaid") {
+          return { content: [{ type: "text", text: `\`\`\`mermaid\n${mermaid}\n\`\`\`` }] };
+        }
+
+        // Full ER data
+        const relLines = relations.map(
+          (r) => `  - ${r.source}.${r.sourceCol} → ${r.target}.${r.targetCol}${r.physical ? "" : " (論理)"}`
+        );
+        const tableLines = allTables.map(
+          (t) => `  - ${t.name}（${t.logicalName}）${(t.columns as unknown[]).length}カラム`
+        );
+        return {
+          content: [{
+            type: "text",
+            text: [
+              `# ER図`,
+              `\n## テーブル (${allTables.length}件)`,
+              ...tableLines,
+              `\n## リレーション (${relations.length}件)`,
+              ...relLines,
+              `\n## Mermaid`,
+              "```mermaid",
+              mermaid,
+              "```",
+            ].join("\n"),
+          }],
+        };
       }
 
       default:

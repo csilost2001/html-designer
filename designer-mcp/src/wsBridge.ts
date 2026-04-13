@@ -14,6 +14,8 @@ import {
   readTable,
   writeTable,
   deleteTable as deleteTableFile,
+  readErLayout,
+  writeErLayout,
 } from "./projectStorage.js";
 
 type Command = { id: string; method: string; params?: unknown };
@@ -331,6 +333,18 @@ class WsBridge extends EventEmitter {
           await deleteTableFile(tableId);
           respond({ success: true });
           this.broadcast("tableChanged", { tableId, deleted: true }, clientId);
+          break;
+        }
+        case "loadErLayout": {
+          const layoutData = await readErLayout();
+          respond(layoutData);
+          break;
+        }
+        case "saveErLayout": {
+          const { data } = (params ?? {}) as { data: unknown };
+          await writeErLayout(data);
+          respond({ success: true });
+          this.broadcast("erLayoutChanged", {}, clientId);
           break;
         }
         default:

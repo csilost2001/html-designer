@@ -488,4 +488,27 @@ export const tools = [
       required: [],
     },
   },
+
+  // ── ER図ツール ──
+
+  {
+    name: "designer__get_er_diagram",
+    description:
+      "ER図データ（全テーブル・リレーション・Mermaid記法）を取得します。テーブル設計書の外部キー定義からリレーションを自動検出します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__generate_er_mermaid",
+    description:
+      "Mermaid ER図記法を生成します。テーブル設計書の外部キー定義と論理リレーションから生成します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
