@@ -38,6 +38,7 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [codeModalHtml, setCodeModalHtml] = useState("");
   const [codeModalName, setCodeModalName] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     if (!editor) return;
@@ -137,6 +138,61 @@ ${html}
     URL.revokeObjectURL(url);
   };
 
+  // キーボードショートカット
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 入力フィールド内では無効化
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      if (ctrl && e.key === "s") {
+        e.preventDefault();
+        editor.store();
+      } else if (ctrl && e.key === "p") {
+        e.preventDefault();
+        editor.runCommand("preview");
+      } else if (ctrl && e.key === "d") {
+        e.preventDefault();
+        const selected = editor.getSelected();
+        if (selected) {
+          editor.runCommand("tlb-clone");
+        }
+      } else if (ctrl && e.key === "e") {
+        e.preventDefault();
+        const selected = editor.getSelected();
+        if (selected) {
+          const html = selected.toHTML();
+          const name = selected.getName() || selected.get("tagName") || "コンポーネント";
+          setCodeModalHtml(html);
+          setCodeModalName(name as string);
+          setCodeModalOpen(true);
+        }
+      } else if (e.key === "Delete" && !ctrl && !e.shiftKey && !e.altKey) {
+        const selected = editor.getSelected();
+        if (selected) {
+          editor.runCommand("tlb-delete");
+        }
+      } else if (e.key === "?") {
+        setHelpOpen((v) => !v);
+      } else if (e.key === "Escape") {
+        setHelpOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [editor]);
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -155,7 +211,7 @@ ${html}
         ) : (
           <>
             <i className="bi bi-palette2 topbar-logo" />
-            <span className="topbar-title">業務シス���ム デ��イナー</span>
+            <span className="topbar-title">業務システム デザイナー</span>
           </>
         )}
         {panelMode === "hidden" && (
@@ -188,14 +244,14 @@ ${html}
           <i className="bi bi-arrow-clockwise" />
         </button>
         <div className="divider" />
-        <button className="icon-btn" onClick={handlePreview} title="プレビュー">
+        <button className="icon-btn" onClick={handlePreview} title="プレビュー (Ctrl+P)">
           <i className="bi bi-eye" />
         </button>
         <button
           className="icon-btn"
           onClick={handleOpenCodeEditor}
           disabled={!hasSelected}
-          title="HTMLソースを編集"
+          title="HTMLソースを編集 (Ctrl+E)"
         >
           <i className="bi bi-code-slash" />
         </button>
@@ -205,6 +261,14 @@ ${html}
           title="キャンバスをクリア"
         >
           <i className="bi bi-trash" />
+        </button>
+        <div className="divider" />
+        <button
+          className="icon-btn"
+          onClick={() => setHelpOpen(true)}
+          title="キーボードショートカット一覧 (?)"
+        >
+          <i className="bi bi-keyboard" />
         </button>
       </div>
 
@@ -254,7 +318,7 @@ ${html}
             </>
           )}
         </span>
-        <button className="btn-primary-sm" onClick={handleSaveNow}>
+        <button className="btn-primary-sm" onClick={handleSaveNow} title="今すぐ保存 (Ctrl+S)">
           <i className="bi bi-save" /> 今すぐ保存
         </button>
         <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
@@ -271,6 +335,8 @@ ${html}
         onApply={handleCodeApply}
         onClose={() => setCodeModalOpen(false)}
       />
+
+      {helpOpen && <ShortcutsHelp onClose={() => setHelpOpen(false)} />}
     </header>
   );
 }
@@ -289,6 +355,42 @@ function McpIndicator({ status }: { status: McpStatus }) {
     <div className={`mcp-indicator mcp-${status}`} title={title}>
       <span className="mcp-dot" />
       <span className="mcp-label">{label}</span>
+    </div>
+  );
+}
+
+const SHORTCUTS = [
+  { key: "Ctrl + Z",       desc: "元に戻す" },
+  { key: "Ctrl + Shift + Z", desc: "やり直し" },
+  { key: "Ctrl + S",       desc: "今すぐ保存" },
+  { key: "Ctrl + P",       desc: "プレビュー" },
+  { key: "Ctrl + D",       desc: "選択コンポーネントを複製" },
+  { key: "Ctrl + E",       desc: "HTMLソースエディタを開く" },
+  { key: "Delete",         desc: "選択コンポーネントを削除" },
+  { key: "?",              desc: "このヘルプを表示 / 非表示" },
+  { key: "Esc",            desc: "ヘルプを閉じる" },
+];
+
+function ShortcutsHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="shortcuts-overlay" onClick={onClose}>
+      <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="shortcuts-modal-header">
+          <i className="bi bi-keyboard" />
+          <span>キーボードショートカット</span>
+          <button className="shortcuts-close" onClick={onClose}>
+            <i className="bi bi-x-lg" />
+          </button>
+        </div>
+        <ul className="shortcuts-list">
+          {SHORTCUTS.map(({ key, desc }) => (
+            <li key={key}>
+              <span className="shortcuts-desc">{desc}</span>
+              <kbd className="shortcuts-key">{key}</kbd>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
