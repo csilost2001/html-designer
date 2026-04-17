@@ -14,8 +14,8 @@ output/
 screenshots/
 *.png
 
-# Claude Code local settings
-.claude/
+# Claude Code local settings (skills/commands はチーム共有のため追跡対象)
+.claude/settings.local.json
 
 # Editor / OS
 .DS_Store

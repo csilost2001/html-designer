@@ -1,0 +1,105 @@
+---
+description: テスト実装・修正・Vitest・Playwright・E2E・スペック・spec・test
+paths:
+  - "designer/src/**/*.test.ts"
+  - "designer/e2e/**/*.spec.ts"
+  - "designer/e2e/**/*"
+---
+
+# テスト戦略
+
+このプロジェクトのテストは **3層・3視点** で実装する。同じ機能でも視点が異なるため、3つは競合ではなく補完関係にある。
+
+## 3層の役割分担
+
+| 層 | ツール | テストの主体 | 何を保証するか |
+|----|--------|------------|---------------|
+| ロジック層 | Vitest | 開発者 | コードの振る舞いの正しさ |
+| UI層 | Playwright (.spec.ts) | ユーザー | 見た目・操作の正しさ |
+| 統合層 | wsBridge E2E | ブラウザ↔ファイル | WebSocket通信とファイル永続化の正しさ |
+
+## 各層のスコープ
+
+**Vitest（`designer/src/**/*.test.ts`）**
+- ストアのロジック（tabStore の状態遷移、dirty フラグ管理など）
+- ユーティリティ関数
+- データ変換・バリデーション
+- GrapesJS / ReactFlow / WebSocket は含めない
+
+**Playwright（`designer/e2e/**/*.spec.ts`）**
+- TabBar の操作（開閉・右クリックメニュー・D&D）
+- ナビゲーション・ルーティング・URL 同期
+- 保存ボタンの表示/非表示（isDirty の UI 反映）
+- GrapesJS キャンバス内部はスコープ外（iframe 制約・費用対効果が低い）
+- テストコードは AI が生成し、実行は `npx playwright test` で自律実行する
+
+**MCP テスト（`designer/e2e/mcp/**/*.spec.ts`）**
+- ブラウザ役として `{ type: "request" }` プロトコルで wsBridge に接続し、ファイル操作を検証する
+- テスト可能: `loadProject` / `saveProject` / `loadScreen` / `saveScreen` / `deleteScreen`
+- テスト不可（stdio経由のみ）: `designer__open_tab` 等のタブ操作コマンド → Issue #67 参照
+- designer-mcp が ws://localhost:5179 で起動していない場合は自動スキップ
+
+## バグの切り分け方針
+
+```
+Vitest 失敗               → ロジックバグ（store/utils 層）
+Playwright 失敗のみ       → UI 実装バグ（コンポーネント層）
+MCP テスト失敗のみ        → WebSocket/ファイル永続化バグ
+```
+
+## Playwright 実装ルール
+
+### AI の役割
+- AI は `.spec.ts` ファイルを生成するだけ。テストの実行は `npx playwright test` で自律実行する
+- AI が Playwright MCP を直接操作するのは「探索・デバッグ」目的の一時的な用途に限定する
+- テスト失敗時のみ、失敗ログを AI に渡して修正を依頼する
+
+### addInitScript の挙動（重要）
+`page.addInitScript()` は `page.goto()` と `page.reload()` を含む**全ナビゲーションで再実行**される。
+
+- タブ状態の事前設定は addInitScript 内で行い、`designer-open-tabs` と `designer-active-tab` を両方セットする
+- 「UIで操作した状態がリロード後も保持される」テストは書けない（addInitScript が毎回上書きするため）
+  → 代わりにリロード後の期待状態を addInitScript で事前設定して検証する
+
+```typescript
+await page.addInitScript(({ project, tabs, activeTabId }) => {
+  localStorage.setItem("flow-project", JSON.stringify(project));
+  localStorage.setItem("designer-open-tabs", JSON.stringify(tabs));
+  localStorage.setItem("designer-active-tab", activeTabId);
+}, { project, tabs, activeTabId });
+```
+
+### ブラウザにインターセプトされるキー操作
+`Ctrl+Tab`（タブ切り替え）と `Ctrl+W`（タブを閉じる）はChromiumがページより先に処理するため、`page.keyboard.press()` では届かない。`document.dispatchEvent()` で直接送出する：
+
+```typescript
+await page.evaluate(() => {
+  document.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "Tab", ctrlKey: true, bubbles: true, cancelable: true,
+  }));
+});
+```
+
+### opacity:0 要素のクリック
+タブの閉じるボタン（`.tabbar-tab-close`）はホバー前は `opacity: 0`。Playwright の actionability チェックをスキップするために `{ force: true }` を使う：
+
+```typescript
+await tabLocator.locator(".tabbar-tab-close").click({ force: true });
+```
+
+### 複数要素への toContainText は strict モード違反
+複数の要素にマッチするロケータに `toContainText()` を使うと strict モード違反になる。`.filter()` で絞り込む：
+
+```typescript
+// NG: locator(".tabbar-tab") が複数マッチすると失敗
+await expect(page.locator(".tabbar-tab")).toContainText("画面A");
+
+// OK
+await expect(page.locator(".tabbar-tab").filter({ hasText: "画面A" })).toBeVisible();
+```
+
+## テスト実装の優先順位
+
+1. **Vitest 優先** — 純ロジックは即効性が高くメンテコストが低い
+2. **Playwright 次** — TabBar・ナビゲーションはこのプロジェクトと相性が良い
+3. **MCP テスト** — ファイル永続化パイプラインなどこのシステム特有の価値がある箇所に適用
