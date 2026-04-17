@@ -47,6 +47,7 @@ import {
 } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { openTab, makeTabId } from "../../store/tabStore";
 import "../../styles/flow.css";
 
 const nodeTypes = {
@@ -300,6 +301,10 @@ function FlowEditorInner() {
   }, [setEdges]);
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, node) => {
+    if (node.type === "screenNode") {
+      const screenName = (node.data as { name?: string }).name ?? node.id;
+      openTab({ id: makeTabId("design", node.id), type: "design", resourceId: node.id, label: screenName });
+    }
     navigate(`/design/${node.id}`);
   }, [navigate]);
 
@@ -451,9 +456,14 @@ function FlowEditorInner() {
 
   const handleDesignNode = useCallback(() => {
     if (!contextMenu) return;
-    navigate(`/design/${contextMenu.targetId}`);
+    const screenId = contextMenu.targetId;
+    const screenName = nodes.find((n) => n.id === screenId)?.data
+      ? ((nodes.find((n) => n.id === screenId)!.data as { name?: string }).name ?? screenId)
+      : screenId;
+    openTab({ id: makeTabId("design", screenId), type: "design", resourceId: screenId, label: screenName });
+    navigate(`/design/${screenId}`);
     setContextMenu(null);
-  }, [contextMenu, navigate]);
+  }, [contextMenu, navigate, nodes]);
 
   // ── Group Actions ──
 
