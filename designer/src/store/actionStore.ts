@@ -17,6 +17,7 @@ import type {
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
+import { migrateActionGroup } from "../utils/actionMigration";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
 
@@ -49,16 +50,16 @@ export async function listActionGroups(): Promise<ActionGroupMeta[]> {
   return (project.actionGroups ?? []) as ActionGroupMeta[];
 }
 
-/** アクショングループを読み込み */
+/** アクショングループを読み込み（旧形式データは自動マイグレーション） */
 export async function loadActionGroup(id: string): Promise<ActionGroup | null> {
   if (_backend) {
     const data = await _backend.loadActionGroup(id);
-    return data ? (data as ActionGroup) : null;
+    return data ? migrateActionGroup(data) : null;
   }
   const raw = localStorage.getItem(`${ACTION_PREFIX}${id}`);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ActionGroup;
+    return migrateActionGroup(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -190,7 +191,7 @@ export function removeSubStep(parentStep: Step, subStepId: string): void {
 
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
-function createDefaultStep(type: StepType): Step {
+export function createDefaultStep(type: StepType): Step {
   const base = {
     id: generateUUID(),
     type,
@@ -210,7 +211,25 @@ function createDefaultStep(type: StepType): Step {
     case "displayUpdate":
       return { ...base, type: "displayUpdate", target: "" };
     case "branch":
-      return { ...base, type: "branch", condition: "", branchA: { label: "A", description: "" }, branchB: { label: "B", description: "" } };
+      return {
+        ...base,
+        type: "branch",
+        branches: [
+          { id: generateUUID(), code: "A", condition: "", steps: [] },
+          { id: generateUUID(), code: "B", condition: "", steps: [] },
+        ],
+      };
+    case "loop":
+      return {
+        ...base,
+        type: "loop",
+        loopKind: "count",
+        steps: [],
+      };
+    case "loopBreak":
+      return { ...base, type: "loopBreak" };
+    case "loopContinue":
+      return { ...base, type: "loopContinue" };
     case "jump":
       return { ...base, type: "jump", jumpTo: "" };
     case "other":

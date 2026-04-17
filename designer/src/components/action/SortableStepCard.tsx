@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StepCard } from "./StepCard";
 import type { Step, StepType } from "../../types/action";
+import type { ValidationError } from "../../utils/actionValidation";
 
 interface SortableStepCardProps {
   step: Step;
@@ -18,12 +19,14 @@ interface SortableStepCardProps {
   onDelete: () => void;
   onDuplicate: () => void;
   onAddSubStep: (type: StepType) => void;
-  onDeleteSubStep: (subStepId: string) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onNavigateCommon: (refId: string) => void;
   defaultExpanded?: boolean;
   selected?: boolean;
   onHeaderClick?: (e: React.MouseEvent) => void;
+  onIndent?: () => void;
+  onOutdentSubStep?: (subStepId: string) => void;
+  validationErrors?: ValidationError[];
 }
 
 export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
@@ -49,6 +52,7 @@ export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
         {...props}
         dragHandleListeners={listeners}
         dragHandleAttributes={attributes}
+        depth={0}
       />
     </div>
   );

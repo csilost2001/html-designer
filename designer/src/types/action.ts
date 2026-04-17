@@ -8,7 +8,10 @@ export type StepType =
   | "commonProcess"    // 共通処理参照
   | "screenTransition" // 画面遷移
   | "displayUpdate"    // 表示更新
-  | "branch"           // 条件分岐（インラインA/B）
+  | "branch"           // 条件分岐（多分岐）
+  | "loop"             // ループ
+  | "loopBreak"        // ループ終了（break）
+  | "loopContinue"     // 次のループへ（continue）
   | "jump"             // 別大分類へのジャンプ
   | "other";           // その他
 
@@ -21,6 +24,9 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   screenTransition: "画面遷移",
   displayUpdate: "表示更新",
   branch: "条件分岐",
+  loop: "ループ",
+  loopBreak: "ループ終了",
+  loopContinue: "次のループへ",
   jump: "ジャンプ",
   other: "その他",
 };
@@ -34,6 +40,9 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   screenTransition: "bi-arrow-right-square",
   displayUpdate: "bi-display",
   branch: "bi-signpost-split",
+  loop: "bi-arrow-repeat",
+  loopBreak: "bi-stop-circle",
+  loopContinue: "bi-skip-forward",
   jump: "bi-arrow-return-right",
   other: "bi-three-dots",
 };
@@ -47,6 +56,9 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   screenTransition: "#ec4899",
   displayUpdate: "#6366f1",
   branch: "#f97316",
+  loop: "#06b6d4",
+  loopBreak: "#ef4444",
+  loopContinue: "#14b8a6",
   jump: "#94a3b8",
   other: "#9ca3af",
 };
@@ -160,11 +172,57 @@ export interface DisplayUpdateStep extends StepBase {
   target: string;
 }
 
+/** 多分岐の1件 */
+export interface Branch {
+  /** 内部 UUID */
+  id: string;
+  /** 自動採番コード: "A", "B", "C", ... */
+  code: string;
+  /** 任意の自由入力ラベル */
+  label?: string;
+  /** 分岐条件（自由記述、LLM 解析前提） */
+  condition: string;
+  /** 任意のサブ処理（全カード配置可能） */
+  steps: Step[];
+}
+
 export interface BranchStep extends StepBase {
   type: "branch";
-  condition: string;
-  branchA: { label: string; description: string; jumpTo?: string };
-  branchB: { label: string; description: string; jumpTo?: string };
+  /** 最小 1 個、D&D で並び替え可能 */
+  branches: Branch[];
+  /** 任意、常に最後に描画 */
+  elseBranch?: Branch;
+}
+
+/** ループ種別 */
+export type LoopKind = "count" | "condition" | "collection";
+
+/** ループ条件モード */
+export type LoopConditionMode = "continue" | "exit";
+
+export interface LoopStep extends StepBase {
+  type: "loop";
+  loopKind: LoopKind;
+  /** loopKind="count" 用: "3回", "検索結果の件数分" 等 */
+  countExpression?: string;
+  /** loopKind="condition" 用、デフォルト "exit" */
+  conditionMode?: LoopConditionMode;
+  /** loopKind="condition" 用 */
+  conditionExpression?: string;
+  /** loopKind="collection" 用: 例 "検索結果" */
+  collectionSource?: string;
+  /** loopKind="collection" 用: 例 "ユーザー" */
+  collectionItemName?: string;
+  /** ループ本体 */
+  steps: Step[];
+}
+
+export interface LoopBreakStep extends StepBase {
+  type: "loopBreak";
+}
+
+export interface LoopContinueStep extends StepBase {
+  type: "loopContinue";
 }
 
 export interface JumpStep extends StepBase {
@@ -184,6 +242,9 @@ export type Step =
   | ScreenTransitionStep
   | DisplayUpdateStep
   | BranchStep
+  | LoopStep
+  | LoopBreakStep
+  | LoopContinueStep
   | JumpStep
   | OtherStep;
 
