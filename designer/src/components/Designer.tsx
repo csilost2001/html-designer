@@ -11,13 +11,14 @@ import "grapesjs/dist/css/grapes.min.css";
 
 import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
-import { registerRemoteStorage } from "../grapes/remoteStorage";
+import { registerRemoteStorage, saveScreenToFile } from "../grapes/remoteStorage";
 import { Topbar } from "./Topbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { loadProject, updateScreenThumbnail } from "../store/flowStore";
+import { makeTabId, setDirty } from "../store/tabStore";
 
 /** キャンバスの縮小サムネイルを生成して data URL で返す */
 async function captureThumbnail(editor: GEditor): Promise<string | null> {
@@ -116,16 +117,19 @@ export interface DesignerProps {
   screenId: string;
   screenName?: string;
   onBack?: () => void;
+  isActive?: boolean;
 }
 
-export function Designer({ screenId, screenName, onBack }: DesignerProps) {
+export function Designer({ screenId, screenName, onBack, isActive }: DesignerProps) {
   const gjsOptions = buildGjsOptions(screenId);
   const [ready, setReady] = useState(false);
   const [canvasEmpty, setCanvasEmpty] = useState(true);
+  const [isDirty, setIsDirtyState] = useState(false);
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
+  const tabId = makeTabId("design", screenId);
 
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => {
     const saved = localStorage.getItem(PANEL_MODE_KEY) as PanelMode | null;
@@ -193,6 +197,13 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
       document.body.removeAttribute("data-gjs-dragging");
     });
 
+    // 変更検知: component 操作または style 変更でdirtyフラグを立てる
+    const markDirty = () => {
+      setIsDirtyState(true);
+      setDirty(tabId, true);
+    };
+    editor.on("component:add component:remove component:update style:change", markDirty);
+
     // MCPブリッジ起動
     const unsubscribe = mcpBridge.onStatusChange(setMcpStatus);
     mcpBridge.setThemeHandler((themeId) =>
@@ -210,12 +221,13 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
     });
 
     return () => {
+      editor.off("component:add component:remove component:update style:change", markDirty);
       unsubscribe();
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
       mcpBridge.stop();
     };
-  }, [screenId]);
+  }, [screenId, tabId]);
 
   const onReady = useCallback(async () => {
     setReady(true);
@@ -232,6 +244,13 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
       } catch { /* ignore */ }
     }
   }, [activeTheme]);
+
+  // タブがアクティブになったときにキャンバスをリフレッシュ（display:none から復帰）
+  useEffect(() => {
+    if (isActive && editorRef.current) {
+      editorRef.current.refresh();
+    }
+  }, [isActive]);
 
   // 保存後にサムネイルを撮影してフローノードに反映
   useEffect(() => {
@@ -282,6 +301,19 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
     }
   }, [panelMode]);
 
+  const handleSaveToFile = useCallback(async () => {
+    try {
+      // GrapesJS の最新状態を localStorage に書き出してからファイル保存
+      if (editorRef.current) await editorRef.current.store();
+      await saveScreenToFile(screenId);
+      setIsDirtyState(false);
+      setDirty(tabId, false);
+    } catch (e) {
+      console.error("[Designer] saveToFile failed:", e);
+      alert("保存に失敗しました: " + String(e));
+    }
+  }, [screenId, tabId]);
+
   return (
     <GjsEditor
       className="designer-root"
@@ -305,6 +337,8 @@ export function Designer({ screenId, screenName, onBack }: DesignerProps) {
             activeTheme={activeTheme}
             onThemeChange={handleThemeChange}
             mcpStatus={mcpStatus}
+            isDirty={isDirty}
+            onSaveToFile={handleSaveToFile}
             backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
           />
         </WithEditor>
