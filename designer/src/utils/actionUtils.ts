@@ -42,6 +42,21 @@ export function resolveJumpLabel(
 }
 
 /**
+ * ステップ配列を再帰的に走査（subSteps・branches[].steps・elseBranch.steps・loop.steps を含む）
+ */
+function walkSteps(steps: Step[], visit: (step: Step) => void): void {
+  for (const step of steps) {
+    visit(step);
+    if (step.subSteps) walkSteps(step.subSteps, visit);
+    if (step.type === "branch") {
+      for (const br of step.branches) walkSteps(br.steps, visit);
+      if (step.elseBranch) walkSteps(step.elseBranch.steps, visit);
+    }
+    if (step.type === "loop") walkSteps(step.steps, visit);
+  }
+}
+
+/**
  * ステップ内のジャンプ参照を更新
  * oldId → newId に置換
  */
@@ -50,42 +65,28 @@ export function updateJumpReferences(
   oldId: string,
   newId: string,
 ): void {
-  for (const step of steps) {
+  walkSteps(steps, (step) => {
     if (step.type === "jump" && step.jumpTo === oldId) {
       step.jumpTo = newId;
-    }
-    if (step.type === "branch") {
-      if (step.branchA.jumpTo === oldId) step.branchA.jumpTo = newId;
-      if (step.branchB.jumpTo === oldId) step.branchB.jumpTo = newId;
     }
     if (step.type === "validation" && step.inlineBranch?.ngJumpTo === oldId) {
       step.inlineBranch.ngJumpTo = newId;
     }
-    if (step.subSteps) {
-      updateJumpReferences(step.subSteps, oldId, newId);
-    }
-  }
+  });
 }
 
 /**
  * 削除されたステップへのジャンプ参照をクリア
  */
 export function clearJumpReferences(steps: Step[], deletedId: string): void {
-  for (const step of steps) {
+  walkSteps(steps, (step) => {
     if (step.type === "jump" && step.jumpTo === deletedId) {
       step.jumpTo = "";
-    }
-    if (step.type === "branch") {
-      if (step.branchA.jumpTo === deletedId) step.branchA.jumpTo = undefined;
-      if (step.branchB.jumpTo === deletedId) step.branchB.jumpTo = undefined;
     }
     if (step.type === "validation" && step.inlineBranch?.ngJumpTo === deletedId) {
       step.inlineBranch.ngJumpTo = undefined;
     }
-    if (step.subSteps) {
-      clearJumpReferences(step.subSteps, deletedId);
-    }
-  }
+  });
 }
 
 /**
