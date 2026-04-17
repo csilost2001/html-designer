@@ -23,11 +23,12 @@ import {
   removeStep,
   moveStep,
   addSubStep,
-  removeSubStep,
 } from "../../store/actionStore";
 import { listTables } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
+import { validateActionGroup, hasBlockingErrors } from "../../utils/actionValidation";
+import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import {
@@ -97,7 +98,14 @@ function StepInsertZone({ index, onClick, onPaste }: { index: number; onClick: (
 
 const ALL_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
-  "screenTransition", "displayUpdate", "branch", "jump", "other",
+  "screenTransition", "displayUpdate", "branch", "loop",
+  "loopBreak", "loopContinue", "jump", "other",
+];
+
+const ALL_SUB_STEP_TYPES: StepType[] = [
+  "validation", "dbAccess", "externalSystem", "commonProcess",
+  "screenTransition", "displayUpdate", "branch", "loop",
+  "loopBreak", "loopContinue", "jump", "other",
 ];
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];
@@ -114,7 +122,9 @@ export function ActionEditor() {
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
   const [commonGroups, setCommonGroups] = useState<{ id: string; name: string }[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string; parentStepId?: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
+  const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newStepIdsRef = useRef<Set<string>>(new Set());
 
@@ -126,8 +136,9 @@ export function ActionEditor() {
   } | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
 
-  // 自動保存 (debounce 500ms)
+  // 自動保存 (debounce 500ms) — blocking error があれば保存しない
   const scheduleSave = useCallback((updatedGroup: ActionGroup) => {
+    if (hasBlockingErrors(validateActionGroup(updatedGroup))) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       await saveActionGroup(updatedGroup);
@@ -195,6 +206,10 @@ export function ActionEditor() {
     });
     return unsub;
   }, [reload]);
+
+  useEffect(() => {
+    setValidationErrors(group ? validateActionGroup(group) : []);
+  }, [group]);
 
   /** 構造変化（履歴に積む）: ステップ追加・削除・移動、アクション追加・削除 */
   const updateGroup = useCallback(
@@ -273,19 +288,48 @@ export function ActionEditor() {
     setShowTemplates(false);
   };
 
-  const handleDeleteStep = (stepId: string, parentStepId?: string) => {
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+    setContextMenuSubTypePicker(false);
+  }, []);
+
+  const handleDeleteStep = (stepId: string) => {
     updateGroup((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
-      if (parentStepId) {
-        const parent = act.steps.find((s) => s.id === parentStepId);
-        if (parent) removeSubStep(parent, stepId);
-      } else {
-        clearJumpReferences(act.steps, stepId);
-        removeStep(act, stepId);
-      }
+      clearJumpReferences(act.steps, stepId);
+      removeStep(act, stepId);
     });
-    setContextMenu(null);
+    closeContextMenu();
+  };
+
+  const handleIndentStep = (stepId: string) => {
+    updateGroup((g) => {
+      const act = g.actions.find((a) => a.id === activeActionId);
+      if (!act) return;
+      const idx = act.steps.findIndex((s) => s.id === stepId);
+      if (idx <= 0) return;
+      const stepToMove = act.steps[idx];
+      const target = { ...act.steps[idx - 1] };
+      target.subSteps = [...(target.subSteps ?? []), stepToMove];
+      act.steps[idx - 1] = target;
+      act.steps.splice(idx, 1);
+    });
+  };
+
+  const handleOutdentSubStep = (parentStepId: string, subStepId: string) => {
+    updateGroup((g) => {
+      const act = g.actions.find((a) => a.id === activeActionId);
+      if (!act) return;
+      const parentIdx = act.steps.findIndex((s) => s.id === parentStepId);
+      if (parentIdx < 0) return;
+      const parent = act.steps[parentIdx];
+      const subIdx = (parent.subSteps ?? []).findIndex((s) => s.id === subStepId);
+      if (subIdx < 0) return;
+      const subStep = parent.subSteps![subIdx];
+      act.steps[parentIdx] = { ...parent, subSteps: parent.subSteps!.filter((s) => s.id !== subStepId) };
+      act.steps.splice(parentIdx + 1, 0, subStep);
+    });
   };
 
   const handleMoveStep = (fromIndex: number, toIndex: number) => {
@@ -332,7 +376,7 @@ export function ActionEditor() {
       const parent = act.steps.find((s) => s.id === parentStepId);
       if (parent) addSubStep(parent, type);
     });
-    setContextMenu(null);
+    closeContextMenu();
   };
 
   const handleDuplicateStep = (stepId: string) => {
@@ -348,7 +392,7 @@ export function ActionEditor() {
       }
       act.steps.splice(idx + 1, 0, clone);
     });
-    setContextMenu(null);
+    closeContextMenu();
   };
 
   const handleGroupInfoChange = (field: string, value: string) => {
@@ -452,7 +496,7 @@ export function ActionEditor() {
   if (!group) return null;
 
   return (
-    <div className="action-page" onClick={() => setContextMenu(null)}>
+    <div className="action-page" onClick={() => closeContextMenu()}>
       <TableTopbar projectName={projectName} />
 
       {/* ヘッダー */}
@@ -479,6 +523,18 @@ export function ActionEditor() {
           >
             <i className="bi bi-arrow-clockwise" />
           </button>
+          {validationErrors.filter((e) => e.severity === "error").length > 0 && (
+            <span className="validation-badge error">
+              <i className="bi bi-x-circle-fill" />
+              {validationErrors.filter((e) => e.severity === "error").length} エラー
+            </span>
+          )}
+          {validationErrors.filter((e) => e.severity === "warning").length > 0 && (
+            <span className="validation-badge warning">
+              <i className="bi bi-exclamation-triangle-fill" />
+              {validationErrors.filter((e) => e.severity === "warning").length} 警告
+            </span>
+          )}
         </div>
       </div>
 
@@ -652,7 +708,6 @@ export function ActionEditor() {
                           onDelete={() => handleDeleteStep(step.id)}
                           onDuplicate={() => handleDuplicateStep(step.id)}
                           onAddSubStep={(type) => handleAddSubStep(step.id, type)}
-                          onDeleteSubStep={(subId) => handleDeleteStep(subId, step.id)}
                           onContextMenu={(e) => {
                             e.preventDefault();
                             setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
@@ -661,6 +716,9 @@ export function ActionEditor() {
                           defaultExpanded={newStepIdsRef.current.has(step.id)}
                           selected={selectedIds.has(step.id)}
                           onHeaderClick={(e) => handleStepClick(step.id, e)}
+                          onIndent={index > 0 ? () => handleIndentStep(step.id) : undefined}
+                          onOutdentSubStep={(subId) => handleOutdentSubStep(step.id, subId)}
+                          validationErrors={validationErrors}
                         />
                       </div>
                     ))}
@@ -690,25 +748,49 @@ export function ActionEditor() {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            className="step-context-menu-item"
-            onClick={() => handleDuplicateStep(contextMenu.stepId)}
-          >
-            <i className="bi bi-copy" /> 複製
-          </button>
-          <button
-            className="step-context-menu-item"
-            onClick={() => handleAddSubStep(contextMenu.stepId, "other")}
-          >
-            <i className="bi bi-diagram-2" /> サブステップ追加
-          </button>
-          <div className="step-context-menu-sep" />
-          <button
-            className="step-context-menu-item danger"
-            onClick={() => handleDeleteStep(contextMenu.stepId)}
-          >
-            <i className="bi bi-trash" /> 削除
-          </button>
+          {!contextMenuSubTypePicker ? (
+            <>
+              <button
+                className="step-context-menu-item"
+                onClick={() => handleDuplicateStep(contextMenu.stepId)}
+              >
+                <i className="bi bi-copy" /> 複製
+              </button>
+              <button
+                className="step-context-menu-item"
+                onClick={() => setContextMenuSubTypePicker(true)}
+              >
+                <i className="bi bi-diagram-2" /> サブステップ追加 ▶
+              </button>
+              <div className="step-context-menu-sep" />
+              <button
+                className="step-context-menu-item danger"
+                onClick={() => handleDeleteStep(contextMenu.stepId)}
+              >
+                <i className="bi bi-trash" /> 削除
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="step-context-menu-item"
+                onClick={() => setContextMenuSubTypePicker(false)}
+              >
+                <i className="bi bi-arrow-left" /> 戻る
+              </button>
+              <div className="step-context-menu-sep" />
+              {ALL_SUB_STEP_TYPES.map((t) => (
+                <button
+                  key={t}
+                  className="step-context-menu-item"
+                  onClick={() => { handleAddSubStep(contextMenu.stepId, t); }}
+                >
+                  <i className={`bi ${STEP_TYPE_ICONS[t]}`} style={{ color: STEP_TYPE_COLORS[t] }} />
+                  {" "}{STEP_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
 
