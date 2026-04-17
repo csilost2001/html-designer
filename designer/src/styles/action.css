@@ -108,6 +108,56 @@
   margin-top: 8px;
 }
 
+.action-group-card.selected {
+  outline: 2px solid #6366f1;
+  background-color: rgba(99, 102, 241, 0.04);
+}
+
+.action-group-card.has-error {
+  background-color: #fff5f5;
+  border-color: #fecaca;
+}
+
+.action-group-card.has-error:hover {
+  border-color: #f87171;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+}
+
+.action-group-card.has-warning:not(.has-error) {
+  background-color: #fffbeb;
+  border-color: #fde68a;
+}
+
+.action-group-card.has-warning:not(.has-error):hover {
+  border-color: #fbbf24;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+.action-validation-badges {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.action-list-filter-sep {
+  width: 1px;
+  background: #e2e8f0;
+  margin: 0 4px;
+  align-self: stretch;
+}
+
+.action-list-check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+}
+
 /* ─── 処理フロー編集 ─────────────────────────────────────────────── */
 
 .action-editor-header {
