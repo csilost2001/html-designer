@@ -291,9 +291,20 @@ function toSpecStep(s: Step, index: number): SpecStep {
       detail.target = s.target;
       break;
     case "branch":
-      detail.condition = s.condition;
-      detail.branchA = s.branchA;
-      detail.branchB = s.branchB;
+      detail.branches = s.branches;
+      if (s.elseBranch) detail.elseBranch = s.elseBranch;
+      break;
+    case "loop":
+      detail.loopKind = s.loopKind;
+      if (s.countExpression) detail.countExpression = s.countExpression;
+      if (s.conditionMode) detail.conditionMode = s.conditionMode;
+      if (s.conditionExpression) detail.conditionExpression = s.conditionExpression;
+      if (s.collectionSource) detail.collectionSource = s.collectionSource;
+      if (s.collectionItemName) detail.collectionItemName = s.collectionItemName;
+      detail.steps = s.steps;
+      break;
+    case "loopBreak":
+    case "loopContinue":
       break;
     case "jump":
       detail.jumpTo = s.jumpTo;

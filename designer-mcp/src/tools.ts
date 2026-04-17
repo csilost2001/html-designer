@@ -522,6 +522,95 @@ export const tools = [
     },
   },
 
+  // ── タブ管理・保存操作ツール ──
+
+  {
+    name: "designer__open_tab",
+    description:
+      "指定した画面またはテーブルをブラウザのタブで開きます。既に開いている場合はそのタブに切り替えます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: {
+          type: "string",
+          description: "開く画面のID（designer__list_screens で取得）",
+        },
+        tableId: {
+          type: "string",
+          description: "開くテーブルのID（designer__list_tables で取得）",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "designer__close_tab",
+    description: "指定したタブを閉じます。未保存の変更がある場合は force: true で強制閉じできます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tabId: {
+          type: "string",
+          description: "閉じるタブのID（designer__list_tabs で取得）",
+        },
+        force: {
+          type: "boolean",
+          description: "未保存の変更があっても強制的に閉じる（デフォルト: false）",
+        },
+      },
+      required: ["tabId"],
+    },
+  },
+  {
+    name: "designer__list_tabs",
+    description:
+      "現在ブラウザで開いているタブの一覧と各タブの未保存状態を取得します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__switch_tab",
+    description: "指定したタブをアクティブにします。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        tabId: {
+          type: "string",
+          description: "アクティブにするタブのID（designer__list_tabs で取得）",
+        },
+      },
+      required: ["tabId"],
+    },
+  },
+  {
+    name: "designer__save_screen",
+    description:
+      "指定した画面の変更をファイルに永続化します。ブラウザのキャッシュをサーバーのファイルに書き込みます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: {
+          type: "string",
+          description: "保存する画面のID",
+        },
+      },
+      required: ["screenId"],
+    },
+  },
+  {
+    name: "designer__save_all",
+    description:
+      "未保存の変更がある全タブをまとめてファイルに永続化します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+
   // ── 処理フロー定義ツール ──
 
   {
