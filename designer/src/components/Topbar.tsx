@@ -40,9 +40,11 @@ interface Props {
   onThemeChange: (theme: ThemeId) => void;
   mcpStatus: McpStatus;
   backLink?: BackLink;
+  isDirty?: boolean;
+  onSaveToFile?: () => Promise<void>;
 }
 
-export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink }: Props) {
+export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, onSaveToFile }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
@@ -107,7 +109,7 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
       editor?.DomComponents.clear();
     }
   };
-  const handleSaveNow = () => editor?.store();
+  const handleSaveNow = () => onSaveToFile?.();
 
   const handleOpenCodeEditor = useCallback(() => {
     if (!editor) return;
@@ -224,7 +226,7 @@ ${html}
 
       if (ctrl && e.key === "s") {
         e.preventDefault();
-        editor.store();
+        onSaveToFile?.();
       } else if (ctrl && e.key === "p") {
         e.preventDefault();
         editor.runCommand("preview");
@@ -400,26 +402,21 @@ ${html}
           )}
         </div>
         <div className="divider" />
-        <span className={`save-indicator ${saveState}`}>
-          {saveState === "saving" && (
-            <>
-              <i className="bi bi-arrow-repeat spin" /> 保存中...
-            </>
-          )}
-          {saveState === "saved" && (
-            <>
-              <i className="bi bi-check-circle-fill" /> 保存済み
-            </>
-          )}
-          {saveState === "idle" && ready && (
-            <>
-              <i className="bi bi-cloud-check" /> 自動保存ON
-            </>
-          )}
-        </span>
-        <button className="btn-primary-sm" onClick={handleSaveNow} title="今すぐ保存 (Ctrl+S)">
-          <i className="bi bi-save" /> 今すぐ保存
-        </button>
+        {isDirty ? (
+          <button
+            className="btn-primary-sm"
+            onClick={handleSaveNow}
+            title="変更を保存 (Ctrl+S)"
+            disabled={!ready}
+            style={{ background: "#f59e0b", animation: "none" }}
+          >
+            <i className="bi bi-save" /> 保存
+          </button>
+        ) : (
+          <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden" }}>
+            <i className="bi bi-check-circle-fill" /> 保存済み
+          </span>
+        )}
         <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
           <i className="bi bi-download" /> HTMLエクスポート
         </button>
