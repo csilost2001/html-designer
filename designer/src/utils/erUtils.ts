@@ -46,7 +46,7 @@ export function convertLogicalRelations(
   const tableIdMap = new Map(tables.map((t) => [t.id, t]));
 
   return logicals
-    .map((lr) => {
+    .map((lr): ErRelation | null => {
       const src = tableIdMap.get(lr.sourceTableId);
       const tgt = tableIdMap.get(lr.targetTableId);
       if (!src || !tgt) return null;
@@ -61,7 +61,7 @@ export function convertLogicalRelations(
         cardinality: lr.cardinality,
         physical: false,
         label: lr.label,
-      } satisfies ErRelation;
+      };
     })
     .filter((r): r is ErRelation => r !== null);
 }
