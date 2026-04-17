@@ -3,6 +3,16 @@ import html2canvas from "html2canvas";
 import { generateUUID } from "../utils/uuid";
 import type { ScreenType, TransitionTrigger } from "../types/flow";
 import {
+  openTab,
+  closeTab,
+  setActiveTab,
+  getTabs,
+  getActiveTabId,
+  makeTabId,
+  setDirty,
+} from "../store/tabStore";
+import { saveScreenToFile } from "../grapes/remoteStorage";
+import {
   loadProject,
   addScreen,
   updateScreen,
@@ -35,6 +45,7 @@ import {
   setActionStorageBackend,
   type ActionStorageBackend,
 } from "../store/actionStore";
+import { loadTable } from "../store/tableStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
@@ -341,11 +352,12 @@ class McpBridgeImpl {
       }
     };
 
-    // フロー操作はエディター不要
+    // フロー操作・タブ操作はエディター不要
     const flowMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
       "listCustomBlocks",
+      "openTab", "closeTab", "switchTab", "listTabs", "saveScreen", "saveAll",
     ];
 
     if (!this.editor && !flowMethods.includes(method)) {
@@ -735,6 +747,95 @@ class McpBridgeImpl {
           const screen = project.screens.find((s) => s.id === screenId);
           const screenName = screen?.name ?? "Screen";
           respond({ html, css, screenName });
+          break;
+        }
+
+        // ── タブ操作 ──────────────────────────────────────────────────────
+
+        case "openTab": {
+          const { screenId: tScreenId, tableId: tTableId } = (params ?? {}) as {
+            screenId?: string;
+            tableId?: string;
+          };
+          if (tScreenId) {
+            const project = await loadProject();
+            const screen = project.screens.find((s) => s.id === tScreenId);
+            if (!screen) { respondError(`画面が見つかりません: ${tScreenId}`); break; }
+            openTab({ id: makeTabId("design", tScreenId), type: "design", resourceId: tScreenId, label: screen.name });
+            if (this.navigateHandler) this.navigateHandler(`/design/${tScreenId}`);
+          } else if (tTableId) {
+            const table = await loadTable(tTableId);
+            if (!table) { respondError(`テーブルが見つかりません: ${tTableId}`); break; }
+            openTab({ id: makeTabId("table", tTableId), type: "table", resourceId: tTableId, label: table.logicalName ?? table.name });
+            if (this.navigateHandler) this.navigateHandler(`/tables/${tTableId}`);
+          } else {
+            respondError("screenId または tableId が必要です");
+            break;
+          }
+          respond({ success: true });
+          break;
+        }
+
+        case "closeTab": {
+          const { tabId: cTabId, force } = (params ?? {}) as { tabId: string; force?: boolean };
+          if (!cTabId) { respondError("tabId は必須です"); break; }
+          const closed = closeTab(cTabId, force ?? false);
+          if (!closed) { respondError("未保存の変更があります。force: true を指定して強制閉じできます"); break; }
+          respond({ success: true });
+          break;
+        }
+
+        case "switchTab": {
+          const { tabId: sTabId } = (params ?? {}) as { tabId: string };
+          if (!sTabId) { respondError("tabId は必須です"); break; }
+          const tabs = getTabs();
+          if (!tabs.find((t) => t.id === sTabId)) { respondError(`タブが見つかりません: ${sTabId}`); break; }
+          setActiveTab(sTabId);
+          const tab = tabs.find((t) => t.id === sTabId)!;
+          if (this.navigateHandler) {
+            const path = tab.type === "design" ? `/design/${tab.resourceId}` : `/tables/${tab.resourceId}`;
+            this.navigateHandler(path);
+          }
+          respond({ success: true });
+          break;
+        }
+
+        case "listTabs": {
+          const allTabs = getTabs().map((t) => ({
+            id: t.id,
+            type: t.type,
+            resourceId: t.resourceId,
+            label: t.label,
+            isDirty: t.isDirty,
+            isPinned: t.isPinned,
+            isActive: t.id === getActiveTabId(),
+          }));
+          respond({ tabs: allTabs, activeTabId: getActiveTabId() });
+          break;
+        }
+
+        case "saveScreen": {
+          const { screenId: saveScreenId } = (params ?? {}) as { screenId: string };
+          if (!saveScreenId) { respondError("screenId は必須です"); break; }
+          await saveScreenToFile(saveScreenId);
+          setDirty(makeTabId("design", saveScreenId), false);
+          respond({ success: true });
+          break;
+        }
+
+        case "saveAll": {
+          const dirtyTabs = getTabs().filter((t) => t.isDirty && t.type === "design");
+          const results: { screenId: string; success: boolean; error?: string }[] = [];
+          for (const tab of dirtyTabs) {
+            try {
+              await saveScreenToFile(tab.resourceId);
+              setDirty(tab.id, false);
+              results.push({ screenId: tab.resourceId, success: true });
+            } catch (e) {
+              results.push({ screenId: tab.resourceId, success: false, error: String(e) });
+            }
+          }
+          respond({ saved: results.filter((r) => r.success).length, total: dirtyTabs.length, results });
           break;
         }
 
