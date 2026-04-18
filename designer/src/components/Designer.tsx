@@ -130,6 +130,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const [isSaving, setIsSaving] = useState(false);
   const [serverChanged, setServerChanged] = useState(false);
   const isDirtyRef = useRef(false);
+  const isResettingRef = useRef(false);
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
@@ -204,6 +205,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
     // 変更検知: component 操作または style 変更でdirtyフラグを立てる
     const markDirty = () => {
+      if (isResettingRef.current) return;
       setIsDirtyState(true);
       isDirtyRef.current = true;
       setDirty(tabId, true);
@@ -334,10 +336,12 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const handleReset = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor) return;
-    // ドラフトマーカーを解除してからロード（load() が backend を優先するように）
     clearScreenDraft(screenId);
+    isResettingRef.current = true;
     try {
       await editor.load();
+      // autosave が store() を呼んで draftKey を復元するケースを防ぐ
+      clearScreenDraft(screenId);
       editor.UndoManager.clear();
       setIsDirtyState(false);
       isDirtyRef.current = false;
@@ -347,6 +351,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } catch (e) {
       console.error("[Designer] reset failed:", e);
       alert("リセットに失敗しました: " + String(e));
+    } finally {
+      isResettingRef.current = false;
     }
   }, [screenId, tabId]);
 
