@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { TableDefinition, TableColumn, TableIndex, SqlDialect, ColumnTemplate } from "../../types/table";
 import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, SQL_DIALECT_LABELS, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
@@ -7,12 +7,8 @@ import { loadTable, saveTable, addColumn, removeColumn, addIndex, removeIndex } 
 import { listTables } from "../../store/tableStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
-import { useUndoableState } from "../../hooks/useUndoableState";
-import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
-import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
-import { saveDraft, loadDraft, clearDraft, hasDraft } from "../../utils/draftStorage";
-import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
 import { SaveResetButtons } from "../common/SaveResetButtons";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/table.css";
@@ -26,55 +22,34 @@ export function TableEditor() {
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
-  const [isDirty, setIsDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [serverChanged, setServerChanged] = useState(false);
-  const lastSavedRef = useRef<TableDefinition | null>(null);
+
+  const handleNotFound = useCallback(() => navigate("/tables"), [navigate]);
 
   const {
     state: table,
-    updateAndCommit,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    reset: resetTable,
-  } = useUndoableState<TableDefinition | null>(null);
+    isDirty, isSaving, serverChanged,
+    update, undo, redo, canUndo, canRedo,
+    handleSave, handleReset, dismissServerBanner,
+  } = useResourceEditor<TableDefinition>({
+    tabType: "table",
+    mtimeKind: "table",
+    draftKind: "table",
+    id: tableId,
+    load: loadTable,
+    save: saveTable,
+    broadcastName: "tableChanged",
+    broadcastIdField: "tableId",
+    onNotFound: handleNotFound,
+  });
 
-  useUndoKeyboard(undo, redo);
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving) handleSave();
+  });
 
-  const markClean = useCallback(() => {
-    if (!tableId) return;
-    clearDraft("table", tableId);
-    setIsDirty(false);
-    setTabDirty(makeTabId("table", tableId), false);
-  }, [tableId]);
-
+  // FK 選択用に他テーブル一覧を別途ロード
   useEffect(() => {
     mcpBridge.startWithoutEditor();
-    if (!tableId) return;
     (async () => {
-      const t = await loadTable(tableId);
-      if (!t) { navigate("/tables"); return; }
-      lastSavedRef.current = t;
-      const draft = loadDraft<TableDefinition>("table", tableId);
-      if (draft) {
-        resetTable(draft);
-        setIsDirty(true);
-        setTabDirty(makeTabId("table", tableId), true);
-      } else {
-        resetTable(t);
-        setIsDirty(false);
-        setTabDirty(makeTabId("table", tableId), false);
-      }
-      // タブを開いた時点でサーバー側に新しい変更がないか確認（ドラフトが古い版に基づいている場合に備えて）
-      if (hasDraft("table", tableId)) {
-        if (await hasServerBeenUpdated("table", tableId)) {
-          setServerChanged(true);
-        }
-      } else {
-        await acknowledgeServerMtime("table", tableId);
-      }
       const tl = await listTables();
       const allTds: TableDefinition[] = [];
       for (const m of tl) {
@@ -83,62 +58,7 @@ export function TableEditor() {
       }
       setAllTables(allTds);
     })();
-  }, [tableId, navigate, resetTable]);
-
-  useEffect(() => {
-    if (!tableId) return;
-    return mcpBridge.onBroadcast("tableChanged", (data) => {
-      const d = data as { tableId?: string };
-      if (d.tableId === tableId) setServerChanged(true);
-    });
   }, [tableId]);
-
-  useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
-  });
-
-  const update = useCallback((fn: (t: TableDefinition) => void) => {
-    updateAndCommit((prev) => {
-      if (!prev) return prev;
-      const next = structuredClone(prev);
-      fn(next);
-      if (tableId) {
-        saveDraft("table", tableId, next);
-        setTabDirty(makeTabId("table", tableId), true);
-      }
-      return next;
-    });
-    setIsDirty(true);
-  }, [updateAndCommit, tableId]);
-
-  const handleSave = useCallback(async () => {
-    if (!table || !tableId) return;
-    setIsSaving(true);
-    try {
-      await saveTable(table);
-      lastSavedRef.current = table;
-      markClean();
-      await acknowledgeServerMtime("table", tableId);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [table, tableId, markClean]);
-
-  const handleReset = useCallback(async () => {
-    if (!tableId) return;
-    const t = await loadTable(tableId);
-    if (!t) return;
-    lastSavedRef.current = t;
-    resetTable(t);
-    markClean();
-    setServerChanged(false);
-    await acknowledgeServerMtime("table", tableId);
-  }, [tableId, resetTable, markClean]);
-
-  const handleServerReload = useCallback(async () => {
-    await handleReset();
-    setServerChanged(false);
-  }, [handleReset]);
 
   if (!table) {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
@@ -149,7 +69,7 @@ export function TableEditor() {
   return (
     <div className="table-editor-page">
       {serverChanged && (
-        <ServerChangeBanner onReload={handleServerReload} onDismiss={() => setServerChanged(false)} />
+        <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
 
       {/* Header */}
