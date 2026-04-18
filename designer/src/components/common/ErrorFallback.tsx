@@ -1,5 +1,5 @@
-import { clearErrorLog, getErrorLog } from "../../utils/errorLog";
 import "../../styles/errorFallback.css";
+import { ErrorDetailsPanel } from "./ErrorDetailsPanel";
 
 interface AppFallbackProps {
   error: Error;
@@ -17,32 +17,16 @@ export function AppErrorFallback({ error, onReset }: AppFallbackProps) {
     location.href = "/";
   };
 
-  const handleDownloadLog = () => {
-    const blob = new Blob([JSON.stringify(getErrorLog(), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `designer-error-log-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="app-error-fallback" role="alert">
       <div className="app-error-fallback-panel">
         <h1><i className="bi bi-exclamation-octagon-fill" /> アプリでエラーが発生しました</h1>
         <p>画面を復元できませんでした。タブ情報が壊れている可能性があります。</p>
-        <pre className="app-error-message">{error.message}</pre>
+        <ErrorDetailsPanel message={error.message} stack={error.stack} />
         <div className="app-error-actions">
           <button className="btn btn-primary" onClick={onReset}>再試行</button>
           <button className="btn btn-warning" onClick={handleResetStorage}>
             タブ状態をリセットして開き直す
-          </button>
-          <button className="btn btn-secondary" onClick={handleDownloadLog}>
-            エラーログをダウンロード
-          </button>
-          <button className="btn btn-link" onClick={() => { clearErrorLog(); alert("エラーログを消去しました"); }}>
-            エラーログ消去
           </button>
         </div>
       </div>
@@ -66,7 +50,11 @@ export function TabErrorFallback({ error, tabLabel, onRetry, onClose }: TabFallb
           <i className="bi bi-exclamation-triangle-fill" /> 「{tabLabel}」を表示できませんでした
         </h2>
         <p>このタブの描画中にエラーが発生しました。他のタブは引き続き利用できます。</p>
-        <pre className="tab-error-message">{error.message}</pre>
+        <ErrorDetailsPanel
+          message={error.message}
+          stack={error.stack}
+          context={{ tabLabel }}
+        />
         <div className="tab-error-actions">
           <button className="btn btn-primary" onClick={onRetry}>再試行</button>
           <button className="btn btn-outline-danger" onClick={onClose}>このタブを閉じる</button>

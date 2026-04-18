@@ -55,6 +55,7 @@ import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { openTab, makeTabId } from "../../store/tabStore";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { useErrorDialog } from "../common/ErrorDialogProvider";
 import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
 import { hasDraft } from "../../utils/draftStorage";
 import "../../styles/flow.css";
@@ -123,6 +124,7 @@ function FlowEditorInner() {
   const navigate = useNavigate();
   const projectRef = useRef<FlowProject | null>(null);
   const { fitView, zoomTo } = useReactFlow();
+  const { showError } = useErrorDialog();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
@@ -714,9 +716,12 @@ function FlowEditorInner() {
       setProjectName(imported.name);
       needsFitViewRef.current = imported.screens.length > 0;
     } catch (e) {
-      alert(`インポートに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      showError({
+        title: "プロジェクトのインポートに失敗しました",
+        error: e,
+      });
     }
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, showError]);
 
   const handleZoomChange = useCallback((zoom: number) => {
     const clamped = Math.min(2, Math.max(0.25, zoom));
@@ -732,9 +737,13 @@ function FlowEditorInner() {
     const mermaid = generateMermaid(projectRef.current);
     navigator.clipboard.writeText(mermaid).then(
       () => alert("Mermaid 記法をクリップボードにコピーしました"),
-      () => alert("クリップボードへのコピーに失敗しました"),
+      (e) => showError({
+        title: "クリップボードへのコピーに失敗しました",
+        error: e,
+        message: e instanceof Error ? e.message : "ブラウザがクリップボードへのアクセスを拒否した可能性があります。",
+      }),
     );
-  }, []);
+  }, [showError]);
 
   const handleExportMarkdown = useCallback(() => {
     if (!projectRef.current) return;
@@ -759,11 +768,14 @@ function FlowEditorInner() {
       await acknowledgeServerMtime("project");
     } catch (e) {
       console.error("[FlowEditor] save failed:", e);
-      alert("保存に失敗しました: " + String(e));
+      showError({
+        title: "画面フローの保存に失敗しました",
+        error: e,
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving]);
+  }, [isSaving, showError]);
 
   const handleReset = useCallback(async () => {
     clearFlowDraft();

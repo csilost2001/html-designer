@@ -28,6 +28,7 @@ import { useTabKeyboard } from "../hooks/useTabKeyboard";
 import { ErrorBoundary } from "./common/ErrorBoundary";
 import { TabErrorFallback } from "./common/ErrorFallback";
 import { ResourceLoading } from "./common/ResourceLoading";
+import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { recordError } from "../utils/errorLog";
 
 function useTabs() {
@@ -46,6 +47,7 @@ export function AppShell() {
   const { tabs, activeTabId } = useTabs();
   const location = useLocation();
   const navigate = useNavigate();
+  const { showError } = useErrorDialog();
   useTabKeyboard();
 
   // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
@@ -62,16 +64,18 @@ export function AppShell() {
   // ブラウザが握っている URL を「存在しないリソース」のまま放置すると次回リロードで
   // また袋小路に入るため、URL 自体も / に書き換える。
   const fallbackToDashboard = (kind: string, id: string) => {
+    const msg = `URL が指すリソース (${kind}: ${id}) が見つかりません。ダッシュボードへフォールバック。`;
     recordError({
       source: "manual",
-      message: `URL が指すリソース (${kind}: ${id}) が見つかりません。ダッシュボードへフォールバック。`,
+      message: msg,
       context: { kind, id, pathname: location.pathname },
     });
-    if (typeof window !== "undefined") {
-      // ユーザーに明示。alert は UI ブロッキングだがトースト基盤が未導入なので暫定採用。
-      // 置き換えは将来の共通トースト導入時に実施する。
-      alert(`指定された${kind}が見つかりません。ダッシュボードに戻ります。`);
-    }
+    showError({
+      title: `${kind}が見つかりません`,
+      message: `指定された${kind} (${id}) は存在しないか削除されています。ダッシュボードに戻ります。`,
+      context: { kind, id, pathname: location.pathname },
+      skipLogRecord: true, // 直前に recordError 済み
+    });
     navigate("/", { replace: true });
   };
 
