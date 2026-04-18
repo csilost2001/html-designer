@@ -1,13 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { EditorHeader } from "../common/EditorHeader";
 
-export type ViewMode = "flow" | "table";
-
 interface Props {
   projectName: string;
   screenCount: number;
   zoomLevel: number;
-  viewMode: ViewMode;
   onAddScreen: () => void;
   onAddGroup: () => void;
   onRenameProject: (name: string) => void;
@@ -18,7 +15,6 @@ interface Props {
   onExportMarkdown: () => void;
   onZoomChange: (zoom: number) => void;
   onFitView: () => void;
-  onViewModeChange: (mode: ViewMode) => void;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -30,10 +26,10 @@ interface Props {
 }
 
 export function FlowSubToolbar({
-  projectName, screenCount, zoomLevel, viewMode,
+  projectName, screenCount, zoomLevel,
   onAddScreen, onAddGroup, onRenameProject, onClearAll,
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
-  onZoomChange, onFitView, onViewModeChange,
+  onZoomChange, onFitView,
   onUndo, onRedo, canUndo, canRedo,
   isDirty, isSaving, onSave, onReset,
 }: Props) {
@@ -108,26 +104,9 @@ export function FlowSubToolbar({
       }
       centerTools={
         <>
-          <div className="flow-view-toggle">
-            <button
-              className={`flow-view-btn${viewMode === "flow" ? " active" : ""}`}
-              onClick={() => onViewModeChange("flow")}
-              title="フロー図"
-            >
-              <i className="bi bi-diagram-3" /> フロー図
-            </button>
-            <button
-              className={`flow-view-btn${viewMode === "table" ? " active" : ""}`}
-              onClick={() => onViewModeChange("table")}
-              title="一覧"
-            >
-              <i className="bi bi-table" /> 一覧
-            </button>
-          </div>
-          <span className="flow-zoom-separator" />
           <span className="flow-topbar-screen-count">{screenCount} 画面</span>
           <span className="flow-zoom-separator" />
-          <div className={`flow-zoom-control${viewMode === "table" ? " hidden" : ""}`}>
+          <div className="flow-zoom-control">
             <button
               className="flow-zoom-btn"
               onClick={() => onZoomChange(zoomLevel - 0.1)}
@@ -152,15 +131,13 @@ export function FlowSubToolbar({
             </button>
             <span className="flow-zoom-label">{Math.round(zoomLevel * 100)}%</span>
           </div>
-          {viewMode === "flow" && (
-            <button
-              className="flow-btn flow-btn-ghost flow-fit-view-btn"
-              onClick={onFitView}
-              title="全体表示"
-            >
-              <i className="bi bi-arrows-fullscreen" />
-            </button>
-          )}
+          <button
+            className="flow-btn flow-btn-ghost flow-fit-view-btn"
+            onClick={onFitView}
+            title="全体表示"
+          >
+            <i className="bi bi-arrows-fullscreen" />
+          </button>
         </>
       }
       undoRedo={onUndo && onRedo ? { onUndo, onRedo, canUndo: !!canUndo, canRedo: !!canRedo } : undefined}
@@ -207,11 +184,9 @@ export function FlowSubToolbar({
             />
           </div>
 
-          {viewMode === "flow" && (
-            <button className="flow-btn flow-btn-secondary" onClick={onAddGroup} title="グループを追加">
-              <i className="bi bi-collection" /> グループ
-            </button>
-          )}
+          <button className="flow-btn flow-btn-secondary" onClick={onAddGroup} title="グループを追加">
+            <i className="bi bi-collection" /> グループ
+          </button>
           <button className="flow-btn flow-btn-primary" onClick={onAddScreen}>
             <i className="bi bi-plus-lg" /> 画面を追加
           </button>

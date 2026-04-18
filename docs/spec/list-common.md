@@ -16,7 +16,7 @@ Issue: [#133](https://github.com/csilost2001/html-designer/issues/133)
 
 | 機能名 | ルート | 既定表示 | 切替 UI |
 |---|---|---|---|
-| 画面一覧 | `/screen/list` (新設) | 未定 (実装時に決める) | カード ⇔ 表 |
+| 画面一覧 | `/screen/list` | カード | カード ⇔ 表 |
 | テーブル一覧 | `/table/list` | カード | カード ⇔ 表 |
 | 処理フロー一覧 | `/process-flow/list` | カード | カード ⇔ 表 |
 | テーブル定義 > カラム一覧 | `/table/edit/:id` 内のカラムタブ | 表 | 不要 |

@@ -10,6 +10,7 @@ export type TabType =
   | "action"          // 処理フロー編集
   // シングルトン（1 インスタンス固定。resourceId は "main" で統一）
   | "screen-flow"        // 画面フロー図
+  | "screen-list"        // 画面一覧 (#133 Phase C)
   | "table-list"         // テーブル一覧
   | "er"                 // ER 図
   | "process-flow-list"  // 処理フロー一覧
@@ -17,7 +18,7 @@ export type TabType =
 
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
   "design", "table", "action",
-  "screen-flow", "table-list", "er", "process-flow-list", "dashboard",
+  "screen-flow", "screen-list", "table-list", "er", "process-flow-list", "dashboard",
 ]);
 
 export interface TabItem {

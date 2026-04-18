@@ -1,0 +1,192 @@
+/* ==========================================================================
+   画面一覧 (/screen/list) — #133
+   ========================================================================== */
+
+.screen-list-page {
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  color: #1e293b;
+  padding: 16px;
+  gap: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.screen-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.screen-list-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.screen-list-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.screen-list-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.screen-list-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.screen-list-search > i {
+  position: absolute;
+  left: 8px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.screen-list-search input {
+  padding: 5px 28px 5px 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  outline: none;
+  min-width: 240px;
+}
+
+.screen-list-search input:focus {
+  border-color: #6366f1;
+}
+
+.screen-list-search .clear-btn {
+  position: absolute;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.screen-list-search .clear-btn:hover {
+  color: #475569;
+}
+
+.screen-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ── カードレンダラ ─────────────────────────────────────────────────── */
+
+.screen-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.screen-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.screen-card-icon {
+  color: #6366f1;
+  font-size: 14px;
+}
+
+.screen-card-name {
+  font-weight: 600;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen-card-path {
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 12px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #94a3b8;
+  gap: 8px;
+}
+
+.screen-card-date {
+  white-space: nowrap;
+}
+
+/* ── 表レンダラ内で使う共通バッジ類 ───────────────────────────────── */
+
+.screen-table-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.screen-table-icon {
+  color: #6366f1;
+}
+
+.screen-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.screen-design-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.screen-design-badge.empty {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.screen-table-empty-cell {
+  color: #cbd5e1;
+}
+
+.screen-table-date {
+  font-size: 12px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}

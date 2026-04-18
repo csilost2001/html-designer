@@ -18,7 +18,11 @@ type MenuItem = {
 const MENU_ITEMS: MenuItem[] = [
   {
     id: "screen-flow", label: "画面フロー", icon: "bi-diagram-3", route: "/screen/flow",
-    activePaths: ["/screen/flow"], activePrefixes: ["/screen/design/"],
+    activePaths: ["/screen/flow"],
+  },
+  {
+    id: "screen-list", label: "画面一覧", icon: "bi-list-ul", route: "/screen/list",
+    activePaths: ["/screen/list"], activePrefixes: ["/screen/design/"],
   },
   {
     id: "table-list", label: "テーブル一覧", icon: "bi-table", route: "/table/list",
