@@ -11,6 +11,7 @@
 import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, ScreenType, TransitionTrigger } from "../types/flow";
 import { SCREEN_TYPE_LABELS, TRIGGER_LABELS } from "../types/flow";
 import { generateUUID } from "../utils/uuid";
+import { saveDraft, clearDraft, loadDraft } from "../utils/draftStorage";
 
 // ─── ストレージバックエンドインターフェース ────────────────────────────────
 
@@ -25,6 +26,41 @@ let _backend: FlowStorageBackend | null = null;
 /** mcpBridge が接続時にセット、切断時に null をセット */
 export function setFlowStorageBackend(b: FlowStorageBackend | null): void {
   _backend = b;
+}
+
+// ─── ドラフトモード（UI 起点の編集を localStorage ドラフトに流す） ─────────
+//
+// FlowEditor のような明示的保存画面で setDraftMode(true) を呼ぶと、
+// saveProject() は backend へ書かず draft-flow-project に書き込むようになる。
+// persistProject() を呼ぶと draft をクリアして backend に永続化する。
+
+const FLOW_DRAFT_KIND = "flow";
+const FLOW_DRAFT_ID = "project";
+
+let _draftMode = false;
+
+const _draftSaveListeners: Set<() => void> = new Set();
+
+export function setFlowDraftMode(enabled: boolean): void {
+  _draftMode = enabled;
+}
+
+export function isFlowDraftMode(): boolean {
+  return _draftMode;
+}
+
+export function loadFlowDraft(): FlowProject | null {
+  return loadDraft<FlowProject>(FLOW_DRAFT_KIND, FLOW_DRAFT_ID);
+}
+
+export function clearFlowDraft(): void {
+  clearDraft(FLOW_DRAFT_KIND, FLOW_DRAFT_ID);
+}
+
+/** draft モード中に saveProject が呼ばれると通知される（FlowEditor の isDirty 検知用） */
+export function subscribeToFlowDraftSaves(cb: () => void): () => void {
+  _draftSaveListeners.add(cb);
+  return () => _draftSaveListeners.delete(cb);
 }
 
 // ─── localStorage キー ────────────────────────────────────────────────────
@@ -133,14 +169,30 @@ export async function loadProject(): Promise<FlowProject> {
   })();
 }
 
-/** プロジェクトを保存 */
+/** プロジェクトを保存（draftMode 有効時は localStorage のドラフトに書き込む） */
 export async function saveProject(project: FlowProject): Promise<void> {
   project.updatedAt = now();
+  if (_draftMode) {
+    saveDraft(FLOW_DRAFT_KIND, FLOW_DRAFT_ID, project);
+    _draftSaveListeners.forEach((cb) => cb());
+    return;
+  }
   if (_backend) {
     await _backend.saveProject(project);
     return;
   }
   localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
+}
+
+/** ドラフトを介さず必ず永続化する（明示的保存ボタン用） */
+export async function persistProject(project: FlowProject): Promise<void> {
+  project.updatedAt = now();
+  if (_backend) {
+    await _backend.saveProject(project);
+  } else {
+    localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
+  }
+  clearDraft(FLOW_DRAFT_KIND, FLOW_DRAFT_ID);
 }
 
 /** 画面を追加 */

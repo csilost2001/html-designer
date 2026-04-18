@@ -11,10 +11,11 @@ import "grapesjs/dist/css/grapes.min.css";
 
 import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
-import { registerRemoteStorage, saveScreenToFile } from "../grapes/remoteStorage";
+import { registerRemoteStorage, saveScreenToFile, hasScreenDraft, clearScreenDraft } from "../grapes/remoteStorage";
 import { DesignSubToolbar } from "./design/DesignSubToolbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
+import { ServerChangeBanner } from "./common/ServerChangeBanner";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { loadProject, updateScreenThumbnail } from "../store/flowStore";
@@ -124,7 +125,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const gjsOptions = buildGjsOptions(screenId);
   const [ready, setReady] = useState(false);
   const [canvasEmpty, setCanvasEmpty] = useState(true);
-  const [isDirty, setIsDirtyState] = useState(false);
+  const [isDirty, setIsDirtyState] = useState(() => hasScreenDraft(screenId));
+  const [isSaving, setIsSaving] = useState(false);
+  const [serverChanged, setServerChanged] = useState(false);
+  const isDirtyRef = useRef(false);
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
@@ -200,6 +204,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     // 変更検知: component 操作または style 変更でdirtyフラグを立てる
     const markDirty = () => {
       setIsDirtyState(true);
+      isDirtyRef.current = true;
       setDirty(tabId, true);
     };
     editor.on("component:add component:remove component:update style:change", markDirty);
@@ -211,12 +216,16 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     );
     mcpBridge.start(editor);
 
-    // 他タブで同じ画面が変更されたときにリロード
+    // 他タブ/クライアントで同じ画面が変更されたとき。
+    // dirty 中はバナー表示、clean なら即リロード。
     const unsubScreenChanged = mcpBridge.onBroadcast("screenChanged", (data) => {
       const d = data as { screenId?: string; deleted?: boolean };
-      if (d.screenId === screenId && !d.deleted) {
+      if (d.screenId !== screenId || d.deleted) return;
+      if (isDirtyRef.current) {
+        setServerChanged(true);
+      } else {
         console.log("[Designer] screenChanged broadcast, reloading...");
-        editor.store().then(() => editor.load()).catch(console.error);
+        editor.load().catch(console.error);
       }
     });
 
@@ -302,15 +311,39 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   }, [panelMode]);
 
   const handleSaveToFile = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       // GrapesJS の最新状態を localStorage に書き出してからファイル保存
       if (editorRef.current) await editorRef.current.store();
       await saveScreenToFile(screenId);
       setIsDirtyState(false);
+      isDirtyRef.current = false;
       setDirty(tabId, false);
+      setServerChanged(false);
     } catch (e) {
       console.error("[Designer] saveToFile failed:", e);
       alert("保存に失敗しました: " + String(e));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [screenId, tabId, isSaving]);
+
+  const handleReset = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    // ドラフトマーカーを解除してからロード（load() が backend を優先するように）
+    clearScreenDraft(screenId);
+    try {
+      await editor.load();
+      editor.UndoManager.clear();
+      setIsDirtyState(false);
+      isDirtyRef.current = false;
+      setDirty(tabId, false);
+      setServerChanged(false);
+    } catch (e) {
+      console.error("[Designer] reset failed:", e);
+      alert("リセットに失敗しました: " + String(e));
     }
   }, [screenId, tabId]);
 
@@ -338,10 +371,19 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
             onThemeChange={handleThemeChange}
             mcpStatus={mcpStatus}
             isDirty={isDirty}
+            isSaving={isSaving}
             onSaveToFile={handleSaveToFile}
+            onReset={handleReset}
             backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
           />
         </WithEditor>
+
+        {serverChanged && (
+          <ServerChangeBanner
+            onReload={handleReset}
+            onDismiss={() => setServerChanged(false)}
+          />
+        )}
 
         <div className="designer-body">
           <div className={`panel-left-wrapper is-${panelMode}`}>
