@@ -11,6 +11,7 @@
  * 他パネルに影響しないこと。
  */
 import type { ComponentType } from "react";
+import { FunctionCountsPanel } from "./panels/FunctionCountsPanel";
 
 /** react-grid-layout の 1 パネルのレイアウト指定 */
 export interface PanelLayout {
@@ -49,4 +50,12 @@ export interface DashboardPanel {
  * 登録されたダッシュボードパネル一覧。
  * 配列の順序が初期表示順を決める（y, x が未指定の場合）。
  */
-export const dashboardPanels: DashboardPanel[] = [];
+export const dashboardPanels: DashboardPanel[] = [
+  {
+    id: "function-counts",
+    title: "機能別定義数",
+    icon: "bi-bar-chart-line",
+    defaultLayout: { w: 6, h: 3, minW: 4, minH: 3 },
+    component: FunctionCountsPanel,
+  },
+];
