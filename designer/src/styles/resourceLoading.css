@@ -1,0 +1,31 @@
+.resource-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
+  background: #fafbfc;
+}
+
+.resource-loading-inner {
+  text-align: center;
+  color: #6c757d;
+}
+
+.resource-loading-inner p {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+}
+
+.resource-loading-spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #dee2e6;
+  border-top-color: #6c757d;
+  border-radius: 50%;
+  animation: resource-loading-spin 0.9s linear infinite;
+}
+
+@keyframes resource-loading-spin {
+  to { transform: rotate(360deg); }
+}
