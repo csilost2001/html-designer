@@ -87,34 +87,116 @@
   gap: 8px;
 }
 
-/* ── テーブルカード ─────────────────────────────────────────────────────── */
+/* ── テーブル一覧 検索ボックス ───────────────────────────────────── */
 
-.table-list-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+.table-list-search {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.table-list-card {
-  position: relative;
-  padding: 16px;
-  background: #222240;
-  border: 1px solid #333;
-  border-radius: 8px;
+.table-list-search > i {
+  position: absolute;
+  left: 8px;
+  color: #888;
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.table-list-search input {
+  padding: 5px 28px 5px 28px;
+  border: 1px solid #444;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  outline: none;
+  min-width: 220px;
+}
+
+.table-list-search input:focus {
+  border-color: #7c6bff;
+}
+
+.table-list-search .clear-btn {
+  position: absolute;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: #888;
   cursor: pointer;
+  padding: 2px;
+}
+
+.table-list-search .clear-btn:hover {
+  color: #fff;
+}
+
+/* ── DataList (dark variant) カスタム ─────────────────────────────── */
+
+.tables-data-list.data-list {
+  background: #1a1a2e;
+  border-color: #333;
+}
+
+.tables-data-list .data-list-grid {
+  padding: 16px;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.tables-data-list .data-list-card {
+  background: #222240;
+  border-color: #333;
+  padding: 16px;
   transition: all 0.15s;
 }
 
-.table-list-card:hover {
+.tables-data-list .data-list-card:hover {
   border-color: #7c6bff;
   background: #28284a;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(124,107,255,0.15);
 }
 
-.table-list-card.selected {
-  outline: 2px solid #7c6bff;
+.tables-data-list .data-list-card.selected {
   background: #28284a;
+  border-color: #7c6bff;
+  box-shadow: 0 0 0 1px #7c6bff inset;
+}
+
+.tables-data-list .data-list-table thead th {
+  background: #222240;
+  border-bottom-color: #333;
+  color: #999;
+}
+
+.tables-data-list .data-list-th-sortable:hover,
+.tables-data-list .data-list-th-sorted {
+  background: rgba(124,107,255,0.12);
+}
+
+.tables-data-list .data-list-row {
+  border-bottom-color: rgba(255,255,255,0.04);
+}
+
+.tables-data-list .data-list-row:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.tables-data-list .data-list-row.selected {
+  background: rgba(124,107,255,0.12);
+}
+
+.tables-data-list .data-list-td-num {
+  color: #666;
+}
+
+/* ── カード内コンテンツ ───────────────────────────────────────────── */
+
+.table-card-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .table-card-header {
@@ -122,6 +204,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 4px;
+  gap: 8px;
 }
 
 .table-card-name {
@@ -129,6 +212,9 @@
   font-size: 15px;
   color: #fff;
   font-family: "Consolas", "Monaco", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-card-category {
@@ -137,6 +223,7 @@
   border-radius: 4px;
   background: rgba(124,107,255,0.15);
   color: #a99bff;
+  flex-shrink: 0;
 }
 
 .table-card-logical {
@@ -157,44 +244,36 @@
   margin-right: 4px;
 }
 
-.table-card-delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  opacity: 0;
-  transition: all 0.15s;
-  padding: 4px;
-  border-radius: 4px;
+.table-card-date {
+  white-space: nowrap;
 }
 
-.table-list-card:hover .table-card-delete {
-  opacity: 1;
+/* ── 表モードセル ─────────────────────────────────────────────────── */
+
+.table-list-name-code {
+  font-family: "Consolas", "Monaco", monospace;
+  color: #ddd;
 }
 
-.table-card-delete:hover {
+.table-list-col-count {
+  font-variant-numeric: tabular-nums;
+  color: #aaa;
+}
+
+.table-list-date {
+  color: #888;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+/* ── danger ghost (削除ボタン) ───────────────────────────────────── */
+.tbl-btn-ghost.danger {
   color: #ff6b6b;
-  background: rgba(255,107,107,0.1);
 }
 
-/* ── 空状態 ────────────────────────────────────────────────────────────── */
-
-.table-list-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 80px 0;
-  color: #777;
-}
-
-.table-list-empty i {
-  font-size: 48px;
-  color: #555;
+.tbl-btn-ghost.danger:hover {
+  background: rgba(255,107,107,0.12);
+  color: #ff8585;
 }
 
 /* ── 共通ボタン ────────────────────────────────────────────────────────── */
