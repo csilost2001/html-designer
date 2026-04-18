@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { HeaderMenu } from "./HeaderMenu";
 import "../styles/commonHeader.css";
 
 interface Props {
@@ -10,6 +11,7 @@ export function CommonHeader({ notification, userName }: Props) {
   return (
     <header className="common-header">
       <div className="common-header-left">
+        <HeaderMenu />
         <i className="bi bi-palette2 common-header-logo" />
         <span className="common-header-title">業務システム デザイナー</span>
       </div>

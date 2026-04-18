@@ -106,6 +106,13 @@ export function setActiveTab(id: string): void {
   _notify();
 }
 
+export function clearActiveTab(): void {
+  if (_activeTabId === "") return;
+  _activeTabId = "";
+  _persist();
+  _notify();
+}
+
 export function reorderTabs(fromIndex: number, toIndex: number): void {
   const arr = [..._tabs];
   const [removed] = arr.splice(fromIndex, 1);
