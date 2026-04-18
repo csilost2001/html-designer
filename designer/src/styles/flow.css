@@ -802,8 +802,16 @@
   opacity: 0.35;
 }
 
+.screen-table-row {
+  cursor: pointer;
+}
+
 .screen-table-row:hover {
   background: #f8fafc;
+}
+
+.screen-table-row.selected {
+  background: #eef2ff;
 }
 
 .screen-table-row:not(:last-child) {

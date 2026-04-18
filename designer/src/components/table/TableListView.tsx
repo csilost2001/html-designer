@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TableMeta } from "../../types/flow";
 import type { TableDefinition, SqlDialect } from "../../types/table";
@@ -20,6 +20,21 @@ export function TableListView() {
   const [addCategory, setAddCategory] = useState("");
   const [exportDialect, setExportDialect] = useState<SqlDialect>("postgresql");
   const [showExport, setShowExport] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleCardClick = (id: string) => {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      navigate(`/tables/${id}`);
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        setSelectedId((prev) => (prev === id ? null : id));
+      }, 250);
+    }
+  };
 
   const reload = useCallback(async () => {
     const t = await listTables();
@@ -31,6 +46,10 @@ export function TableListView() {
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     reload();
+    const unsub = mcpBridge.onStatusChange((s) => {
+      if (s === "connected") reload();
+    });
+    return unsub;
   }, [reload]);
 
   const handleAdd = async () => {
@@ -77,7 +96,7 @@ export function TableListView() {
     <div className="table-list-page">
       <TableTopbar projectName={projectName} />
 
-      <div className="table-list-content">
+      <div className="table-list-content" onClick={() => setSelectedId(null)}>
         <div className="table-list-header">
           <h2 className="table-list-title">
             <i className="bi bi-table" /> テーブル設計書
@@ -127,8 +146,8 @@ export function TableListView() {
             {tables.map((t) => (
               <div
                 key={t.id}
-                className="table-list-card"
-                onClick={() => navigate(`/tables/${t.id}`)}
+                className={`table-list-card${selectedId === t.id ? " selected" : ""}`}
+                onClick={(e) => { e.stopPropagation(); handleCardClick(t.id); }}
               >
                 <div className="table-card-header">
                   <span className="table-card-name">{t.name}</span>
