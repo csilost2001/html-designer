@@ -67,7 +67,7 @@ async function setupWithScreens(page: Page, screenIds: string[]) {
     { project: dummyProject, tabs, activeTabId }
   );
 
-  await page.goto(`/design/${screenIds[screenIds.length - 1]}`);
+  await page.goto(`/screen/design/${screenIds[screenIds.length - 1]}`);
   // タブバーが表示されるまで待機
   await expect(page.locator(".tabbar-tab")).toHaveCount(screenIds.length);
 }
@@ -97,7 +97,7 @@ test.describe("タブ切り替え", () => {
   test("タブをクリックすると切り替わる", async ({ page }) => {
     await page.locator(".tabbar-tab").filter({ hasText: "画面A" }).click();
     await expect(page.locator(".tabbar-tab.active")).toContainText("画面A");
-    await expect(page).toHaveURL(`/design/${SCREEN_A}`);
+    await expect(page).toHaveURL(`/screen/design/${SCREEN_A}`);
   });
 
   test("Ctrl+Tab で次のタブに移動する", async ({ page }) => {

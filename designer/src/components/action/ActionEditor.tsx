@@ -135,7 +135,7 @@ export function ActionEditor() {
   } | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
 
-  const handleNotFound = useCallback(() => navigate("/actions"), [navigate]);
+  const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
 
   const handleLoaded = useCallback((g: ActionGroup) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
@@ -470,7 +470,7 @@ export function ActionEditor() {
       {/* ヘッダー */}
       <div className="action-editor-header">
         <div className="action-editor-breadcrumb">
-          <Link to="/actions">処理フロー一覧</Link>
+          <Link to="/process-flow/list">処理フロー一覧</Link>
           <span className="mx-2">/</span>
           <span className="fw-semibold text-dark">{group.name}</span>
         </div>
@@ -686,7 +686,7 @@ export function ActionEditor() {
                             e.preventDefault();
                             setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
                           }}
-                          onNavigateCommon={(refId) => navigate(`/actions/${refId}`)}
+                          onNavigateCommon={(refId) => navigate(`/process-flow/edit/${refId}`)}
                           defaultExpanded={newStepIdsRef.current.has(step.id)}
                           selected={selectedIds.has(step.id)}
                           onHeaderClick={(e) => handleStepClick(step.id, e)}

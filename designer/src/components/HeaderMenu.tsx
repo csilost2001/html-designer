@@ -8,15 +8,30 @@ type MenuItem = {
   label: string;
   icon: string;
   route: string;
-  matchPrefix?: boolean;
+  /** active 判定に一致する pathname（完全一致） */
+  activePaths?: string[];
+  /** active 判定に一致する pathname の接頭辞（例: "/table/edit/" で編集ページも active にする） */
+  activePrefixes?: string[];
   disabled?: boolean;
 };
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: "flow",      label: "画面フロー",  icon: "bi-diagram-3",    route: "/"        },
-  { id: "tables",    label: "テーブル設計", icon: "bi-table",        route: "/tables", matchPrefix: true },
-  { id: "er",        label: "ER図",        icon: "bi-share",        route: "/er"      },
-  { id: "actions",   label: "処理フロー",  icon: "bi-lightning",    route: "/actions", matchPrefix: true },
+  {
+    id: "screen-flow", label: "画面フロー", icon: "bi-diagram-3", route: "/screen/flow",
+    activePaths: ["/screen/flow"], activePrefixes: ["/screen/design/"],
+  },
+  {
+    id: "table-list", label: "テーブル一覧", icon: "bi-table", route: "/table/list",
+    activePaths: ["/table/list"], activePrefixes: ["/table/edit/"],
+  },
+  {
+    id: "er", label: "ER図", icon: "bi-share", route: "/table/er",
+    activePaths: ["/table/er"],
+  },
+  {
+    id: "process-flow", label: "処理フロー一覧", icon: "bi-lightning", route: "/process-flow/list",
+    activePaths: ["/process-flow/list"], activePrefixes: ["/process-flow/edit/"],
+  },
 ];
 
 const DASHBOARD_ITEM: MenuItem = {
@@ -68,10 +83,8 @@ export function HeaderMenu() {
   };
 
   const isActive = (item: MenuItem) => {
-    if (item.route === "/") return location.pathname === "/";
-    return item.matchPrefix
-      ? location.pathname.startsWith(item.route)
-      : location.pathname === item.route;
+    if (item.activePaths?.includes(location.pathname)) return true;
+    return item.activePrefixes?.some((p) => location.pathname.startsWith(p)) ?? false;
   };
 
   return (

@@ -90,7 +90,7 @@ export function ActionListView() {
     setAddType("screen");
     setAddScreenId("");
     setAddDescription("");
-    navigate(`/actions/${group.id}`);
+    navigate(`/process-flow/edit/${group.id}`);
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -105,7 +105,7 @@ export function ActionListView() {
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      navigate(`/actions/${id}`);
+      navigate(`/process-flow/edit/${id}`);
     } else {
       clickTimerRef.current = setTimeout(() => {
         clickTimerRef.current = null;
@@ -220,7 +220,7 @@ export function ActionListView() {
                     {v && (hasError || hasWarning) && (
                       <span
                         className="action-validation-badges"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/actions/${g.id}`); }}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/process-flow/edit/${g.id}`); }}
                         title="編集画面でエラーを確認"
                       >
                         {hasError && (
