@@ -160,25 +160,6 @@
 
 /* ─── 処理フロー編集 ─────────────────────────────────────────────── */
 
-.action-editor-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.action-editor-undo-buttons {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.action-editor-undo-buttons .btn:disabled {
-  opacity: 0.35;
-}
-
 .action-editor-breadcrumb {
   font-size: 0.85rem;
   color: #64748b;

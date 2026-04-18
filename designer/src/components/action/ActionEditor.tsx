@@ -51,7 +51,7 @@ import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
-import { SaveResetButtons } from "../common/SaveResetButtons";
+import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
 
@@ -467,50 +467,33 @@ export function ActionEditor() {
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
 
-      {/* ヘッダー */}
-      <div className="action-editor-header">
-        <div className="action-editor-breadcrumb">
-          <Link to="/process-flow/list">処理フロー一覧</Link>
-          <span className="mx-2">/</span>
-          <span className="fw-semibold text-dark">{group.name}</span>
-        </div>
-        <div className="action-editor-undo-buttons">
-          <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={undo}
-            disabled={!canUndo}
-            title="元に戻す (Ctrl+Z)"
-          >
-            <i className="bi bi-arrow-counterclockwise" />
-          </button>
-          <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={redo}
-            disabled={!canRedo}
-            title="やり直し (Ctrl+Y)"
-          >
-            <i className="bi bi-arrow-clockwise" />
-          </button>
-          {validationErrors.filter((e) => e.severity === "error").length > 0 && (
-            <span className="validation-badge error">
-              <i className="bi bi-x-circle-fill" />
-              {validationErrors.filter((e) => e.severity === "error").length} エラー
-            </span>
-          )}
-          {validationErrors.filter((e) => e.severity === "warning").length > 0 && (
-            <span className="validation-badge warning">
-              <i className="bi bi-exclamation-triangle-fill" />
-              {validationErrors.filter((e) => e.severity === "warning").length} 警告
-            </span>
-          )}
-          <SaveResetButtons
-            isDirty={isDirty}
-            isSaving={isSaving}
-            onSave={handleSave}
-            onReset={handleReset}
-          />
-        </div>
-      </div>
+      <EditorHeader
+        title={
+          <div className="action-editor-breadcrumb">
+            <Link to="/process-flow/list">処理フロー一覧</Link>
+            <span className="mx-2">/</span>
+            <span className="fw-semibold text-dark">{group.name}</span>
+          </div>
+        }
+        undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
+        extraRight={
+          <>
+            {validationErrors.filter((e) => e.severity === "error").length > 0 && (
+              <span className="validation-badge error">
+                <i className="bi bi-x-circle-fill" />
+                {validationErrors.filter((e) => e.severity === "error").length} エラー
+              </span>
+            )}
+            {validationErrors.filter((e) => e.severity === "warning").length > 0 && (
+              <span className="validation-badge warning">
+                <i className="bi bi-exclamation-triangle-fill" />
+                {validationErrors.filter((e) => e.severity === "warning").length} 警告
+              </span>
+            )}
+          </>
+        }
+        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+      />
 
       {/* グループ情報 */}
       <div className="action-editor-info">
