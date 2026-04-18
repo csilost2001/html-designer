@@ -180,3 +180,122 @@
   color: #64748b;
   margin-top: 2px;
 }
+
+/* UnsavedDraftsPanel 固有 */
+.drafts-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: #10b981;
+  font-size: 13px;
+}
+
+.drafts-empty .bi {
+  font-size: 18px;
+}
+
+.drafts-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.drafts-count {
+  font-size: 12px;
+  color: #64748b;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.drafts-count .bi {
+  color: #f59e0b;
+  margin-right: 4px;
+}
+
+.drafts-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.draft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 8px;
+}
+
+.draft-row:hover {
+  background: #f8fafc;
+}
+
+.draft-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-kind {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  background: #e0e7ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.draft-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.draft-size {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.draft-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.draft-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #64748b;
+  transition: all 0.15s;
+}
+
+.draft-btn:hover {
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.draft-btn-open:hover {
+  color: #6366f1;
+  border-color: #6366f1;
+}
+
+.draft-btn-discard:hover {
+  color: #dc2626;
+  border-color: #dc2626;
+}
