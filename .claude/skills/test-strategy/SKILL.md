@@ -35,8 +35,14 @@ paths:
 
 **MCP テスト（`designer/e2e/mcp/**/*.spec.ts`）**
 - ブラウザ役として `{ type: "request" }` プロトコルで wsBridge に接続し、ファイル操作を検証する
-- テスト可能: `loadProject` / `saveProject` / `loadScreen` / `saveScreen` / `deleteScreen`
-- テスト不可（stdio経由のみ）: `designer__open_tab` 等のタブ操作コマンド → Issue #67 参照
+- テスト可能（主要リソース）:
+  - project: `loadProject` / `saveProject`
+  - screen: `loadScreen` / `saveScreen` / `deleteScreen`
+  - table: `loadTable` / `saveTable` / `deleteTable`
+  - actionGroup: `loadActionGroup` / `saveActionGroup` / `deleteActionGroup`
+  - mtime: `getFileMtime`
+- payload の id フィールド名は kind によって異なる: `screen` は `screenId`、`table` は `tableId`、`actionGroup` は `id`
+- テスト不可（stdio 経由のみ）: `designer__open_tab` 等のタブ操作コマンド → Issue #67 参照
 - designer-mcp が ws://localhost:5179 で起動していない場合は自動スキップ
 
 ## バグの切り分け方針
@@ -103,3 +109,47 @@ await expect(page.locator(".tabbar-tab").filter({ hasText: "画面A" })).toBeVis
 1. **Vitest 優先** — 純ロジックは即効性が高くメンテコストが低い
 2. **Playwright 次** — TabBar・ナビゲーションはこのプロジェクトと相性が良い
 3. **MCP テスト** — ファイル永続化パイプラインなどこのシステム特有の価値がある箇所に適用
+
+## React フック単体テスト
+
+`@testing-library/react` の `renderHook` + `act` を使う（`designer/` に導入済み）。
+
+```typescript
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { useResourceEditor } from "./useResourceEditor";
+
+const hook = renderHook(() => useResourceEditor({ ... }));
+await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+act(() => hook.result.current.update((d) => { d.name = "changed"; }));
+```
+
+### モジュール全体のモック
+mcpBridge のような WebSocket 依存モジュールは `vi.mock()` でスタブ化し、テスト側から broadcast を発火できるエミッタを公開する:
+
+```typescript
+vi.mock("../mcp/mcpBridge", () => {
+  const handlers = new Map<string, Set<(d: unknown) => void>>();
+  return {
+    mcpBridge: {
+      onBroadcast(event, h) { ... },
+      onStatusChange(cb) { ... },
+      _emit(event, data) { handlers.get(event)?.forEach((h) => h(data)); },
+    },
+  };
+});
+```
+
+### 純関数抽出パターン
+フックの判定ロジックは純関数として export しておくと、React mount 不要でテストが書ける（例: `shouldTriggerSaveShortcut` in `useSaveShortcut.ts`）。
+
+## 共通フック利用時のテスト観点
+
+エディタ共通の状態管理（保存・リセット・ドラフト・broadcast）は `useResourceEditor` に集約済み。個別エディタのテストは **フックが正しく配線されているか** を確認すれば十分で、ロジック自体の網羅は `useResourceEditor.test.ts` 側で担保される。
+
+| 確認観点 | テスト層 | 具体例 |
+|---------|---------|-------|
+| フック内部のロジック | Vitest | `useResourceEditor.test.ts`（15 ケース）|
+| エディタへの配線 | Playwright | `save-reset.spec.ts` / `save-reset-action.spec.ts` / `save-reset-flow.spec.ts` |
+| WS↔ファイル永続化 | MCP E2E | `mcp-tools.spec.ts`（14 ケース）|
+
+エディタ側のテストは最小限で OK: 「保存ボタンが有効化される」「タブに ● が出る」「Ctrl+S で保存される」を確認すればフック配線は通る。
