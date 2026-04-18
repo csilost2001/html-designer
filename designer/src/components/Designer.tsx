@@ -23,6 +23,20 @@ import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStor
 import { loadProject, updateScreenThumbnail } from "../store/flowStore";
 import { makeTabId, setDirty } from "../store/tabStore";
 
+/**
+ * editor.getComponents() は GrapesJS が load() 中の Frame.onRemove 経由で一時的に
+ * 内部参照を undefined にするタイミングがあり、そこで `.length` を呼ぶと落ちる (#131)。
+ * 取得失敗時は 0 として扱い、listener 側がクラッシュしないようにする。
+ */
+function safeComponentsLength(editor: GEditor): number {
+  try {
+    const comps = editor.getComponents?.();
+    return comps?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** キャンバスの縮小サムネイルを生成して data URL で返す */
 async function captureThumbnail(editor: GEditor): Promise<string | null> {
   try {
@@ -258,7 +272,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       isDirtyRef.current = false;
       setDirty(tabId, false);
     }
-    isInternalLoadRef.current = false;
+    // GrapesJS が component:add を遅延発火するケース（ensureValidProject による
+    // 最小 pages 補正で空データからでも load() 後に 1 回発火する）に備え、
+    // 次のマクロタスクでガードを下げる (#131)。
+    setTimeout(() => { isInternalLoadRef.current = false; }, 0);
     if (editorRef.current) {
       if (activeTheme !== "standard") {
         applyThemeToCanvas(editorRef.current, activeTheme);
@@ -287,7 +304,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
     const onStoreEnd = () => {
       // 空のキャンバスはスキップ
-      if (editor.getComponents().length === 0) return;
+      if (safeComponentsLength(editor) === 0) return;
       captureThumbnail(editor).then(async (thumbnail) => {
         if (!thumbnail) return;
         try {
@@ -309,7 +326,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   useEffect(() => {
     if (!ready || !editorRef.current) return;
     const editor = editorRef.current;
-    const check = () => setCanvasEmpty(editor.getComponents().length === 0);
+    const check = () => setCanvasEmpty(safeComponentsLength(editor) === 0);
     check();
     editor.on("component:add", check);
     editor.on("component:remove", check);
@@ -376,7 +393,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         context: { screenId, tabId },
       });
     } finally {
-      isInternalLoadRef.current = false;
+      // GrapesJS が component:add / autosave を遅延発火するケースに備えて
+      // 次のマクロタスクでガードを下げる。遅延中に発火した markDirty も抑制したい。
+      setTimeout(() => { isInternalLoadRef.current = false; }, 0);
     }
   }, [screenId, tabId, showError]);
 

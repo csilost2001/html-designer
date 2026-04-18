@@ -30,9 +30,16 @@ export function RightPanel() {
 
     const onLoad = () => setLoaded(true);
 
-    // 既にロード済みならすぐセット
-    if (editor.getComponents().length > 0 || editor.getStyle().length > 0) {
-      setLoaded(true);
+    // 既にロード済みならすぐセット。editor が半壊状態（初期化中 or 破損データで
+    // Canvas.init が失敗した直後）でも throw しないよう防御する (#131)。
+    try {
+      const comps = editor.getComponents?.();
+      const styles = editor.getStyle?.();
+      if ((comps && comps.length > 0) || (styles && styles.length > 0)) {
+        setLoaded(true);
+      }
+    } catch {
+      /* editor 未初期化は load イベントで拾う */
     }
     editor.on("load", onLoad);
     return () => {
