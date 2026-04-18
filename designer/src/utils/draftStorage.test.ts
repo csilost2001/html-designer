@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { saveDraft, loadDraft, clearDraft } from "./draftStorage";
+import { saveDraft, loadDraft, clearDraft, listAllDrafts, hasDraft } from "./draftStorage";
 
 describe("saveDraft / loadDraft", () => {
   it("保存したデータを読み込める", () => {
@@ -66,5 +66,52 @@ describe("clearDraft", () => {
     clearDraft("table", "abc");
     saveDraft("table", "abc", { name: "new" });
     expect(loadDraft("table", "abc")).toEqual({ name: "new" });
+  });
+});
+
+describe("hasDraft", () => {
+  it("保存済みキーは true", () => {
+    saveDraft("table", "abc", { name: "users" });
+    expect(hasDraft("table", "abc")).toBe(true);
+  });
+
+  it("未保存キーは false", () => {
+    expect(hasDraft("table", "nonexistent")).toBe(false);
+  });
+
+  it("削除後は false", () => {
+    saveDraft("table", "abc", { name: "users" });
+    clearDraft("table", "abc");
+    expect(hasDraft("table", "abc")).toBe(false);
+  });
+});
+
+describe("listAllDrafts", () => {
+  it("draft-* キーだけ列挙する（他の localStorage キーは無視）", () => {
+    localStorage.setItem("other-key", "ignored");
+    saveDraft("table", "abc", { name: "users" });
+    saveDraft("action", "xyz", { name: "actions" });
+    const drafts = listAllDrafts();
+    expect(drafts.map((d) => d.key).sort()).toEqual(["draft-action-xyz", "draft-table-abc"]);
+  });
+
+  it("UUID（ハイフン含み）を正しく kind/id に分解する", () => {
+    const uuid = "aaaaaaaa-0001-4000-8000-000000000001";
+    saveDraft("table", uuid, { name: "x" });
+    const drafts = listAllDrafts();
+    const d = drafts.find((x) => x.kind === "table" && x.id === uuid);
+    expect(d).toBeDefined();
+  });
+
+  it("各ドラフトのサイズを返す", () => {
+    saveDraft("flow", "project", { foo: "bar" });
+    const drafts = listAllDrafts();
+    const d = drafts.find((x) => x.kind === "flow" && x.id === "project");
+    expect(d?.size).toBeGreaterThan(0);
+  });
+
+  it("ドラフトが無ければ空配列", () => {
+    // beforeEach で localStorage.clear() されているので空のまま
+    expect(listAllDrafts()).toEqual([]);
   });
 });

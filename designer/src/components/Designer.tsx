@@ -12,6 +12,7 @@ import "grapesjs/dist/css/grapes.min.css";
 import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
 import { registerRemoteStorage, saveScreenToFile, hasScreenDraft, clearScreenDraft } from "../grapes/remoteStorage";
+import { acknowledgeServerMtime, hasServerBeenUpdated } from "../utils/serverMtime";
 import { DesignSubToolbar } from "./design/DesignSubToolbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
@@ -321,6 +322,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       isDirtyRef.current = false;
       setDirty(tabId, false);
       setServerChanged(false);
+      await acknowledgeServerMtime("screen", screenId);
     } catch (e) {
       console.error("[Designer] saveToFile failed:", e);
       alert("保存に失敗しました: " + String(e));
@@ -341,11 +343,26 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       isDirtyRef.current = false;
       setDirty(tabId, false);
       setServerChanged(false);
+      await acknowledgeServerMtime("screen", screenId);
     } catch (e) {
       console.error("[Designer] reset failed:", e);
       alert("リセットに失敗しました: " + String(e));
     }
   }, [screenId, tabId]);
+
+  // タブを開いた時点でサーバーに新しい変更がないか確認（初回ロード完了後）
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      if (hasScreenDraft(screenId)) {
+        if (await hasServerBeenUpdated("screen", screenId)) {
+          setServerChanged(true);
+        }
+      } else {
+        await acknowledgeServerMtime("screen", screenId);
+      }
+    })();
+  }, [ready, screenId]);
 
   return (
     <GjsEditor

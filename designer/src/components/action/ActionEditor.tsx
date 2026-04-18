@@ -54,7 +54,8 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import { SaveResetButtons } from "../common/SaveResetButtons";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
-import { saveDraft, loadDraft, clearDraft } from "../../utils/draftStorage";
+import { saveDraft, loadDraft, clearDraft, hasDraft } from "../../utils/draftStorage";
+import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
 import "../../styles/action.css";
 
 /** ツールバーのドラッグ可能なステップ種別ボタン */
@@ -204,12 +205,22 @@ export function ActionEditor() {
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
-    reload();
+    reload().then(async () => {
+      if (!actionGroupId) return;
+      // タブを開いた時点でサーバー側に新しい変更がないか確認
+      if (hasDraft("action", actionGroupId)) {
+        if (await hasServerBeenUpdated("actionGroup", actionGroupId)) {
+          setServerChanged(true);
+        }
+      } else {
+        await acknowledgeServerMtime("actionGroup", actionGroupId);
+      }
+    }).catch(console.error);
     const unsubStatus = mcpBridge.onStatusChange((s) => {
       if (s === "connected") reload();
     });
     return unsubStatus;
-  }, [reload]);
+  }, [reload, actionGroupId]);
 
   useEffect(() => {
     if (!actionGroupId) return;
@@ -246,7 +257,10 @@ export function ActionEditor() {
     try {
       await saveActionGroup(group);
       lastSavedRef.current = group;
-      if (actionGroupId) clearDraft("action", actionGroupId);
+      if (actionGroupId) {
+        clearDraft("action", actionGroupId);
+        await acknowledgeServerMtime("actionGroup", actionGroupId);
+      }
       setIsDirty(false);
     } finally {
       setIsSaving(false);
@@ -256,7 +270,8 @@ export function ActionEditor() {
   const handleReset = useCallback(async () => {
     await reload(true);
     setServerChanged(false);
-  }, [reload]);
+    if (actionGroupId) await acknowledgeServerMtime("actionGroup", actionGroupId);
+  }, [reload, actionGroupId]);
 
   /** 構造変化（履歴に積む）: ステップ追加・削除・移動、アクション追加・削除 */
   const updateGroup = useCallback(
