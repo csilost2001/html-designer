@@ -381,7 +381,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       <div className="designer-layout">
         <WithEditor>
           <DesignSubToolbar
-            ready={ready}
             panelMode={panelMode}
             onOpenPanel={openPanel}
             activeTheme={activeTheme}
