@@ -35,7 +35,7 @@ async function setupFlowEditor(page: Page, draft: object | null = null) {
     },
     { project: dummyProject, draft },
   );
-  await page.goto("/");
+  await page.goto("/screen/flow");
   await expect(page.locator(".flow-root")).toBeVisible();
 }
 

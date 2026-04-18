@@ -38,8 +38,8 @@ const DASHBOARD_ITEM: MenuItem = {
   id: "dashboard",
   label: "ダッシュボード",
   icon: "bi-speedometer2",
-  route: "/dashboard",
-  disabled: true,
+  route: "/",
+  activePaths: ["/"],
 };
 
 function isDesignTabActive(): boolean {
@@ -105,14 +105,12 @@ export function HeaderMenu() {
 
           <button
             key={DASHBOARD_ITEM.id}
-            className="header-menu-item disabled"
-            disabled
+            className={`header-menu-item${isActive(DASHBOARD_ITEM) ? " active" : ""}`}
+            onClick={() => handleSelect(DASHBOARD_ITEM.route)}
             role="menuitem"
-            title="ダッシュボード（準備中）"
           >
             <i className={`bi ${DASHBOARD_ITEM.icon}`} />
             <span>{DASHBOARD_ITEM.label}</span>
-            <span className="header-menu-badge">準備中</span>
           </button>
 
           <div className="header-menu-separator" />
