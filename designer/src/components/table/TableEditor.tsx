@@ -10,7 +10,8 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
-import { saveDraft, loadDraft, clearDraft } from "../../utils/draftStorage";
+import { saveDraft, loadDraft, clearDraft, hasDraft } from "../../utils/draftStorage";
+import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
 import { SaveResetButtons } from "../common/SaveResetButtons";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/table.css";
@@ -65,6 +66,14 @@ export function TableEditor() {
         setIsDirty(false);
         setTabDirty(makeTabId("table", tableId), false);
       }
+      // タブを開いた時点でサーバー側に新しい変更がないか確認（ドラフトが古い版に基づいている場合に備えて）
+      if (hasDraft("table", tableId)) {
+        if (await hasServerBeenUpdated("table", tableId)) {
+          setServerChanged(true);
+        }
+      } else {
+        await acknowledgeServerMtime("table", tableId);
+      }
       const tl = await listTables();
       const allTds: TableDefinition[] = [];
       for (const m of tl) {
@@ -110,16 +119,17 @@ export function TableEditor() {
   }, [updateAndCommit, tableId]);
 
   const handleSave = useCallback(async () => {
-    if (!table) return;
+    if (!table || !tableId) return;
     setIsSaving(true);
     try {
       await saveTable(table);
       lastSavedRef.current = table;
       markClean();
+      await acknowledgeServerMtime("table", tableId);
     } finally {
       setIsSaving(false);
     }
-  }, [table, markClean]);
+  }, [table, tableId, markClean]);
 
   const handleReset = useCallback(async () => {
     if (!tableId) return;
@@ -129,6 +139,7 @@ export function TableEditor() {
     resetTable(t);
     markClean();
     setServerChanged(false);
+    await acknowledgeServerMtime("table", tableId);
   }, [tableId, resetTable, markClean]);
 
   const handleServerReload = useCallback(async () => {

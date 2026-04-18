@@ -20,6 +20,7 @@ import {
   writeActionGroup,
   deleteActionGroup as deleteActionGroupFile,
   listActionGroups as listActionGroupFiles,
+  getFileMtime,
 } from "./projectStorage.js";
 
 type Command = { id: string; method: string; params?: unknown };
@@ -382,6 +383,12 @@ class WsBridge extends EventEmitter {
             updatedAt: ag.updatedAt,
           }));
           respond(metas);
+          break;
+        }
+        case "getFileMtime": {
+          const { kind, id: fid } = (params ?? {}) as { kind: string; id?: string };
+          const mtime = await getFileMtime(kind, fid);
+          respond({ mtime });
           break;
         }
         default:

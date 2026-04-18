@@ -54,6 +54,8 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { openTab, makeTabId } from "../../store/tabStore";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
+import { hasDraft } from "../../utils/draftStorage";
 import "../../styles/flow.css";
 
 const nodeTypes = {
@@ -254,7 +256,16 @@ function FlowEditorInner() {
     mcpBridge.startWithoutEditor();
 
     // 初回ロード（WS 未接続時は localStorage フォールバック）
-    reloadProject().catch(console.error);
+    reloadProject().then(async () => {
+      // タブを開いた時点でサーバー側に新しい変更がないか確認
+      if (hasDraft("flow", "project")) {
+        if (await hasServerBeenUpdated("project")) {
+          if (mounted) setServerChanged(true);
+        }
+      } else {
+        await acknowledgeServerMtime("project");
+      }
+    }).catch(console.error);
 
     return () => {
       mounted = false;
@@ -744,6 +755,7 @@ function FlowEditorInner() {
       setIsDirty(false);
       isDirtyRef.current = false;
       setServerChanged(false);
+      await acknowledgeServerMtime("project");
     } catch (e) {
       console.error("[FlowEditor] save failed:", e);
       alert("保存に失敗しました: " + String(e));
@@ -760,6 +772,7 @@ function FlowEditorInner() {
     setCanRedo(false);
     await reloadProject();
     setServerChanged(false);
+    await acknowledgeServerMtime("project");
   }, [reloadProject]);
 
   // Ctrl+S で保存
