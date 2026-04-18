@@ -12,7 +12,7 @@ import "grapesjs/dist/css/grapes.min.css";
 import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
 import { registerRemoteStorage, saveScreenToFile } from "../grapes/remoteStorage";
-import { Topbar } from "./Topbar";
+import { DesignSubToolbar } from "./design/DesignSubToolbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
@@ -330,7 +330,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     >
       <div className="designer-layout">
         <WithEditor>
-          <Topbar
+          <DesignSubToolbar
             ready={ready}
             panelMode={panelMode}
             onOpenPanel={openPanel}

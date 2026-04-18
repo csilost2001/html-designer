@@ -8,6 +8,7 @@ import { ActionListView } from "./action/ActionListView";
 import { ActionEditor } from "./action/ActionEditor";
 import { Designer } from "./Designer";
 import { TabBar } from "./TabBar";
+import { CommonHeader } from "./CommonHeader";
 import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
 import {
@@ -39,7 +40,11 @@ export function AppShell() {
   const navigate = useNavigate();
   useTabKeyboard();
 
-  // CSS variable でタブバーの高さを各コンポーネントに伝える
+  // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
+  useEffect(() => {
+    document.documentElement.style.setProperty("--common-header-h", "40px");
+  }, []);
+
   useEffect(() => {
     const h = tabs.length > 0 ? "32px" : "0px";
     document.documentElement.style.setProperty("--tabbar-h", h);
@@ -102,13 +107,14 @@ export function AppShell() {
 
   return (
     <>
+      <CommonHeader />
       <TabBar />
 
       {/* デザインタブ: 全て常時マウント、非アクティブは display:none */}
       {designTabs.map((tab) => (
         <div
           key={tab.id}
-          style={{ display: activeTabId === tab.id ? "block" : "none", height: "calc(100vh - var(--tabbar-h, 0px))" }}
+          style={{ display: activeTabId === tab.id ? "block" : "none", height: "calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px))" }}
         >
           <Designer
             screenId={tab.resourceId}

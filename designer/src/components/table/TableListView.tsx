@@ -7,7 +7,7 @@ import { listTables, createTable, deleteTable, loadTable } from "../../store/tab
 import { loadProject } from "../../store/flowStore";
 import { generateAllDdl, generateAllTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
-import { TableTopbar } from "./TableTopbar";
+import { TableSubToolbar } from "./TableSubToolbar";
 import "../../styles/table.css";
 
 export function TableListView() {
@@ -94,7 +94,7 @@ export function TableListView() {
 
   return (
     <div className="table-list-page">
-      <TableTopbar projectName={projectName} />
+      <TableSubToolbar />
 
       <div className="table-list-content" onClick={() => setSelectedId(null)}>
         <div className="table-list-header">

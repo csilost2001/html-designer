@@ -1,7 +1,7 @@
 /* ─── 処理フロー定義 共通 ─────────────────────────────────────────── */
 
 .action-page {
-  height: 100vh;
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   display: flex;
   flex-direction: column;
   overflow: hidden;

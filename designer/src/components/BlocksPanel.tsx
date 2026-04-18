@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from "react";
 import type { BlocksResultProps } from "@grapesjs/react";
 import { useEditorMaybe } from "@grapesjs/react";
 import type { Block } from "grapesjs";
-import { CUSTOM_BLOCK_CATEGORY } from "./Topbar";
+import { CUSTOM_BLOCK_CATEGORY } from "./design/DesignSubToolbar";
 import { deleteCustomBlock } from "../store/customBlockStore";
 import { SharedBlockSyncModal } from "./SharedBlockSyncModal";
 
