@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate, matchPath } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
 import { TableListView } from "./table/TableListView";
 import { TableEditor } from "./table/TableEditor";
@@ -7,6 +7,7 @@ import { ErDiagram } from "./table/ErDiagram";
 import { ActionListView } from "./action/ActionListView";
 import { ActionEditor } from "./action/ActionEditor";
 import { Designer } from "./Designer";
+import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
 import { CommonHeader } from "./CommonHeader";
 import { loadProject } from "../store/flowStore";
@@ -108,6 +109,7 @@ export function AppShell() {
 
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
+      { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
       { path: "/screen/flow",        type: "screen-flow",        label: "画面フロー" },
       { path: "/table/list",         type: "table-list",         label: "テーブル一覧" },
       { path: "/table/er",           type: "er",                 label: "ER図" },
@@ -168,8 +170,7 @@ export function AppShell() {
       {/* 非デザインコンテンツ: 通常ルーティング */}
       {!activeIsDesign && (
         <Routes>
-          {/* / は PR-3 で Dashboard に差し替え。それまでは /screen/flow にリダイレクト */}
-          <Route path="/" element={<Navigate to="/screen/flow" replace />} />
+          <Route path="/" element={<DashboardView />} />
           <Route path="/screen/flow" element={<FlowEditor />} />
           <Route path="/screen/design/:screenId" element={null} />
           <Route path="/table/list" element={<TableListView />} />

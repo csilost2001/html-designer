@@ -1,0 +1,57 @@
+/* ダッシュボード画面のベーススタイル（PR-3 skeleton） */
+
+.dashboard-view {
+  padding: 24px;
+  height: calc(100vh - var(--common-header-h, 40px) - var(--tabbar-h, 0px));
+  overflow-y: auto;
+  background: #f8fafc;
+}
+
+.dashboard-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dashboard-title {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-title .bi {
+  color: #6366f1;
+  font-size: 22px;
+}
+
+.dashboard-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.dashboard-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #94a3b8;
+  gap: 12px;
+}
+
+.dashboard-placeholder .bi {
+  font-size: 48px;
+}
+
+.dashboard-placeholder p {
+  margin: 0;
+  font-size: 14px;
+}
