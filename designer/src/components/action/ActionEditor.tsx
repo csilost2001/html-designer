@@ -30,7 +30,6 @@ import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
 import { validateActionGroup, hasBlockingErrors } from "../../utils/actionValidation";
 import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
-import { mcpBridge } from "../../mcp/mcpBridge";
 import {
   DndContext,
   closestCenter,
@@ -46,8 +45,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useUndoableState } from "../../hooks/useUndoableState";
-import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
@@ -55,8 +53,6 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import { SaveResetButtons } from "../common/SaveResetButtons";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
-import { saveDraft, loadDraft, clearDraft, hasDraft } from "../../utils/draftStorage";
-import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
 import "../../styles/action.css";
 
 /** ツールバーのドラッグ可能なステップ種別ボタン */
@@ -129,10 +125,6 @@ export function ActionEditor() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [isDirty, setIsDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [serverChanged, setServerChanged] = useState(false);
-  const lastSavedRef = useRef<ActionGroup | null>(null);
   const newStepIdsRef = useRef<Set<string>>(new Set());
 
   // 選択・クリップボード state
@@ -143,20 +135,47 @@ export function ActionEditor() {
   } | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
 
-  // Undo/Redo 対応 state
+  const handleNotFound = useCallback(() => navigate("/actions"), [navigate]);
+
+  const handleLoaded = useCallback((g: ActionGroup) => {
+    setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
+    loadProject().then((p) => {
+      setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
+      const agMetas = p.actionGroups ?? [];
+      setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
+    }).catch(console.error);
+    listTables().then((t) => {
+      setTables(t.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
+    }).catch(console.error);
+  }, []);
+
   const {
     state: group,
-    update: setGroup,
-    updateAndCommit: updateGroupCommit,
+    isDirty, isSaving, serverChanged,
+    update: updateGroup,
+    updateSilent: updateGroupSilent,
     commit: commitGroup,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    reset: resetGroup,
-  } = useUndoableState<ActionGroup | null>(null);
+    undo, redo, canUndo, canRedo,
+    handleSave: hookHandleSave,
+    handleReset, dismissServerBanner,
+  } = useResourceEditor<ActionGroup>({
+    tabType: "action",
+    mtimeKind: "actionGroup",
+    draftKind: "action",
+    id: actionGroupId,
+    load: loadActionGroup,
+    save: saveActionGroup,
+    broadcastName: "actionGroupChanged",
+    broadcastIdField: "id",
+    onNotFound: handleNotFound,
+    onLoaded: handleLoaded,
+  });
 
-  useUndoKeyboard(undo, redo);
+  // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
+  const handleSave = useCallback(async () => {
+    if (!group || hasBlockingErrors(validateActionGroup(group))) return;
+    await hookHandleSave();
+  }, [group, hookHandleSave]);
 
   // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
   const sensors = useSensors(
@@ -176,61 +195,6 @@ export function ActionEditor() {
     return closestCenter(args);
   }, []);
 
-  const reload = useCallback(async (useDraft = false) => {
-    if (!actionGroupId) return;
-    const g = await loadActionGroup(actionGroupId);
-    if (!g) {
-      navigate("/actions");
-      return;
-    }
-    lastSavedRef.current = g;
-    const draft = useDraft ? null : loadDraft<ActionGroup>("action", actionGroupId);
-    if (draft) {
-      resetGroup(draft);
-      setIsDirty(true);
-    } else {
-      resetGroup(g);
-      setIsDirty(false);
-      clearDraft("action", actionGroupId);
-    }
-    if (!activeActionId && g.actions.length > 0) {
-      setActiveActionId(g.actions[0].id);
-    }
-    const p = await loadProject();
-    setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
-    const agMetas = p.actionGroups ?? [];
-    setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
-    const t = await listTables();
-    setTables(t.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
-  }, [actionGroupId, activeActionId, navigate, resetGroup]);
-
-  useEffect(() => {
-    mcpBridge.startWithoutEditor();
-    reload().then(async () => {
-      if (!actionGroupId) return;
-      // タブを開いた時点でサーバー側に新しい変更がないか確認
-      if (hasDraft("action", actionGroupId)) {
-        if (await hasServerBeenUpdated("actionGroup", actionGroupId)) {
-          setServerChanged(true);
-        }
-      } else {
-        await acknowledgeServerMtime("actionGroup", actionGroupId);
-      }
-    }).catch(console.error);
-    const unsubStatus = mcpBridge.onStatusChange((s) => {
-      if (s === "connected") reload();
-    });
-    return unsubStatus;
-  }, [reload, actionGroupId]);
-
-  useEffect(() => {
-    if (!actionGroupId) return;
-    return mcpBridge.onBroadcast("actionGroupChanged", (data) => {
-      const d = data as { id?: string };
-      if (d.id === actionGroupId) setServerChanged(true);
-    });
-  }, [actionGroupId]);
-
   useSaveShortcut(() => {
     if (isDirty && !isSaving) handleSave();
   });
@@ -238,63 +202,6 @@ export function ActionEditor() {
   useEffect(() => {
     setValidationErrors(group ? validateActionGroup(group) : []);
   }, [group]);
-
-  const markGroupDirty = useCallback((g: ActionGroup) => {
-    if (actionGroupId) saveDraft("action", actionGroupId, g);
-    setIsDirty(true);
-  }, [actionGroupId]);
-
-  const handleSave = useCallback(async () => {
-    if (!group || hasBlockingErrors(validateActionGroup(group))) return;
-    setIsSaving(true);
-    try {
-      await saveActionGroup(group);
-      lastSavedRef.current = group;
-      if (actionGroupId) {
-        clearDraft("action", actionGroupId);
-        await acknowledgeServerMtime("actionGroup", actionGroupId);
-      }
-      setIsDirty(false);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [group, actionGroupId]);
-
-  const handleReset = useCallback(async () => {
-    await reload(true);
-    setServerChanged(false);
-    if (actionGroupId) await acknowledgeServerMtime("actionGroup", actionGroupId);
-  }, [reload, actionGroupId]);
-
-  /** 構造変化（履歴に積む）: ステップ追加・削除・移動、アクション追加・削除 */
-  const updateGroup = useCallback(
-    (updater: (g: ActionGroup) => void) => {
-      updateGroupCommit((prev) => {
-        if (!prev) return prev;
-        const next = JSON.parse(JSON.stringify(prev)) as ActionGroup;
-        updater(next);
-        markGroupDirty(next);
-        return next;
-      });
-      setIsDirty(true);
-    },
-    [updateGroupCommit, markGroupDirty],
-  );
-
-  /** テキスト変更（履歴に積まない）: フィールド編集中の一時状態 */
-  const updateGroupSilent = useCallback(
-    (updater: (g: ActionGroup) => void) => {
-      setGroup((prev) => {
-        if (!prev) return prev;
-        const next = JSON.parse(JSON.stringify(prev)) as ActionGroup;
-        updater(next);
-        markGroupDirty(next);
-        return next;
-      });
-      setIsDirty(true);
-    },
-    [setGroup, markGroupDirty],
-  );
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
 
@@ -557,7 +464,7 @@ export function ActionEditor() {
       <TableSubToolbar />
 
       {serverChanged && (
-        <ServerChangeBanner onReload={handleReset} onDismiss={() => setServerChanged(false)} />
+        <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
 
       {/* ヘッダー */}

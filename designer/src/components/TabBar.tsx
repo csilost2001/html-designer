@@ -63,13 +63,11 @@ function TabItem({
     transition,
   };
 
-  const icon = tab.type === "design"
-    ? "bi-window"
-    : tab.type === "table"
-    ? "bi-table"
-    : tab.type === "er"
-    ? "bi-diagram-3"
-    : "bi-lightning";
+  const icon =
+    tab.type === "design" ? "bi-window"
+    : tab.type === "table" ? "bi-table"
+    : tab.type === "action" ? "bi-lightning"
+    : "bi-file-earmark";
 
   const handleClick = () => setActiveTab(tab.id);
 
