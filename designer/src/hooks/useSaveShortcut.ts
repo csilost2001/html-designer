@@ -35,7 +35,9 @@ export function useSaveShortcut(
   allowInForm = false,
 ): void {
   const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  });
 
   useEffect(() => {
     if (!enabled) return;

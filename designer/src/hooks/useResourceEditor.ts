@@ -84,8 +84,10 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
 
   const onNotFoundRef = useRef(onNotFound);
   const onLoadedRef = useRef(onLoaded);
-  onNotFoundRef.current = onNotFound;
-  onLoadedRef.current = onLoaded;
+  useEffect(() => {
+    onNotFoundRef.current = onNotFound;
+    onLoadedRef.current = onLoaded;
+  });
 
   const {
     state, update: updateRaw, updateAndCommit, commit,
