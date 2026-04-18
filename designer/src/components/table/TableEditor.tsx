@@ -9,7 +9,7 @@ import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
-import { SaveResetButtons } from "../common/SaveResetButtons";
+import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/table.css";
 
@@ -72,13 +72,11 @@ export function TableEditor() {
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
 
-      {/* Header */}
-      <header className="table-editor-header">
-        <button className="tbl-btn tbl-btn-ghost table-back-btn" onClick={() => navigate("/table/list")}>
-          <i className="bi bi-arrow-left" /> テーブル一覧
-        </button>
-        <div className="table-editor-title-area">
-          {editingMeta ? (
+      <EditorHeader
+        variant="dark"
+        backLink={{ label: "テーブル一覧", onClick: () => navigate("/table/list") }}
+        title={
+          editingMeta ? (
             <TableMetaEditor
               table={table}
               onSave={(patch) => {
@@ -94,27 +92,12 @@ export function TableEditor() {
               {table.category && <span className="table-category-badge">{table.category}</span>}
               <i className="bi bi-pencil table-edit-icon" />
             </div>
-          )}
-        </div>
-        <div className="table-editor-header-actions">
+          )
+        }
+        undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
+        extraRight={
           <button
-            className="tbl-btn tbl-btn-ghost"
-            onClick={undo}
-            disabled={!canUndo}
-            title="元に戻す (Ctrl+Z)"
-          >
-            <i className="bi bi-arrow-counterclockwise" />
-          </button>
-          <button
-            className="tbl-btn tbl-btn-ghost"
-            onClick={redo}
-            disabled={!canRedo}
-            title="やり直し (Ctrl+Y)"
-          >
-            <i className="bi bi-arrow-clockwise" />
-          </button>
-          <button
-            className="tbl-btn tbl-btn-ghost"
+            className="editor-header-undo-btn"
             onClick={() => {
               const md = generateTableMarkdown(table);
               navigator.clipboard.writeText(md);
@@ -123,14 +106,9 @@ export function TableEditor() {
           >
             <i className="bi bi-clipboard" />
           </button>
-          <SaveResetButtons
-            isDirty={isDirty}
-            isSaving={isSaving}
-            onSave={handleSave}
-            onReset={handleReset}
-          />
-        </div>
-      </header>
+        }
+        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+      />
 
       {/* Tabs */}
       <div className="table-editor-tabs">
