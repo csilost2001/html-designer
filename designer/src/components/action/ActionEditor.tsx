@@ -48,6 +48,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
@@ -230,16 +231,8 @@ export function ActionEditor() {
     });
   }, [actionGroupId]);
 
-  // Ctrl+S for save
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        if (isDirty && !isSaving) handleSave();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving) handleSave();
   });
 
   useEffect(() => {

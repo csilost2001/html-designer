@@ -5,6 +5,7 @@ import type { McpStatus } from "../../mcp/mcpBridge";
 import { CodeEditorModal } from "../CodeEditorModal";
 import { SaveBlockModal } from "../SaveBlockModal";
 import { SaveResetButtons } from "../common/SaveResetButtons";
+import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { upsertCustomBlock } from "../../store/customBlockStore";
 
 export const CUSTOM_BLOCK_CATEGORY = "マイブロック";
@@ -219,10 +220,7 @@ ${html}
 
       const ctrl = e.ctrlKey || e.metaKey;
 
-      if (ctrl && e.key === "s") {
-        e.preventDefault();
-        onSaveToFile?.();
-      } else if (ctrl && e.key === "p") {
+      if (ctrl && e.key === "p") {
         e.preventDefault();
         editor.runCommand("preview");
       } else if (ctrl && e.key === "d") {
@@ -255,7 +253,11 @@ ${html}
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [editor, onSaveToFile]);
+  }, [editor]);
+
+  useSaveShortcut(() => {
+    void onSaveToFile?.();
+  });
 
   return (
     <header className="topbar">
