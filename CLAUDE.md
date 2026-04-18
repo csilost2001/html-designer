@@ -97,6 +97,8 @@ Claude Code ──(stdio)──→ designer-mcp ←──(ws://0.0.0.0:5179)─�
 
 - All UI text is in Japanese
 - Commit messages use conventional commits in Japanese (e.g., `feat(flow):`, `fix(designer):`, `improve:`)
+- **Workflow: one issue = one branch = one PR.** Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
+- PRs are squash-merged into `main`. The PR title should include the issue number (e.g., `feat(ui): ... (#83)`) so the merge commit references it.
 - `data/` directory is gitignored — runtime data only
 - Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
 - Custom blocks persist to `data/custom-blocks.json` via customBlockStore
