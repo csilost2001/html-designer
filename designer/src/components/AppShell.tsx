@@ -27,6 +27,8 @@ import {
 import { useTabKeyboard } from "../hooks/useTabKeyboard";
 import { ErrorBoundary } from "./common/ErrorBoundary";
 import { TabErrorFallback } from "./common/ErrorFallback";
+import { ResourceLoading } from "./common/ResourceLoading";
+import { recordError } from "../utils/errorLog";
 
 function useTabs() {
   const [tabs, setTabs] = useState<readonly TabItem[]>(getTabs);
@@ -56,6 +58,23 @@ export function AppShell() {
     document.documentElement.style.setProperty("--tabbar-h", h);
   }, [tabs.length]);
 
+  // リソース詳細 URL で対象が見つからなかったときにダッシュボードへ戻す共通処理。
+  // ブラウザが握っている URL を「存在しないリソース」のまま放置すると次回リロードで
+  // また袋小路に入るため、URL 自体も / に書き換える。
+  const fallbackToDashboard = (kind: string, id: string) => {
+    recordError({
+      source: "manual",
+      message: `URL が指すリソース (${kind}: ${id}) が見つかりません。ダッシュボードへフォールバック。`,
+      context: { kind, id, pathname: location.pathname },
+    });
+    if (typeof window !== "undefined") {
+      // ユーザーに明示。alert は UI ブロッキングだがトースト基盤が未導入なので暫定採用。
+      // 置き換えは将来の共通トースト導入時に実施する。
+      alert(`指定された${kind}が見つかりません。ダッシュボードに戻ります。`);
+    }
+    navigate("/", { replace: true });
+  };
+
   // URL → タブ同期（ブラウザの直接ナビゲーション / mcpBridge.navigateScreen）
   useEffect(() => {
     const designMatch = matchPath("/screen/design/:screenId", location.pathname);
@@ -70,8 +89,13 @@ export function AppShell() {
           const screen = project.screens.find((s) => s.id === screenId);
           if (screen) {
             openTab({ id: tabId, type: "design", resourceId: screenId, label: screen.name });
+          } else {
+            fallbackToDashboard("画面", screenId);
           }
-        }).catch(console.error);
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadProject 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("画面", screenId);
+        });
       }
       return;
     }
@@ -87,8 +111,13 @@ export function AppShell() {
         loadTable(tableId).then((table) => {
           if (table) {
             openTab({ id: tabId, type: "table", resourceId: tableId, label: table.logicalName ?? table.name });
+          } else {
+            fallbackToDashboard("テーブル", tableId);
           }
-        }).catch(console.error);
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadTable 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("テーブル", tableId);
+        });
       }
       return;
     }
@@ -104,8 +133,13 @@ export function AppShell() {
         loadActionGroup(actionGroupId).then((ag) => {
           if (ag) {
             openTab({ id: tabId, type: "action", resourceId: actionGroupId, label: ag.name });
+          } else {
+            fallbackToDashboard("処理フロー", actionGroupId);
           }
-        }).catch(console.error);
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadActionGroup 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("処理フロー", actionGroupId);
+        });
       }
       return;
     }
@@ -205,7 +239,10 @@ export function AppShell() {
           <Routes>
             <Route path="/" element={<DashboardView />} />
             <Route path="/screen/flow" element={<FlowEditor />} />
-            <Route path="/screen/design/:screenId" element={null} />
+            {/* design は designTabs 経由で別レンダーされるが、
+                 URL→タブ同期 effect の解決中に一瞬こちらのブランチが描画される。
+                 以前は element={null} で真っ白だったのを ResourceLoading に置換 (#124) */}
+            <Route path="/screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
             <Route path="/table/list" element={<TableListView />} />
             <Route path="/table/edit/:tableId" element={<TableEditor />} />
             <Route path="/table/er" element={<ErDiagram />} />
