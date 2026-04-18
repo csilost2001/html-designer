@@ -1,0 +1,144 @@
+/* ==========================================================================
+   EditorHeader — 全エディタ共通ヘッダー (#99)
+   backLink / title / centerTools / undoRedo / extraRight / saveReset を
+   スロット API で提供する。light/dark 2 バリアント。
+   ========================================================================== */
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  gap: 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid;
+  box-sizing: border-box;
+}
+
+.editor-header-left,
+.editor-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editor-header-right {
+  justify-content: flex-end;
+}
+
+.editor-header-center {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.editor-header-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.editor-header-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Back button ─────────────────────────── */
+.editor-header-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.editor-header-back-label {
+  white-space: nowrap;
+}
+
+/* ── Undo/Redo ───────────────────────────── */
+.editor-header-undo-redo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-header-undo-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.editor-header-undo-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Light variant (Flow / Table / Action 想定) ───────────────── */
+.editor-header-light {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.editor-header-light .editor-header-back {
+  color: #475569;
+}
+.editor-header-light .editor-header-back:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.editor-header-light .editor-header-undo-btn {
+  color: #475569;
+}
+.editor-header-light .editor-header-undo-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #1e293b;
+}
+
+/* ── Dark variant (Designer 想定) ────────────────────────────── */
+.editor-header-dark {
+  background: var(--dz-bg-2, #27293a);
+  border-bottom-color: var(--dz-border, #3b3e55);
+  color: var(--dz-text, #e4e6f0);
+}
+
+.editor-header-dark .editor-header-back {
+  color: var(--dz-text, #e4e6f0);
+}
+.editor-header-dark .editor-header-back:hover {
+  background: var(--dz-bg-3, #30334a);
+  border-color: var(--dz-border, #3b3e55);
+}
+
+.editor-header-dark .editor-header-undo-btn {
+  color: var(--dz-text, #e4e6f0);
+}
+.editor-header-dark .editor-header-undo-btn:hover:not(:disabled) {
+  background: var(--dz-bg-3, #30334a);
+  border-color: var(--dz-border, #3b3e55);
+}
