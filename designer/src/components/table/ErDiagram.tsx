@@ -20,7 +20,7 @@ import "@xyflow/react/dist/style.css";
 
 import ErTableNodeComponent, { type ErTableNodeData } from "./ErTableNode";
 import { TableTopbar } from "./TableTopbar";
-import type { TableDefinition, ErLayout, ErLogicalRelation, ErCardinality, SqlDialect } from "../../types/table";
+import type { TableDefinition, ErLayout, ErLogicalRelation, ErCardinality } from "../../types/table";
 import { CARDINALITY_LABELS } from "../../types/table";
 import { listTables, loadTable, createTable } from "../../store/tableStore";
 import { loadErLayout, saveErLayout } from "../../store/erLayoutStore";
