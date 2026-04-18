@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TableMeta } from "../../types/flow";
 import type { TableDefinition, SqlDialect } from "../../types/table";
 import { SQL_DIALECT_LABELS } from "../../types/table";
 import { listTables, createTable, deleteTable, loadTable } from "../../store/tableStore";
-import { loadProject } from "../../store/flowStore";
+import { loadProject, saveProject } from "../../store/flowStore";
 import { generateAllDdl, generateAllTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { TableSubToolbar } from "./TableSubToolbar";
+import { DataList, type DataListColumn } from "../common/DataList";
+import { useListSelection } from "../../hooks/useListSelection";
+import { useListKeyboard } from "../../hooks/useListKeyboard";
 import "../../styles/table.css";
 
 export function TableListView() {
@@ -20,21 +23,8 @@ export function TableListView() {
   const [addCategory, setAddCategory] = useState("");
   const [exportDialect, setExportDialect] = useState<SqlDialect>("postgresql");
   const [showExport, setShowExport] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCardClick = (id: string) => {
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-      navigate(`/table/edit/${id}`);
-    } else {
-      clickTimerRef.current = setTimeout(() => {
-        clickTimerRef.current = null;
-        setSelectedId((prev) => (prev === id ? null : id));
-      }, 250);
-    }
-  };
+  const selection = useListSelection(tables, (t) => t.id);
 
   const reload = useCallback(async () => {
     const t = await listTables();
@@ -52,6 +42,38 @@ export function TableListView() {
     return unsub;
   }, [reload]);
 
+  const handleReorder = useCallback(async (fromIndex: number, toIndex: number) => {
+    const project = await loadProject();
+    const metas = project.tables ?? [];
+    if (fromIndex < 0 || fromIndex >= metas.length || toIndex < 0 || toIndex >= metas.length) return;
+    const next = [...metas];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    await saveProject({ ...project, tables: next, updatedAt: new Date().toISOString() });
+    await reload();
+  }, [reload]);
+
+  const handleDeleteItems = useCallback(async (items: TableMeta[]) => {
+    if (items.length === 0) return;
+    const msg = items.length === 1
+      ? `テーブル「${items[0].name}」を削除しますか？`
+      : `${items.length} 件のテーブルを削除しますか？`;
+    if (!confirm(msg)) return;
+    for (const item of items) {
+      await deleteTable(item.id);
+    }
+    selection.clearSelection();
+    await reload();
+  }, [reload, selection]);
+
+  useListKeyboard({
+    items: tables,
+    getId: (t) => t.id,
+    selection,
+    onActivate: (t) => navigate(`/table/edit/${t.id}`),
+    onDelete: handleDeleteItems,
+  });
+
   const handleAdd = async () => {
     const name = addName.trim();
     const logical = addLogical.trim();
@@ -62,13 +84,6 @@ export function TableListView() {
     setAddLogical("");
     setAddCategory("");
     navigate(`/table/edit/${table.id}`);
-  };
-
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("このテーブル定義を削除しますか？")) return;
-    await deleteTable(id);
-    await reload();
   };
 
   const handleExportDdl = async () => {
@@ -92,11 +107,61 @@ export function TableListView() {
     downloadText(`${projectName}_tables.md`, md);
   };
 
+  const columns: DataListColumn<TableMeta>[] = [
+    {
+      key: "name",
+      header: "テーブル名",
+      render: (t) => <code className="table-list-name">{t.name}</code>,
+    },
+    {
+      key: "logicalName",
+      header: "論理名",
+      render: (t) => <span className="table-list-logical">{t.logicalName}</span>,
+    },
+    {
+      key: "category",
+      header: "カテゴリ",
+      width: "120px",
+      render: (t) => t.category ? <span className="table-list-category-badge">{t.category}</span> : null,
+    },
+    {
+      key: "columnCount",
+      header: "カラム数",
+      width: "80px",
+      align: "right",
+      render: (t) => <>{t.columnCount}</>,
+    },
+    {
+      key: "updatedAt",
+      header: "更新日時",
+      width: "120px",
+      render: (t) => new Date(t.updatedAt).toLocaleDateString("ja-JP"),
+    },
+    {
+      key: "actions",
+      header: "",
+      width: "40px",
+      align: "center",
+      render: (t) => (
+        <button
+          className="table-list-row-delete"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleDeleteItems([t]);
+          }}
+          title="削除"
+        >
+          <i className="bi bi-trash" />
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="table-list-page">
       <TableSubToolbar />
 
-      <div className="table-list-content" onClick={() => setSelectedId(null)}>
+      <div className="table-list-content">
         <div className="table-list-header">
           <h2 className="table-list-title">
             <i className="bi bi-table" /> テーブル設計書
@@ -142,38 +207,15 @@ export function TableListView() {
             </button>
           </div>
         ) : (
-          <div className="table-list-grid">
-            {tables.map((t) => (
-              <div
-                key={t.id}
-                className={`table-list-card${selectedId === t.id ? " selected" : ""}`}
-                onClick={(e) => { e.stopPropagation(); handleCardClick(t.id); }}
-              >
-                <div className="table-card-header">
-                  <span className="table-card-name">{t.name}</span>
-                  {t.category && (
-                    <span className="table-card-category">{t.category}</span>
-                  )}
-                </div>
-                <div className="table-card-logical">{t.logicalName}</div>
-                <div className="table-card-meta">
-                  <span>
-                    <i className="bi bi-columns-gap" /> {t.columnCount} カラム
-                  </span>
-                  <span className="table-card-date">
-                    {new Date(t.updatedAt).toLocaleDateString("ja-JP")}
-                  </span>
-                </div>
-                <button
-                  className="table-card-delete"
-                  onClick={(e) => handleDelete(t.id, e)}
-                  title="削除"
-                >
-                  <i className="bi bi-trash" />
-                </button>
-              </div>
-            ))}
-          </div>
+          <DataList
+            items={tables}
+            columns={columns}
+            getId={(t) => t.id}
+            selection={selection}
+            onActivate={(t) => navigate(`/table/edit/${t.id}`)}
+            onReorder={handleReorder}
+            className="table-list-datalist"
+          />
         )}
 
         {/* テーブル追加モーダル */}

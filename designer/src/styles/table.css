@@ -87,95 +87,82 @@
   gap: 8px;
 }
 
-/* ── テーブルカード ─────────────────────────────────────────────────────── */
+/* ── テーブル一覧 (DataList 利用) ─────────────────────────────────────── */
 
-.table-list-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.table-list-card {
-  position: relative;
-  padding: 16px;
+/* DataList をダーク系パレットに上書き (TableListView 固有) */
+.table-list-page .data-list {
   background: #222240;
-  border: 1px solid #333;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s;
+  border-color: #333;
+  color: #e0e0e0;
 }
 
-.table-list-card:hover {
-  border-color: #7c6bff;
+.table-list-page .data-list-table thead th {
+  background: #1a1a2e;
+  border-bottom-color: #333;
+  color: #888;
+}
+
+.table-list-page .data-list-row {
+  border-bottom-color: #2a2a45;
+}
+
+.table-list-page .data-list-row:hover {
   background: #28284a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(124,107,255,0.15);
 }
 
-.table-list-card.selected {
-  outline: 2px solid #7c6bff;
-  background: #28284a;
+.table-list-page .data-list-row.selected {
+  background: #2e2a5f;
 }
 
-.table-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
+.table-list-page .data-list-row.selected:hover {
+  background: #363062;
 }
 
-.table-card-name {
+.table-list-page .data-list-td-handle {
+  color: #555;
+}
+
+.table-list-page .data-list-td-num {
+  color: #aaa;
+}
+
+.table-list-page .data-list-row > td {
+  color: #ccc;
+}
+
+.table-list-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   color: #fff;
   font-family: "Consolas", "Monaco", monospace;
+  background: none;
+  padding: 0;
 }
 
-.table-card-category {
+.table-list-logical {
+  color: #ccc;
+}
+
+.table-list-category-badge {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 4px;
   background: rgba(124,107,255,0.15);
   color: #a99bff;
+  white-space: nowrap;
 }
 
-.table-card-logical {
-  font-size: 13px;
-  color: #999;
-  margin-bottom: 12px;
-}
-
-.table-card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #777;
-}
-
-.table-card-meta i {
-  margin-right: 4px;
-}
-
-.table-card-delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+.table-list-row-delete {
   background: none;
   border: none;
   color: #666;
   cursor: pointer;
-  opacity: 0;
-  transition: all 0.15s;
-  padding: 4px;
+  padding: 4px 6px;
   border-radius: 4px;
+  transition: all 0.15s;
 }
 
-.table-list-card:hover .table-card-delete {
-  opacity: 1;
-}
-
-.table-card-delete:hover {
+.table-list-row-delete:hover {
   color: #ff6b6b;
   background: rgba(255,107,107,0.1);
 }
