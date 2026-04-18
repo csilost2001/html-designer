@@ -13,6 +13,7 @@
 import type { ComponentType } from "react";
 import { FunctionCountsPanel } from "./panels/FunctionCountsPanel";
 import { UnsavedDraftsPanel } from "./panels/UnsavedDraftsPanel";
+import { RecentEditsPanel } from "./panels/RecentEditsPanel";
 
 /** react-grid-layout の 1 パネルのレイアウト指定 */
 export interface PanelLayout {
@@ -65,5 +66,12 @@ export const dashboardPanels: DashboardPanel[] = [
     icon: "bi-hourglass-split",
     defaultLayout: { w: 6, h: 4, minW: 4, minH: 3 },
     component: UnsavedDraftsPanel,
+  },
+  {
+    id: "recent-edits",
+    title: "最近編集したもの",
+    icon: "bi-clock-history",
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    component: RecentEditsPanel,
   },
 ];
