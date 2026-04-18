@@ -138,4 +138,77 @@ test.describe("wsBridge ファイル操作", () => {
     const loadResult = await sendBrowserRequest("loadScreen", { screenId });
     expect(loadResult).toBeNull();
   });
+
+  /**
+   * getFileMtime は本 PR で追加した新しい MCP メソッド。
+   * designer-mcp が古いビルドで起動していると「未知のメソッド」エラーが返るため、
+   * 本テストスイートはその場合は skip する。
+   */
+  async function supportsGetFileMtime(): Promise<boolean> {
+    try {
+      await sendBrowserRequest("getFileMtime", { kind: "project" });
+      return true;
+    } catch (e) {
+      if (String(e).includes("未知のリクエストメソッド")) return false;
+      return true;
+    }
+  }
+
+  test.describe("getFileMtime", () => {
+    test.beforeEach(async () => {
+      const supported = await supportsGetFileMtime();
+      if (!supported) test.skip(true, "designer-mcp に getFileMtime が実装されていません。再起動してください");
+    });
+
+    test("既存スクリーンの mtime が取得できる", async () => {
+      const screenId = "e2e-test-mtime-001";
+      await sendBrowserRequest("saveScreen", { screenId, data: { pages: [] } });
+
+      const result = (await sendBrowserRequest("getFileMtime", {
+        kind: "screen",
+        id: screenId,
+      })) as { mtime: number | null };
+      expect(result.mtime).not.toBeNull();
+      expect(typeof result.mtime).toBe("number");
+
+      await sendBrowserRequest("deleteScreen", { screenId });
+    });
+
+    test("存在しないファイルは null が返る", async () => {
+      const result = (await sendBrowserRequest("getFileMtime", {
+        kind: "screen",
+        id: "nonexistent-screen-xyz",
+      })) as { mtime: number | null };
+      expect(result.mtime).toBeNull();
+    });
+
+    test("未知の kind は null が返る", async () => {
+      const result = (await sendBrowserRequest("getFileMtime", {
+        kind: "unknown-kind",
+      })) as { mtime: number | null };
+      expect(result.mtime).toBeNull();
+    });
+
+    test("saveScreen 後の mtime は以前の mtime 以上", async () => {
+      const screenId = "e2e-test-mtime-increment-001";
+      await sendBrowserRequest("saveScreen", { screenId, data: { pages: [] } });
+      const r1 = (await sendBrowserRequest("getFileMtime", {
+        kind: "screen",
+        id: screenId,
+      })) as { mtime: number };
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await sendBrowserRequest("saveScreen", {
+        screenId,
+        data: { pages: [{ frames: [] }] },
+      });
+      const r2 = (await sendBrowserRequest("getFileMtime", {
+        kind: "screen",
+        id: screenId,
+      })) as { mtime: number };
+
+      expect(r2.mtime).toBeGreaterThanOrEqual(r1.mtime);
+      await sendBrowserRequest("deleteScreen", { screenId });
+    });
+  });
 });

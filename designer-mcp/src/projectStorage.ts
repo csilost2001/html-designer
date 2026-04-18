@@ -53,6 +53,30 @@ export async function writeProject(project: unknown): Promise<void> {
   await writeJSON(PROJECT_FILE, project);
 }
 
+/** 各種データファイルの更新時刻を取得（存在しないなら null） */
+export async function getFileMtime(kind: string, id?: string): Promise<number | null> {
+  const filePath = resolveDataFile(kind, id);
+  if (!filePath) return null;
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+function resolveDataFile(kind: string, id?: string): string | null {
+  switch (kind) {
+    case "project": return PROJECT_FILE;
+    case "erLayout": return ER_LAYOUT_FILE;
+    case "customBlocks": return CUSTOM_BLOCKS_FILE;
+    case "screen": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
+    case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
+    case "actionGroup": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
+    default: return null;
+  }
+}
+
 /** screens/{screenId}.json を読み込み */
 export async function readScreen(screenId: string): Promise<unknown | null> {
   return readJSON<unknown>(path.join(SCREENS_DIR, `${screenId}.json`));
