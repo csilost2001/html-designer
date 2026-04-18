@@ -4,7 +4,6 @@
 
 :root {
   --common-header-h: 40px;
-  --topbar-h: 48px;
   --panel-left-w: 280px;
   --panel-right-w: 300px;
   --dz-bg: #1e1e2e;
@@ -41,52 +40,9 @@
 }
 
 /* ==========================================================================
-   Topbar
+   Topbar — EditorHeader の centerTools / extraRight slot 内で使用する
+   ボタン類のスタイル。ヘッダー外装は editorHeader.css が担当。
    ========================================================================== */
-.topbar {
-  height: var(--topbar-h);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  background-color: var(--dz-bg-2);
-  border-bottom: 1px solid var(--dz-border);
-  padding: 0 16px;
-  gap: 16px;
-}
-
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: var(--topbar-left-w, var(--panel-left-w));
-  transition: min-width 0.2s ease;
-}
-.topbar-logo {
-  font-size: 22px;
-  color: var(--dz-accent);
-}
-.topbar-title {
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.2px;
-}
-
-.topbar-center {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.topbar-right {
-  min-width: var(--panel-right-w);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
 .icon-btn {
   background: transparent;
   border: 1px solid transparent;
@@ -113,12 +69,6 @@
 .icon-btn.danger:hover {
   background-color: rgba(239, 68, 68, 0.15);
   color: var(--dz-danger);
-}
-.topbar-center .divider {
-  width: 1px;
-  height: 20px;
-  background-color: var(--dz-border);
-  margin: 0 8px;
 }
 
 .save-indicator {

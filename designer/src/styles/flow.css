@@ -7,30 +7,7 @@
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* ── Flow Topbar ───────────────────────────── */
-.flow-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 48px;
-  padding: 0 16px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  flex-shrink: 0;
-  z-index: 10;
-}
-
-.flow-topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.flow-topbar-left .topbar-logo {
-  font-size: 20px;
-  color: #6366f1;
-}
-
+/* ── Flow Topbar (EditorHeader の title/center/extraRight slot 内で使用) ─── */
 .flow-topbar-title {
   font-size: 15px;
   font-weight: 600;
@@ -64,18 +41,6 @@
   outline: none;
   background: #fff;
   width: 200px;
-}
-
-.flow-topbar-subtitle {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-left: 4px;
-}
-
-.flow-topbar-center {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .flow-topbar-screen-count {
@@ -165,12 +130,6 @@
 
 .flow-fit-view-btn {
   padding: 5px 8px;
-}
-
-.flow-topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .flow-btn {

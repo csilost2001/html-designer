@@ -41,7 +41,7 @@ async function setupFlowEditor(page: Page, draft: object | null = null) {
 
 async function addScreenViaModal(page: Page, name: string) {
   // ツールバーの「画面を追加」（空状態 CTA "最初の画面を追加" とは別）
-  await page.locator('.flow-topbar-right button.flow-btn-primary').filter({ hasText: "画面を追加" }).click();
+  await page.locator('.editor-header button.flow-btn-primary').filter({ hasText: "画面を追加" }).click();
   await page.locator("#screen-name").fill(name);
   await page.locator('.flow-modal button[type="submit"]').click();
 }

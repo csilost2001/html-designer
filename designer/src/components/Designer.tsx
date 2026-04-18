@@ -336,16 +336,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     };
   }, [ready]);
 
-  // topbar-left の幅を panelMode に合わせて同期
-  useEffect(() => {
-    const root = document.documentElement;
-    if (panelMode === "pinned") {
-      root.style.setProperty("--topbar-left-w", "var(--panel-left-w)");
-    } else {
-      root.style.setProperty("--topbar-left-w", "160px");
-    }
-  }, [panelMode]);
-
   const handleSaveToFile = useCallback(async () => {
     if (isSaving) return;
     setIsSaving(true);
