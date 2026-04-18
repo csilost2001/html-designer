@@ -17,6 +17,7 @@ import { DesignSubToolbar } from "./design/DesignSubToolbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
 import { ServerChangeBanner } from "./common/ServerChangeBanner";
+import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { loadProject, updateScreenThumbnail } from "../store/flowStore";
@@ -130,7 +131,12 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const [isSaving, setIsSaving] = useState(false);
   const [serverChanged, setServerChanged] = useState(false);
   const isDirtyRef = useRef(false);
-  const isResettingRef = useRef(false);
+  // 初期ロード中および handleReset 中の component:* イベントは「ユーザー編集」ではないので
+  // markDirty を抑制する。初期ロードも同様に抑制するため、初期値を true にし onReady で解除する。
+  const isInternalLoadRef = useRef(true);
+  // マウント時点での draft 有無を記憶する。onReady で「autosave が初期ロード中に勝手に立てた
+  // draftKey」だけを取り除き、ユーザーが前セッションで未保存のまま残した正当な draft は保護するため。
+  const hadInitialDraftRef = useRef(hasScreenDraft(screenId));
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
@@ -142,6 +148,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     return saved ?? "pinned";
   });
   const [prevMode, setPrevMode] = useState<"pinned" | "autohide">("pinned");
+  const { showError } = useErrorDialog();
 
   const setPanelMode = useCallback((mode: PanelMode) => {
     setPanelModeState((cur) => {
@@ -205,7 +212,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
     // 変更検知: component 操作または style 変更でdirtyフラグを立てる
     const markDirty = () => {
-      if (isResettingRef.current) return;
+      if (isInternalLoadRef.current) return;
       setIsDirtyState(true);
       isDirtyRef.current = true;
       setDirty(tabId, true);
@@ -243,6 +250,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   const onReady = useCallback(async () => {
     setReady(true);
+    // マウント時点で draft が無かった場合、初期ロード中の autosave が立てた draftKey は
+    // 偽陽性なので解除する。draft があった場合は正当な未保存編集なので維持する。
+    if (!hadInitialDraftRef.current) {
+      clearScreenDraft(screenId);
+      setIsDirtyState(false);
+      isDirtyRef.current = false;
+      setDirty(tabId, false);
+    }
+    isInternalLoadRef.current = false;
     if (editorRef.current) {
       if (activeTheme !== "standard") {
         applyThemeToCanvas(editorRef.current, activeTheme);
@@ -255,7 +271,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         }
       } catch { /* ignore */ }
     }
-  }, [activeTheme]);
+  }, [activeTheme, screenId, tabId]);
 
   // タブがアクティブになったときにキャンバスをリフレッシュ（display:none から復帰）
   useEffect(() => {
@@ -327,17 +343,21 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       await acknowledgeServerMtime("screen", screenId);
     } catch (e) {
       console.error("[Designer] saveToFile failed:", e);
-      alert("保存に失敗しました: " + String(e));
+      showError({
+        title: "画面の保存に失敗しました",
+        error: e,
+        context: { screenId, tabId },
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [screenId, tabId, isSaving]);
+  }, [screenId, tabId, isSaving, showError]);
 
   const handleReset = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor) return;
     clearScreenDraft(screenId);
-    isResettingRef.current = true;
+    isInternalLoadRef.current = true;
     try {
       await editor.load();
       // autosave が store() を呼んで draftKey を復元するケースを防ぐ
@@ -350,11 +370,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       await acknowledgeServerMtime("screen", screenId);
     } catch (e) {
       console.error("[Designer] reset failed:", e);
-      alert("リセットに失敗しました: " + String(e));
+      showError({
+        title: "リセットに失敗しました",
+        error: e,
+        context: { screenId, tabId },
+      });
     } finally {
-      isResettingRef.current = false;
+      isInternalLoadRef.current = false;
     }
-  }, [screenId, tabId]);
+  }, [screenId, tabId, showError]);
 
   // タブを開いた時点でサーバーに新しい変更がないか確認（初回ロード完了後）
   useEffect(() => {

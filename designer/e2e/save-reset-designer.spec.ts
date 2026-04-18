@@ -46,12 +46,43 @@ const dummyTab = {
 
 // ─── セットアップ ──────────────────────────────────────────────────────────
 
-async function setupDesigner(page: Page, { withDraft = true } = {}) {
+// 実画面データ相当: ロード時に複数 component:add が発火する程度のプロジェクト
+// （初期ロード由来の markDirty 誤発火を再現するため、空 {} ではなく実データを使う）
+const screenWithComponents = {
+  dataSources: [],
+  assets: [],
+  styles: [],
+  pages: [
+    {
+      frames: [
+        {
+          component: {
+            type: "wrapper",
+            components:
+              "<div class=\"container\"><h1>ログイン</h1><input type=\"text\" placeholder=\"ユーザーID\"/><button>送信</button></div>",
+          },
+          id: "fr-init-0001",
+        },
+      ],
+      id: "pg-init-0001",
+      type: "main",
+    },
+  ],
+} as const;
+
+async function setupDesigner(
+  page: Page,
+  { withDraft = true, emptyScreen = true }: { withDraft?: boolean; emptyScreen?: boolean } = {},
+) {
   await page.addInitScript(
-    ({ project, screenId, tab, withDraft }) => {
+    ({ project, screenId, tab, withDraft, emptyScreen, screenData }) => {
       localStorage.setItem("flow-project", JSON.stringify(project));
-      // GrapesJS 用の最小スクリーンデータ（ロード可能な空プロジェクト）
-      localStorage.setItem(`gjs-screen-${screenId}`, JSON.stringify({}));
+      // emptyScreen: GrapesJS 用の最小スクリーンデータ（ロード可能な空プロジェクト）
+      // !emptyScreen: 実コンテンツ有り（component:add 発火を伴う初期ロードを再現）
+      localStorage.setItem(
+        `gjs-screen-${screenId}`,
+        JSON.stringify(emptyScreen ? {} : screenData),
+      );
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));
       localStorage.setItem("designer-active-tab", tab.id);
       if (withDraft) {
@@ -61,7 +92,7 @@ async function setupDesigner(page: Page, { withDraft = true } = {}) {
         localStorage.removeItem(`gjs-screen-${screenId}-draft`);
       }
     },
-    { project: dummyProject, screenId: SCREEN_ID, tab: dummyTab, withDraft },
+    { project: dummyProject, screenId: SCREEN_ID, tab: dummyTab, withDraft, emptyScreen, screenData: screenWithComponents },
   );
   await page.goto(`/screen/design/${SCREEN_ID}`);
   // GrapesJS 初期化完了を待つ（リセットボタンが出現するまで）
@@ -120,4 +151,26 @@ test.describe("画面デザイナー：リセットボタン", () => {
     await expect(page.getByRole("button", { name: /保存/ })).toBeDisabled();
     await expect(page.getByRole("button", { name: /リセット/ })).toBeDisabled();
   });
+
+  // 回帰: 初期ロード中の component:add が markDirty を発火させ
+  //       開いただけで dirty になる / draftKey が立ち続けるバグを防ぐ（issue: 開くと未保存状態）
+  test("実データ有り画面を開いても初期ロードだけで dirty にならない", async ({ page }) => {
+    // withDraft=false でコンテンツ有り。旧実装では component:add→markDirty が発火して
+    // ボタンが有効化されてしまう。
+    await setupDesigner(page, { withDraft: false, emptyScreen: false });
+
+    // Ready 到達後、イベントループが落ち着くのを待つ
+    await page.waitForTimeout(500);
+
+    await expect(page.getByRole("button", { name: /保存/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /リセット/ })).toBeDisabled();
+
+    // さらに draftKey が立っていないこと（次回リロード時に stale 状態で起動しないこと）
+    const draftFlag = await page.evaluate(
+      (id) => localStorage.getItem(`gjs-screen-${id}-draft`),
+      SCREEN_ID,
+    );
+    expect(draftFlag).toBeNull();
+  });
+
 });
