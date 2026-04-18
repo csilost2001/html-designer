@@ -61,7 +61,7 @@ export function convertLogicalRelations(
         cardinality: lr.cardinality,
         physical: false,
         label: lr.label,
-      } satisfies ErRelation;
+      };
     })
     .filter((r): r is ErRelation => r !== null);
 }
