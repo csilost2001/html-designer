@@ -3,14 +3,14 @@
  * テーブル定義から DDL (CREATE TABLE) を生成するユーティリティ
  * MySQL / PostgreSQL / Oracle / SQLite / 標準SQL に対応
  */
-import type { TableDefinition, TableColumn, SqlDialect } from "../types/table";
+import type { TableDefinition, SqlDialect } from "../types/table";
 
 export function generateDdl(table: TableDefinition, dialect: SqlDialect): string {
   const colDefs: string[] = [];
   const pks: string[] = [];
 
   for (const col of table.columns) {
-    let typeStr = col.autoIncrement
+    const typeStr = col.autoIncrement
       ? autoIncrementType(col.dataType, dialect)
       : mapDataType(col.dataType, col.length, col.scale, dialect);
 

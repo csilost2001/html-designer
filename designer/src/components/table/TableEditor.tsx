@@ -32,7 +32,6 @@ export function TableEditor() {
   // Undo/Redo 対応 state
   const {
     state: table,
-    update: setTable,
     updateAndCommit,
     undo,
     redo,
@@ -479,8 +478,6 @@ function ColumnDetailEditor({
   showLength: boolean;
   showScale: boolean;
 }) {
-  const hasFk = !!col.foreignKey;
-
   return (
     <div className="column-detail">
       <div className="column-detail-grid">
