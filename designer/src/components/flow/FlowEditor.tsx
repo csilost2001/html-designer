@@ -52,6 +52,7 @@ import {
 } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { openTab, makeTabId } from "../../store/tabStore";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
@@ -775,19 +776,9 @@ function FlowEditorInner() {
     await acknowledgeServerMtime("project");
   }, [reloadProject]);
 
-  // Ctrl+S で保存
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        const t = e.target as HTMLElement;
-        if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
-        e.preventDefault();
-        if (isDirty && !isSaving) handleSave();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isDirty, isSaving, handleSave]);
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving) handleSave();
+  });
 
   const isEmpty = !isLoading && nodes.filter((n) => n.type === "screenNode").length === 0;
   const screenCount = nodes.filter((n) => n.type === "screenNode").length;
