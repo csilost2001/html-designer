@@ -1,7 +1,7 @@
 const TABS_KEY = "designer-open-tabs";
 const ACTIVE_KEY = "designer-active-tab";
 
-export type TabType = "design" | "table" | "er" | "actions";
+export type TabType = "design" | "table" | "action";
 
 export interface TabItem {
   id: string;

@@ -11,6 +11,7 @@ import { TabBar } from "./TabBar";
 import { CommonHeader } from "./CommonHeader";
 import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
+import { loadActionGroup } from "../store/actionStore";
 import {
   getTabs,
   getActiveTabId,
@@ -84,6 +85,23 @@ export function AppShell() {
           }
         }).catch(console.error);
       }
+      return;
+    }
+
+    const actionMatch = matchPath("/actions/:actionGroupId", location.pathname);
+    if (actionMatch?.params.actionGroupId) {
+      const actionGroupId = actionMatch.params.actionGroupId;
+      const tabId = makeTabId("action", actionGroupId);
+      const existing = getTabs().find((t) => t.id === tabId);
+      if (existing) {
+        setActiveTab(tabId);
+      } else {
+        loadActionGroup(actionGroupId).then((ag) => {
+          if (ag) {
+            openTab({ id: tabId, type: "action", resourceId: actionGroupId, label: ag.name });
+          }
+        }).catch(console.error);
+      }
     }
   }, [location.pathname]);
 
@@ -96,6 +114,8 @@ export function AppShell() {
         ? `/design/${activeTab.resourceId}`
         : activeTab.type === "table"
         ? `/tables/${activeTab.resourceId}`
+        : activeTab.type === "action"
+        ? `/actions/${activeTab.resourceId}`
         : null;
     if (expectedPath && location.pathname !== expectedPath) {
       navigate(expectedPath, { replace: true });
