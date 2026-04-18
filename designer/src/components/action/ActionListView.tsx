@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ActionGroupMeta, ActionGroupType } from "../../types/action";
 import { ACTION_GROUP_TYPE_LABELS, ACTION_GROUP_TYPE_ICONS } from "../../types/action";
@@ -12,9 +12,18 @@ import { loadProject } from "../../store/flowStore";
 import { validateActionGroup } from "../../utils/actionValidation";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { TableSubToolbar } from "../table/TableSubToolbar";
+import { DataList, type DataListColumn } from "../common/DataList";
+import { FilterBar } from "../common/FilterBar";
+import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
+import { useListSelection } from "../../hooks/useListSelection";
+import { useListKeyboard } from "../../hooks/useListKeyboard";
+import { useListFilter } from "../../hooks/useListFilter";
+import { useListSort } from "../../hooks/useListSort";
+import { usePersistentState } from "../../hooks/usePersistentState";
 import "../../styles/action.css";
 
 const ALL_TYPES: ActionGroupType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
+const STORAGE_KEY = "list-view-mode:process-flow-list";
 
 interface ValidationSummary {
   errors: number;
@@ -25,17 +34,15 @@ export function ActionListView() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<ActionGroupMeta[]>([]);
   const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
+  const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
+  const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
   const [addType, setAddType] = useState<ActionGroupType>("screen");
   const [addScreenId, setAddScreenId] = useState("");
   const [addDescription, setAddDescription] = useState("");
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sortByErrors, setSortByErrors] = useState(false);
-  const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
-  const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
 
   const reload = useCallback(async () => {
     const g = await listActionGroups();
@@ -76,6 +83,66 @@ export function ActionListView() {
     return () => { cancelled = true; };
   }, [groups]);
 
+  const getErrorPriority = useCallback((id: string): number => {
+    const v = validationMap.get(id);
+    if (!v) return 0;
+    if (v.errors > 0) return 2;
+    if (v.warnings > 0) return 1;
+    return 0;
+  }, [validationMap]);
+
+  const filter = useListFilter(groups);
+
+  useEffect(() => {
+    const hasTypeFilter = filterType !== "all";
+    if (!hasTypeFilter && !filterErrorsOnly) {
+      filter.applyFilter(null);
+      return;
+    }
+    filter.applyFilter((g) => {
+      if (hasTypeFilter && g.type !== filterType) return false;
+      if (filterErrorsOnly && getErrorPriority(g.id) === 0) return false;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterType, filterErrorsOnly, validationMap]);
+
+  const sortAccessor = useCallback((g: ActionGroupMeta, key: string): string | number => {
+    switch (key) {
+      case "name": return g.name;
+      case "type": return ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type;
+      case "actionCount": return g.actionCount;
+      case "screenId": return g.screenId ? 1 : 0;
+      case "errorPriority": return getErrorPriority(g.id);
+      default: return "";
+    }
+  }, [getErrorPriority]);
+
+  const sort = useListSort(filter.filtered, sortAccessor);
+  const selection = useListSelection(sort.sorted, (g) => g.id);
+
+  const handleActivate = useCallback((g: ActionGroupMeta) => {
+    navigate(`/process-flow/edit/${g.id}`);
+  }, [navigate]);
+
+  const handleDelete = async (items: ActionGroupMeta[]) => {
+    if (!confirm(`${items.length} 件の処理フロー定義を削除しますか？`)) return;
+    for (const g of items) {
+      await deleteActionGroup(g.id);
+    }
+    await reload();
+    selection.clearSelection();
+  };
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (g) => g.id,
+    selection,
+    layout: viewMode === "card" ? "grid" : "list",
+    onActivate: handleActivate,
+    onDelete: handleDelete,
+  });
+
   const handleAdd = async () => {
     const name = addName.trim();
     if (!name) return;
@@ -93,56 +160,111 @@ export function ActionListView() {
     navigate(`/process-flow/edit/${group.id}`);
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("この処理フロー定義を削除しますか？")) return;
-    await deleteActionGroup(id);
-    await reload();
+  const columns = useMemo<DataListColumn<ActionGroupMeta>[]>(() => [
+    {
+      key: "name",
+      header: "名前",
+      sortable: true,
+      sortAccessor: (g) => g.name,
+      render: (g) => <span className="action-list-name">{g.name}</span>,
+    },
+    {
+      key: "type",
+      header: "種別",
+      width: "130px",
+      sortable: true,
+      sortAccessor: (g) => ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type,
+      render: (g) => (
+        <span className={`action-group-type-badge ${g.type}`}>
+          <i className={`${ACTION_GROUP_TYPE_ICONS[g.type as ActionGroupType] ?? "bi-three-dots"} me-1`} />
+          {ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type}
+        </span>
+      ),
+    },
+    {
+      key: "actionCount",
+      header: "アクション",
+      width: "90px",
+      align: "right",
+      sortable: true,
+      sortAccessor: (g) => g.actionCount,
+      render: (g) => <span>{g.actionCount}</span>,
+    },
+    {
+      key: "screenId",
+      header: "画面紐付け",
+      width: "110px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (g) => (g.screenId ? 1 : 0),
+      render: (g) => g.screenId ? <i className="bi bi-display" title="画面紐付きあり" /> : null,
+    },
+    {
+      key: "errorPriority",
+      header: "検証",
+      width: "100px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (g) => getErrorPriority(g.id),
+      render: (g) => {
+        const v = validationMap.get(g.id);
+        if (!v) return null;
+        if (v.errors > 0) return <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{v.errors}</span>;
+        if (v.warnings > 0) return <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{v.warnings}</span>;
+        return <i className="bi bi-check-lg action-validation-ok" title="問題なし" />;
+      },
+    },
+  ], [validationMap, getErrorPriority]);
+
+  const renderCard = (g: ActionGroupMeta) => {
+    const v = validationMap.get(g.id);
+    const hasError = (v?.errors ?? 0) > 0;
+    const hasWarning = (v?.warnings ?? 0) > 0;
+    return (
+      <div className={`action-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
+        <div className="action-card-head">
+          <span className={`action-group-type-badge ${g.type}`}>
+            <i className={`${ACTION_GROUP_TYPE_ICONS[g.type as ActionGroupType] ?? "bi-three-dots"} me-1`} />
+            {ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type}
+          </span>
+          <span className="action-card-name">{g.name}</span>
+          {v && (hasError || hasWarning) && (
+            <span className="action-validation-badges">
+              {hasError && <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{v.errors}</span>}
+              {hasWarning && <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{v.warnings}</span>}
+            </span>
+          )}
+        </div>
+        <div className="action-card-meta">
+          <span><i className="bi bi-lightning me-1" />アクション: {g.actionCount}件</span>
+          {g.screenId && <span><i className="bi bi-display me-1" />画面紐付き</span>}
+        </div>
+      </div>
+    );
   };
 
-  // シングルクリック: 選択、ダブルクリック: 編集画面へ
-  const handleCardClick = (id: string) => {
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-      navigate(`/process-flow/edit/${id}`);
-    } else {
-      clickTimerRef.current = setTimeout(() => {
-        clickTimerRef.current = null;
-        setSelectedId((prev) => (prev === id ? null : id));
-      }, 250);
-    }
-  };
-
-  const getErrorPriority = (id: string): number => {
-    const v = validationMap.get(id);
-    if (!v) return 0;
-    if (v.errors > 0) return 2;
-    if (v.warnings > 0) return 1;
-    return 0;
-  };
-
-  let displayed = filterType === "all" ? groups : groups.filter((g) => g.type === filterType);
-  if (filterErrorsOnly) {
-    displayed = displayed.filter((g) => getErrorPriority(g.id) > 0);
-  }
-  if (sortByErrors) {
-    displayed = [...displayed].sort((a, b) => getErrorPriority(b.id) - getErrorPriority(a.id));
-  }
+  const typeCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const g of groups) c[g.type] = (c[g.type] ?? 0) + 1;
+    return c;
+  }, [groups]);
 
   return (
-    <div className="action-page" onClick={() => setSelectedId(null)}>
+    <div className="action-page">
       <TableSubToolbar />
 
       <div className="action-content">
         <div className="action-list-header">
           <h5><i className="bi bi-diagram-3 me-2" />処理フロー定義</h5>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
-            <i className="bi bi-plus-lg me-1" />新規作成
-          </button>
+          <div className="action-list-header-right">
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
+              <i className="bi bi-plus-lg me-1" />新規作成
+            </button>
+          </div>
         </div>
 
-        {/* フィルタ・ソートバー */}
+        {/* フィルタバー */}
         <div className="action-list-filters">
           <button
             className={`btn btn-sm ${filterType === "all" ? "btn-primary" : "btn-outline-secondary"}`}
@@ -151,7 +273,7 @@ export function ActionListView() {
             すべて ({groups.length})
           </button>
           {ALL_TYPES.map((t) => {
-            const count = groups.filter((g) => g.type === t).length;
+            const count = typeCounts[t] ?? 0;
             if (count === 0) return null;
             return (
               <button
@@ -174,94 +296,37 @@ export function ActionListView() {
             />
             エラーありのみ
           </label>
-
-          <button
-            className={`btn btn-sm ${sortByErrors ? "btn-warning" : "btn-outline-secondary"}`}
-            onClick={() => setSortByErrors(!sortByErrors)}
-            title="エラーあり優先でソート"
-          >
-            <i className="bi bi-sort-down me-1" />
-            エラー優先
-          </button>
         </div>
 
-        {displayed.length === 0 ? (
-          <div className="step-empty">
-            <i className="bi bi-diagram-3" />
-            {groups.length === 0
-              ? "処理フロー定義がまだありません。「新規作成」から追加してください。"
-              : "該当する処理フロー定義がありません。"}
-          </div>
-        ) : (
-          <div className="action-list-grid">
-            {displayed.map((g) => {
-              const v = validationMap.get(g.id);
-              const hasError = (v?.errors ?? 0) > 0;
-              const hasWarning = (v?.warnings ?? 0) > 0;
-              const cardClass = [
-                "action-group-card",
-                selectedId === g.id ? "selected" : "",
-                hasError ? "has-error" : hasWarning ? "has-warning" : "",
-              ].filter(Boolean).join(" ");
+        <FilterBar
+          isActive={filter.isActive}
+          totalCount={filter.totalCount}
+          visibleCount={filter.visibleCount}
+          label={
+            filterType !== "all"
+              ? `種別: ${ACTION_GROUP_TYPE_LABELS[filterType]}${filterErrorsOnly ? " + エラーあり" : ""}`
+              : filterErrorsOnly ? "エラーあり" : undefined
+          }
+          onClear={() => { setFilterType("all"); setFilterErrorsOnly(false); }}
+        />
 
-              return (
-                <div
-                  key={g.id}
-                  className={cardClass}
-                  onClick={(e) => { e.stopPropagation(); handleCardClick(g.id); }}
-                >
-                  <div className="action-group-card-header">
-                    <span className={`action-group-type-badge ${g.type}`}>
-                      <i className={`${ACTION_GROUP_TYPE_ICONS[g.type as ActionGroupType] ?? "bi-three-dots"} me-1`} />
-                      {ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type}
-                    </span>
-                    <span className="action-group-card-name">{g.name}</span>
-                    {/* バリデーションバッジ */}
-                    {v && (hasError || hasWarning) && (
-                      <span
-                        className="action-validation-badges"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/process-flow/edit/${g.id}`); }}
-                        title="編集画面でエラーを確認"
-                      >
-                        {hasError && (
-                          <span className="validation-badge error">
-                            <i className="bi bi-x-circle-fill" />{v.errors}
-                          </span>
-                        )}
-                        {hasWarning && (
-                          <span className="validation-badge warning">
-                            <i className="bi bi-exclamation-triangle-fill" />{v.warnings}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="action-group-card-meta">
-                    <span>
-                      <i className="bi bi-lightning me-1" />
-                      アクション: {g.actionCount}件
-                    </span>
-                    {g.screenId && (
-                      <span>
-                        <i className="bi bi-display me-1" />
-                        画面紐付き
-                      </span>
-                    )}
-                  </div>
-                  <div className="action-group-card-actions">
-                    <button
-                      className="btn btn-outline-danger btn-sm py-0 px-2"
-                      onClick={(e) => handleDelete(g.id, e)}
-                      title="削除"
-                    >
-                      <i className="bi bi-trash" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <DataList
+          items={sort.sorted}
+          columns={columns}
+          getId={(g) => g.id}
+          selection={selection}
+          sort={sort}
+          onActivate={handleActivate}
+          layout={viewMode === "card" ? "grid" : "list"}
+          renderCard={renderCard}
+          showNumColumn={viewMode === "table"}
+          className="action-data-list"
+          emptyMessage={
+            groups.length === 0
+              ? <p>処理フロー定義がまだありません。「新規作成」から追加してください。</p>
+              : <p>該当する処理フロー定義がありません。</p>
+          }
+        />
       </div>
 
       {/* 新規作成モーダル */}
