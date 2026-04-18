@@ -1,7 +1,17 @@
 const TABS_KEY = "designer-open-tabs";
 const ACTIVE_KEY = "designer-active-tab";
 
-export type TabType = "design" | "table" | "action";
+export type TabType =
+  // マルチインスタンス（リソース ID 毎に独立タブ）
+  | "design"          // 画面デザイナー
+  | "table"           // テーブル編集
+  | "action"          // 処理フロー編集
+  // シングルトン（1 インスタンス固定。resourceId は "main" で統一）
+  | "screen-flow"        // 画面フロー図
+  | "table-list"         // テーブル一覧
+  | "er"                 // ER 図
+  | "process-flow-list"  // 処理フロー一覧
+  | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
 
 export interface TabItem {
   id: string;

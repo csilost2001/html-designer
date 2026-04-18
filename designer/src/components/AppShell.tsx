@@ -20,6 +20,7 @@ import {
   setActiveTab,
   makeTabId,
   type TabItem,
+  type TabType,
 } from "../store/tabStore";
 import { useTabKeyboard } from "../hooks/useTabKeyboard";
 
@@ -102,6 +103,24 @@ export function AppShell() {
           }
         }).catch(console.error);
       }
+      return;
+    }
+
+    // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
+    const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
+      { path: "/screen/flow",        type: "screen-flow",        label: "画面フロー" },
+      { path: "/table/list",         type: "table-list",         label: "テーブル一覧" },
+      { path: "/table/er",           type: "er",                 label: "ER図" },
+      { path: "/process-flow/list",  type: "process-flow-list",  label: "処理フロー一覧" },
+    ];
+    for (const { path, type, label } of singletonRoutes) {
+      if (location.pathname === path) {
+        const tabId = makeTabId(type, "main");
+        const existing = getTabs().find((t) => t.id === tabId);
+        if (existing) setActiveTab(tabId);
+        else openTab({ id: tabId, type, resourceId: "main", label });
+        return;
+      }
     }
   }, [location.pathname]);
 
@@ -110,13 +129,15 @@ export function AppShell() {
   useEffect(() => {
     if (!activeTab) return;
     const expectedPath =
-      activeTab.type === "design"
-        ? `/screen/design/${activeTab.resourceId}`
-        : activeTab.type === "table"
-        ? `/table/edit/${activeTab.resourceId}`
-        : activeTab.type === "action"
-        ? `/process-flow/edit/${activeTab.resourceId}`
-        : null;
+      activeTab.type === "design"             ? `/screen/design/${activeTab.resourceId}`
+      : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
+      : activeTab.type === "action"           ? `/process-flow/edit/${activeTab.resourceId}`
+      : activeTab.type === "screen-flow"      ? "/screen/flow"
+      : activeTab.type === "table-list"       ? "/table/list"
+      : activeTab.type === "er"               ? "/table/er"
+      : activeTab.type === "process-flow-list" ? "/process-flow/list"
+      : activeTab.type === "dashboard"        ? "/"
+      : null;
     if (expectedPath && location.pathname !== expectedPath) {
       navigate(expectedPath, { replace: true });
     }
