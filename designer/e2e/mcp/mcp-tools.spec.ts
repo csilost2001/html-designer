@@ -211,4 +211,99 @@ test.describe("wsBridge ファイル操作", () => {
       await sendBrowserRequest("deleteScreen", { screenId });
     });
   });
+
+  // ─── Table 操作 ────────────────────────────────────────────────────────────
+
+  test.describe("table ファイル操作", () => {
+    test("saveTable / loadTable でデータが往復する", async () => {
+      const tableId = "e2e-test-table-001";
+      const testData = {
+        id: tableId,
+        name: "test_users",
+        logicalName: "テストユーザー",
+        description: "E2E 用",
+        columns: [
+          { id: "c1", name: "id", logicalName: "ID", dataType: "INTEGER", notNull: true, primaryKey: true },
+        ],
+        indexes: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const saveResult = await sendBrowserRequest("saveTable", { tableId, data: testData });
+      expect((saveResult as { success: boolean }).success).toBe(true);
+
+      const loadResult = await sendBrowserRequest("loadTable", { tableId });
+      expect(loadResult).toMatchObject(testData);
+
+      // 後片付け
+      const filePath = path.resolve("../data/tables", `${tableId}.json`);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    });
+
+    test("deleteTable でファイルが削除される", async () => {
+      const tableId = "e2e-test-table-del-001";
+      await sendBrowserRequest("saveTable", {
+        tableId,
+        data: { id: tableId, name: "tmp", columns: [], indexes: [] },
+      });
+
+      const deleteResult = await sendBrowserRequest("deleteTable", { tableId });
+      expect((deleteResult as { success: boolean }).success).toBe(true);
+
+      const loadResult = await sendBrowserRequest("loadTable", { tableId });
+      expect(loadResult).toBeNull();
+    });
+
+    test("存在しない tableId の loadTable は null", async () => {
+      const loadResult = await sendBrowserRequest("loadTable", { tableId: "nonexistent-table-xyz" });
+      expect(loadResult).toBeNull();
+    });
+  });
+
+  // ─── ActionGroup 操作 ─────────────────────────────────────────────────────
+
+  test.describe("actionGroup ファイル操作", () => {
+    test("saveActionGroup / loadActionGroup でデータが往復する", async () => {
+      const id = "e2e-test-ag-001";
+      const testData = {
+        id,
+        name: "E2E テストフロー",
+        type: "screen",
+        description: "",
+        actions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const saveResult = await sendBrowserRequest("saveActionGroup", { id, data: testData });
+      expect((saveResult as { success: boolean }).success).toBe(true);
+
+      const loadResult = await sendBrowserRequest("loadActionGroup", { id });
+      expect(loadResult).toMatchObject(testData);
+
+      // 後片付け
+      const filePath = path.resolve("../data/actions", `${id}.json`);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    });
+
+    test("deleteActionGroup でファイルが削除される", async () => {
+      const id = "e2e-test-ag-del-001";
+      await sendBrowserRequest("saveActionGroup", {
+        id,
+        data: { id, name: "tmp", type: "screen", description: "", actions: [] },
+      });
+
+      const deleteResult = await sendBrowserRequest("deleteActionGroup", { id });
+      expect((deleteResult as { success: boolean }).success).toBe(true);
+
+      const loadResult = await sendBrowserRequest("loadActionGroup", { id });
+      expect(loadResult).toBeNull();
+    });
+
+    test("存在しない id の loadActionGroup は null", async () => {
+      const loadResult = await sendBrowserRequest("loadActionGroup", { id: "nonexistent-ag-xyz" });
+      expect(loadResult).toBeNull();
+    });
+  });
 });
