@@ -112,6 +112,11 @@
   box-shadow: 0 4px 12px rgba(124,107,255,0.15);
 }
 
+.table-list-card.selected {
+  outline: 2px solid #7c6bff;
+  background: #28284a;
+}
+
 .table-card-header {
   display: flex;
   align-items: center;

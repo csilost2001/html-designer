@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ScreenNode } from "../../types/flow";
 import { SCREEN_TYPE_LABELS, SCREEN_TYPE_ICONS } from "../../types/flow";
@@ -29,6 +29,21 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("updatedAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRowClick = (id: string) => {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      navigate(`/design/${id}`);
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        setSelectedId((prev) => (prev === id ? null : id));
+      }, 250);
+    }
+  };
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -131,7 +146,11 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
             </thead>
             <tbody>
               {filtered.map((screen) => (
-                <tr key={screen.id} className="screen-table-row">
+                <tr
+                  key={screen.id}
+                  className={`screen-table-row${selectedId === screen.id ? " selected" : ""}`}
+                  onClick={() => handleRowClick(screen.id)}
+                >
                   <td className="screen-table-td">
                     <div className="screen-table-name">
                       <i className={`bi ${SCREEN_TYPE_ICONS[screen.type] ?? "bi-circle"} screen-table-icon`} />
@@ -159,21 +178,21 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
                     <div className="screen-table-actions">
                       <button
                         className="screen-table-btn"
-                        onClick={() => navigate(`/design/${screen.id}`)}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/design/${screen.id}`); }}
                         title="デザインを編集"
                       >
                         <i className="bi bi-palette" />
                       </button>
                       <button
                         className="screen-table-btn"
-                        onClick={() => onEdit(screen.id)}
+                        onClick={(e) => { e.stopPropagation(); onEdit(screen.id); }}
                         title="画面情報を編集"
                       >
                         <i className="bi bi-pencil" />
                       </button>
                       <button
                         className="screen-table-btn danger"
-                        onClick={() => onDelete(screen.id)}
+                        onClick={(e) => { e.stopPropagation(); onDelete(screen.id); }}
                         title="削除"
                       >
                         <i className="bi bi-trash" />
