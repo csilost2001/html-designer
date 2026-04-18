@@ -34,7 +34,6 @@ interface BackLink {
 }
 
 interface Props {
-  ready: boolean;
   panelMode: PanelMode;
   onOpenPanel: () => void;
   activeTheme: ThemeId;
@@ -47,7 +46,7 @@ interface Props {
   onReset?: () => Promise<void>;
 }
 
-export function DesignSubToolbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset }: Props) {
+export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
