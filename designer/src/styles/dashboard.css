@@ -131,3 +131,52 @@
   opacity: 0.2;
   border-radius: 8px;
 }
+
+.panel-error {
+  padding: 12px;
+  color: #b91c1c;
+  font-size: 12px;
+  background: #fef2f2;
+  border-radius: 4px;
+}
+
+/* FunctionCountsPanel 固有 */
+.function-counts-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  height: 100%;
+}
+
+.count-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-left: 4px solid #6366f1;
+  border-radius: 6px;
+  min-height: 64px;
+}
+
+.count-card .bi {
+  font-size: 24px;
+}
+
+.count-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.count-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+
+.count-label {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
