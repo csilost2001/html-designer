@@ -3,22 +3,27 @@ import { useNavigate } from "react-router-dom";
 import type { TableMeta } from "../../types/flow";
 import type { TableDefinition, SqlDialect } from "../../types/table";
 import { SQL_DIALECT_LABELS } from "../../types/table";
-import { listTables, createTable, deleteTable, loadTable } from "../../store/tableStore";
-import { loadProject } from "../../store/flowStore";
+import { listTables, createTable, deleteTable, loadTable, saveTable } from "../../store/tableStore";
+import { loadProject, saveProject } from "../../store/flowStore";
 import { generateAllDdl, generateAllTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { makeTabId } from "../../store/tabStore";
 import { TableSubToolbar } from "./TableSubToolbar";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
+import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
 import { useListFilter } from "../../hooks/useListFilter";
 import { useListSort } from "../../hooks/useListSort";
+import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
+import { generateUUID } from "../../utils/uuid";
 import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:table-list";
+const TAB_ID = makeTabId("table-list", "main");
 
 function formatDate(iso: string): string {
   try {
@@ -30,7 +35,6 @@ function formatDate(iso: string): string {
 
 export function TableListView() {
   const navigate = useNavigate();
-  const [tables, setTables] = useState<TableMeta[]>([]);
   const [projectName, setProjectName] = useState("プロジェクト");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
@@ -41,24 +45,52 @@ export function TableListView() {
   const [exportDialect, setExportDialect] = useState<SqlDialect>("postgresql");
   const [showExport, setShowExport] = useState(false);
 
-  const reload = useCallback(async () => {
-    const t = await listTables();
-    setTables(t);
+  const loadTables = useCallback(async () => {
+    mcpBridge.startWithoutEditor();
     const p = await loadProject();
     setProjectName(p.name);
+    return await listTables();
   }, []);
 
+  const commitTables = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: TableMeta[]; deletedIds: string[] }) => {
+    // 1. 削除対象を削除
+    for (const id of deletedIds) {
+      await deleteTable(id);
+    }
+    // 2. 並び順を project.tables に反映
+    const project = await loadProject();
+    if (project.tables) {
+      const deletedSet = new Set(deletedIds);
+      const orderMap = new Map(itemsInOrder.map((t, i) => [t.id, i]));
+      project.tables = project.tables
+        .filter((t) => !deletedSet.has(t.id))
+        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+      await saveProject(project);
+    }
+  }, []);
+
+  const editor = useListEditor<TableMeta>({
+    getId: (t) => t.id,
+    load: loadTables,
+    commit: commitTables,
+    tabId: TAB_ID,
+  });
+
   useEffect(() => {
-    mcpBridge.startWithoutEditor();
-    reload();
-    const unsub = mcpBridge.onStatusChange((s) => {
-      if (s === "connected") reload();
+    editor.reload();
+    const unsubStatus = mcpBridge.onStatusChange((s) => {
+      if (s === "connected" && !editor.isDirty) editor.reload();
     });
-    return unsub;
-  }, [reload]);
+    const unsubProj = mcpBridge.onBroadcast("projectChanged", () => {
+      if (!editor.isDirty) editor.reload();
+    });
+    return () => { unsubStatus(); unsubProj(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const filter = useListFilter(tables);
+  const allTables = editor.items;
 
+  const filter = useListFilter(allTables);
   useEffect(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -86,27 +118,140 @@ export function TableListView() {
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (t) => t.id);
+  const clipboard = useListClipboard<TableMeta>((t) => t.id);
 
   const handleActivate = useCallback((t: TableMeta) => {
+    if (editor.isDeleted(t.id)) return; // 削除マーク中は編集画面に遷移しない
     navigate(`/table/edit/${t.id}`);
-  }, [navigate]);
+  }, [navigate, editor]);
 
-  const handleDelete = async (items: TableMeta[]) => {
-    if (!confirm(`${items.length} 件のテーブル定義を削除しますか？`)) return;
-    for (const t of items) {
-      await deleteTable(t.id);
+  const handleDelete = (items: TableMeta[]) => {
+    // ghost 方式: マークするだけ
+    editor.markDeleted(items.map((t) => t.id));
+  };
+
+  const handleReorder = (fromIdx: number, toIdx: number) => {
+    const visible = sort.sorted;
+    const fromId = visible[fromIdx]?.id;
+    const toId = visible[toIdx]?.id;
+    if (!fromId || !toId) return;
+    const realFrom = editor.items.findIndex((t) => t.id === fromId);
+    const realTo = editor.items.findIndex((t) => t.id === toId);
+    if (realFrom < 0 || realTo < 0) return;
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    editor.reorder(realFrom, realTo);
+  };
+
+  const moveBlock = (items: TableMeta[], direction: "up" | "down") => {
+    const ids = new Set(items.map((t) => t.id));
+    const idxs = editor.items
+      .map((t, i) => (ids.has(t.id) ? i : -1))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b);
+    if (idxs.length === 0) return;
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    if (direction === "up") {
+      if (idxs[0] === 0) return;
+      editor.setItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(idxs[0] - 1, 1);
+        next.splice(idxs[idxs.length - 1], 0, moved);
+        return next;
+      });
+    } else {
+      if (idxs[idxs.length - 1] === editor.items.length - 1) return;
+      editor.setItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(idxs[idxs.length - 1] + 1, 1);
+        next.splice(idxs[0], 0, moved);
+        return next;
+      });
     }
-    await reload();
-    selection.clearSelection();
+  };
+
+  const handleDuplicate = async (items: TableMeta[]) => {
+    // 複製は新規エンティティ生成 → 即永続化。Save フローには乗せない。
+    for (const t of items) {
+      const full = await loadTable(t.id);
+      if (!full) continue;
+      const dup: TableDefinition = {
+        ...full,
+        id: generateUUID(),
+        name: full.name + "_copy",
+        logicalName: full.logicalName + " (コピー)",
+        columns: full.columns.map((c) => ({ ...c, id: generateUUID() })),
+        indexes: full.indexes.map((i) => ({ ...i, id: generateUUID() })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await saveTable(dup);
+    }
+    await editor.reload();
+  };
+
+  const handlePaste = async (insertIdx: number | null) => {
+    const mode = clipboard.clipboard.mode;
+    const clipItems = clipboard.clipboard.items;
+    if (!clipItems.length) return;
+
+    if (mode === "cut") {
+      // No-op: 貼り付け対象自身が選択中
+      const cutIds = new Set(clipItems.map((c) => c.id));
+      const selIds = selection.selectedIds;
+      const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
+      if (sameSet) return;
+
+      // Cut → 並び替え (draft)
+      if (sort.sortKeys.length > 0) sort.clearSort();
+      clipboard.consume();
+      const moved = clipItems;
+      const pos0 = insertIdx ?? editor.items.length;
+      const removedBefore = editor.items.slice(0, pos0).filter((t) => cutIds.has(t.id)).length;
+      const remaining = editor.items.filter((t) => !cutIds.has(t.id));
+      const pos = Math.min(remaining.length, pos0 - removedBefore);
+      editor.setItems(() => {
+        const next = [...remaining];
+        next.splice(pos, 0, ...moved);
+        return next;
+      });
+      selection.setSelectedIds(new Set(moved.map((t) => t.id)));
+    } else {
+      // Copy → 新規エンティティ生成 (即永続化)
+      const newIds: string[] = [];
+      for (const t of clipItems) {
+        const full = await loadTable(t.id);
+        if (!full) continue;
+        const dup: TableDefinition = {
+          ...full,
+          id: generateUUID(),
+          name: full.name + "_copy",
+          logicalName: full.logicalName + " (コピー)",
+          columns: full.columns.map((c) => ({ ...c, id: generateUUID() })),
+          indexes: full.indexes.map((i) => ({ ...i, id: generateUUID() })),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await saveTable(dup);
+        newIds.push(dup.id);
+      }
+      clipboard.consume();
+      await editor.reload();
+      selection.setSelectedIds(new Set(newIds));
+    }
   };
 
   useListKeyboard({
     items: sort.sorted,
     getId: (t) => t.id,
     selection,
+    clipboard,
     layout: viewMode === "card" ? "grid" : "list",
     onActivate: handleActivate,
     onDelete: handleDelete,
+    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
+    onMoveUp: (items) => moveBlock(items, "up"),
+    onMoveDown: (items) => moveBlock(items, "down"),
+    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
   });
 
   const handleAdd = async () => {
@@ -122,24 +267,37 @@ export function TableListView() {
   };
 
   const handleExportDdl = async () => {
-    const allTables: TableDefinition[] = [];
-    for (const t of tables) {
+    const defs: TableDefinition[] = [];
+    for (const t of allTables) {
+      if (editor.isDeleted(t.id)) continue;
       const td = await loadTable(t.id);
-      if (td) allTables.push(td);
+      if (td) defs.push(td);
     }
-    const ddl = generateAllDdl(allTables, exportDialect);
+    const ddl = generateAllDdl(defs, exportDialect);
     downloadText(`${projectName}_ddl.sql`, ddl);
     setShowExport(false);
   };
 
   const handleExportMarkdown = async () => {
-    const allTables: TableDefinition[] = [];
-    for (const t of tables) {
+    const defs: TableDefinition[] = [];
+    for (const t of allTables) {
+      if (editor.isDeleted(t.id)) continue;
       const td = await loadTable(t.id);
-      if (td) allTables.push(td);
+      if (td) defs.push(td);
     }
-    const md = generateAllTableMarkdown(allTables, projectName);
+    const md = generateAllTableMarkdown(defs, projectName);
     downloadText(`${projectName}_tables.md`, md);
+  };
+
+  const handleSave = () => {
+    editor.save().catch(console.error);
+    selection.clearSelection();
+  };
+
+  const handleReset = () => {
+    if (!confirm("未保存の変更を破棄してサーバの状態に戻しますか？")) return;
+    editor.reset().catch(console.error);
+    selection.clearSelection();
   };
 
   const columns = useMemo<DataListColumn<TableMeta>[]>(() => [
@@ -199,6 +357,7 @@ export function TableListView() {
   );
 
   const selectedCount = selection.selectedIds.size;
+  const deletedCount = editor.deletedIds.size;
 
   return (
     <div className="table-list-page">
@@ -208,7 +367,7 @@ export function TableListView() {
         <div className="table-list-header">
           <h2 className="table-list-title">
             <i className="bi bi-table" /> テーブル設計書
-            <span className="table-list-count">{tables.length} テーブル</span>
+            <span className="table-list-count">{allTables.length - deletedCount} テーブル{deletedCount > 0 ? ` (削除予定 ${deletedCount})` : ""}</span>
           </h2>
           <div className="table-list-actions">
             <div className="table-list-search">
@@ -226,7 +385,7 @@ export function TableListView() {
               )}
             </div>
             <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
-            {tables.length > 0 && (
+            {allTables.length > 0 && (
               <>
                 <button className="tbl-btn tbl-btn-ghost" onClick={handleExportMarkdown} title="Markdown エクスポート">
                   <i className="bi bi-file-earmark-text" /> Markdown
@@ -244,6 +403,25 @@ export function TableListView() {
             <button className="tbl-btn tbl-btn-primary" onClick={() => setShowAdd(true)}>
               <i className="bi bi-plus-lg" /> テーブル追加
             </button>
+            <span className="tbl-saveline-sep" />
+            <button
+              className="tbl-btn tbl-btn-ghost"
+              data-testid="list-reset-btn"
+              onClick={handleReset}
+              disabled={!editor.isDirty || editor.isSaving}
+              title="変更を破棄"
+            >
+              <i className="bi bi-arrow-counterclockwise" /> リセット
+            </button>
+            <button
+              className="tbl-btn tbl-btn-primary"
+              data-testid="list-save-btn"
+              onClick={handleSave}
+              disabled={!editor.isDirty || editor.isSaving}
+              title="変更を保存"
+            >
+              <i className="bi bi-save" /> {editor.isSaving ? "保存中..." : "保存"}
+            </button>
           </div>
         </div>
 
@@ -260,13 +438,16 @@ export function TableListView() {
           columns={columns}
           getId={(t) => t.id}
           selection={selection}
+          clipboard={clipboard}
           sort={sort}
           onActivate={handleActivate}
+          onReorder={handleReorder}
           layout={viewMode === "card" ? "grid" : "list"}
           renderCard={renderCard}
           showNumColumn={viewMode === "table"}
           variant="dark"
           className="tables-data-list"
+          isItemGhost={(id) => editor.isDeleted(id)}
           emptyMessage={
             query
               ? <p>該当するテーブル定義がありません</p>

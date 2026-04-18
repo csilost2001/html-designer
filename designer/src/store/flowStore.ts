@@ -69,7 +69,7 @@ const FLOW_PROJECT_KEY = "flow-project";
 const SCREEN_DATA_PREFIX = "gjs-screen-";
 const LEGACY_KEY = "gjs-designer-project";
 
-const DEFAULT_NODE_SIZE = { width: 200, height: 100 };
+export const DEFAULT_NODE_SIZE = { width: 200, height: 100 };
 
 function now(): string {
   return new Date().toISOString();

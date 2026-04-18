@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { FlowProject, ScreenNode } from "../../types/flow";
+import type { ScreenNode } from "../../types/flow";
 import { SCREEN_TYPE_LABELS, SCREEN_TYPE_ICONS } from "../../types/flow";
-import { loadProject, saveProject, addScreen, removeScreen } from "../../store/flowStore";
+import { loadProject, saveProject, addScreen, removeScreen, DEFAULT_NODE_SIZE } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { makeTabId } from "../../store/tabStore";
+import { generateUUID } from "../../utils/uuid";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
@@ -12,12 +14,14 @@ import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
 import { useListFilter } from "../../hooks/useListFilter";
 import { useListSort } from "../../hooks/useListSort";
+import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import "../../styles/flow.css";
 import "../../styles/screenList.css";
 
 const STORAGE_KEY = "list-view-mode:screen-list";
+const TAB_ID = makeTabId("screen-list", "main");
 
 function formatDate(iso: string): string {
   try {
@@ -32,25 +36,51 @@ function formatDate(iso: string): string {
 
 export function ScreenListView() {
   const navigate = useNavigate();
-  const [project, setProject] = useState<FlowProject | null>(null);
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [screenModal, setScreenModal] = useState<{ open: boolean; editId?: string; initial?: Partial<ScreenFormData> }>({ open: false });
 
-  const reload = useCallback(async () => {
+  const loadScreens = useCallback(async (): Promise<ScreenNode[]> => {
+    mcpBridge.startWithoutEditor();
     const p = await loadProject();
-    setProject(p);
+    return p.screens;
   }, []);
 
-  useEffect(() => {
-    mcpBridge.startWithoutEditor();
-    reload();
-    const unsub = mcpBridge.onStatusChange((s) => { if (s === "connected") reload(); });
-    const unsubProj = mcpBridge.onBroadcast("projectChanged", () => { reload(); });
-    return () => { unsub(); unsubProj(); };
-  }, [reload]);
+  const commitScreens = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ScreenNode[]; deletedIds: string[] }) => {
+    const project = await loadProject();
+    // 削除: removeScreen はデザインデータも削除 + edges 掃除
+    for (const id of deletedIds) {
+      await removeScreen(project, id);
+    }
+    // 並び順反映
+    const deletedSet = new Set(deletedIds);
+    const orderMap = new Map(itemsInOrder.map((s, i) => [s.id, i]));
+    project.screens = project.screens
+      .filter((s) => !deletedSet.has(s.id))
+      .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+    await saveProject(project);
+  }, []);
 
-  const screens = project?.screens ?? [];
+  const editor = useListEditor<ScreenNode>({
+    getId: (s) => s.id,
+    load: loadScreens,
+    commit: commitScreens,
+    tabId: TAB_ID,
+  });
+
+  useEffect(() => {
+    editor.reload();
+    const unsubStatus = mcpBridge.onStatusChange((s) => {
+      if (s === "connected" && !editor.isDirty) editor.reload();
+    });
+    const unsubProj = mcpBridge.onBroadcast("projectChanged", () => {
+      if (!editor.isDirty) editor.reload();
+    });
+    return () => { unsubStatus(); unsubProj(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const screens = editor.items;
 
   const filter = useListFilter(screens);
 
@@ -65,7 +95,6 @@ export function ScreenListView() {
       (s.path || "").toLowerCase().includes(q) ||
       (SCREEN_TYPE_LABELS[s.type] || "").toLowerCase().includes(q),
     );
-    // filter は安定 API
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
@@ -85,40 +114,136 @@ export function ScreenListView() {
   const clipboard = useListClipboard<ScreenNode>((s) => s.id);
 
   const handleActivate = useCallback((s: ScreenNode) => {
+    if (editor.isDeleted(s.id)) return;
     navigate(`/screen/design/${s.id}`);
-  }, [navigate]);
+  }, [navigate, editor]);
 
-  const handleDelete = async (items: ScreenNode[]) => {
-    if (!project) return;
-    if (!confirm(`${items.length} 件の画面を削除しますか？\nデザインデータも削除されます。`)) return;
-    for (const s of items) {
-      await removeScreen(project, s.id);
-    }
-    await reload();
-    selection.clearSelection();
+  const handleDelete = (items: ScreenNode[]) => {
+    editor.markDeleted(items.map((s) => s.id));
   };
 
   const handleReorder = (fromIdx: number, toIdx: number) => {
-    if (!project) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
-    const visible = filter.filtered;
+    const visible = sort.sorted;
     const fromId = visible[fromIdx]?.id;
     const toId = visible[toIdx]?.id;
     if (!fromId || !toId) return;
-    const realFrom = project.screens.findIndex((s) => s.id === fromId);
-    const realTo = project.screens.findIndex((s) => s.id === toId);
+    const realFrom = editor.items.findIndex((s) => s.id === fromId);
+    const realTo = editor.items.findIndex((s) => s.id === toId);
     if (realFrom < 0 || realTo < 0) return;
-    const [moved] = project.screens.splice(realFrom, 1);
-    project.screens.splice(realTo, 0, moved);
-    saveProject(project).then(reload).catch(console.error);
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    editor.reorder(realFrom, realTo);
   };
+
+  const moveBlock = (items: ScreenNode[], direction: "up" | "down") => {
+    const ids = new Set(items.map((s) => s.id));
+    const idxs = editor.items
+      .map((s, i) => (ids.has(s.id) ? i : -1))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b);
+    if (idxs.length === 0) return;
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    if (direction === "up") {
+      if (idxs[0] === 0) return;
+      editor.setItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(idxs[0] - 1, 1);
+        next.splice(idxs[idxs.length - 1], 0, moved);
+        return next;
+      });
+    } else {
+      if (idxs[idxs.length - 1] === editor.items.length - 1) return;
+      editor.setItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(idxs[idxs.length - 1] + 1, 1);
+        next.splice(idxs[0], 0, moved);
+        return next;
+      });
+    }
+  };
+
+  const duplicateScreen = async (src: ScreenNode): Promise<string | null> => {
+    const project = await loadProject();
+    const s = project.screens.find((sc) => sc.id === src.id);
+    if (!s) return null;
+    const dup: ScreenNode = {
+      ...s,
+      id: generateUUID(),
+      name: s.name + " (コピー)",
+      position: { x: s.position.x + 40, y: s.position.y + 40 },
+      size: { ...DEFAULT_NODE_SIZE },
+      hasDesign: false,
+      thumbnail: undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    project.screens.push(dup);
+    await saveProject(project);
+    return dup.id;
+  };
+
+  const handleDuplicate = async (items: ScreenNode[]) => {
+    for (const s of items) {
+      await duplicateScreen(s);
+    }
+    await editor.reload();
+  };
+
+  const handlePaste = async (insertIdx: number | null) => {
+    const mode = clipboard.clipboard.mode;
+    const clipItems = clipboard.clipboard.items;
+    if (!clipItems.length) return;
+
+    if (mode === "cut") {
+      const cutIds = new Set(clipItems.map((c) => c.id));
+      const selIds = selection.selectedIds;
+      const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
+      if (sameSet) return;
+
+      if (sort.sortKeys.length > 0) sort.clearSort();
+      clipboard.consume();
+      const moved = clipItems;
+      const pos0 = insertIdx ?? editor.items.length;
+      const removedBefore = editor.items.slice(0, pos0).filter((s) => cutIds.has(s.id)).length;
+      const remaining = editor.items.filter((s) => !cutIds.has(s.id));
+      const pos = Math.min(remaining.length, pos0 - removedBefore);
+      editor.setItems(() => {
+        const next = [...remaining];
+        next.splice(pos, 0, ...moved);
+        return next;
+      });
+      selection.setSelectedIds(new Set(moved.map((s) => s.id)));
+    } else {
+      const newIds: string[] = [];
+      for (const s of clipItems) {
+        const id = await duplicateScreen(s);
+        if (id) newIds.push(id);
+      }
+      clipboard.consume();
+      await editor.reload();
+      selection.setSelectedIds(new Set(newIds));
+    }
+  };
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (s) => s.id,
+    selection,
+    clipboard,
+    layout: viewMode === "card" ? "grid" : "list",
+    onActivate: handleActivate,
+    onDelete: handleDelete,
+    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
+    onMoveUp: (items) => moveBlock(items, "up"),
+    onMoveDown: (items) => moveBlock(items, "down"),
+    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
+  });
 
   const handleAddNew = () => {
     setScreenModal({ open: true });
   };
 
   const handleScreenSave = async (data: ScreenFormData) => {
-    if (!project) return;
+    const project = await loadProject();
     if (screenModal.editId) {
       const s = project.screens.find((sc) => sc.id === screenModal.editId);
       if (s) {
@@ -135,18 +260,19 @@ export function ScreenListView() {
       await saveProject(project);
     }
     setScreenModal({ open: false });
-    await reload();
+    await editor.reload();
   };
 
-  useListKeyboard({
-    items: sort.sorted,
-    getId: (s) => s.id,
-    selection,
-    clipboard,
-    layout: viewMode === "card" ? "grid" : "list",
-    onActivate: handleActivate,
-    onDelete: handleDelete,
-  });
+  const handleSave = () => {
+    editor.save().catch(console.error);
+    selection.clearSelection();
+  };
+
+  const handleReset = () => {
+    if (!confirm("未保存の変更を破棄してサーバの状態に戻しますか？")) return;
+    editor.reset().catch(console.error);
+    selection.clearSelection();
+  };
 
   const columns = useMemo<DataListColumn<ScreenNode>[]>(() => [
     {
@@ -217,12 +343,16 @@ export function ScreenListView() {
     </div>
   );
 
+  const deletedCount = editor.deletedIds.size;
+
   return (
     <div className="screen-list-page">
       <div className="screen-list-header">
         <h2 className="screen-list-title">
           <i className="bi bi-list-ul" /> 画面一覧
-          <span className="screen-list-count">{screens.length} 画面</span>
+          <span className="screen-list-count">
+            {screens.length - deletedCount} 画面{deletedCount > 0 ? ` (削除予定 ${deletedCount})` : ""}
+          </span>
         </h2>
         <div className="screen-list-header-tools">
           <div className="screen-list-search">
@@ -242,6 +372,25 @@ export function ScreenListView() {
           <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
           <button className="flow-btn flow-btn-primary" onClick={handleAddNew}>
             <i className="bi bi-plus-lg" /> 画面を追加
+          </button>
+          <span className="screen-list-saveline-sep" />
+          <button
+            className="flow-btn flow-btn-ghost"
+            data-testid="list-reset-btn"
+            onClick={handleReset}
+            disabled={!editor.isDirty || editor.isSaving}
+            title="変更を破棄"
+          >
+            <i className="bi bi-arrow-counterclockwise" /> リセット
+          </button>
+          <button
+            className="flow-btn flow-btn-primary"
+            data-testid="list-save-btn"
+            onClick={handleSave}
+            disabled={!editor.isDirty || editor.isSaving}
+            title="変更を保存"
+          >
+            <i className="bi bi-save" /> {editor.isSaving ? "保存中..." : "保存"}
           </button>
         </div>
       </div>
@@ -267,6 +416,7 @@ export function ScreenListView() {
           layout={viewMode === "card" ? "grid" : "list"}
           renderCard={renderCard}
           showNumColumn={viewMode === "table"}
+          isItemGhost={(id) => editor.isDeleted(id)}
           emptyMessage={
             query
               ? <p>該当する画面がありません</p>

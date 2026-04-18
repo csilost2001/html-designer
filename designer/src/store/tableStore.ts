@@ -168,6 +168,18 @@ export function removeIndex(table: TableDefinition, indexId: string): void {
   if (idx >= 0) table.indexes.splice(idx, 1);
 }
 
+/** テーブル一覧の並び順を変更する (project.tables の物理順) */
+export async function reorderTables(fromIndex: number, toIndex: number): Promise<void> {
+  const project = await loadProject();
+  if (!project.tables) return;
+  if (fromIndex < 0 || toIndex < 0) return;
+  if (fromIndex >= project.tables.length || toIndex >= project.tables.length) return;
+  if (fromIndex === toIndex) return;
+  const [moved] = project.tables.splice(fromIndex, 1);
+  project.tables.splice(toIndex, 0, moved);
+  await saveProject(project);
+}
+
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
 /** project.json のテーブルメタを同期 */

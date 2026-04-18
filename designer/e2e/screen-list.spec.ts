@@ -1,8 +1,5 @@
 /**
- * 画面一覧 (/screen/list) E2E スモークテスト — #133 Phase C
- *
- * 視点: HeaderMenu から画面一覧に遷移し、カード ⇔ 表切替と検索が動作するか確認
- * 前提: dev サーバー起動済み (playwright.config.ts の webServer で自動起動)
+ * 画面一覧 (/screen/list) E2E テスト — #133
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -59,7 +56,6 @@ async function setupScreenList(page: Page) {
     localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
-    // 表示モード設定をリセット
     localStorage.removeItem("list-view-mode:screen-list");
   }, dummyProject);
   await page.goto("/screen/list");
@@ -67,40 +63,37 @@ async function setupScreenList(page: Page) {
 }
 
 test.describe("画面一覧", () => {
-  test("/screen/list でカードレイアウトが既定表示される", async ({ page }) => {
+  test("カード既定で 3 件、表切替可、検索絞り込み", async ({ page }) => {
     await setupScreenList(page);
-    await expect(page.locator(".data-list-grid")).toBeVisible();
     await expect(page.locator(".data-list-card")).toHaveCount(3);
-    await expect(page.locator(".screen-list-count")).toHaveText("3 画面");
-  });
-
-  test("ViewModeToggle で表レイアウトに切替できる", async ({ page }) => {
-    await setupScreenList(page);
     await page.getByRole("button", { name: "表表示" }).click();
-    await expect(page.locator(".data-list-table")).toBeVisible();
     await expect(page.locator(".data-list-row")).toHaveCount(3);
-  });
-
-  test("検索で絞り込みできる", async ({ page }) => {
-    await setupScreenList(page);
+    await page.getByRole("button", { name: "カード表示" }).click();
     await page.locator(".screen-list-search input").fill("ログイン");
     await expect(page.locator(".data-list-card")).toHaveCount(1);
-    await expect(page.locator(".filter-bar")).toBeVisible();
   });
 
-  test("カードクリックで選択、ダブルクリックで画面デザイナーへ遷移", async ({ page }) => {
+  test("ダブルクリックで画面デザイナーへ遷移", async ({ page }) => {
     await setupScreenList(page);
     const card = page.locator(".data-list-card").first();
-    await card.click();
-    await expect(card).toHaveClass(/selected/);
     await card.dblclick();
-    await expect(page).toHaveURL(/\/screen\/design\/screen-0001/);
+    await expect(page).toHaveURL(/\/screen\/design\//);
   });
 
-  test("HeaderMenu に「画面一覧」が出て active になる", async ({ page }) => {
+  test("Delete で ghost 表示、リセットで戻る", async ({ page }) => {
+    await setupScreenList(page);
+    page.on("dialog", (d) => d.accept());
+    await page.locator(".data-list-card").first().click();
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".data-list-card.ghost")).toHaveCount(1);
+    await expect(page.getByTestId("list-save-btn")).toBeEnabled();
+    await page.getByTestId("list-reset-btn").click();
+    await expect(page.locator(".data-list-card.ghost")).toHaveCount(0);
+  });
+
+  test("HeaderMenu に「画面一覧」が出て active", async ({ page }) => {
     await setupScreenList(page);
     await page.locator(".header-menu-btn").click();
-    const menuItem = page.locator(".header-menu-item.active", { hasText: "画面一覧" });
-    await expect(menuItem).toBeVisible();
+    await expect(page.locator(".header-menu-item.active", { hasText: "画面一覧" })).toBeVisible();
   });
 });

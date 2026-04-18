@@ -1,5 +1,5 @@
 /**
- * 処理フロー一覧 (/process-flow/list) E2E スモークテスト — #133 Phase D
+ * 処理フロー一覧 (/process-flow/list) E2E テスト — #133
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -58,31 +58,38 @@ async function setupActionList(page: Page) {
 }
 
 test.describe("処理フロー一覧", () => {
-  test("既定はカードレイアウトで全件表示", async ({ page }) => {
+  test("カード既定、表切替・種別フィルタ・ダブルクリック遷移", async ({ page }) => {
     await setupActionList(page);
-    await expect(page.locator(".data-list-layout-grid")).toBeVisible();
+    await expect(page.locator(".data-list-layout-grid")).toHaveCount(1);
     await expect(page.locator(".data-list-card")).toHaveCount(3);
-  });
-
-  test("ViewModeToggle で表レイアウトに切替できる", async ({ page }) => {
-    await setupActionList(page);
+    // 表切替
     await page.getByRole("button", { name: "表表示" }).click();
-    await expect(page.locator(".data-list-table")).toBeVisible();
     await expect(page.locator(".data-list-row")).toHaveCount(3);
-  });
-
-  test("種別フィルタで絞り込める", async ({ page }) => {
-    await setupActionList(page);
-    // "バッチ" フィルタボタンをクリック
+    // カードに戻して種別フィルタ
+    await page.getByRole("button", { name: "カード表示" }).click();
     await page.getByRole("button", { name: /^バッチ \(/ }).click();
     await expect(page.locator(".data-list-card")).toHaveCount(1);
     await expect(page.locator(".filter-bar")).toBeVisible();
+    // ダブルクリックで遷移
+    await page.locator(".data-list-card").first().dblclick();
+    await expect(page).toHaveURL(/\/process-flow\/edit\//);
   });
 
-  test("カードのダブルクリックで編集画面へ遷移", async ({ page }) => {
+  test("削除マークで ghost 表示、保存で確定", async ({ page }) => {
     await setupActionList(page);
-    const card = page.locator(".data-list-card").first();
-    await card.dblclick();
-    await expect(page).toHaveURL(/\/process-flow\/edit\//);
+    await page.locator(".data-list-card").first().click();
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".data-list-card.ghost")).toHaveCount(1);
+    await expect(page.getByTestId("list-save-btn")).toBeEnabled();
+    await page.getByTestId("list-save-btn").click();
+    await expect(page.locator(".data-list-card")).toHaveCount(2);
+  });
+
+  test("Ctrl+D で複製", async ({ page }) => {
+    await setupActionList(page);
+    await page.locator(".data-list-card").first().click();
+    await page.keyboard.press("Control+d");
+    // 複製は即時永続化 → reload 後に 4 件
+    await expect(page.locator(".data-list-card")).toHaveCount(4);
   });
 });
