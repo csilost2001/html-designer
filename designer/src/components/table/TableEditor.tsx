@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { TableDefinition, TableColumn, TableIndex, SqlDialect, ColumnTemplate } from "../../types/table";
 import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, SQL_DIALECT_LABELS, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
@@ -9,8 +9,14 @@ import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { useListSelection } from "../../hooks/useListSelection";
+import { useListClipboard } from "../../hooks/useListClipboard";
+import { useListKeyboard } from "../../hooks/useListKeyboard";
+import { useListSort } from "../../hooks/useListSort";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { DataList, type DataListColumn } from "../common/DataList";
+import { generateUUID } from "../../utils/uuid";
 import "../../styles/table.css";
 
 type TabId = "columns" | "indexes" | "ddl";
@@ -203,68 +209,189 @@ function ColumnsTab({
   update: (fn: (t: TableDefinition) => void) => void;
   allTables: TableDefinition[];
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
-  const handleAddBlank = () => {
-    let newColId = "";
-    update((t) => {
-      const col = addColumn(t);
-      newColId = col.id;
-    });
-    setEditingId(newColId);
-  };
+  const sortAccessor = useCallback((col: TableColumn, key: string): string | number => {
+    switch (key) {
+      case "name": return col.name;
+      case "logicalName": return col.logicalName;
+      case "dataType": return col.dataType;
+      case "length": return col.length ?? 0;
+      case "notNull": return col.notNull ? 1 : 0;
+      case "primaryKey": return col.primaryKey ? 1 : 0;
+      case "unique": return col.unique ? 1 : 0;
+      case "autoIncrement": return col.autoIncrement ? 1 : 0;
+      case "defaultValue": return col.defaultValue ?? "";
+      default: return "";
+    }
+  }, []);
 
-  const handleAddFromTemplate = (tpl: ColumnTemplate) => {
-    let newColId = "";
-    update((t) => {
-      const col = addColumn(t, { ...tpl.column });
-      newColId = col.id;
-    });
-    setEditingId(newColId);
-    setShowTemplates(false);
-  };
+  const sort = useListSort(table.columns, sortAccessor);
+  const selection = useListSelection(sort.sorted, (c) => c.id);
+  const clipboard = useListClipboard<TableColumn>((c) => c.id);
 
-  const handleRemove = (colId: string) => {
-    update((t) => removeColumn(t, colId));
-    if (editingId === colId) setEditingId(null);
-  };
-
-  const handleUpdateCol = (colId: string, patch: Partial<TableColumn>) => {
+  const handleUpdateCol = useCallback((colId: string, patch: Partial<TableColumn>) => {
     update((t) => {
       const col = t.columns.find((c) => c.id === colId);
       if (col) Object.assign(col, patch);
     });
-  };
+  }, [update]);
 
-  const handleMoveUp = (colId: string) => {
-    update((t) => {
-      const idx = t.columns.findIndex((c) => c.id === colId);
-      if (idx > 0) {
-        [t.columns[idx - 1], t.columns[idx]] = [t.columns[idx], t.columns[idx - 1]];
-      }
-    });
-  };
-
-  const handleMoveDown = (colId: string) => {
-    update((t) => {
-      const idx = t.columns.findIndex((c) => c.id === colId);
-      if (idx >= 0 && idx < t.columns.length - 1) {
-        [t.columns[idx], t.columns[idx + 1]] = [t.columns[idx + 1], t.columns[idx]];
-      }
-    });
-  };
-
-  const handleDuplicate = (colId: string) => {
+  const handleAddBlank = () => {
     let newColId = "";
-    update((t) => {
-      const src = t.columns.find((c) => c.id === colId);
-      if (!src) return;
-      const col = addColumn(t, { ...src, name: src.name + "_copy" });
-      newColId = col.id;
-    });
-    if (newColId) setEditingId(newColId);
+    update((t) => { newColId = addColumn(t).id; });
+    sort.clearSort();
+    selection.setSelectedIds(new Set([newColId]));
   };
+
+  const handleAddFromTemplate = (tpl: ColumnTemplate) => {
+    let newColId = "";
+    update((t) => { newColId = addColumn(t, { ...tpl.column }).id; });
+    sort.clearSort();
+    selection.setSelectedIds(new Set([newColId]));
+    setShowTemplates(false);
+  };
+
+  const handleDelete = (cols: TableColumn[]) => {
+    const ids = new Set(cols.map((c) => c.id));
+    update((t) => {
+      for (const id of ids) removeColumn(t, id);
+    });
+    selection.clearSelection();
+  };
+
+  const handleDuplicate = (cols: TableColumn[]) => {
+    const newIds: string[] = [];
+    update((t) => {
+      for (const src of cols) {
+        const cur = t.columns.find((c) => c.id === src.id);
+        if (!cur) continue;
+        newIds.push(addColumn(t, { ...cur, name: cur.name + "_copy" }).id);
+      }
+    });
+    sort.clearSort();
+    selection.setSelectedIds(new Set(newIds));
+  };
+
+  const moveBlock = (cols: TableColumn[], direction: "up" | "down") => {
+    const ids = new Set(cols.map((c) => c.id));
+    update((t) => {
+      const idxs = t.columns
+        .map((c, i) => (ids.has(c.id) ? i : -1))
+        .filter((i) => i >= 0)
+        .sort((a, b) => a - b);
+      if (idxs.length === 0) return;
+      if (direction === "up") {
+        if (idxs[0] === 0) return;
+        const [moved] = t.columns.splice(idxs[0] - 1, 1);
+        t.columns.splice(idxs[idxs.length - 1], 0, moved);
+      } else {
+        if (idxs[idxs.length - 1] === t.columns.length - 1) return;
+        const [moved] = t.columns.splice(idxs[idxs.length - 1] + 1, 1);
+        t.columns.splice(idxs[0], 0, moved);
+      }
+    });
+    sort.clearSort();
+  };
+
+  const handleReorder = (fromIdx: number, toIdx: number) => {
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    update((t) => {
+      const [moved] = t.columns.splice(fromIdx, 1);
+      t.columns.splice(toIdx, 0, moved);
+    });
+  };
+
+  const handlePaste = (insertIdx: number | null) => {
+    const mode = clipboard.clipboard.mode;
+    const clipItems = clipboard.clipboard.items;
+    if (!clipItems.length) return;
+
+    // No-op: 貼り付け対象自身が選択中
+    if (mode === "cut") {
+      const cutIds = new Set(clipItems.map((c) => c.id));
+      const selIds = selection.selectedIds;
+      const sameSet = selIds.size === cutIds.size &&
+        [...selIds].every((id) => cutIds.has(id));
+      if (sameSet) return;
+    }
+
+    sort.clearSort();
+    const consumed = clipboard.consume();
+    const newIds: string[] = [];
+
+    update((t) => {
+      if (mode === "cut") {
+        const cutIds = new Set(consumed.map((c) => c.id));
+        const pos0 = insertIdx ?? t.columns.length;
+        const removedBefore = t.columns.slice(0, pos0).filter((c) => cutIds.has(c.id)).length;
+        t.columns = t.columns.filter((c) => !cutIds.has(c.id));
+        const pos = Math.min(t.columns.length, pos0 - removedBefore);
+        t.columns.splice(pos, 0, ...consumed);
+        newIds.push(...consumed.map((c) => c.id));
+      } else {
+        const copies = consumed.map((c) => ({ ...c, id: generateUUID() }));
+        const pos = Math.min(t.columns.length, insertIdx ?? t.columns.length);
+        t.columns.splice(pos, 0, ...copies);
+        newIds.push(...copies.map((c) => c.id));
+      }
+    });
+    selection.setSelectedIds(new Set(newIds));
+  };
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (c) => c.id,
+    selection,
+    clipboard,
+    layout: "list",
+    onDelete: handleDelete,
+    onDuplicate: handleDuplicate,
+    onMoveUp: (cols) => moveBlock(cols, "up"),
+    onMoveDown: (cols) => moveBlock(cols, "down"),
+    onPaste: handlePaste,
+  });
+
+  const detailCol = selection.selectedItems.length === 1 ? selection.selectedItems[0] : null;
+
+  const columns = useMemo<DataListColumn<TableColumn>[]>(() => [
+    {
+      key: "name",
+      header: "カラム名",
+      width: "18%",
+      sortable: true,
+      sortAccessor: (c) => c.name,
+      render: (c) => (
+        <>
+          <code className="col-name-code">{c.name}</code>
+          {c.foreignKey && <i className="bi bi-link-45deg col-fk-icon" title="外部キー" />}
+        </>
+      ),
+    },
+    { key: "logicalName", header: "論理名", width: "18%", sortable: true, sortAccessor: (c) => c.logicalName, render: (c) => c.logicalName },
+    {
+      key: "dataType",
+      header: "データ型",
+      width: "10%",
+      sortable: true,
+      sortAccessor: (c) => c.dataType,
+      render: (c) => <span className="col-type-badge">{c.dataType}</span>,
+    },
+    {
+      key: "length",
+      header: "長さ",
+      width: "60px",
+      align: "right",
+      sortable: true,
+      sortAccessor: (c) => c.length ?? 0,
+      render: (c) => (c.length != null ? `${c.length}${c.scale != null ? `,${c.scale}` : ""}` : ""),
+    },
+    { key: "notNull", header: "NN", width: "44px", align: "center", sortable: true, sortAccessor: (c) => (c.notNull ? 1 : 0), render: (c) => (c.notNull ? <i className="bi bi-check-lg" /> : null) },
+    { key: "primaryKey", header: "PK", width: "44px", align: "center", sortable: true, sortAccessor: (c) => (c.primaryKey ? 1 : 0), render: (c) => (c.primaryKey ? <i className="bi bi-key-fill col-pk-icon" /> : null) },
+    { key: "unique", header: "UK", width: "44px", align: "center", sortable: true, sortAccessor: (c) => (c.unique ? 1 : 0), render: (c) => (c.unique ? <i className="bi bi-check-lg" /> : null) },
+    { key: "autoIncrement", header: "AI", width: "44px", align: "center", sortable: true, sortAccessor: (c) => (c.autoIncrement ? 1 : 0), render: (c) => (c.autoIncrement ? <i className="bi bi-check-lg" /> : null) },
+    { key: "defaultValue", header: "デフォルト", width: "14%", sortable: true, sortAccessor: (c) => c.defaultValue ?? "", render: (c) => <code className="col-default-code">{c.defaultValue ?? ""}</code> },
+  ], []);
 
   // Group templates by category
   const templateCategories = COLUMN_TEMPLATES.reduce<Record<string, ColumnTemplate[]>>((acc, tpl) => {
@@ -272,52 +399,59 @@ function ColumnsTab({
     return acc;
   }, {});
 
+  const selectedCount = selection.selectedIds.size;
+  const anySelected = selectedCount > 0;
+
   return (
     <div className="columns-tab">
-      {/* Column list */}
-      <div className="columns-table-wrap">
-        <table className="columns-table">
-          <thead>
-            <tr>
-              <th className="col-num">#</th>
-              <th className="col-name">カラム名</th>
-              <th className="col-logical">論理名</th>
-              <th className="col-type">データ型</th>
-              <th className="col-len">長さ</th>
-              <th className="col-flag" title="NOT NULL">NN</th>
-              <th className="col-flag" title="PRIMARY KEY">PK</th>
-              <th className="col-flag" title="UNIQUE">UK</th>
-              <th className="col-flag" title="AUTO INCREMENT">AI</th>
-              <th className="col-default">デフォルト</th>
-              <th className="col-actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {table.columns.map((col, i) => (
-              <ColumnRow
-                key={col.id}
-                col={col}
-                index={i}
-                isEditing={editingId === col.id}
-                isFirst={i === 0}
-                isLast={i === table.columns.length - 1}
-                allTables={allTables}
-                onEdit={() => setEditingId(editingId === col.id ? null : col.id)}
-                onUpdate={(patch) => handleUpdateCol(col.id, patch)}
-                onRemove={() => handleRemove(col.id)}
-                onMoveUp={() => handleMoveUp(col.id)}
-                onMoveDown={() => handleMoveDown(col.id)}
-                onDuplicate={() => handleDuplicate(col.id)}
-              />
-            ))}
-          </tbody>
-        </table>
-        {table.columns.length === 0 && (
-          <div className="columns-empty">
-            <p>カラムがまだありません。テンプレートから追加するか、空のカラムを追加してください。</p>
-          </div>
-        )}
+      {/* 選択操作バー */}
+      <div className="columns-selection-bar">
+        <span className="columns-selection-count">
+          {anySelected ? `${selectedCount} 件選択中` : "クリックで選択、Ctrl+A で全選択"}
+        </span>
+        <div className="columns-selection-actions">
+          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => moveBlock(selection.selectedItems, "up")} title="上へ移動 (Alt+↑)">
+            <i className="bi bi-chevron-up" /> 上へ
+          </button>
+          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => moveBlock(selection.selectedItems, "down")} title="下へ移動 (Alt+↓)">
+            <i className="bi bi-chevron-down" /> 下へ
+          </button>
+          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => handleDuplicate(selection.selectedItems)} title="複製 (Ctrl+D)">
+            <i className="bi bi-copy" /> 複製
+          </button>
+          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm danger" disabled={!anySelected} onClick={() => handleDelete(selection.selectedItems)} title="削除 (Delete)">
+            <i className="bi bi-trash" /> 削除
+          </button>
+        </div>
       </div>
+
+      {/* Column list */}
+      <DataList
+        items={sort.sorted}
+        columns={columns}
+        getId={(c) => c.id}
+        selection={selection}
+        clipboard={clipboard}
+        sort={sort}
+        onReorder={handleReorder}
+        showNumColumn
+        variant="dark"
+        className="columns-data-list"
+        emptyMessage={<p>カラムがまだありません。テンプレートから追加するか、空のカラムを追加してください。</p>}
+      />
+
+      {/* Detail panel (single selection) */}
+      {detailCol && (
+        <div className="column-detail">
+          <ColumnDetailEditor
+            col={detailCol}
+            onUpdate={(patch) => handleUpdateCol(detailCol.id, patch)}
+            allTables={allTables}
+            showLength={DATA_TYPES_WITH_LENGTH.includes(detailCol.dataType)}
+            showScale={DATA_TYPES_WITH_SCALE.includes(detailCol.dataType)}
+          />
+        </div>
+      )}
 
       {/* Add column actions */}
       <div className="columns-add-bar">
@@ -364,75 +498,6 @@ function ColumnsTab({
         </div>
       )}
     </div>
-  );
-}
-
-// ── カラム行 ──────────────────────────────────────────────────────────────────
-
-function ColumnRow({
-  col, index, isEditing, isFirst, isLast, allTables,
-  onEdit, onUpdate, onRemove, onMoveUp, onMoveDown, onDuplicate,
-}: {
-  col: TableColumn;
-  index: number;
-  isEditing: boolean;
-  isFirst: boolean;
-  isLast: boolean;
-  allTables: TableDefinition[];
-  onEdit: () => void;
-  onUpdate: (patch: Partial<TableColumn>) => void;
-  onRemove: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onDuplicate: () => void;
-}) {
-  const showLength = DATA_TYPES_WITH_LENGTH.includes(col.dataType);
-  const showScale = DATA_TYPES_WITH_SCALE.includes(col.dataType);
-
-  return (
-    <>
-      <tr className={`column-row${isEditing ? " editing" : ""}${col.primaryKey ? " pk" : ""}`} onClick={onEdit}>
-        <td className="col-num">{index + 1}</td>
-        <td className="col-name">
-          <code>{col.name}</code>
-          {col.foreignKey && <i className="bi bi-link-45deg col-fk-icon" title="外部キー" />}
-        </td>
-        <td className="col-logical">{col.logicalName}</td>
-        <td className="col-type">
-          <span className="col-type-badge">{col.dataType}</span>
-        </td>
-        <td className="col-len">
-          {col.length != null ? col.length : ""}
-          {col.scale != null ? `,${col.scale}` : ""}
-        </td>
-        <td className="col-flag">{col.notNull && <i className="bi bi-check-lg" />}</td>
-        <td className="col-flag">{col.primaryKey && <i className="bi bi-key-fill col-pk-icon" />}</td>
-        <td className="col-flag">{col.unique && <i className="bi bi-check-lg" />}</td>
-        <td className="col-flag">{col.autoIncrement && <i className="bi bi-check-lg" />}</td>
-        <td className="col-default"><code>{col.defaultValue ?? ""}</code></td>
-        <td className="col-actions">
-          <button className="tbl-btn-icon" onClick={(e) => { e.stopPropagation(); onMoveUp(); }} disabled={isFirst} title="上へ移動">
-            <i className="bi bi-chevron-up" />
-          </button>
-          <button className="tbl-btn-icon" onClick={(e) => { e.stopPropagation(); onMoveDown(); }} disabled={isLast} title="下へ移動">
-            <i className="bi bi-chevron-down" />
-          </button>
-          <button className="tbl-btn-icon" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="複製">
-            <i className="bi bi-copy" />
-          </button>
-          <button className="tbl-btn-icon danger" onClick={(e) => { e.stopPropagation(); onRemove(); }} title="削除">
-            <i className="bi bi-trash" />
-          </button>
-        </td>
-      </tr>
-      {isEditing && (
-        <tr className="column-detail-row">
-          <td colSpan={11}>
-            <ColumnDetailEditor col={col} onUpdate={onUpdate} allTables={allTables} showLength={showLength} showScale={showScale} />
-          </td>
-        </tr>
-      )}
-    </>
   );
 }
 

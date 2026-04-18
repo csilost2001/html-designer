@@ -516,71 +516,60 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 12px;
 }
 
-.columns-table-wrap {
-  overflow-x: auto;
-  border: 1px solid #333;
-  border-radius: 8px;
+/* ── カラム一覧 (DataList dark 上書き) ───────────────────────────────── */
+
+.columns-data-list.data-list {
   background: #222240;
+  border-color: #333;
 }
 
-.columns-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.columns-table th {
-  padding: 8px 10px;
-  text-align: left;
-  font-weight: 600;
+.columns-data-list .data-list-table thead th {
+  background: rgba(255,255,255,0.03);
+  border-bottom-color: #333;
   color: #999;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  background: rgba(255,255,255,0.03);
-  border-bottom: 1px solid #333;
-  white-space: nowrap;
 }
 
-.columns-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+.columns-data-list .data-list-th-sortable:hover,
+.columns-data-list .data-list-th-sorted {
+  background: rgba(124,107,255,0.12);
 }
 
-.columns-table tbody tr:last-child td {
-  border-bottom: none;
+.columns-data-list .data-list-row {
+  border-bottom-color: rgba(255,255,255,0.04);
 }
 
-.column-row {
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.column-row:hover {
+.columns-data-list .data-list-row:hover {
   background: rgba(255,255,255,0.03);
 }
 
-.column-row.editing {
-  background: rgba(124,107,255,0.06);
+.columns-data-list .data-list-row.selected {
+  background: rgba(124,107,255,0.12);
 }
 
-.column-row.pk .col-name code {
-  color: #ffd700;
+.columns-data-list .data-list-row.selected:hover {
+  background: rgba(124,107,255,0.18);
 }
 
-.col-num {
-  width: 36px;
-  text-align: center;
+.columns-data-list .data-list-td-num {
   color: #666;
-  font-size: 12px;
 }
 
-.col-name code {
+.col-name-code {
   font-family: "Consolas", "Monaco", monospace;
   color: #ddd;
   font-size: 13px;
+}
+
+.col-default-code {
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 12px;
+  color: #888;
 }
 
 .col-fk-icon {
@@ -593,10 +582,6 @@
   color: #ffd700;
 }
 
-.col-logical {
-  color: #999;
-}
-
 .col-type-badge {
   display: inline-block;
   font-size: 11px;
@@ -607,40 +592,29 @@
   font-family: "Consolas", "Monaco", monospace;
 }
 
-.col-flag {
-  width: 36px;
-  text-align: center;
-  color: #7c6bff;
-}
+/* ── 選択操作バー ────────────────────────────────────────────────────── */
 
-.col-len {
-  color: #888;
-  font-family: "Consolas", "Monaco", monospace;
+.columns-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(124,107,255,0.06);
+  border: 1px solid rgba(124,107,255,0.2);
+  border-radius: 6px;
   font-size: 12px;
 }
 
-.col-default code {
-  font-size: 12px;
-  color: #888;
+.columns-selection-count {
+  color: #bbb;
 }
 
-.col-actions {
-  width: 120px;
-  white-space: nowrap;
-}
-
-.columns-empty {
-  padding: 40px;
-  text-align: center;
-  color: #777;
+.columns-selection-actions {
+  display: flex;
+  gap: 6px;
 }
 
 /* ── カラム詳細編集 ────────────────────────────────────────────────────── */
-
-.column-detail-row td {
-  padding: 0 !important;
-  border-bottom: 1px solid rgba(124,107,255,0.15) !important;
-}
 
 .column-detail {
   padding: 16px 20px;
