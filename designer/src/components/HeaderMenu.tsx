@@ -1,0 +1,122 @@
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { clearActiveTab, getTabs, getActiveTabId } from "../store/tabStore";
+import "../styles/headerMenu.css";
+
+type MenuItem = {
+  id: string;
+  label: string;
+  icon: string;
+  route: string;
+  matchPrefix?: boolean;
+  disabled?: boolean;
+};
+
+const MENU_ITEMS: MenuItem[] = [
+  { id: "flow",      label: "画面フロー",  icon: "bi-diagram-3",    route: "/"        },
+  { id: "tables",    label: "テーブル設計", icon: "bi-table",        route: "/tables", matchPrefix: true },
+  { id: "er",        label: "ER図",        icon: "bi-share",        route: "/er"      },
+  { id: "actions",   label: "処理フロー",  icon: "bi-lightning",    route: "/actions", matchPrefix: true },
+];
+
+const DASHBOARD_ITEM: MenuItem = {
+  id: "dashboard",
+  label: "ダッシュボード",
+  icon: "bi-speedometer2",
+  route: "/dashboard",
+  disabled: true,
+};
+
+function isDesignTabActive(): boolean {
+  const activeId = getActiveTabId();
+  return getTabs().some((t) => t.id === activeId && t.type === "design");
+}
+
+export function HeaderMenu() {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const handleSelect = (route: string) => {
+    // デザインタブがアクティブな場合は解除して非デザインルートを表示できるようにする
+    if (isDesignTabActive()) {
+      clearActiveTab();
+    }
+    navigate(route);
+    setOpen(false);
+  };
+
+  const isActive = (item: MenuItem) => {
+    if (item.route === "/") return location.pathname === "/";
+    return item.matchPrefix
+      ? location.pathname.startsWith(item.route)
+      : location.pathname === item.route;
+  };
+
+  return (
+    <div className="header-menu" ref={menuRef}>
+      <button
+        className={`header-menu-btn${open ? " open" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        title="メニュー"
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        <i className="bi bi-list" />
+      </button>
+
+      {open && (
+        <div className="header-menu-dropdown" role="menu">
+          <div className="header-menu-section-label">ナビゲーション</div>
+
+          <button
+            key={DASHBOARD_ITEM.id}
+            className="header-menu-item disabled"
+            disabled
+            role="menuitem"
+            title="ダッシュボード（準備中）"
+          >
+            <i className={`bi ${DASHBOARD_ITEM.icon}`} />
+            <span>{DASHBOARD_ITEM.label}</span>
+            <span className="header-menu-badge">準備中</span>
+          </button>
+
+          <div className="header-menu-separator" />
+
+          {MENU_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              className={`header-menu-item${isActive(item) ? " active" : ""}`}
+              onClick={() => handleSelect(item.route)}
+              role="menuitem"
+            >
+              <i className={`bi ${item.icon}`} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
