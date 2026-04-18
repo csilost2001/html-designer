@@ -1,6 +1,5 @@
 # Dependencies
-designer/node_modules/
-designer-mcp/node_modules/
+node_modules/
 
 # Build output
 designer/dist/

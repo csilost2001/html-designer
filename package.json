@@ -1,0 +1,17 @@
+{
+  "name": "html-designer-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "description": "業務システム デザイナー ワークスペース（designer + designer-mcp）",
+  "scripts": {
+    "install:all": "npm install --prefix designer && npm install --prefix designer-mcp",
+    "dev": "concurrently -n designer,mcp -c cyan,magenta --kill-others-on-fail \"npm --prefix designer run dev\" \"npm --prefix designer-mcp run dev\"",
+    "build": "concurrently -n designer,mcp -c cyan,magenta \"npm --prefix designer run build\" \"npm --prefix designer-mcp run build\"",
+    "test:unit": "npm --prefix designer run test:unit",
+    "test:e2e": "npm --prefix designer run test:e2e",
+    "lint": "npm --prefix designer run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
