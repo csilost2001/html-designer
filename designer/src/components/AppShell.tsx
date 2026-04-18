@@ -19,11 +19,14 @@ import {
   subscribe,
   openTab,
   setActiveTab,
+  closeTab,
   makeTabId,
   type TabItem,
   type TabType,
 } from "../store/tabStore";
 import { useTabKeyboard } from "../hooks/useTabKeyboard";
+import { ErrorBoundary } from "./common/ErrorBoundary";
+import { TabErrorFallback } from "./common/ErrorFallback";
 
 function useTabs() {
   const [tabs, setTabs] = useState<readonly TabItem[]>(getTabs);
@@ -148,6 +151,10 @@ export function AppShell() {
   const designTabs = tabs.filter((t) => t.type === "design");
   const activeIsDesign = activeTab?.type === "design";
 
+  const handleCloseCrashedTab = (tabId: string) => {
+    closeTab(tabId, true);
+  };
+
   return (
     <>
       <CommonHeader />
@@ -159,26 +166,53 @@ export function AppShell() {
           key={tab.id}
           style={{ display: activeTabId === tab.id ? "block" : "none", height: "calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px))" }}
         >
-          <Designer
-            screenId={tab.resourceId}
-            screenName={tab.label}
-            isActive={activeTabId === tab.id}
-          />
+          <ErrorBoundary
+            context={{ tabId: tab.id, type: tab.type, resourceId: tab.resourceId }}
+            fallback={(error, reset) => (
+              <TabErrorFallback
+                error={error}
+                tabLabel={tab.label}
+                onRetry={reset}
+                onClose={() => handleCloseCrashedTab(tab.id)}
+              />
+            )}
+          >
+            <Designer
+              screenId={tab.resourceId}
+              screenName={tab.label}
+              isActive={activeTabId === tab.id}
+            />
+          </ErrorBoundary>
         </div>
       ))}
 
       {/* 非デザインコンテンツ: 通常ルーティング */}
       {!activeIsDesign && (
-        <Routes>
-          <Route path="/" element={<DashboardView />} />
-          <Route path="/screen/flow" element={<FlowEditor />} />
-          <Route path="/screen/design/:screenId" element={null} />
-          <Route path="/table/list" element={<TableListView />} />
-          <Route path="/table/edit/:tableId" element={<TableEditor />} />
-          <Route path="/table/er" element={<ErDiagram />} />
-          <Route path="/process-flow/list" element={<ActionListView />} />
-          <Route path="/process-flow/edit/:actionGroupId" element={<ActionEditor />} />
-        </Routes>
+        <ErrorBoundary
+          resetKey={activeTabId}
+          context={{ tabId: activeTabId, type: activeTab?.type, pathname: location.pathname }}
+          fallback={(error, reset) => (
+            <TabErrorFallback
+              error={error}
+              tabLabel={activeTab?.label ?? "コンテンツ"}
+              onRetry={reset}
+              onClose={() => {
+                if (activeTabId) handleCloseCrashedTab(activeTabId);
+              }}
+            />
+          )}
+        >
+          <Routes>
+            <Route path="/" element={<DashboardView />} />
+            <Route path="/screen/flow" element={<FlowEditor />} />
+            <Route path="/screen/design/:screenId" element={null} />
+            <Route path="/table/list" element={<TableListView />} />
+            <Route path="/table/edit/:tableId" element={<TableEditor />} />
+            <Route path="/table/er" element={<ErDiagram />} />
+            <Route path="/process-flow/list" element={<ActionListView />} />
+            <Route path="/process-flow/edit/:actionGroupId" element={<ActionEditor />} />
+          </Routes>
+        </ErrorBoundary>
       )}
     </>
   );

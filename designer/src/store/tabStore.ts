@@ -1,3 +1,5 @@
+import { recordError } from "../utils/errorLog";
+
 const TABS_KEY = "designer-open-tabs";
 const ACTIVE_KEY = "designer-active-tab";
 
@@ -12,6 +14,11 @@ export type TabType =
   | "er"                 // ER 図
   | "process-flow-list"  // 処理フロー一覧
   | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
+
+const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
+  "design", "table", "action",
+  "screen-flow", "table-list", "er", "process-flow-list", "dashboard",
+]);
 
 export interface TabItem {
   id: string;
@@ -32,19 +39,57 @@ function _notify() {
   _listeners.forEach((fn) => fn());
 }
 
+function _isValidTab(t: unknown): t is TabItem {
+  if (!t || typeof t !== "object") return false;
+  const o = t as Record<string, unknown>;
+  return (
+    typeof o.id === "string" && o.id.length > 0 &&
+    typeof o.type === "string" && KNOWN_TAB_TYPES.has(o.type as TabType) &&
+    typeof o.resourceId === "string" && o.resourceId.length > 0 &&
+    typeof o.label === "string"
+  );
+}
+
 function _loadTabs(): TabItem[] {
   try {
     const raw = localStorage.getItem(TABS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as TabItem[];
-      return parsed.map((t) => ({ ...t, isDirty: false }));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      recordError({ source: "manual", message: "tabStore: open-tabs が配列でないためリセット", context: { raw } });
+      return [];
     }
-  } catch { /* ignore */ }
-  return [];
+    const valid: TabItem[] = [];
+    const dropped: unknown[] = [];
+    for (const t of parsed) {
+      if (_isValidTab(t)) {
+        valid.push({ ...t, isDirty: false, isPinned: Boolean(t.isPinned) });
+      } else {
+        dropped.push(t);
+      }
+    }
+    if (dropped.length > 0) {
+      recordError({
+        source: "manual",
+        message: `tabStore: 不正なタブエントリ ${dropped.length} 件を破棄`,
+        context: { dropped },
+      });
+    }
+    return valid;
+  } catch (e) {
+    recordError({
+      source: "manual",
+      message: "tabStore: open-tabs の JSON パース失敗、リセット",
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+    return [];
+  }
 }
 
 function _loadActiveId(): string {
-  return localStorage.getItem(ACTIVE_KEY) ?? "";
+  const v = localStorage.getItem(ACTIVE_KEY) ?? "";
+  // 存在しないタブを指していても起動時点では判断できないため文字列としてだけ検証
+  return typeof v === "string" ? v : "";
 }
 
 function _persist() {
@@ -63,6 +108,12 @@ export function _resetForTests(): void {
   _tabs = [];
   _activeTabId = "";
   _listeners.clear();
+}
+
+/** テスト専用: localStorage から再ロードする（起動時のロード挙動を検証するため） */
+export function _reloadFromStorageForTests(): void {
+  _tabs = _loadTabs();
+  _activeTabId = _loadActiveId();
 }
 
 export function getTabs(): readonly TabItem[] {

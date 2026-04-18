@@ -14,6 +14,7 @@ import {
   closeTabsToRight,
   makeTabId,
   _resetForTests,
+  _reloadFromStorageForTests,
 } from "./tabStore";
 
 // ── ヘルパー ────────────────────────────────────────────────────────────────
@@ -328,5 +329,65 @@ describe("localStorage 永続化", () => {
     setPinned("design:s1", true);
     const saved = JSON.parse(localStorage.getItem("designer-open-tabs")!);
     expect(saved[0].isPinned).toBe(true);
+  });
+});
+
+// ── localStorage ロード時のバリデーション (#123) ──────────────────────────────────
+
+describe("localStorage ロード時のバリデーション", () => {
+  it("壊れた JSON なら空配列にフォールバックする", () => {
+    localStorage.setItem("designer-open-tabs", "{not json");
+    _reloadFromStorageForTests();
+    expect(getTabs()).toEqual([]);
+  });
+
+  it("配列ではないデータなら空配列にフォールバックする", () => {
+    localStorage.setItem("designer-open-tabs", JSON.stringify({ not: "array" }));
+    _reloadFromStorageForTests();
+    expect(getTabs()).toEqual([]);
+  });
+
+  it("未知の type を含むエントリは除去される", () => {
+    localStorage.setItem("designer-open-tabs", JSON.stringify([
+      { id: "design:s1", type: "design", resourceId: "s1", label: "ok" },
+      { id: "legacy:s2", type: "legacy-unknown", resourceId: "s2", label: "ng" },
+    ]));
+    _reloadFromStorageForTests();
+    const ids = getTabs().map((t) => t.id);
+    expect(ids).toContain("design:s1");
+    expect(ids).not.toContain("legacy:s2");
+  });
+
+  it("必須プロパティ欠落のエントリは除去される", () => {
+    localStorage.setItem("designer-open-tabs", JSON.stringify([
+      { id: "design:s1", type: "design", resourceId: "s1", label: "ok" },
+      { id: "design:s2" /* type / resourceId / label 欠落 */ },
+      { type: "design", resourceId: "s3", label: "no-id" },
+      null,
+    ]));
+    _reloadFromStorageForTests();
+    expect(getTabs()).toHaveLength(1);
+    expect(getTabs()[0].id).toBe("design:s1");
+  });
+
+  it("有効エントリは isDirty=false / isPinned はソース尊重で復元される", () => {
+    localStorage.setItem("designer-open-tabs", JSON.stringify([
+      { id: "design:s1", type: "design", resourceId: "s1", label: "a", isPinned: true, isDirty: true },
+    ]));
+    _reloadFromStorageForTests();
+    const t = getTabs()[0];
+    expect(t.isPinned).toBe(true);
+    expect(t.isDirty).toBe(false); // 起動時は dirty 情報を信用しない
+  });
+
+  it("全エントリ不正でもクラッシュせず空配列になる", () => {
+    localStorage.setItem("designer-open-tabs", JSON.stringify([
+      null,
+      42,
+      "string",
+      { only: "garbage" },
+    ]));
+    expect(() => _reloadFromStorageForTests()).not.toThrow();
+    expect(getTabs()).toEqual([]);
   });
 });
