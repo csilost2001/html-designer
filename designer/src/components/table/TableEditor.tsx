@@ -9,6 +9,10 @@ import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
+import { saveDraft, loadDraft, clearDraft } from "../../utils/draftStorage";
+import { SaveResetButtons } from "../common/SaveResetButtons";
+import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/table.css";
 
 type TabId = "columns" | "indexes" | "ddl";
@@ -20,16 +24,11 @@ export function TableEditor() {
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [serverChanged, setServerChanged] = useState(false);
+  const lastSavedRef = useRef<TableDefinition | null>(null);
 
-  const autoSave = useCallback((t: TableDefinition) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveTable(t);
-    }, 500);
-  }, []);
-
-  // Undo/Redo 対応 state
   const {
     state: table,
     updateAndCommit,
@@ -38,17 +37,34 @@ export function TableEditor() {
     canUndo,
     canRedo,
     reset: resetTable,
-  } = useUndoableState<TableDefinition | null>(null, { onSave: (t) => { if (t) saveTable(t); } });
+  } = useUndoableState<TableDefinition | null>(null);
 
   useUndoKeyboard(undo, redo);
+
+  const markClean = useCallback(() => {
+    if (!tableId) return;
+    clearDraft("table", tableId);
+    setIsDirty(false);
+    setTabDirty(makeTabId("table", tableId), false);
+  }, [tableId]);
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     if (!tableId) return;
     (async () => {
       const t = await loadTable(tableId);
-      if (t) resetTable(t);
-      else navigate("/tables");
+      if (!t) { navigate("/tables"); return; }
+      lastSavedRef.current = t;
+      const draft = loadDraft<TableDefinition>("table", tableId);
+      if (draft) {
+        resetTable(draft);
+        setIsDirty(true);
+        setTabDirty(makeTabId("table", tableId), true);
+      } else {
+        resetTable(t);
+        setIsDirty(false);
+        setTabDirty(makeTabId("table", tableId), false);
+      }
       const tl = await listTables();
       const allTds: TableDefinition[] = [];
       for (const m of tl) {
@@ -59,24 +75,66 @@ export function TableEditor() {
     })();
   }, [tableId, navigate, resetTable]);
 
-  // Cleanup save timer
   useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, []);
+    if (!tableId) return;
+    return mcpBridge.onBroadcast("tableChanged", (data) => {
+      const d = data as { tableId?: string };
+      if (d.tableId === tableId) setServerChanged(true);
+    });
+  }, [tableId]);
 
-  /** 構造変化（履歴に積む）: カラム追加・削除・移動 */
+  // Ctrl+S for save
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (isDirty && !isSaving) handleSave();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
+
   const update = useCallback((fn: (t: TableDefinition) => void) => {
     updateAndCommit((prev) => {
       if (!prev) return prev;
       const next = structuredClone(prev);
       fn(next);
-      autoSave(next);
+      if (tableId) {
+        saveDraft("table", tableId, next);
+        setTabDirty(makeTabId("table", tableId), true);
+      }
       return next;
     });
-  }, [updateAndCommit, autoSave]);
+    setIsDirty(true);
+  }, [updateAndCommit, tableId]);
 
+  const handleSave = useCallback(async () => {
+    if (!table) return;
+    setIsSaving(true);
+    try {
+      await saveTable(table);
+      lastSavedRef.current = table;
+      markClean();
+    } finally {
+      setIsSaving(false);
+    }
+  }, [table, markClean]);
+
+  const handleReset = useCallback(async () => {
+    if (!tableId) return;
+    const t = await loadTable(tableId);
+    if (!t) return;
+    lastSavedRef.current = t;
+    resetTable(t);
+    markClean();
+    setServerChanged(false);
+  }, [tableId, resetTable, markClean]);
+
+  const handleServerReload = useCallback(async () => {
+    await handleReset();
+    setServerChanged(false);
+  }, [handleReset]);
 
   if (!table) {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
@@ -86,6 +144,10 @@ export function TableEditor() {
 
   return (
     <div className="table-editor-page">
+      {serverChanged && (
+        <ServerChangeBanner onReload={handleServerReload} onDismiss={() => setServerChanged(false)} />
+      )}
+
       {/* Header */}
       <header className="table-editor-header">
         <button className="tbl-btn tbl-btn-ghost table-back-btn" onClick={() => navigate("/tables")}>
@@ -137,6 +199,12 @@ export function TableEditor() {
           >
             <i className="bi bi-clipboard" />
           </button>
+          <SaveResetButtons
+            isDirty={isDirty}
+            isSaving={isSaving}
+            onSave={handleSave}
+            onReset={handleReset}
+          />
         </div>
       </header>
 
@@ -290,8 +358,7 @@ function ColumnsTab({
     update((t) => {
       const src = t.columns.find((c) => c.id === colId);
       if (!src) return;
-      const { id: _, ...rest } = src;
-      const col = addColumn(t, { ...rest, name: src.name + "_copy" });
+      const col = addColumn(t, { ...src, name: src.name + "_copy" });
       newColId = col.id;
     });
     if (newColId) setEditingId(newColId);
