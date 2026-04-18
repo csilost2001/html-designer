@@ -112,6 +112,7 @@ test.describe("テーブルエディタ：保存/リセットボタン", () => {
 
   test("リセット後に保存・リセットボタンが無効に戻る", async ({ page }) => {
     await setupTableEditor(page);
+    page.on("dialog", (d) => d.accept());
 
     await page.getByRole("button", { name: /カラム追加/ }).click();
     await expect(page.getByRole("button", { name: /保存/ })).toBeEnabled();
@@ -124,12 +125,61 @@ test.describe("テーブルエディタ：保存/リセットボタン", () => {
 
   test("リセット後に dirty インジケーターが消える", async ({ page }) => {
     await setupTableEditor(page);
+    page.on("dialog", (d) => d.accept());
 
     await page.getByRole("button", { name: /カラム追加/ }).click();
     await expect(page.locator(".tabbar-tab.dirty")).toBeVisible();
 
     await page.getByRole("button", { name: /リセット/ }).click();
 
+    await expect(page.locator(".tabbar-tab.dirty")).not.toBeVisible();
+  });
+
+  test("リセットクリックで確認ダイアログが表示される", async ({ page }) => {
+    await setupTableEditor(page);
+
+    await page.getByRole("button", { name: /カラム追加/ }).click();
+
+    // dialog は click() をブロックするため、handler を先に登録して await しない click と組み合わせる
+    let dialogType = "";
+    let dialogMessage = "";
+    page.once("dialog", async (d) => {
+      dialogType = d.type();
+      dialogMessage = d.message();
+      await d.dismiss();
+    });
+
+    await page.getByRole("button", { name: /リセット/ }).click();
+
+    expect(dialogType).toBe("confirm");
+    expect(dialogMessage).toContain("保存済み状態に戻します");
+  });
+
+  test("確認ダイアログをキャンセルすると編集状態が保持される", async ({ page }) => {
+    await setupTableEditor(page);
+    page.on("dialog", (d) => d.dismiss());
+
+    await page.getByRole("button", { name: /カラム追加/ }).click();
+    await expect(page.getByRole("button", { name: /保存/ })).toBeEnabled();
+
+    await page.getByRole("button", { name: /リセット/ }).click();
+
+    // キャンセルしたので編集状態が維持されている
+    await expect(page.getByRole("button", { name: /保存/ })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /リセット/ })).toBeEnabled();
+    await expect(page.locator(".tabbar-tab.dirty")).toBeVisible();
+  });
+
+  test("確認ダイアログを承認するとリセットが実行される", async ({ page }) => {
+    await setupTableEditor(page);
+    page.on("dialog", (d) => d.accept());
+
+    await page.getByRole("button", { name: /カラム追加/ }).click();
+    await expect(page.getByRole("button", { name: /保存/ })).toBeEnabled();
+
+    await page.getByRole("button", { name: /リセット/ }).click();
+
+    await expect(page.getByRole("button", { name: /保存/ })).toBeDisabled();
     await expect(page.locator(".tabbar-tab.dirty")).not.toBeVisible();
   });
 
