@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { SaveResetButtons } from "../common/SaveResetButtons";
 
 export type ViewMode = "flow" | "table";
 
@@ -22,6 +23,10 @@ interface Props {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  isDirty?: boolean;
+  isSaving?: boolean;
+  onSave?: () => void;
+  onReset?: () => void;
 }
 
 export function FlowSubToolbar({
@@ -30,6 +35,7 @@ export function FlowSubToolbar({
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
   onZoomChange, onFitView, onViewModeChange,
   onUndo, onRedo, canUndo, canRedo,
+  isDirty, isSaving, onSave, onReset,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
@@ -226,6 +232,14 @@ export function FlowSubToolbar({
         <button className="flow-btn flow-btn-primary" onClick={onAddScreen}>
           <i className="bi bi-plus-lg" /> 画面を追加
         </button>
+        {onSave && onReset && (
+          <SaveResetButtons
+            isDirty={!!isDirty}
+            isSaving={!!isSaving}
+            onSave={onSave}
+            onReset={onReset}
+          />
+        )}
       </div>
     </header>
   );

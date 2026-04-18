@@ -31,6 +31,11 @@ import { TRIGGER_LABELS } from "../../types/flow";
 import {
   loadProject,
   saveProject,
+  persistProject,
+  setFlowDraftMode,
+  loadFlowDraft,
+  clearFlowDraft,
+  subscribeToFlowDraftSaves,
   addScreen,
   updateScreen,
   removeScreen,
@@ -48,6 +53,7 @@ import {
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { openTab, makeTabId } from "../../store/tabStore";
+import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/flow.css";
 
 const nodeTypes = {
@@ -121,6 +127,10 @@ function FlowEditorInner() {
   const [isLoading, setIsLoading] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>("flow");
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [serverChanged, setServerChanged] = useState(false);
+  const isDirtyRef = useRef(false);
   const needsFitViewRef = useRef(false);
 
   // Undo/Redo スタック
@@ -167,15 +177,25 @@ function FlowEditorInner() {
 
   useUndoKeyboard(handleUndo, handleRedo);
 
-  // プロジェクトを読み込んで UI に反映
+  // プロジェクトを読み込んで UI に反映（ドラフトがあれば優先的に復元）
+  // loadProject は draftMode の影響を受けないため、モード切替は不要。
   const reloadProject = useCallback(async () => {
     const project = await loadProject();
-    projectRef.current = project;
-    setNodes(toRFNodesWithGroups(project.screens, project.groups ?? []));
-    setEdges(toRFEdges(project.edges));
-    setProjectName(project.name);
-    needsFitViewRef.current = project.screens.length > 0;
+    const draft = loadFlowDraft();
+    const active = draft ?? project;
+    projectRef.current = active;
+    setNodes(toRFNodesWithGroups(active.screens, active.groups ?? []));
+    setEdges(toRFEdges(active.edges));
+    setProjectName(active.name);
+    needsFitViewRef.current = active.screens.length > 0;
     setIsLoading(false);
+    if (draft) {
+      setIsDirty(true);
+      isDirtyRef.current = true;
+    } else {
+      setIsDirty(false);
+      isDirtyRef.current = false;
+    }
   }, [setNodes, setEdges]);
 
   // ロード完了 or ノード変更後に全体フィット
@@ -192,22 +212,41 @@ function FlowEditorInner() {
   useEffect(() => {
     let mounted = true;
 
+    // UI 起点の変更はドラフトに書き込む
+    setFlowDraftMode(true);
+
+    // draft 保存が発生したら isDirty を立てる
+    const unsubDraft = subscribeToFlowDraftSaves(() => {
+      setIsDirty(true);
+      isDirtyRef.current = true;
+    });
+
+    const handleExternalChange = () => {
+      if (!mounted) return;
+      if (isDirtyRef.current) {
+        // ユーザーに未保存編集があるのでバナー表示
+        setServerChanged(true);
+      } else {
+        reloadProject().catch(console.error);
+      }
+    };
+
     mcpBridge.setNavigateHandler((path) => navigate(path));
 
     // MCP 経由でフローが変更されたとき（addScreen 等）
-    mcpBridge.setFlowChangeHandler(() => {
-      if (mounted) reloadProject().catch(console.error);
-    });
+    mcpBridge.setFlowChangeHandler(handleExternalChange);
 
     // 他タブ/ブラウザでプロジェクトが変更されたとき
-    const unsubProject = mcpBridge.onBroadcast("projectChanged", () => {
-      if (mounted) reloadProject().catch(console.error);
-    });
+    const unsubProject = mcpBridge.onBroadcast("projectChanged", handleExternalChange);
 
     // WS 接続完了時にファイルから再ロード（初回ロード時にバックエンドが未設定だった場合の補完）
     const unsubStatus = mcpBridge.onStatusChange((status) => {
       if (status === "connected" && mounted) {
-        reloadProject().catch(console.error);
+        if (isDirtyRef.current) {
+          setServerChanged(true);
+        } else {
+          reloadProject().catch(console.error);
+        }
       }
     });
 
@@ -219,8 +258,10 @@ function FlowEditorInner() {
 
     return () => {
       mounted = false;
+      setFlowDraftMode(false);
       mcpBridge.setNavigateHandler(null);
       mcpBridge.setFlowChangeHandler(null);
+      unsubDraft();
       unsubProject();
       unsubStatus();
     };
@@ -695,11 +736,57 @@ function FlowEditorInner() {
     URL.revokeObjectURL(url);
   }, []);
 
+  const handleSave = useCallback(async () => {
+    if (!projectRef.current || isSaving) return;
+    setIsSaving(true);
+    try {
+      await persistProject(projectRef.current);
+      setIsDirty(false);
+      isDirtyRef.current = false;
+      setServerChanged(false);
+    } catch (e) {
+      console.error("[FlowEditor] save failed:", e);
+      alert("保存に失敗しました: " + String(e));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isSaving]);
+
+  const handleReset = useCallback(async () => {
+    clearFlowDraft();
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+    await reloadProject();
+    setServerChanged(false);
+  }, [reloadProject]);
+
+  // Ctrl+S で保存
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        const t = e.target as HTMLElement;
+        if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+        e.preventDefault();
+        if (isDirty && !isSaving) handleSave();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isDirty, isSaving, handleSave]);
+
   const isEmpty = !isLoading && nodes.filter((n) => n.type === "screenNode").length === 0;
   const screenCount = nodes.filter((n) => n.type === "screenNode").length;
 
   return (
     <div className="flow-root">
+      {serverChanged && (
+        <ServerChangeBanner
+          onReload={handleReset}
+          onDismiss={() => setServerChanged(false)}
+        />
+      )}
       <FlowSubToolbar
         projectName={projectName}
         screenCount={screenCount}
@@ -720,6 +807,10 @@ function FlowEditorInner() {
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        isDirty={isDirty}
+        isSaving={isSaving}
+        onSave={() => { handleSave().catch(console.error); }}
+        onReset={() => { handleReset().catch(console.error); }}
       />
 
       <div className="flow-canvas">

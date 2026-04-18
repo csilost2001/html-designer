@@ -4,6 +4,7 @@ import type { PanelMode, ThemeId } from "../Designer";
 import type { McpStatus } from "../../mcp/mcpBridge";
 import { CodeEditorModal } from "../CodeEditorModal";
 import { SaveBlockModal } from "../SaveBlockModal";
+import { SaveResetButtons } from "../common/SaveResetButtons";
 import { upsertCustomBlock } from "../../store/customBlockStore";
 
 export const CUSTOM_BLOCK_CATEGORY = "マイブロック";
@@ -40,10 +41,12 @@ interface Props {
   mcpStatus: McpStatus;
   backLink?: BackLink;
   isDirty?: boolean;
+  isSaving?: boolean;
   onSaveToFile?: () => Promise<void>;
+  onReset?: () => Promise<void>;
 }
 
-export function DesignSubToolbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, onSaveToFile }: Props) {
+export function DesignSubToolbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -388,21 +391,15 @@ ${html}
           )}
         </div>
         <div className="divider" />
-        {isDirty ? (
-          <button
-            className="btn-primary-sm"
-            onClick={handleSaveNow}
-            title="変更を保存 (Ctrl+S)"
-            disabled={!ready}
-            style={{ background: "#f59e0b", animation: "none" }}
-          >
-            <i className="bi bi-save" /> 保存
-          </button>
-        ) : (
-          <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden" }}>
-            <i className="bi bi-check-circle-fill" /> 保存済み
-          </span>
-        )}
+        <SaveResetButtons
+          isDirty={!!isDirty}
+          isSaving={!!isSaving}
+          onSave={handleSaveNow}
+          onReset={() => { void onReset?.(); }}
+        />
+        <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden", marginLeft: 4 }}>
+          <i className="bi bi-check-circle-fill" /> 保存済み
+        </span>
         <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
           <i className="bi bi-download" /> HTMLエクスポート
         </button>
