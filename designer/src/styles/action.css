@@ -44,34 +44,16 @@
   font-weight: 600;
 }
 
-.action-list-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.action-group-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 16px;
-  background: #fff;
-  cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
-}
-
-.action-group-card:hover {
-  border-color: #6366f1;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
-}
-
-.action-group-card-header {
+/* ─── ActionListView ヘッダ右側 ───────────────────────────────────── */
+.action-list-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
+/* ─── 種別バッジ (list/table 共通) ────────────────────────────────── */
 .action-group-type-badge {
+  display: inline-block;
   font-size: 0.72rem;
   padding: 2px 8px;
   border-radius: 4px;
@@ -86,51 +68,57 @@
 .action-group-type-badge.common { background: #d1fae5; color: #065f46; }
 .action-group-type-badge.other { background: #f1f5f9; color: #475569; }
 
-.action-group-card-name {
+/* ─── DataList カード内コンテンツ ────────────────────────────────── */
+.action-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.action-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-card-name {
   font-weight: 600;
   font-size: 0.95rem;
-  flex: 1;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.action-group-card-meta {
+.action-card-meta {
   font-size: 0.8rem;
   color: #64748b;
   display: flex;
   gap: 12px;
 }
 
-.action-group-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
+.action-list-name {
+  font-weight: 600;
 }
 
-.action-group-card.selected {
-  outline: 2px solid #6366f1;
-  background-color: rgba(99, 102, 241, 0.04);
+.action-validation-ok {
+  color: #10b981;
 }
 
-.action-group-card.has-error {
-  background-color: #fff5f5;
+/* エラー/警告状態のカード装飾 (:has() で外側を着色) */
+.action-data-list .data-list-card:has(.action-card-content.has-error) {
+  background: #fff5f5;
   border-color: #fecaca;
 }
-
-.action-group-card.has-error:hover {
+.action-data-list .data-list-card:has(.action-card-content.has-error):hover {
   border-color: #f87171;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
 }
-
-.action-group-card.has-warning:not(.has-error) {
-  background-color: #fffbeb;
+.action-data-list .data-list-card:has(.action-card-content.has-warning:not(.has-error)) {
+  background: #fffbeb;
   border-color: #fde68a;
 }
-
-.action-group-card.has-warning:not(.has-error):hover {
+.action-data-list .data-list-card:has(.action-card-content.has-warning:not(.has-error)):hover {
   border-color: #fbbf24;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
 }
 
 .action-validation-badges {
@@ -138,7 +126,6 @@
   gap: 4px;
   margin-left: auto;
   flex-shrink: 0;
-  cursor: pointer;
 }
 
 .action-list-filter-sep {
