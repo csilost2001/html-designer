@@ -52,6 +52,9 @@ import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
+import { SaveResetButtons } from "../common/SaveResetButtons";
+import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { saveDraft, loadDraft, clearDraft } from "../../utils/draftStorage";
 import "../../styles/action.css";
 
 /** ツールバーのドラッグ可能なステップ種別ボタン */
@@ -124,7 +127,10 @@ export function ActionEditor() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [serverChanged, setServerChanged] = useState(false);
+  const lastSavedRef = useRef<ActionGroup | null>(null);
   const newStepIdsRef = useRef<Set<string>>(new Set());
 
   // 選択・クリップボード state
@@ -134,15 +140,6 @@ export function ActionEditor() {
     mode: "cut" | "copy";
   } | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
-
-  // 自動保存 (debounce 500ms) — blocking error があれば保存しない
-  const scheduleSave = useCallback((updatedGroup: ActionGroup) => {
-    if (hasBlockingErrors(validateActionGroup(updatedGroup))) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      await saveActionGroup(updatedGroup);
-    }, 500);
-  }, []);
 
   // Undo/Redo 対応 state
   const {
@@ -155,7 +152,7 @@ export function ActionEditor() {
     canUndo,
     canRedo,
     reset: resetGroup,
-  } = useUndoableState<ActionGroup | null>(null, { onSave: (g) => { if (g) saveActionGroup(g); } });
+  } = useUndoableState<ActionGroup | null>(null);
 
   useUndoKeyboard(undo, redo);
 
@@ -177,14 +174,23 @@ export function ActionEditor() {
     return closestCenter(args);
   }, []);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (useDraft = false) => {
     if (!actionGroupId) return;
     const g = await loadActionGroup(actionGroupId);
     if (!g) {
       navigate("/actions");
       return;
     }
-    resetGroup(g);
+    lastSavedRef.current = g;
+    const draft = useDraft ? null : loadDraft<ActionGroup>("action", actionGroupId);
+    if (draft) {
+      resetGroup(draft);
+      setIsDirty(true);
+    } else {
+      resetGroup(g);
+      setIsDirty(false);
+      clearDraft("action", actionGroupId);
+    }
     if (!activeActionId && g.actions.length > 0) {
       setActiveActionId(g.actions[0].id);
     }
@@ -199,15 +205,58 @@ export function ActionEditor() {
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     reload();
-    const unsub = mcpBridge.onStatusChange((s) => {
+    const unsubStatus = mcpBridge.onStatusChange((s) => {
       if (s === "connected") reload();
     });
-    return unsub;
+    return unsubStatus;
   }, [reload]);
+
+  useEffect(() => {
+    if (!actionGroupId) return;
+    return mcpBridge.onBroadcast("actionGroupChanged", (data) => {
+      const d = data as { id?: string };
+      if (d.id === actionGroupId) setServerChanged(true);
+    });
+  }, [actionGroupId]);
+
+  // Ctrl+S for save
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (isDirty && !isSaving) handleSave();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
 
   useEffect(() => {
     setValidationErrors(group ? validateActionGroup(group) : []);
   }, [group]);
+
+  const markGroupDirty = useCallback((g: ActionGroup) => {
+    if (actionGroupId) saveDraft("action", actionGroupId, g);
+    setIsDirty(true);
+  }, [actionGroupId]);
+
+  const handleSave = useCallback(async () => {
+    if (!group || hasBlockingErrors(validateActionGroup(group))) return;
+    setIsSaving(true);
+    try {
+      await saveActionGroup(group);
+      lastSavedRef.current = group;
+      if (actionGroupId) clearDraft("action", actionGroupId);
+      setIsDirty(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [group, actionGroupId]);
+
+  const handleReset = useCallback(async () => {
+    await reload(true);
+    setServerChanged(false);
+  }, [reload]);
 
   /** 構造変化（履歴に積む）: ステップ追加・削除・移動、アクション追加・削除 */
   const updateGroup = useCallback(
@@ -216,11 +265,12 @@ export function ActionEditor() {
         if (!prev) return prev;
         const next = JSON.parse(JSON.stringify(prev)) as ActionGroup;
         updater(next);
-        scheduleSave(next);
+        markGroupDirty(next);
         return next;
       });
+      setIsDirty(true);
     },
-    [updateGroupCommit, scheduleSave],
+    [updateGroupCommit, markGroupDirty],
   );
 
   /** テキスト変更（履歴に積まない）: フィールド編集中の一時状態 */
@@ -230,11 +280,12 @@ export function ActionEditor() {
         if (!prev) return prev;
         const next = JSON.parse(JSON.stringify(prev)) as ActionGroup;
         updater(next);
-        scheduleSave(next);
+        markGroupDirty(next);
         return next;
       });
+      setIsDirty(true);
     },
-    [setGroup, scheduleSave],
+    [setGroup, markGroupDirty],
   );
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
@@ -497,6 +548,10 @@ export function ActionEditor() {
     <div className="action-page" onClick={() => closeContextMenu()}>
       <TableSubToolbar />
 
+      {serverChanged && (
+        <ServerChangeBanner onReload={handleReset} onDismiss={() => setServerChanged(false)} />
+      )}
+
       {/* ヘッダー */}
       <div className="action-editor-header">
         <div className="action-editor-breadcrumb">
@@ -533,6 +588,12 @@ export function ActionEditor() {
               {validationErrors.filter((e) => e.severity === "warning").length} 警告
             </span>
           )}
+          <SaveResetButtons
+            isDirty={isDirty}
+            isSaving={isSaving}
+            onSave={handleSave}
+            onReset={handleReset}
+          />
         </div>
       </div>
 

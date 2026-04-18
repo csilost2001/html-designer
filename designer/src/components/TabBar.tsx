@@ -91,6 +91,7 @@ function TabItem({
         isActive ? "active" : "",
         tab.isPinned ? "pinned" : "",
         isDragging ? "tabbar-tab-drag" : "",
+        tab.isDirty ? "dirty" : "",
       ].filter(Boolean).join(" ")}
       onClick={handleClick}
       onAuxClick={handleAuxClick}

@@ -74,6 +74,10 @@
   white-space: nowrap;
 }
 
+.tabbar-tab.dirty {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
 .tabbar-tab-dirty {
   font-size: 10px;
   color: #f59e0b;
