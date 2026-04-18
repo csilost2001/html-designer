@@ -109,7 +109,7 @@ export function DataList<T>({
   const ids = items.map(getId);
   const rootClass = [
     "data-list",
-    `data-list-${layout}`,
+    `data-list-layout-${layout}`,
     `data-list-${variant}`,
     items.length === 0 ? "data-list-empty" : "",
     className ?? "",

@@ -59,7 +59,8 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 | Path | Component | Purpose | Opens as tab? |
 |------|-----------|---------|---------------|
 | `/` | DashboardView | 全体俯瞰ダッシュボード | ✅ singleton |
-| `/screen/flow` | FlowEditor | 画面フロー図（ReactFlow）| ✅ singleton |
+| `/screen/flow` | FlowEditor | 画面フロー図（ReactFlow、キャンバス固定）| ✅ singleton |
+| `/screen/list` | ScreenListView | 画面一覧（カード ⇔ 表切替）| ✅ singleton |
 | `/screen/design/:screenId` | Designer | 画面デザイナー（GrapesJS）| ✅ per-resource |
 | `/table/list` | TableListView | テーブル一覧 | ✅ singleton |
 | `/table/edit/:tableId` | TableEditor | テーブル編集 | ✅ per-resource |
@@ -73,7 +74,7 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 | 種別 | 対象 | 性質 |
 |------|------|------|
-| シングルトンタブ | Dashboard / 画面フロー / テーブル一覧 / ER 図 / 処理フロー一覧 | 1 インスタンス固定、再オープン時は既存を再利用 |
+| シングルトンタブ | Dashboard / 画面フロー / 画面一覧 / テーブル一覧 / ER 図 / 処理フロー一覧 | 1 インスタンス固定、再オープン時は既存を再利用 |
 | マルチインスタンスタブ | Designer / TableEditor / ActionEditor | リソース ID 毎に独立タブ |
 | route only | なし | — |
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
+import { ScreenListView } from "./flow/ScreenListView";
 import { TableListView } from "./table/TableListView";
 import { TableEditor } from "./table/TableEditor";
 import { ErDiagram } from "./table/ErDiagram";
@@ -152,6 +153,7 @@ export function AppShell() {
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
       { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
       { path: "/screen/flow",        type: "screen-flow",        label: "画面フロー" },
+      { path: "/screen/list",        type: "screen-list",        label: "画面一覧" },
       { path: "/table/list",         type: "table-list",         label: "テーブル一覧" },
       { path: "/table/er",           type: "er",                 label: "ER図" },
       { path: "/process-flow/list",  type: "process-flow-list",  label: "処理フロー一覧" },
@@ -176,6 +178,7 @@ export function AppShell() {
       : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
       : activeTab.type === "action"           ? `/process-flow/edit/${activeTab.resourceId}`
       : activeTab.type === "screen-flow"      ? "/screen/flow"
+      : activeTab.type === "screen-list"      ? "/screen/list"
       : activeTab.type === "table-list"       ? "/table/list"
       : activeTab.type === "er"               ? "/table/er"
       : activeTab.type === "process-flow-list" ? "/process-flow/list"
@@ -243,6 +246,7 @@ export function AppShell() {
           <Routes>
             <Route path="/" element={<DashboardView />} />
             <Route path="/screen/flow" element={<FlowEditor />} />
+            <Route path="/screen/list" element={<ScreenListView />} />
             {/* design は designTabs 経由で別レンダーされるが、
                  URL→タブ同期 effect の解決中に一瞬こちらのブランチが描画される。
                  以前は element={null} で真っ白だったのを ResourceLoading に置換 (#124) */}
