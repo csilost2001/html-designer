@@ -12,6 +12,7 @@
  */
 import type { ComponentType } from "react";
 import { FunctionCountsPanel } from "./panels/FunctionCountsPanel";
+import { UnsavedDraftsPanel } from "./panels/UnsavedDraftsPanel";
 
 /** react-grid-layout の 1 パネルのレイアウト指定 */
 export interface PanelLayout {
@@ -57,5 +58,12 @@ export const dashboardPanels: DashboardPanel[] = [
     icon: "bi-bar-chart-line",
     defaultLayout: { w: 6, h: 3, minW: 4, minH: 3 },
     component: FunctionCountsPanel,
+  },
+  {
+    id: "unsaved-drafts",
+    title: "未保存ドラフト",
+    icon: "bi-hourglass-split",
+    defaultLayout: { w: 6, h: 4, minW: 4, minH: 3 },
+    component: UnsavedDraftsPanel,
   },
 ];
