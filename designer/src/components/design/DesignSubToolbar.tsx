@@ -5,6 +5,7 @@ import type { McpStatus } from "../../mcp/mcpBridge";
 import { CodeEditorModal } from "../CodeEditorModal";
 import { SaveBlockModal } from "../SaveBlockModal";
 import { SaveResetButtons } from "../common/SaveResetButtons";
+import { EditorHeader } from "../common/EditorHeader";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { upsertCustomBlock } from "../../store/customBlockStore";
 
@@ -259,154 +260,130 @@ ${html}
   });
 
   return (
-    <header className="topbar">
-      <div className="topbar-left">
-        {backLink && (
-          <>
+    <>
+      <EditorHeader
+        variant="dark"
+        backLink={backLink ? { label: backLink.label, onClick: backLink.onClick, title: "フロー図に戻る" } : undefined}
+        title={
+          panelMode === "hidden" ? (
             <button
               className="icon-btn"
-              onClick={backLink.onClick}
-              title="フロー図に戻る"
-              style={{ marginRight: 6 }}
+              onClick={onOpenPanel}
+              title="ブロックパネルを開く"
             >
-              <i className="bi bi-arrow-left" />
+              <i className="bi bi-layout-sidebar" />
             </button>
-            <span className="topbar-title">{backLink.label}</span>
-          </>
-        )}
-        {panelMode === "hidden" && (
-          <button
-            className="icon-btn"
-            onClick={onOpenPanel}
-            title="ブロックパネルを開く"
-            style={{ marginLeft: backLink ? 4 : 0 }}
-          >
-            <i className="bi bi-layout-sidebar" />
-          </button>
-        )}
-      </div>
-
-      <div className="topbar-center">
-        <button
-          className="icon-btn"
-          onClick={handleUndo}
-          disabled={!canUndo}
-          title="元に戻す (Ctrl+Z)"
-        >
-          <i className="bi bi-arrow-counterclockwise" />
-        </button>
-        <button
-          className="icon-btn"
-          onClick={handleRedo}
-          disabled={!canRedo}
-          title="やり直し (Ctrl+Shift+Z)"
-        >
-          <i className="bi bi-arrow-clockwise" />
-        </button>
-        <div className="divider" />
-        <button className="icon-btn" onClick={handlePreview} title="プレビュー (Ctrl+P)">
-          <i className="bi bi-eye" />
-        </button>
-        <button
-          className="icon-btn"
-          onClick={handleOpenCodeEditor}
-          disabled={!hasSelected}
-          title="HTMLソースを編集 (Ctrl+E)"
-        >
-          <i className="bi bi-code-slash" />
-        </button>
-        <button
-          className="icon-btn"
-          onClick={handleOpenSaveBlock}
-          disabled={!hasSelected}
-          title="マイブロックとして保存"
-        >
-          <i className="bi bi-bookmark-plus" />
-        </button>
-        <button
-          className="icon-btn danger"
-          onClick={handleClear}
-          title="キャンバスをクリア"
-        >
-          <i className="bi bi-trash" />
-        </button>
-        <div className="divider" />
-        <div className="device-switcher">
-          <button
-            className={`device-btn${selectedDevice === "desktop" ? " active" : ""}`}
-            onClick={() => editor?.setDevice("desktop")}
-            title="PC（全幅）"
-          >
-            <i className="bi bi-display" />
-          </button>
-          <button
-            className={`device-btn${selectedDevice === "tablet" ? " active" : ""}`}
-            onClick={() => editor?.setDevice("tablet")}
-            title="タブレット (768px)"
-          >
-            <i className="bi bi-tablet" />
-          </button>
-          <button
-            className={`device-btn${selectedDevice === "smartphone" ? " active" : ""}`}
-            onClick={() => editor?.setDevice("smartphone")}
-            title="スマートフォン (375px)"
-          >
-            <i className="bi bi-phone" />
-          </button>
-        </div>
-        <div className="divider" />
-        <button
-          className="icon-btn"
-          onClick={() => setHelpOpen(true)}
-          title="キーボードショートカット一覧 (?)"
-        >
-          <i className="bi bi-keyboard" />
-        </button>
-      </div>
-
-      <div className="topbar-right">
-        <div className="theme-selector">
-          <button
-            className="theme-selector-btn"
-            onClick={() => setThemeMenuOpen((v) => !v)}
-            title="デザインテーマを選択"
-          >
-            <i className={`bi ${THEMES.find((t) => t.id === activeTheme)?.icon ?? "bi-palette"}`} />
-            <span>{THEMES.find((t) => t.id === activeTheme)?.label ?? "テーマ"}</span>
-            <i className="bi bi-chevron-down" style={{ fontSize: 10 }} />
-          </button>
-          {themeMenuOpen && (
-            <div className="theme-menu">
-              {THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  className={`theme-menu-item${activeTheme === t.id ? " active" : ""}`}
-                  onClick={() => { onThemeChange(t.id); setThemeMenuOpen(false); }}
-                >
-                  <span className="theme-swatch" style={{ background: t.color }} />
-                  <i className={`bi ${t.icon}`} />
-                  {t.label}
-                </button>
-              ))}
+          ) : undefined
+        }
+        centerTools={
+          <>
+            <button className="icon-btn" onClick={handlePreview} title="プレビュー (Ctrl+P)">
+              <i className="bi bi-eye" />
+            </button>
+            <button
+              className="icon-btn"
+              onClick={handleOpenCodeEditor}
+              disabled={!hasSelected}
+              title="HTMLソースを編集 (Ctrl+E)"
+            >
+              <i className="bi bi-code-slash" />
+            </button>
+            <button
+              className="icon-btn"
+              onClick={handleOpenSaveBlock}
+              disabled={!hasSelected}
+              title="マイブロックとして保存"
+            >
+              <i className="bi bi-bookmark-plus" />
+            </button>
+            <button
+              className="icon-btn danger"
+              onClick={handleClear}
+              title="キャンバスをクリア"
+            >
+              <i className="bi bi-trash" />
+            </button>
+            <div className="divider" />
+            <div className="device-switcher">
+              <button
+                className={`device-btn${selectedDevice === "desktop" ? " active" : ""}`}
+                onClick={() => editor?.setDevice("desktop")}
+                title="PC（全幅）"
+              >
+                <i className="bi bi-display" />
+              </button>
+              <button
+                className={`device-btn${selectedDevice === "tablet" ? " active" : ""}`}
+                onClick={() => editor?.setDevice("tablet")}
+                title="タブレット (768px)"
+              >
+                <i className="bi bi-tablet" />
+              </button>
+              <button
+                className={`device-btn${selectedDevice === "smartphone" ? " active" : ""}`}
+                onClick={() => editor?.setDevice("smartphone")}
+                title="スマートフォン (375px)"
+              >
+                <i className="bi bi-phone" />
+              </button>
             </div>
-          )}
-        </div>
-        <div className="divider" />
-        <SaveResetButtons
-          isDirty={!!isDirty}
-          isSaving={!!isSaving}
-          onSave={handleSaveNow}
-          onReset={() => { void onReset?.(); }}
-        />
-        <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden", marginLeft: 4 }}>
-          <i className="bi bi-check-circle-fill" /> 保存済み
-        </span>
-        <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
-          <i className="bi bi-download" /> HTMLエクスポート
-        </button>
-        <div className="divider" />
-        <McpIndicator status={mcpStatus} />
-      </div>
+            <div className="divider" />
+            <button
+              className="icon-btn"
+              onClick={() => setHelpOpen(true)}
+              title="キーボードショートカット一覧 (?)"
+            >
+              <i className="bi bi-keyboard" />
+            </button>
+          </>
+        }
+        undoRedo={{ onUndo: handleUndo, onRedo: handleRedo, canUndo, canRedo }}
+        extraRight={
+          <>
+            <div className="theme-selector">
+              <button
+                className="theme-selector-btn"
+                onClick={() => setThemeMenuOpen((v) => !v)}
+                title="デザインテーマを選択"
+              >
+                <i className={`bi ${THEMES.find((t) => t.id === activeTheme)?.icon ?? "bi-palette"}`} />
+                <span>{THEMES.find((t) => t.id === activeTheme)?.label ?? "テーマ"}</span>
+                <i className="bi bi-chevron-down" style={{ fontSize: 10 }} />
+              </button>
+              {themeMenuOpen && (
+                <div className="theme-menu">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      className={`theme-menu-item${activeTheme === t.id ? " active" : ""}`}
+                      onClick={() => { onThemeChange(t.id); setThemeMenuOpen(false); }}
+                    >
+                      <span className="theme-swatch" style={{ background: t.color }} />
+                      <i className={`bi ${t.icon}`} />
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="divider" />
+            <SaveResetButtons
+              isDirty={!!isDirty}
+              isSaving={!!isSaving}
+              onSave={handleSaveNow}
+              onReset={() => { void onReset?.(); }}
+            />
+            <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden", marginLeft: 4 }}>
+              <i className="bi bi-check-circle-fill" /> 保存済み
+            </span>
+            <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
+              <i className="bi bi-download" /> HTMLエクスポート
+            </button>
+            <div className="divider" />
+            <McpIndicator status={mcpStatus} />
+          </>
+        }
+      />
 
       <CodeEditorModal
         open={codeModalOpen}
@@ -424,7 +401,7 @@ ${html}
         onSave={handleSaveBlock}
         onClose={() => setSaveBlockOpen(false)}
       />
-    </header>
+    </>
   );
 }
 

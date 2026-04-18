@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { SaveResetButtons } from "../common/SaveResetButtons";
+import { EditorHeader } from "../common/EditorHeader";
 
 export type ViewMode = "flow" | "table";
 
@@ -81,9 +81,10 @@ export function FlowSubToolbar({
   };
 
   return (
-    <header className="flow-topbar">
-      <div className="flow-topbar-left">
-        {editing ? (
+    <EditorHeader
+      variant="light"
+      title={
+        editing ? (
           <input
             ref={inputRef}
             className="flow-topbar-title-input"
@@ -103,144 +104,120 @@ export function FlowSubToolbar({
           >
             {projectName} <i className="bi bi-pencil flow-topbar-edit-icon" />
           </span>
-        )}
-      </div>
-
-      <div className="flow-topbar-center">
-        <div className="flow-view-toggle">
-          <button
-            className={`flow-view-btn${viewMode === "flow" ? " active" : ""}`}
-            onClick={() => onViewModeChange("flow")}
-            title="フロー図"
-          >
-            <i className="bi bi-diagram-3" /> フロー図
-          </button>
-          <button
-            className={`flow-view-btn${viewMode === "table" ? " active" : ""}`}
-            onClick={() => onViewModeChange("table")}
-            title="一覧"
-          >
-            <i className="bi bi-table" /> 一覧
-          </button>
-        </div>
-        <span className="flow-zoom-separator" />
-        <span className="flow-topbar-screen-count">{screenCount} 画面</span>
-        <span className="flow-zoom-separator" />
-        <div className={`flow-zoom-control${viewMode === "table" ? " hidden" : ""}`}>
-          <button
-            className="flow-zoom-btn"
-            onClick={() => onZoomChange(zoomLevel - 0.1)}
-            title="縮小"
-          >
-            <i className="bi bi-dash" />
-          </button>
-          <input
-            type="range"
-            className="flow-zoom-slider"
-            min={0.25} max={2} step={0.05}
-            value={zoomLevel}
-            onChange={(e) => onZoomChange(parseFloat(e.target.value))}
-            title={`${Math.round(zoomLevel * 100)}%`}
-          />
-          <button
-            className="flow-zoom-btn"
-            onClick={() => onZoomChange(zoomLevel + 0.1)}
-            title="拡大"
-          >
-            <i className="bi bi-plus" />
-          </button>
-          <span className="flow-zoom-label">{Math.round(zoomLevel * 100)}%</span>
-        </div>
-        {viewMode === "flow" && (
-          <button
-            className="flow-btn flow-btn-ghost flow-fit-view-btn"
-            onClick={onFitView}
-            title="全体表示"
-          >
-            <i className="bi bi-arrows-fullscreen" />
-          </button>
-        )}
-      </div>
-
-      <div className="flow-topbar-right">
-        {onUndo && (
-          <button
-            className="flow-btn flow-btn-secondary"
-            onClick={onUndo}
-            disabled={!canUndo}
-            title="元に戻す (Ctrl+Z)"
-          >
-            <i className="bi bi-arrow-counterclockwise" />
-          </button>
-        )}
-        {onRedo && (
-          <button
-            className="flow-btn flow-btn-secondary"
-            onClick={onRedo}
-            disabled={!canRedo}
-            title="やり直し (Ctrl+Y)"
-          >
-            <i className="bi bi-arrow-clockwise" />
-          </button>
-        )}
-        <div style={{ position: "relative" }}>
-          <button
-            className="flow-btn flow-btn-secondary"
-            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-          >
-            <i className="bi bi-three-dots-vertical" /> ファイル
-          </button>
-          {menuOpen && (
-            <div className="flow-file-menu" onClick={(e) => e.stopPropagation()}>
-              <button className="flow-file-menu-item" onClick={() => { onExportJSON(); setMenuOpen(false); }}>
-                <i className="bi bi-download" /> JSON エクスポート
-              </button>
-              <button className="flow-file-menu-item" onClick={() => { fileRef.current?.click(); setMenuOpen(false); }}>
-                <i className="bi bi-upload" /> JSON インポート
-              </button>
-              <div className="flow-context-menu-separator" />
-              <button className="flow-file-menu-item" onClick={() => { onExportMarkdown(); setMenuOpen(false); }}>
-                <i className="bi bi-file-earmark-text" /> Markdown エクスポート
-              </button>
-              <button className="flow-file-menu-item" onClick={() => { onCopyMermaid(); setMenuOpen(false); }}>
-                <i className="bi bi-clipboard" /> Mermaid をコピー
-              </button>
-              <div className="flow-context-menu-separator" />
-              <button
-                className="flow-file-menu-item danger"
-                onClick={() => { onClearAll(); setMenuOpen(false); }}
-                disabled={screenCount === 0}
-              >
-                <i className="bi bi-trash" /> 全クリア
-              </button>
-            </div>
+        )
+      }
+      centerTools={
+        <>
+          <div className="flow-view-toggle">
+            <button
+              className={`flow-view-btn${viewMode === "flow" ? " active" : ""}`}
+              onClick={() => onViewModeChange("flow")}
+              title="フロー図"
+            >
+              <i className="bi bi-diagram-3" /> フロー図
+            </button>
+            <button
+              className={`flow-view-btn${viewMode === "table" ? " active" : ""}`}
+              onClick={() => onViewModeChange("table")}
+              title="一覧"
+            >
+              <i className="bi bi-table" /> 一覧
+            </button>
+          </div>
+          <span className="flow-zoom-separator" />
+          <span className="flow-topbar-screen-count">{screenCount} 画面</span>
+          <span className="flow-zoom-separator" />
+          <div className={`flow-zoom-control${viewMode === "table" ? " hidden" : ""}`}>
+            <button
+              className="flow-zoom-btn"
+              onClick={() => onZoomChange(zoomLevel - 0.1)}
+              title="縮小"
+            >
+              <i className="bi bi-dash" />
+            </button>
+            <input
+              type="range"
+              className="flow-zoom-slider"
+              min={0.25} max={2} step={0.05}
+              value={zoomLevel}
+              onChange={(e) => onZoomChange(parseFloat(e.target.value))}
+              title={`${Math.round(zoomLevel * 100)}%`}
+            />
+            <button
+              className="flow-zoom-btn"
+              onClick={() => onZoomChange(zoomLevel + 0.1)}
+              title="拡大"
+            >
+              <i className="bi bi-plus" />
+            </button>
+            <span className="flow-zoom-label">{Math.round(zoomLevel * 100)}%</span>
+          </div>
+          {viewMode === "flow" && (
+            <button
+              className="flow-btn flow-btn-ghost flow-fit-view-btn"
+              onClick={onFitView}
+              title="全体表示"
+            >
+              <i className="bi bi-arrows-fullscreen" />
+            </button>
           )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json"
-            style={{ display: "none" }}
-            onChange={handleImportFile}
-          />
-        </div>
+        </>
+      }
+      undoRedo={onUndo && onRedo ? { onUndo, onRedo, canUndo: !!canUndo, canRedo: !!canRedo } : undefined}
+      extraRight={
+        <>
+          <div style={{ position: "relative" }}>
+            <button
+              className="flow-btn flow-btn-secondary"
+              onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+            >
+              <i className="bi bi-three-dots-vertical" /> ファイル
+            </button>
+            {menuOpen && (
+              <div className="flow-file-menu" onClick={(e) => e.stopPropagation()}>
+                <button className="flow-file-menu-item" onClick={() => { onExportJSON(); setMenuOpen(false); }}>
+                  <i className="bi bi-download" /> JSON エクスポート
+                </button>
+                <button className="flow-file-menu-item" onClick={() => { fileRef.current?.click(); setMenuOpen(false); }}>
+                  <i className="bi bi-upload" /> JSON インポート
+                </button>
+                <div className="flow-context-menu-separator" />
+                <button className="flow-file-menu-item" onClick={() => { onExportMarkdown(); setMenuOpen(false); }}>
+                  <i className="bi bi-file-earmark-text" /> Markdown エクスポート
+                </button>
+                <button className="flow-file-menu-item" onClick={() => { onCopyMermaid(); setMenuOpen(false); }}>
+                  <i className="bi bi-clipboard" /> Mermaid をコピー
+                </button>
+                <div className="flow-context-menu-separator" />
+                <button
+                  className="flow-file-menu-item danger"
+                  onClick={() => { onClearAll(); setMenuOpen(false); }}
+                  disabled={screenCount === 0}
+                >
+                  <i className="bi bi-trash" /> 全クリア
+                </button>
+              </div>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json"
+              style={{ display: "none" }}
+              onChange={handleImportFile}
+            />
+          </div>
 
-        {viewMode === "flow" && (
-          <button className="flow-btn flow-btn-secondary" onClick={onAddGroup} title="グループを追加">
-            <i className="bi bi-collection" /> グループ
+          {viewMode === "flow" && (
+            <button className="flow-btn flow-btn-secondary" onClick={onAddGroup} title="グループを追加">
+              <i className="bi bi-collection" /> グループ
+            </button>
+          )}
+          <button className="flow-btn flow-btn-primary" onClick={onAddScreen}>
+            <i className="bi bi-plus-lg" /> 画面を追加
           </button>
-        )}
-        <button className="flow-btn flow-btn-primary" onClick={onAddScreen}>
-          <i className="bi bi-plus-lg" /> 画面を追加
-        </button>
-        {onSave && onReset && (
-          <SaveResetButtons
-            isDirty={!!isDirty}
-            isSaving={!!isSaving}
-            onSave={onSave}
-            onReset={onReset}
-          />
-        )}
-      </div>
-    </header>
+        </>
+      }
+      saveReset={onSave && onReset ? { isDirty: !!isDirty, isSaving: !!isSaving, onSave, onReset } : undefined}
+    />
   );
 }

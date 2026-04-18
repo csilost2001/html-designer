@@ -94,6 +94,22 @@
   cursor: not-allowed;
 }
 
+/* ── Divider (縦棒セパレータ) ────────────────────────────────── */
+.editor-header .divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.editor-header-light .divider {
+  background: #e2e8f0;
+}
+
+.editor-header-dark .divider {
+  background: var(--dz-border, #3b3e55);
+}
+
 /* ── Light variant (Flow / Table / Action 想定) ───────────────── */
 .editor-header-light {
   background: #ffffff;
