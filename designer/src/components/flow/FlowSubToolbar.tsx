@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 export type ViewMode = "flow" | "table";
 
@@ -25,14 +24,13 @@ interface Props {
   canRedo?: boolean;
 }
 
-export function FlowTopbar({
+export function FlowSubToolbar({
   projectName, screenCount, zoomLevel, viewMode,
   onAddScreen, onAddGroup, onRenameProject, onClearAll,
   onExportJSON, onImportJSON, onCopyMermaid, onExportMarkdown,
   onZoomChange, onFitView, onViewModeChange,
   onUndo, onRedo, canUndo, canRedo,
 }: Props) {
-  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -46,7 +44,6 @@ export function FlowTopbar({
     }
   }, [editing]);
 
-  // メニュー外クリックで閉じる
   useEffect(() => {
     if (!menuOpen) return;
     const close = () => setMenuOpen(false);
@@ -74,14 +71,12 @@ export function FlowTopbar({
       }
     };
     reader.readAsText(file);
-    // reset so same file can be re-imported
     e.target.value = "";
   };
 
   return (
     <header className="flow-topbar">
       <div className="flow-topbar-left">
-        <i className="bi bi-diagram-3 topbar-logo" />
         {editing ? (
           <input
             ref={inputRef}
@@ -103,20 +98,6 @@ export function FlowTopbar({
             {projectName} <i className="bi bi-pencil flow-topbar-edit-icon" />
           </span>
         )}
-        <nav className="global-nav">
-          <button className="global-nav-btn active" onClick={() => navigate("/")}>
-            <i className="bi bi-diagram-3" /> 画面フロー
-          </button>
-          <button className="global-nav-btn" onClick={() => navigate("/tables")}>
-            <i className="bi bi-table" /> テーブル設計
-          </button>
-          <button className="global-nav-btn" onClick={() => navigate("/er")}>
-            <i className="bi bi-share" /> ER図
-          </button>
-          <button className="global-nav-btn" onClick={() => navigate("/actions")}>
-            <i className="bi bi-lightning" /> 処理フロー
-          </button>
-        </nav>
       </div>
 
       <div className="flow-topbar-center">
@@ -176,7 +157,6 @@ export function FlowTopbar({
       </div>
 
       <div className="flow-topbar-right">
-        {/* Undo/Redo */}
         {onUndo && (
           <button
             className="flow-btn flow-btn-secondary"
@@ -197,7 +177,6 @@ export function FlowTopbar({
             <i className="bi bi-arrow-clockwise" />
           </button>
         )}
-        {/* ファイルメニュー */}
         <div style={{ position: "relative" }}>
           <button
             className="flow-btn flow-btn-secondary"

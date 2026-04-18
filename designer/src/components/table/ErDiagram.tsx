@@ -19,7 +19,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import ErTableNodeComponent, { type ErTableNodeData } from "./ErTableNode";
-import { TableTopbar } from "./TableTopbar";
+import { TableSubToolbar } from "./TableSubToolbar";
 import type { TableDefinition, ErLayout, ErLogicalRelation, ErCardinality } from "../../types/table";
 import { CARDINALITY_LABELS } from "../../types/table";
 import { listTables, loadTable, createTable } from "../../store/tableStore";
@@ -299,7 +299,7 @@ function ErDiagramInner() {
   if (isLoading) {
     return (
       <div className="er-diagram-page">
-        <TableTopbar projectName={projectName} />
+        <TableSubToolbar />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#888" }}>
           <i className="bi bi-hourglass-split" /> 読み込み中...
         </div>
@@ -309,7 +309,7 @@ function ErDiagramInner() {
 
   return (
     <div className="er-diagram-page">
-      <TableTopbar projectName={projectName} />
+      <TableSubToolbar />
 
       <div className="er-diagram-canvas" ref={canvasRef}>
         {tables.length === 0 ? (

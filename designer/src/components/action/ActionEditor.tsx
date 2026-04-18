@@ -50,7 +50,7 @@ import { useUndoableState } from "../../hooks/useUndoableState";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
-import { TableTopbar } from "../table/TableTopbar";
+import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import "../../styles/action.css";
 
@@ -113,7 +113,6 @@ const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "l
 export function ActionEditor() {
   const { actionGroupId } = useParams<{ actionGroupId: string }>();
   const navigate = useNavigate();
-  const [projectName, setProjectName] = useState("プロジェクト");
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [showAddAction, setShowAddAction] = useState(false);
   const [newActionName, setNewActionName] = useState("");
@@ -190,7 +189,6 @@ export function ActionEditor() {
       setActiveActionId(g.actions[0].id);
     }
     const p = await loadProject();
-    setProjectName(p.name);
     setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
     const agMetas = p.actionGroups ?? [];
     setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
@@ -497,7 +495,7 @@ export function ActionEditor() {
 
   return (
     <div className="action-page" onClick={() => closeContextMenu()}>
-      <TableTopbar projectName={projectName} />
+      <TableSubToolbar />
 
       {/* ヘッダー */}
       <div className="action-editor-header">

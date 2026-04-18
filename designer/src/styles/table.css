@@ -42,7 +42,7 @@
 /* ── テーブル一覧ページ ─────────────────────────────────────────────────── */
 
 .table-list-page {
-  height: 100vh;
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   display: flex;
   flex-direction: column;
   background: #1a1a2e;
@@ -358,7 +358,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .table-editor-page {
-  height: 100vh;
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   display: flex;
   flex-direction: column;
   background: #1a1a2e;
@@ -369,7 +369,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   color: #888;
   font-size: 15px;
   gap: 8px;

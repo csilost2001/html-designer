@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useEditor } from "@grapesjs/react";
-import type { PanelMode, ThemeId } from "./Designer";
-import type { McpStatus } from "../mcp/mcpBridge";
-import { CodeEditorModal } from "./CodeEditorModal";
-import { SaveBlockModal } from "./SaveBlockModal";
-import { upsertCustomBlock } from "../store/customBlockStore";
+import type { PanelMode, ThemeId } from "../Designer";
+import type { McpStatus } from "../../mcp/mcpBridge";
+import { CodeEditorModal } from "../CodeEditorModal";
+import { SaveBlockModal } from "../SaveBlockModal";
+import { upsertCustomBlock } from "../../store/customBlockStore";
 
 export const CUSTOM_BLOCK_CATEGORY = "マイブロック";
 
@@ -16,15 +16,14 @@ function addSharedBlockId(html: string, blockId: string): string {
     doc.body.children[0].setAttribute("data-shared-block-id", blockId);
     return doc.body.innerHTML;
   }
-  // 複数ルートの場合は div でラップ
   return `<div data-shared-block-id="${blockId}">${html}</div>`;
 }
 
 const THEMES: { id: ThemeId; label: string; icon: string; color: string }[] = [
-  { id: "standard", label: "標準",    icon: "bi-grid-3x3",     color: "#6c757d" },
-  { id: "card",     label: "カード型", icon: "bi-layers",       color: "#6366f1" },
+  { id: "standard", label: "標準",      icon: "bi-grid-3x3",   color: "#6c757d" },
+  { id: "card",     label: "カード型",   icon: "bi-layers",     color: "#6366f1" },
   { id: "compact",  label: "コンパクト", icon: "bi-table",      color: "#0284c7" },
-  { id: "dark",     label: "ダーク",   icon: "bi-moon-stars",   color: "#0f172a" },
+  { id: "dark",     label: "ダーク",     icon: "bi-moon-stars", color: "#0f172a" },
 ];
 
 interface BackLink {
@@ -44,12 +43,10 @@ interface Props {
   onSaveToFile?: () => Promise<void>;
 }
 
-export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, onSaveToFile }: Props) {
+export function DesignSubToolbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, onSaveToFile }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
-    "idle"
-  );
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [hasSelected, setHasSelected] = useState(false);
@@ -76,7 +73,6 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
     const onSelectionChange = () => {
       setHasSelected(editor.getSelectedAll().length > 0);
     };
-
     const onDeviceChange = () => {
       setSelectedDevice(editor.Devices.getSelected()?.get("id") ?? "desktop");
     };
@@ -169,9 +165,7 @@ export function Topbar({ ready, panelMode, onOpenPanel, activeTheme, onThemeChan
     if (!selected) return;
     const parent = selected.parent();
     const index = selected.index();
-    // replaceWith は新しいコンポーネントを返す
     selected.replaceWith(newHtml);
-    // 置換後のコンポーネントを選択
     if (parent) {
       const newComp = parent.getChildAt(index);
       if (newComp) editor.select(newComp);
@@ -207,12 +201,10 @@ ${html}
     URL.revokeObjectURL(url);
   };
 
-  // キーボードショートカット
   useEffect(() => {
     if (!editor) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 入力フィールド内では無効化
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -260,12 +252,12 @@ ${html}
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [editor]);
+  }, [editor, onSaveToFile]);
 
   return (
     <header className="topbar">
       <div className="topbar-left">
-        {backLink ? (
+        {backLink && (
           <>
             <button
               className="icon-btn"
@@ -277,18 +269,13 @@ ${html}
             </button>
             <span className="topbar-title">{backLink.label}</span>
           </>
-        ) : (
-          <>
-            <i className="bi bi-palette2 topbar-logo" />
-            <span className="topbar-title">業務システム デザイナー</span>
-          </>
         )}
         {panelMode === "hidden" && (
           <button
             className="icon-btn"
             onClick={onOpenPanel}
             title="ブロックパネルを開く"
-            style={{ marginLeft: 4 }}
+            style={{ marginLeft: backLink ? 4 : 0 }}
           >
             <i className="bi bi-layout-sidebar" />
           </button>
@@ -374,7 +361,6 @@ ${html}
       </div>
 
       <div className="topbar-right">
-        {/* テーマ選択 */}
         <div className="theme-selector">
           <button
             className="theme-selector-btn"
@@ -463,15 +449,15 @@ function McpIndicator({ status }: { status: McpStatus }) {
 }
 
 const SHORTCUTS = [
-  { key: "Ctrl + Z",       desc: "元に戻す" },
+  { key: "Ctrl + Z",         desc: "元に戻す" },
   { key: "Ctrl + Shift + Z", desc: "やり直し" },
-  { key: "Ctrl + S",       desc: "今すぐ保存" },
-  { key: "Ctrl + P",       desc: "プレビュー" },
-  { key: "Ctrl + D",       desc: "選択コンポーネントを複製" },
-  { key: "Ctrl + E",       desc: "HTMLソースエディタを開く" },
-  { key: "Delete",         desc: "選択コンポーネントを削除" },
-  { key: "?",              desc: "このヘルプを表示 / 非表示" },
-  { key: "Esc",            desc: "ヘルプを閉じる" },
+  { key: "Ctrl + S",         desc: "今すぐ保存" },
+  { key: "Ctrl + P",         desc: "プレビュー" },
+  { key: "Ctrl + D",         desc: "選択コンポーネントを複製" },
+  { key: "Ctrl + E",         desc: "HTMLソースエディタを開く" },
+  { key: "Delete",           desc: "選択コンポーネントを削除" },
+  { key: "?",                desc: "このヘルプを表示 / 非表示" },
+  { key: "Esc",              desc: "ヘルプを閉じる" },
 ];
 
 function ShortcutsHelp({ onClose }: { onClose: () => void }) {

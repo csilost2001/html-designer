@@ -5,7 +5,7 @@
 /* ── ER図ページ ───────────────────────────────────────────────────────── */
 
 .er-diagram-page {
-  height: 100vh;
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   display: flex;
   flex-direction: column;
   background: #1a1a2e;

@@ -22,7 +22,7 @@ import "@xyflow/react/dist/style.css";
 
 import ScreenNodeComponent from "./ScreenNode";
 import GroupNodeComponent from "./GroupNodeComponent";
-import { FlowTopbar, type ViewMode } from "./FlowTopbar";
+import { FlowSubToolbar, type ViewMode } from "./FlowSubToolbar";
 import { ScreenTableView } from "./ScreenTableView";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
@@ -700,7 +700,7 @@ function FlowEditorInner() {
 
   return (
     <div className="flow-root">
-      <FlowTopbar
+      <FlowSubToolbar
         projectName={projectName}
         screenCount={screenCount}
         zoomLevel={zoomLevel}

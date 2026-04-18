@@ -11,7 +11,7 @@ import {
 import { loadProject } from "../../store/flowStore";
 import { validateActionGroup } from "../../utils/actionValidation";
 import { mcpBridge } from "../../mcp/mcpBridge";
-import { TableTopbar } from "../table/TableTopbar";
+import { TableSubToolbar } from "../table/TableSubToolbar";
 import "../../styles/action.css";
 
 const ALL_TYPES: ActionGroupType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
@@ -24,7 +24,6 @@ interface ValidationSummary {
 export function ActionListView() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<ActionGroupMeta[]>([]);
-  const [projectName, setProjectName] = useState("プロジェクト");
   const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
@@ -42,7 +41,6 @@ export function ActionListView() {
     const g = await listActionGroups();
     setGroups(g);
     const p = await loadProject();
-    setProjectName(p.name);
     setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
   }, []);
 
@@ -134,7 +132,7 @@ export function ActionListView() {
 
   return (
     <div className="action-page" onClick={() => setSelectedId(null)}>
-      <TableTopbar projectName={projectName} />
+      <TableSubToolbar />
 
       <div className="action-content">
         <div className="action-list-header">

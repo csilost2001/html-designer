@@ -2,7 +2,7 @@
 .flow-root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   background: #f1f5f9;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
