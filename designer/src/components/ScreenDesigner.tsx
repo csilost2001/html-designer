@@ -71,7 +71,7 @@ export function ScreenDesigner() {
         <h2 style={{ margin: 0, color: "#334155" }}>画面が見つかりません</h2>
         <p>指定された画面ID は存在しないか、削除されています。</p>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/screen/flow")}
           style={{
             padding: "8px 20px", border: "none", borderRadius: 6,
             background: "#6366f1", color: "#fff", cursor: "pointer", fontSize: 14,
@@ -87,7 +87,7 @@ export function ScreenDesigner() {
     <Designer
       screenId={screenId}
       screenName={screen.name}
-      onBack={() => navigate("/")}
+      onBack={() => navigate("/screen/flow")}
     />
   );
 }

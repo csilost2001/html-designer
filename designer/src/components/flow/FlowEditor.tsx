@@ -358,7 +358,7 @@ function FlowEditorInner() {
       const screenName = (node.data as { name?: string }).name ?? node.id;
       openTab({ id: makeTabId("design", node.id), type: "design", resourceId: node.id, label: screenName });
     }
-    navigate(`/design/${node.id}`);
+    navigate(`/screen/design/${node.id}`);
   }, [navigate]);
 
   const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
@@ -514,7 +514,7 @@ function FlowEditorInner() {
       ? ((nodes.find((n) => n.id === screenId)!.data as { name?: string }).name ?? screenId)
       : screenId;
     openTab({ id: makeTabId("design", screenId), type: "design", resourceId: screenId, label: screenName });
-    navigate(`/design/${screenId}`);
+    navigate(`/screen/design/${screenId}`);
     setContextMenu(null);
   }, [contextMenu, navigate, nodes]);
 

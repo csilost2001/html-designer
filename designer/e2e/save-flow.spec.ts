@@ -51,7 +51,7 @@ async function setupWithTabs(page: Page, screenIds: string[], labels: Record<str
 test.describe("ページリロード後のタブ復元", () => {
   test("リロード後に1タブが復元される", async ({ page }) => {
     await setupWithTabs(page, [SCREEN_A], { [SCREEN_A]: "画面A" });
-    await page.goto(`/design/${SCREEN_A}`);
+    await page.goto(`/screen/design/${SCREEN_A}`);
     await expect(page.locator(".tabbar-tab")).toHaveCount(1, { timeout: 10000 });
     await expect(page.locator(".tabbar-tab")).toContainText("画面A");
 
@@ -62,7 +62,7 @@ test.describe("ページリロード後のタブ復元", () => {
 
   test("リロード後に複数タブが復元される", async ({ page }) => {
     await setupWithTabs(page, [SCREEN_A, SCREEN_B], { [SCREEN_A]: "画面A", [SCREEN_B]: "画面B" });
-    await page.goto(`/design/${SCREEN_B}`);
+    await page.goto(`/screen/design/${SCREEN_B}`);
     await expect(page.locator(".tabbar-tab")).toHaveCount(2, { timeout: 10000 });
 
     await page.reload();
@@ -74,7 +74,7 @@ test.describe("ページリロード後のタブ復元", () => {
   test("リロード後にアクティブタブが復元される", async ({ page }) => {
     // SCREEN_A を最後に置くことで addInitScript が active=SCREEN_A を設定する
     await setupWithTabs(page, [SCREEN_B, SCREEN_A], { [SCREEN_A]: "画面A", [SCREEN_B]: "画面B" });
-    await page.goto(`/design/${SCREEN_A}`);
+    await page.goto(`/screen/design/${SCREEN_A}`);
     await expect(page.locator(".tabbar-tab")).toHaveCount(2, { timeout: 10000 });
 
     await page.reload();
@@ -98,7 +98,7 @@ test.describe("isPinned の永続化", () => {
       },
       { project: dummyProject, tabs, activeTabId: `design:${SCREEN_B}` }
     );
-    await page.goto(`/design/${SCREEN_B}`);
+    await page.goto(`/screen/design/${SCREEN_B}`);
     await expect(page.locator(".tabbar-tab")).toHaveCount(2, { timeout: 10000 });
     await expect(page.locator(".tabbar-tab.pinned")).toContainText("画面A");
 

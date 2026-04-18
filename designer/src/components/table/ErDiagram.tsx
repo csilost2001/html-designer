@@ -195,7 +195,7 @@ function ErDiagramInner() {
 
   // Double click to navigate to table editor
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, node) => {
-    navigate(`/tables/${node.id}`);
+    navigate(`/table/edit/${node.id}`);
   }, [navigate]);
 
   // Handle drag-to-connect: open logical relation modal pre-filled
@@ -316,7 +316,7 @@ function ErDiagramInner() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#777", height: "100%" }}>
             <i className="bi bi-diagram-3" style={{ fontSize: 48, color: "#555" }} />
             <p>テーブル定義がまだありません</p>
-            <button className="tbl-btn tbl-btn-primary" onClick={() => navigate("/tables")}>
+            <button className="tbl-btn tbl-btn-primary" onClick={() => navigate("/table/list")}>
               <i className="bi bi-table" /> テーブル設計へ
             </button>
           </div>

@@ -23,7 +23,7 @@ export function TableEditor() {
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
 
-  const handleNotFound = useCallback(() => navigate("/tables"), [navigate]);
+  const handleNotFound = useCallback(() => navigate("/table/list"), [navigate]);
 
   const {
     state: table,
@@ -74,7 +74,7 @@ export function TableEditor() {
 
       {/* Header */}
       <header className="table-editor-header">
-        <button className="tbl-btn tbl-btn-ghost table-back-btn" onClick={() => navigate("/tables")}>
+        <button className="tbl-btn tbl-btn-ghost table-back-btn" onClick={() => navigate("/table/list")}>
           <i className="bi bi-arrow-left" /> テーブル一覧
         </button>
         <div className="table-editor-title-area">

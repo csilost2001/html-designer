@@ -36,7 +36,7 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      navigate(`/design/${id}`);
+      navigate(`/screen/design/${id}`);
     } else {
       clickTimerRef.current = setTimeout(() => {
         clickTimerRef.current = null;
@@ -178,7 +178,7 @@ export function ScreenTableView({ screens, onEdit, onDelete, onAdd }: Props) {
                     <div className="screen-table-actions">
                       <button
                         className="screen-table-btn"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/design/${screen.id}`); }}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/screen/design/${screen.id}`); }}
                         title="デザインを編集"
                       >
                         <i className="bi bi-palette" />

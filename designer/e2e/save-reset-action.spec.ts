@@ -1,7 +1,7 @@
 /**
  * 処理フローエディタ：保存/リセットボタン E2E テスト
  *
- * 視点: ユーザーが処理フローエディタ (/actions/:id) で編集・保存・リセットを行う
+ * 視点: ユーザーが処理フローエディタ (/process-flow/edit/:id) で編集・保存・リセットを行う
  * 前提: dev サーバーが起動済み (playwright.config.ts の webServer で自動起動)
  *       MCP サーバーは不要 — localStorage でアクショングループを直接セットアップ
  */
@@ -74,7 +74,7 @@ async function setupActionEditor(page: Page, draft: object | null = null) {
       draft,
     },
   );
-  await page.goto(`/actions/${ACTION_GROUP_ID}`);
+  await page.goto(`/process-flow/edit/${ACTION_GROUP_ID}`);
   await expect(page.locator(".action-page")).toBeVisible();
 }
 

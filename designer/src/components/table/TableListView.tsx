@@ -27,7 +27,7 @@ export function TableListView() {
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      navigate(`/tables/${id}`);
+      navigate(`/table/edit/${id}`);
     } else {
       clickTimerRef.current = setTimeout(() => {
         clickTimerRef.current = null;
@@ -61,7 +61,7 @@ export function TableListView() {
     setAddName("");
     setAddLogical("");
     setAddCategory("");
-    navigate(`/tables/${table.id}`);
+    navigate(`/table/edit/${table.id}`);
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {

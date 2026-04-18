@@ -75,7 +75,7 @@ async function setupTableEditor(page: Page) {
     },
     { project: dummyProject, table: dummyTable, tableId: TABLE_ID, tab: dummyTab },
   );
-  await page.goto(`/tables/${TABLE_ID}`);
+  await page.goto(`/table/edit/${TABLE_ID}`);
   // テーブルが読み込まれるまで待機
   await expect(page.locator(".table-editor-page")).toBeVisible();
 }

@@ -657,7 +657,7 @@ class McpBridgeImpl {
             break;
           }
           if (this.navigateHandler) {
-            this.navigateHandler(`/design/${screenId}`);
+            this.navigateHandler(`/screen/design/${screenId}`);
             respond({ success: true });
           } else {
             respondError("ナビゲーションハンドラが登録されていません");
@@ -762,12 +762,12 @@ class McpBridgeImpl {
             const screen = project.screens.find((s) => s.id === tScreenId);
             if (!screen) { respondError(`画面が見つかりません: ${tScreenId}`); break; }
             openTab({ id: makeTabId("design", tScreenId), type: "design", resourceId: tScreenId, label: screen.name });
-            if (this.navigateHandler) this.navigateHandler(`/design/${tScreenId}`);
+            if (this.navigateHandler) this.navigateHandler(`/screen/design/${tScreenId}`);
           } else if (tTableId) {
             const table = await loadTable(tTableId);
             if (!table) { respondError(`テーブルが見つかりません: ${tTableId}`); break; }
             openTab({ id: makeTabId("table", tTableId), type: "table", resourceId: tTableId, label: table.logicalName ?? table.name });
-            if (this.navigateHandler) this.navigateHandler(`/tables/${tTableId}`);
+            if (this.navigateHandler) this.navigateHandler(`/table/edit/${tTableId}`);
           } else {
             respondError("screenId または tableId が必要です");
             break;
@@ -793,7 +793,11 @@ class McpBridgeImpl {
           setActiveTab(sTabId);
           const tab = tabs.find((t) => t.id === sTabId)!;
           if (this.navigateHandler) {
-            const path = tab.type === "design" ? `/design/${tab.resourceId}` : `/tables/${tab.resourceId}`;
+            const path =
+              tab.type === "design" ? `/screen/design/${tab.resourceId}`
+              : tab.type === "table" ? `/table/edit/${tab.resourceId}`
+              : tab.type === "action" ? `/process-flow/edit/${tab.resourceId}`
+              : `/screen/flow`;
             this.navigateHandler(path);
           }
           respond({ success: true });
