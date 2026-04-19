@@ -120,27 +120,21 @@ test.describe("#147 右クリックメニュー (§3.11 / §4.6 / §5.10)", () =
   });
 
   test("空領域の右クリックは「新規作成」のみの絞り込みメニュー", async ({ page }) => {
-    await setupScreenListTable(page);
-    // テーブル外のページ上部 (screen-list-page の背景) で右クリック
-    await page.locator(".screen-list-page").click({ button: "right", position: { x: 10, y: 10 } });
+    // 0 件プロジェクトで .data-list-empty を明示的に右クリック (位置ずれによる偽陽性を避ける)
+    const emptyProject = { ...dummyProject, screens: [] };
+    await page.addInitScript((project) => {
+      localStorage.setItem("flow-project", JSON.stringify(project));
+      localStorage.removeItem("designer-open-tabs");
+      localStorage.removeItem("designer-active-tab");
+      localStorage.setItem("list-view-mode:screen-list", JSON.stringify("table"));
+    }, emptyProject);
+    await page.goto("/screen/list");
+    await expect(page.locator(".data-list-empty")).toBeVisible();
+    await page.locator(".data-list-empty").click({ button: "right" });
     const menu = page.locator(".list-context-menu");
-    // 空領域メニューが出る場合 (画面領域の背景を検出できれば)、新規作成 1 項目のみ
-    // 出ない場合 (画面領域外) はテスト対象外 — 存在確認のみ
-    if (await menu.isVisible()) {
-      await expect(menu.locator(".list-context-menu-item")).toHaveCount(1);
-      await expect(menu).toContainText("新規作成");
-    }
-  });
-
-  test("選択ゼロ時は コピー / 切り取り / 貼り付け / 複製 / 削除 が disabled", async ({ page }) => {
-    await setupScreenListTable(page);
-    // 行を右クリックすると自動的にその行が選択されるので、空領域右クリックで確認
-    await page.locator(".screen-list-page").click({ button: "right", position: { x: 10, y: 10 } });
-    const menu = page.locator(".list-context-menu");
-    if (await menu.isVisible()) {
-      // 空領域メニューは「新規作成」のみなので、他の項目が出ないことを確認
-      await expect(menu.locator(".list-context-menu-item")).toHaveCount(1);
-    }
+    await expect(menu).toBeVisible();
+    await expect(menu.locator(".list-context-menu-item")).toHaveCount(1);
+    await expect(menu).toContainText("新規作成");
   });
 });
 

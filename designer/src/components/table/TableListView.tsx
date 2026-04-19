@@ -344,6 +344,9 @@ export function TableListView() {
   };
 
   const handleContextMenuKey = (first: TableMeta | null, rect: DOMRect | null) => {
+    if (first && !selection.isSelected(first.id)) {
+      selection.setSelectedIds(new Set([first.id]));
+    }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });

@@ -412,12 +412,7 @@ function ColumnsTab({
         },
       },
       { key: "sep2", separator: true },
-      {
-        key: "duplicate", label: "複製", icon: "bi-copy", shortcut: "Ctrl+D",
-        disabled: !hasSelection || sortActive,
-        disabledReason: sortActive ? sortReason : undefined,
-        onClick: () => { if (items.length > 0) handleDuplicate(items); },
-      },
+      // docs/spec/list-common.md §4.6: [移動] | [複製] | [削除] のグルーピング
       {
         key: "moveUp", label: "上へ移動", icon: "bi-chevron-up", shortcut: "Alt+↑",
         disabled: !hasSelection || sortActive,
@@ -432,6 +427,13 @@ function ColumnsTab({
       },
       { key: "sep3", separator: true },
       {
+        key: "duplicate", label: "複製", icon: "bi-copy", shortcut: "Ctrl+D",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) handleDuplicate(items); },
+      },
+      { key: "sep4", separator: true },
+      {
         key: "delete", label: "削除", icon: "bi-trash", shortcut: "Delete",
         disabled: !hasSelection, danger: true,
         onClick: () => { if (items.length > 0) handleDelete(items); },
@@ -444,6 +446,9 @@ function ColumnsTab({
   };
 
   const handleContextMenuKey = (first: TableColumn | null, rect: DOMRect | null) => {
+    if (first && !selection.isSelected(first.id)) {
+      selection.setSelectedIds(new Set([first.id]));
+    }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });
@@ -486,6 +491,8 @@ function ColumnsTab({
     if (!activeColId) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // docs/spec/list-common.md §3.11: コンテキストメニュー表示中はそちらの Esc を優先
+      if (document.querySelector(".list-context-menu")) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -588,7 +595,7 @@ function ColumnsTab({
             <i className="bi bi-copy" /> 複製
           </button>
           <button className="tbl-btn tbl-btn-ghost tbl-btn-sm danger" disabled={!anySelected} onClick={() => handleDelete(selection.selectedItems)} title="削除 (Delete)">
-            <i className="bi bi-trash" /> 削除
+            <i className="bi bi-trash" /> 削除{anySelected ? ` (${selectedCount})` : ""}
           </button>
         </div>
       </div>

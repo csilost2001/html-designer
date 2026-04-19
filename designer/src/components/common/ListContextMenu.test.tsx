@@ -53,6 +53,11 @@ describe("ListContextMenu", () => {
     const btn = screen.getByText("貼り付け").closest("button") as HTMLButtonElement;
     // disabled 属性が付いている
     expect(btn.disabled).toBe(true);
+    // 実際にクリックしても onClick / onClose のいずれも呼ばれない (HTML disabled 属性に頼らず、
+    // ListContextMenu.tsx の `if (item.disabled) return;` ガードが効いていることを検証)
+    act(() => { fireEvent.click(btn); });
+    expect(onPaste).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("disabled 項目には disabledReason が title として付く", () => {

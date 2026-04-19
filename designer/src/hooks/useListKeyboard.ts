@@ -154,18 +154,20 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
       }
 
       // docs/spec/list-common.md §3.11: Menu キー / Shift+F10 でコンテキストメニューを開く
+      //  「選択中の行 (または先頭行) の位置にコンテキストメニューを開く」
       if (onContextMenuKey) {
         const isContextMenuKey =
           e.key === "ContextMenu" ||
           (e.shiftKey && e.key === "F10" && !ctrl && !e.altKey);
         if (isContextMenuKey) {
           e.preventDefault();
-          const firstSelected = selection.selectedItems[0] ?? null;
-          const anchorId = firstSelected ? getId(firstSelected) : null;
+          // 選択があれば選択の先頭、なければ一覧の先頭行にフォールバック (spec §3.11)
+          const anchor = selection.selectedItems[0] ?? items[0] ?? null;
+          const anchorId = anchor ? getId(anchor) : null;
           const rect = anchorId
             ? (getItemRect?.(anchorId) ?? queryRowRect(anchorId))
             : null;
-          onContextMenuKey(firstSelected, rect);
+          onContextMenuKey(anchor, rect);
           return;
         }
       }

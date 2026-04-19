@@ -503,6 +503,12 @@
    行ゴミ箱アイコン (§3.11 / §4.6) — ホバー時のみ表示
    ========================================================================== */
 
+.data-list-th-row-delete,
+.data-list-td-row-delete-cell {
+  width: 40px;
+  padding: 0;
+}
+
 .data-list-td-row-delete,
 .data-list-card-row-delete {
   display: inline-flex;

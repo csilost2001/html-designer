@@ -320,6 +320,10 @@ export function ScreenListView() {
   };
 
   const handleContextMenuKey = (first: ScreenNode | null, rect: DOMRect | null) => {
+    // 右クリックと同様、対象行が未選択なら単独選択に切り替える (Windows エクスプローラ流)
+    if (first && !selection.isSelected(first.id)) {
+      selection.setSelectedIds(new Set([first.id]));
+    }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });
