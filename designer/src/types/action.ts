@@ -220,12 +220,42 @@ export interface ValidationStep extends StepBase {
   };
 }
 
+// ── 条件付き UPDATE + 影響行数チェック (docs/spec, #151 (B)) ────────────────
+
+export type AffectedRowsOperator = ">" | ">=" | "=" | "<" | "<=";
+
+/**
+ * 影響行数チェック。条件付き UPDATE (WHERE 条件で並行制御するパターン) の結果検証用。
+ * 典型例: 在庫引当の "UPDATE inventory SET stock = stock - @qty WHERE stock >= @qty" で、
+ * rowCount === 0 なら並行競合による在庫不足として throw する。
+ */
+export interface AffectedRowsCheck {
+  operator: AffectedRowsOperator;
+  expected: number;
+  /**
+   * 違反時の挙動:
+   * - "throw": 例外を投げて TX ROLLBACK (errorCode で識別)
+   * - "abort": アクション中断 (HTTP エラーレスポンス等)
+   * - "log": ログ記録のみ、処理続行
+   * - "continue": 黙って続行 (明示的に無視する場合)
+   */
+  onViolation: "throw" | "abort" | "log" | "continue";
+  /** throw / abort 時のエラー識別子 (例: "STOCK_SHORTAGE") */
+  errorCode?: string;
+  description?: string;
+}
+
 export interface DbAccessStep extends StepBase {
   type: "dbAccess";
   tableName: string;
   tableId?: string;
   operation: DbOperation;
   fields?: string;
+  /**
+   * 影響行数チェック。UPDATE / DELETE で条件付き並行制御する場合に使う。
+   * SELECT / INSERT では通常不要。
+   */
+  affectedRowsCheck?: AffectedRowsCheck;
 }
 
 // ── 外部システム呼出の outcome / タイムアウト / リトライ (docs/spec, #151 (B)) ──
