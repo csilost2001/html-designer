@@ -299,6 +299,13 @@ export interface ValidationStep extends StepBase {
     ok: string;
     ng: string;
     ngJumpTo?: string;
+    /**
+     * バリデーション NG 時に返却する HTTP レスポンス参照 (#180)。
+     * action.responses[].id を指す。
+     */
+    ngResponseRef?: string;
+    /** NG 時の返却 body 式 (任意、自由記述) */
+    ngBodyExpression?: string;
   };
 }
 
