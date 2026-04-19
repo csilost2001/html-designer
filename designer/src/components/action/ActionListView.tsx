@@ -17,6 +17,7 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
+import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -50,6 +51,7 @@ export function ActionListView() {
   const [addDescription, setAddDescription] = useState("");
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const loadGroups = useCallback(async () => {
     mcpBridge.startWithoutEditor();
@@ -312,6 +314,80 @@ export function ActionListView() {
     navigate(`/process-flow/edit/${group.id}`);
   };
 
+  // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築
+  const buildMenuItems = (target: ActionGroupMeta | null): ContextMenuItem[] => {
+    const hasSelection = selection.selectedIds.size > 0 || target !== null;
+    const pasteBlocked = sortActive || !clipboard.hasContent;
+    const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
+    const sortReason = "ソート中は無効 (ソート解除で利用可能)";
+
+    if (target === null && selection.selectedIds.size === 0) {
+      return [
+        {
+          key: "new", label: "新規作成", icon: "bi-plus-lg",
+          disabled: sortActive, disabledReason: sortReason,
+          onClick: () => setShowAdd(true),
+        },
+      ];
+    }
+
+    const items = target && !selection.isSelected(target.id)
+      ? [target]
+      : selection.selectedItems;
+
+    return [
+      {
+        key: "new", label: "新規作成", icon: "bi-plus-lg",
+        disabled: sortActive, disabledReason: sortReason,
+        onClick: () => setShowAdd(true),
+      },
+      { key: "sep1", separator: true },
+      {
+        key: "copy", label: "コピー", icon: "bi-files", shortcut: "Ctrl+C",
+        disabled: !hasSelection,
+        onClick: () => { if (items.length > 0) clipboard.copy(items); },
+      },
+      {
+        key: "cut", label: "切り取り", icon: "bi-scissors", shortcut: "Ctrl+X",
+        disabled: !hasSelection,
+        onClick: () => { if (items.length > 0) clipboard.cut(items); },
+      },
+      {
+        key: "paste", label: "貼り付け", icon: "bi-clipboard", shortcut: "Ctrl+V",
+        disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
+        onClick: () => {
+          const ids = Array.from(selection.selectedIds);
+          const allIds = editor.items.map((g) => g.id);
+          const insertIndex = ids.length > 0
+            ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
+            : null;
+          handlePaste(insertIndex).catch(console.error);
+        },
+      },
+      { key: "sep2", separator: true },
+      {
+        key: "duplicate", label: "複製", icon: "bi-copy", shortcut: "Ctrl+D",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) handleDuplicate(items).catch(console.error); },
+      },
+      { key: "sep3", separator: true },
+      {
+        key: "delete", label: "削除", icon: "bi-trash", shortcut: "Delete",
+        disabled: !hasSelection, danger: true,
+        onClick: () => { if (items.length > 0) handleDelete(items); },
+      },
+    ];
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, target: ActionGroupMeta | null) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
+  };
+
+  const handleRowDelete = (g: ActionGroupMeta) => {
+    handleDelete([g]);
+  };
+
   const handleSave = () => {
     editor.save().catch(console.error);
     selection.clearSelection();
@@ -434,6 +510,14 @@ export function ActionListView() {
             >
               <i className="bi bi-plus-lg me-1" />新規作成
             </button>
+            <button
+              className="btn btn-outline-danger btn-sm"
+              onClick={() => handleDelete(selection.selectedItems)}
+              disabled={selection.selectedIds.size === 0}
+              title="削除 (Delete)"
+            >
+              <i className="bi bi-trash" /> 削除{selection.selectedIds.size > 0 ? ` (${selection.selectedIds.size})` : ""}
+            </button>
             <span className="action-saveline-sep" />
             <button
               className="btn btn-outline-secondary btn-sm"
@@ -509,6 +593,8 @@ export function ActionListView() {
           columns={columns}
           getId={(g) => g.id}
           getNo={(g) => g.no}
+          onRowDelete={handleRowDelete}
+          onContextMenu={handleContextMenu}
           selection={selection}
           clipboard={clipboard}
           sort={sort}
@@ -589,6 +675,15 @@ export function ActionListView() {
             </div>
           </div>
         </div>
+      )}
+
+      {contextMenu && (
+        <ListContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenu.items}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );

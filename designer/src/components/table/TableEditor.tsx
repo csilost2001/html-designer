@@ -17,6 +17,7 @@ import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { SortBar } from "../common/SortBar";
+import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
@@ -212,6 +213,7 @@ function ColumnsTab({
   allTables: TableDefinition[];
 }) {
   const [showTemplates, setShowTemplates] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [activeColId, setActiveColId] = useState<string | null>(null);
 
   const sortAccessor = useCallback((col: TableColumn, key: string): string | number => {
@@ -364,6 +366,102 @@ function ColumnsTab({
 
   const sortActive = sort.sortKeys.length > 0;
 
+  // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築 (カラム一覧は上へ/下へも含む)
+  const buildMenuItems = (target: TableColumn | null): ContextMenuItem[] => {
+    const hasSelection = selection.selectedIds.size > 0 || target !== null;
+    const pasteBlocked = sortActive || !clipboard.hasContent;
+    const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
+    const sortReason = "ソート中は無効 (ソート解除で利用可能)";
+
+    if (target === null && selection.selectedIds.size === 0) {
+      return [
+        {
+          key: "addCol", label: "カラム追加", icon: "bi-plus-lg",
+          disabled: sortActive, disabledReason: sortReason,
+          onClick: handleAddBlank,
+        },
+        {
+          key: "addTpl", label: "テンプレートから追加", icon: "bi-collection",
+          disabled: sortActive, disabledReason: sortReason,
+          onClick: () => setShowTemplates(true),
+        },
+      ];
+    }
+
+    const items = target && !selection.isSelected(target.id)
+      ? [target]
+      : selection.selectedItems;
+
+    return [
+      {
+        key: "addCol", label: "カラム追加", icon: "bi-plus-lg",
+        disabled: sortActive, disabledReason: sortReason,
+        onClick: handleAddBlank,
+      },
+      {
+        key: "addTpl", label: "テンプレートから追加", icon: "bi-collection",
+        disabled: sortActive, disabledReason: sortReason,
+        onClick: () => setShowTemplates(true),
+      },
+      { key: "sep1", separator: true },
+      {
+        key: "copy", label: "コピー", icon: "bi-files", shortcut: "Ctrl+C",
+        disabled: !hasSelection,
+        onClick: () => { if (items.length > 0) clipboard.copy(items); },
+      },
+      {
+        key: "cut", label: "切り取り", icon: "bi-scissors", shortcut: "Ctrl+X",
+        disabled: !hasSelection,
+        onClick: () => { if (items.length > 0) clipboard.cut(items); },
+      },
+      {
+        key: "paste", label: "貼り付け", icon: "bi-clipboard", shortcut: "Ctrl+V",
+        disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
+        onClick: () => {
+          const ids = Array.from(selection.selectedIds);
+          const allIds = (table?.columns ?? []).map((c) => c.id);
+          const insertIndex = ids.length > 0
+            ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
+            : null;
+          handlePaste(insertIndex);
+        },
+      },
+      { key: "sep2", separator: true },
+      {
+        key: "duplicate", label: "複製", icon: "bi-copy", shortcut: "Ctrl+D",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) handleDuplicate(items); },
+      },
+      {
+        key: "moveUp", label: "上へ移動", icon: "bi-chevron-up", shortcut: "Alt+↑",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) moveBlock(items, "up"); },
+      },
+      {
+        key: "moveDown", label: "下へ移動", icon: "bi-chevron-down", shortcut: "Alt+↓",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) moveBlock(items, "down"); },
+      },
+      { key: "sep3", separator: true },
+      {
+        key: "delete", label: "削除", icon: "bi-trash", shortcut: "Delete",
+        disabled: !hasSelection, danger: true,
+        onClick: () => { if (items.length > 0) handleDelete(items); },
+      },
+    ];
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, target: TableColumn | null) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
+  };
+
+  const handleRowDelete = (c: TableColumn) => {
+    handleDelete([c]);
+  };
+
   const columnLabels = useMemo<Record<string, string>>(() => ({
     name: "カラム名",
     logicalName: "論理名",
@@ -496,6 +594,8 @@ function ColumnsTab({
         columns={columns}
         getId={(c) => c.id}
         getNo={(c) => c.no}
+        onRowDelete={handleRowDelete}
+        onContextMenu={handleContextMenu}
         selection={selection}
         clipboard={clipboard}
         sort={sort}
@@ -548,6 +648,15 @@ function ColumnsTab({
           <i className="bi bi-collection" /> テンプレートから追加
         </button>
       </div>
+
+      {contextMenu && (
+        <ListContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenu.items}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
 
       {/* Template panel */}
       {showTemplates && (
