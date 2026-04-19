@@ -16,6 +16,7 @@ import { makeTabId } from "../../store/tabStore";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
+import { SortBar } from "../common/SortBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -25,6 +26,7 @@ import { useListSort } from "../../hooks/useListSort";
 import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { generateUUID } from "../../utils/uuid";
+import { renumber } from "../../utils/listOrder";
 import "../../styles/action.css";
 
 const ALL_TYPES: ActionGroupType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
@@ -76,6 +78,7 @@ export function ActionListView() {
     load: loadGroups,
     commit: commitGroups,
     tabId: TAB_ID,
+    renumber,
   });
 
   useEffect(() => {
@@ -164,6 +167,7 @@ export function ActionListView() {
   };
 
   const handleReorder = (fromIdx: number, toIdx: number) => {
+    // docs/spec/list-common.md §3.9: ソート中は DataList 側で D&D が無効化される
     const visible = sort.sorted;
     const fromId = visible[fromIdx]?.id;
     const toId = visible[toIdx]?.id;
@@ -171,25 +175,24 @@ export function ActionListView() {
     const realFrom = editor.items.findIndex((g) => g.id === fromId);
     const realTo = editor.items.findIndex((g) => g.id === toId);
     if (realFrom < 0 || realTo < 0) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
     editor.reorder(realFrom, realTo);
   };
 
   const moveBlock = (items: ActionGroupMeta[], direction: "up" | "down") => {
+    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化される
     const ids = new Set(items.map((g) => g.id));
     const idxs = editor.items
       .map((g, i) => (ids.has(g.id) ? i : -1))
       .filter((i) => i >= 0)
       .sort((a, b) => a - b);
     if (idxs.length === 0) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
     if (direction === "up") {
       if (idxs[0] === 0) return;
       editor.setItems((prev) => {
         const next = [...prev];
         const [moved] = next.splice(idxs[0] - 1, 1);
         next.splice(idxs[idxs.length - 1], 0, moved);
-        return next;
+        return renumber(next);
       });
     } else {
       if (idxs[idxs.length - 1] === editor.items.length - 1) return;
@@ -197,7 +200,7 @@ export function ActionListView() {
         const next = [...prev];
         const [moved] = next.splice(idxs[idxs.length - 1] + 1, 1);
         next.splice(idxs[0], 0, moved);
-        return next;
+        return renumber(next);
       });
     }
   };
@@ -242,7 +245,7 @@ export function ActionListView() {
       const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
       if (sameSet) return;
 
-      if (sort.sortKeys.length > 0) sort.clearSort();
+      // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化される
       clipboard.consume();
       const moved = clipItems;
       const pos0 = insertIdx ?? editor.items.length;
@@ -252,7 +255,7 @@ export function ActionListView() {
       editor.setItems(() => {
         const next = [...remaining];
         next.splice(pos, 0, ...moved);
-        return next;
+        return renumber(next);
       });
       selection.setSelectedIds(new Set(moved.map((g) => g.id)));
     } else {
@@ -272,6 +275,7 @@ export function ActionListView() {
     getId: (g) => g.id,
     selection,
     clipboard,
+    sort,
     layout: viewMode === "card" ? "grid" : "list",
     onActivate: handleActivate,
     onDelete: handleDelete,
@@ -280,6 +284,16 @@ export function ActionListView() {
     onMoveDown: (items) => moveBlock(items, "down"),
     onPaste: (idx) => { handlePaste(idx).catch(console.error); },
   });
+
+  const sortActive = sort.sortKeys.length > 0;
+
+  const columnLabels = useMemo<Record<string, string>>(() => ({
+    name: "名前",
+    type: "種別",
+    actionCount: "アクション",
+    screenId: "画面紐付け",
+    errorPriority: "検証",
+  }), []);
 
   const handleAdd = async () => {
     const name = addName.trim();
@@ -412,7 +426,12 @@ export function ActionListView() {
           </h5>
           <div className="action-list-header-right">
             <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setShowAdd(true)}
+              disabled={sortActive}
+              title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
+            >
               <i className="bi bi-plus-lg me-1" />新規作成
             </button>
             <span className="action-saveline-sep" />
@@ -483,10 +502,13 @@ export function ActionListView() {
           onClear={() => { setFilterType("all"); setFilterErrorsOnly(false); }}
         />
 
+        <SortBar sort={sort} columnLabels={columnLabels} />
+
         <DataList
           items={sort.sorted}
           columns={columns}
           getId={(g) => g.id}
+          getNo={(g) => g.no}
           selection={selection}
           clipboard={clipboard}
           sort={sort}

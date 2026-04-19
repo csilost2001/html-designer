@@ -11,6 +11,7 @@ import { makeTabId } from "../../store/tabStore";
 import { TableSubToolbar } from "./TableSubToolbar";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
+import { SortBar } from "../common/SortBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -20,6 +21,7 @@ import { useListSort } from "../../hooks/useListSort";
 import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { generateUUID } from "../../utils/uuid";
+import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:table-list";
@@ -74,6 +76,7 @@ export function TableListView() {
     load: loadTables,
     commit: commitTables,
     tabId: TAB_ID,
+    renumber,
   });
 
   useEffect(() => {
@@ -131,6 +134,8 @@ export function TableListView() {
   };
 
   const handleReorder = (fromIdx: number, toIdx: number) => {
+    // docs/spec/list-common.md §3.9: ソート中は DataList 側で D&D が無効化されており
+    // ここには到達しない想定
     const visible = sort.sorted;
     const fromId = visible[fromIdx]?.id;
     const toId = visible[toIdx]?.id;
@@ -138,25 +143,25 @@ export function TableListView() {
     const realFrom = editor.items.findIndex((t) => t.id === fromId);
     const realTo = editor.items.findIndex((t) => t.id === toId);
     if (realFrom < 0 || realTo < 0) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
     editor.reorder(realFrom, realTo);
   };
 
   const moveBlock = (items: TableMeta[], direction: "up" | "down") => {
+    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化されており
+    // ここには到達しない想定
     const ids = new Set(items.map((t) => t.id));
     const idxs = editor.items
       .map((t, i) => (ids.has(t.id) ? i : -1))
       .filter((i) => i >= 0)
       .sort((a, b) => a - b);
     if (idxs.length === 0) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
     if (direction === "up") {
       if (idxs[0] === 0) return;
       editor.setItems((prev) => {
         const next = [...prev];
         const [moved] = next.splice(idxs[0] - 1, 1);
         next.splice(idxs[idxs.length - 1], 0, moved);
-        return next;
+        return renumber(next);
       });
     } else {
       if (idxs[idxs.length - 1] === editor.items.length - 1) return;
@@ -164,7 +169,7 @@ export function TableListView() {
         const next = [...prev];
         const [moved] = next.splice(idxs[idxs.length - 1] + 1, 1);
         next.splice(idxs[0], 0, moved);
-        return next;
+        return renumber(next);
       });
     }
   };
@@ -205,7 +210,8 @@ export function TableListView() {
       if (sameSet) return;
 
       // Cut → 並び替え (draft)
-      if (sort.sortKeys.length > 0) sort.clearSort();
+      // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化されており
+      // ここには到達しない想定
       clipboard.consume();
       const moved = clipItems;
       const pos0 = insertIdx ?? editor.items.length;
@@ -215,7 +221,7 @@ export function TableListView() {
       editor.setItems(() => {
         const next = [...remaining];
         next.splice(pos, 0, ...moved);
-        return next;
+        return renumber(next);
       });
       selection.setSelectedIds(new Set(moved.map((t) => t.id)));
     } else {
@@ -248,6 +254,7 @@ export function TableListView() {
     getId: (t) => t.id,
     selection,
     clipboard,
+    sort,
     layout: viewMode === "card" ? "grid" : "list",
     onActivate: handleActivate,
     onDelete: handleDelete,
@@ -256,6 +263,16 @@ export function TableListView() {
     onMoveDown: (items) => moveBlock(items, "down"),
     onPaste: (idx) => { handlePaste(idx).catch(console.error); },
   });
+
+  const sortActive = sort.sortKeys.length > 0;
+
+  const columnLabels = useMemo<Record<string, string>>(() => ({
+    name: "テーブル名",
+    logicalName: "論理名",
+    category: "カテゴリ",
+    columnCount: "カラム",
+    updatedAt: "更新日",
+  }), []);
 
   const handleAdd = async () => {
     const name = addName.trim();
@@ -403,7 +420,12 @@ export function TableListView() {
                 <i className="bi bi-trash" /> {selectedCount} 件削除
               </button>
             )}
-            <button className="tbl-btn tbl-btn-primary" onClick={() => setShowAdd(true)}>
+            <button
+              className="tbl-btn tbl-btn-primary"
+              onClick={() => setShowAdd(true)}
+              disabled={sortActive}
+              title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
+            >
               <i className="bi bi-plus-lg" /> テーブル追加
             </button>
             <span className="tbl-saveline-sep" />
@@ -436,10 +458,13 @@ export function TableListView() {
           onClear={() => { setQuery(""); filter.clearFilter(); }}
         />
 
+        <SortBar sort={sort} columnLabels={columnLabels} />
+
         <DataList
           items={sort.sorted}
           columns={columns}
           getId={(t) => t.id}
+          getNo={(t) => t.no}
           selection={selection}
           clipboard={clipboard}
           sort={sort}

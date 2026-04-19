@@ -56,6 +56,8 @@ export const DATA_TYPES_WITH_SCALE: DataType[] = ["DECIMAL"];
 /** カラム定義 */
 export interface TableColumn {
   id: string;
+  /** 物理順 (1..N 連番)。一覧表示の No 列として使用。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
   name: string;
   logicalName: string;
   dataType: DataType;
@@ -99,6 +101,8 @@ export interface TableDefinition {
 /** テーブルメタ情報（project.json 用） */
 export interface TableMeta {
   id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
   name: string;
   logicalName: string;
   category?: string;
@@ -177,7 +181,8 @@ export interface ColumnTemplate {
   label: string;
   icon: string;
   category: string;
-  column: Omit<TableColumn, "id">;
+  /** no / id はテンプレートには含めない (挿入時に採番・生成) */
+  column: Omit<TableColumn, "id" | "no">;
 }
 
 export const COLUMN_TEMPLATES: ColumnTemplate[] = [

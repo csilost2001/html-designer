@@ -279,6 +279,8 @@ export interface ActionGroup {
 /** project.json用メタデータ */
 export interface ActionGroupMeta {
   id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
   name: string;
   type: ActionGroupType;
   screenId?: string;

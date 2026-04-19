@@ -45,6 +45,12 @@ interface Props<T> {
   items: T[];
   columns: DataListColumn<T>[];
   getId: (item: T) => string;
+  /**
+   * No 列に表示する物理順の取得関数 (docs/spec/list-common.md §3.10)。
+   * 省略すると表示位置 (index + 1) にフォールバック。
+   * 一覧系アイテム (no フィールドを持つ) では `(item) => item.no` を渡すこと。
+   */
+  getNo?: (item: T) => number;
   selection?: ListSelection<T>;
   clipboard?: ListClipboard<T>;
   sort?: ListSort<T>;
@@ -63,7 +69,7 @@ interface Props<T> {
 }
 
 export function DataList<T>({
-  items, columns, getId, selection, clipboard, sort,
+  items, columns, getId, getNo, selection, clipboard, sort,
   onActivate, onReorder,
   layout = "list",
   renderCard,
@@ -73,6 +79,9 @@ export function DataList<T>({
   variant = "light",
   isItemGhost,
 }: Props<T>) {
+  // docs/spec/list-common.md §3.9: ソート中は「並び替え Read-only モード」
+  // D&D ハンドル・ドロップを無効化する
+  const sortActive = (sort?.sortKeys.length ?? 0) > 0;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -115,6 +124,7 @@ export function DataList<T>({
     const { active, over } = e;
     setActiveDragId(null);
     setOverId(null);
+    if (sortActive) return;
     if (!over || !onReorder) return;
     if (active.id === over.id) return;
     const fromIndex = items.findIndex((it) => getId(it) === active.id);
@@ -129,6 +139,7 @@ export function DataList<T>({
   };
 
   const showHandle = !!onReorder && layout === "list";
+  const handleDisabled = showHandle && sortActive;
   const ids = items.map(getId);
   const rootClass = [
     "data-list",
@@ -223,11 +234,13 @@ export function DataList<T>({
                       item={item}
                       index={index}
                       getId={getId}
+                      getNo={getNo}
                       columns={columns}
                       selection={selection}
                       ghost={isRowGhost(id)}
                       onActivate={onActivate}
                       showHandle={showHandle}
+                      handleDisabled={handleDisabled}
                       showNumColumn={showNumColumn}
                       dropIndicator={dropIndicatorFor(id)}
                     />
@@ -249,7 +262,7 @@ export function DataList<T>({
                     ghost={isRowGhost(id)}
                     onActivate={onActivate}
                     renderCard={renderCard}
-                    draggable={!!onReorder}
+                    draggable={!!onReorder && !sortActive}
                     dropIndicator={dropIndicatorFor(id)}
                   />
                 );
@@ -266,20 +279,22 @@ interface RowProps<T> {
   item: T;
   index: number;
   getId: (item: T) => string;
+  getNo?: (item: T) => number;
   columns: DataListColumn<T>[];
   selection?: ListSelection<T>;
   ghost: boolean;
   onActivate?: (item: T, index: number) => void;
   showHandle: boolean;
+  handleDisabled: boolean;
   showNumColumn: boolean;
   dropIndicator: "top" | "bottom" | null;
 }
 
 function DataListRow<T>({
-  item, index, getId, columns, selection, ghost, onActivate, showHandle, showNumColumn, dropIndicator,
+  item, index, getId, getNo, columns, selection, ghost, onActivate, showHandle, handleDisabled, showNumColumn, dropIndicator,
 }: RowProps<T>) {
   const id = getId(item);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: handleDisabled });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -293,6 +308,8 @@ function DataListRow<T>({
       ? " drop-indicator-bottom"
       : "";
 
+  const handleProps = handleDisabled ? {} : { ...attributes, ...listeners };
+
   return (
     <tr
       ref={setNodeRef}
@@ -304,11 +321,16 @@ function DataListRow<T>({
       data-row-id={id}
     >
       {showHandle && (
-        <td className="data-list-td-handle" {...attributes} {...listeners} aria-label="並び替え">
+        <td
+          className={`data-list-td-handle${handleDisabled ? " disabled" : ""}`}
+          {...handleProps}
+          aria-label={handleDisabled ? "並び替え (ソート中は無効)" : "並び替え"}
+          title={handleDisabled ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
+        >
           <i className="bi bi-grip-vertical" />
         </td>
       )}
-      {showNumColumn && <td className="data-list-td-num">{index + 1}</td>}
+      {showNumColumn && <td className="data-list-td-num">{getNo ? getNo(item) : index + 1}</td>}
       {columns.map((col) => (
         <td
           key={col.key}

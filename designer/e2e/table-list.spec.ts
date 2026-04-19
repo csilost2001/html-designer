@@ -159,9 +159,10 @@ test.describe("テーブル一覧 / ソート", () => {
     // テーブル名列ヘッダをクリック
     await page.locator(".data-list-th-sortable").filter({ hasText: "テーブル名" }).click();
     await expect(page.locator(".data-list-th-sorted")).toHaveCount(1);
-    await expect(page.locator(".bi-caret-up-fill")).toHaveCount(1);
+    // 列ヘッダの icon だけ絞る (#148 SortBar にも同じ caret アイコンが出るため)
+    await expect(page.locator(".data-list-sort-icon.bi-caret-up-fill")).toHaveCount(1);
     // 再クリックで降順
     await page.locator(".data-list-th-sortable").filter({ hasText: "テーブル名" }).click();
-    await expect(page.locator(".bi-caret-down-fill")).toHaveCount(1);
+    await expect(page.locator(".data-list-sort-icon.bi-caret-down-fill")).toHaveCount(1);
   });
 });

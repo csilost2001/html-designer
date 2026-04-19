@@ -18,6 +18,7 @@ import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
 import { migrateActionGroup } from "../utils/actionMigration";
+import { renumber, nextNo } from "../utils/listOrder";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ export async function deleteActionGroup(id: string): Promise<void> {
 
   const project = await loadProject();
   if (project.actionGroups) {
-    project.actionGroups = project.actionGroups.filter((a) => a.id !== id);
+    project.actionGroups = renumber(project.actionGroups.filter((a) => a.id !== id));
     await saveProject(project);
   }
 }
@@ -125,6 +126,7 @@ export async function reorderActionGroups(fromIndex: number, toIndex: number): P
   if (fromIndex === toIndex) return;
   const [moved] = project.actionGroups.splice(fromIndex, 1);
   project.actionGroups.splice(toIndex, 0, moved);
+  project.actionGroups = renumber(project.actionGroups);
   await saveProject(project);
 }
 
@@ -254,8 +256,10 @@ async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
   const project = await loadProject();
   if (!project.actionGroups) project.actionGroups = [];
 
+  const idx = project.actionGroups.findIndex((a) => a.id === group.id);
   const meta: FlowProject["actionGroups"] extends (infer T)[] | undefined ? T : never = {
     id: group.id,
+    no: idx >= 0 ? project.actionGroups[idx].no : nextNo(project.actionGroups),
     name: group.name,
     type: group.type,
     screenId: group.screenId,
@@ -263,11 +267,11 @@ async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
     updatedAt: group.updatedAt,
   };
 
-  const idx = project.actionGroups.findIndex((a) => a.id === group.id);
   if (idx >= 0) {
     project.actionGroups[idx] = meta;
   } else {
     project.actionGroups.push(meta);
   }
+  project.actionGroups = renumber(project.actionGroups);
   await saveProject(project);
 }

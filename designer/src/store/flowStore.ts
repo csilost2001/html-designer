@@ -12,6 +12,7 @@ import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, ScreenType, Tran
 import { SCREEN_TYPE_LABELS, TRIGGER_LABELS } from "../types/flow";
 import { generateUUID } from "../utils/uuid";
 import { saveDraft, clearDraft, loadDraft } from "../utils/draftStorage";
+import { renumber, nextNo } from "../utils/listOrder";
 
 // ─── ストレージバックエンドインターフェース ────────────────────────────────
 
@@ -96,6 +97,7 @@ function migrateLegacyLocalStorage(): FlowProject | null {
   const screenId = generateUUID();
   const screen: ScreenNode = {
     id: screenId,
+    no: 1,
     name: "メイン画面",
     type: "other",
     description: "既存デザインから移行",
@@ -141,6 +143,11 @@ function ensureProjectDefaults(project: FlowProject): FlowProject {
   for (const s of project.screens) {
     if (s.groupId === undefined) s.groupId = undefined;
   }
+  // docs/spec/list-common.md §3.10: no フィールド欠落時は配列順で初期採番し、
+  // 連番 1..N になるよう保証する (既に正しければ renumber は冪等)
+  project.screens = renumber(project.screens);
+  if (project.tables) project.tables = renumber(project.tables);
+  if (project.actionGroups) project.actionGroups = renumber(project.actionGroups);
   return project;
 }
 
@@ -206,6 +213,7 @@ export async function addScreen(
   const id = generateUUID();
   const screen: ScreenNode = {
     id,
+    no: nextNo(project.screens),
     name,
     type,
     description: "",
@@ -217,6 +225,7 @@ export async function addScreen(
     updatedAt: now(),
   };
   project.screens.push(screen);
+  project.screens = renumber(project.screens);
   await saveProject(project);
   return screen;
 }
@@ -239,6 +248,7 @@ export async function removeScreen(project: FlowProject, screenId: string): Prom
   const idx = project.screens.findIndex((s) => s.id === screenId);
   if (idx === -1) return false;
   project.screens.splice(idx, 1);
+  project.screens = renumber(project.screens);
   project.edges = project.edges.filter(
     (e) => e.source !== screenId && e.target !== screenId,
   );
