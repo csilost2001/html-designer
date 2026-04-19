@@ -420,6 +420,22 @@ export interface DisplayUpdateStep extends StepBase {
   target: string;
 }
 
+/**
+ * Branch の分岐条件 variant (#176)。
+ * 旧 string と新しい型付き表現 (tryCatch 等) の union。
+ */
+export type BranchConditionVariant =
+  | {
+      /** TX catch / try-catch 文脈。errorCode が補足されているエラーが捕捉された時に成立 */
+      kind: "tryCatch";
+      /** DbAccessStep.affectedRowsCheck.errorCode 等と対応する識別子 */
+      errorCode: string;
+      description?: string;
+    };
+
+/** Branch.condition の値型: 旧 string (自由記述) と新 BranchConditionVariant の union */
+export type BranchCondition = string | BranchConditionVariant;
+
 /** 多分岐の1件 */
 export interface Branch {
   /** 内部 UUID */
@@ -428,8 +444,13 @@ export interface Branch {
   code: string;
   /** 任意の自由入力ラベル */
   label?: string;
-  /** 分岐条件（自由記述、LLM 解析前提） */
-  condition: string;
+  /**
+   * 分岐条件。
+   * - 旧: string (自由記述、LLM 解析前提)
+   * - 新: BranchConditionVariant (tryCatch 等の型付き表現)
+   * docs/spec, #151 (B) / #176
+   */
+  condition: BranchCondition;
   /** 任意のサブ処理（全カード配置可能） */
   steps: Step[];
 }
