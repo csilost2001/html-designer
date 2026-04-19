@@ -16,6 +16,7 @@ import {
 } from "../../types/action";
 import { resolveJumpLabel } from "../../utils/actionUtils";
 import type { ValidationError } from "../../utils/actionValidation";
+import { getBranchConditionText } from "../../utils/branchCondition";
 import { generateUUID } from "../../utils/uuid";
 import { createDefaultStep } from "../../store/actionStore";
 import { JumpTargetSelector } from "./JumpTargetSelector";
@@ -258,7 +259,7 @@ export function StepCard({
       case "displayUpdate":
         return step.target || step.description || "表示更新";
       case "branch":
-        return step.description || step.branches[0]?.condition || "条件分岐";
+        return step.description || getBranchConditionText(step.branches[0]?.condition) || "条件分岐";
       case "loop":
         if (step.loopKind === "count") return step.countExpression || step.description || "ループ";
         if (step.loopKind === "condition") return step.conditionExpression || step.description || "ループ";
@@ -711,7 +712,7 @@ export function StepCard({
                         <span className="branch-code-badge">{br.code}</span>
                         <input
                           className="form-control form-control-sm branch-condition-input"
-                          value={br.condition}
+                          value={getBranchConditionText(br.condition)}
                           placeholder="分岐条件"
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => setBranchAt(bi, { ...br, condition: e.target.value })}
