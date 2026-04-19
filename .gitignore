@@ -12,6 +12,8 @@ output/
 .playwright-mcp/
 screenshots/
 *.png
+# 仕様書に紐づく UI スクリーンショットは追跡する
+!docs/ui-screenshots/*.png
 
 # Claude Code local settings (skills/commands はチーム共有のため追跡対象)
 .claude/settings.local.json

@@ -6,6 +6,8 @@ Issue: #182 (親: #151, #152)
 
 本ドキュメントは、`docs/spec/process-flow-maturity.md` / `process-flow-variables.md` の Phase 1 ベースライン以降に追加されたスキーマ拡張を網羅する**リファレンス**。個別設計思想は各 PR (#155〜#181) に記載。
 
+**UI 対応**: 各機能の実際の UI は [`docs/ui-screenshots/`](../ui-screenshots/README.md) を参照。
+
 ## 位置づけ
 
 - **Phase 1 (基盤)**: `process-flow-maturity.md` / `process-flow-variables.md` に記載。maturity / notes / mode / StructuredField / outputBinding / argumentMapping の基盤
@@ -55,6 +57,8 @@ PR: #161 (初版) / #179 (`id` フィールド追加)
 ]
 ```
 
+UI: ![HTTP 契約パネル](../ui-screenshots/03-action-editor.png)
+
 ## 2. ステップの実行制御
 
 ### 2.1 `StepBase.runIf`
@@ -68,6 +72,8 @@ runIf?: string;   // 自由記述の真偽式 or @conv.* 参照
 用例: `"runIf": "@paymentMethod == 'credit_card'"`
 
 PR: #179
+
+UI: ![runIf / outputBinding / 代入方式](../ui-screenshots/04-step-expanded.png)
 
 ### 2.2 トランザクション境界 (`StepBase.txBoundary` / `transactional`)
 
@@ -95,6 +101,8 @@ compensatesFor?: string;   // ステップ ID
 用例: Stripe cancel ステップが authorize ステップを指す
 
 PR: #163
+
+UI: ![詳細メタ情報パネル (TX境界 / Saga / 外部chain)](../ui-screenshots/07-notes-and-advanced-meta.png)
 
 ### 2.4 外部呼出チェーン (`StepBase.externalChain`)
 
@@ -165,6 +173,8 @@ PR: #159
 }
 ```
 
+UI: ![外部 outcomes エディタ (success/failure/timeout + sideEffects)](../ui-screenshots/08-external-outcomes.png)
+
 ## 4. DB 操作の拡張
 
 ### 4.1 `DbAccessStep.sql`
@@ -176,6 +186,8 @@ sql?: string;       // 指定時は fields / operation より優先
 ```
 
 PR: #171
+
+UI: ![DB 操作ステップ — 完全 SQL / 対象フィールド](../ui-screenshots/05-step-card-detail.png)
 
 ### 4.2 `DbAccessStep.affectedRowsCheck`
 
@@ -234,6 +246,8 @@ interface ValidationRule {
 
 PR: #167
 
+UI: ![構造化 ValidationRule + A:OK/B:NG 分岐 + responseRef/bodyExpression](../ui-screenshots/09-validation-rules.png)
+
 ### 5.2 `inlineBranch.ngResponseRef` / `ngBodyExpression`
 
 バリデーション NG 時の HTTP レスポンス返却を構造化。
@@ -266,6 +280,8 @@ interface ComputeStep extends StepBase {
 用例: `{ "type": "compute", "expression": "Math.floor(@subtotal * 0.10)", "outputBinding": "taxAmount" }`
 
 PR: #175
+
+UI: ![compute ステップ — expression 欄](../ui-screenshots/10-compute-step.png)
 
 ### 6.2 `ReturnStep` (`type: "return"`)
 
