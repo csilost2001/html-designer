@@ -363,6 +363,39 @@ export interface StructuredField {
 /** inputs / outputs の値型: 旧形式 (改行区切り文字列) と新形式 (StructuredField[]) の union */
 export type ActionFields = string | StructuredField[];
 
+// ── HTTP 契約 (docs/spec, #151 (B)) ─────────────────────────────────────
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+/** 認証要件。product-scope §6 参照 */
+export type HttpAuthRequirement = "required" | "optional" | "none";
+
+/** アクションが HTTP ハンドラの場合のルート定義 */
+export interface HttpRoute {
+  method: HttpMethod;
+  /** 例: "/api/customers" または "/api/customers/:id" */
+  path: string;
+  /** 認証要件。省略時は "required" として解釈 (product-scope §6 既定) */
+  auth?: HttpAuthRequirement;
+}
+
+/** HTTP レスポンス仕様 (成功/エラーの各ケース) */
+export interface HttpResponseSpec {
+  /** 数値 HTTP ステータス (例: 201, 400, 404) */
+  status: number;
+  /** MIME タイプ。未指定は "application/json" として解釈 */
+  contentType?: string;
+  /**
+   * レスポンスボディのスキーマ参照 (自由記述)。
+   * 例: "CustomerRegisterResponse" / "ApiError" / "{ code: string, fieldErrors: Record<string,string> }"
+   */
+  bodySchema?: string;
+  /** 説明 (発生条件、UI 文言のヒント等) */
+  description?: string;
+  /** 発生条件 (自由記述、例: "@duplicateCustomer != null") */
+  when?: string;
+}
+
 export interface ActionDefinition {
   id: string;
   name: string;
@@ -380,6 +413,16 @@ export interface ActionDefinition {
   outputs?: ActionFields;
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
+  /**
+   * HTTP ルート定義 (アクションが HTTP ハンドラの場合)。未指定は「非 HTTP」として解釈。
+   * docs/spec #151 (B)
+   */
+  httpRoute?: HttpRoute;
+  /**
+   * HTTP レスポンス仕様の配列。success / 各エラーケースをまとめて列挙。
+   * docs/spec #151 (B)
+   */
+  responses?: HttpResponseSpec[];
   steps: Step[];
 }
 
