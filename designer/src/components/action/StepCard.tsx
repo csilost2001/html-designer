@@ -415,6 +415,24 @@ export function StepCard({
             maturity={step.maturity}
             onChange={(next) => onChange({ maturity: next } as Partial<Step>)}
           />
+          {step.notes && step.notes.length > 0 && (
+            <span
+              className="step-notes-count-badge"
+              title={`付箋 ${step.notes.length} 件`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+                padding: "0 4px",
+                color: "#64748b",
+                fontSize: 11,
+                flexShrink: 0,
+              }}
+            >
+              <i className="bi bi-sticky" />
+              {step.notes.length}
+            </span>
+          )}
           <span className="step-card-description">{summaryText()}</span>
           {step.type === "commonProcess" && step.refId && (
             <button
