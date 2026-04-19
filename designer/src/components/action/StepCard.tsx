@@ -812,50 +812,109 @@ export function StepCard({
 
             {/* ── 外部システム ─────────────────────────────────── */}
             {step.type === "externalSystem" && (
-              <div className="form-row-pair">
-                <div className="form-group">
-                  <label className="form-label">接続先</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={step.systemName}
-                    onChange={(e) => onChange({ systemName: e.target.value } as Partial<Step>)}
-                    onBlur={onCommit}
-                    placeholder="システム名"
-                  />
+              <>
+                <div className="form-row-pair">
+                  <div className="form-group">
+                    <label className="form-label">接続先</label>
+                    <input
+                      className="form-control form-control-sm"
+                      value={step.systemName}
+                      onChange={(e) => onChange({ systemName: e.target.value } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="システム名"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">プロトコル</label>
+                    <input
+                      className="form-control form-control-sm"
+                      value={step.protocol ?? ""}
+                      onChange={(e) => onChange({ protocol: e.target.value } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="REST / SOAP / gRPC"
+                    />
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">プロトコル</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={step.protocol ?? ""}
-                    onChange={(e) => onChange({ protocol: e.target.value } as Partial<Step>)}
-                    onBlur={onCommit}
-                    placeholder="REST / SOAP / gRPC"
-                  />
+                <div className="row g-2 mb-2 align-items-center" style={{ fontSize: "0.85rem" }}>
+                  <div className="col-auto">
+                    <label className="form-label small mb-0">タイムアウト</label>
+                  </div>
+                  <div className="col-auto">
+                    <input
+                      type="number"
+                      className="form-control form-control-sm"
+                      value={step.timeoutMs ?? ""}
+                      onChange={(e) => onChange({ timeoutMs: e.target.value ? Number(e.target.value) : undefined } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="ms"
+                      style={{ width: 90 }}
+                    />
+                  </div>
+                  <div className="col-auto text-muted">ms</div>
+                  <div className="col-auto">
+                    <label className="form-check-label small">
+                      <input
+                        type="checkbox"
+                        className="form-check-input me-1"
+                        checked={!!step.fireAndForget}
+                        onChange={(e) => onChange({ fireAndForget: e.target.checked || undefined } as Partial<Step>)}
+                      />
+                      fire-and-forget (同期レスポンス待たない)
+                    </label>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             {/* ── 共通処理 ─────────────────────────────────────── */}
             {step.type === "commonProcess" && (
-              <div className="row g-2 mb-2">
-                <div className="col-12">
-                  <label className="form-label">共通処理</label>
-                  <select
-                    className="form-select form-select-sm"
-                    value={step.refId}
-                    onChange={(e) => {
-                      const cg = commonGroups.find((g) => g.id === e.target.value);
-                      onChange({ refId: e.target.value, refName: cg?.name ?? "" } as Partial<Step>);
-                    }}
-                  >
-                    <option value="">（選択）</option>
-                    {commonGroups.map((g) => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
+              <>
+                <div className="row g-2 mb-2">
+                  <div className="col-12">
+                    <label className="form-label">共通処理</label>
+                    <select
+                      className="form-select form-select-sm"
+                      value={step.refId}
+                      onChange={(e) => {
+                        const cg = commonGroups.find((g) => g.id === e.target.value);
+                        onChange({ refId: e.target.value, refName: cg?.name ?? "" } as Partial<Step>);
+                      }}
+                    >
+                      <option value="">（選択）</option>
+                      {commonGroups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
+                <div className="form-group">
+                  <label className="form-label small">
+                    <i className="bi bi-arrow-left-right me-1" />
+                    引数マッピング (argumentMapping、key=value、改行区切り)
+                  </label>
+                  <textarea
+                    className="form-control form-control-sm"
+                    rows={2}
+                    value={Object.entries(step.argumentMapping ?? {}).map(([k, v]) => `${k}=${v}`).join("\n")}
+                    onChange={(e) => {
+                      const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+                      const map: Record<string, string> = {};
+                      for (const line of lines) {
+                        const eq = line.indexOf("=");
+                        if (eq > 0) {
+                          map[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+                        }
+                      }
+                      onChange({
+                        argumentMapping: Object.keys(map).length > 0 ? map : undefined,
+                      } as Partial<Step>);
+                    }}
+                    onBlur={onCommit}
+                    placeholder={"sessionId=@session.id\ntrustedLevel='high'"}
+                    style={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                  />
+                </div>
+              </>
             )}
 
             {/* ── 計算ステップ (ComputeStep) ───────────────────── */}
