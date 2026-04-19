@@ -269,6 +269,7 @@ async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
     screenId: group.screenId,
     actionCount: group.actions.length,
     updatedAt: group.updatedAt,
+    maturity: group.maturity,
   };
 
   if (idx >= 0) {

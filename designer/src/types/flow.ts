@@ -127,6 +127,8 @@ export interface ActionGroupMeta {
   screenId?: string;
   actionCount: number;
   updatedAt: string;
+  /** 成熟度 (#186、docs/spec/process-flow-maturity.md §6.4)。未指定は "draft" として解釈 */
+  maturity?: "draft" | "provisional" | "committed";
 }
 
 /** プロジェクト全体 */
