@@ -279,6 +279,7 @@ Phase 1 から段階投入可能。Phase 2〜4 は独立に進められる。`pr
 ## 10. 関連仕様
 
 - `docs/spec/process-flow-maturity.md` — 成熟度・曖昧さ管理 (並行策定中)
+- `docs/spec/process-flow-extensions.md` — Phase B 以降のスキーマ拡張 (HTTP 契約 / TX / outcome / Saga / runIf / ReturnStep / ComputeStep 等 15 種)
 - `designer/src/types/action.ts` — 現状の型定義
 
 ## 11. 変更履歴
