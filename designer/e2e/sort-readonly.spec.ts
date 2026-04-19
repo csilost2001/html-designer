@@ -77,6 +77,37 @@ test.describe("#148 No 列 (永続フィールド §3.10)", () => {
     const nos = await page.locator(".data-list-td-num").allTextContents();
     expect(nos).toEqual(["2", "4", "1", "5", "3"]);
   });
+
+  // 以下 2 ケースは commit f8ba1cc で自己発見した「draft 変更時の renumber 漏れ」
+  // クラスのバグに対する回帰防止。別 view で editor.setItems を直接呼ぶ経路が
+  // 増えた時、同じクラスのバグを自動検知できるようにする。
+  test("Alt+↓ で並び替え後、No は 1..5 を維持する (draft renumber の回帰防止)", async ({ page }) => {
+    await setupScreenListTable(page);
+    // 1 行目 (Charlie, s-1) を選択
+    await page.locator(".data-list-row").first().click();
+    // Alt+↓ で下へ移動 → [s-2, s-1, s-3, s-4, s-5]
+    await page.keyboard.press("Alt+ArrowDown");
+    // No は配列順 (= 物理順) と一致し 1..5 連番のまま
+    const nos = await page.locator(".data-list-td-num").allTextContents();
+    expect(nos).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  test("Ctrl+X → 別行選択 → Ctrl+V 後、No は 1..5 を維持する (draft renumber の回帰防止)", async ({ page }) => {
+    await setupScreenListTable(page);
+    // 1 行目 (Charlie, s-1) を選択して切り取り
+    await page.locator(".data-list-row").first().click();
+    await page.keyboard.press("Control+x");
+    await expect(page.locator(".data-list-row.ghost")).toHaveCount(1);
+    // 3 行目 (Echo, s-3) を選択
+    await page.locator(".data-list-row").nth(2).click();
+    // 貼り付け → s-1 が s-3 の直後に挿入される
+    await page.keyboard.press("Control+v");
+    // 5 行のまま (cut→paste は移動)
+    await expect(page.locator(".data-list-row")).toHaveCount(5);
+    // No は配列順 (= 物理順) と一致し 1..5 連番のまま
+    const nos = await page.locator(".data-list-td-num").allTextContents();
+    expect(nos).toEqual(["1", "2", "3", "4", "5"]);
+  });
 });
 
 test.describe("#148 ソート中 Read-only モード (§3.9)", () => {

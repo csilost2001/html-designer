@@ -46,7 +46,13 @@ export interface UseListEditorResult<T> {
   toggleDeleted: (ids: string[]) => void;
   /** 追加 (即 draft に追加、isDirty=true) */
   insert: (items: T[], atIndex?: number) => void;
-  /** draft を直接操作 (アイテム内容変更など) */
+  /**
+   * draft を直接操作 (アイテム内容変更など)。
+   *
+   * **注意**: このフックに渡した `renumber` コールバックは setItems では呼ばれない。
+   * 物理順を変える用途 (並び替え・挿入・貼り付け等) で使う場合、呼び出し側で
+   * `renumber(next)` を返すこと。docs/spec/list-common.md §3.10。
+   */
   setItems: (updater: (prev: T[]) => T[]) => void;
   /** 保存 (削除 → 並び順コミット) */
   save: () => Promise<void>;

@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useListSelection } from "./useListSelection";
 import { useListKeyboard } from "./useListKeyboard";
 import { useListSort } from "./useListSort";
+import { useListClipboard } from "./useListClipboard";
 
 // docs/spec/list-common.md §3.9 — ソート中の Read-only モード
 //
@@ -30,8 +31,6 @@ function fireKey(init: KeyboardEventInit) {
 
 interface Callbacks {
   onDelete?: ReturnType<typeof vi.fn>;
-  onCopy?: ReturnType<typeof vi.fn>;
-  onCut?: ReturnType<typeof vi.fn>;
   onPaste?: ReturnType<typeof vi.fn>;
   onDuplicate?: ReturnType<typeof vi.fn>;
   onMoveUp?: ReturnType<typeof vi.fn>;
@@ -42,8 +41,12 @@ function setupSorted(cbs: Callbacks = {}) {
   return renderHook(() => {
     const sort = useListSort(items, (t, key) => (key === "name" ? t.name : ""));
     const sel = useListSelection(items, (t) => t.id);
-    useListKeyboard({ items, getId: (t) => t.id, selection: sel, sort, ...cbs });
-    return { sel, sort };
+    // 本番コードパスと同じく clipboard を経由させる
+    // (@deprecated onCut/onCopy ではなく clipboard.mode を検証することで、
+    //  将来 onCut/onCopy が削除されても偽陽性にならないようにする)
+    const clip = useListClipboard<Item>((t) => t.id);
+    useListKeyboard({ items, getId: (t) => t.id, selection: sel, sort, clipboard: clip, ...cbs });
+    return { sel, sort, clip };
   });
 }
 
@@ -114,22 +117,23 @@ describe("useListKeyboard — ソート中 Read-only モード (§3.9)", () => {
       expect(onMoveDown).not.toHaveBeenCalled();
     });
 
-    it("Ctrl+C は引き続き呼ばれる (クリップボード状態は OK)", () => {
-      const onCopy = vi.fn();
-      const { result } = setupSorted({ onCopy });
+    it("ソート中でも Ctrl+C はクリップボードに copy として入る", () => {
+      const { result } = setupSorted();
       act(() => result.current.sort.toggleSort("name"));
       act(() => result.current.sel.handleRowClick("a", {}));
       act(() => fireKey({ key: "c", ctrlKey: true }));
-      expect(onCopy).toHaveBeenCalled();
+      expect(result.current.clip.clipboard.mode).toBe("copy");
+      expect(result.current.clip.clipboard.items.length).toBe(1);
     });
 
-    it("Ctrl+X は引き続き呼ばれる (クリップボード状態は OK)", () => {
-      const onCut = vi.fn();
-      const { result } = setupSorted({ onCut });
+    it("ソート中でも Ctrl+X はクリップボードに cut として入る (ghost state)", () => {
+      const { result } = setupSorted();
       act(() => result.current.sort.toggleSort("name"));
       act(() => result.current.sel.handleRowClick("a", {}));
       act(() => fireKey({ key: "x", ctrlKey: true }));
-      expect(onCut).toHaveBeenCalled();
+      expect(result.current.clip.clipboard.mode).toBe("cut");
+      expect(result.current.clip.clipboard.items.length).toBe(1);
+      expect(result.current.clip.isItemCut("a")).toBe(true);
     });
 
     it("Delete は引き続き呼ばれる (位置不要・例外として許可)", () => {

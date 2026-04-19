@@ -171,7 +171,7 @@ export function ScreenListView() {
     const dup: ScreenNode = {
       ...s,
       id: generateUUID(),
-      no: project.screens.length + 1,
+      // no は renumber() で振り直されるため、...s 由来の値のままで良い (即上書き)
       name: s.name + " (コピー)",
       position: { x: s.position.x + 40, y: s.position.y + 40 },
       size: { ...DEFAULT_NODE_SIZE },

@@ -82,7 +82,6 @@ export function DataList<T>({
   // docs/spec/list-common.md §3.9: ソート中は「並び替え Read-only モード」
   // D&D ハンドル・ドロップを無効化する
   const sortActive = (sort?.sortKeys.length ?? 0) > 0;
-  const reorderDisabled = sortActive;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -125,7 +124,7 @@ export function DataList<T>({
     const { active, over } = e;
     setActiveDragId(null);
     setOverId(null);
-    if (reorderDisabled) return;
+    if (sortActive) return;
     if (!over || !onReorder) return;
     if (active.id === over.id) return;
     const fromIndex = items.findIndex((it) => getId(it) === active.id);
@@ -140,7 +139,7 @@ export function DataList<T>({
   };
 
   const showHandle = !!onReorder && layout === "list";
-  const handleDisabled = showHandle && reorderDisabled;
+  const handleDisabled = showHandle && sortActive;
   const ids = items.map(getId);
   const rootClass = [
     "data-list",
@@ -263,7 +262,7 @@ export function DataList<T>({
                     ghost={isRowGhost(id)}
                     onActivate={onActivate}
                     renderCard={renderCard}
-                    draggable={!!onReorder && !reorderDisabled}
+                    draggable={!!onReorder && !sortActive}
                     dropIndicator={dropIndicatorFor(id)}
                   />
                 );
