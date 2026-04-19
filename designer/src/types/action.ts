@@ -14,6 +14,7 @@ export type StepType =
   | "loopContinue"     // 次のループへ（continue）
   | "jump"             // 別大分類へのジャンプ
   | "compute"          // 計算式 / 変数代入 (#174)
+  | "return"           // HTTP レスポンス返却 (#178)
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -30,6 +31,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   loopContinue: "次のループへ",
   jump: "ジャンプ",
   compute: "計算/代入",
+  return: "レスポンス返却",
   other: "その他",
 };
 
@@ -47,6 +49,7 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   loopContinue: "bi-skip-forward",
   jump: "bi-arrow-return-right",
   compute: "bi-calculator",
+  return: "bi-reply",
   other: "bi-three-dots",
 };
 
@@ -64,6 +67,7 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   loopContinue: "#14b8a6",
   jump: "#94a3b8",
   compute: "#0ea5e9",
+  return: "#22c55e",
   other: "#9ca3af",
 };
 
@@ -212,6 +216,12 @@ export interface StepBase {
   notes?: StepNote[];
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
+  /**
+   * ステップの条件実行ガード (#178)。
+   * 真偽式 (自由記述、例: "@paymentMethod == 'credit_card'") または @conv.* 参照。
+   * 偽または未評価の場合、ステップを skip する。未指定は常に実行。
+   */
+  runIf?: string;
   /**
    * ステップの結果を保持する変数。後続ステップは @変数名 で参照する。
    * 旧形式 (string) は assign 相当、新形式 (object) は operation で代入方式を指定可能。
@@ -518,6 +528,22 @@ export interface ComputeStep extends StepBase {
   expression: string;
 }
 
+/**
+ * HTTP レスポンス返却ステップ (#178)。
+ * action.responses[] への参照 (responseRef) で返却内容を指定する。
+ * 返却 body の具体値は bodyExpression で表現。
+ */
+export interface ReturnStep extends StepBase {
+  type: "return";
+  /** action.responses[].id への参照 (例: "409-stock-shortage") */
+  responseRef?: string;
+  /**
+   * 返却 body の式 (任意、自由記述)。
+   * 例: "{ code: 'STOCK_SHORTAGE', detail: @shortageList }"
+   */
+  bodyExpression?: string;
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -531,6 +557,7 @@ export type Step =
   | LoopContinueStep
   | JumpStep
   | ComputeStep
+  | ReturnStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────
@@ -581,6 +608,8 @@ export interface HttpRoute {
 
 /** HTTP レスポンス仕様 (成功/エラーの各ケース) */
 export interface HttpResponseSpec {
+  /** ReturnStep.responseRef から参照するための識別子 (任意、例: "409-stock-shortage") */
+  id?: string;
   /** 数値 HTTP ステータス (例: 201, 400, 404) */
   status: number;
   /** MIME タイプ。未指定は "application/json" として解釈 */
