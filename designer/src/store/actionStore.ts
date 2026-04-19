@@ -248,6 +248,8 @@ export function createDefaultStep(type: StepType): Step {
       return { ...base, type: "jump", jumpTo: "" };
     case "compute":
       return { ...base, type: "compute", expression: "" };
+    case "return":
+      return { ...base, type: "return" };
     case "other":
       return { ...base, type: "other" };
   }
