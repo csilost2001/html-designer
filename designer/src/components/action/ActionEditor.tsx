@@ -57,9 +57,15 @@ import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
 
-/** グループ内の全ステップを再帰的に走査して maturity 別カウントを集計 (#196) */
-function countMaturity(group: ActionGroup): { draft: number; provisional: number; committed: number; total: number } {
-  const acc = { draft: 0, provisional: 0, committed: 0, total: 0 };
+/** グループ内の全ステップを再帰的に走査して maturity 別カウント + 付箋合計を集計 (#196 / #200) */
+function countMaturity(group: ActionGroup): {
+  draft: number;
+  provisional: number;
+  committed: number;
+  total: number;
+  notes: number;
+} {
+  const acc = { draft: 0, provisional: 0, committed: 0, total: 0, notes: 0 };
   const visit = (steps: Step[]) => {
     for (const s of steps) {
       const m = s.maturity ?? "draft";
@@ -67,6 +73,7 @@ function countMaturity(group: ActionGroup): { draft: number; provisional: number
       else if (m === "provisional") acc.provisional++;
       else acc.committed++;
       acc.total++;
+      acc.notes += s.notes?.length ?? 0;
       if (s.subSteps) visit(s.subSteps);
       if (s.type === "branch") {
         for (const b of s.branches) visit(b.steps);
@@ -583,6 +590,30 @@ export function ActionEditor() {
             </div>
           </div>
         </div>
+        {(() => {
+          const counts = countMaturity(group);
+          if (counts.total === 0) return null;
+          return (
+            <div className="d-flex align-items-center gap-3 mt-2 small" style={{ fontSize: "0.8rem" }}>
+              <span className="text-muted">進捗:</span>
+              <span title={`確定 ${counts.committed} 件`} style={{ color: "#22c55e" }}>
+                <i className="bi bi-circle-fill" /> {counts.committed}
+              </span>
+              <span title={`暫定 ${counts.provisional} 件`} style={{ color: "#f97316" }}>
+                <i className="bi bi-circle-fill" /> {counts.provisional}
+              </span>
+              <span title={`下書き ${counts.draft} 件`} style={{ color: "#f59e0b" }}>
+                <i className="bi bi-circle-fill" /> {counts.draft}
+              </span>
+              <span className="text-muted">合計 {counts.total} ステップ</span>
+              {counts.notes > 0 && (
+                <span className="text-muted" title={`付箋 ${counts.notes} 件`}>
+                  <i className="bi bi-sticky" /> {counts.notes}
+                </span>
+              )}
+            </div>
+          );
+        })()}
         {group.mode === "downstream" && (() => {
           const counts = countMaturity(group);
           const unfinished = counts.draft + counts.provisional;
