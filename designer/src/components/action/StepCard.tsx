@@ -666,6 +666,52 @@ export function StepCard({
                     </div>
                   </div>
                 )}
+                {step.inlineBranch && (
+                  <div className="row g-2 mb-2 mt-1" style={{ fontSize: "0.8rem" }}>
+                    <div className="col-5">
+                      <label className="form-label small mb-0">
+                        NG → responseRef
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={step.inlineBranch.ngResponseRef ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            inlineBranch: {
+                              ...step.inlineBranch!,
+                              ngResponseRef: e.target.value || undefined,
+                            },
+                          } as Partial<Step>)
+                        }
+                        onBlur={onCommit}
+                        placeholder="例: 400-validation"
+                        style={{ fontSize: "0.8rem" }}
+                      />
+                    </div>
+                    <div className="col-7">
+                      <label className="form-label small mb-0">
+                        NG bodyExpression
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        value={step.inlineBranch.ngBodyExpression ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            inlineBranch: {
+                              ...step.inlineBranch!,
+                              ngBodyExpression: e.target.value || undefined,
+                            },
+                          } as Partial<Step>)
+                        }
+                        onBlur={onCommit}
+                        placeholder="例: { code: 'VALIDATION', fieldErrors: @fieldErrors }"
+                        style={{ fontSize: "0.8rem", fontFamily: "monospace" }}
+                      />
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -863,6 +909,72 @@ export function StepCard({
                       fire-and-forget (同期レスポンス待たない)
                     </label>
                   </div>
+                </div>
+                <div className="row g-2 mb-2 align-items-center" style={{ fontSize: "0.8rem" }}>
+                  <div className="col-auto">
+                    <label className="form-label small mb-0">リトライ</label>
+                  </div>
+                  <div className="col-auto">
+                    <input
+                      type="number"
+                      className="form-control form-control-sm"
+                      value={step.retryPolicy?.maxAttempts ?? ""}
+                      onChange={(e) => {
+                        const n = e.target.value ? Number(e.target.value) : 0;
+                        if (n <= 0) {
+                          onChange({ retryPolicy: undefined } as Partial<Step>);
+                        } else {
+                          onChange({
+                            retryPolicy: {
+                              maxAttempts: n,
+                              backoff: step.retryPolicy?.backoff,
+                              initialDelayMs: step.retryPolicy?.initialDelayMs,
+                            },
+                          } as Partial<Step>);
+                        }
+                      }}
+                      onBlur={onCommit}
+                      placeholder="maxAttempts"
+                      style={{ width: 90, fontSize: "0.8rem" }}
+                    />
+                  </div>
+                  {step.retryPolicy && (
+                    <>
+                      <div className="col-auto">
+                        <select
+                          className="form-select form-select-sm"
+                          value={step.retryPolicy.backoff ?? ""}
+                          onChange={(e) => onChange({
+                            retryPolicy: {
+                              ...step.retryPolicy!,
+                              backoff: e.target.value as "fixed" | "exponential" || undefined,
+                            },
+                          } as Partial<Step>)}
+                          style={{ width: "auto", fontSize: "0.8rem" }}
+                        >
+                          <option value="">backoff: —</option>
+                          <option value="fixed">fixed</option>
+                          <option value="exponential">exponential</option>
+                        </select>
+                      </div>
+                      <div className="col-auto">
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          value={step.retryPolicy.initialDelayMs ?? ""}
+                          onChange={(e) => onChange({
+                            retryPolicy: {
+                              ...step.retryPolicy!,
+                              initialDelayMs: e.target.value ? Number(e.target.value) : undefined,
+                            },
+                          } as Partial<Step>)}
+                          onBlur={onCommit}
+                          placeholder="initialDelayMs"
+                          style={{ width: 120, fontSize: "0.8rem" }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
                 <ExternalOutcomesPanel
                   step={step}
