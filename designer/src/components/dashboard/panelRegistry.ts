@@ -14,6 +14,7 @@ import type { ComponentType } from "react";
 import { FunctionCountsPanel } from "./panels/FunctionCountsPanel";
 import { UnsavedDraftsPanel } from "./panels/UnsavedDraftsPanel";
 import { RecentEditsPanel } from "./panels/RecentEditsPanel";
+import { ProcessFlowMaturityPanel } from "./panels/ProcessFlowMaturityPanel";
 
 /** react-grid-layout の 1 パネルのレイアウト指定 */
 export interface PanelLayout {
@@ -59,6 +60,13 @@ export const dashboardPanels: DashboardPanel[] = [
     icon: "bi-bar-chart-line",
     defaultLayout: { w: 6, h: 3, minW: 4, minH: 3 },
     component: FunctionCountsPanel,
+  },
+  {
+    id: "process-flow-maturity",
+    title: "処理フロー成熟度",
+    icon: "bi-speedometer2",
+    defaultLayout: { w: 6, h: 3, minW: 4, minH: 3 },
+    component: ProcessFlowMaturityPanel,
   },
   {
     id: "unsaved-drafts",
