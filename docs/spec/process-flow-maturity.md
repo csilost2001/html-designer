@@ -186,6 +186,7 @@ interface ActionGroup {
 ## 11. 関連仕様
 
 - `docs/spec/process-flow-variables.md` — 入出力・変数の構造化 (並行策定中)
+- `docs/spec/process-flow-extensions.md` — Phase B 以降のスキーマ拡張 (HTTP 契約 / TX / outcome / Saga / runIf / ReturnStep / ComputeStep 等 15 種)
 - `docs/spec/list-common.md` — 一覧系 UI 共通仕様 (変更なし、本仕様は独立)
 
 ## 12. 変更履歴
