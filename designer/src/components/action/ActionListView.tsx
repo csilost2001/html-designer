@@ -550,6 +550,36 @@ export function ActionListView() {
             <i className="bi bi-diagram-3 me-2" />処理フロー定義
             {deletedCount > 0 && <span className="action-list-deleted-count"> (削除予定 {deletedCount})</span>}
           </h5>
+          {(() => {
+            const summary = { draft: 0, provisional: 0, committed: 0, notes: 0 };
+            for (const g of groups) {
+              const m = g.maturity ?? "draft";
+              if (m === "draft") summary.draft++;
+              else if (m === "provisional") summary.provisional++;
+              else summary.committed++;
+              summary.notes += g.notesCount ?? 0;
+            }
+            if (groups.length === 0) return null;
+            return (
+              <div className="d-flex align-items-center gap-2 ms-3" style={{ fontSize: "0.8rem" }}>
+                <span className="text-muted">全体:</span>
+                <span title="確定" style={{ color: "#22c55e" }}>
+                  <i className="bi bi-circle-fill" /> {summary.committed}
+                </span>
+                <span title="暫定" style={{ color: "#f97316" }}>
+                  <i className="bi bi-circle-fill" /> {summary.provisional}
+                </span>
+                <span title="下書き" style={{ color: "#f59e0b" }}>
+                  <i className="bi bi-circle-fill" /> {summary.draft}
+                </span>
+                {summary.notes > 0 && (
+                  <span title={`付箋 ${summary.notes} 件`} className="text-muted">
+                    <i className="bi bi-sticky" /> {summary.notes}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div className="action-list-header-right">
             <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
             <button
