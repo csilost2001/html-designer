@@ -53,6 +53,7 @@ import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import { MaturityBadge } from "./MaturityBadge";
+import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
@@ -672,6 +673,17 @@ export function ActionEditor() {
       <div className="action-content">
         {activeAction ? (
           <div className="step-editor">
+            {/* HTTP 契約 */}
+            <ActionHttpContractPanel
+              action={activeAction}
+              onChange={(patch) => {
+                updateGroupSilent((g) => {
+                  const act = g.actions.find((a) => a.id === activeActionId);
+                  if (act) Object.assign(act, patch);
+                });
+                commitGroup();
+              }}
+            />
             {/* I/O パネル */}
             <div className="action-io-panel">
               <div className="action-io-field">
