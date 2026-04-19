@@ -13,6 +13,7 @@ export type StepType =
   | "loopBreak"        // ループ終了（break）
   | "loopContinue"     // 次のループへ（continue）
   | "jump"             // 別大分類へのジャンプ
+  | "compute"          // 計算式 / 変数代入 (#174)
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -28,6 +29,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   loopBreak: "ループ終了",
   loopContinue: "次のループへ",
   jump: "ジャンプ",
+  compute: "計算/代入",
   other: "その他",
 };
 
@@ -44,6 +46,7 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   loopBreak: "bi-stop-circle",
   loopContinue: "bi-skip-forward",
   jump: "bi-arrow-return-right",
+  compute: "bi-calculator",
   other: "bi-three-dots",
 };
 
@@ -60,6 +63,7 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   loopBreak: "#ef4444",
   loopContinue: "#14b8a6",
   jump: "#94a3b8",
+  compute: "#0ea5e9",
   other: "#9ca3af",
 };
 
@@ -478,6 +482,21 @@ export interface OtherStep extends StepBase {
   type: "other";
 }
 
+/**
+ * 計算・代入ステップ (docs/spec, #151 (B) / #174)。
+ * 純粋計算 (税額・合計・集計など) や、@変数 の代入を構造化する。
+ * DB / 外部呼出に依存しない「内部ロジック」の表現用。
+ * 結果格納先は outputBinding で指定。
+ */
+export interface ComputeStep extends StepBase {
+  type: "compute";
+  /**
+   * 代入式 (自由記述、AI 実装時に言語依存で翻訳)。
+   * 例: "Math.floor(@subtotal * 0.10)" / "@subtotal + @taxAmount" / "@items.length"
+   */
+  expression: string;
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -490,6 +509,7 @@ export type Step =
   | LoopBreakStep
   | LoopContinueStep
   | JumpStep
+  | ComputeStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────
