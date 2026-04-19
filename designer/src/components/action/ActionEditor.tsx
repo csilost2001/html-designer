@@ -132,13 +132,13 @@ function StepInsertZone({ index, onClick, onPaste }: { index: number; onClick: (
 const ALL_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
-  "loopBreak", "loopContinue", "jump", "other",
+  "loopBreak", "loopContinue", "jump", "compute", "return", "other",
 ];
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
-  "loopBreak", "loopContinue", "jump", "other",
+  "loopBreak", "loopContinue", "jump", "compute", "return", "other",
 ];
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];

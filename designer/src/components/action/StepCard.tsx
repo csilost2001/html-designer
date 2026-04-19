@@ -30,7 +30,7 @@ import { JumpTargetSelector } from "./JumpTargetSelector";
 const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
-  "loopBreak", "loopContinue", "jump", "other",
+  "loopBreak", "loopContinue", "jump", "compute", "return", "other",
 ];
 
 // ─── ヘルパーコンポーネント ──────────────────────────────────────────────────
