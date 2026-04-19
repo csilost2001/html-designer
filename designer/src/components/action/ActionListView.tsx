@@ -192,7 +192,7 @@ export function ActionListView() {
         const next = [...prev];
         const [moved] = next.splice(idxs[0] - 1, 1);
         next.splice(idxs[idxs.length - 1], 0, moved);
-        return next;
+        return renumber(next);
       });
     } else {
       if (idxs[idxs.length - 1] === editor.items.length - 1) return;
@@ -200,7 +200,7 @@ export function ActionListView() {
         const next = [...prev];
         const [moved] = next.splice(idxs[idxs.length - 1] + 1, 1);
         next.splice(idxs[0], 0, moved);
-        return next;
+        return renumber(next);
       });
     }
   };
@@ -255,7 +255,7 @@ export function ActionListView() {
       editor.setItems(() => {
         const next = [...remaining];
         next.splice(pos, 0, ...moved);
-        return next;
+        return renumber(next);
       });
       selection.setSelectedIds(new Set(moved.map((g) => g.id)));
     } else {
