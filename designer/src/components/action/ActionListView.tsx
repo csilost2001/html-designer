@@ -158,6 +158,12 @@ export function ActionListView() {
       case "actionCount": return g.actionCount;
       case "screenId": return g.screenId ? 1 : 0;
       case "errorPriority": return getErrorPriority(g.id);
+      case "maturity": {
+        // draft < provisional < committed で昇順ソート (未指定は draft 扱い)
+        const order: Record<string, number> = { draft: 0, provisional: 1, committed: 2 };
+        return order[g.maturity ?? "draft"] ?? 0;
+      }
+      case "notesCount": return g.notesCount ?? 0;
       default: return "";
     }
   }, [getErrorPriority]);
@@ -438,6 +444,18 @@ export function ActionListView() {
       ),
     },
     {
+      key: "maturity",
+      header: "成熟度",
+      width: "80px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (g) => {
+        const order: Record<string, number> = { draft: 0, provisional: 1, committed: 2 };
+        return order[g.maturity ?? "draft"] ?? 0;
+      },
+      render: (g) => <MaturityBadge maturity={g.maturity} />,
+    },
+    {
       key: "actionCount",
       header: "アクション",
       width: "90px",
@@ -445,6 +463,15 @@ export function ActionListView() {
       sortable: true,
       sortAccessor: (g) => g.actionCount,
       render: (g) => <span>{g.actionCount}</span>,
+    },
+    {
+      key: "notesCount",
+      header: "付箋",
+      width: "70px",
+      align: "right",
+      sortable: true,
+      sortAccessor: (g) => g.notesCount ?? 0,
+      render: (g) => (g.notesCount ?? 0) > 0 ? <span><i className="bi bi-sticky me-1" />{g.notesCount}</span> : null,
     },
     {
       key: "screenId",
@@ -495,6 +522,11 @@ export function ActionListView() {
         <div className="action-card-meta">
           <span><i className="bi bi-lightning me-1" />アクション: {g.actionCount}件</span>
           {g.screenId && <span><i className="bi bi-display me-1" />画面紐付き</span>}
+          {(g.notesCount ?? 0) > 0 && (
+            <span title={`付箋 ${g.notesCount} 件`}>
+              <i className="bi bi-sticky me-1" />付箋: {g.notesCount}
+            </span>
+          )}
         </div>
       </div>
     );

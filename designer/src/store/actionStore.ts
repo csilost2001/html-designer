@@ -255,6 +255,24 @@ export function createDefaultStep(type: StepType): Step {
   }
 }
 
+/** グループ内の全ステップを再帰走査して付箋合計をカウント (#228) */
+function countGroupNotes(group: ActionGroup): number {
+  let count = 0;
+  const visit = (steps: Step[]) => {
+    for (const s of steps) {
+      count += s.notes?.length ?? 0;
+      if (s.subSteps) visit(s.subSteps);
+      if (s.type === "branch") {
+        for (const b of s.branches) visit(b.steps);
+        if (s.elseBranch) visit(s.elseBranch.steps);
+      }
+      if (s.type === "loop") visit(s.steps);
+    }
+  };
+  for (const a of group.actions) visit(a.steps);
+  return count;
+}
+
 /** project.json のアクショングループメタを同期 */
 async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
   const project = await loadProject();
@@ -270,6 +288,7 @@ async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
     actionCount: group.actions.length,
     updatedAt: group.updatedAt,
     maturity: group.maturity,
+    notesCount: countGroupNotes(group),
   };
 
   if (idx >= 0) {
