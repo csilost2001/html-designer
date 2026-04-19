@@ -24,6 +24,7 @@ import { MaturityBadge } from "./MaturityBadge";
 import { NotesPanel } from "./NotesPanel";
 import { StepAdvancedMetadataPanel } from "./StepAdvancedMetadataPanel";
 import { ValidationRulesPanel } from "./ValidationRulesPanel";
+import { ExternalOutcomesPanel } from "./ExternalOutcomesPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
@@ -863,6 +864,11 @@ export function StepCard({
                     </label>
                   </div>
                 </div>
+                <ExternalOutcomesPanel
+                  step={step}
+                  onChange={(patch) => onChange(patch as Partial<Step>)}
+                  onCommit={onCommit}
+                />
               </>
             )}
 
