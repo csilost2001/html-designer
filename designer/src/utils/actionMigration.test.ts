@@ -167,7 +167,7 @@ describe("migrateStep — BranchStep legacy → new", () => {
     expect(br.branches[0].label).toBe("a");
   });
 
-  it("非 branch ステップはそのまま保持される", () => {
+  it("非 branch ステップは構造を保持しつつ maturity 既定値を追加する (#154)", () => {
     const other = {
       id: "x",
       type: "dbAccess",
@@ -176,7 +176,7 @@ describe("migrateStep — BranchStep legacy → new", () => {
       operation: "SELECT",
     };
     const migrated = migrateStep(other);
-    expect(migrated).toEqual(other);
+    expect(migrated).toEqual({ ...other, maturity: "draft" });
     expect(migrated).not.toBe(other); // cloneされている
   });
 
@@ -285,5 +285,213 @@ describe("migrateActionGroup — ActionGroup 全体", () => {
     const onceJson = JSON.stringify(once);
     const twiceJson = JSON.stringify(twice);
     expect(twiceJson).toBe(onceJson);
+  });
+});
+
+describe("migrateStep — 旧 note → notes[] / maturity 既定付与 (#154)", () => {
+  it("旧 note: string を notes[] ({type: 'assumption'}) に変換する", () => {
+    const legacy = {
+      id: "s1",
+      type: "other",
+      description: "",
+      note: "想定: 共通処理は後ほど設計予定",
+    };
+    const migrated = migrateStep(legacy);
+    const s = migrated as unknown as { note?: string; notes?: Array<{ id: string; type: string; body: string; createdAt: string }> };
+    expect(s.notes).toHaveLength(1);
+    expect(s.notes![0].type).toBe("assumption");
+    expect(s.notes![0].body).toBe("想定: 共通処理は後ほど設計予定");
+    expect(s.notes![0].id).toMatch(/[0-9a-f-]{36}/);
+    expect(s.notes![0].createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // 旧 note フィールドは削除される
+    expect(s.note).toBeUndefined();
+  });
+
+  it("note が空文字・空白のみ・未設定の場合は notes[] を作らず、note フィールドを消す", () => {
+    const empty1 = migrateStep({ id: "a", type: "other", description: "", note: "" });
+    expect((empty1 as unknown as { notes?: unknown[] }).notes).toBeUndefined();
+    expect((empty1 as unknown as { note?: string }).note).toBeUndefined();
+
+    const empty2 = migrateStep({ id: "b", type: "other", description: "", note: "   " });
+    expect((empty2 as unknown as { notes?: unknown[] }).notes).toBeUndefined();
+    expect((empty2 as unknown as { note?: string }).note).toBeUndefined();
+
+    const empty3 = migrateStep({ id: "c", type: "other", description: "" });
+    expect((empty3 as unknown as { notes?: unknown[] }).notes).toBeUndefined();
+  });
+
+  it("notes[] が既にあれば note を破棄し、notes[] をそのまま維持する", () => {
+    const existing = {
+      id: "s",
+      type: "other",
+      description: "",
+      note: "これは無視される",
+      notes: [{ id: "n-1", type: "todo", body: "既存", createdAt: "2026-01-01T00:00:00.000Z" }],
+    };
+    const migrated = migrateStep(existing);
+    const s = migrated as unknown as { note?: string; notes?: Array<{ id: string; type: string; body: string }> };
+    expect(s.notes).toHaveLength(1);
+    expect(s.notes![0].id).toBe("n-1");
+    expect(s.notes![0].body).toBe("既存");
+    expect(s.note).toBeUndefined();
+  });
+
+  it("maturity が未設定なら 'draft' を付与する", () => {
+    const legacy = { id: "s", type: "other", description: "" };
+    const migrated = migrateStep(legacy) as unknown as { maturity?: string };
+    expect(migrated.maturity).toBe("draft");
+  });
+
+  it("maturity が有効値 ('provisional' / 'committed') なら保持する", () => {
+    const provisional = migrateStep({ id: "s", type: "other", description: "", maturity: "provisional" }) as unknown as { maturity?: string };
+    expect(provisional.maturity).toBe("provisional");
+    const committed = migrateStep({ id: "s", type: "other", description: "", maturity: "committed" }) as unknown as { maturity?: string };
+    expect(committed.maturity).toBe("committed");
+  });
+
+  it("maturity が不正値 (未知文字列 / 数値 / null) なら 'draft' に矯正する", () => {
+    const invalid1 = migrateStep({ id: "s", type: "other", description: "", maturity: "unknown" }) as unknown as { maturity?: string };
+    expect(invalid1.maturity).toBe("draft");
+    const invalid2 = migrateStep({ id: "s", type: "other", description: "", maturity: 42 }) as unknown as { maturity?: string };
+    expect(invalid2.maturity).toBe("draft");
+    const invalid3 = migrateStep({ id: "s", type: "other", description: "", maturity: null }) as unknown as { maturity?: string };
+    expect(invalid3.maturity).toBe("draft");
+  });
+
+  it("ネスト (branch.branches[].steps / loop.steps / subSteps) の note / maturity も再帰的に正規化", () => {
+    const legacy = {
+      id: "parent-loop",
+      type: "loop",
+      description: "",
+      loopKind: "collection",
+      note: "親の想定",
+      steps: [
+        {
+          id: "inner-branch",
+          type: "branch",
+          description: "",
+          branches: [
+            {
+              id: "b1",
+              code: "A",
+              condition: "",
+              steps: [
+                {
+                  id: "leaf",
+                  type: "dbAccess",
+                  description: "",
+                  tableName: "x",
+                  operation: "SELECT",
+                  note: "葉の想定",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const migrated = migrateStep(legacy) as unknown as {
+      maturity?: string;
+      notes?: Array<{ body: string }>;
+      steps: Array<{
+        branches: Array<{
+          steps: Array<{ notes?: Array<{ body: string }>; maturity?: string }>;
+        }>;
+      }>;
+    };
+    expect(migrated.maturity).toBe("draft");
+    expect(migrated.notes?.[0].body).toBe("親の想定");
+    const innerBranch = migrated.steps[0];
+    const leaf = innerBranch.branches[0].steps[0];
+    expect(leaf.maturity).toBe("draft");
+    expect(leaf.notes?.[0].body).toBe("葉の想定");
+  });
+});
+
+describe("migrateActionGroup — action/group レベルの maturity / mode 既定付与 (#154)", () => {
+  it("group.maturity 未設定なら 'draft'、group.mode 未設定なら 'upstream' を付与する", () => {
+    const raw = {
+      id: "g1",
+      name: "x",
+      type: "screen",
+      description: "",
+      actions: [],
+      createdAt: "",
+      updatedAt: "",
+    };
+    const migrated = migrateActionGroup(raw);
+    expect(migrated.maturity).toBe("draft");
+    expect(migrated.mode).toBe("upstream");
+  });
+
+  it("group.maturity / mode の有効値は保持する", () => {
+    const raw = {
+      id: "g1",
+      name: "x",
+      type: "screen",
+      description: "",
+      actions: [],
+      createdAt: "",
+      updatedAt: "",
+      maturity: "committed",
+      mode: "downstream",
+    };
+    const migrated = migrateActionGroup(raw);
+    expect(migrated.maturity).toBe("committed");
+    expect(migrated.mode).toBe("downstream");
+  });
+
+  it("action.maturity 未設定なら 'draft' を付与する", () => {
+    const raw = {
+      id: "g1",
+      name: "x",
+      type: "screen",
+      description: "",
+      actions: [
+        {
+          id: "a1",
+          name: "a",
+          trigger: "click",
+          steps: [],
+        },
+      ],
+      createdAt: "",
+      updatedAt: "",
+    };
+    const migrated = migrateActionGroup(raw);
+    expect(migrated.actions[0].maturity).toBe("draft");
+  });
+
+  it("冪等性: note → notes[] 変換 + maturity/mode 付与後、再度マイグレーションしても同じ JSON になる", () => {
+    const raw = {
+      id: "g",
+      name: "x",
+      type: "common",
+      description: "",
+      actions: [
+        {
+          id: "a",
+          name: "a",
+          trigger: "other",
+          steps: [
+            {
+              id: "s1",
+              type: "other",
+              description: "",
+              note: "想定: X",
+            },
+          ],
+        },
+      ],
+      createdAt: "",
+      updatedAt: "",
+    };
+    const once = migrateActionGroup(raw);
+    const twice = migrateActionGroup(once);
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
+    // 1 回目で note は消えて notes[] になっている
+    const step = once.actions[0].steps[0] as unknown as { note?: string; notes?: Array<{ body: string }> };
+    expect(step.note).toBeUndefined();
+    expect(step.notes?.[0].body).toBe("想定: X");
   });
 });
