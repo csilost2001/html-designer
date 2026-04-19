@@ -109,6 +109,16 @@
   cursor: grabbing;
 }
 
+/* docs/spec/list-common.md §3.9: ソート中はハンドル無効化 */
+.data-list-td-handle.disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.data-list-td-handle.disabled:active {
+  cursor: not-allowed;
+}
+
 .data-list-th-num,
 .data-list-td-num {
   width: 48px;
