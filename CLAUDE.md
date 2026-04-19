@@ -133,6 +133,8 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 ## PR 作成・レビューの規約
 
+運用手引き (人間向け): [docs/pr-review-workflow.md](docs/pr-review-workflow.md)
+
 - PR 作成時は [`.github/pull_request_template.md`](.github/pull_request_template.md) を**全項目埋める**。不要な項目は削除せず「N/A」と明記 (レビュアーが見落としと区別するため)
 - 「仕様逐条突合 (自己申告)」節は各条項を `file:line` で**個別に列挙**。「全条項 ✓」の一括表記は不可。大規模実装の完了報告前に仕様を逐条突合すること
 - 大規模実装 / spec 絡み / UI 影響のある PR は、別の Claude Code セッション (新しいウィンドウで `/clear` 後) で [`/review-pr <N>`](.claude/commands/review-pr.md) を実行し、独立レビュー結果を PR コメントに投稿してからマージ判断する
