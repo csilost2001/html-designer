@@ -163,6 +163,11 @@ export interface StepBase {
   notes?: StepNote[];
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
+  /**
+   * ステップの結果を保持する変数名。後続ステップは @変数名 で参照する。
+   * docs/spec/process-flow-variables.md §3.2
+   */
+  outputBinding?: string;
   subSteps?: Step[];
 }
 
@@ -194,6 +199,11 @@ export interface CommonProcessStep extends StepBase {
   type: "commonProcess";
   refId: string;
   refName?: string;
+  /**
+   * 呼び先フローの入力名 → 値表現 (リテラル or "@変数名") のマッピング。
+   * docs/spec/process-flow-variables.md §3.4
+   */
+  argumentMapping?: Record<string, string>;
 }
 
 export interface ScreenTransitionStep extends StepBase {
@@ -285,16 +295,49 @@ export type Step =
 
 // ── アクション定義 ───────────────────────────────────────────────────────
 
+// ── 入出力の構造化 (docs/spec/process-flow-variables.md §3.1) ─────────────
+
+/** 入出力フィールドの型。primitive + テーブル/画面参照 + 自由記述型の union */
+export type FieldType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "date"
+  | { kind: "tableRow"; tableId: string }
+  | { kind: "tableList"; tableId: string }
+  | { kind: "screenInput"; screenId: string }
+  | { kind: "custom"; label: string };
+
+export interface StructuredField {
+  /** 識別子 (例: "userId")。@変数参照のキーにもなる */
+  name: string;
+  /** 表示名 (例: "ユーザーID") */
+  label?: string;
+  type: FieldType;
+  required?: boolean;
+  description?: string;
+  /** 自由記述の既定値 */
+  defaultValue?: string;
+}
+
+/** inputs / outputs の値型: 旧形式 (改行区切り文字列) と新形式 (StructuredField[]) の union */
+export type ActionFields = string | StructuredField[];
+
 export interface ActionDefinition {
   id: string;
   name: string;
   trigger: ActionTrigger;
   elementRef?: string;
   description?: string;
-  /** 入力データ（自由記述、改行区切り） */
-  inputs?: string;
-  /** 出力データ（自由記述、改行区切り） */
-  outputs?: string;
+  /**
+   * 入力データ。
+   * - 旧形式: 改行区切り文字列 (既存データ互換)
+   * - 新形式: StructuredField[]
+   * docs/spec/process-flow-variables.md §3.1
+   */
+  inputs?: ActionFields;
+  /** 出力データ。inputs と同じ union 型 */
+  outputs?: ActionFields;
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
   steps: Step[];

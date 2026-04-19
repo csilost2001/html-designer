@@ -27,6 +27,7 @@ import {
 import { listTables } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
+import { fieldsToText } from "../../utils/actionFields";
 import { validateActionGroup, hasBlockingErrors } from "../../utils/actionValidation";
 import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
@@ -571,7 +572,7 @@ export function ActionEditor() {
                 <textarea
                   className="form-control form-control-sm action-io-textarea"
                   rows={1}
-                  value={activeAction.inputs ?? ""}
+                  value={fieldsToText(activeAction.inputs)}
                   onChange={(e) => {
                     const val = e.target.value;
                     updateGroupSilent((g) => {
@@ -588,7 +589,7 @@ export function ActionEditor() {
                 <textarea
                   className="form-control form-control-sm action-io-textarea"
                   rows={1}
-                  value={activeAction.outputs ?? ""}
+                  value={fieldsToText(activeAction.outputs)}
                   onChange={(e) => {
                     const val = e.target.value;
                     updateGroupSilent((g) => {

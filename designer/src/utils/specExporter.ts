@@ -11,6 +11,7 @@ import type { FlowProject } from "../types/flow";
 import type { ActionGroup, Step } from "../types/action";
 import { getAllRelations } from "./erUtils";
 import { getStepLabel } from "./actionUtils";
+import { fieldsToText } from "./actionFields";
 
 export interface SpecJson {
   /** プロジェクト名 */
@@ -175,8 +176,8 @@ export function generateSpecJson(
         actions: g.actions.map((a) => ({
           name: a.name,
           trigger: a.trigger,
-          inputs: a.inputs || undefined,
-          outputs: a.outputs || undefined,
+          inputs: fieldsToText(a.inputs) || undefined,
+          outputs: fieldsToText(a.outputs) || undefined,
           steps: a.steps.map((s, i) => toSpecStep(s, i)),
         })),
       };
