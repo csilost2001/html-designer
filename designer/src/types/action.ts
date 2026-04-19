@@ -122,12 +122,47 @@ export const ACTION_TRIGGER_LABELS: Record<ActionTrigger, string> = {
 
 // ── ステップ定義 ─────────────────────────────────────────────────────────
 
+// ── 成熟度・付箋 (docs/spec/process-flow-maturity.md §3〜§4) ───────────────
+
+/** 成熟度 3 値。既定は "draft" */
+export type Maturity = "draft" | "provisional" | "committed";
+
+export const MATURITY_VALUES: readonly Maturity[] = ["draft", "provisional", "committed"] as const;
+
+/** 付箋種別 5 値 (docs/spec/process-flow-maturity.md §4) */
+export type StepNoteType =
+  | "assumption"     // 想定
+  | "prerequisite"   // 前提 (別設計必要)
+  | "todo"           // TODO
+  | "deferred"       // 将来検討
+  | "question";      // 質問
+
+export const STEP_NOTE_TYPE_VALUES: readonly StepNoteType[] =
+  ["assumption", "prerequisite", "todo", "deferred", "question"] as const;
+
+/** 付箋 (1 ステップに複数持てる、種別付き) */
+export interface StepNote {
+  id: string;
+  type: StepNoteType;
+  body: string;
+  /** ISO timestamp */
+  createdAt: string;
+}
+
+/** アクショングループのモード (docs/spec/process-flow-maturity.md §5) */
+export type ActionGroupMode = "upstream" | "downstream";
+
 /** ステップ共通フィールド */
 export interface StepBase {
   id: string;
   type: StepType;
   description: string;
+  /** 旧形式の単一付箋 (後方互換)。読み込み時に notes[] へ自動変換される */
   note?: string;
+  /** 種別付き付箋。新規保存時はこちらを正とする */
+  notes?: StepNote[];
+  /** 成熟度。未指定は "draft" として解釈 */
+  maturity?: Maturity;
   subSteps?: Step[];
 }
 
@@ -260,6 +295,8 @@ export interface ActionDefinition {
   inputs?: string;
   /** 出力データ（自由記述、改行区切り） */
   outputs?: string;
+  /** 成熟度。未指定は "draft" として解釈 */
+  maturity?: Maturity;
   steps: Step[];
 }
 
@@ -272,6 +309,10 @@ export interface ActionGroup {
   screenId?: string;
   description: string;
   actions: ActionDefinition[];
+  /** 成熟度。未指定は "draft" として解釈 (docs/spec/process-flow-maturity.md §3) */
+  maturity?: Maturity;
+  /** 上流/下流モード。未指定は "upstream" として解釈 (docs/spec/process-flow-maturity.md §5) */
+  mode?: ActionGroupMode;
   createdAt: string;
   updatedAt: string;
 }
