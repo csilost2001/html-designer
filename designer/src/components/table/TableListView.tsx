@@ -171,6 +171,7 @@ export function TableListView() {
 
   const handleDuplicate = async (items: TableMeta[]) => {
     // 複製は新規エンティティ生成 → 即永続化。Save フローには乗せない。
+    const newIds: string[] = [];
     for (const t of items) {
       const full = await loadTable(t.id);
       if (!full) continue;
@@ -185,8 +186,10 @@ export function TableListView() {
         updatedAt: new Date().toISOString(),
       };
       await saveTable(dup);
+      newIds.push(dup.id);
     }
     await editor.reload();
+    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
   };
 
   const handlePaste = async (insertIdx: number | null) => {

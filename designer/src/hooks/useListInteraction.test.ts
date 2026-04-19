@@ -50,25 +50,36 @@ describe("List hooks interaction (§3.8)", () => {
     expect(result.current.selection.selectedIds).toEqual(new Set(["x2"]));
   });
 
-  it("フィルタ適用で非表示になった項目は selectedItems から除かれる", () => {
+  it("フィルタ適用で非表示になった項目は選択から除かれる (§3.8)", () => {
     const { result } = setup();
     // 全件から x2 と x4 (group=b) を選択
     act(() => result.current.selection.setSelectedIds(new Set(["x2", "x4"])));
     expect(result.current.selection.selectedItems.map((x) => x.id).sort()).toEqual(["x2", "x4"]);
     // group=a でフィルタ
     act(() => result.current.filter.applyFilter((x) => x.group === "a"));
-    // filtered 配列に x2, x4 がいないので selectedItems から除かれる
+    // selectedItems も selectedIds も空になる
     expect(result.current.selection.selectedItems.map((x) => x.id)).toEqual([]);
-    // 内部 selectedIds は保持 (再表示時に復活しない仕様なので消えないだけ)
-    expect(result.current.selection.selectedIds.has("x2")).toBe(true);
+    expect(result.current.selection.selectedIds.size).toBe(0);
   });
 
-  it("フィルタクリア後に items が戻っても、selectedItems は selectedIds から再構築される", () => {
+  it("フィルタクリア後、非表示だった項目の選択は復活しない (§3.8)", () => {
     const { result } = setup();
     act(() => result.current.selection.setSelectedIds(new Set(["x2"])));
     act(() => result.current.filter.applyFilter((x) => x.group === "a"));
+    // フィルタで x2 が除外された時点で selectedIds からも消えている
+    expect(result.current.selection.selectedIds.size).toBe(0);
     act(() => result.current.filter.clearFilter());
-    expect(result.current.selection.selectedItems.map((x) => x.id)).toEqual(["x2"]);
+    // クリア後 x2 は再表示されるが、選択は復活しない
+    expect(result.current.selection.selectedItems.map((x) => x.id)).toEqual([]);
+  });
+
+  it("フィルタ適用で可視範囲に残った項目の選択は維持される", () => {
+    const { result } = setup();
+    // x1 (group=a), x2 (group=b) を選択
+    act(() => result.current.selection.setSelectedIds(new Set(["x1", "x2"])));
+    // group=a でフィルタ → x2 だけ外れる
+    act(() => result.current.filter.applyFilter((x) => x.group === "a"));
+    expect(result.current.selection.selectedIds).toEqual(new Set(["x1"]));
   });
 
   it("Ctrl+A は見えている項目のみを選択対象とする", () => {

@@ -222,10 +222,13 @@ export function ActionListView() {
   };
 
   const handleDuplicate = async (items: ActionGroupMeta[]) => {
+    const newIds: string[] = [];
     for (const g of items) {
-      await duplicateGroup(g);
+      const id = await duplicateGroup(g);
+      if (id) newIds.push(id);
     }
     await editor.reload();
+    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
   };
 
   const handlePaste = async (insertIdx: number | null) => {

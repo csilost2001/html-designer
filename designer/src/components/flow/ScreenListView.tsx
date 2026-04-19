@@ -182,10 +182,13 @@ export function ScreenListView() {
   };
 
   const handleDuplicate = async (items: ScreenNode[]) => {
+    const newIds: string[] = [];
     for (const s of items) {
-      await duplicateScreen(s);
+      const id = await duplicateScreen(s);
+      if (id) newIds.push(id);
     }
     await editor.reload();
+    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
   };
 
   const handlePaste = async (insertIdx: number | null) => {

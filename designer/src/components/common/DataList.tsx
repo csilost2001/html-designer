@@ -138,12 +138,18 @@ export function DataList<T>({
     className ?? "",
   ].filter(Boolean).join(" ");
 
-  /** 空領域クリックで選択解除。ルート要素を直接クリックした場合のみ発火 */
+  /**
+   * 仕様 §3.1「何もない領域のクリック: 選択解除 (一覧コンテナの背景領域に限定)」
+   * 行/カード/ヘッダ/インタラクティブ要素の外側クリックで選択解除する。
+   */
   const handleRootClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!selection) return;
-    if (e.target === e.currentTarget) {
-      selection.clearSelection();
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest('[data-row-id], button, input, select, textarea, th, a')) {
+      return;
     }
+    selection.clearSelection();
   };
 
   if (items.length === 0) {
