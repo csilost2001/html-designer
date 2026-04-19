@@ -19,6 +19,7 @@ import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
+import { MaturityBadge } from "./MaturityBadge";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
@@ -476,6 +477,7 @@ export function ActionListView() {
             <i className={`${ACTION_GROUP_TYPE_ICONS[g.type as ActionGroupType] ?? "bi-three-dots"} me-1`} />
             {ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type}
           </span>
+          <MaturityBadge maturity={g.maturity} />
           <span className="action-card-name">{g.name}</span>
           {v && (hasError || hasWarning) && (
             <span className="action-validation-badges">
