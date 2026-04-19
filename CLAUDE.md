@@ -113,6 +113,17 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 - Playwright: `designer/e2e/**/*.spec.ts` — UI・ナビゲーション操作
 - MCP E2E: `designer/e2e/mcp/**/*.spec.ts` — wsBridge ファイル操作（要 designer-mcp 起動）
 
+## Process Flow (処理フロー) — 一次成果物は JSON Schema
+
+処理フロー定義はこのプロジェクトの主出力 (AI が読んで実装する前提)。TypeScript 型は派生物、UI は最後尾の表示層。変更時の順序:
+
+1. 仕様書 [`docs/spec/process-flow-*.md`](docs/spec/README.md)
+2. JSON Schema [`schemas/process-flow.schema.json`](schemas/process-flow.schema.json)
+3. TypeScript 型 `designer/src/types/action.ts`
+4. UI / 実装
+
+検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/actions/*.json` の全件をスキーマで検証する。
+
 ## UI Conventions
 
 詳細仕様は [docs/spec/](docs/spec/README.md) に集約。一覧系 UI を触る前に必ず読む:

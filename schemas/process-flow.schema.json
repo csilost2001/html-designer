@@ -1,0 +1,704 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/csilost2001/html-designer/schemas/process-flow.schema.json",
+  "title": "ActionGroup (処理フロー定義)",
+  "description": "html-designer の処理フロー (ActionGroup) の正規スキーマ。data/actions/*.json の各ファイル・docs/sample-project/actions/*.json の各ファイルに一致する。TypeScript 型は designer/src/types/action.ts の ActionGroup と等価。",
+  "type": "object",
+  "required": ["id", "name", "type", "description", "actions", "createdAt", "updatedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "type": { "$ref": "#/$defs/ActionGroupType" },
+    "screenId": { "type": "string" },
+    "description": { "type": "string" },
+    "maturity": { "$ref": "#/$defs/Maturity" },
+    "mode": { "$ref": "#/$defs/ActionGroupMode" },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ActionDefinition" }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+
+  "$defs": {
+    "ActionGroupType": {
+      "type": "string",
+      "enum": ["screen", "batch", "scheduled", "system", "common", "other"]
+    },
+    "ActionGroupMode": {
+      "type": "string",
+      "enum": ["upstream", "downstream"],
+      "description": "上流/下流モード。未指定は upstream 相当"
+    },
+    "Maturity": {
+      "type": "string",
+      "enum": ["draft", "provisional", "committed"],
+      "description": "成熟度 3 値。未指定は draft 相当"
+    },
+    "ActionTrigger": {
+      "type": "string",
+      "enum": ["click", "submit", "select", "change", "load", "timer", "other"]
+    },
+    "HttpMethod": {
+      "type": "string",
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    },
+    "HttpAuthRequirement": {
+      "type": "string",
+      "enum": ["required", "optional", "none"],
+      "description": "認証要件。未指定は required 相当"
+    },
+    "HttpRoute": {
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "$ref": "#/$defs/HttpMethod" },
+        "path": { "type": "string" },
+        "auth": { "$ref": "#/$defs/HttpAuthRequirement" }
+      }
+    },
+    "HttpResponseSpec": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "contentType": { "type": "string" },
+        "bodySchema": { "type": "string" },
+        "description": { "type": "string" },
+        "when": { "type": "string" }
+      }
+    },
+
+    "FieldType": {
+      "oneOf": [
+        { "type": "string", "enum": ["string", "number", "boolean", "date"] },
+        {
+          "type": "object",
+          "required": ["kind", "tableId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tableRow" },
+            "tableId": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "tableId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tableList" },
+            "tableId": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "screenId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "screenInput" },
+            "screenId": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "label"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "custom" },
+            "label": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "StructuredField": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "label": { "type": "string" },
+        "type": { "$ref": "#/$defs/FieldType" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" },
+        "defaultValue": { "type": "string" }
+      }
+    },
+    "ActionFields": {
+      "description": "旧形式 (改行区切り文字列) と新形式 (StructuredField[]) の union",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StructuredField" }
+        }
+      ]
+    },
+
+    "ActionDefinition": {
+      "type": "object",
+      "required": ["id", "name", "trigger", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "trigger": { "$ref": "#/$defs/ActionTrigger" },
+        "elementRef": { "type": "string" },
+        "description": { "type": "string" },
+        "inputs": { "$ref": "#/$defs/ActionFields" },
+        "outputs": { "$ref": "#/$defs/ActionFields" },
+        "maturity": { "$ref": "#/$defs/Maturity" },
+        "httpRoute": { "$ref": "#/$defs/HttpRoute" },
+        "responses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/HttpResponseSpec" }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Step" }
+        }
+      }
+    },
+
+    "StepNoteType": {
+      "type": "string",
+      "enum": ["assumption", "prerequisite", "todo", "deferred", "question"]
+    },
+    "StepNote": {
+      "type": "object",
+      "required": ["id", "type", "body", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "$ref": "#/$defs/StepNoteType" },
+        "body": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "OutputBindingOperation": {
+      "type": "string",
+      "enum": ["assign", "accumulate", "push"]
+    },
+    "OutputBindingObject": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "operation": { "$ref": "#/$defs/OutputBindingOperation" }
+      }
+    },
+    "OutputBinding": {
+      "oneOf": [
+        { "type": "string" },
+        { "$ref": "#/$defs/OutputBindingObject" }
+      ]
+    },
+
+    "TxBoundaryRole": { "type": "string", "enum": ["begin", "member", "end"] },
+    "TxBoundary": {
+      "type": "object",
+      "required": ["role", "txId"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "$ref": "#/$defs/TxBoundaryRole" },
+        "txId": { "type": "string" }
+      }
+    },
+    "ExternalChainPhase": {
+      "type": "string",
+      "enum": ["authorize", "capture", "cancel", "other"]
+    },
+    "ExternalChain": {
+      "type": "object",
+      "required": ["chainId", "phase"],
+      "additionalProperties": false,
+      "properties": {
+        "chainId": { "type": "string" },
+        "phase": { "$ref": "#/$defs/ExternalChainPhase" }
+      }
+    },
+
+    "StepBaseProps": {
+      "description": "全ステップ共通フィールド (StepBase のプロパティ集合)。各 Step variant はこれを allOf でマージする",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "note": { "type": "string" },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StepNote" }
+        },
+        "maturity": { "$ref": "#/$defs/Maturity" },
+        "runIf": { "type": "string" },
+        "outputBinding": { "$ref": "#/$defs/OutputBinding" },
+        "txBoundary": { "$ref": "#/$defs/TxBoundary" },
+        "transactional": { "type": "boolean" },
+        "compensatesFor": { "type": "string" },
+        "externalChain": { "$ref": "#/$defs/ExternalChain" },
+        "subSteps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Step" }
+        }
+      }
+    },
+
+    "ValidationRuleType": {
+      "type": "string",
+      "enum": ["required", "regex", "maxLength", "minLength", "range", "enum", "custom"]
+    },
+    "ValidationRule": {
+      "type": "object",
+      "required": ["field", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "type": { "$ref": "#/$defs/ValidationRuleType" },
+        "pattern": { "type": "string" },
+        "length": { "type": "integer", "minimum": 0 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "values": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "condition": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "ValidationInlineBranch": {
+      "type": "object",
+      "required": ["ok", "ng"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "type": "string" },
+        "ng": { "type": "string" },
+        "ngJumpTo": { "type": "string" },
+        "ngResponseRef": { "type": "string" },
+        "ngBodyExpression": { "type": "string" }
+      }
+    },
+    "ValidationStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "conditions"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "validation" },
+            "conditions": { "type": "string" },
+            "rules": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ValidationRule" }
+            },
+            "inlineBranch": { "$ref": "#/$defs/ValidationInlineBranch" }
+          }
+        }
+      ]
+    },
+
+    "DbOperation": {
+      "type": "string",
+      "enum": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+    },
+    "AffectedRowsOperator": {
+      "type": "string",
+      "enum": [">", ">=", "=", "<", "<="]
+    },
+    "AffectedRowsCheck": {
+      "type": "object",
+      "required": ["operator", "expected", "onViolation"],
+      "additionalProperties": false,
+      "properties": {
+        "operator": { "$ref": "#/$defs/AffectedRowsOperator" },
+        "expected": { "type": "integer" },
+        "onViolation": {
+          "type": "string",
+          "enum": ["throw", "abort", "log", "continue"]
+        },
+        "errorCode": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "DbAccessStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "tableName", "operation"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "dbAccess" },
+            "tableName": { "type": "string" },
+            "tableId": { "type": "string" },
+            "operation": { "$ref": "#/$defs/DbOperation" },
+            "fields": { "type": "string" },
+            "sql": { "type": "string" },
+            "affectedRowsCheck": { "$ref": "#/$defs/AffectedRowsCheck" }
+          }
+        }
+      ]
+    },
+
+    "ExternalCallOutcome": {
+      "type": "string",
+      "enum": ["success", "failure", "timeout"]
+    },
+    "ExternalCallOutcomeSpec": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["continue", "abort", "compensate"]
+        },
+        "description": { "type": "string" },
+        "jumpTo": { "type": "string" },
+        "sideEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Step" }
+        },
+        "sameAs": { "$ref": "#/$defs/ExternalCallOutcome" }
+      }
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "required": ["maxAttempts"],
+      "additionalProperties": false,
+      "properties": {
+        "maxAttempts": { "type": "integer", "minimum": 1 },
+        "backoff": {
+          "type": "string",
+          "enum": ["fixed", "exponential"]
+        },
+        "initialDelayMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ExternalSystemStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "systemName"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "externalSystem" },
+            "systemName": { "type": "string" },
+            "protocol": { "type": "string" },
+            "outcomes": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "success": { "$ref": "#/$defs/ExternalCallOutcomeSpec" },
+                "failure": { "$ref": "#/$defs/ExternalCallOutcomeSpec" },
+                "timeout": { "$ref": "#/$defs/ExternalCallOutcomeSpec" }
+              }
+            },
+            "timeoutMs": { "type": "integer", "minimum": 0 },
+            "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
+            "fireAndForget": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+
+    "CommonProcessStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "refId"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "commonProcess" },
+            "refId": { "type": "string" },
+            "refName": { "type": "string" },
+            "argumentMapping": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+
+    "ScreenTransitionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "targetScreenName"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "screenTransition" },
+            "targetScreenId": { "type": "string" },
+            "targetScreenName": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "DisplayUpdateStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "target"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "displayUpdate" },
+            "target": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "BranchConditionVariant": {
+      "type": "object",
+      "required": ["kind", "errorCode"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "tryCatch" },
+        "errorCode": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "BranchCondition": {
+      "oneOf": [
+        { "type": "string" },
+        { "$ref": "#/$defs/BranchConditionVariant" }
+      ]
+    },
+    "Branch": {
+      "type": "object",
+      "required": ["id", "code", "condition", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "label": { "type": "string" },
+        "condition": { "$ref": "#/$defs/BranchCondition" },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Step" }
+        }
+      }
+    },
+    "BranchStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "branches"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "branch" },
+            "branches": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/Branch" }
+            },
+            "elseBranch": { "$ref": "#/$defs/Branch" }
+          }
+        }
+      ]
+    },
+
+    "LoopKind": { "type": "string", "enum": ["count", "condition", "collection"] },
+    "LoopConditionMode": { "type": "string", "enum": ["continue", "exit"] },
+    "LoopStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "loopKind", "steps"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "loop" },
+            "loopKind": { "$ref": "#/$defs/LoopKind" },
+            "countExpression": { "type": "string" },
+            "conditionMode": { "$ref": "#/$defs/LoopConditionMode" },
+            "conditionExpression": { "type": "string" },
+            "collectionSource": { "type": "string" },
+            "collectionItemName": { "type": "string" },
+            "steps": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            }
+          }
+        }
+      ]
+    },
+
+    "LoopBreakStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "loopBreak" }
+          }
+        }
+      ]
+    },
+    "LoopContinueStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "loopContinue" }
+          }
+        }
+      ]
+    },
+
+    "JumpStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "jumpTo"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "jump" },
+            "jumpTo": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "ComputeStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "expression"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "compute" },
+            "expression": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "ReturnStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "return" },
+            "responseRef": { "type": "string" },
+            "bodyExpression": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "OtherStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true,
+            "type": { "const": "other" }
+          }
+        }
+      ]
+    },
+
+    "Step": {
+      "description": "discriminator: type プロパティの値で variant を決定",
+      "oneOf": [
+        { "$ref": "#/$defs/ValidationStep" },
+        { "$ref": "#/$defs/DbAccessStep" },
+        { "$ref": "#/$defs/ExternalSystemStep" },
+        { "$ref": "#/$defs/CommonProcessStep" },
+        { "$ref": "#/$defs/ScreenTransitionStep" },
+        { "$ref": "#/$defs/DisplayUpdateStep" },
+        { "$ref": "#/$defs/BranchStep" },
+        { "$ref": "#/$defs/LoopStep" },
+        { "$ref": "#/$defs/LoopBreakStep" },
+        { "$ref": "#/$defs/LoopContinueStep" },
+        { "$ref": "#/$defs/JumpStep" },
+        { "$ref": "#/$defs/ComputeStep" },
+        { "$ref": "#/$defs/ReturnStep" },
+        { "$ref": "#/$defs/OtherStep" }
+      ]
+    }
+  }
+}
