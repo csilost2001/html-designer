@@ -19,6 +19,7 @@ import type { ValidationError } from "../../utils/actionValidation";
 import { getBranchConditionText } from "../../utils/branchCondition";
 import { generateUUID } from "../../utils/uuid";
 import { createDefaultStep } from "../../store/actionStore";
+import { MaturityBadge } from "./MaturityBadge";
 import { JumpTargetSelector } from "./JumpTargetSelector";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
@@ -409,6 +410,7 @@ export function StepCard({
           <span className="step-card-number">{label}</span>
           <i className={`step-card-icon ${STEP_TYPE_ICONS[step.type]}`} style={{ color }} />
           <span className="step-card-type-label">{STEP_TYPE_LABELS[step.type]}</span>
+          <MaturityBadge maturity={step.maturity} />
           <span className="step-card-description">{summaryText()}</span>
           {step.type === "commonProcess" && step.refId && (
             <button
