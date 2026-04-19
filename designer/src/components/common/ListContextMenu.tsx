@@ -34,8 +34,22 @@ interface Props {
 
 export function ListContextMenu({ items, x, y, onClose }: Props): ReactElement {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // docs/spec/list-common.md §4.6: 閉じた時に元の要素にフォーカスを戻す
+  const previousActiveRef = useRef<HTMLElement | null>(
+    typeof document !== "undefined" ? (document.activeElement as HTMLElement) : null,
+  );
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
   const [focusedIdx, setFocusedIdx] = useState<number>(() => firstFocusableIndex(items));
+
+  // アンマウント時に元のフォーカスへ戻す
+  useEffect(() => {
+    const prev = previousActiveRef.current;
+    return () => {
+      if (prev && typeof prev.focus === "function") {
+        try { prev.focus(); } catch { /* 既に DOM から外れている等は無視 */ }
+      }
+    };
+  }, []);
 
   // 画面端からはみ出す場合は反対側にフリップ
   useLayoutEffect(() => {
