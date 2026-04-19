@@ -349,21 +349,6 @@ function ColumnsTab({
     selection.setSelectedIds(new Set(newIds));
   };
 
-  useListKeyboard({
-    items: sort.sorted,
-    getId: (c) => c.id,
-    selection,
-    clipboard,
-    sort,
-    layout: "list",
-    onActivate: (c) => setActiveColId(c.id),
-    onDelete: handleDelete,
-    onDuplicate: handleDuplicate,
-    onMoveUp: (cols) => moveBlock(cols, "up"),
-    onMoveDown: (cols) => moveBlock(cols, "down"),
-    onPaste: handlePaste,
-  });
-
   const sortActive = sort.sortKeys.length > 0;
 
   // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築 (カラム一覧は上へ/下へも含む)
@@ -458,9 +443,31 @@ function ColumnsTab({
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
+  const handleContextMenuKey = (first: TableColumn | null, rect: DOMRect | null) => {
+    const x = rect ? rect.left : 100;
+    const y = rect ? rect.bottom : 100;
+    setContextMenu({ x, y, items: buildMenuItems(first) });
+  };
+
   const handleRowDelete = (c: TableColumn) => {
     handleDelete([c]);
   };
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (c) => c.id,
+    selection,
+    clipboard,
+    sort,
+    layout: "list",
+    onActivate: (c) => setActiveColId(c.id),
+    onDelete: handleDelete,
+    onDuplicate: handleDuplicate,
+    onMoveUp: (cols) => moveBlock(cols, "up"),
+    onMoveDown: (cols) => moveBlock(cols, "down"),
+    onPaste: handlePaste,
+    onContextMenuKey: handleContextMenuKey,
+  });
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
     name: "カラム名",

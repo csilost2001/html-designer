@@ -251,21 +251,6 @@ export function TableListView() {
     }
   };
 
-  useListKeyboard({
-    items: sort.sorted,
-    getId: (t) => t.id,
-    selection,
-    clipboard,
-    sort,
-    layout: viewMode === "card" ? "grid" : "list",
-    onActivate: handleActivate,
-    onDelete: handleDelete,
-    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
-    onMoveUp: (items) => moveBlock(items, "up"),
-    onMoveDown: (items) => moveBlock(items, "down"),
-    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
-  });
-
   const sortActive = sort.sortKeys.length > 0;
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
@@ -358,9 +343,31 @@ export function TableListView() {
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
+  const handleContextMenuKey = (first: TableMeta | null, rect: DOMRect | null) => {
+    const x = rect ? rect.left : 100;
+    const y = rect ? rect.bottom : 100;
+    setContextMenu({ x, y, items: buildMenuItems(first) });
+  };
+
   const handleRowDelete = (t: TableMeta) => {
     handleDelete([t]);
   };
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (t) => t.id,
+    selection,
+    clipboard,
+    sort,
+    layout: viewMode === "card" ? "grid" : "list",
+    onActivate: handleActivate,
+    onDelete: handleDelete,
+    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
+    onMoveUp: (items) => moveBlock(items, "up"),
+    onMoveDown: (items) => moveBlock(items, "down"),
+    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
+    onContextMenuKey: handleContextMenuKey,
+  });
 
   const handleExportDdl = async () => {
     const defs: TableDefinition[] = [];

@@ -33,6 +33,12 @@ interface ListKeyboardOpts<T> {
   onDuplicate?: (items: T[]) => void;
   onMoveUp?: (items: T[]) => void;
   onMoveDown?: (items: T[]) => void;
+  /**
+   * Menu キー / Shift+F10 でコンテキストメニューを開く (docs/spec/list-common.md §3.11)。
+   * firstSelected は選択中の先頭行 (選択ゼロなら null)、anchorRect は位置決め用の矩形
+   * (選択行があればその行の getBoundingClientRect、なければ一覧コンテナの左上)。
+   */
+  onContextMenuKey?: (firstSelected: T | null, anchorRect: DOMRect | null) => void;
   enabled?: boolean;
 }
 
@@ -52,7 +58,7 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
     layout = "list",
     getItemRect,
     onActivate, onDelete, onCopy, onCut, onPaste, onDuplicate,
-    onMoveUp, onMoveDown,
+    onMoveUp, onMoveDown, onContextMenuKey,
     enabled = true,
   } = opts;
 
@@ -147,6 +153,23 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
         return;
       }
 
+      // docs/spec/list-common.md §3.11: Menu キー / Shift+F10 でコンテキストメニューを開く
+      if (onContextMenuKey) {
+        const isContextMenuKey =
+          e.key === "ContextMenu" ||
+          (e.shiftKey && e.key === "F10" && !ctrl && !e.altKey);
+        if (isContextMenuKey) {
+          e.preventDefault();
+          const firstSelected = selection.selectedItems[0] ?? null;
+          const anchorId = firstSelected ? getId(firstSelected) : null;
+          const rect = anchorId
+            ? (getItemRect?.(anchorId) ?? queryRowRect(anchorId))
+            : null;
+          onContextMenuKey(firstSelected, rect);
+          return;
+        }
+      }
+
       if (e.altKey && !ctrl && !e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         if (reorderDisabled) return; // §3.9: ソート中は Alt+↑↓ 無効
         const moveHandler = e.key === "ArrowUp" ? onMoveUp : onMoveDown;
@@ -222,8 +245,15 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
     return () => window.removeEventListener("keydown", handler);
   }, [
     enabled, items, getId, selection, clipboard, sort, layout, getItemRect,
-    onActivate, onDelete, onCopy, onCut, onPaste, onDuplicate, onMoveUp, onMoveDown,
+    onActivate, onDelete, onCopy, onCut, onPaste, onDuplicate, onMoveUp, onMoveDown, onContextMenuKey,
   ]);
+}
+
+/** フォールバック: data-row-id で要素を探して矩形を返す */
+function queryRowRect(id: string): DOMRect | null {
+  if (typeof document === "undefined") return null;
+  const el = document.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
+  return el ? el.getBoundingClientRect() : null;
 }
 
 /**
