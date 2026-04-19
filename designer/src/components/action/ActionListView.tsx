@@ -44,6 +44,7 @@ export function ActionListView() {
   const navigate = useNavigate();
   const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
   const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
+  const [filterMaturity, setFilterMaturity] = useState<"all" | "draft" | "provisional" | "committed">("all");
   const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
@@ -133,17 +134,22 @@ export function ActionListView() {
 
   useEffect(() => {
     const hasTypeFilter = filterType !== "all";
-    if (!hasTypeFilter && !filterErrorsOnly) {
+    const hasMaturityFilter = filterMaturity !== "all";
+    if (!hasTypeFilter && !filterErrorsOnly && !hasMaturityFilter) {
       filter.applyFilter(null);
       return;
     }
     filter.applyFilter((g) => {
       if (hasTypeFilter && g.type !== filterType) return false;
       if (filterErrorsOnly && getErrorPriority(g.id) === 0) return false;
+      if (hasMaturityFilter) {
+        const m = g.maturity ?? "draft";
+        if (m !== filterMaturity) return false;
+      }
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterType, filterErrorsOnly, validationMap]);
+  }, [filterType, filterErrorsOnly, filterMaturity, validationMap]);
 
   const sortAccessor = useCallback((g: ActionGroupMeta, key: string): string | number => {
     switch (key) {
@@ -584,6 +590,23 @@ export function ActionListView() {
             />
             エラーありのみ
           </label>
+
+          <div className="action-list-filter-sep" />
+
+          <label className="action-list-check-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            成熟度:
+            <select
+              className="form-select form-select-sm"
+              value={filterMaturity}
+              onChange={(e) => setFilterMaturity(e.target.value as typeof filterMaturity)}
+              style={{ width: "auto", fontSize: "0.85rem" }}
+            >
+              <option value="all">すべて</option>
+              <option value="draft">🟡 draft</option>
+              <option value="provisional">🟠 provisional</option>
+              <option value="committed">🟢 committed</option>
+            </select>
+          </label>
         </div>
 
         <FilterBar
@@ -595,7 +618,7 @@ export function ActionListView() {
               ? `種別: ${ACTION_GROUP_TYPE_LABELS[filterType]}${filterErrorsOnly ? " + エラーあり" : ""}`
               : filterErrorsOnly ? "エラーあり" : undefined
           }
-          onClear={() => { setFilterType("all"); setFilterErrorsOnly(false); }}
+          onClear={() => { setFilterType("all"); setFilterErrorsOnly(false); setFilterMaturity("all"); }}
         />
 
         <SortBar sort={sort} columnLabels={columnLabels} />
