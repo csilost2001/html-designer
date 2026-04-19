@@ -1147,14 +1147,55 @@ export function StepCard({
                         onClick={() => toggleBranchCollapse(br.id)}
                       >
                         <span className="branch-code-badge">{br.code}</span>
-                        <input
-                          className="form-control form-control-sm branch-condition-input"
-                          value={getBranchConditionText(br.condition)}
-                          placeholder="分岐条件"
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setBranchAt(bi, { ...br, condition: e.target.value })}
-                          onBlur={onCommit}
-                        />
+                        {typeof br.condition === "object" ? (
+                          <div className="d-flex align-items-center gap-1 flex-grow-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="badge bg-info text-dark" style={{ fontSize: "0.7rem" }}>tryCatch</span>
+                            <input
+                              className="form-control form-control-sm"
+                              value={br.condition.errorCode}
+                              placeholder="errorCode (例: STOCK_SHORTAGE)"
+                              onChange={(e) => setBranchAt(bi, {
+                                ...br,
+                                condition: { ...br.condition as { kind: "tryCatch"; errorCode: string; description?: string }, errorCode: e.target.value },
+                              })}
+                              onBlur={onCommit}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-link text-muted p-0"
+                              title="自由記述に戻す"
+                              onClick={() => setBranchAt(bi, { ...br, condition: "" })}
+                            >
+                              <i className="bi bi-arrow-counterclockwise" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <input
+                              className="form-control form-control-sm branch-condition-input"
+                              value={br.condition}
+                              placeholder="分岐条件 (自由記述)"
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setBranchAt(bi, { ...br, condition: e.target.value })}
+                              onBlur={onCommit}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-link text-muted p-0"
+                              title="tryCatch variant に切替"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBranchAt(bi, {
+                                  ...br,
+                                  condition: { kind: "tryCatch", errorCode: "" },
+                                });
+                              }}
+                              style={{ flexShrink: 0 }}
+                            >
+                              <i className="bi bi-shield-exclamation" />
+                            </button>
+                          </>
+                        )}
                         {bi > 0 && (
                           <button
                             className="step-card-menu-btn"
