@@ -438,34 +438,70 @@ export function StepCard({
             </span>
           )}
           {step.runIf && (
-            <span title={`runIf: ${step.runIf}`} style={{ color: "#3b82f6", fontSize: 11, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              title={`runIf: ${step.runIf} (クリックで編集)`}
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              style={{ color: "#3b82f6", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
               <i className="bi bi-funnel" />
-            </span>
+            </button>
           )}
           {step.txBoundary && (
-            <span title={`TX: ${step.txBoundary.role} (${step.txBoundary.txId})`} style={{ color: "#8b5cf6", fontSize: 11, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              title={`TX: ${step.txBoundary.role} (${step.txBoundary.txId}) (クリックで編集)`}
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              style={{ color: "#8b5cf6", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
               <i className="bi bi-layers" />
-            </span>
+            </button>
           )}
           {step.compensatesFor && (
-            <span title={`Saga 補償 → ${step.compensatesFor}`} style={{ color: "#ef4444", fontSize: 11, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              title={`Saga 補償 → ${step.compensatesFor} (クリックで編集)`}
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              style={{ color: "#ef4444", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
               <i className="bi bi-arrow-counterclockwise" />
-            </span>
+            </button>
           )}
           {step.externalChain && (
-            <span title={`chain: ${step.externalChain.chainId} (${step.externalChain.phase})`} style={{ color: "#f97316", fontSize: 11, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              title={`chain: ${step.externalChain.chainId} (${step.externalChain.phase}) (クリックで編集)`}
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              style={{ color: "#f97316", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
               <i className="bi bi-link-45deg" />
-            </span>
+            </button>
           )}
           {step.type === "dbAccess" && step.affectedRowsCheck && (
-            <span title={`行数チェック: ${step.affectedRowsCheck.operator}${step.affectedRowsCheck.expected} → ${step.affectedRowsCheck.onViolation}`} style={{ color: "#14b8a6", fontSize: 11, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              title={`行数チェック: ${step.affectedRowsCheck.operator}${step.affectedRowsCheck.expected} → ${step.affectedRowsCheck.onViolation} (クリックで編集)`}
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              style={{ color: "#14b8a6", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
               <i className="bi bi-shield-check" />
-            </span>
+            </button>
           )}
           {step.type === "externalSystem" && step.outcomes && Object.keys(step.outcomes).length > 0 && (
-            <span title={`outcomes: ${Object.keys(step.outcomes).join(", ")}`} style={{ color: "#0ea5e9", fontSize: 11, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              title={`outcomes: ${Object.keys(step.outcomes).join(", ")} (クリックで編集)`}
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              style={{ color: "#0ea5e9", fontSize: 11, flexShrink: 0, lineHeight: 1 }}
+            >
               <i className="bi bi-diagram-3" />
-            </span>
+            </button>
           )}
           {step.type === "externalSystem" && step.fireAndForget && (
             <span title="fire-and-forget" style={{ color: "#eab308", fontSize: 11, flexShrink: 0 }}>
