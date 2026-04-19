@@ -152,6 +152,29 @@ export interface StepNote {
 /** アクショングループのモード (docs/spec/process-flow-maturity.md §5) */
 export type ActionGroupMode = "upstream" | "downstream";
 
+// ── outputBinding の構造化 (docs/spec, #151 (B)) ──────────────────────────
+
+/**
+ * outputBinding の代入方式。
+ * - "assign": 新規代入 / 上書き (既定)
+ * - "accumulate": 数値加算 (subtotal += ... のような累積)
+ * - "push": 配列への要素追加 (shortageList.push(...) / enrichedItems.push(...))
+ */
+export type OutputBindingOperation = "assign" | "accumulate" | "push";
+
+/** 構造化版 outputBinding */
+export interface OutputBindingObject {
+  name: string;
+  /** 既定は "assign" */
+  operation?: OutputBindingOperation;
+}
+
+/**
+ * outputBinding の値型: 旧 string (assign 相当) と新 OutputBindingObject の union。
+ * ヘルパー getBindingName / getBindingOperation を使うと透過的に扱える。
+ */
+export type OutputBinding = string | OutputBindingObject;
+
 // ── TX 境界 / Saga / 外部チェーン (docs/spec, #151 (B)) ─────────────────────
 
 /** TX 境界におけるステップの役割 */
@@ -186,10 +209,11 @@ export interface StepBase {
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
   /**
-   * ステップの結果を保持する変数名。後続ステップは @変数名 で参照する。
-   * docs/spec/process-flow-variables.md §3.2
+   * ステップの結果を保持する変数。後続ステップは @変数名 で参照する。
+   * 旧形式 (string) は assign 相当、新形式 (object) は operation で代入方式を指定可能。
+   * docs/spec/process-flow-variables.md §3.2, #151 (B)
    */
-  outputBinding?: string;
+  outputBinding?: OutputBinding;
   /**
    * トランザクション境界。同一 txId を持つステップ群が単一 TX 内で実行される。
    * docs/spec, #151 (B)
