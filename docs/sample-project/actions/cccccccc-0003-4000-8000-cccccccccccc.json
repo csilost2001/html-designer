@@ -3,17 +3,34 @@
   "name": "認証チェック",
   "type": "common",
   "description": "セッション・トークン検証を行う共通処理",
+  "mode": "upstream",
+  "maturity": "provisional",
   "actions": [
     {
       "id": "act-auth-001",
       "name": "認証処理",
       "trigger": "other",
+      "maturity": "provisional",
+      "inputs": [
+        { "name": "userId", "label": "ユーザーID", "type": "string", "required": true },
+        { "name": "password", "label": "パスワード", "type": "string", "required": true }
+      ],
+      "outputs": [
+        { "name": "success", "label": "認証成功判定", "type": "boolean" },
+        { "name": "sessionId", "label": "セッションID", "type": "string" },
+        { "name": "permissions", "label": "権限一覧", "type": { "kind": "custom", "label": "string[]" } }
+      ],
       "steps": [
         {
           "id": "step-auth-001",
           "type": "validation",
+          "maturity": "committed",
           "description": "セッション有効性チェック",
           "conditions": "セッションIDの存在確認・有効期限チェック",
+          "rules": [
+            { "field": "userId", "type": "required" },
+            { "field": "password", "type": "required" }
+          ],
           "inlineBranch": {
             "ok": "トークン検証へ",
             "ng": "ログイン画面へリダイレクト"
@@ -22,30 +39,56 @@
         {
           "id": "step-auth-002",
           "type": "dbAccess",
-          "description": "トークン検証",
+          "maturity": "provisional",
+          "description": "ユーザー認証情報取得",
           "tableName": "users",
           "tableId": "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb",
           "operation": "SELECT",
-          "fields": "認証トークン、有効期限"
+          "sql": "SELECT id, password_hash, permissions FROM users WHERE login_id = @userId AND is_deleted = false LIMIT 1",
+          "outputBinding": "userRow",
+          "notes": [
+            { "id": "n-auth-001", "type": "assumption", "body": "password_hash は bcrypt (cost 12) 想定 (product-scope §6)", "createdAt": "2026-04-14T00:00:00.000Z" }
+          ]
         },
         {
           "id": "step-auth-003",
           "type": "branch",
+          "maturity": "committed",
           "description": "認証結果判定",
-          "condition": "トークンが有効か",
-          "branchA": {
-            "label": "有効",
-            "description": "処理を続行"
-          },
-          "branchB": {
+          "branches": [
+            {
+              "id": "br-auth-ok",
+              "code": "A",
+              "label": "有効",
+              "condition": "@userRow != null && bcryptCompare(@password, @userRow.password_hash)",
+              "steps": [
+                {
+                  "id": "step-auth-003-a-1",
+                  "type": "other",
+                  "maturity": "committed",
+                  "description": "処理を続行、sessionId を発行"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-auth-ng",
+            "code": "ELSE",
             "label": "無効",
-            "description": "ログイン画面へリダイレクト",
-            "jumpTo": ""
+            "condition": "",
+            "steps": [
+              {
+                "id": "step-auth-003-else-1",
+                "type": "other",
+                "maturity": "committed",
+                "description": "ログイン画面へリダイレクト"
+              }
+            ]
           }
         }
       ]
     }
   ],
   "createdAt": "2026-04-14T00:00:00.000Z",
-  "updatedAt": "2026-04-14T00:00:00.000Z"
+  "updatedAt": "2026-04-20T12:00:00.000Z"
 }
