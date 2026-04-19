@@ -410,7 +410,10 @@ export function StepCard({
           <span className="step-card-number">{label}</span>
           <i className={`step-card-icon ${STEP_TYPE_ICONS[step.type]}`} style={{ color }} />
           <span className="step-card-type-label">{STEP_TYPE_LABELS[step.type]}</span>
-          <MaturityBadge maturity={step.maturity} />
+          <MaturityBadge
+            maturity={step.maturity}
+            onChange={(next) => onChange({ maturity: next } as Partial<Step>)}
+          />
           <span className="step-card-description">{summaryText()}</span>
           {step.type === "commonProcess" && step.refId && (
             <button
