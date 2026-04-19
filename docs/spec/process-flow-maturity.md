@@ -38,6 +38,11 @@ Issue: #152 (親トラッキング: #151)
 
 明示的に昇格・降格する。
 
+UI サンプル:
+- 一覧での maturity サマリバー + フィルタ: ![一覧 maturity UI](../ui-screenshots/01-process-flow-list.png)
+- ダッシュボード成熟度パネル: ![ダッシュボード成熟度](../ui-screenshots/06-dashboard-maturity-panel.png)
+- 下流モード切替時の未確定警告: ![下流警告](../ui-screenshots/13-downstream-mode.png)
+
 ### 粒度 (どこに付くか)
 
 - **ステップ単位** (`step.maturity`): ステップ全体の成熟度
