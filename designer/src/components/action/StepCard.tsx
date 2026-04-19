@@ -22,6 +22,7 @@ import { generateUUID } from "../../utils/uuid";
 import { createDefaultStep } from "../../store/actionStore";
 import { MaturityBadge } from "./MaturityBadge";
 import { NotesPanel } from "./NotesPanel";
+import { StepAdvancedMetadataPanel } from "./StepAdvancedMetadataPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
@@ -606,6 +607,11 @@ export function StepCard({
                 </select>
               </div>
             </div>
+            <StepAdvancedMetadataPanel
+              step={step}
+              onChange={onChange}
+              onCommit={onCommit}
+            />
             <NotesPanel
               notes={step.notes}
               onChange={(notes) => onChange({ notes } as Partial<Step>)}
