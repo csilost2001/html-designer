@@ -20,6 +20,7 @@ import { getBranchConditionText } from "../../utils/branchCondition";
 import { generateUUID } from "../../utils/uuid";
 import { createDefaultStep } from "../../store/actionStore";
 import { MaturityBadge } from "./MaturityBadge";
+import { NotesPanel } from "./NotesPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
@@ -517,6 +518,10 @@ export function StepCard({
                 />
               </div>
             </div>
+            <NotesPanel
+              notes={step.notes}
+              onChange={(notes) => onChange({ notes } as Partial<Step>)}
+            />
 
             {/* ── バリデーション ───────────────────────────────── */}
             {step.type === "validation" && (
