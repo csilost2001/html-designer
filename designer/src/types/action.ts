@@ -210,9 +210,53 @@ export interface StepBase {
   subSteps?: Step[];
 }
 
+// ── 構造化バリデーション (docs/spec, #151 (B)) ─────────────────────────────
+
+export type ValidationRuleType =
+  | "required"    // 非空必須
+  | "regex"       // 正規表現マッチ
+  | "maxLength"   // 最大文字数
+  | "minLength"   // 最小文字数
+  | "range"       // 数値範囲
+  | "enum"        // 許容値セット
+  | "custom";     // 自由記述
+
+/**
+ * 1 件のバリデーションルール。同一 field に複数ルールを付けられる (配列の順で適用)。
+ * message は直接文字列か @conv.msg.* 参照を想定。
+ */
+export interface ValidationRule {
+  /** 検証対象フィールド名 (inputs[].name を参照) */
+  field: string;
+  type: ValidationRuleType;
+  /** type="regex" 時のパターン (生 regex or @conv.regex.* 参照) */
+  pattern?: string;
+  /** type="maxLength" / "minLength" 時の文字数 */
+  length?: number;
+  /** type="range" 時の最小値 */
+  min?: number;
+  /** type="range" 時の最大値 */
+  max?: number;
+  /** type="enum" 時の許容値リスト */
+  values?: string[];
+  /** type="custom" 時の自由記述条件 (例: "@items.length >= 1") */
+  condition?: string;
+  /** エラーメッセージ (直接文字列 or @conv.msg.* 参照) */
+  message?: string;
+}
+
 export interface ValidationStep extends StepBase {
   type: "validation";
+  /**
+   * 自由記述のバリデーション条件 (後方互換、人間可読の補足として残す)。
+   * 構造化済なら rules[] を優先。
+   */
   conditions: string;
+  /**
+   * 構造化バリデーションルール。AI / UI はこちらを機械可読な一次情報として使う。
+   * 未指定時は conditions の自由記述を読むしかない (後方互換)。
+   */
+  rules?: ValidationRule[];
   inlineBranch?: {
     ok: string;
     ng: string;
