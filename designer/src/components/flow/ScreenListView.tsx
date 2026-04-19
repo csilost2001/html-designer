@@ -9,6 +9,7 @@ import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
+import { SortBar } from "../common/SortBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -67,6 +68,7 @@ export function ScreenListView() {
     load: loadScreens,
     commit: commitScreens,
     tabId: TAB_ID,
+    renumber,
   });
 
   useEffect(() => {
@@ -124,6 +126,7 @@ export function ScreenListView() {
   };
 
   const handleReorder = (fromIdx: number, toIdx: number) => {
+    // docs/spec/list-common.md §3.9: ソート中は DataList 側で D&D が無効化される
     const visible = sort.sorted;
     const fromId = visible[fromIdx]?.id;
     const toId = visible[toIdx]?.id;
@@ -131,18 +134,17 @@ export function ScreenListView() {
     const realFrom = editor.items.findIndex((s) => s.id === fromId);
     const realTo = editor.items.findIndex((s) => s.id === toId);
     if (realFrom < 0 || realTo < 0) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
     editor.reorder(realFrom, realTo);
   };
 
   const moveBlock = (items: ScreenNode[], direction: "up" | "down") => {
+    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化される
     const ids = new Set(items.map((s) => s.id));
     const idxs = editor.items
       .map((s, i) => (ids.has(s.id) ? i : -1))
       .filter((i) => i >= 0)
       .sort((a, b) => a - b);
     if (idxs.length === 0) return;
-    if (sort.sortKeys.length > 0) sort.clearSort();
     if (direction === "up") {
       if (idxs[0] === 0) return;
       editor.setItems((prev) => {
@@ -205,7 +207,7 @@ export function ScreenListView() {
       const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
       if (sameSet) return;
 
-      if (sort.sortKeys.length > 0) sort.clearSort();
+      // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化される
       clipboard.consume();
       const moved = clipItems;
       const pos0 = insertIdx ?? editor.items.length;
@@ -235,6 +237,7 @@ export function ScreenListView() {
     getId: (s) => s.id,
     selection,
     clipboard,
+    sort,
     layout: viewMode === "card" ? "grid" : "list",
     onActivate: handleActivate,
     onDelete: handleDelete,
@@ -243,6 +246,16 @@ export function ScreenListView() {
     onMoveDown: (items) => moveBlock(items, "down"),
     onPaste: (idx) => { handlePaste(idx).catch(console.error); },
   });
+
+  const sortActive = sort.sortKeys.length > 0;
+
+  const columnLabels = useMemo<Record<string, string>>(() => ({
+    name: "画面名",
+    type: "種別",
+    path: "URL",
+    hasDesign: "デザイン",
+    updatedAt: "更新日時",
+  }), []);
 
   const handleAddNew = () => {
     setScreenModal({ open: true });
@@ -376,7 +389,12 @@ export function ScreenListView() {
             )}
           </div>
           <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
-          <button className="flow-btn flow-btn-primary" onClick={handleAddNew}>
+          <button
+            className="flow-btn flow-btn-primary"
+            onClick={handleAddNew}
+            disabled={sortActive}
+            title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
+          >
             <i className="bi bi-plus-lg" /> 画面を追加
           </button>
           <span className="screen-list-saveline-sep" />
@@ -409,11 +427,14 @@ export function ScreenListView() {
         onClear={() => { setQuery(""); filter.clearFilter(); }}
       />
 
+      <SortBar sort={sort} columnLabels={columnLabels} />
+
       <div className="screen-list-body">
         <DataList
           items={sort.sorted}
           columns={columns}
           getId={(s) => s.id}
+          getNo={(s) => s.no}
           selection={selection}
           clipboard={clipboard}
           sort={sort}

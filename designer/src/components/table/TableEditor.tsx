@@ -16,7 +16,9 @@ import { useListSort } from "../../hooks/useListSort";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { DataList, type DataListColumn } from "../common/DataList";
+import { SortBar } from "../common/SortBar";
 import { generateUUID } from "../../utils/uuid";
+import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
 
 type TabId = "columns" | "indexes" | "ddl";
@@ -239,9 +241,9 @@ function ColumnsTab({
   }, [update]);
 
   const handleAddBlank = () => {
+    // docs/spec/list-common.md §3.9: ソート中は新規作成ボタン disabled 済
     let newColId = "";
     update((t) => { newColId = addColumn(t).id; });
-    sort.clearSort();
     selection.setSelectedIds(new Set([newColId]));
     setActiveColId(newColId);
   };
@@ -249,7 +251,6 @@ function ColumnsTab({
   const handleAddFromTemplate = (tpl: ColumnTemplate) => {
     let newColId = "";
     update((t) => { newColId = addColumn(t, { ...tpl.column }).id; });
-    sort.clearSort();
     selection.setSelectedIds(new Set([newColId]));
     setActiveColId(newColId);
     setShowTemplates(false);
@@ -265,6 +266,7 @@ function ColumnsTab({
   };
 
   const handleDuplicate = (cols: TableColumn[]) => {
+    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+D が無効化される
     const newIds: string[] = [];
     update((t) => {
       for (const src of cols) {
@@ -273,11 +275,11 @@ function ColumnsTab({
         newIds.push(addColumn(t, { ...cur, name: cur.name + "_copy" }).id);
       }
     });
-    sort.clearSort();
     selection.setSelectedIds(new Set(newIds));
   };
 
   const moveBlock = (cols: TableColumn[], direction: "up" | "down") => {
+    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化される
     const ids = new Set(cols.map((c) => c.id));
     update((t) => {
       const idxs = t.columns
@@ -294,15 +296,16 @@ function ColumnsTab({
         const [moved] = t.columns.splice(idxs[idxs.length - 1] + 1, 1);
         t.columns.splice(idxs[0], 0, moved);
       }
+      t.columns = renumber(t.columns);
     });
-    sort.clearSort();
   };
 
   const handleReorder = (fromIdx: number, toIdx: number) => {
-    if (sort.sortKeys.length > 0) sort.clearSort();
+    // docs/spec/list-common.md §3.9: ソート中は DataList 側で D&D が無効化される
     update((t) => {
       const [moved] = t.columns.splice(fromIdx, 1);
       t.columns.splice(toIdx, 0, moved);
+      t.columns = renumber(t.columns);
     });
   };
 
@@ -320,7 +323,7 @@ function ColumnsTab({
       if (sameSet) return;
     }
 
-    sort.clearSort();
+    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化される
     const consumed = clipboard.consume();
     const newIds: string[] = [];
 
@@ -339,6 +342,7 @@ function ColumnsTab({
         t.columns.splice(pos, 0, ...copies);
         newIds.push(...copies.map((c) => c.id));
       }
+      t.columns = renumber(t.columns);
     });
     selection.setSelectedIds(new Set(newIds));
   };
@@ -348,6 +352,7 @@ function ColumnsTab({
     getId: (c) => c.id,
     selection,
     clipboard,
+    sort,
     layout: "list",
     onActivate: (c) => setActiveColId(c.id),
     onDelete: handleDelete,
@@ -356,6 +361,20 @@ function ColumnsTab({
     onMoveDown: (cols) => moveBlock(cols, "down"),
     onPaste: handlePaste,
   });
+
+  const sortActive = sort.sortKeys.length > 0;
+
+  const columnLabels = useMemo<Record<string, string>>(() => ({
+    name: "カラム名",
+    logicalName: "論理名",
+    dataType: "データ型",
+    length: "長さ",
+    notNull: "NN",
+    primaryKey: "PK",
+    unique: "UK",
+    autoIncrement: "AI",
+    defaultValue: "デフォルト",
+  }), []);
 
   // Esc で詳細パネルを閉じる (開いていれば選択解除より優先)
   useEffect(() => {
@@ -439,13 +458,28 @@ function ColumnsTab({
           {anySelected ? `${selectedCount} 件選択中 (ダブルクリック/Enter で編集)` : "クリックで選択、ダブルクリックで編集"}
         </span>
         <div className="columns-selection-actions">
-          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => moveBlock(selection.selectedItems, "up")} title="上へ移動 (Alt+↑)">
+          <button
+            className="tbl-btn tbl-btn-ghost tbl-btn-sm"
+            disabled={!anySelected || sortActive}
+            onClick={() => moveBlock(selection.selectedItems, "up")}
+            title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "上へ移動 (Alt+↑)"}
+          >
             <i className="bi bi-chevron-up" /> 上へ
           </button>
-          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => moveBlock(selection.selectedItems, "down")} title="下へ移動 (Alt+↓)">
+          <button
+            className="tbl-btn tbl-btn-ghost tbl-btn-sm"
+            disabled={!anySelected || sortActive}
+            onClick={() => moveBlock(selection.selectedItems, "down")}
+            title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "下へ移動 (Alt+↓)"}
+          >
             <i className="bi bi-chevron-down" /> 下へ
           </button>
-          <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => handleDuplicate(selection.selectedItems)} title="複製 (Ctrl+D)">
+          <button
+            className="tbl-btn tbl-btn-ghost tbl-btn-sm"
+            disabled={!anySelected || sortActive}
+            onClick={() => handleDuplicate(selection.selectedItems)}
+            title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "複製 (Ctrl+D)"}
+          >
             <i className="bi bi-copy" /> 複製
           </button>
           <button className="tbl-btn tbl-btn-ghost tbl-btn-sm danger" disabled={!anySelected} onClick={() => handleDelete(selection.selectedItems)} title="削除 (Delete)">
@@ -454,11 +488,14 @@ function ColumnsTab({
         </div>
       </div>
 
+      <SortBar sort={sort} columnLabels={columnLabels} />
+
       {/* Column list */}
       <DataList
         items={sort.sorted}
         columns={columns}
         getId={(c) => c.id}
+        getNo={(c) => c.no}
         selection={selection}
         clipboard={clipboard}
         sort={sort}
@@ -494,12 +531,19 @@ function ColumnsTab({
 
       {/* Add column actions */}
       <div className="columns-add-bar">
-        <button className="tbl-btn tbl-btn-primary" onClick={handleAddBlank}>
+        <button
+          className="tbl-btn tbl-btn-primary"
+          onClick={handleAddBlank}
+          disabled={sortActive}
+          title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
+        >
           <i className="bi bi-plus-lg" /> カラム追加
         </button>
         <button
           className={`tbl-btn tbl-btn-secondary${showTemplates ? " active" : ""}`}
           onClick={() => setShowTemplates(!showTemplates)}
+          disabled={sortActive}
+          title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
         >
           <i className="bi bi-collection" /> テンプレートから追加
         </button>
