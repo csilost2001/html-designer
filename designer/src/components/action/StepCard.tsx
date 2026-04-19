@@ -536,6 +536,25 @@ export function StepCard({
                 />
               </div>
             </div>
+            <div className="row g-2 mb-2">
+              <div className="col-12">
+                <label className="form-label small">
+                  <i className="bi bi-funnel me-1" />
+                  条件実行 (runIf)
+                  <span className="text-muted ms-1" style={{ fontSize: "0.75rem" }}>
+                    — 真偽式、偽なら本ステップを skip
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  value={step.runIf ?? ""}
+                  onChange={(e) => onChange({ runIf: e.target.value || undefined } as Partial<Step>)}
+                  onBlur={onCommit}
+                  placeholder="例: @paymentMethod == 'credit_card'"
+                />
+              </div>
+            </div>
             <NotesPanel
               notes={step.notes}
               onChange={(notes) => onChange({ notes } as Partial<Step>)}
