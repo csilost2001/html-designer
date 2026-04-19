@@ -52,6 +52,7 @@ import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
+import { MaturityBadge } from "./MaturityBadge";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
@@ -527,6 +528,37 @@ export function ActionEditor() {
               onChange={(e) => handleGroupInfoChange("description", e.target.value)}
               placeholder="処理フローの概要"
             />
+          </div>
+        </div>
+        <div className="d-flex align-items-center gap-3 mt-2 small">
+          <div className="d-flex align-items-center gap-1">
+            <label className="form-label small fw-semibold mb-0">成熟度</label>
+            <MaturityBadge
+              maturity={group.maturity}
+              size="md"
+              onChange={(next) => handleGroupInfoChange("maturity", next)}
+            />
+          </div>
+          <div className="d-flex align-items-center gap-1">
+            <label className="form-label small fw-semibold mb-0">モード</label>
+            <div className="btn-group btn-group-sm" role="group" aria-label="モード切替">
+              <button
+                type="button"
+                className={`btn btn-outline-secondary${(group.mode ?? "upstream") === "upstream" ? " active" : ""}`}
+                onClick={() => handleGroupInfoChange("mode", "upstream")}
+                title="上流モード: 書きかけ・曖昧を許容"
+              >
+                <i className="bi bi-pencil me-1" />上流
+              </button>
+              <button
+                type="button"
+                className={`btn btn-outline-secondary${group.mode === "downstream" ? " active" : ""}`}
+                onClick={() => handleGroupInfoChange("mode", "downstream")}
+                title="下流モード: AI 実装用に確定"
+              >
+                <i className="bi bi-robot me-1" />下流
+              </button>
+            </div>
           </div>
         </div>
       </div>
