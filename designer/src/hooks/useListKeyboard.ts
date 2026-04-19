@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { ListSelection } from "./useListSelection";
 import type { ListClipboard } from "./useListClipboard";
+import type { ListSort } from "./useListSort";
 
 interface ListKeyboardOpts<T> {
   items: T[];
@@ -8,6 +9,12 @@ interface ListKeyboardOpts<T> {
   selection: ListSelection<T>;
   /** 指定すると Ctrl+C/X/Esc がクリップボードに自動連動 */
   clipboard?: ListClipboard<T>;
+  /**
+   * 指定すると sort 中 (sortKeys.length > 0) は「並び替え Read-only モード」になり
+   * Ctrl+V / Ctrl+D / Alt+↑↓ を無視する (docs/spec/list-common.md §3.9)。
+   * Ctrl+C / Ctrl+X / Delete / 選択系は引き続き動作。
+   */
+  sort?: ListSort<T>;
   /** "list" = 表 (↑↓のみ) / "grid" = カード (↑↓←→ の 2D ナビ) */
   layout?: "list" | "grid";
   /**
@@ -41,6 +48,7 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
   const {
     items, getId, selection,
     clipboard,
+    sort,
     layout = "list",
     getItemRect,
     onActivate, onDelete, onCopy, onCut, onPaste, onDuplicate,
@@ -60,6 +68,8 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
 
       const ctrl = e.ctrlKey || e.metaKey;
       const itemIds = items.map(getId);
+      // docs/spec/list-common.md §3.9: ソート中は並び替え Read-only モード
+      const reorderDisabled = (sort?.sortKeys.length ?? 0) > 0;
 
       if (e.key === "Escape") {
         let handled = false;
@@ -100,6 +110,7 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
       }
 
       if (ctrl && !e.altKey && !e.shiftKey && e.key === "v") {
+        if (reorderDisabled) return; // §3.9: ソート中は貼り付け無効
         if (onPaste) {
           e.preventDefault();
           const selected = Array.from(selection.selectedIds);
@@ -112,6 +123,7 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
       }
 
       if (ctrl && !e.altKey && !e.shiftKey && e.key === "d") {
+        if (reorderDisabled) return; // §3.9: ソート中は複製無効
         if (onDuplicate && selection.selectedItems.length > 0) {
           e.preventDefault();
           onDuplicate(selection.selectedItems);
@@ -136,6 +148,7 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
       }
 
       if (e.altKey && !ctrl && !e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        if (reorderDisabled) return; // §3.9: ソート中は Alt+↑↓ 無効
         const moveHandler = e.key === "ArrowUp" ? onMoveUp : onMoveDown;
         if (moveHandler && selection.selectedItems.length > 0) {
           e.preventDefault();
@@ -208,7 +221,7 @@ export function useListKeyboard<T>(opts: ListKeyboardOpts<T>): void {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [
-    enabled, items, getId, selection, clipboard, layout, getItemRect,
+    enabled, items, getId, selection, clipboard, sort, layout, getItemRect,
     onActivate, onDelete, onCopy, onCut, onPaste, onDuplicate, onMoveUp, onMoveDown,
   ]);
 }
