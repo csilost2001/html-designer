@@ -318,7 +318,17 @@ export interface DbAccessStep extends StepBase {
   tableName: string;
   tableId?: string;
   operation: DbOperation;
+  /**
+   * 自由記述の列リスト / WHERE 補足 (後方互換)。
+   * 単純な INSERT/SELECT ではこちらで十分。複雑クエリは sql を使う。
+   */
   fields?: string;
+  /**
+   * 完全な SQL 文 (例: "SELECT ... FROM ... WHERE ...", "INSERT ... RETURNING ..." 等)。
+   * 指定時は fields / operation より優先。複雑クエリ (JOIN / CTE / サブクエリ / RETURNING 等) に使う。
+   * docs/spec #151 (B)
+   */
+  sql?: string;
   /**
    * 影響行数チェック。UPDATE / DELETE で条件付き並行制御する場合に使う。
    * SELECT / INSERT では通常不要。
