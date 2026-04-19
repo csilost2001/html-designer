@@ -143,6 +143,17 @@ function migrateStepInPlace(raw: unknown): Step {
     step.steps = (step.steps as unknown[]).map(migrateStepInPlace);
   }
 
+  // #172: outcome.sideEffects 内のステップも再帰的にマイグレーション
+  if (step.type === "externalSystem" && step.outcomes && typeof step.outcomes === "object") {
+    const outcomes = step.outcomes as Record<string, Record<string, unknown>>;
+    for (const key of Object.keys(outcomes)) {
+      const spec = outcomes[key];
+      if (spec && Array.isArray(spec.sideEffects)) {
+        spec.sideEffects = (spec.sideEffects as unknown[]).map(migrateStepInPlace);
+      }
+    }
+  }
+
   return step as unknown as Step;
 }
 

@@ -356,6 +356,18 @@ export interface ExternalCallOutcomeSpec {
   description?: string;
   /** abort 時のジャンプ先ラベル (任意) */
   jumpTo?: string;
+  /**
+   * 副作用として action 実行前に実行するステップ列。
+   * 例: capture 失敗時に orders.status を 'payment_failed' に UPDATE + 運用通知。
+   * docs/spec, #151 (B) / #172
+   */
+  sideEffects?: Step[];
+  /**
+   * 他の outcome の定義を流用する短縮記法 (例: timeout が failure と同じ扱い時)。
+   * 指定時は他フィールド (action/description/sideEffects 等) を無視し、sameAs 先の定義を使う。
+   * product-scope §11 の既定 (timeout 省略時は failure と同じ) を明示的に表現可能。
+   */
+  sameAs?: ExternalCallOutcome;
 }
 
 /** 外部呼出のリトライ方針 */
