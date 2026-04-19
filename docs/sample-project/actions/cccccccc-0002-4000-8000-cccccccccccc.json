@@ -4,34 +4,59 @@
   "type": "screen",
   "screenId": "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa",
   "description": "顧客一覧画面の処理フロー定義",
+  "mode": "upstream",
+  "maturity": "provisional",
   "actions": [
     {
       "id": "act-custlist-001",
       "name": "検索ボタン",
       "trigger": "click",
+      "maturity": "provisional",
+      "httpRoute": { "method": "GET", "path": "/api/customers/search", "auth": "required" },
+      "responses": [
+        { "id": "200-success", "status": 200, "bodySchema": "CustomerSearchResult", "description": "検索結果" },
+        { "id": "400-validation", "status": 400, "bodySchema": "ApiError", "description": "検索条件不正" }
+      ],
+      "inputs": [
+        { "name": "name", "label": "顧客名", "type": "string", "description": "部分一致" },
+        { "name": "phone", "label": "電話番号", "type": "string" },
+        { "name": "email", "label": "メール", "type": "string" }
+      ],
+      "outputs": [
+        { "name": "customers", "label": "検索結果", "type": { "kind": "tableList", "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb" } }
+      ],
       "steps": [
         {
           "id": "step-custlist-001",
           "type": "validation",
+          "maturity": "provisional",
           "description": "検索条件チェック",
           "conditions": "検索条件の形式チェック（電話番号、メール形式）",
+          "rules": [
+            { "field": "phone", "type": "regex", "pattern": "@conv.regex.phone-jp", "message": "@conv.msg.invalidFormat" },
+            { "field": "email", "type": "regex", "pattern": "@conv.regex.email-simple", "message": "@conv.msg.invalidFormat" }
+          ],
           "inlineBranch": {
             "ok": "検索処理を実行",
-            "ng": "エラーメッセージを表示"
+            "ng": "400 で return",
+            "ngResponseRef": "400-validation"
           }
         },
         {
           "id": "step-custlist-002",
           "type": "dbAccess",
+          "maturity": "committed",
           "description": "顧客データ検索",
           "tableName": "customers",
           "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
           "operation": "SELECT",
-          "fields": "顧客名、フリガナ、電話番号、メールアドレス"
+          "sql": "SELECT id, name, name_kana, phone, email FROM customers WHERE (@name IS NULL OR name ILIKE '%' || @name || '%') AND (@phone IS NULL OR phone = @phone) AND (@email IS NULL OR email = @email) AND is_deleted = false",
+          "outputBinding": "customers"
         },
         {
           "id": "step-custlist-003",
           "type": "displayUpdate",
+          "maturity": "committed",
           "description": "検索結果を一覧テーブルに表示",
           "target": "顧客一覧テーブル"
         }
@@ -41,10 +66,12 @@
       "id": "act-custlist-002",
       "name": "新規登録ボタン",
       "trigger": "click",
+      "maturity": "committed",
       "steps": [
         {
           "id": "step-custlist-004",
           "type": "screenTransition",
+          "maturity": "committed",
           "description": "顧客登録画面へ遷移",
           "targetScreenId": "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa",
           "targetScreenName": "顧客登録"
@@ -55,19 +82,26 @@
       "id": "act-custlist-003",
       "name": "詳細ボタン",
       "trigger": "click",
+      "maturity": "provisional",
+      "inputs": [
+        { "name": "customerId", "label": "顧客ID", "type": "number", "required": true }
+      ],
       "steps": [
         {
           "id": "step-custlist-005",
           "type": "dbAccess",
+          "maturity": "committed",
           "description": "顧客詳細データ取得",
           "tableName": "customers",
           "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
           "operation": "SELECT",
-          "fields": "全カラム"
+          "sql": "SELECT * FROM customers WHERE id = @customerId AND is_deleted = false",
+          "outputBinding": "customer"
         },
         {
           "id": "step-custlist-006",
           "type": "screenTransition",
+          "maturity": "committed",
           "description": "顧客詳細画面へ遷移",
           "targetScreenId": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
           "targetScreenName": "顧客詳細"
@@ -78,10 +112,12 @@
       "id": "act-custlist-004",
       "name": "クリアボタン",
       "trigger": "click",
+      "maturity": "committed",
       "steps": [
         {
           "id": "step-custlist-007",
           "type": "displayUpdate",
+          "maturity": "committed",
           "description": "検索条件と一覧をクリア",
           "target": "検索フォーム・一覧テーブル"
         }
@@ -89,5 +125,5 @@
     }
   ],
   "createdAt": "2026-04-14T00:00:00.000Z",
-  "updatedAt": "2026-04-14T00:00:00.000Z"
+  "updatedAt": "2026-04-20T12:00:00.000Z"
 }
