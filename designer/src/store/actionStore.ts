@@ -246,6 +246,8 @@ export function createDefaultStep(type: StepType): Step {
       return { ...base, type: "loopContinue" };
     case "jump":
       return { ...base, type: "jump", jumpTo: "" };
+    case "compute":
+      return { ...base, type: "compute", expression: "" };
     case "other":
       return { ...base, type: "other" };
   }
