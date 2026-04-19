@@ -130,3 +130,11 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 - `data/` directory is gitignored — runtime data only
 - Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
 - Custom blocks persist to `data/custom-blocks.json` via customBlockStore
+
+## PR 作成・レビューの規約
+
+- PR 作成時は [`.github/pull_request_template.md`](.github/pull_request_template.md) を**全項目埋める**。不要な項目は削除せず「N/A」と明記 (レビュアーが見落としと区別するため)
+- 「仕様逐条突合 (自己申告)」節は各条項を `file:line` で**個別に列挙**。「全条項 ✓」の一括表記は不可。大規模実装の完了報告前に仕様を逐条突合すること
+- 大規模実装 / spec 絡み / UI 影響のある PR は、別の Claude Code セッション (新しいウィンドウで `/clear` 後) で [`/review-pr <N>`](.claude/commands/review-pr.md) を実行し、独立レビュー結果を PR コメントに投稿してからマージ判断する
+- レビュー結果が Must-fix を含む場合はマージしない。Should-fix は対応可否をユーザーに確認
+- UI 影響のある PR は auto テスト pass ≠ マージ可。**ユーザーの目視確認必須**
