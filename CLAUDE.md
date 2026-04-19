@@ -113,6 +113,14 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 - Playwright: `designer/e2e/**/*.spec.ts` — UI・ナビゲーション操作
 - MCP E2E: `designer/e2e/mcp/**/*.spec.ts` — wsBridge ファイル操作（要 designer-mcp 起動）
 
+## UI Conventions
+
+詳細仕様は [docs/spec/](docs/spec/README.md) に集約。一覧系 UI を触る前に必ず読む:
+
+- **一覧系 UI** (選択・キーボード・D&D・コピペ・ソート・フィルタ・Read-only モード・No 列永続フィールド): [docs/spec/list-common.md](docs/spec/list-common.md)
+  - `DataList` / `useListSelection` / `useListKeyboard` / `useListClipboard` / `useListFilter` / `useListSort` / `<FilterBar>` / `<SortBar>` / `<ViewModeToggle>`
+  - 対象画面: 画面一覧・テーブル一覧・処理フロー一覧・テーブル定義 > カラム一覧
+
 ## Conventions
 
 - All UI text is in Japanese
