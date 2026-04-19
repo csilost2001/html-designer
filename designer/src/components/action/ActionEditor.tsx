@@ -27,7 +27,6 @@ import {
 import { listTables } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
-import { fieldsToText } from "../../utils/actionFields";
 import { validateActionGroup, hasBlockingErrors } from "../../utils/actionValidation";
 import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
@@ -54,6 +53,7 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import { MaturityBadge } from "./MaturityBadge";
 import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
+import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
@@ -687,36 +687,30 @@ export function ActionEditor() {
             {/* I/O パネル */}
             <div className="action-io-panel">
               <div className="action-io-field">
-                <label className="form-label"><i className="bi bi-box-arrow-in-right me-1" />入力データ</label>
-                <textarea
-                  className="form-control form-control-sm action-io-textarea"
-                  rows={1}
-                  value={fieldsToText(activeAction.inputs)}
-                  onChange={(e) => {
-                    const val = e.target.value;
+                <StructuredFieldsEditor
+                  label="入力データ"
+                  fields={activeAction.inputs}
+                  onChange={(val) => {
                     updateGroupSilent((g) => {
                       const act = g.actions.find((a) => a.id === activeActionId);
                       if (act) act.inputs = val;
                     });
                   }}
-                  onBlur={commitGroup}
+                  onCommit={commitGroup}
                   placeholder="例: ユーザID、パスワード（改行で複数項目）"
                 />
               </div>
               <div className="action-io-field">
-                <label className="form-label"><i className="bi bi-box-arrow-right me-1" />出力データ</label>
-                <textarea
-                  className="form-control form-control-sm action-io-textarea"
-                  rows={1}
-                  value={fieldsToText(activeAction.outputs)}
-                  onChange={(e) => {
-                    const val = e.target.value;
+                <StructuredFieldsEditor
+                  label="出力データ"
+                  fields={activeAction.outputs}
+                  onChange={(val) => {
                     updateGroupSilent((g) => {
                       const act = g.actions.find((a) => a.id === activeActionId);
                       if (act) act.outputs = val;
                     });
                   }}
-                  onBlur={commitGroup}
+                  onCommit={commitGroup}
                   placeholder="例: セッションID、認証トークン（改行で複数項目）"
                 />
               </div>
