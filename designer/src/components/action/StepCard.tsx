@@ -437,6 +437,41 @@ export function StepCard({
               {step.notes.length}
             </span>
           )}
+          {step.runIf && (
+            <span title={`runIf: ${step.runIf}`} style={{ color: "#3b82f6", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-funnel" />
+            </span>
+          )}
+          {step.txBoundary && (
+            <span title={`TX: ${step.txBoundary.role} (${step.txBoundary.txId})`} style={{ color: "#8b5cf6", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-layers" />
+            </span>
+          )}
+          {step.compensatesFor && (
+            <span title={`Saga 補償 → ${step.compensatesFor}`} style={{ color: "#ef4444", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-arrow-counterclockwise" />
+            </span>
+          )}
+          {step.externalChain && (
+            <span title={`chain: ${step.externalChain.chainId} (${step.externalChain.phase})`} style={{ color: "#f97316", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-link-45deg" />
+            </span>
+          )}
+          {step.type === "dbAccess" && step.affectedRowsCheck && (
+            <span title={`行数チェック: ${step.affectedRowsCheck.operator}${step.affectedRowsCheck.expected} → ${step.affectedRowsCheck.onViolation}`} style={{ color: "#14b8a6", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-shield-check" />
+            </span>
+          )}
+          {step.type === "externalSystem" && step.outcomes && Object.keys(step.outcomes).length > 0 && (
+            <span title={`outcomes: ${Object.keys(step.outcomes).join(", ")}`} style={{ color: "#0ea5e9", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-diagram-3" />
+            </span>
+          )}
+          {step.type === "externalSystem" && step.fireAndForget && (
+            <span title="fire-and-forget" style={{ color: "#eab308", fontSize: 11, flexShrink: 0 }}>
+              <i className="bi bi-fire" />
+            </span>
+          )}
           <span className="step-card-description">{summaryText()}</span>
           {step.type === "commonProcess" && step.refId && (
             <button
