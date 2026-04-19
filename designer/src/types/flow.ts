@@ -66,6 +66,8 @@ export const TRIGGER_LABELS: Record<TransitionTrigger, string> = {
 /** 画面ノード */
 export interface ScreenNode {
   id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
   name: string;
   type: ScreenType;
   description: string;
@@ -106,6 +108,8 @@ export interface ScreenEdge {
 /** テーブルメタ情報（project.json 管理用） */
 export interface TableMeta {
   id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
   name: string;
   logicalName: string;
   category?: string;
@@ -116,6 +120,8 @@ export interface TableMeta {
 /** アクショングループメタ情報（project.json 管理用） */
 export interface ActionGroupMeta {
   id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
   name: string;
   type: string;
   screenId?: string;

@@ -9,6 +9,7 @@ import type { TableDefinition, TableMeta, TableColumn, TableIndex } from "../typ
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
+import { renumber, nextNo } from "../utils/listOrder";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
 
@@ -40,19 +41,18 @@ export async function listTables(): Promise<TableMeta[]> {
   return project.tables ?? [];
 }
 
-/** テーブル定義を読み込み */
+/** テーブル定義を読み込み (columns の no を補完) */
 export async function loadTable(tableId: string): Promise<TableDefinition | null> {
-  if (_backend) {
-    const data = await _backend.loadTable(tableId);
-    return data ? (data as TableDefinition) : null;
-  }
-  const raw = localStorage.getItem(`${TABLE_PREFIX}${tableId}`);
+  const raw = await (async () => {
+    if (_backend) return (await _backend.loadTable(tableId)) as TableDefinition | null;
+    const s = localStorage.getItem(`${TABLE_PREFIX}${tableId}`);
+    if (!s) return null;
+    try { return JSON.parse(s) as TableDefinition; } catch { return null; }
+  })();
   if (!raw) return null;
-  try {
-    return JSON.parse(raw) as TableDefinition;
-  } catch {
-    return null;
-  }
+  // docs/spec/list-common.md §3.10: 読み込み時に no を配列順で補完
+  raw.columns = renumber(raw.columns ?? []);
+  return raw;
 }
 
 /** テーブル定義を保存（project.json のメタも同期） */
@@ -104,7 +104,7 @@ export async function deleteTable(tableId: string): Promise<void> {
   // project.json からメタを削除
   const project = await loadProject();
   if (project.tables) {
-    project.tables = project.tables.filter((t) => t.id !== tableId);
+    project.tables = renumber(project.tables.filter((t) => t.id !== tableId));
     await saveProject(project);
   }
 }
@@ -116,6 +116,7 @@ export function addColumn(
 ): TableColumn {
   const col: TableColumn = {
     id: generateUUID(),
+    no: nextNo(table.columns),
     name: partial?.name ?? "new_column",
     logicalName: partial?.logicalName ?? "新規カラム",
     dataType: partial?.dataType ?? "VARCHAR",
@@ -130,6 +131,7 @@ export function addColumn(
     comment: partial?.comment,
   };
   table.columns.push(col);
+  table.columns = renumber(table.columns);
   return col;
 }
 
@@ -138,6 +140,7 @@ export function removeColumn(table: TableDefinition, columnId: string): void {
   const idx = table.columns.findIndex((c) => c.id === columnId);
   if (idx >= 0) {
     table.columns.splice(idx, 1);
+    table.columns = renumber(table.columns);
     // インデックスからも参照を削除
     for (const index of table.indexes) {
       index.columns = index.columns.filter((cid) => cid !== columnId);
@@ -177,6 +180,7 @@ export async function reorderTables(fromIndex: number, toIndex: number): Promise
   if (fromIndex === toIndex) return;
   const [moved] = project.tables.splice(fromIndex, 1);
   project.tables.splice(toIndex, 0, moved);
+  project.tables = renumber(project.tables);
   await saveProject(project);
 }
 
@@ -187,8 +191,10 @@ async function syncTableMeta(table: TableDefinition): Promise<void> {
   const project = await loadProject();
   if (!project.tables) project.tables = [];
 
+  const idx = project.tables.findIndex((t) => t.id === table.id);
   const meta: FlowProject["tables"] extends (infer T)[] | undefined ? T : never = {
     id: table.id,
+    no: idx >= 0 ? project.tables[idx].no : nextNo(project.tables),
     name: table.name,
     logicalName: table.logicalName,
     category: table.category,
@@ -196,11 +202,11 @@ async function syncTableMeta(table: TableDefinition): Promise<void> {
     updatedAt: table.updatedAt,
   };
 
-  const idx = project.tables.findIndex((t) => t.id === table.id);
   if (idx >= 0) {
     project.tables[idx] = meta;
   } else {
     project.tables.push(meta);
   }
+  project.tables = renumber(project.tables);
   await saveProject(project);
 }

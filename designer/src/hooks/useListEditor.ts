@@ -13,6 +13,12 @@ export interface UseListEditorOpts<T> {
   commit: (opts: { itemsInOrder: T[]; deletedIds: string[] }) => Promise<void>;
   /** タブ dirty 連動用。指定するとタブのインジケータが連動する */
   tabId?: string;
+  /**
+   * reorder / insert / insertAt の後に呼ばれる再採番関数 (docs/spec/list-common.md §3.10)。
+   * 指定すると物理順の変更と連動して no フィールド等を 1..N で振り直せる。
+   * markDeleted では呼ばれない (ghost は元の no を保持)。
+   */
+  renumber?: (items: T[]) => T[];
 }
 
 export interface UseListEditorResult<T> {
@@ -58,7 +64,8 @@ export interface UseListEditorResult<T> {
  * - reset でドラフト破棄 → reload
  */
 export function useListEditor<T>(opts: UseListEditorOpts<T>): UseListEditorResult<T> {
-  const { getId, load, commit, tabId } = opts;
+  const { getId, load, commit, tabId, renumber } = opts;
+  const applyRenumber = useCallback((items: T[]) => (renumber ? renumber(items) : items), [renumber]);
 
   const [items, setItemsState] = useState<T[]>([]);
   const [loadedItems, setLoadedItems] = useState<T[]>([]);
@@ -82,12 +89,12 @@ export function useListEditor<T>(opts: UseListEditorOpts<T>): UseListEditorResul
   }, [tabId, isDirty]);
 
   const reload = useCallback(async () => {
-    const loaded = await load();
+    const loaded = applyRenumber(await load());
     setLoadedItems(loaded);
     setItemsState(loaded);
     setDeletedIds(new Set());
     setExternalChangeWhileDirty(false);
-  }, [load]);
+  }, [load, applyRenumber]);
 
   const reorder = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
@@ -97,27 +104,27 @@ export function useListEditor<T>(opts: UseListEditorOpts<T>): UseListEditorResul
       const next = [...prev];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
-      return next;
+      return applyRenumber(next);
     });
-  }, []);
+  }, [applyRenumber]);
 
   const insertAt = useCallback((newItems: T[], atIndex: number) => {
     setItemsState((prev) => {
       const idx = Math.max(0, Math.min(prev.length, atIndex));
       const next = [...prev];
       next.splice(idx, 0, ...newItems);
-      return next;
+      return applyRenumber(next);
     });
-  }, []);
+  }, [applyRenumber]);
 
   const insert = useCallback((newItems: T[], atIndex?: number) => {
     setItemsState((prev) => {
       const idx = atIndex == null ? prev.length : Math.max(0, Math.min(prev.length, atIndex));
       const next = [...prev];
       next.splice(idx, 0, ...newItems);
-      return next;
+      return applyRenumber(next);
     });
-  }, []);
+  }, [applyRenumber]);
 
   const markDeleted = useCallback((ids: string[]) => {
     setDeletedIds((prev) => {
@@ -157,13 +164,13 @@ export function useListEditor<T>(opts: UseListEditorOpts<T>): UseListEditorResul
     setIsSaving(true);
     try {
       const deleted = Array.from(deletedIds);
-      const itemsInOrder = items.filter((it) => !deletedIds.has(getId(it)));
+      const itemsInOrder = applyRenumber(items.filter((it) => !deletedIds.has(getId(it))));
       await commit({ itemsInOrder, deletedIds: deleted });
       await reload();
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, deletedIds, items, commit, reload, getId]);
+  }, [isSaving, deletedIds, items, commit, reload, getId, applyRenumber]);
 
   const reset = useCallback(async () => {
     await reload();

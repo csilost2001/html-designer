@@ -6,6 +6,7 @@ import { loadProject, saveProject, addScreen, removeScreen, DEFAULT_NODE_SIZE } 
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { generateUUID } from "../../utils/uuid";
+import { renumber } from "../../utils/listOrder";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
@@ -168,6 +169,7 @@ export function ScreenListView() {
     const dup: ScreenNode = {
       ...s,
       id: generateUUID(),
+      no: project.screens.length + 1,
       name: s.name + " (コピー)",
       position: { x: s.position.x + 40, y: s.position.y + 40 },
       size: { ...DEFAULT_NODE_SIZE },
@@ -177,6 +179,7 @@ export function ScreenListView() {
       updatedAt: new Date().toISOString(),
     };
     project.screens.push(dup);
+    project.screens = renumber(project.screens);
     await saveProject(project);
     return dup.id;
   };
