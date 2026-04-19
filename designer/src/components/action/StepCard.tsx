@@ -23,6 +23,7 @@ import { createDefaultStep } from "../../store/actionStore";
 import { MaturityBadge } from "./MaturityBadge";
 import { NotesPanel } from "./NotesPanel";
 import { StepAdvancedMetadataPanel } from "./StepAdvancedMetadataPanel";
+import { ValidationRulesPanel } from "./ValidationRulesPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
@@ -622,16 +623,20 @@ export function StepCard({
               <>
                 <div className="row g-2 mb-2">
                   <div className="col-12">
-                    <label className="form-label">バリデーション条件</label>
+                    <label className="form-label">バリデーション条件 (自由記述)</label>
                     <input
                       className="form-control form-control-sm"
                       value={step.conditions}
                       onChange={(e) => onChange({ conditions: e.target.value } as Partial<Step>)}
                       onBlur={onCommit}
-                      placeholder="必須チェック、形式チェック等"
+                      placeholder="必須チェック、形式チェック等 (rules[] で構造化済なら補足用)"
                     />
                   </div>
                 </div>
+                <ValidationRulesPanel
+                  rules={step.rules}
+                  onChange={(rules) => onChange({ rules } as Partial<Step>)}
+                />
                 {step.inlineBranch && (
                   <div className="step-inline-branch">
                     <div className="step-branch-box ok">
