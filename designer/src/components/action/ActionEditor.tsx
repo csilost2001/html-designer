@@ -571,6 +571,15 @@ export function ActionEditor() {
               className={`action-tab ${activeActionId === act.id ? "active" : ""}`}
               onClick={() => setActiveActionId(act.id)}
             >
+              <MaturityBadge
+                maturity={act.maturity}
+                onChange={(next) => {
+                  updateGroupSilent((g) => {
+                    const a = g.actions.find((a2) => a2.id === act.id);
+                    if (a) a.maturity = next;
+                  });
+                }}
+              />
               {act.name}
               <span className="ms-1 text-muted small">({ACTION_TRIGGER_LABELS[act.trigger]})</span>
             </button>
