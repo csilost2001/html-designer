@@ -17,6 +17,7 @@ import {
 import { resolveJumpLabel } from "../../utils/actionUtils";
 import type { ValidationError } from "../../utils/actionValidation";
 import { getBranchConditionText } from "../../utils/branchCondition";
+import { getBindingName, getBindingOperation } from "../../utils/outputBinding";
 import { generateUUID } from "../../utils/uuid";
 import { createDefaultStep } from "../../store/actionStore";
 import { MaturityBadge } from "./MaturityBadge";
@@ -553,6 +554,56 @@ export function StepCard({
                   onBlur={onCommit}
                   placeholder="例: @paymentMethod == 'credit_card'"
                 />
+              </div>
+            </div>
+            <div className="row g-2 mb-2">
+              <div className="col-8">
+                <label className="form-label small">
+                  <i className="bi bi-box-arrow-right me-1" />
+                  結果変数名 (outputBinding)
+                </label>
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  value={getBindingName(step.outputBinding) ?? ""}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const op = getBindingOperation(step.outputBinding);
+                    if (!name) {
+                      onChange({ outputBinding: undefined } as Partial<Step>);
+                    } else if (op === "assign") {
+                      onChange({ outputBinding: name } as Partial<Step>);
+                    } else {
+                      onChange({ outputBinding: { name, operation: op } } as Partial<Step>);
+                    }
+                  }}
+                  onBlur={onCommit}
+                  placeholder="例: duplicateCustomer / subtotal / enrichedItems"
+                />
+              </div>
+              <div className="col-4">
+                <label className="form-label small">代入方式</label>
+                <select
+                  className="form-select form-select-sm"
+                  value={getBindingOperation(step.outputBinding)}
+                  onChange={(e) => {
+                    const name = getBindingName(step.outputBinding);
+                    const op = e.target.value as "assign" | "accumulate" | "push";
+                    if (!name) {
+                      // 名前未入力時は代入方式だけ先に決めても undefined 維持 (空の binding を作らない)
+                      return;
+                    }
+                    if (op === "assign") {
+                      onChange({ outputBinding: name } as Partial<Step>);
+                    } else {
+                      onChange({ outputBinding: { name, operation: op } } as Partial<Step>);
+                    }
+                  }}
+                >
+                  <option value="assign">assign (代入)</option>
+                  <option value="accumulate">accumulate (累積)</option>
+                  <option value="push">push (追加)</option>
+                </select>
               </div>
             </div>
             <NotesPanel
