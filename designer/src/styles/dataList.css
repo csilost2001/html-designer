@@ -156,8 +156,42 @@
   background: #1d4ed8;
 }
 
-.data-list-row.cut > td {
+.data-list-row.ghost > td {
   font-style: italic;
+  text-decoration: line-through;
+  text-decoration-color: rgba(239, 68, 68, 0.5);
+}
+
+/* D&D ドロップ位置マーカー (水平線) */
+.data-list-row.drop-indicator-top > td:first-child::before,
+.data-list-row.drop-indicator-bottom > td:first-child::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #6366f1;
+  box-shadow: 0 0 4px rgba(99, 102, 241, 0.5);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.data-list-row.drop-indicator-top > td:first-child::before {
+  top: 0;
+}
+
+.data-list-row.drop-indicator-bottom > td:first-child::after {
+  bottom: 0;
+}
+
+/* 行を relative に (::before/::after の基準点にする) */
+.data-list-row.drop-indicator-top,
+.data-list-row.drop-indicator-bottom {
+  position: relative;
+}
+.data-list-row.drop-indicator-top > td:first-child,
+.data-list-row.drop-indicator-bottom > td:first-child {
+  position: relative;
 }
 
 /* ------- Grid (card) layout -------- */
@@ -205,8 +239,45 @@
   border-color: #60a5fa;
 }
 
-.data-list-card.cut {
+.data-list-card.ghost {
   font-style: italic;
+}
+
+.data-list-card.ghost::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: rgba(239, 68, 68, 0.4);
+  pointer-events: none;
+}
+
+.data-list-card {
+  position: relative;
+}
+
+/* D&D ドロップ位置マーカー (垂直線、カード間) */
+.data-list-card.drop-indicator-left::before,
+.data-list-card.drop-indicator-right::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: #6366f1;
+  box-shadow: 0 0 4px rgba(99, 102, 241, 0.5);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.data-list-card.drop-indicator-left::before {
+  left: -7px;
+}
+
+.data-list-card.drop-indicator-right::after {
+  right: -7px;
 }
 
 /* ==========================================================================

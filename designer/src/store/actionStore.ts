@@ -116,6 +116,18 @@ export async function deleteActionGroup(id: string): Promise<void> {
   }
 }
 
+/** 処理フロー一覧の並び順を変更する (project.actionGroups の物理順) */
+export async function reorderActionGroups(fromIndex: number, toIndex: number): Promise<void> {
+  const project = await loadProject();
+  if (!project.actionGroups) return;
+  if (fromIndex < 0 || toIndex < 0) return;
+  if (fromIndex >= project.actionGroups.length || toIndex >= project.actionGroups.length) return;
+  if (fromIndex === toIndex) return;
+  const [moved] = project.actionGroups.splice(fromIndex, 1);
+  project.actionGroups.splice(toIndex, 0, moved);
+  await saveProject(project);
+}
+
 /** アクションを追加 */
 export function addAction(
   group: ActionGroup,

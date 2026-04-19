@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -6,6 +6,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -57,6 +58,8 @@ interface Props<T> {
   emptyMessage?: ReactNode;
   className?: string;
   variant?: "light" | "dark";
+  /** 削除マーク等で ghost 表示する項目判定 (clipboard.isItemCut と OR される) */
+  isItemGhost?: (id: string) => boolean;
 }
 
 export function DataList<T>({
@@ -68,10 +71,14 @@ export function DataList<T>({
   emptyMessage,
   className,
   variant = "light",
+  isItemGhost,
 }: Props<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
+
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const tanstackColumns = useMemo<ColumnDef<T>[]>(() => {
     const helper = createColumnHelper<T>();
@@ -95,14 +102,30 @@ export function DataList<T>({
     getRowId: (row) => getId(row),
   });
 
+  const handleDragStart = (e: { active: { id: string | number } }) => {
+    setActiveDragId(String(e.active.id));
+    setOverId(null);
+  };
+
+  const handleDragOver = (e: DragOverEvent) => {
+    setOverId(e.over ? String(e.over.id) : null);
+  };
+
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
+    setActiveDragId(null);
+    setOverId(null);
     if (!over || !onReorder) return;
     if (active.id === over.id) return;
     const fromIndex = items.findIndex((it) => getId(it) === active.id);
     const toIndex = items.findIndex((it) => getId(it) === over.id);
     if (fromIndex < 0 || toIndex < 0) return;
     onReorder(fromIndex, toIndex);
+  };
+
+  const handleDragCancel = () => {
+    setActiveDragId(null);
+    setOverId(null);
   };
 
   const showHandle = !!onReorder && layout === "list";
@@ -115,15 +138,53 @@ export function DataList<T>({
     className ?? "",
   ].filter(Boolean).join(" ");
 
+  /**
+   * 仕様 §3.1「何もない領域のクリック: 選択解除 (一覧コンテナの背景領域に限定)」
+   * 行/カード/ヘッダ/インタラクティブ要素の外側クリックで選択解除する。
+   */
+  const handleRootClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!selection) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest('[data-row-id], button, input, select, textarea, th, a')) {
+      return;
+    }
+    selection.clearSelection();
+  };
+
   if (items.length === 0) {
-    return <div className={rootClass}>{emptyMessage ?? <span>データがありません</span>}</div>;
+    return <div className={rootClass} onClick={handleRootClick}>{emptyMessage ?? <span>データがありません</span>}</div>;
   }
 
   const strategy = layout === "grid" ? rectSortingStrategy : verticalListSortingStrategy;
 
+  /** ドロップ位置インジケータ: 対象行が active より下なら bottom-line、上なら top-line */
+  const dropIndicatorFor = (rowId: string): "top" | "bottom" | null => {
+    if (!activeDragId || !overId) return null;
+    if (rowId !== overId) return null;
+    if (activeDragId === overId) return null;
+    const activeIdx = items.findIndex((it) => getId(it) === activeDragId);
+    const overIdx = items.findIndex((it) => getId(it) === overId);
+    if (activeIdx < 0 || overIdx < 0) return null;
+    return activeIdx < overIdx ? "bottom" : "top";
+  };
+
+  const isRowGhost = (id: string): boolean => {
+    if (isItemGhost?.(id)) return true;
+    if (clipboard?.isItemCut(id)) return true;
+    return false;
+  };
+
   return (
-    <div className={rootClass} data-testid="data-list">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <div className={rootClass} data-testid="data-list" onClick={handleRootClick}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
         <SortableContext items={ids} strategy={strategy}>
           {layout === "list" ? (
             <table className="data-list-table">
@@ -154,37 +215,45 @@ export function DataList<T>({
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
-                  <DataListRow
-                    key={getId(item)}
-                    item={item}
-                    index={index}
-                    getId={getId}
-                    columns={columns}
-                    selection={selection}
-                    clipboard={clipboard}
-                    onActivate={onActivate}
-                    showHandle={showHandle}
-                    showNumColumn={showNumColumn}
-                  />
-                ))}
+                {items.map((item, index) => {
+                  const id = getId(item);
+                  return (
+                    <DataListRow
+                      key={id}
+                      item={item}
+                      index={index}
+                      getId={getId}
+                      columns={columns}
+                      selection={selection}
+                      ghost={isRowGhost(id)}
+                      onActivate={onActivate}
+                      showHandle={showHandle}
+                      showNumColumn={showNumColumn}
+                      dropIndicator={dropIndicatorFor(id)}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           ) : (
             <div className="data-list-grid">
-              {items.map((item, index) => (
-                <DataListCard
-                  key={getId(item)}
-                  item={item}
-                  index={index}
-                  getId={getId}
-                  selection={selection}
-                  clipboard={clipboard}
-                  onActivate={onActivate}
-                  renderCard={renderCard}
-                  draggable={!!onReorder}
-                />
-              ))}
+              {items.map((item, index) => {
+                const id = getId(item);
+                return (
+                  <DataListCard
+                    key={id}
+                    item={item}
+                    index={index}
+                    getId={getId}
+                    selection={selection}
+                    ghost={isRowGhost(id)}
+                    onActivate={onActivate}
+                    renderCard={renderCard}
+                    draggable={!!onReorder}
+                    dropIndicator={dropIndicatorFor(id)}
+                  />
+                );
+              })}
             </div>
           )}
         </SortableContext>
@@ -199,38 +268,43 @@ interface RowProps<T> {
   getId: (item: T) => string;
   columns: DataListColumn<T>[];
   selection?: ListSelection<T>;
-  clipboard?: ListClipboard<T>;
+  ghost: boolean;
   onActivate?: (item: T, index: number) => void;
   showHandle: boolean;
   showNumColumn: boolean;
+  dropIndicator: "top" | "bottom" | null;
 }
 
 function DataListRow<T>({
-  item, index, getId, columns, selection, clipboard, onActivate, showHandle, showNumColumn,
+  item, index, getId, columns, selection, ghost, onActivate, showHandle, showNumColumn, dropIndicator,
 }: RowProps<T>) {
   const id = getId(item);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const cut = clipboard?.isItemCut(id) ?? false;
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : cut ? 0.5 : undefined,
+    opacity: isDragging ? 0.5 : ghost ? 0.5 : undefined,
   };
 
   const selected = selection?.isSelected(id) ?? false;
+  const indicatorClass = dropIndicator === "top"
+    ? " drop-indicator-top"
+    : dropIndicator === "bottom"
+      ? " drop-indicator-bottom"
+      : "";
 
   return (
     <tr
       ref={setNodeRef}
       style={style}
-      className={`data-list-row${selected ? " selected" : ""}${cut ? " cut" : ""}`}
+      className={`data-list-row${selected ? " selected" : ""}${ghost ? " ghost" : ""}${indicatorClass}`}
       onClick={(e) => selection?.handleRowClick(id, e)}
       onDoubleClick={() => onActivate?.(item, index)}
       data-testid="data-list-row"
       data-row-id={id}
     >
       {showHandle && (
-        <td className="data-list-td-handle" {...attributes} {...listeners}>
+        <td className="data-list-td-handle" {...attributes} {...listeners} aria-label="並び替え">
           <i className="bi bi-grip-vertical" />
         </td>
       )}
@@ -253,33 +327,38 @@ interface CardProps<T> {
   index: number;
   getId: (item: T) => string;
   selection?: ListSelection<T>;
-  clipboard?: ListClipboard<T>;
+  ghost: boolean;
   onActivate?: (item: T, index: number) => void;
   renderCard?: (item: T, index: number) => ReactNode;
   draggable: boolean;
+  dropIndicator: "top" | "bottom" | null;
 }
 
 function DataListCard<T>({
-  item, index, getId, selection, clipboard, onActivate, renderCard, draggable,
+  item, index, getId, selection, ghost, onActivate, renderCard, draggable, dropIndicator,
 }: CardProps<T>) {
   const id = getId(item);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
     disabled: !draggable,
   });
-  const cut = clipboard?.isItemCut(id) ?? false;
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : cut ? 0.5 : undefined,
+    opacity: isDragging ? 0.5 : ghost ? 0.5 : undefined,
   };
   const selected = selection?.isSelected(id) ?? false;
+  const indicatorClass = dropIndicator === "top"
+    ? " drop-indicator-left"
+    : dropIndicator === "bottom"
+      ? " drop-indicator-right"
+      : "";
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`data-list-card${selected ? " selected" : ""}${cut ? " cut" : ""}`}
+      className={`data-list-card${selected ? " selected" : ""}${ghost ? " ghost" : ""}${indicatorClass}`}
       onClick={(e) => selection?.handleRowClick(id, e)}
       onDoubleClick={() => onActivate?.(item, index)}
       data-testid="data-list-card"

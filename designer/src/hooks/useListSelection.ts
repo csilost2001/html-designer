@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 
 export interface ListSelection<T> {
   selectedIds: Set<string>;
@@ -26,6 +26,25 @@ export function useListSelection<T>(
   const anchorIdRef = useRef<string | null>(null);
 
   const itemIds = useMemo(() => items.map(getId), [items, getId]);
+
+  // 仕様 §3.8: items (フィルタ後の表示範囲) から消えた項目は selectedIds からも除外。
+  // これにより、フィルタクリア時に「再表示された項目の選択が復活しない」挙動が成立する。
+  useEffect(() => {
+    const visible = new Set(itemIds);
+    setSelectedIdsState((prev) => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    if (anchorIdRef.current && !visible.has(anchorIdRef.current)) {
+      anchorIdRef.current = null;
+    }
+  }, [itemIds]);
 
   const isSelected = useCallback(
     (id: string) => selectedIds.has(id),

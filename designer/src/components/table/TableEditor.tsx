@@ -210,6 +210,7 @@ function ColumnsTab({
   allTables: TableDefinition[];
 }) {
   const [showTemplates, setShowTemplates] = useState(false);
+  const [activeColId, setActiveColId] = useState<string | null>(null);
 
   const sortAccessor = useCallback((col: TableColumn, key: string): string | number => {
     switch (key) {
@@ -242,6 +243,7 @@ function ColumnsTab({
     update((t) => { newColId = addColumn(t).id; });
     sort.clearSort();
     selection.setSelectedIds(new Set([newColId]));
+    setActiveColId(newColId);
   };
 
   const handleAddFromTemplate = (tpl: ColumnTemplate) => {
@@ -249,6 +251,7 @@ function ColumnsTab({
     update((t) => { newColId = addColumn(t, { ...tpl.column }).id; });
     sort.clearSort();
     selection.setSelectedIds(new Set([newColId]));
+    setActiveColId(newColId);
     setShowTemplates(false);
   };
 
@@ -258,6 +261,7 @@ function ColumnsTab({
       for (const id of ids) removeColumn(t, id);
     });
     selection.clearSelection();
+    if (activeColId && ids.has(activeColId)) setActiveColId(null);
   };
 
   const handleDuplicate = (cols: TableColumn[]) => {
@@ -345,6 +349,7 @@ function ColumnsTab({
     selection,
     clipboard,
     layout: "list",
+    onActivate: (c) => setActiveColId(c.id),
     onDelete: handleDelete,
     onDuplicate: handleDuplicate,
     onMoveUp: (cols) => moveBlock(cols, "up"),
@@ -352,7 +357,31 @@ function ColumnsTab({
     onPaste: handlePaste,
   });
 
-  const detailCol = selection.selectedItems.length === 1 ? selection.selectedItems[0] : null;
+  // Esc で詳細パネルを閉じる (開いていれば選択解除より優先)
+  useEffect(() => {
+    if (!activeColId) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (target?.isContentEditable) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setActiveColId(null);
+    };
+    window.addEventListener("keydown", handler, { capture: true });
+    return () => window.removeEventListener("keydown", handler, { capture: true });
+  }, [activeColId]);
+
+  // activeColId のカラムが消えたら閉じる
+  useEffect(() => {
+    if (activeColId && !table.columns.some((c) => c.id === activeColId)) {
+      setActiveColId(null);
+    }
+  }, [activeColId, table.columns]);
+
+  const detailCol = activeColId ? table.columns.find((c) => c.id === activeColId) ?? null : null;
 
   const columns = useMemo<DataListColumn<TableColumn>[]>(() => [
     {
@@ -407,7 +436,7 @@ function ColumnsTab({
       {/* 選択操作バー */}
       <div className="columns-selection-bar">
         <span className="columns-selection-count">
-          {anySelected ? `${selectedCount} 件選択中` : "クリックで選択、Ctrl+A で全選択"}
+          {anySelected ? `${selectedCount} 件選択中 (ダブルクリック/Enter で編集)` : "クリックで選択、ダブルクリックで編集"}
         </span>
         <div className="columns-selection-actions">
           <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" disabled={!anySelected} onClick={() => moveBlock(selection.selectedItems, "up")} title="上へ移動 (Alt+↑)">
@@ -433,6 +462,7 @@ function ColumnsTab({
         selection={selection}
         clipboard={clipboard}
         sort={sort}
+        onActivate={(c) => setActiveColId(c.id)}
         onReorder={handleReorder}
         showNumColumn
         variant="dark"
@@ -440,9 +470,18 @@ function ColumnsTab({
         emptyMessage={<p>カラムがまだありません。テンプレートから追加するか、空のカラムを追加してください。</p>}
       />
 
-      {/* Detail panel (single selection) */}
+      {/* Detail panel: ダブルクリック/Enter/F2 で開く。Esc または ✕ で閉じる */}
       {detailCol && (
         <div className="column-detail">
+          <div className="column-detail-header">
+            <span className="column-detail-title">
+              <i className="bi bi-pencil-square" /> 編集中: <code>{detailCol.name}</code>
+              <span className="column-detail-hint">(Esc で閉じる)</span>
+            </span>
+            <button className="tbl-btn-icon" onClick={() => setActiveColId(null)} title="閉じる">
+              <i className="bi bi-x-lg" />
+            </button>
+          </div>
           <ColumnDetailEditor
             col={detailCol}
             onUpdate={(patch) => handleUpdateCol(detailCol.id, patch)}

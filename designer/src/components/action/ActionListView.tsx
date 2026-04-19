@@ -1,29 +1,35 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ActionGroupMeta, ActionGroupType } from "../../types/action";
+import type { ActionGroupMeta, ActionGroupType, ActionGroup } from "../../types/action";
 import { ACTION_GROUP_TYPE_LABELS, ACTION_GROUP_TYPE_ICONS } from "../../types/action";
 import {
   listActionGroups,
   loadActionGroup,
+  saveActionGroup,
   createActionGroup,
   deleteActionGroup,
 } from "../../store/actionStore";
-import { loadProject } from "../../store/flowStore";
+import { loadProject, saveProject } from "../../store/flowStore";
 import { validateActionGroup } from "../../utils/actionValidation";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { makeTabId } from "../../store/tabStore";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
+import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
 import { useListFilter } from "../../hooks/useListFilter";
 import { useListSort } from "../../hooks/useListSort";
+import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
+import { generateUUID } from "../../utils/uuid";
 import "../../styles/action.css";
 
 const ALL_TYPES: ActionGroupType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
 const STORAGE_KEY = "list-view-mode:process-flow-list";
+const TAB_ID = makeTabId("process-flow-list", "main");
 
 interface ValidationSummary {
   errors: number;
@@ -32,7 +38,6 @@ interface ValidationSummary {
 
 export function ActionListView() {
   const navigate = useNavigate();
-  const [groups, setGroups] = useState<ActionGroupMeta[]>([]);
   const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
   const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
   const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
@@ -44,21 +49,48 @@ export function ActionListView() {
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
 
-  const reload = useCallback(async () => {
-    const g = await listActionGroups();
-    setGroups(g);
+  const loadGroups = useCallback(async () => {
+    mcpBridge.startWithoutEditor();
     const p = await loadProject();
     setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
+    return await listActionGroups();
   }, []);
 
+  const commitGroups = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ActionGroupMeta[]; deletedIds: string[] }) => {
+    for (const id of deletedIds) {
+      await deleteActionGroup(id);
+    }
+    const project = await loadProject();
+    if (project.actionGroups) {
+      const deletedSet = new Set(deletedIds);
+      const orderMap = new Map(itemsInOrder.map((g, i) => [g.id, i]));
+      project.actionGroups = project.actionGroups
+        .filter((g) => !deletedSet.has(g.id))
+        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+      await saveProject(project);
+    }
+  }, []);
+
+  const editor = useListEditor<ActionGroupMeta>({
+    getId: (g) => g.id,
+    load: loadGroups,
+    commit: commitGroups,
+    tabId: TAB_ID,
+  });
+
   useEffect(() => {
-    mcpBridge.startWithoutEditor();
-    reload();
-    const unsub = mcpBridge.onStatusChange((s) => {
-      if (s === "connected") reload();
+    editor.reload();
+    const unsubStatus = mcpBridge.onStatusChange((s) => {
+      if (s === "connected" && !editor.isDirty) editor.reload();
     });
-    return unsub;
-  }, [reload]);
+    const unsubProj = mcpBridge.onBroadcast("projectChanged", () => {
+      if (!editor.isDirty) editor.reload();
+    });
+    return () => { unsubStatus(); unsubProj(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const groups = editor.items;
 
   // バックグラウンドでバリデーション実行
   useEffect(() => {
@@ -120,27 +152,133 @@ export function ActionListView() {
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (g) => g.id);
+  const clipboard = useListClipboard<ActionGroupMeta>((g) => g.id);
 
   const handleActivate = useCallback((g: ActionGroupMeta) => {
+    if (editor.isDeleted(g.id)) return;
     navigate(`/process-flow/edit/${g.id}`);
-  }, [navigate]);
+  }, [navigate, editor]);
 
-  const handleDelete = async (items: ActionGroupMeta[]) => {
-    if (!confirm(`${items.length} 件の処理フロー定義を削除しますか？`)) return;
-    for (const g of items) {
-      await deleteActionGroup(g.id);
+  const handleDelete = (items: ActionGroupMeta[]) => {
+    editor.markDeleted(items.map((g) => g.id));
+  };
+
+  const handleReorder = (fromIdx: number, toIdx: number) => {
+    const visible = sort.sorted;
+    const fromId = visible[fromIdx]?.id;
+    const toId = visible[toIdx]?.id;
+    if (!fromId || !toId) return;
+    const realFrom = editor.items.findIndex((g) => g.id === fromId);
+    const realTo = editor.items.findIndex((g) => g.id === toId);
+    if (realFrom < 0 || realTo < 0) return;
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    editor.reorder(realFrom, realTo);
+  };
+
+  const moveBlock = (items: ActionGroupMeta[], direction: "up" | "down") => {
+    const ids = new Set(items.map((g) => g.id));
+    const idxs = editor.items
+      .map((g, i) => (ids.has(g.id) ? i : -1))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b);
+    if (idxs.length === 0) return;
+    if (sort.sortKeys.length > 0) sort.clearSort();
+    if (direction === "up") {
+      if (idxs[0] === 0) return;
+      editor.setItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(idxs[0] - 1, 1);
+        next.splice(idxs[idxs.length - 1], 0, moved);
+        return next;
+      });
+    } else {
+      if (idxs[idxs.length - 1] === editor.items.length - 1) return;
+      editor.setItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(idxs[idxs.length - 1] + 1, 1);
+        next.splice(idxs[0], 0, moved);
+        return next;
+      });
     }
-    await reload();
-    selection.clearSelection();
+  };
+
+  const duplicateGroup = async (src: ActionGroupMeta): Promise<string | null> => {
+    const full = await loadActionGroup(src.id);
+    if (!full) return null;
+    const dup: ActionGroup = {
+      ...full,
+      id: generateUUID(),
+      name: full.name + " (コピー)",
+      actions: full.actions.map((a) => ({
+        ...a,
+        id: generateUUID(),
+        steps: a.steps.map((s) => ({ ...s, id: generateUUID() })),
+      })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await saveActionGroup(dup);
+    return dup.id;
+  };
+
+  const handleDuplicate = async (items: ActionGroupMeta[]) => {
+    const newIds: string[] = [];
+    for (const g of items) {
+      const id = await duplicateGroup(g);
+      if (id) newIds.push(id);
+    }
+    await editor.reload();
+    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
+  };
+
+  const handlePaste = async (insertIdx: number | null) => {
+    const mode = clipboard.clipboard.mode;
+    const clipItems = clipboard.clipboard.items;
+    if (!clipItems.length) return;
+
+    if (mode === "cut") {
+      const cutIds = new Set(clipItems.map((c) => c.id));
+      const selIds = selection.selectedIds;
+      const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
+      if (sameSet) return;
+
+      if (sort.sortKeys.length > 0) sort.clearSort();
+      clipboard.consume();
+      const moved = clipItems;
+      const pos0 = insertIdx ?? editor.items.length;
+      const removedBefore = editor.items.slice(0, pos0).filter((g) => cutIds.has(g.id)).length;
+      const remaining = editor.items.filter((g) => !cutIds.has(g.id));
+      const pos = Math.min(remaining.length, pos0 - removedBefore);
+      editor.setItems(() => {
+        const next = [...remaining];
+        next.splice(pos, 0, ...moved);
+        return next;
+      });
+      selection.setSelectedIds(new Set(moved.map((g) => g.id)));
+    } else {
+      const newIds: string[] = [];
+      for (const g of clipItems) {
+        const id = await duplicateGroup(g);
+        if (id) newIds.push(id);
+      }
+      clipboard.consume();
+      await editor.reload();
+      selection.setSelectedIds(new Set(newIds));
+    }
   };
 
   useListKeyboard({
     items: sort.sorted,
     getId: (g) => g.id,
     selection,
+    clipboard,
     layout: viewMode === "card" ? "grid" : "list",
     onActivate: handleActivate,
     onDelete: handleDelete,
+    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
+    onMoveUp: (items) => moveBlock(items, "up"),
+    onMoveDown: (items) => moveBlock(items, "down"),
+    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
   });
 
   const handleAdd = async () => {
@@ -158,6 +296,17 @@ export function ActionListView() {
     setAddScreenId("");
     setAddDescription("");
     navigate(`/process-flow/edit/${group.id}`);
+  };
+
+  const handleSave = () => {
+    editor.save().catch(console.error);
+    selection.clearSelection();
+  };
+
+  const handleReset = () => {
+    if (!confirm("未保存の変更を破棄してサーバの状態に戻しますか？")) return;
+    editor.reset().catch(console.error);
+    selection.clearSelection();
   };
 
   const columns = useMemo<DataListColumn<ActionGroupMeta>[]>(() => [
@@ -249,17 +398,41 @@ export function ActionListView() {
     return c;
   }, [groups]);
 
+  const deletedCount = editor.deletedIds.size;
+
   return (
     <div className="action-page">
       <TableSubToolbar />
 
       <div className="action-content">
         <div className="action-list-header">
-          <h5><i className="bi bi-diagram-3 me-2" />処理フロー定義</h5>
+          <h5>
+            <i className="bi bi-diagram-3 me-2" />処理フロー定義
+            {deletedCount > 0 && <span className="action-list-deleted-count"> (削除予定 {deletedCount})</span>}
+          </h5>
           <div className="action-list-header-right">
             <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
             <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
               <i className="bi bi-plus-lg me-1" />新規作成
+            </button>
+            <span className="action-saveline-sep" />
+            <button
+              className="btn btn-outline-secondary btn-sm"
+              data-testid="list-reset-btn"
+              onClick={handleReset}
+              disabled={!editor.isDirty || editor.isSaving}
+              title="変更を破棄"
+            >
+              <i className="bi bi-arrow-counterclockwise" /> リセット
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              data-testid="list-save-btn"
+              onClick={handleSave}
+              disabled={!editor.isDirty || editor.isSaving}
+              title="変更を保存"
+            >
+              <i className="bi bi-save" /> {editor.isSaving ? "保存中..." : "保存"}
             </button>
           </div>
         </div>
@@ -315,12 +488,15 @@ export function ActionListView() {
           columns={columns}
           getId={(g) => g.id}
           selection={selection}
+          clipboard={clipboard}
           sort={sort}
           onActivate={handleActivate}
+          onReorder={handleReorder}
           layout={viewMode === "card" ? "grid" : "list"}
           renderCard={renderCard}
           showNumColumn={viewMode === "table"}
           className="action-data-list"
+          isItemGhost={(id) => editor.isDeleted(id)}
           emptyMessage={
             groups.length === 0
               ? <p>処理フロー定義がまだありません。「新規作成」から追加してください。</p>
