@@ -152,6 +152,28 @@ export interface StepNote {
 /** アクショングループのモード (docs/spec/process-flow-maturity.md §5) */
 export type ActionGroupMode = "upstream" | "downstream";
 
+// ── TX 境界 / Saga / 外部チェーン (docs/spec, #151 (B)) ─────────────────────
+
+/** TX 境界におけるステップの役割 */
+export type TxBoundaryRole = "begin" | "member" | "end";
+
+/** トランザクション境界。同一 txId を持つステップ群が単一 TX 内で実行される想定 */
+export interface TxBoundary {
+  role: TxBoundaryRole;
+  /** TX 識別子。同一アクション内で一意 */
+  txId: string;
+}
+
+/** 外部呼出チェーンのフェーズ (例: Stripe の authorize → capture → cancel) */
+export type ExternalChainPhase = "authorize" | "capture" | "cancel" | "other";
+
+/** 同一外部リソースを参照する複数ステップを束ねる識別子 */
+export interface ExternalChain {
+  /** chain 識別子。同一アクション内で一意 */
+  chainId: string;
+  phase: ExternalChainPhase;
+}
+
 /** ステップ共通フィールド */
 export interface StepBase {
   id: string;
@@ -168,6 +190,23 @@ export interface StepBase {
    * docs/spec/process-flow-variables.md §3.2
    */
   outputBinding?: string;
+  /**
+   * トランザクション境界。同一 txId を持つステップ群が単一 TX 内で実行される。
+   * docs/spec, #151 (B)
+   */
+  txBoundary?: TxBoundary;
+  /** 簡易フラグ: TX 内であることだけ示唆 (txId 管理不要な場合) */
+  transactional?: boolean;
+  /**
+   * Saga 補償の逆参照。補償対象のステップ ID を指す (例: authorize ステップの ID)。
+   * 主に cancel / reversal ステップに付ける。
+   */
+  compensatesFor?: string;
+  /**
+   * 外部呼出チェーン。同一 chainId を持つステップ群は同じ外部リソースを扱う。
+   * 例: Stripe の PaymentIntent に対する authorize → capture → cancel の 3 ステップ。
+   */
+  externalChain?: ExternalChain;
   subSteps?: Step[];
 }
 
