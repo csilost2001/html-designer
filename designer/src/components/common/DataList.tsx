@@ -56,6 +56,17 @@ interface Props<T> {
   sort?: ListSort<T>;
   onActivate?: (item: T, index: number) => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
+  /**
+   * 行の削除ボタン (行ゴミ箱, docs/spec/list-common.md §3.11 / §4.6)。
+   * 指定時のみ各行の右端にホバー表示。ソート中も有効 (削除は §3.9 の例外)
+   */
+  onRowDelete?: (item: T) => void;
+  /**
+   * 右クリックメニュー (docs/spec/list-common.md §3.11 / §4.6)。
+   * 行または空領域の右クリック時に呼ばれる。item=null は空領域 (背景) の右クリック。
+   * 実装側で `<ListContextMenu>` を表示する。
+   */
+  onContextMenu?: (e: ReactMouseEvent, item: T | null) => void;
   /** "list" = 表 (既定) / "grid" = カード */
   layout?: DataListLayout;
   /** grid レイアウト時のカードレンダラ (columns は使われない) */
@@ -70,7 +81,7 @@ interface Props<T> {
 
 export function DataList<T>({
   items, columns, getId, getNo, selection, clipboard, sort,
-  onActivate, onReorder,
+  onActivate, onReorder, onRowDelete, onContextMenu,
   layout = "list",
   renderCard,
   showNumColumn = true,
@@ -163,8 +174,30 @@ export function DataList<T>({
     selection.clearSelection();
   };
 
+  /**
+   * docs/spec/list-common.md §3.11: 空領域右クリック
+   * 行の右クリックは DataListRow / DataListCard 側で個別に捕捉。
+   * ここでは「行以外の場所 (背景・ヘッダ等)」での右クリックを拾って item=null で呼ぶ。
+   */
+  const handleRootContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onContextMenu) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest('[data-row-id]')) return; // 行の右クリックは行側で拾う
+    e.preventDefault();
+    onContextMenu(e, null);
+  };
+
   if (items.length === 0) {
-    return <div className={rootClass} onClick={handleRootClick}>{emptyMessage ?? <span>データがありません</span>}</div>;
+    return (
+      <div
+        className={rootClass}
+        onClick={handleRootClick}
+        onContextMenu={onContextMenu ? handleRootContextMenu : undefined}
+      >
+        {emptyMessage ?? <span>データがありません</span>}
+      </div>
+    );
   }
 
   const strategy = layout === "grid" ? rectSortingStrategy : verticalListSortingStrategy;
@@ -187,7 +220,12 @@ export function DataList<T>({
   };
 
   return (
-    <div className={rootClass} data-testid="data-list" onClick={handleRootClick}>
+    <div
+      className={rootClass}
+      data-testid="data-list"
+      onClick={handleRootClick}
+      onContextMenu={onContextMenu ? handleRootContextMenu : undefined}
+    >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -203,6 +241,7 @@ export function DataList<T>({
                 <tr>
                   {showHandle && <th className="data-list-th-handle" aria-label="並び替えハンドル" />}
                   {showNumColumn && <th className="data-list-th-num">No</th>}
+                  {onRowDelete && <th className="data-list-th-row-delete" aria-label="削除" />}
                   {table.getHeaderGroups()[0].headers.map((header) => {
                     const col = columns.find((c) => c.key === header.column.id)!;
                     const dir = sort?.getSortDirection(col.key) ?? null;
@@ -239,6 +278,8 @@ export function DataList<T>({
                       selection={selection}
                       ghost={isRowGhost(id)}
                       onActivate={onActivate}
+                      onRowDelete={onRowDelete}
+                      onContextMenu={onContextMenu}
                       showHandle={showHandle}
                       handleDisabled={handleDisabled}
                       showNumColumn={showNumColumn}
@@ -261,6 +302,8 @@ export function DataList<T>({
                     selection={selection}
                     ghost={isRowGhost(id)}
                     onActivate={onActivate}
+                    onRowDelete={onRowDelete}
+                    onContextMenu={onContextMenu}
                     renderCard={renderCard}
                     draggable={!!onReorder && !sortActive}
                     dropIndicator={dropIndicatorFor(id)}
@@ -284,6 +327,8 @@ interface RowProps<T> {
   selection?: ListSelection<T>;
   ghost: boolean;
   onActivate?: (item: T, index: number) => void;
+  onRowDelete?: (item: T) => void;
+  onContextMenu?: (e: ReactMouseEvent, item: T | null) => void;
   showHandle: boolean;
   handleDisabled: boolean;
   showNumColumn: boolean;
@@ -291,7 +336,8 @@ interface RowProps<T> {
 }
 
 function DataListRow<T>({
-  item, index, getId, getNo, columns, selection, ghost, onActivate, showHandle, handleDisabled, showNumColumn, dropIndicator,
+  item, index, getId, getNo, columns, selection, ghost, onActivate, onRowDelete, onContextMenu,
+  showHandle, handleDisabled, showNumColumn, dropIndicator,
 }: RowProps<T>) {
   const id = getId(item);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: handleDisabled });
@@ -310,6 +356,16 @@ function DataListRow<T>({
 
   const handleProps = handleDisabled ? {} : { ...attributes, ...listeners };
 
+  const handleContextMenu = (e: ReactMouseEvent) => {
+    if (!onContextMenu) return;
+    e.preventDefault();
+    // 右クリックで未選択行ならその行を選択 (エクスプローラ流)
+    if (selection && !selection.isSelected(id)) {
+      selection.setSelectedIds(new Set([id]));
+    }
+    onContextMenu(e, item);
+  };
+
   return (
     <tr
       ref={setNodeRef}
@@ -317,6 +373,7 @@ function DataListRow<T>({
       className={`data-list-row${selected ? " selected" : ""}${ghost ? " ghost" : ""}${indicatorClass}`}
       onClick={(e) => selection?.handleRowClick(id, e)}
       onDoubleClick={() => onActivate?.(item, index)}
+      onContextMenu={onContextMenu ? handleContextMenu : undefined}
       data-testid="data-list-row"
       data-row-id={id}
     >
@@ -331,6 +388,19 @@ function DataListRow<T>({
         </td>
       )}
       {showNumColumn && <td className="data-list-td-num">{getNo ? getNo(item) : index + 1}</td>}
+      {onRowDelete && (
+        <td className="data-list-td-row-delete-cell">
+          <button
+            type="button"
+            className="data-list-td-row-delete"
+            aria-label="この行を削除"
+            title="削除"
+            onClick={(e) => { e.stopPropagation(); onRowDelete(item); }}
+          >
+            <i className="bi bi-trash" />
+          </button>
+        </td>
+      )}
       {columns.map((col) => (
         <td
           key={col.key}
@@ -351,13 +421,16 @@ interface CardProps<T> {
   selection?: ListSelection<T>;
   ghost: boolean;
   onActivate?: (item: T, index: number) => void;
+  onRowDelete?: (item: T) => void;
+  onContextMenu?: (e: ReactMouseEvent, item: T | null) => void;
   renderCard?: (item: T, index: number) => ReactNode;
   draggable: boolean;
   dropIndicator: "top" | "bottom" | null;
 }
 
 function DataListCard<T>({
-  item, index, getId, selection, ghost, onActivate, renderCard, draggable, dropIndicator,
+  item, index, getId, selection, ghost, onActivate, onRowDelete, onContextMenu,
+  renderCard, draggable, dropIndicator,
 }: CardProps<T>) {
   const id = getId(item);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -368,6 +441,7 @@ function DataListCard<T>({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : ghost ? 0.5 : undefined,
+    position: "relative" as const,
   };
   const selected = selection?.isSelected(id) ?? false;
   const indicatorClass = dropIndicator === "top"
@@ -376,6 +450,15 @@ function DataListCard<T>({
       ? " drop-indicator-right"
       : "";
 
+  const handleContextMenu = (e: ReactMouseEvent) => {
+    if (!onContextMenu) return;
+    e.preventDefault();
+    if (selection && !selection.isSelected(id)) {
+      selection.setSelectedIds(new Set([id]));
+    }
+    onContextMenu(e, item);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -383,12 +466,25 @@ function DataListCard<T>({
       className={`data-list-card${selected ? " selected" : ""}${ghost ? " ghost" : ""}${indicatorClass}`}
       onClick={(e) => selection?.handleRowClick(id, e)}
       onDoubleClick={() => onActivate?.(item, index)}
+      onContextMenu={onContextMenu ? handleContextMenu : undefined}
       data-testid="data-list-card"
       data-row-id={id}
       {...(draggable ? attributes : {})}
       {...(draggable ? listeners : {})}
     >
       {renderCard ? renderCard(item, index) : <span>{id}</span>}
+      {onRowDelete && (
+        <button
+          type="button"
+          className="data-list-card-row-delete"
+          aria-label="このカードを削除"
+          title="削除"
+          onClick={(e) => { e.stopPropagation(); onRowDelete(item); }}
+          onPointerDown={(e) => e.stopPropagation()} /* カード全体が D&D ハンドルのため伝播を止める */
+        >
+          <i className="bi bi-trash" />
+        </button>
+      )}
     </div>
   );
 }

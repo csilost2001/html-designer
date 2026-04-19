@@ -12,6 +12,7 @@ import { TableSubToolbar } from "./TableSubToolbar";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
+import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -46,6 +47,7 @@ export function TableListView() {
   const [addCategory, setAddCategory] = useState("");
   const [exportDialect, setExportDialect] = useState<SqlDialect>("postgresql");
   const [showExport, setShowExport] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const loadTables = useCallback(async () => {
     mcpBridge.startWithoutEditor();
@@ -249,21 +251,6 @@ export function TableListView() {
     }
   };
 
-  useListKeyboard({
-    items: sort.sorted,
-    getId: (t) => t.id,
-    selection,
-    clipboard,
-    sort,
-    layout: viewMode === "card" ? "grid" : "list",
-    onActivate: handleActivate,
-    onDelete: handleDelete,
-    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
-    onMoveUp: (items) => moveBlock(items, "up"),
-    onMoveDown: (items) => moveBlock(items, "down"),
-    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
-  });
-
   const sortActive = sort.sortKeys.length > 0;
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
@@ -285,6 +272,105 @@ export function TableListView() {
     setAddCategory("");
     navigate(`/table/edit/${table.id}`);
   };
+
+  // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築
+  const buildMenuItems = (target: TableMeta | null): ContextMenuItem[] => {
+    const hasSelection = selection.selectedIds.size > 0 || target !== null;
+    const pasteBlocked = sortActive || !clipboard.hasContent;
+    const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
+    const sortReason = "ソート中は無効 (ソート解除で利用可能)";
+
+    if (target === null && selection.selectedIds.size === 0) {
+      return [
+        {
+          key: "new", label: "新規作成", icon: "bi-plus-lg",
+          disabled: sortActive, disabledReason: sortReason,
+          onClick: () => setShowAdd(true),
+        },
+      ];
+    }
+
+    const items = target && !selection.isSelected(target.id)
+      ? [target]
+      : selection.selectedItems;
+
+    return [
+      {
+        key: "new", label: "新規作成", icon: "bi-plus-lg",
+        disabled: sortActive, disabledReason: sortReason,
+        onClick: () => setShowAdd(true),
+      },
+      { key: "sep1", separator: true },
+      {
+        key: "copy", label: "コピー", icon: "bi-files", shortcut: "Ctrl+C",
+        disabled: !hasSelection,
+        onClick: () => { if (items.length > 0) clipboard.copy(items); },
+      },
+      {
+        key: "cut", label: "切り取り", icon: "bi-scissors", shortcut: "Ctrl+X",
+        disabled: !hasSelection,
+        onClick: () => { if (items.length > 0) clipboard.cut(items); },
+      },
+      {
+        key: "paste", label: "貼り付け", icon: "bi-clipboard", shortcut: "Ctrl+V",
+        disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
+        onClick: () => {
+          const ids = Array.from(selection.selectedIds);
+          const allIds = editor.items.map((t) => t.id);
+          const insertIndex = ids.length > 0
+            ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
+            : null;
+          handlePaste(insertIndex).catch(console.error);
+        },
+      },
+      { key: "sep2", separator: true },
+      {
+        key: "duplicate", label: "複製", icon: "bi-copy", shortcut: "Ctrl+D",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) handleDuplicate(items).catch(console.error); },
+      },
+      { key: "sep3", separator: true },
+      {
+        key: "delete", label: "削除", icon: "bi-trash", shortcut: "Delete",
+        disabled: !hasSelection, danger: true,
+        onClick: () => { if (items.length > 0) handleDelete(items); },
+      },
+    ];
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, target: TableMeta | null) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
+  };
+
+  const handleContextMenuKey = (first: TableMeta | null, rect: DOMRect | null) => {
+    if (first && !selection.isSelected(first.id)) {
+      selection.setSelectedIds(new Set([first.id]));
+    }
+    const x = rect ? rect.left : 100;
+    const y = rect ? rect.bottom : 100;
+    setContextMenu({ x, y, items: buildMenuItems(first) });
+  };
+
+  const handleRowDelete = (t: TableMeta) => {
+    handleDelete([t]);
+  };
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (t) => t.id,
+    selection,
+    clipboard,
+    sort,
+    layout: viewMode === "card" ? "grid" : "list",
+    onActivate: handleActivate,
+    onDelete: handleDelete,
+    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
+    onMoveUp: (items) => moveBlock(items, "up"),
+    onMoveDown: (items) => moveBlock(items, "down"),
+    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
+    onContextMenuKey: handleContextMenuKey,
+  });
 
   const handleExportDdl = async () => {
     const defs: TableDefinition[] = [];
@@ -415,11 +501,6 @@ export function TableListView() {
                 </button>
               </>
             )}
-            {selectedCount > 0 && (
-              <button className="tbl-btn tbl-btn-ghost danger" onClick={() => handleDelete(selection.selectedItems)}>
-                <i className="bi bi-trash" /> {selectedCount} 件削除
-              </button>
-            )}
             <button
               className="tbl-btn tbl-btn-primary"
               onClick={() => setShowAdd(true)}
@@ -427,6 +508,14 @@ export function TableListView() {
               title={sortActive ? "ソート中は無効 (ソート解除で利用可能)" : undefined}
             >
               <i className="bi bi-plus-lg" /> テーブル追加
+            </button>
+            <button
+              className="tbl-btn tbl-btn-ghost danger"
+              onClick={() => handleDelete(selection.selectedItems)}
+              disabled={selectedCount === 0}
+              title="削除 (Delete)"
+            >
+              <i className="bi bi-trash" /> 削除{selectedCount > 0 ? ` (${selectedCount})` : ""}
             </button>
             <span className="tbl-saveline-sep" />
             <button
@@ -465,6 +554,8 @@ export function TableListView() {
           columns={columns}
           getId={(t) => t.id}
           getNo={(t) => t.no}
+          onRowDelete={handleRowDelete}
+          onContextMenu={handleContextMenu}
           selection={selection}
           clipboard={clipboard}
           sort={sort}
@@ -563,6 +654,15 @@ export function TableListView() {
               </div>
             </div>
           </div>
+        )}
+
+        {contextMenu && (
+          <ListContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={contextMenu.items}
+            onClose={() => setContextMenu(null)}
+          />
         )}
       </div>
     </div>
