@@ -57,6 +57,28 @@ import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
 
+/** グループ内の全ステップを再帰的に走査して maturity 別カウントを集計 (#196) */
+function countMaturity(group: ActionGroup): { draft: number; provisional: number; committed: number; total: number } {
+  const acc = { draft: 0, provisional: 0, committed: 0, total: 0 };
+  const visit = (steps: Step[]) => {
+    for (const s of steps) {
+      const m = s.maturity ?? "draft";
+      if (m === "draft") acc.draft++;
+      else if (m === "provisional") acc.provisional++;
+      else acc.committed++;
+      acc.total++;
+      if (s.subSteps) visit(s.subSteps);
+      if (s.type === "branch") {
+        for (const b of s.branches) visit(b.steps);
+        if (s.elseBranch) visit(s.elseBranch.steps);
+      }
+      if (s.type === "loop") visit(s.steps);
+    }
+  };
+  for (const act of group.actions) visit(act.steps);
+  return acc;
+}
+
 /** ツールバーのドラッグ可能なステップ種別ボタン */
 function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -561,6 +583,19 @@ export function ActionEditor() {
             </div>
           </div>
         </div>
+        {group.mode === "downstream" && (() => {
+          const counts = countMaturity(group);
+          const unfinished = counts.draft + counts.provisional;
+          if (unfinished === 0) return null;
+          return (
+            <div className="alert alert-warning py-1 px-2 mt-2 mb-0 small d-flex align-items-center gap-2" role="alert">
+              <i className="bi bi-exclamation-triangle-fill" />
+              <strong>下流モードで未確定ステップあり:</strong>
+              <span>🟡 draft {counts.draft} / 🟠 provisional {counts.provisional}</span>
+              <span className="text-muted">(AI 実装前に committed に昇格してください)</span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* アクションタブ */}
