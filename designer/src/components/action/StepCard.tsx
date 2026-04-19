@@ -858,6 +858,61 @@ export function StepCard({
               </div>
             )}
 
+            {/* ── 計算ステップ (ComputeStep) ───────────────────── */}
+            {step.type === "compute" && (
+              <div className="row g-2 mb-2">
+                <div className="col-12">
+                  <label className="form-label">
+                    <i className="bi bi-calculator me-1" />
+                    代入式 (expression)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={step.expression}
+                    onChange={(e) => onChange({ expression: e.target.value } as Partial<Step>)}
+                    onBlur={onCommit}
+                    placeholder="例: Math.floor(@subtotal * 0.10) / @subtotal + @taxAmount"
+                    style={{ fontFamily: "monospace" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── 返却ステップ (ReturnStep) ────────────────────── */}
+            {step.type === "return" && (
+              <>
+                <div className="row g-2 mb-2">
+                  <div className="col-6">
+                    <label className="form-label">
+                      <i className="bi bi-reply me-1" />
+                      responseRef (action.responses[].id)
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={step.responseRef ?? ""}
+                      onChange={(e) => onChange({ responseRef: e.target.value || undefined } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="例: 409-stock-shortage"
+                    />
+                  </div>
+                  <div className="col-6">
+                    <label className="form-label">bodyExpression</label>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={step.bodyExpression ?? ""}
+                      onChange={(e) => onChange({ bodyExpression: e.target.value || undefined } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="例: { code: 'STOCK_SHORTAGE', detail: @shortageList }"
+                      style={{ fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* ── 画面遷移 ─────────────────────────────────────── */}
             {step.type === "screenTransition" && (
               <div className="row g-2 mb-2">
