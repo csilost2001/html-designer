@@ -189,10 +189,50 @@ export interface DbAccessStep extends StepBase {
   fields?: string;
 }
 
+// ── 外部システム呼出の outcome / タイムアウト / リトライ (docs/spec, #151 (B)) ──
+
+/** 外部呼出の結果種別。product-scope §11 の 3 値を型化 */
+export type ExternalCallOutcome = "success" | "failure" | "timeout";
+
+export const EXTERNAL_CALL_OUTCOME_VALUES: readonly ExternalCallOutcome[] =
+  ["success", "failure", "timeout"] as const;
+
+/** outcome ごとのハンドリング定義 */
+export interface ExternalCallOutcomeSpec {
+  /**
+   * - "continue": 次ステップへ続行 (fire-and-forget で failure/timeout 時の既定)
+   * - "abort": 処理中断 (HTTP エラーレスポンス等)
+   * - "compensate": Saga 補償 (別途 compensatesFor などで指定する想定)
+   */
+  action: "continue" | "abort" | "compensate";
+  /** 補足説明 (任意、エラーメッセージ文面のヒント等) */
+  description?: string;
+  /** abort 時のジャンプ先ラベル (任意) */
+  jumpTo?: string;
+}
+
+/** 外部呼出のリトライ方針 */
+export interface RetryPolicy {
+  maxAttempts: number;
+  backoff?: "fixed" | "exponential";
+  initialDelayMs?: number;
+}
+
 export interface ExternalSystemStep extends StepBase {
   type: "externalSystem";
   systemName: string;
   protocol?: string;
+  /**
+   * 各 outcome (success / failure / timeout) のハンドリング定義。
+   * 省略時は product-scope §11 の既定 (failure/timeout=abort、success=continue) を適用。
+   */
+  outcomes?: Partial<Record<ExternalCallOutcome, ExternalCallOutcomeSpec>>;
+  /** タイムアウト (ミリ秒)。未指定は product-scope §11 の既定 10000 */
+  timeoutMs?: number;
+  /** リトライ方針。未指定は「リトライなし」 */
+  retryPolicy?: RetryPolicy;
+  /** true なら TX 後・非同期 fire-and-forget。同期レスポンスを待たない */
+  fireAndForget?: boolean;
 }
 
 export interface CommonProcessStep extends StepBase {
