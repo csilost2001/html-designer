@@ -10,21 +10,32 @@ import type { ActionGroup, MarkerKind } from "../../../types/action";
 import { listActionGroups, loadActionGroup } from "../../../store/actionStore";
 import { mcpBridge } from "../../../mcp/mcpBridge";
 
+interface RecentMarker {
+  id: string;
+  kind: MarkerKind;
+  body: string;
+  createdAt: string;
+  actionGroupId: string;
+  actionGroupName: string;
+}
+
 interface Summary {
   total: number;
   byKind: Record<MarkerKind, number>;
   perGroup: Array<{ id: string; name: string; count: number }>;
+  recent: RecentMarker[];
 }
 
 const INITIAL: Summary = {
   total: 0,
   byKind: { chat: 0, attention: 0, todo: 0, question: 0 },
   perGroup: [],
+  recent: [],
 };
 
 async function fetchSummary(): Promise<Summary> {
   const metas = await listActionGroups();
-  const s: Summary = { total: 0, byKind: { chat: 0, attention: 0, todo: 0, question: 0 }, perGroup: [] };
+  const s: Summary = { total: 0, byKind: { chat: 0, attention: 0, todo: 0, question: 0 }, perGroup: [], recent: [] };
   for (const meta of metas) {
     const g: ActionGroup | null = await loadActionGroup(meta.id);
     if (!g) continue;
@@ -33,10 +44,21 @@ async function fetchSummary(): Promise<Summary> {
     for (const m of unresolved) {
       s.byKind[m.kind] = (s.byKind[m.kind] ?? 0) + 1;
       s.total++;
+      s.recent.push({
+        id: m.id,
+        kind: m.kind,
+        body: m.body,
+        createdAt: m.createdAt,
+        actionGroupId: g.id,
+        actionGroupName: g.name,
+      });
     }
     s.perGroup.push({ id: g.id, name: g.name, count: unresolved.length });
   }
   s.perGroup.sort((a, b) => b.count - a.count);
+  // 新しい順 (desc)
+  s.recent.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  s.recent = s.recent.slice(0, 5);
   return s;
 }
 
@@ -121,6 +143,39 @@ export function MarkersSummaryPanel() {
             </li>
           )}
         </ul>
+      )}
+      {summary.recent.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: "1px solid #e2e8f0", paddingTop: 6 }}>
+          <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>最新マーカー</div>
+          <ul className="markers-recent-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {summary.recent.map((m) => (
+              <li
+                key={m.id}
+                className="markers-recent-item"
+                style={{ padding: "4px 0", borderBottom: "1px dotted #f1f5f9", fontSize: "0.78rem" }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-sm btn-link p-0 markers-recent-btn"
+                  onClick={() => navigate(`/process-flow/edit/${m.actionGroupId}`)}
+                  style={{ textAlign: "left", width: "100%", textDecoration: "none" }}
+                  title={`${m.actionGroupName} — ${new Date(m.createdAt).toLocaleString("ja-JP")}`}
+                >
+                  <span style={{ color: KIND_COLOR[m.kind], fontWeight: 600, marginRight: 4 }}>
+                    <i className="bi bi-circle-fill" style={{ fontSize: "0.5rem", marginRight: 3 }} />
+                    {KIND_LABEL[m.kind]}
+                  </span>
+                  <span style={{ color: "#334155" }}>
+                    {m.body.length > 50 ? `${m.body.slice(0, 50)}…` : m.body}
+                  </span>
+                  <div style={{ color: "#94a3b8", fontSize: "0.7rem" }}>
+                    <i className="bi bi-diagram-3 me-1" />{m.actionGroupName}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {summary.total === 0 && !loading && (
         <div style={{ marginTop: 6, color: "#94a3b8", fontSize: "0.8rem" }}>
