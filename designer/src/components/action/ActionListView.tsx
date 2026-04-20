@@ -43,12 +43,28 @@ interface ValidationSummary {
   warnings: number;
 }
 
+interface MarkerSummary {
+  todo: number;
+  question: number;
+  attention: number;
+  chat: number;
+  total: number;
+}
+
+const MARKER_BADGE_META: Array<{ kind: "todo" | "question" | "attention" | "chat"; icon: string; label: string }> = [
+  { kind: "todo", icon: "bi-robot", label: "AI 依頼" },
+  { kind: "question", icon: "bi-question-circle-fill", label: "質問" },
+  { kind: "attention", icon: "bi-exclamation-triangle-fill", label: "注意" },
+  { kind: "chat", icon: "bi-chat-dots-fill", label: "メモ" },
+];
+
 export function ActionListView() {
   const navigate = useNavigate();
   const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
   const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
   const [filterMaturity, setFilterMaturity] = useState<"all" | "draft" | "provisional" | "committed">("all");
   const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
+  const [markerMap, setMarkerMap] = useState<Map<string, MarkerSummary>>(new Map());
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
   const [addType, setAddType] = useState<ActionGroupType>("screen");
@@ -146,6 +162,19 @@ export function ActionListView() {
           });
           return next;
         });
+        const openMarkers = (group.markers ?? []).filter((m) => !m.resolvedAt);
+        const summary: MarkerSummary = {
+          todo: openMarkers.filter((m) => m.kind === "todo").length,
+          question: openMarkers.filter((m) => m.kind === "question").length,
+          attention: openMarkers.filter((m) => m.kind === "attention").length,
+          chat: openMarkers.filter((m) => m.kind === "chat").length,
+          total: openMarkers.length,
+        };
+        setMarkerMap((prev) => {
+          const next = new Map(prev);
+          next.set(meta.id, summary);
+          return next;
+        });
       }
     })();
     return () => { cancelled = true; };
@@ -193,9 +222,10 @@ export function ActionListView() {
         return order[g.maturity ?? "draft"] ?? 0;
       }
       case "notesCount": return g.notesCount ?? 0;
+      case "markerCount": return markerMap.get(g.id)?.total ?? 0;
       default: return "";
     }
-  }, [getErrorPriority]);
+  }, [getErrorPriority, markerMap]);
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (g) => g.id);
@@ -322,6 +352,7 @@ export function ActionListView() {
     actionCount: "アクション",
     screenId: "画面紐付け",
     errorPriority: "検証",
+    markerCount: "マーカー",
   }), []);
 
   const handleAdd = async () => {
@@ -451,6 +482,29 @@ export function ActionListView() {
     selection.clearSelection();
   };
 
+  const renderMarkerBadges = (g: ActionGroupMeta) => {
+    const m = markerMap.get(g.id);
+    if (!m || m.total === 0) return null;
+    const tooltip = MARKER_BADGE_META
+      .filter((b) => m[b.kind] > 0)
+      .map((b) => `${b.label}: ${m[b.kind]}`)
+      .join(" / ");
+    return (
+      <span className="action-marker-badges" title={`AI 依頼マーカー ${m.total} 件 (${tooltip})`}>
+        {MARKER_BADGE_META.map((b) => {
+          const count = m[b.kind];
+          if (count === 0) return null;
+          return (
+            <span key={b.kind} className={`action-marker-badge kind-${b.kind}`}>
+              <i className={`bi ${b.icon}`} />
+              {count}
+            </span>
+          );
+        })}
+      </span>
+    );
+  };
+
   const columns = useMemo<DataListColumn<ActionGroupMeta>[]>(() => [
     {
       key: "name",
@@ -503,6 +557,15 @@ export function ActionListView() {
       render: (g) => (g.notesCount ?? 0) > 0 ? <span><i className="bi bi-sticky me-1" />{g.notesCount}</span> : null,
     },
     {
+      key: "markerCount",
+      header: "マーカー",
+      width: "140px",
+      align: "left",
+      sortable: true,
+      sortAccessor: (g) => markerMap.get(g.id)?.total ?? 0,
+      render: (g) => renderMarkerBadges(g),
+    },
+    {
       key: "screenId",
       header: "画面紐付け",
       width: "110px",
@@ -526,7 +589,7 @@ export function ActionListView() {
         return <i className="bi bi-check-lg action-validation-ok" title="問題なし" />;
       },
     },
-  ], [validationMap, getErrorPriority]);
+  ], [validationMap, getErrorPriority, markerMap]);
 
   const renderCard = (g: ActionGroupMeta) => {
     const v = validationMap.get(g.id);
@@ -556,6 +619,7 @@ export function ActionListView() {
               <i className="bi bi-sticky me-1" />付箋: {g.notesCount}
             </span>
           )}
+          {renderMarkerBadges(g)}
         </div>
       </div>
     );
@@ -606,6 +670,23 @@ export function ActionListView() {
                     <i className="bi bi-sticky" /> {summary.notes}
                   </span>
                 )}
+                {(() => {
+                  const total = MARKER_BADGE_META.reduce((acc, b) => {
+                    for (const m of markerMap.values()) acc += m[b.kind];
+                    return acc;
+                  }, 0);
+                  if (total === 0) return null;
+                  const tooltip = MARKER_BADGE_META.map((b) => {
+                    let n = 0;
+                    for (const m of markerMap.values()) n += m[b.kind];
+                    return n > 0 ? `${b.label}: ${n}` : null;
+                  }).filter(Boolean).join(" / ");
+                  return (
+                    <span title={`マーカー ${total} 件 (${tooltip})`} className="text-muted">
+                      <i className="bi bi-robot" /> {total}
+                    </span>
+                  );
+                })()}
               </div>
             );
           })()}
