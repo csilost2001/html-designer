@@ -8,8 +8,14 @@
       "type": "login",
       "description": "ユーザー認証画面。IDとパスワードでシステムにログインする。",
       "path": "/login",
-      "position": { "x": 370, "y": 50 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 370,
+        "y": 50
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -20,8 +26,14 @@
       "type": "dashboard",
       "description": "システム全体のナビゲーションハブ。顧客管理・注文管理・レポートへ遷移できる。",
       "path": "/menu",
-      "position": { "x": 370, "y": 220 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 370,
+        "y": 220
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -32,8 +44,14 @@
       "type": "search",
       "description": "顧客名・電話番号での絞り込み検索と一覧表示。新規登録ボタンから顧客登録画面へ遷移。",
       "path": "/customers",
-      "position": { "x": 100, "y": 400 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 100,
+        "y": 400
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -44,8 +62,14 @@
       "type": "detail",
       "description": "顧客の詳細情報表示。修正・削除・注文一覧の各操作ボタンあり。",
       "path": "/customers/:id",
-      "position": { "x": 100, "y": 580 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 100,
+        "y": 580
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -56,8 +80,14 @@
       "type": "form",
       "description": "新規顧客の入力フォーム。氏名・フリガナ・連絡先・住所を入力して登録。",
       "path": "/customers/new",
-      "position": { "x": 100, "y": 760 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 100,
+        "y": 760
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -68,8 +98,14 @@
       "type": "form",
       "description": "既存顧客情報の修正フォーム。登録画面と同じ項目を編集できる。",
       "path": "/customers/:id/edit",
-      "position": { "x": 340, "y": 760 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 340,
+        "y": 760
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -80,8 +116,14 @@
       "type": "confirm",
       "description": "顧客データの削除確認ダイアログ。削除実行またはキャンセルを選択する。",
       "path": "/customers/:id/delete",
-      "position": { "x": 340, "y": 580 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 340,
+        "y": 580
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -92,8 +134,14 @@
       "type": "list",
       "description": "注文の検索・一覧表示。顧客名・期間での絞り込みができる。新規注文登録ボタンあり。",
       "path": "/orders",
-      "position": { "x": 640, "y": 400 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 640,
+        "y": 400
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -104,8 +152,14 @@
       "type": "form",
       "description": "新規注文の入力フォーム。顧客選択・商品明細・合計金額を入力して登録。",
       "path": "/orders/new",
-      "position": { "x": 640, "y": 580 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 640,
+        "y": 580
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -116,8 +170,14 @@
       "type": "complete",
       "description": "登録・修正・削除の完了通知画面。処理内容のサマリーと一覧へ戻るボタンを表示。",
       "path": "/complete",
-      "position": { "x": 490, "y": 940 },
-      "size": { "width": 200, "height": 100 },
+      "position": {
+        "x": 490,
+        "y": 940
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
       "hasDesign": true,
       "createdAt": "2026-04-12T00:00:00.000Z",
       "updatedAt": "2026-04-12T00:00:00.000Z"
@@ -324,7 +384,27 @@
       "type": "batch",
       "actionCount": 1,
       "updatedAt": "2026-04-14T00:00:00.000Z"
+    },
+    {
+      "id": "cccccccc-0005-4000-8000-cccccccccccc",
+      "no": 5,
+      "name": "注文登録画面 (v1.3 全機能実証版)",
+      "type": "screen",
+      "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+      "actionCount": 1,
+      "updatedAt": "2026-04-20T19:00:00.000Z",
+      "maturity": "committed"
+    },
+    {
+      "id": "cccccccc-0099-4000-8000-cccccccccccc",
+      "no": 99,
+      "name": "注文登録 (詳細化途中・マーカー入りドッグフード)",
+      "type": "screen",
+      "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+      "actionCount": 1,
+      "updatedAt": "2026-04-21T10:00:00.000Z",
+      "maturity": "draft"
     }
   ],
-  "updatedAt": "2026-04-14T00:00:00.000Z"
+  "updatedAt": "2026-04-21T10:00:00.000Z"
 }
