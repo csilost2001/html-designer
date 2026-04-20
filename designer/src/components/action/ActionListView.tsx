@@ -62,6 +62,7 @@ export function ActionListView() {
   const navigate = useNavigate();
   const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
   const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
+  const [filterMarkersOnly, setFilterMarkersOnly] = useState(false);
   const [filterMaturity, setFilterMaturity] = useState<"all" | "draft" | "provisional" | "committed">("all");
   const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
   const [markerMap, setMarkerMap] = useState<Map<string, MarkerSummary>>(new Map());
@@ -193,13 +194,14 @@ export function ActionListView() {
   useEffect(() => {
     const hasTypeFilter = filterType !== "all";
     const hasMaturityFilter = filterMaturity !== "all";
-    if (!hasTypeFilter && !filterErrorsOnly && !hasMaturityFilter) {
+    if (!hasTypeFilter && !filterErrorsOnly && !filterMarkersOnly && !hasMaturityFilter) {
       filter.applyFilter(null);
       return;
     }
     filter.applyFilter((g) => {
       if (hasTypeFilter && g.type !== filterType) return false;
       if (filterErrorsOnly && getErrorPriority(g.id) === 0) return false;
+      if (filterMarkersOnly && (markerMap.get(g.id)?.total ?? 0) === 0) return false;
       if (hasMaturityFilter) {
         const m = g.maturity ?? "draft";
         if (m !== filterMaturity) return false;
@@ -207,7 +209,7 @@ export function ActionListView() {
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterType, filterErrorsOnly, filterMaturity, validationMap]);
+  }, [filterType, filterErrorsOnly, filterMarkersOnly, filterMaturity, validationMap, markerMap]);
 
   const sortAccessor = useCallback((g: ActionGroupMeta, key: string): string | number => {
     switch (key) {
@@ -763,6 +765,15 @@ export function ActionListView() {
             エラーありのみ
           </label>
 
+          <label className="action-list-check-label">
+            <input
+              type="checkbox"
+              checked={filterMarkersOnly}
+              onChange={(e) => setFilterMarkersOnly(e.target.checked)}
+            />
+            <i className="bi bi-robot" /> マーカーありのみ
+          </label>
+
           <div className="action-list-filter-sep" />
 
           <label className="action-list-check-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -785,12 +796,15 @@ export function ActionListView() {
           isActive={filter.isActive}
           totalCount={filter.totalCount}
           visibleCount={filter.visibleCount}
-          label={
-            filterType !== "all"
-              ? `種別: ${ACTION_GROUP_TYPE_LABELS[filterType]}${filterErrorsOnly ? " + エラーあり" : ""}`
-              : filterErrorsOnly ? "エラーあり" : undefined
-          }
-          onClear={() => { setFilterType("all"); setFilterErrorsOnly(false); setFilterMaturity("all"); }}
+          label={(() => {
+            const parts: string[] = [];
+            if (filterType !== "all") parts.push(`種別: ${ACTION_GROUP_TYPE_LABELS[filterType]}`);
+            if (filterErrorsOnly) parts.push("エラーあり");
+            if (filterMarkersOnly) parts.push("マーカーあり");
+            if (filterMaturity !== "all") parts.push(`成熟度: ${filterMaturity}`);
+            return parts.length > 0 ? parts.join(" + ") : undefined;
+          })()}
+          onClear={() => { setFilterType("all"); setFilterErrorsOnly(false); setFilterMarkersOnly(false); setFilterMaturity("all"); }}
         />
 
         <SortBar sort={sort} columnLabels={columnLabels} />
