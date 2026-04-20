@@ -11,6 +11,9 @@ import {
 } from "../../store/actionStore";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
+import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
+import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+import { listTables, loadTable } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { TableSubToolbar } from "../table/TableSubToolbar";
@@ -52,6 +55,8 @@ export function ActionListView() {
   const [addScreenId, setAddScreenId] = useState("");
   const [addDescription, setAddDescription] = useState("");
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
+  const [tableDefs, setTableDefs] = useState<ValidatorTableDef[]>([]);
+  const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
@@ -97,6 +102,30 @@ export function ActionListView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // SQL 列検査 / 規約参照のためにテーブル定義・規約カタログをロード (#261 UI 統合)
+  useEffect(() => {
+    let cancelled = false;
+    listTables().then(async (metas) => {
+      const defs = await Promise.all(
+        metas.map(async (tm) => {
+          const full = await loadTable(tm.id);
+          if (!full) return null;
+          return {
+            id: full.id,
+            name: full.name,
+            columns: (full.columns ?? []).map((c) => ({ name: c.name })),
+          } as ValidatorTableDef;
+        }),
+      );
+      if (!cancelled) setTableDefs(defs.filter((d): d is ValidatorTableDef => d !== null));
+    }).catch(console.error);
+    fetch("/conventions-catalog.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => { if (!cancelled) setConventions(c as ConventionsCatalog | null); })
+      .catch(() => setConventions(null));
+    return () => { cancelled = true; };
+  }, []);
+
   const groups = editor.items;
 
   // バックグラウンドでバリデーション実行
@@ -108,7 +137,7 @@ export function ActionListView() {
         if (cancelled) break;
         const group = await loadActionGroup(meta.id);
         if (!group || cancelled) continue;
-        const errs = aggregateValidation(group);
+        const errs = aggregateValidation(group, { tables: tableDefs, conventions });
         setValidationMap((prev) => {
           const next = new Map(prev);
           next.set(meta.id, {
@@ -120,7 +149,7 @@ export function ActionListView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [groups]);
+  }, [groups, tableDefs, conventions]);
 
   const getErrorPriority = useCallback((id: string): number => {
     const v = validationMap.get(id);

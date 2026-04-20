@@ -24,11 +24,13 @@ import {
   moveStep,
   addSubStep,
 } from "../../store/actionStore";
-import { listTables } from "../../store/tableStore";
+import { listTables, loadTable } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
 import { hasBlockingErrors } from "../../utils/actionValidation";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
+import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
+import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
 import {
@@ -159,6 +161,9 @@ export function ActionEditor() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  // SQL 列検査 / 規約参照検査のため (#261)
+  const [tableDefs, setTableDefs] = useState<ValidatorTableDef[]>([]);
+  const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
   const newStepIdsRef = useRef<Set<string>>(new Set());
 
   // 選択・クリップボード state
@@ -178,9 +183,27 @@ export function ActionEditor() {
       const agMetas = p.actionGroups ?? [];
       setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
-    listTables().then((t) => {
-      setTables(t.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
+    listTables().then(async (metas) => {
+      setTables(metas.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
+      // SQL 列検査用に全テーブルの columns まで読む (#261 UI 統合)
+      const defs = await Promise.all(
+        metas.map(async (tm) => {
+          const full = await loadTable(tm.id);
+          if (!full) return null;
+          return {
+            id: full.id,
+            name: full.name,
+            columns: (full.columns ?? []).map((c) => ({ name: c.name })),
+          } as ValidatorTableDef;
+        }),
+      );
+      setTableDefs(defs.filter((d): d is ValidatorTableDef => d !== null));
     }).catch(console.error);
+    // 規約カタログを public/ から fetch (#261 UI 統合)
+    fetch("/conventions-catalog.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => setConventions(c as ConventionsCatalog | null))
+      .catch(() => setConventions(null));
   }, []);
 
   const {
@@ -207,9 +230,9 @@ export function ActionEditor() {
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
-    if (!group || hasBlockingErrors(aggregateValidation(group))) return;
+    if (!group || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions }))) return;
     await hookHandleSave();
-  }, [group, hookHandleSave]);
+  }, [group, hookHandleSave, tableDefs, conventions]);
 
   // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
   const sensors = useSensors(
@@ -234,8 +257,8 @@ export function ActionEditor() {
   });
 
   useEffect(() => {
-    setValidationErrors(group ? aggregateValidation(group) : []);
-  }, [group]);
+    setValidationErrors(group ? aggregateValidation(group, { tables: tableDefs, conventions }) : []);
+  }, [group, tableDefs, conventions]);
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
 
