@@ -66,6 +66,10 @@ Claude Code は内部で以下を順次実行:
 
 [20-dogfood-before.png](../ui-screenshots/20-dogfood-before.png) / [21-dogfood-after.png](../ui-screenshots/21-dogfood-after.png) — 4 marker 投入 → /designer-work (シミュレータ) → AI 返信 2 + errorCatalog 追加 + 4 resolve。
 
+### 試用サンプル
+
+`docs/sample-project/actions/cccccccc-0099-4000-8000-cccccccccccc.json` に「詳細化途中」の ActionGroup サンプルを同梱。6 種マーカー (3 todo + 1 question + 1 attention + 1 chat) 入り。`node docs/sample-project/seed.mjs` で data/ に展開、ブラウザで `/process-flow/edit/cccccccc-0099-4000-8000-cccccccccccc` を開いて `/designer-work` を試せる。
+
 ## 事前準備 (初回のみ)
 
 ### `.mcp.json` を確認
