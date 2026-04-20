@@ -362,6 +362,39 @@ type OutputBinding = string | OutputBindingObject;
 
 PR: #169
 
+## 8.5 エラーカタログ (ActionGroup.errorCatalog, #253 v1.2)
+
+同一 `errorCode` が `affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` / `responses[].description` の複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
+
+```ts
+interface ErrorCatalogEntry {
+  httpStatus?: number;          // 例: 409
+  defaultMessage?: string;      // @conv.msg.* 参照も可
+  responseRef?: string;         // action.responses[].id への参照
+  description?: string;
+}
+
+// ActionGroup に追加
+errorCatalog?: Record<string, ErrorCatalogEntry>;
+```
+
+用例:
+
+```json
+"errorCatalog": {
+  "STOCK_SHORTAGE": {
+    "httpStatus": 409,
+    "defaultMessage": "在庫不足",
+    "responseRef": "409-stock-shortage",
+    "description": "引当 UPDATE で rowCount=0"
+  },
+  "VALIDATION": { "httpStatus": 400, "responseRef": "400-validation" },
+  "PAYMENT_FAILED": { "httpStatus": 402, "responseRef": "402-payment-failed" }
+}
+```
+
+実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `errorCatalog.STOCK_SHORTAGE` を引いて httpStatus / responseRef / defaultMessage を 1 箇所で解決。
+
 ## 9. 後方互換性
 
 すべての拡張は **Optional** かつ **Union 型** (string | structured) のいずれかで、既存データは破壊されない。`migrateActionGroup` が読み込み時に:
