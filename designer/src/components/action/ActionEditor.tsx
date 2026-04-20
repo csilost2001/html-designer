@@ -524,7 +524,7 @@ export function ActionEditor() {
 
   if (!group) return null;
 
-  const handleCommitStrokes = (shape: { type: "path"; d: string }) => {
+  const handleCommitStrokes = (shape: { type: "path"; d: string; color?: string; strokeWidth?: number }) => {
     const body = window.prompt(
       "描画マーカーへの指示を入力:\n(例: ここの SQL を affectedRowsCheck で補強して)",
     );

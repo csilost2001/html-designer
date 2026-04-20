@@ -3,6 +3,7 @@
  *
  * ActionEditor 上に被せる SVG オーバーレイ。描画モード ON で:
  * - ペンツール: ドラッグで自由描画。複数ストロークは path "d" 内で M 区切り合体
+ *   色 / 太さ をツールバーで選択可能 (MarkerShape.color / strokeWidth に格納)
  * - 消しゴムツール: 既存 shape 付き marker をクリックで削除
  * - 確定ボタン: 現在のストローク群を 1 マーカー (kind=todo) として起票
  * - キャンセルボタン: ストロークを破棄して描画モード終了
@@ -15,11 +16,26 @@ import type { Marker } from "../../types/action";
 
 type Tool = "pen" | "eraser";
 
+/** ツールバーのプリセット色 (MarkerShape.color に保存される) */
+const COLOR_PRESETS: Array<{ value: string; label: string }> = [
+  { value: "#ef4444", label: "赤 (注意・重要)" },
+  { value: "#f97316", label: "橙 (要確認)" },
+  { value: "#3b82f6", label: "青 (質問・情報)" },
+  { value: "#10b981", label: "緑 (補足・提案)" },
+];
+const DEFAULT_COLOR = COLOR_PRESETS[0].value;
+
+const WIDTH_PRESETS: Array<{ value: number; label: string; icon: string }> = [
+  { value: 2, label: "細線", icon: "bi-slash-lg" },
+  { value: 4, label: "太線", icon: "bi-dash-lg" },
+];
+const DEFAULT_WIDTH = WIDTH_PRESETS[0].value;
+
 interface Props {
   markers: Marker[];
   drawing: boolean;
   /** 完成した shape を受け取り、body を聞いて marker を作る */
-  onCommitStrokes: (shape: { type: "path"; d: string }) => void;
+  onCommitStrokes: (shape: { type: "path"; d: string; color?: string; strokeWidth?: number }) => void;
   /** eraser で既存 marker を消去 */
   onEraseMarker: (markerId: string) => void;
   /** 描画モード終了時のコールバック (キャンセル時、または commit 完了後) */
@@ -29,6 +45,8 @@ interface Props {
 export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarker, onExitDrawing }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tool, setTool] = useState<Tool>("pen");
+  const [color, setColor] = useState<string>(DEFAULT_COLOR);
+  const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   const [strokes, setStrokes] = useState<string[]>([]); // 完了した個別ストローク (各々 "M ... L ... L ...")
   const [currentStroke, setCurrentStroke] = useState<string>(""); // 描画中
   const isDrawingRef = useRef(false);
@@ -40,6 +58,8 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
       setStrokes([]);
       setCurrentStroke("");
       setTool("pen");
+      setColor(DEFAULT_COLOR);
+      setWidth(DEFAULT_WIDTH);
     }
   }, [drawing]);
 
@@ -76,7 +96,13 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
 
   const commit = () => {
     if (strokes.length === 0) { onExitDrawing(); return; }
-    onCommitStrokes({ type: "path", d: strokes.join(" ") });
+    onCommitStrokes({
+      type: "path",
+      d: strokes.join(" "),
+      // デフォルトから変更されている時のみ保存 (既存 marker の shape を冗長化しない)
+      color: color !== DEFAULT_COLOR ? color : undefined,
+      strokeWidth: width !== DEFAULT_WIDTH ? width : undefined,
+    });
     // ActionEditor 側が drawing=false にするので useEffect でリセットされる
   };
 
@@ -145,8 +171,8 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
           <path
             key={`s-${i}`}
             d={s}
-            stroke="#ef4444"
-            strokeWidth={2}
+            stroke={color}
+            strokeWidth={width}
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -157,8 +183,8 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
         {currentStroke && (
           <path
             d={currentStroke}
-            stroke="#ef4444"
-            strokeWidth={2}
+            stroke={color}
+            strokeWidth={width}
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -188,6 +214,38 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
               <i className="bi bi-eraser-fill" />
             </button>
           </div>
+          {tool === "pen" && (
+            <>
+              <div className="drawing-toolbar-group drawing-toolbar-colors">
+                {COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    className={`drawing-color-swatch ${color === c.value ? "active" : ""}`}
+                    style={{ backgroundColor: c.value }}
+                    onClick={() => setColor(c.value)}
+                    title={c.label}
+                    aria-label={c.label}
+                    data-color={c.value}
+                  />
+                ))}
+              </div>
+              <div className="drawing-toolbar-group">
+                {WIDTH_PRESETS.map((w) => (
+                  <button
+                    key={w.value}
+                    type="button"
+                    className={`drawing-toolbar-btn drawing-width-btn ${width === w.value ? "active" : ""}`}
+                    onClick={() => setWidth(w.value)}
+                    title={`${w.label} (${w.value}px)`}
+                    data-width={w.value}
+                  >
+                    <i className={`bi ${w.icon}`} style={{ fontSize: `${0.5 + w.value * 0.15}rem` }} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <div className="drawing-toolbar-group">
             <button
               type="button"

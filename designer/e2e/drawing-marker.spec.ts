@@ -73,8 +73,8 @@ test.describe("描画マーカー (#261)", () => {
     await expect(page.locator("button:has-text('描画中')")).toBeVisible();
     // ツールバー表示
     await expect(page.locator(".drawing-toolbar")).toBeVisible();
-    // ペンが既定でアクティブ
-    await expect(page.locator(".drawing-toolbar-btn.active")).toContainText("");
+    // ペンが既定でアクティブ (色スウォッチも active を持つのでツール group に限定)
+    await expect(page.locator(".drawing-toolbar-btn[title*='ペン']")).toHaveClass(/active/);
   });
 
   test("複数ストロークを描画してから確定で 1 marker として起票される", async ({ page }) => {
@@ -150,6 +150,67 @@ test.describe("描画マーカー (#261)", () => {
 
     // 既存 marker のみ
     await expect(overlay.locator("path")).toHaveCount(1);
+  });
+
+  test("色/太さを変更してコミット → shape.color / strokeWidth に反映", async ({ page }) => {
+    await setup(page);
+    page.on("dialog", async (d) => {
+      if (d.type() === "prompt") await d.accept("色変更テスト");
+    });
+    await page.locator("button:has-text('描画')").click();
+
+    // 色・太さ プリセットが表示される (ペン時のみ)
+    await expect(page.locator(".drawing-color-swatch")).toHaveCount(4);
+    await expect(page.locator(".drawing-width-btn")).toHaveCount(2);
+
+    // 青に切替
+    await page.locator(".drawing-color-swatch[data-color='#3b82f6']").click();
+    await expect(page.locator(".drawing-color-swatch[data-color='#3b82f6']")).toHaveClass(/active/);
+    // 太線に切替
+    await page.locator(".drawing-width-btn[data-width='4']").click();
+    await expect(page.locator(".drawing-width-btn[data-width='4']")).toHaveClass(/active/);
+
+    const overlay = page.locator(".drawing-overlay");
+    const box = await overlay.boundingBox();
+    if (!box) throw new Error("overlay bbox missing");
+    await drawStroke(page, box.x + box.width * 0.3, box.y + box.height * 0.3, 80, 50);
+
+    // 描画中/確定済みストロークが青・太線でレンダされる
+    // (確定前: svg 内の新規 path で stroke 色を確認)
+    const newStrokes = overlay.locator("path:not(.drawing-existing-shape)");
+    const strokeAttr = await newStrokes.first().getAttribute("stroke");
+    expect(strokeAttr).toBe("#3b82f6");
+    const widthAttr = await newStrokes.first().getAttribute("stroke-width");
+    expect(widthAttr).toBe("4");
+
+    // 確定で marker 起票
+    await page.locator(".drawing-toolbar-commit").click();
+
+    // 新 marker が描画オーバーレイに既存 shape として表示される (既存 1 + 新 1 = 2)
+    await expect(overlay.locator("path.drawing-existing-shape")).toHaveCount(2);
+
+    // 新 shape は青・太線で描画される
+    // (既存 mk-pre は M 10 10 開始、新マーカーはそれ以外の M で始まる)
+    const newShapeColors = await overlay.locator("path.drawing-existing-shape").evaluateAll((paths) => {
+      return paths.map((p) => ({
+        d: p.getAttribute("d"),
+        stroke: p.getAttribute("stroke"),
+        strokeWidth: p.getAttribute("stroke-width"),
+      }));
+    });
+    const newOne = newShapeColors.find((s) => !s.d?.startsWith("M 10 10"));
+    expect(newOne?.stroke).toBe("#3b82f6");
+    expect(newOne?.strokeWidth).toBe("4");
+  });
+
+  test("消しゴムツール時は色選択UIが非表示になる", async ({ page }) => {
+    await setup(page);
+    await page.locator("button:has-text('描画')").click();
+    // ペン時は色スウォッチあり
+    await expect(page.locator(".drawing-color-swatch")).toHaveCount(4);
+    // 消しゴムに切替 → 色スウォッチ消える
+    await page.locator(".drawing-toolbar-btn[title*='消しゴム']").click();
+    await expect(page.locator(".drawing-color-swatch")).toHaveCount(0);
   });
 
   test("消しゴムツールで既存 shape marker を削除できる", async ({ page }) => {
