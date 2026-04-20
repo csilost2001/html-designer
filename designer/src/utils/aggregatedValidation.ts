@@ -1,0 +1,148 @@
+/**
+ * ActionGroup に対する全バリデータの集約 (#261 UI 統合)。
+ *
+ * validateActionGroup (既存の構造ルール) に加え、以下の scheme-external バリデータを統合:
+ * - checkReferentialIntegrity (responseRef / errorCode / systemRef / typeRef / secretRef)
+ * - checkIdentifierScopes (@identifier が inputs/outputBinding/ambient/loop item に存在)
+ *
+ * SQL 列検査 (要 TableDefinition) と conventions 検査 (要 conventions-catalog) は
+ * 依存データが必要なため optional パラメータで受け取る。未指定時は skip。
+ */
+import type { ActionGroup, Step } from "../types/action";
+import { validateActionGroup, type ValidationError } from "./actionValidation";
+import { checkReferentialIntegrity } from "../schemas/referentialIntegrity";
+import { checkIdentifierScopes } from "../schemas/identifierScope";
+import { checkSqlColumns, type TableDefinition } from "../schemas/sqlColumnValidator";
+import { checkConventionReferences, type ConventionsCatalog } from "../schemas/conventionsValidator";
+
+export interface AggregatedValidationOptions {
+  /** テーブル定義。渡された場合は DbAccessStep.sql の列参照を検査 */
+  tables?: TableDefinition[];
+  /** 規約カタログ。渡された場合は @conv.* 参照を検査 */
+  conventions?: ConventionsCatalog | null;
+}
+
+/**
+ * ActionGroup に対する全バリデータを実行し、ValidationError[] 形式で返す。
+ * 構造的エラー (validateActionGroup) は既存の severity を維持、
+ * scheme-external issues は全て severity="warning" として扱う。
+ */
+export function aggregateValidation(
+  group: ActionGroup,
+  options: AggregatedValidationOptions = {},
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  // 1. 既存の構造バリデータ (loopBreak スコープ、branch 空 等)
+  errors.push(...validateActionGroup(group));
+
+  // 2. 参照整合性 (responseRef / errorCode / systemRef / typeRef / secretRef)
+  for (const issue of checkReferentialIntegrity(group)) {
+    errors.push({
+      stepId: stepIdFromPath(issue.path, group) ?? "",
+      severity: "warning",
+      message: issue.message,
+      path: issue.path,
+      code: issue.code,
+    });
+  }
+
+  // 3. 識別子スコープ (@identifier)
+  for (const issue of checkIdentifierScopes(group)) {
+    errors.push({
+      stepId: stepIdFromPath(issue.path, group) ?? "",
+      severity: "warning",
+      message: issue.message,
+      path: issue.path,
+      code: issue.code,
+    });
+  }
+
+  // 4. SQL 列検査 (tables 提供時のみ)
+  if (options.tables && options.tables.length > 0) {
+    for (const issue of checkSqlColumns(group, options.tables)) {
+      errors.push({
+        stepId: stepIdFromPath(issue.path, group) ?? "",
+        severity: "warning",
+        message: issue.message,
+        path: issue.path,
+        code: issue.code,
+      });
+    }
+  }
+
+  // 5. @conv.* 参照 (catalog 提供時のみ)
+  if (options.conventions) {
+    for (const issue of checkConventionReferences(group, options.conventions)) {
+      errors.push({
+        stepId: stepIdFromPath(issue.path, group) ?? "",
+        severity: "warning",
+        message: issue.message,
+        path: issue.path,
+        code: issue.code,
+      });
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * JSON path ("actions[0].steps[2]..." 等) から該当 step の ID を解決。
+ * 深くネストしたパス (branches / elseBranch / loop / subSteps / sideEffects) も辿る。
+ * 解決できない場合 (catalog レベルの issue 等) は null。
+ */
+function stepIdFromPath(path: string, group: ActionGroup): string | null {
+  const m = path.match(/^actions\[(\d+)\]\.steps\[(\d+)\]/);
+  if (!m) return null;
+  const action = group.actions[+m[1]];
+  if (!action) return null;
+  const topStep = action.steps[+m[2]];
+  if (!topStep) return null;
+
+  let currentStep: Step = topStep;
+  let rest = path.slice(m[0].length);
+
+  // ネストしたセグメントを順次辿る
+  // 例: ".branches[0].steps[1].outcomes.failure.sideEffects[0]"
+  const segmentRe = /^(?:\.branches\[(\d+)\]\.steps\[(\d+)\]|\.elseBranch\.steps\[(\d+)\]|\.subSteps\[(\d+)\]|\.steps\[(\d+)\]|\.outcomes\.(success|failure|timeout)\.sideEffects\[(\d+)\])/;
+
+  while (true) {
+    const sm = rest.match(segmentRe);
+    if (!sm) break;
+    if (sm[1] !== undefined && sm[2] !== undefined) {
+      // branches[b].steps[s]
+      if (currentStep.type !== "branch") return currentStep.id;
+      const branch = currentStep.branches[+sm[1]];
+      if (!branch) return currentStep.id;
+      const next = branch.steps[+sm[2]];
+      if (!next) return currentStep.id;
+      currentStep = next;
+    } else if (sm[3] !== undefined) {
+      if (currentStep.type !== "branch" || !currentStep.elseBranch) return currentStep.id;
+      const next = currentStep.elseBranch.steps[+sm[3]];
+      if (!next) return currentStep.id;
+      currentStep = next;
+    } else if (sm[4] !== undefined) {
+      if (!currentStep.subSteps) return currentStep.id;
+      const next = currentStep.subSteps[+sm[4]];
+      if (!next) return currentStep.id;
+      currentStep = next;
+    } else if (sm[5] !== undefined) {
+      if (currentStep.type !== "loop") return currentStep.id;
+      const next = currentStep.steps[+sm[5]];
+      if (!next) return currentStep.id;
+      currentStep = next;
+    } else if (sm[6] !== undefined && sm[7] !== undefined) {
+      if (currentStep.type !== "externalSystem") return currentStep.id;
+      const outcome = currentStep.outcomes?.[sm[6] as "success" | "failure" | "timeout"];
+      if (!outcome?.sideEffects) return currentStep.id;
+      const next = outcome.sideEffects[+sm[7]];
+      if (!next) return currentStep.id;
+      currentStep = next;
+    }
+    rest = rest.slice(sm[0].length);
+  }
+
+  return currentStep.id;
+}

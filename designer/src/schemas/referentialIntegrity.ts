@@ -12,7 +12,7 @@
  * 4. DbAccessStep.affectedRowsCheck.errorCode も同上
  * 5. ErrorCatalogEntry.responseRef は action.responses[].id に存在すること (errorCatalog → responses)
  */
-import type { ActionGroup, ActionDefinition, Step } from "../types/action";
+import type { ActionGroup, Step } from "../types/action";
 
 export interface IntegrityIssue {
   /** ドットパス (例: "actions[0].steps[2].responseRef") */

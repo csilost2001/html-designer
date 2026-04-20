@@ -10,7 +10,7 @@ import {
   deleteActionGroup,
 } from "../../store/actionStore";
 import { loadProject, saveProject } from "../../store/flowStore";
-import { validateActionGroup } from "../../utils/actionValidation";
+import { aggregateValidation } from "../../utils/aggregatedValidation";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { TableSubToolbar } from "../table/TableSubToolbar";
@@ -108,7 +108,7 @@ export function ActionListView() {
         if (cancelled) break;
         const group = await loadActionGroup(meta.id);
         if (!group || cancelled) continue;
-        const errs = validateActionGroup(group);
+        const errs = aggregateValidation(group);
         setValidationMap((prev) => {
           const next = new Map(prev);
           next.set(meta.id, {

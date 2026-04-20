@@ -27,7 +27,8 @@ import {
 import { listTables } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
-import { validateActionGroup, hasBlockingErrors } from "../../utils/actionValidation";
+import { hasBlockingErrors } from "../../utils/actionValidation";
+import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
 import {
@@ -154,6 +155,7 @@ export function ActionEditor() {
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
   const [commonGroups, setCommonGroups] = useState<{ id: string; name: string }[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showWarningsPanel, setShowWarningsPanel] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -205,7 +207,7 @@ export function ActionEditor() {
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
-    if (!group || hasBlockingErrors(validateActionGroup(group))) return;
+    if (!group || hasBlockingErrors(aggregateValidation(group))) return;
     await hookHandleSave();
   }, [group, hookHandleSave]);
 
@@ -232,7 +234,7 @@ export function ActionEditor() {
   });
 
   useEffect(() => {
-    setValidationErrors(group ? validateActionGroup(group) : []);
+    setValidationErrors(group ? aggregateValidation(group) : []);
   }, [group]);
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
@@ -511,21 +513,66 @@ export function ActionEditor() {
         extraRight={
           <>
             {validationErrors.filter((e) => e.severity === "error").length > 0 && (
-              <span className="validation-badge error">
+              <span
+                className="validation-badge error"
+                title={validationErrors
+                  .filter((e) => e.severity === "error")
+                  .map((e) => (e.path ? `[${e.path}] ${e.message}` : e.message))
+                  .join("\n")}
+              >
                 <i className="bi bi-x-circle-fill" />
                 {validationErrors.filter((e) => e.severity === "error").length} エラー
               </span>
             )}
             {validationErrors.filter((e) => e.severity === "warning").length > 0 && (
-              <span className="validation-badge warning">
+              <span
+                className="validation-badge warning clickable"
+                title={validationErrors
+                  .filter((e) => e.severity === "warning")
+                  .slice(0, 20)
+                  .map((e) => (e.path ? `[${e.path}] ${e.message}` : e.message))
+                  .join("\n")}
+                onClick={() => setShowWarningsPanel((v) => !v)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowWarningsPanel((v) => !v); }}
+              >
                 <i className="bi bi-exclamation-triangle-fill" />
                 {validationErrors.filter((e) => e.severity === "warning").length} 警告
+                <i className={`bi bi-chevron-${showWarningsPanel ? "up" : "down"} ms-1`} />
               </span>
             )}
           </>
         }
         saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
       />
+
+      {/* 警告詳細パネル (#261 UI 統合) */}
+      {showWarningsPanel && validationErrors.filter((e) => e.severity === "warning").length > 0 && (
+        <div className="action-validation-panel">
+          <div className="action-validation-panel-header">
+            <i className="bi bi-exclamation-triangle-fill" /> 警告 ({validationErrors.filter((e) => e.severity === "warning").length} 件)
+            <button
+              className="btn btn-sm btn-link ms-auto"
+              onClick={() => setShowWarningsPanel(false)}
+              title="閉じる"
+            >
+              <i className="bi bi-x-lg" />
+            </button>
+          </div>
+          <ul className="action-validation-panel-list">
+            {validationErrors
+              .filter((e) => e.severity === "warning")
+              .map((e, i) => (
+                <li key={i}>
+                  {e.code && <span className="validation-code">{e.code}</span>}
+                  <span className="validation-message">{e.message}</span>
+                  {e.path && <span className="validation-path">{e.path}</span>}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       {/* グループ情報 */}
       <div className="action-editor-info">
