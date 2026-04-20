@@ -45,10 +45,26 @@ if (!ok) {
 
 ```bash
 cd designer
-npx vitest run src/schemas/process-flow.schema.test.ts
+npx vitest run src/schemas/                  # スキーマ検証 + 参照整合性の両方
+npx vitest run src/schemas/process-flow.schema.test.ts       # スキーマ準拠だけ
+npx vitest run src/schemas/referentialIntegrity.test.ts      # 参照整合性だけ
 ```
 
 `docs/sample-project/actions/*.json` の全ファイルを自動検証する。新しいサンプルを追加する場合も、このテストを通過させる必要がある。
+
+### 参照整合性 (Schema だけでは検査できない規約)
+
+JSON Schema 2020-12 では他フィールド値への参照検証 (cross-reference) が表現困難なため、スキーマの外に `designer/src/schemas/referentialIntegrity.ts` を置いて検証する:
+
+- `ReturnStep.responseRef` / `ValidationStep.inlineBranch.ngResponseRef` / `ErrorCatalogEntry.responseRef` が `action.responses[].id` に存在すること
+- `DbAccessStep.affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` (tryCatch) が `ActionGroup.errorCatalog` のキーに存在すること (errorCatalog 定義時のみ)
+- ネスト構造 (`loop.steps` / `branch.branches[].steps` / `externalSystem.outcomes.*.sideEffects` / `subSteps`) も再帰的に検査
+
+```ts
+import { checkReferentialIntegrity } from "./schemas/referentialIntegrity";
+const issues = checkReferentialIntegrity(actionGroup);
+// issues.length === 0 なら OK
+```
 
 ## バージョニング方針
 
