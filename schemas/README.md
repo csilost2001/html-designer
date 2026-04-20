@@ -17,6 +17,7 @@
 | ファイル | 対象 | TS 型 |
 |----------|------|-------|
 | `process-flow.schema.json` | ActionGroup (処理フロー定義) | `ActionGroup` @ `designer/src/types/action.ts` |
+| `conventions.schema.json` | 横断規約カタログ (msg / regex / limit) | 対応 TS 型は `designer/src/schemas/conventionsValidator.ts` の `ConventionsCatalog` |
 
 スキーマドラフト: **JSON Schema 2020-12**
 
@@ -90,3 +91,5 @@ const issues = checkReferentialIntegrity(actionGroup);
 - `designer/src/schemas/identifierScope.test.ts` — scope 検証のユニット + サンプル全件検査
 - `designer/src/schemas/sqlColumnValidator.ts` — DbAccessStep.sql 内列参照をテーブル定義と突合 (node-sql-parser + PostgreSQL dialect)
 - `designer/src/schemas/sqlColumnValidator.test.ts` — SQL 検査のユニット + サンプル横断
+- `designer/src/schemas/conventionsValidator.ts` — `@conv.msg.*` / `@conv.regex.*` / `@conv.limit.*` 参照を conventions-catalog.json と突合
+- `designer/src/schemas/conventionsValidator.test.ts` — 規約 ID 解決のユニット + サンプル横断

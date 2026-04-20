@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/conventions.schema.json",
+  "title": "ConventionsCatalog (横断規約カタログ)",
+  "description": "処理フロー仕様書から @conv.msg.* / @conv.regex.* / @conv.limit.* として参照される横断規約の正規 JSON 形式 (#151-A / #261 残)。docs/conventions/validation-rules.md の構造化版。",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string", "description": "SemVer (例: 1.0.0)" },
+    "description": { "type": "string" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+
+    "msg": {
+      "type": "object",
+      "description": "エラーメッセージテンプレート。@conv.msg.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/MessageTemplate" }
+    },
+    "regex": {
+      "type": "object",
+      "description": "正規表現カタログ。@conv.regex.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/RegexEntry" }
+    },
+    "limit": {
+      "type": "object",
+      "description": "境界値カタログ。@conv.limit.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/LimitEntry" }
+    }
+  },
+
+  "$defs": {
+    "MessageTemplate": {
+      "type": "object",
+      "required": ["template"],
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "{placeholder} 記法で params を展開 (例: \"{label}は必須入力です\")"
+        },
+        "params": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "template 内に現れる placeholder 名"
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "RegexEntry": {
+      "type": "object",
+      "required": ["pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "ECMAScript 互換の正規表現本体 (スラッシュ囲み無し、フラグは実装側で指定)"
+        },
+        "flags": {
+          "type": "string",
+          "description": "正規表現フラグ (例: \"i\" / \"gm\")。未指定は空"
+        },
+        "description": { "type": "string" },
+        "exampleValid": { "type": "array", "items": { "type": "string" } },
+        "exampleInvalid": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "LimitEntry": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "integer"] },
+        "unit": {
+          "type": "string",
+          "description": "char / integer / yen / ms 等の単位",
+          "examples": ["char", "integer", "yen", "ms"]
+        },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}
