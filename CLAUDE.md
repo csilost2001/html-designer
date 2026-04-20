@@ -124,6 +124,8 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/actions/*.json` の全件をスキーマで検証する。
 
+**ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
+
 ## UI Conventions
 
 詳細仕様は [docs/spec/](docs/spec/README.md) に集約。一覧系 UI を触る前に必ず読む:
