@@ -20,7 +20,8 @@ export interface IntegrityIssue {
   /** 問題の識別子 */
   code:
     | "UNKNOWN_RESPONSE_REF"
-    | "UNKNOWN_ERROR_CODE";
+    | "UNKNOWN_ERROR_CODE"
+    | "UNKNOWN_SYSTEM_REF";
   /** 参照しようとした値 */
   value: string;
   /** エラーメッセージ */
@@ -32,13 +33,15 @@ export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] 
   const issues: IntegrityIssue[] = [];
   const errorCodes = new Set(Object.keys(group.errorCatalog ?? {}));
   const hasErrorCatalog = errorCodes.size > 0;
+  const systemIds = new Set(Object.keys(group.externalSystemCatalog ?? {}));
+  const hasSystemCatalog = systemIds.size > 0;
 
   group.actions.forEach((action, ai) => {
     const responseIds = new Set(
       (action.responses ?? []).map((r) => r.id).filter((x): x is string => !!x),
     );
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
-      checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, issues);
+      checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues);
     });
 
     // errorCatalog → responses 参照
@@ -96,8 +99,18 @@ function checkStep(
   responseIds: Set<string>,
   errorCodes: Set<string>,
   hasErrorCatalog: boolean,
+  systemIds: Set<string>,
+  hasSystemCatalog: boolean,
   issues: IntegrityIssue[],
 ): void {
+  if (step.type === "externalSystem" && step.systemRef && hasSystemCatalog && !systemIds.has(step.systemRef)) {
+    issues.push({
+      path: `${path}.systemRef`,
+      code: "UNKNOWN_SYSTEM_REF",
+      value: step.systemRef,
+      message: `ExternalSystemStep.systemRef "${step.systemRef}" が ActionGroup.externalSystemCatalog に存在しません`,
+    });
+  }
   if (step.type === "return" && step.responseRef && !responseIds.has(step.responseRef)) {
     issues.push({
       path: `${path}.responseRef`,

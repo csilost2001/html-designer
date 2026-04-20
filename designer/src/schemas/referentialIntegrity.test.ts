@@ -159,6 +159,35 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
   });
 });
 
+describe("checkReferentialIntegrity — systemRef (#261)", () => {
+  it("externalSystemCatalog 定義時、未登録 systemRef を検出", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      externalSystemCatalog: { stripe: { name: "Stripe" } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "SendGrid", systemRef: "sendgrid",
+        }],
+      }],
+    }));
+    expect(issues.some((i) => i.code === "UNKNOWN_SYSTEM_REF")).toBe(true);
+  });
+
+  it("externalSystemCatalog 未定義時は systemRef 検査をスキップ (後方互換)", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe", systemRef: "any",
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+});
+
 describe("checkReferentialIntegrity — サンプル (docs/sample-project/actions/*.json)", () => {
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
   for (const f of files) {

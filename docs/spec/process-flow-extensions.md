@@ -153,7 +153,75 @@ outcomes?: Partial<Record<ExternalCallOutcome, ExternalCallOutcomeSpec>>;
 
 PR: #159 (初版) / #173 (sideEffects / sameAs 追加)
 
-### 3.1a 認証・冪等性・カスタムヘッダ (#253 v1.2)
+### 3.0 HTTP 呼出の構造化 (`httpCall` / `systemRef`, #261 v1.3)
+
+```ts
+interface ExternalHttpCall {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;                       // 式補間可: "/v1/payment_intents/@paymentAuth.id/cancel"
+  query?: Record<string, string>;     // 値は式可
+  body?: string;                      // JSON literal 式
+}
+
+// ExternalSystemStep に追加
+systemRef?: string;                  // ActionGroup.externalSystemCatalog のキー
+httpCall?: ExternalHttpCall;         // 旧 protocol の後継
+protocol?: string;                   // DEPRECATED: httpCall への移行推奨
+```
+
+### 3.0b externalSystemCatalog (ActionGroup レベル, #261 v1.3)
+
+同じ外部システム (Stripe, SendGrid 等) を使う複数ステップで **auth / baseUrl / timeoutMs / retryPolicy / headers** を 1 箇所に集約。drift 防止と DRY 化。
+
+```ts
+interface ExternalSystemCatalogEntry {
+  name: string;                         // 表示名
+  baseUrl?: string;                     // "https://api.stripe.com"
+  auth?: ExternalAuth;                  // 既定認証 (step 側 override 可)
+  timeoutMs?: number;
+  retryPolicy?: RetryPolicy;
+  headers?: Record<string, string>;
+  description?: string;
+}
+
+// ActionGroup に追加
+externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
+```
+
+用例:
+
+```json
+"externalSystemCatalog": {
+  "stripe": {
+    "name": "Stripe Japan",
+    "baseUrl": "https://api.stripe.com",
+    "auth": { "kind": "bearer", "tokenRef": "ENV:STRIPE_SECRET_KEY" },
+    "timeoutMs": 10000,
+    "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
+    "headers": { "Stripe-Version": "2024-06-20" }
+  }
+}
+```
+
+step 側:
+
+```json
+{
+  "type": "externalSystem",
+  "systemName": "Stripe Japan",
+  "systemRef": "stripe",
+  "httpCall": {
+    "method": "POST",
+    "path": "/v1/payment_intents",
+    "body": "{ amount: @order.totalAmount, currency: 'jpy' }"
+  },
+  "idempotencyKey": "auth-@order.id"
+}
+```
+
+step 側の auth/timeoutMs 等を指定した場合は catalog を上書き。
+
+### 3.1b 認証・冪等性・カスタムヘッダ (#253 v1.2)
 
 ```ts
 type ExternalAuthKind = "bearer" | "basic" | "apiKey" | "oauth2" | "none";
