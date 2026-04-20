@@ -1,0 +1,172 @@
+import { describe, it, expect } from "vitest";
+import {
+  updateStep,
+  removeStep,
+  moveStep,
+  setMaturity,
+  addStepNote,
+  addCatalogEntry,
+  removeCatalogEntry,
+  insertStepAt,
+  findStep,
+  type ActionGroupDoc,
+} from "./actionGroupEdits.js";
+
+function makeGroup(): ActionGroupDoc {
+  return {
+    id: "ag-1",
+    actions: [{
+      id: "act-1",
+      steps: [
+        { id: "s1", type: "validation", description: "v1" },
+        { id: "s2", type: "compute", description: "c1" },
+        {
+          id: "s3",
+          type: "branch",
+          description: "b1",
+          branches: [{ id: "br-a", steps: [{ id: "s3-a-1", type: "return", description: "r1" }] }],
+          elseBranch: { id: "br-else", steps: [{ id: "s3-e-1", type: "other", description: "o1" }] },
+        },
+        {
+          id: "s4",
+          type: "loop",
+          description: "l1",
+          steps: [{ id: "s4-1", type: "other", description: "o2" }],
+        },
+        {
+          id: "s5",
+          type: "externalSystem",
+          description: "ext",
+          outcomes: {
+            failure: { sideEffects: [{ id: "s5-se-1", type: "other", description: "logger" }] },
+          },
+        },
+      ],
+    }],
+  };
+}
+
+describe("findStep — ネスト全対応", () => {
+  const ag = makeGroup();
+  it("top-level step", () => expect(findStep(ag, "s1")?.type).toBe("validation"));
+  it("branch 配下", () => expect(findStep(ag, "s3-a-1")?.type).toBe("return"));
+  it("elseBranch 配下", () => expect(findStep(ag, "s3-e-1")?.type).toBe("other"));
+  it("loop 配下", () => expect(findStep(ag, "s4-1")?.type).toBe("other"));
+  it("sideEffects 配下", () => expect(findStep(ag, "s5-se-1")?.type).toBe("other"));
+  it("未知 id は null", () => expect(findStep(ag, "nope")).toBeNull());
+});
+
+describe("updateStep — patch 適用", () => {
+  it("top-level step の description を更新", () => {
+    const ag = makeGroup();
+    updateStep(ag, "s1", { description: "改訂" });
+    expect(findStep(ag, "s1")?.description).toBe("改訂");
+  });
+  it("ネストした step も更新", () => {
+    const ag = makeGroup();
+    updateStep(ag, "s3-a-1", { description: "branch 内改訂" });
+    expect(findStep(ag, "s3-a-1")?.description).toBe("branch 内改訂");
+  });
+  it("未知 id は throw", () => {
+    const ag = makeGroup();
+    expect(() => updateStep(ag, "nope", {})).toThrow();
+  });
+});
+
+describe("removeStep", () => {
+  it("top-level 削除", () => {
+    const ag = makeGroup();
+    removeStep(ag, "s2");
+    expect(ag.actions[0].steps.length).toBe(4);
+    expect(findStep(ag, "s2")).toBeNull();
+  });
+  it("branch 配下を削除", () => {
+    const ag = makeGroup();
+    removeStep(ag, "s3-a-1");
+    const s3 = findStep(ag, "s3");
+    expect(s3?.branches?.[0].steps.length).toBe(0);
+  });
+});
+
+describe("moveStep", () => {
+  it("同一配列内で並び替え", () => {
+    const ag = makeGroup();
+    moveStep(ag, "s1", 2);
+    const ids = ag.actions[0].steps.map((s) => s.id);
+    expect(ids.slice(0, 3)).toEqual(["s2", "s3", "s1"]);
+  });
+  it("範囲外 index は clamp", () => {
+    const ag = makeGroup();
+    moveStep(ag, "s1", 999);
+    const ids = ag.actions[0].steps.map((s) => s.id);
+    expect(ids[ids.length - 1]).toBe("s1");
+  });
+});
+
+describe("setMaturity", () => {
+  it("group レベル", () => {
+    const ag = makeGroup();
+    setMaturity(ag, "group", undefined, "committed");
+    expect(ag.maturity).toBe("committed");
+  });
+  it("action レベル", () => {
+    const ag = makeGroup();
+    setMaturity(ag, "action", "act-1", "provisional");
+    expect(ag.actions[0].maturity).toBe("provisional");
+  });
+  it("step レベル (ネスト対応)", () => {
+    const ag = makeGroup();
+    setMaturity(ag, "step", "s3-a-1", "committed");
+    expect(findStep(ag, "s3-a-1")?.maturity).toBe("committed");
+  });
+  it("未知 targetId で throw", () => {
+    const ag = makeGroup();
+    expect(() => setMaturity(ag, "step", "nope", "committed")).toThrow();
+  });
+});
+
+describe("addStepNote", () => {
+  it("notes 配列に追加", () => {
+    const ag = makeGroup();
+    const { id } = addStepNote(ag, "s1", "question", "これで合ってる?");
+    const s = findStep(ag, "s1");
+    expect(s?.notes?.length).toBe(1);
+    expect(s?.notes?.[0].id).toBe(id);
+    expect(s?.notes?.[0].type).toBe("question");
+  });
+});
+
+describe("addCatalogEntry / removeCatalogEntry", () => {
+  it("errorCatalog に追加・削除", () => {
+    const ag = makeGroup();
+    addCatalogEntry(ag, "errorCatalog", "STOCK_SHORTAGE", { httpStatus: 409 });
+    expect(ag.errorCatalog?.STOCK_SHORTAGE).toEqual({ httpStatus: 409 });
+    removeCatalogEntry(ag, "errorCatalog", "STOCK_SHORTAGE");
+    expect(ag.errorCatalog).toBeUndefined();
+  });
+  it("secretsCatalog を複数追加、一部削除", () => {
+    const ag = makeGroup();
+    addCatalogEntry(ag, "secretsCatalog", "a", { source: "env", name: "A" });
+    addCatalogEntry(ag, "secretsCatalog", "b", { source: "env", name: "B" });
+    removeCatalogEntry(ag, "secretsCatalog", "a");
+    expect(Object.keys(ag.secretsCatalog ?? {})).toEqual(["b"]);
+  });
+});
+
+describe("insertStepAt", () => {
+  it("末尾に追加 (position 省略)", () => {
+    const ag = makeGroup();
+    insertStepAt(ag, "act-1", { id: "new", type: "other", description: "" });
+    const steps = ag.actions[0].steps;
+    expect(steps[steps.length - 1].id).toBe("new");
+  });
+  it("中間位置に挿入", () => {
+    const ag = makeGroup();
+    insertStepAt(ag, "act-1", { id: "new", type: "other", description: "" }, 2);
+    expect(ag.actions[0].steps[2].id).toBe("new");
+  });
+  it("未知 actionId で throw", () => {
+    const ag = makeGroup();
+    expect(() => insertStepAt(ag, "nope", { id: "x", type: "other", description: "" })).toThrow();
+  });
+});
