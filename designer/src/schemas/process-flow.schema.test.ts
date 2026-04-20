@@ -117,6 +117,57 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — HttpResponseSpec.bodySchema union (#253)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  function withResponses(responses: unknown[]) {
+    return {
+      ...base,
+      actions: [{ id: "a1", name: "f", trigger: "click", responses, steps: [] }],
+    };
+  }
+
+  it("bodySchema: string (旧形式) accept", () => {
+    const ok = validate(withResponses([{ id: "201", status: 201, bodySchema: "ApiResponse" }]));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("bodySchema: {typeRef} 構造化 accept", () => {
+    const ok = validate(withResponses([{ id: "201", status: 201, bodySchema: { typeRef: "CustomerResponse" } }]));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("bodySchema: {schema} インライン accept", () => {
+    const ok = validate(withResponses([{
+      id: "409", status: 409,
+      bodySchema: { schema: { type: "object", properties: { code: { type: "string" } } } },
+    }]));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("bodySchema 省略 accept", () => {
+    expect(validate(withResponses([{ id: "204", status: 204 }]))).toBe(true);
+  });
+
+  it("{typeRef, schema} 両方指定は reject (union で排他)", () => {
+    expect(validate(withResponses([{
+      id: "409", status: 409,
+      bodySchema: { typeRef: "X", schema: {} },
+    }]))).toBe(false);
+  });
+
+  it("{typeRef} が空文字列でも type ref は string として accept (運用で検査)", () => {
+    expect(validate(withResponses([{ id: "409", status: 409, bodySchema: { typeRef: "" } }]))).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — ExternalSystemStep auth/idempotency/headers (#253)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

@@ -673,6 +673,18 @@ export interface HttpRoute {
   auth?: HttpAuthRequirement;
 }
 
+/**
+ * bodySchema の構造化参照 (#253 v1.2)。
+ * - `{ typeRef: string }`: 型カタログ (将来機能) への名前参照。今は規約的な型名 (例: "ApiError", "CustomerResponse")
+ * - `{ schema: object }`: インライン JSON Schema (ad hoc な応答形式用)
+ *
+ * 旧 string 形式 (自由記述) も union で残る。段階的に構造化へ移行する想定。
+ */
+export type BodySchemaRef =
+  | string
+  | { typeRef: string }
+  | { schema: Record<string, unknown> };
+
 /** HTTP レスポンス仕様 (成功/エラーの各ケース) */
 export interface HttpResponseSpec {
   /** ReturnStep.responseRef から参照するための識別子 (任意、例: "409-stock-shortage") */
@@ -682,10 +694,12 @@ export interface HttpResponseSpec {
   /** MIME タイプ。未指定は "application/json" として解釈 */
   contentType?: string;
   /**
-   * レスポンスボディのスキーマ参照 (自由記述)。
-   * 例: "CustomerRegisterResponse" / "ApiError" / "{ code: string, fieldErrors: Record<string,string> }"
+   * レスポンスボディのスキーマ。
+   * - 旧 string (自由記述): "CustomerRegisterResponse" / "ApiError" / "{ code, fieldErrors }"
+   * - 新 `{ typeRef }` (#253 v1.2): 型カタログへの名前参照
+   * - 新 `{ schema }` (#253 v1.2): インライン JSON Schema
    */
-  bodySchema?: string;
+  bodySchema?: BodySchemaRef;
   /** 説明 (発生条件、UI 文言のヒント等) */
   description?: string;
   /** 発生条件 (自由記述、例: "@duplicateCustomer != null") */
