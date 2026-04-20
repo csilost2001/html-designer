@@ -801,6 +801,18 @@ export interface ActionDefinition {
  * 同一 errorCode が affectedRowsCheck.errorCode / BranchConditionVariant.errorCode / responses[].description の
  * 複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
  */
+/**
+ * 型カタログの 1 エントリ (#261 v1.3)。
+ * schema プロパティに JSON Schema (draft 2020-12) を持つ。
+ * 型名単独での参照 (BodySchemaRef.typeRef) から解決される。
+ */
+export interface TypeCatalogEntry {
+  /** 説明 (任意) */
+  description?: string;
+  /** JSON Schema 本体 (draft 2020-12 の object) */
+  schema: Record<string, unknown>;
+}
+
 export interface ErrorCatalogEntry {
   /** 対応する HTTP ステータス (例: 409) */
   httpStatus?: number;
@@ -833,6 +845,12 @@ export interface ActionGroup {
    * ExternalSystemStep.systemRef から参照され、baseUrl/auth/timeoutMs 等の既定値を提供。
    */
   externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
+  /**
+   * 型カタログ (#261 v1.3)。キー: 型名 (例: "ApiError", "CustomerResponse")。
+   * HttpResponseSpec.bodySchema = { typeRef: "ApiError" } から参照される。
+   * 値は JSON Schema (inline) またはその略記形。
+   */
+  typeCatalog?: Record<string, TypeCatalogEntry>;
   createdAt: string;
   updatedAt: string;
 }

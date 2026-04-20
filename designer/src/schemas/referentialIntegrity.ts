@@ -21,7 +21,8 @@ export interface IntegrityIssue {
   code:
     | "UNKNOWN_RESPONSE_REF"
     | "UNKNOWN_ERROR_CODE"
-    | "UNKNOWN_SYSTEM_REF";
+    | "UNKNOWN_SYSTEM_REF"
+    | "UNKNOWN_TYPE_REF";
   /** 参照しようとした値 */
   value: string;
   /** エラーメッセージ */
@@ -35,11 +36,26 @@ export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] 
   const hasErrorCatalog = errorCodes.size > 0;
   const systemIds = new Set(Object.keys(group.externalSystemCatalog ?? {}));
   const hasSystemCatalog = systemIds.size > 0;
+  const typeIds = new Set(Object.keys(group.typeCatalog ?? {}));
+  const hasTypeCatalog = typeIds.size > 0;
 
   group.actions.forEach((action, ai) => {
     const responseIds = new Set(
       (action.responses ?? []).map((r) => r.id).filter((x): x is string => !!x),
     );
+    // bodySchema.typeRef の参照検査
+    (action.responses ?? []).forEach((resp, ri) => {
+      if (resp.bodySchema && typeof resp.bodySchema === "object" && "typeRef" in resp.bodySchema && resp.bodySchema.typeRef) {
+        if (hasTypeCatalog && !typeIds.has(resp.bodySchema.typeRef)) {
+          issues.push({
+            path: `actions[${ai}].responses[${ri}].bodySchema.typeRef`,
+            code: "UNKNOWN_TYPE_REF",
+            value: resp.bodySchema.typeRef,
+            message: `bodySchema.typeRef "${resp.bodySchema.typeRef}" が ActionGroup.typeCatalog に存在しません`,
+          });
+        }
+      }
+    });
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
       checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues);
     });
