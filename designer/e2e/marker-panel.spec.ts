@@ -26,13 +26,17 @@ async function setup(page: Page) {
   }, { project: dummyProject, group: dummyGroup });
   await page.goto(`/process-flow/edit/${groupId}`);
   await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
+  // MarkerPanel は既定で折りたたみ (#261 anchor 対応): 明示的に展開する
+  await page.locator(".marker-panel .catalog-panel-toggle").click();
+  await expect(page.locator(".marker-panel .catalog-panel-body")).toBeVisible();
 }
 
 test.describe("MarkerPanel (#261)", () => {
-  test("初期は展開、0 件表示", async ({ page }) => {
+  test("パネル既定折りたたみ、展開後に 0 件メッセージ表示", async ({ page }) => {
     await setup(page);
     await expect(page.locator(".marker-panel")).toBeVisible();
     await expect(page.locator(".marker-panel .catalog-panel-toggle")).toContainText("0 未解決");
+    // setup で展開済 → empty メッセージ可視
     await expect(page.locator(".marker-panel .catalog-empty")).toBeVisible();
   });
 

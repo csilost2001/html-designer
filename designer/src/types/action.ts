@@ -881,12 +881,26 @@ export interface Marker {
  */
 export interface MarkerShape {
   type: "path";
-  /** SVG path の `d` 属性値 (各座標は 0-100 の % 表記、viewBox="0 0 100 100") */
+  /**
+   * SVG path の `d` 属性値。座標は 0-100 の % 表記、viewBox="0 0 100 100"。
+   * `anchorStepId` 指定時はその DOM 要素 (step card / field) の bbox に対する %、
+   * 未指定時は画面全体 (ActionEditor コンテンツ領域) に対する %。
+   */
   d: string;
   /** 描画色 (省略時は #ef4444 赤) */
   color?: string;
   /** 線幅 (省略時は 2) */
   strokeWidth?: number;
+  /**
+   * DOM anchor: 描画を特定 step に紐付ける (#261 anchor 改善)。
+   * 指定時は `d` 座標がこの step (+ field) の bbox 相対。step が削除されると orphan になる。
+   */
+  anchorStepId?: string;
+  /**
+   * DOM anchor の field 細分。step 内の特定フィールド (例: "sql", "conditions",
+   * "expression") に紐付ける場合に指定。step レベルで十分な場合は省略。
+   */
+  anchorFieldPath?: string;
 }
 
 /**

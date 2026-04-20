@@ -8,9 +8,32 @@
  * Claude Code が /designer-work でこれを MCP 経由で読み取り、
  * 対応後 resolvedAt を埋めて resolution コメントを付ける。
  */
-import { useState } from "react";
-import type { ActionGroup, Marker, MarkerKind } from "../../types/action";
+import { useMemo, useState } from "react";
+import type { ActionGroup, Marker, MarkerKind, Step } from "../../types/action";
 import { generateUUID } from "../../utils/uuid";
+
+/** ActionGroup 内の全 step.id を再帰的に収集 (anchor orphan 判定用) */
+function collectStepIds(group: ActionGroup): Set<string> {
+  const ids = new Set<string>();
+  const visit = (steps: Step[]) => {
+    for (const s of steps) {
+      ids.add(s.id);
+      if (s.subSteps) visit(s.subSteps);
+      if (s.type === "branch") {
+        for (const b of s.branches) visit(b.steps);
+        if (s.elseBranch) visit(s.elseBranch.steps);
+      }
+      if (s.type === "loop") visit(s.steps);
+      if (s.type === "externalSystem" && s.outcomes) {
+        for (const oc of Object.values(s.outcomes)) {
+          if (oc?.sideEffects) visit(oc.sideEffects);
+        }
+      }
+    }
+  };
+  for (const a of group.actions) visit(a.steps);
+  return ids;
+}
 
 interface Props {
   group: ActionGroup;
@@ -31,7 +54,9 @@ const KIND_ICONS: Record<MarkerKind, string> = {
 };
 
 export function MarkerPanel({ group, onChange }: Props) {
-  const [expanded, setExpanded] = useState(true);
+  // 既定で折りたたみ (#261 anchor 改善とセット): マーカー追加/解決時の
+  // 縦方向レイアウト揺れを抑えて、描画マーカーの画面内位置ずれを減らす。
+  const [expanded, setExpanded] = useState(false);
   const [newKind, setNewKind] = useState<MarkerKind>("chat");
   const [newBody, setNewBody] = useState("");
   const [showResolved, setShowResolved] = useState(false);
@@ -41,6 +66,12 @@ export function MarkerPanel({ group, onChange }: Props) {
   const markers = group.markers ?? [];
   const displayed = showResolved ? markers : markers.filter((m) => !m.resolvedAt);
   const unresolved = markers.filter((m) => !m.resolvedAt).length;
+  // anchor の追跡先 step が現存するかを判定するために step id セットを memo 化
+  const existingStepIds = useMemo(() => collectStepIds(group), [group]);
+  const isOrphanAnchor = (m: Marker): boolean => {
+    const anchorId = m.shape?.anchorStepId ?? m.stepId;
+    return !!anchorId && !existingStepIds.has(anchorId);
+  };
 
   const addMarker = () => {
     const body = newBody.trim();
@@ -145,6 +176,14 @@ export function MarkerPanel({ group, onChange }: Props) {
                     <span className="marker-step-ref small text-muted">
                       step: {m.stepId}
                       {m.fieldPath && `.${m.fieldPath}`}
+                    </span>
+                  )}
+                  {isOrphanAnchor(m) && !resolved && (
+                    <span
+                      className="marker-orphan-badge small"
+                      title="紐付く step が削除されたため、描画マーカーは画面に表示されません"
+                    >
+                      <i className="bi bi-unlock" /> 該当 step なし
                     </span>
                   )}
                   {resolved ? (

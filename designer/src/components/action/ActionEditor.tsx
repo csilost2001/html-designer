@@ -524,17 +524,29 @@ export function ActionEditor() {
 
   if (!group) return null;
 
-  const handleCommitStrokes = (shape: { type: "path"; d: string; color?: string; strokeWidth?: number }) => {
+  const handleCommitStrokes = (shape: {
+    type: "path";
+    d: string;
+    color?: string;
+    strokeWidth?: number;
+    anchorStepId?: string;
+    anchorFieldPath?: string;
+  }) => {
     const body = window.prompt(
       "描画マーカーへの指示を入力:\n(例: ここの SQL を affectedRowsCheck で補強して)",
     );
     if (!body || !body.trim()) return;
     updateGroup((g) => {
+      // anchor があれば Marker.stepId / fieldPath にも自動反映:
+      // /designer-work スラッシュコマンドは stepId / fieldPath を既存で読むので、
+      // AI 側は「どの step のどのフィールドへの指示か」を即座に把握できる。
       g.markers = [...(g.markers ?? []), {
         id: generateUUID(),
         kind: "todo",
         body: body.trim(),
         shape,
+        stepId: shape.anchorStepId,
+        fieldPath: shape.anchorFieldPath,
         author: "human",
         createdAt: new Date().toISOString(),
       }];
