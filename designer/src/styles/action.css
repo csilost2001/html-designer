@@ -1328,3 +1328,89 @@
 }
 .marker-timestamps { padding-top: 4px; }
 .marker-add-row { flex-wrap: wrap; gap: 4px; }
+
+/* 赤線描画オーバーレイ (#261) */
+.drawing-overlay {
+  /* pointer-events / cursor は inline style で drawing に応じて切替 */
+}
+.drawing-existing-shape {
+  transition: opacity 0.15s ease;
+}
+.drawing-existing-shape:hover {
+  opacity: 1 !important;
+}
+
+/* 描画ツールバー (描画モード ON 時のみ表示) */
+.drawing-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1f2937;
+  color: #f9fafb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 40;
+  font-size: 0.85rem;
+}
+.drawing-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-right: 1px solid #374151;
+}
+.drawing-toolbar-group:last-child {
+  border-right: none;
+}
+.drawing-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+.drawing-toolbar-btn:hover:not(:disabled) {
+  background: #374151;
+  border-color: #4b5563;
+}
+.drawing-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.drawing-toolbar-btn.active {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+.drawing-toolbar-btn.drawing-toolbar-commit:not(:disabled) {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+.drawing-toolbar-btn.drawing-toolbar-commit:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
+}
+.drawing-toolbar-btn.drawing-toolbar-cancel {
+  border-color: #6b7280;
+}
+.drawing-toolbar-btn.drawing-toolbar-cancel:hover {
+  background: #4b5563;
+}
+.drawing-toolbar-info {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  padding: 0 4px;
+  white-space: nowrap;
+}
