@@ -1,12 +1,19 @@
-# バリデーション規約 (プレースホルダー)
+# バリデーション規約
 
-**ステータス**: Placeholder (仮)
+**ステータス**: 機械可読版あり (`docs/sample-project/conventions/conventions-catalog.json`)、human-readable は本書
 **策定日**: 2026-04-20
-**関連 issue**: #151 (A: 設計書種別の追加)
+**関連 issue**: #151 (A: 設計書種別の追加) / #261 残
 
 本書は処理フロー仕様書が参照する横断的なバリデーション規約 (メッセージテンプレート + 正規表現カタログ + 境界値) を定める。
 
-**位置づけ**: 将来 designer アプリ内の「バリデーション定義」機能 (issue #151-A) で置き換えられる予定。現時点はテキスト形式の placeholder。
+## 機械可読版 (v1.6 新設)
+
+AI / CI から読める JSON 形式:
+- **カタログ**: [`docs/sample-project/conventions/conventions-catalog.json`](../sample-project/conventions/conventions-catalog.json)
+- **JSON Schema**: [`schemas/conventions.schema.json`](../../schemas/conventions.schema.json)
+- **参照整合性検証**: `designer/src/schemas/conventionsValidator.ts` が処理フロー内の `@conv.*` 参照を検査
+
+本 md 本文 (§1-§3) と JSON カタログが drift しないよう、md を更新したら JSON も更新する。
 
 ---
 
