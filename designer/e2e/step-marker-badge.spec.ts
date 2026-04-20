@@ -1,5 +1,9 @@
 /**
  * step card の marker バッジ表示 (#261)
+ *
+ * #297 以降は kind 別チップ (.step-marker-chip) 表示に切り替え。
+ * このテストは「件数・tooltip・新規追加時の +1」という役割観点は #297 前と同じだが、
+ * セレクタを新 UI (.step-marker-chip / .step-marker-badges) に合わせる。
  */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -43,31 +47,34 @@ async function setup(page: Page) {
 }
 
 test.describe("step marker badge (#261)", () => {
-  test("step-card に未解決 marker の件数バッジ表示 (解決済み除外)", async ({ page }) => {
+  test("step-card に未解決 marker の kind 別チップが出る (解決済みは除外)", async ({ page }) => {
     await setup(page);
 
-    // s1: 未解決 2 件 (m1, m2)、resolved 1 件 (m4) は除外
-    // s2: 未解決 1 件 (m3)
-    // m5 は stepId なし (グループ宛) → どの step にも出ない
-    const allBadges = page.locator(".step-marker-badge");
-    await expect(allBadges).toHaveCount(2);
+    // s1: 未解決 2 件 (todo 1 + attention 1)、m4 (resolved) 除外
+    const s1Chips = page.locator(".step-card").nth(0).locator(".step-marker-chip");
+    await expect(s1Chips).toHaveCount(2);
+    await expect(page.locator(".step-card").nth(0).locator(".step-marker-chip.kind-todo")).toContainText("1");
+    await expect(page.locator(".step-card").nth(0).locator(".step-marker-chip.kind-attention")).toContainText("1");
+    // s1 に chat は無い (m4 は resolved、m5 は group 宛)
+    await expect(page.locator(".step-card").nth(0).locator(".step-marker-chip.kind-chat")).toHaveCount(0);
 
-    // s1 のカードのバッジは 2
-    await expect(page.locator(".step-card").nth(0).locator(".step-marker-badge")).toContainText("2");
-    // s2 のカードのバッジは 1
-    await expect(page.locator(".step-card").nth(1).locator(".step-marker-badge")).toContainText("1");
+    // s2: 未解決 1 件 (question)
+    const s2Chips = page.locator(".step-card").nth(1).locator(".step-marker-chip");
+    await expect(s2Chips).toHaveCount(1);
+    await expect(page.locator(".step-card").nth(1).locator(".step-marker-chip.kind-question")).toContainText("1");
   });
 
   test("tooltip (title 属性) に kind + body 抜粋が含まれる", async ({ page }) => {
     await setup(page);
-    const title = await page.locator(".step-card").nth(0).locator(".step-marker-badge").getAttribute("title");
+    // .step-marker-badges (コンテナ) の title に全件まとめ
+    const title = await page.locator(".step-card").nth(0).locator(".step-marker-badges").getAttribute("title");
     expect(title).toContain("AI 依頼マーカー 2 件");
     expect(title).toContain("todo");
     expect(title).toContain("attention");
     expect(title).toContain("A を修正");
   });
 
-  test("AI に指摘 で新規 marker 追加後バッジが +1 される", async ({ page }) => {
+  test("AI に指摘 で新規 marker 追加後チップ件数が +1 される", async ({ page }) => {
     await setup(page);
     page.on("dialog", async (d) => { if (d.type() === "prompt") await d.accept("新規指摘"); });
     await page.evaluate(() => {
@@ -81,7 +88,10 @@ test.describe("step marker badge (#261)", () => {
       items.find(i => i.textContent?.includes("AI に指摘"))?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     });
     await page.waitForTimeout(300);
-    // s2 のバッジが 2 (元 1 + 新 1)
-    await expect(page.locator(".step-card").nth(1).locator(".step-marker-badge")).toContainText("2");
+    // 追加された marker は kind=todo (「AI に指摘」の既定) → s2 の todo チップが 1 件増える
+    // 元は question 1 件のみだったので、追加後 todo 1 + question 1 = 2 チップ
+    await expect(page.locator(".step-card").nth(1).locator(".step-marker-chip")).toHaveCount(2);
+    await expect(page.locator(".step-card").nth(1).locator(".step-marker-chip.kind-todo")).toContainText("1");
+    await expect(page.locator(".step-card").nth(1).locator(".step-marker-chip.kind-question")).toContainText("1");
   });
 });
