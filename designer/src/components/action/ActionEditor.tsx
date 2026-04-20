@@ -57,6 +57,10 @@ import { SortableStepCard } from "./SortableStepCard";
 import { MaturityBadge } from "./MaturityBadge";
 import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
 import { ErrorCatalogPanel } from "./ErrorCatalogPanel";
+import { AmbientVariablesPanel } from "./AmbientVariablesPanel";
+import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
+import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
+import { TypeCatalogPanel } from "./TypeCatalogPanel";
 import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -702,9 +706,23 @@ export function ActionEditor() {
         {/* ActionGroup レベルカタログ編集 (#278) */}
         <ErrorCatalogPanel
           group={group}
-          onChange={(next) => {
-            updateGroup((g) => { g.errorCatalog = next.errorCatalog; });
-          }}
+          onChange={(next) => { updateGroup((g) => { g.errorCatalog = next.errorCatalog; }); }}
+        />
+        <AmbientVariablesPanel
+          group={group}
+          onChange={(next) => { updateGroup((g) => { g.ambientVariables = next.ambientVariables; }); }}
+        />
+        <SecretsCatalogPanel
+          group={group}
+          onChange={(next) => { updateGroup((g) => { g.secretsCatalog = next.secretsCatalog; }); }}
+        />
+        <ExternalSystemCatalogPanel
+          group={group}
+          onChange={(next) => { updateGroup((g) => { g.externalSystemCatalog = next.externalSystemCatalog; }); }}
+        />
+        <TypeCatalogPanel
+          group={group}
+          onChange={(next) => { updateGroup((g) => { g.typeCatalog = next.typeCatalog; }); }}
         />
       </div>
 
