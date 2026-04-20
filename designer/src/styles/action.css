@@ -1439,3 +1439,27 @@
   padding: 0 4px;
   white-space: nowrap;
 }
+
+/* カラースウォッチ + 太さ選択 (#261) */
+.drawing-toolbar-colors {
+  gap: 4px;
+}
+.drawing-color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #374151;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+.drawing-color-swatch:hover {
+  transform: scale(1.1);
+}
+.drawing-color-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px #1f2937;
+}
+.drawing-width-btn i {
+  line-height: 1;
+}
