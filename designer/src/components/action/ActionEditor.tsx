@@ -969,6 +969,12 @@ export function ActionEditor() {
                       const markerTooltip = markerCount > 0
                         ? `AI 依頼マーカー ${markerCount} 件:\n${stepMarkers.map((m) => `- [${m.kind}] ${m.body.slice(0, 60)}`).join("\n")}`
                         : undefined;
+                      const markerKinds = markerCount > 0 ? {
+                        todo: stepMarkers.filter((m) => m.kind === "todo").length,
+                        question: stepMarkers.filter((m) => m.kind === "question").length,
+                        attention: stepMarkers.filter((m) => m.kind === "attention").length,
+                        chat: stepMarkers.filter((m) => m.kind === "chat").length,
+                      } : undefined;
                       return (
                       <div key={step.id}>
                         <StepInsertZone
@@ -1017,6 +1023,7 @@ export function ActionEditor() {
                           }}
                           markerCount={markerCount}
                           markerTooltip={markerTooltip}
+                          markerKinds={markerKinds}
                         />
                       </div>
                       );

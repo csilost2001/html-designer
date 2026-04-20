@@ -30,6 +30,7 @@ interface SortableStepCardProps {
   onAddMarker?: (body: string, kind?: "todo" | "question" | "attention" | "chat") => void;
   markerCount?: number;
   markerTooltip?: string;
+  markerKinds?: { todo: number; question: number; attention: number; chat: number };
 }
 
 export function SortableStepCard({ step, ...props }: SortableStepCardProps) {

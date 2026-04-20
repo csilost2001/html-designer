@@ -212,6 +212,8 @@ interface StepCardProps {
   markerCount?: number;
   /** この step の未解決 marker tooltip 本文 */
   markerTooltip?: string;
+  /** kind 別未解決件数 (#261 色分け badge 表示用、省略時は markerCount のみ表示) */
+  markerKinds?: { todo: number; question: number; attention: number; chat: number };
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -246,6 +248,7 @@ export function StepCard({
   onAddMarker,
   markerCount = 0,
   markerTooltip,
+  markerKinds,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -447,13 +450,41 @@ export function StepCard({
             </span>
           )}
           {markerCount > 0 && (
-            <span
-              className="step-marker-badge"
-              title={markerTooltip ?? `AI 依頼マーカー ${markerCount} 件`}
-            >
-              <i className="bi bi-megaphone-fill" />
-              {markerCount}
-            </span>
+            markerKinds ? (
+              <span
+                className="step-marker-badges"
+                title={markerTooltip ?? `AI 依頼マーカー ${markerCount} 件`}
+              >
+                {markerKinds.todo > 0 && (
+                  <span className="step-marker-chip kind-todo" title={`AI 依頼 (TODO) ${markerKinds.todo} 件`}>
+                    <i className="bi bi-robot" />{markerKinds.todo}
+                  </span>
+                )}
+                {markerKinds.question > 0 && (
+                  <span className="step-marker-chip kind-question" title={`質問 ${markerKinds.question} 件`}>
+                    <i className="bi bi-question-circle-fill" />{markerKinds.question}
+                  </span>
+                )}
+                {markerKinds.attention > 0 && (
+                  <span className="step-marker-chip kind-attention" title={`注意 ${markerKinds.attention} 件`}>
+                    <i className="bi bi-exclamation-triangle-fill" />{markerKinds.attention}
+                  </span>
+                )}
+                {markerKinds.chat > 0 && (
+                  <span className="step-marker-chip kind-chat" title={`メモ ${markerKinds.chat} 件`}>
+                    <i className="bi bi-chat-dots-fill" />{markerKinds.chat}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span
+                className="step-marker-badge"
+                title={markerTooltip ?? `AI 依頼マーカー ${markerCount} 件`}
+              >
+                <i className="bi bi-megaphone-fill" />
+                {markerCount}
+              </span>
+            )
           )}
           {step.runIf && (
             <button
