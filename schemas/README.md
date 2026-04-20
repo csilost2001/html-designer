@@ -88,3 +88,5 @@ const issues = checkReferentialIntegrity(actionGroup);
 - `designer/src/schemas/process-flow.schema.test.ts` — サンプル検証 + negative ケース
 - `designer/src/schemas/identifierScope.ts` — `@identifier` 参照の scope 検証 (inputs / outputBinding / ambientVariables / ループ変数 との突合)
 - `designer/src/schemas/identifierScope.test.ts` — scope 検証のユニット + サンプル全件検査
+- `designer/src/schemas/sqlColumnValidator.ts` — DbAccessStep.sql 内列参照をテーブル定義と突合 (node-sql-parser + PostgreSQL dialect)
+- `designer/src/schemas/sqlColumnValidator.test.ts` — SQL 検査のユニット + サンプル横断
