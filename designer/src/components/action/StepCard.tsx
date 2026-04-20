@@ -206,6 +206,8 @@ interface StepCardProps {
   onOutdentSubStep?: (subStepId: string) => void;
   depth?: number;
   validationErrors?: ValidationError[];
+  /** この step を対象に AI マーカーを起票 (#261)。body は UI 側で prompt で取る */
+  onAddMarker?: (body: string, kind?: "todo" | "question" | "attention" | "chat") => void;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -237,6 +239,7 @@ export function StepCard({
   onOutdentSubStep,
   depth = 0,
   validationErrors = [],
+  onAddMarker,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -560,6 +563,18 @@ export function StepCard({
                       <button className="step-context-menu-item" onClick={() => setShowSubTypePicker(true)}>
                         <i className="bi bi-diagram-2" /> サブステップ追加 ▶
                       </button>
+                      {onAddMarker && (
+                        <button
+                          className="step-context-menu-item"
+                          onClick={() => {
+                            setShowMenu(false);
+                            const body = window.prompt(`このステップに AI への指摘を入力:\n(例: 並行制御の affectedRowsCheck を追加して)`);
+                            if (body && body.trim()) onAddMarker(body.trim(), "todo");
+                          }}
+                        >
+                          <i className="bi bi-robot" /> AI に指摘
+                        </button>
+                      )}
                       <div className="step-context-menu-sep" />
                       <button className="step-context-menu-item danger" onClick={() => { onDelete(); setShowMenu(false); }}>
                         <i className="bi bi-trash" /> 削除

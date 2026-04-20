@@ -955,6 +955,19 @@ export function ActionEditor() {
                           onIndent={index > 0 ? () => handleIndentStep(step.id) : undefined}
                           onOutdentSubStep={(subId) => handleOutdentSubStep(step.id, subId)}
                           validationErrors={validationErrors}
+                          onAddMarker={(body, kind = "todo") => {
+                            updateGroup((g) => {
+                              const m = {
+                                id: generateUUID(),
+                                kind,
+                                body,
+                                stepId: step.id,
+                                author: "human" as const,
+                                createdAt: new Date().toISOString(),
+                              };
+                              g.markers = [...(g.markers ?? []), m];
+                            });
+                          }}
                         />
                       </div>
                     ))}
