@@ -828,6 +828,33 @@ export interface ActionDefinition {
  * 複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
  */
 /**
+ * Secrets カタログの 1 エントリ (#261 v1.6)。
+ * 秘匿値そのものは JSON に含めない。取得方法のメタデータのみ。
+ */
+export interface SecretRef {
+  /**
+   * 秘匿値の取得元。
+   * - "env": プロセス環境変数 (`process.env[name]`)
+   * - "vault": 外部 secret store (HashiCorp Vault / AWS Secrets Manager / GCP Secret Manager 等)
+   * - "file": ローカルファイルパス (開発時のみ)
+   */
+  source: "env" | "vault" | "file";
+  /**
+   * source 毎の具体的な名前/パス:
+   * - env: 環境変数名 (例: "STRIPE_SECRET_KEY")
+   * - vault: vault 内パス (例: "secret/stripe/api-key")
+   * - file: ファイルパス (例: "/etc/secrets/stripe.pem")
+   */
+  name: string;
+  /** 人間向け説明 */
+  description?: string;
+  /** ローテーション周期 (日)。未指定は運用規約依存 */
+  rotationDays?: number;
+  /** 最終ローテーション時刻 (ISO timestamp) */
+  lastRotatedAt?: string;
+}
+
+/**
  * 型カタログの 1 エントリ (#261 v1.3)。
  * schema プロパティに JSON Schema (draft 2020-12) を持つ。
  * 型名単独での参照 (BodySchemaRef.typeRef) から解決される。
@@ -883,6 +910,12 @@ export interface ActionGroup {
    * アクション側で明示宣言する。実装側は各フレームワーク (Express/Fastify/Nest) の仕組みで値を供給する責務。
    */
   ambientVariables?: StructuredField[];
+  /**
+   * Secrets カタログ (#261 v1.6)。API キー・DB パスワード・署名鍵等の秘匿値の**メタデータ**。
+   * 値そのものは JSON に保存せず、`source` で実際の取得先を指す (ENV / vault / file 等)。
+   * ExternalAuth.tokenRef から `@secret.<key>` 記法で参照される。
+   */
+  secretsCatalog?: Record<string, SecretRef>;
   createdAt: string;
   updatedAt: string;
 }

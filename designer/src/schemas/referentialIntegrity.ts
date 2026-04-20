@@ -22,12 +22,16 @@ export interface IntegrityIssue {
     | "UNKNOWN_RESPONSE_REF"
     | "UNKNOWN_ERROR_CODE"
     | "UNKNOWN_SYSTEM_REF"
-    | "UNKNOWN_TYPE_REF";
+    | "UNKNOWN_TYPE_REF"
+    | "UNKNOWN_SECRET_REF";
   /** 参照しようとした値 */
   value: string;
   /** エラーメッセージ */
   message: string;
 }
+
+/** @secret.KEY にマッチ */
+const SECRET_RE = /@secret\.([a-zA-Z_][\w-]*)/g;
 
 /** ActionGroup 全体のクロスリファレンス検証。空配列なら OK */
 export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] {
@@ -38,6 +42,28 @@ export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] 
   const hasSystemCatalog = systemIds.size > 0;
   const typeIds = new Set(Object.keys(group.typeCatalog ?? {}));
   const hasTypeCatalog = typeIds.size > 0;
+  const secretKeys = new Set(Object.keys(group.secretsCatalog ?? {}));
+  const hasSecretsCatalog = secretKeys.size > 0;
+
+  // externalSystemCatalog.*.auth.tokenRef 内の @secret.* 参照を検査
+  if (hasSecretsCatalog) {
+    Object.entries(group.externalSystemCatalog ?? {}).forEach(([k, entry]) => {
+      const tok = entry.auth?.tokenRef;
+      if (tok) {
+        let m: RegExpExecArray | null;
+        while ((m = SECRET_RE.exec(tok)) !== null) {
+          if (!secretKeys.has(m[1])) {
+            issues.push({
+              path: `externalSystemCatalog.${k}.auth.tokenRef`,
+              code: "UNKNOWN_SECRET_REF",
+              value: `@secret.${m[1]}`,
+              message: `@secret.${m[1]} が ActionGroup.secretsCatalog に存在しません`,
+            });
+          }
+        }
+      }
+    });
+  }
 
   group.actions.forEach((action, ai) => {
     const responseIds = new Set(
@@ -57,7 +83,7 @@ export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] 
       }
     });
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
-      checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues);
+      checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues, secretKeys, hasSecretsCatalog);
     });
 
     // errorCatalog → responses 参照
@@ -118,6 +144,8 @@ function checkStep(
   systemIds: Set<string>,
   hasSystemCatalog: boolean,
   issues: IntegrityIssue[],
+  secretKeys?: Set<string>,
+  hasSecretsCatalog?: boolean,
 ): void {
   if (step.type === "externalSystem" && step.systemRef && hasSystemCatalog && !systemIds.has(step.systemRef)) {
     issues.push({
@@ -126,6 +154,22 @@ function checkStep(
       value: step.systemRef,
       message: `ExternalSystemStep.systemRef "${step.systemRef}" が ActionGroup.externalSystemCatalog に存在しません`,
     });
+  }
+  // step 側 auth.tokenRef の @secret.* 参照を検査
+  if (step.type === "externalSystem" && step.auth?.tokenRef && hasSecretsCatalog && secretKeys) {
+    const tok = step.auth.tokenRef;
+    const re = /@secret\.([a-zA-Z_][\w-]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(tok)) !== null) {
+      if (!secretKeys.has(m[1])) {
+        issues.push({
+          path: `${path}.auth.tokenRef`,
+          code: "UNKNOWN_SECRET_REF",
+          value: `@secret.${m[1]}`,
+          message: `@secret.${m[1]} が ActionGroup.secretsCatalog に存在しません`,
+        });
+      }
+    }
   }
   if (step.type === "return" && step.responseRef && !responseIds.has(step.responseRef)) {
     issues.push({

@@ -73,11 +73,26 @@
     }
   },
 
+  "secretsCatalog": {
+    "stripeApiKey": {
+      "source": "env",
+      "name": "STRIPE_SECRET_KEY",
+      "description": "Stripe Payment Intents API 認証用 secret key",
+      "rotationDays": 90
+    },
+    "sendgridApiKey": {
+      "source": "env",
+      "name": "SENDGRID_API_KEY",
+      "description": "SendGrid Mail API 送信用 API key",
+      "rotationDays": 180
+    }
+  },
+
   "externalSystemCatalog": {
     "stripe": {
       "name": "Stripe Japan",
       "baseUrl": "https://api.stripe.com",
-      "auth": { "kind": "bearer", "tokenRef": "ENV:STRIPE_SECRET_KEY" },
+      "auth": { "kind": "bearer", "tokenRef": "@secret.stripeApiKey" },
       "timeoutMs": 10000,
       "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
       "headers": {
@@ -89,7 +104,7 @@
     "sendgrid": {
       "name": "SendGrid",
       "baseUrl": "https://api.sendgrid.com",
-      "auth": { "kind": "bearer", "tokenRef": "ENV:SENDGRID_API_KEY" },
+      "auth": { "kind": "bearer", "tokenRef": "@secret.sendgridApiKey" },
       "timeoutMs": 10000,
       "description": "SendGrid Mail API v3"
     }

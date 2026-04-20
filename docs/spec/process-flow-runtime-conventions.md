@@ -202,6 +202,32 @@ step-or2-011 (capture) が失敗
 
 プロジェクト全体で採用している認証方式 (Bearer JWT / Session / OAuth2 等) は `docs/conventions/product-scope.md` に宣言。処理フロー個別のスキーマではなく**プロダクト横断規約**として管理。
 
+### 8.5 secretsCatalog と tokenRef の連携 (#261 v1.6)
+
+ExternalAuth.tokenRef は以下 3 形式を受け付ける:
+
+1. **`@secret.<key>`** (推奨): ActionGroup.secretsCatalog 参照。参照整合性バリデータが未登録エラーを検出
+2. **`ENV:<envName>`** (後方互換): 環境変数名直書き
+3. **`SECRET:<path>`** (後方互換): 外部 secret store パス直書き
+
+新規データは \`@secret.*\` を使い、catalog 側で source (env/vault/file) と name を管理する。catalog は値そのものを持たず、**メタデータのみ**。
+
+```json
+"secretsCatalog": {
+  "stripeApiKey": {
+    "source": "env",
+    "name": "STRIPE_SECRET_KEY",
+    "description": "Stripe API 認証",
+    "rotationDays": 90
+  }
+}
+```
+
+実装時は source 毎に:
+- `env` → `process.env[secretRef.name]`
+- `vault` → HashiCorp Vault / AWS Secrets Manager / GCP Secret Manager の API
+- `file` → ファイルから読込 (開発時のみ)
+
 ### 8.4 inbound auth 具体スキーム決定フロー
 
 実装者が `httpRoute.auth: "required"` を見たとき、以下の順で具体スキームを決定する:

@@ -34,6 +34,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/StructuredField" }
     },
+    "secretsCatalog": {
+      "description": "Secrets カタログ (#261 v1.6)。秘匿値のメタデータ (取得元・ローテーション)。値そのものは含まない",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/SecretRef" }
+    },
     "actions": {
       "type": "array",
       "items": { "$ref": "#/$defs/ActionDefinition" }
@@ -80,6 +85,20 @@
         "auth": { "$ref": "#/$defs/HttpAuthRequirement" }
       }
     },
+    "SecretRef": {
+      "description": "Secrets カタログの 1 エントリ (#261 v1.6)。値は含まない",
+      "type": "object",
+      "required": ["source", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "enum": ["env", "vault", "file"] },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "rotationDays": { "type": "integer", "minimum": 1 },
+        "lastRotatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+
     "TypeCatalogEntry": {
       "description": "型カタログの 1 エントリ (#261 v1.3)。schema は JSON Schema draft 2020-12",
       "type": "object",
