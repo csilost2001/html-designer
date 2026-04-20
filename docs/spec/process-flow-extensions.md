@@ -355,12 +355,14 @@ type OutputBinding = string | OutputBindingObject;
 
 用例:
 - `"authResult"` (string = assign 既定)
-- `{ "name": "subtotal", "operation": "accumulate" }` (ループ内累積)
-- `{ "name": "enrichedItems", "operation": "push" }` (配列追加)
+- `{ "name": "subtotal", "operation": "accumulate", "initialValue": "0" }` (ループ内累積、初期値明示)
+- `{ "name": "enrichedItems", "operation": "push", "initialValue": "[]" }` (配列追加、初期値明示)
+
+**initialValue (#253 v1.2)**: `accumulate` / `push` 時の初期値を式で明示。未指定時の既定は `accumulate` → `"0"`、`push` → `"[]"`。実装側は変数スコープ開始時 (アクション先頭、またはループ入口) で初期化する。
 
 ヘルパー: `designer/src/utils/outputBinding.ts` の `getBindingName` / `getBindingOperation`
 
-PR: #169
+PR: #169 / #255 (#253 v1.2)
 
 ## 8.5 エラーカタログ (ActionGroup.errorCatalog, #253 v1.2)
 

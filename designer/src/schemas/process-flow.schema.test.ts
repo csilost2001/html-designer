@@ -117,6 +117,73 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — OutputBindingObject.initialValue (#253)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("accumulate + initialValue='0' accept", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "@subtotal + @line.amount",
+          outputBinding: { name: "subtotal", operation: "accumulate", initialValue: "0" },
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("push + initialValue='[]' accept", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "@line",
+          outputBinding: { name: "lines", operation: "push", initialValue: "[]" },
+        }],
+      }],
+    });
+    expect(ok).toBe(true);
+  });
+
+  it("initialValue 省略 accept (optional)", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "x",
+          outputBinding: { name: "subtotal", operation: "accumulate" },
+        }],
+      }],
+    })).toBe(true);
+  });
+
+  it("string 形式 outputBinding との併用 — string 側は影響なし", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "x",
+          outputBinding: "result",
+        }],
+      }],
+    })).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — errorCatalog (#253)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

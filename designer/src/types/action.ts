@@ -175,6 +175,14 @@ export interface OutputBindingObject {
   name: string;
   /** 既定は "assign" */
   operation?: OutputBindingOperation;
+  /**
+   * 初期値の式 (#253)。
+   * - operation="accumulate": 数値初期化 (例: "0")。未指定は "0" として解釈
+   * - operation="push": 配列初期化 (例: "[]")。未指定は "[]" として解釈
+   * - operation="assign": 通常不要 (代入前に初期化する意味がないため)
+   * 初期化タイミングは変数のスコープ開始時 (通常はアクション開始、ループ入口は operation=accumulate/push を含むループの入口)。
+   */
+  initialValue?: string;
 }
 
 /**
