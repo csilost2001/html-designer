@@ -35,6 +35,8 @@ export function MarkerPanel({ group, onChange }: Props) {
   const [newKind, setNewKind] = useState<MarkerKind>("chat");
   const [newBody, setNewBody] = useState("");
   const [showResolved, setShowResolved] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveNote, setResolveNote] = useState("");
 
   const markers = group.markers ?? [];
   const displayed = showResolved ? markers : markers.filter((m) => !m.resolvedAt);
@@ -59,13 +61,36 @@ export function MarkerPanel({ group, onChange }: Props) {
     onChange({ ...group, markers: next.length > 0 ? next : undefined });
   };
 
-  const toggleResolve = (id: string) => {
-    const next = markers.map((m) => {
-      if (m.id !== id) return m;
-      return m.resolvedAt
-        ? { ...m, resolvedAt: undefined, resolution: undefined }
-        : { ...m, resolvedAt: new Date().toISOString() };
-    });
+  const startResolve = (id: string) => {
+    setResolvingId(id);
+    setResolveNote("");
+  };
+
+  const cancelResolve = () => {
+    setResolvingId(null);
+    setResolveNote("");
+  };
+
+  const confirmResolve = (id: string) => {
+    const note = resolveNote.trim();
+    const next = markers.map((m) => (
+      m.id === id
+        ? {
+            ...m,
+            resolvedAt: new Date().toISOString(),
+            resolution: note || "(人間が手動で解決)",
+          }
+        : m
+    ));
+    onChange({ ...group, markers: next });
+    setResolvingId(null);
+    setResolveNote("");
+  };
+
+  const unresolve = (id: string) => {
+    const next = markers.map((m) => (
+      m.id === id ? { ...m, resolvedAt: undefined, resolution: undefined } : m
+    ));
     onChange({ ...group, markers: next });
   };
 
@@ -106,6 +131,7 @@ export function MarkerPanel({ group, onChange }: Props) {
           )}
           {displayed.map((m) => {
             const resolved = !!m.resolvedAt;
+            const isResolving = resolvingId === m.id;
             return (
               <div className={`catalog-row marker-row marker-kind-${m.kind} ${resolved ? "resolved" : ""}`} key={m.id}>
                 <div className="catalog-row-header">
@@ -121,14 +147,26 @@ export function MarkerPanel({ group, onChange }: Props) {
                       {m.fieldPath && `.${m.fieldPath}`}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    className={`btn btn-sm btn-link ${resolved ? "text-success" : ""} ms-auto`}
-                    onClick={() => toggleResolve(m.id)}
-                    title={resolved ? "未解決に戻す" : "解決済みにする"}
-                  >
-                    <i className={`bi ${resolved ? "bi-check-circle-fill" : "bi-check-circle"}`} />
-                  </button>
+                  {resolved ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-link text-success ms-auto"
+                      onClick={() => unresolve(m.id)}
+                      title="未解決に戻す"
+                    >
+                      <i className="bi bi-check-circle-fill" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-link ms-auto marker-resolve-btn"
+                      onClick={() => startResolve(m.id)}
+                      title="解決済みにする (メモ付き)"
+                      disabled={isResolving}
+                    >
+                      <i className="bi bi-check-circle" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-sm btn-link text-danger"
@@ -139,6 +177,45 @@ export function MarkerPanel({ group, onChange }: Props) {
                   </button>
                 </div>
                 <div className="marker-body">{m.body}</div>
+                {isResolving && !resolved && (
+                  <div className="marker-resolve-form">
+                    <textarea
+                      className="form-control form-control-sm"
+                      rows={2}
+                      value={resolveNote}
+                      placeholder="解決メモ (任意): 何をしたか・なぜ閉じるか"
+                      onChange={(e) => setResolveNote(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          confirmResolve(m.id);
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelResolve();
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="marker-resolve-form-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-success"
+                        onClick={() => confirmResolve(m.id)}
+                        title="解決済みとして閉じる (Ctrl+Enter)"
+                      >
+                        <i className="bi bi-check-lg" /> 解決
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={cancelResolve}
+                        title="キャンセル (Esc)"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {resolved && m.resolution && (
                   <div className="marker-resolution">
                     <strong>解決メモ:</strong> {m.resolution}

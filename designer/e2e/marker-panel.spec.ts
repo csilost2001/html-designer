@@ -47,17 +47,67 @@ test.describe("MarkerPanel (#261)", () => {
     await expect(page.locator(".marker-panel .marker-body")).toContainText("条件付き UPDATE");
   });
 
-  test("解決ボタンで resolved、表示切替で見える", async ({ page }) => {
+  test("解決ボタンでインライン解決フォームが開く", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("A");
     await page.locator(".marker-panel button:has-text('追加')").click();
-    // resolve (check icon)
-    await page.locator(".marker-panel .marker-row .bi-check-circle").first().click();
+    // 解決ボタンクリック → フォーム表示
+    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await expect(page.locator(".marker-panel .marker-resolve-form")).toBeVisible();
+    await expect(page.locator(".marker-panel .marker-resolve-form textarea")).toBeFocused();
+    // まだ resolved 状態にはなっていない
+    await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(0);
+  });
+
+  test("解決フォームでメモを記入して 解決 ボタン押下で resolved に", async ({ page }) => {
+    await setup(page);
+    await page.locator(".marker-panel .marker-add-row input").fill("A");
+    await page.locator(".marker-panel button:has-text('追加')").click();
+    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await page.locator(".marker-panel .marker-resolve-form textarea").fill("自分で対応済み");
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").click();
     // 既定で解決済み非表示
     await expect(page.locator(".marker-panel .marker-row")).toHaveCount(0);
     // 解決済みも表示に切替
     await page.locator(".marker-panel input[type='checkbox']").check();
     await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(1);
+    await expect(page.locator(".marker-panel .marker-resolution")).toContainText("自分で対応済み");
+  });
+
+  test("解決フォームで キャンセル 押下でフォームを閉じる (未解決のまま)", async ({ page }) => {
+    await setup(page);
+    await page.locator(".marker-panel .marker-add-row input").fill("A");
+    await page.locator(".marker-panel button:has-text('追加')").click();
+    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await page.locator(".marker-panel .marker-resolve-form textarea").fill("中止する");
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('キャンセル')").click();
+    await expect(page.locator(".marker-panel .marker-resolve-form")).toHaveCount(0);
+    await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(0);
+    // 再度開くとメモはクリアされている
+    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await expect(page.locator(".marker-panel .marker-resolve-form textarea")).toHaveValue("");
+  });
+
+  test("メモ空のまま解決するとデフォルトメモが入る", async ({ page }) => {
+    await setup(page);
+    await page.locator(".marker-panel .marker-add-row input").fill("A");
+    await page.locator(".marker-panel button:has-text('追加')").click();
+    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").click();
+    await page.locator(".marker-panel input[type='checkbox']").check();
+    await expect(page.locator(".marker-panel .marker-resolution")).toContainText("人間が手動で解決");
+  });
+
+  test("解決済み marker の チェック済アイコン押下で未解決に戻る", async ({ page }) => {
+    await setup(page);
+    await page.locator(".marker-panel .marker-add-row input").fill("A");
+    await page.locator(".marker-panel button:has-text('追加')").click();
+    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").click();
+    await page.locator(".marker-panel input[type='checkbox']").check();
+    // resolved 状態のチェックアイコンをクリック (unresolve)
+    await page.locator(".marker-panel .marker-row.resolved .bi-check-circle-fill").click();
+    await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(0);
   });
 
   test("削除ボタンで marker 消去", async ({ page }) => {
