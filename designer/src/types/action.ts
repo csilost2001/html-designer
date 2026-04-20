@@ -406,6 +406,22 @@ export interface RetryPolicy {
   initialDelayMs?: number;
 }
 
+/** 外部システムの認証方式 (#253 v1.2) */
+export type ExternalAuthKind = "bearer" | "basic" | "apiKey" | "oauth2" | "none";
+
+/**
+ * 外部呼出の認証設定 (#253 v1.2)。
+ * secretRef は規約文字列で運用する (例: "ENV:STRIPE_SECRET_KEY", "SECRET:stripe/api-key")。
+ * 正式な secret 管理機能は将来別途追加予定。
+ */
+export interface ExternalAuth {
+  kind: ExternalAuthKind;
+  /** 秘密値の参照 (例: "ENV:STRIPE_SECRET_KEY")。kind="none" では不要 */
+  tokenRef?: string;
+  /** apiKey 時のヘッダ名 (例: "X-API-Key"、既定 "Authorization") */
+  headerName?: string;
+}
+
 export interface ExternalSystemStep extends StepBase {
   type: "externalSystem";
   systemName: string;
@@ -421,6 +437,21 @@ export interface ExternalSystemStep extends StepBase {
   retryPolicy?: RetryPolicy;
   /** true なら TX 後・非同期 fire-and-forget。同期レスポンスを待たない */
   fireAndForget?: boolean;
+  /**
+   * 認証方式 (#253 v1.2)。未指定は "none" として解釈。
+   * tokenRef は "ENV:FOO" / "SECRET:path/to/key" 等の規約文字列で秘密値を参照。
+   */
+  auth?: ExternalAuth;
+  /**
+   * 冪等性キーを生成する式 (#253 v1.2)。例: "order-@registeredOrder.id"。
+   * Stripe 等の外部 API が Idempotency-Key ヘッダを要求する場合に設定。
+   */
+  idempotencyKey?: string;
+  /**
+   * 追加 HTTP ヘッダ (#253 v1.2)。値は式可 (例: @stripeVersion)。
+   * auth / idempotencyKey で表現できない任意ヘッダを設定する場合に使用。
+   */
+  headers?: Record<string, string>;
 }
 
 export interface CommonProcessStep extends StepBase {
