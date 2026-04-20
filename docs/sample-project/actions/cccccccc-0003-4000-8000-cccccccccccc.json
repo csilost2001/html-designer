@@ -18,7 +18,7 @@
       "outputs": [
         { "name": "success", "label": "認証成功判定", "type": "boolean" },
         { "name": "sessionId", "label": "セッションID", "type": "string" },
-        { "name": "permissions", "label": "権限一覧", "type": { "kind": "custom", "label": "string[]" } }
+        { "name": "role", "label": "権限", "type": "string" }
       ],
       "steps": [
         {
@@ -44,7 +44,7 @@
           "tableName": "users",
           "tableId": "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb",
           "operation": "SELECT",
-          "sql": "SELECT id, password_hash, permissions FROM users WHERE login_id = @userId AND is_deleted = false LIMIT 1",
+          "sql": "SELECT id, password_hash, role FROM users WHERE login_id = @userId AND is_active = true LIMIT 1",
           "outputBinding": "userRow",
           "notes": [
             { "id": "n-auth-001", "type": "assumption", "body": "password_hash は bcrypt (cost 12) 想定 (product-scope §6)", "createdAt": "2026-04-14T00:00:00.000Z" }

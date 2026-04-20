@@ -92,11 +92,7 @@ describe("checkSqlColumns — サンプル (docs/sample-project) 横断", () => 
 
   // 旧サンプルのアクション/テーブル間 drift は別 issue で追跡 (本 PR のスコープ外)。
   // 0001/0003/0004 は既存データのため skip、0002/0005 のみ厳密検査。
-  const LEGACY_DRIFT_FILES = new Set<string>([
-    "cccccccc-0001-4000-8000-cccccccccccc.json",
-    "cccccccc-0003-4000-8000-cccccccccccc.json",
-    "cccccccc-0004-4000-8000-cccccccccccc.json",
-  ]);
+  const LEGACY_DRIFT_FILES = new Set<string>([]);
 
   it("テーブル定義ロード (防御)", () => {
     expect(tables.length).toBeGreaterThan(0);
