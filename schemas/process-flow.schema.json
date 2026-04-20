@@ -24,6 +24,11 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/ExternalSystemCatalogEntry" }
     },
+    "typeCatalog": {
+      "description": "型カタログ (#261 v1.3)。キー: 型名 (例: \"ApiError\")。BodySchemaRef.typeRef から参照",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/TypeCatalogEntry" }
+    },
     "actions": {
       "type": "array",
       "items": { "$ref": "#/$defs/ActionDefinition" }
@@ -70,6 +75,17 @@
         "auth": { "$ref": "#/$defs/HttpAuthRequirement" }
       }
     },
+    "TypeCatalogEntry": {
+      "description": "型カタログの 1 エントリ (#261 v1.3)。schema は JSON Schema draft 2020-12",
+      "type": "object",
+      "required": ["schema"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "schema": { "type": "object" }
+      }
+    },
+
     "ErrorCatalogEntry": {
       "type": "object",
       "additionalProperties": false,

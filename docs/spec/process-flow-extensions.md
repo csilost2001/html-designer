@@ -169,6 +169,49 @@ httpCall?: ExternalHttpCall;         // 旧 protocol の後継
 protocol?: string;                   // DEPRECATED: httpCall への移行推奨
 ```
 
+### 3.0c typeCatalog (ActionGroup レベル, #261 v1.3)
+
+`HttpResponseSpec.bodySchema: { typeRef: string }` の解決先カタログ。同じ型 (`ApiError` 等) を複数 response で使い回すための DRY 化。
+
+```ts
+interface TypeCatalogEntry {
+  description?: string;
+  schema: object;                    // JSON Schema draft 2020-12
+}
+
+// ActionGroup に追加
+typeCatalog?: Record<string, TypeCatalogEntry>;
+```
+
+用例:
+
+```json
+"typeCatalog": {
+  "ApiError": {
+    "description": "共通エラーレスポンス",
+    "schema": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    }
+  }
+}
+```
+
+response 側:
+
+```json
+"responses": [
+  { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" } }
+]
+```
+
+参照整合性バリデータが `typeRef → typeCatalog` 存在検査を行う (typeCatalog 未定義時は後方互換で skip)。
+
 ### 3.0b externalSystemCatalog (ActionGroup レベル, #261 v1.3)
 
 同じ外部システム (Stripe, SendGrid 等) を使う複数ステップで **auth / baseUrl / timeoutMs / retryPolicy / headers** を 1 箇所に集約。drift 防止と DRY 化。

@@ -117,6 +117,59 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — typeCatalog (#261 v1.3)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("typeCatalog + bodySchema.typeRef で resolution 連携", () => {
+    const ok = validate({
+      ...base,
+      typeCatalog: {
+        ApiError: {
+          description: "共通エラーレスポンス",
+          schema: {
+            type: "object",
+            required: ["code", "message"],
+            properties: {
+              code: { type: "string" },
+              message: { type: "string" },
+              fieldErrors: { type: "object", additionalProperties: { type: "string" } },
+            },
+          },
+        },
+        CustomerResponse: {
+          schema: { type: "object", properties: { id: { type: "number" }, name: { type: "string" } } },
+        },
+      },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [
+          { id: "400", status: 400, bodySchema: { typeRef: "ApiError" } },
+          { id: "200", status: 200, bodySchema: { typeRef: "CustomerResponse" } },
+        ],
+        steps: [],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("typeCatalog 省略 accept (optional)", () => {
+    expect(validate({ ...base, actions: [] })).toBe(true);
+  });
+
+  it("TypeCatalogEntry の schema 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      typeCatalog: { X: { description: "desc only" } },
+      actions: [],
+    })).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — externalSystemCatalog + httpCall (#261 v1.3)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

@@ -159,6 +159,43 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
   });
 });
 
+describe("checkReferentialIntegrity — typeRef (#261)", () => {
+  it("typeCatalog 定義時、未登録 typeRef を検出", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      typeCatalog: { ApiError: { schema: { type: "object" } } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [{ id: "400", status: 400, bodySchema: { typeRef: "UnknownType" } }],
+        steps: [],
+      }],
+    }));
+    expect(issues.some((i) => i.code === "UNKNOWN_TYPE_REF")).toBe(true);
+  });
+
+  it("typeCatalog 未定義時は typeRef 検査をスキップ (後方互換)", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [{ id: "400", status: 400, bodySchema: { typeRef: "AnyType" } }],
+        steps: [],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("bodySchema が string 形式なら typeRef 検査対象外", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      typeCatalog: { ApiError: { schema: {} } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [{ id: "400", status: 400, bodySchema: "UnknownType" }],
+        steps: [],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+});
+
 describe("checkReferentialIntegrity — systemRef (#261)", () => {
   it("externalSystemCatalog 定義時、未登録 systemRef を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
