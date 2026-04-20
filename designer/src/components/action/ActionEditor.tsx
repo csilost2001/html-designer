@@ -56,6 +56,7 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import { MaturityBadge } from "./MaturityBadge";
 import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
+import { ErrorCatalogPanel } from "./ErrorCatalogPanel";
 import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -698,6 +699,13 @@ export function ActionEditor() {
             </div>
           );
         })()}
+        {/* ActionGroup レベルカタログ編集 (#278) */}
+        <ErrorCatalogPanel
+          group={group}
+          onChange={(next) => {
+            updateGroup((g) => { g.errorCatalog = next.errorCatalog; });
+          }}
+        />
       </div>
 
       {/* アクションタブ */}

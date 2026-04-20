@@ -1139,3 +1139,85 @@
   flex-basis: 100%;
   padding-left: 8px;
 }
+
+/* カタログ編集パネル (#278) */
+.catalog-panel {
+  margin: 6px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.catalog-panel-toggle {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.catalog-panel-toggle:hover { background: #f1f5f9; }
+.catalog-panel-body {
+  padding: 8px 12px;
+  border-top: 1px solid #e2e8f0;
+}
+.catalog-help {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.catalog-empty {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  padding: 8px;
+  text-align: center;
+  font-style: italic;
+}
+.catalog-row {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+}
+.catalog-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.catalog-key-badge {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 3px;
+}
+.catalog-row-fields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 12px;
+}
+.catalog-row-fields label {
+  font-size: 0.72rem;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.catalog-row-fields .catalog-wide { grid-column: span 2; }
+.catalog-row-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.catalog-new-key {
+  flex: 1;
+}
