@@ -1,5 +1,7 @@
 /**
  * 赤線 free-form 描画マーカー (#261)
+ *
+ * マルチストローク対応 + 消しゴムツールの動作検証。
  */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -10,7 +12,7 @@ const dummyGroup = {
   mode: "upstream", maturity: "draft",
   actions: [{ id: "act-1", name: "ボタン", trigger: "click", maturity: "draft", responses: [{id:"201-ok",status:201}], steps: [] }],
   markers: [
-    // 既存 shape 付き marker (表示テスト用)
+    // 既存 shape 付き marker (表示 + 消しゴムテスト用)
     {
       id: "mk-pre",
       kind: "attention",
@@ -39,6 +41,14 @@ async function setup(page: Page) {
   await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
 }
 
+async function drawStroke(page: Page, x0: number, y0: number, dx: number, dy: number) {
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  await page.mouse.move(x0 + dx / 2, y0 + dy / 2, { steps: 4 });
+  await page.mouse.move(x0 + dx, y0 + dy, { steps: 4 });
+  await page.mouse.up();
+}
+
 test.describe("描画マーカー (#261)", () => {
   test("既存 shape marker が SVG overlay に描画される (path 要素)", async ({ page }) => {
     await setup(page);
@@ -50,40 +60,112 @@ test.describe("描画マーカー (#261)", () => {
     expect(d).toContain("M 10 10");
   });
 
-  test("描画ボタン ON で pointer-events が有効化", async ({ page }) => {
+  test("描画ボタン ON で pointer-events が有効化しツールバーが表示される", async ({ page }) => {
     await setup(page);
     const overlay = page.locator(".drawing-overlay");
     // 既定 off: pointer-events:none
     await expect(overlay).toHaveCSS("pointer-events", "none");
+    // ツールバーは描画モード OFF では非表示
+    await expect(page.locator(".drawing-toolbar")).toHaveCount(0);
+
     await page.locator("button:has-text('描画')").click();
     await expect(overlay).toHaveCSS("pointer-events", "auto");
     await expect(page.locator("button:has-text('描画中')")).toBeVisible();
+    // ツールバー表示
+    await expect(page.locator(".drawing-toolbar")).toBeVisible();
+    // ペンが既定でアクティブ
+    await expect(page.locator(".drawing-toolbar-btn.active")).toContainText("");
   });
 
-  test("page.mouse ジェスチャで path が svg に反映", async ({ page }) => {
+  test("複数ストロークを描画してから確定で 1 marker として起票される", async ({ page }) => {
     await setup(page);
-    // Prompt は cancel (marker 起票までは検証しない、gesture → path 描画のみ)
-    page.on("dialog", async (d) => { if (d.type() === "prompt") await d.dismiss(); });
-
+    page.on("dialog", async (d) => {
+      if (d.type() === "prompt") await d.accept("まとめて修正して");
+    });
     await page.locator("button:has-text('描画')").click();
-    await expect(page.locator("button:has-text('描画中')")).toBeVisible();
 
     const overlay = page.locator(".drawing-overlay");
     const box = await overlay.boundingBox();
     if (!box) throw new Error("overlay bbox missing");
 
-    // Playwright page.mouse は PointerEvent も発火する
-    const startX = box.x + box.width * 0.3;
-    const startY = box.y + box.height * 0.3;
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-    await page.mouse.move(startX + 100, startY + 50, { steps: 5 });
-    await page.mouse.move(startX + 200, startY + 100, { steps: 5 });
-    await page.mouse.up();
+    // 2 ストローク描画
+    await drawStroke(page, box.x + box.width * 0.3, box.y + box.height * 0.3, 100, 50);
+    await drawStroke(page, box.x + box.width * 0.5, box.y + box.height * 0.5, -80, 60);
 
-    // prompt が cancel されたので新規 marker は生まれない
-    // ただし描画中の current path が途中で生成されたかどうかは確認不能 (既に state reset)
-    // → 1 プロセス内で path が描画されたことを確認するため、pre-existing path を確認
-    await expect(page.locator(".drawing-overlay path")).toHaveCount(1); // 既存のみ
+    // ストローク数表示 (2 ストローク)
+    await expect(page.locator(".drawing-toolbar-info")).toContainText("2 ストローク");
+
+    // 確定で marker 起票
+    await page.locator(".drawing-toolbar-commit").click();
+
+    // ツールバーは閉じて描画モード OFF
+    await expect(page.locator(".drawing-toolbar")).toHaveCount(0);
+    await expect(page.locator("button:has-text('描画')")).toBeVisible();
+
+    // 新 marker が 1 件追加された (既存 1 + 新 1 = 2)
+    await expect(overlay.locator("path")).toHaveCount(2);
+
+    // 新 marker の d 属性に 2 つの M セグメントが含まれる (マルチストローク合体)
+    const paths = await overlay.locator("path").all();
+    let foundMulti = false;
+    for (const p of paths) {
+      const d = (await p.getAttribute("d")) ?? "";
+      const mCount = (d.match(/M /g) ?? []).length;
+      if (mCount >= 2) { foundMulti = true; break; }
+    }
+    expect(foundMulti).toBe(true);
+  });
+
+  test("undo ボタンで 1 ストローク戻せる", async ({ page }) => {
+    await setup(page);
+    await page.locator("button:has-text('描画')").click();
+
+    const overlay = page.locator(".drawing-overlay");
+    const box = await overlay.boundingBox();
+    if (!box) throw new Error("overlay bbox missing");
+
+    await drawStroke(page, box.x + box.width * 0.2, box.y + box.height * 0.2, 60, 40);
+    await drawStroke(page, box.x + box.width * 0.4, box.y + box.height * 0.4, 60, 40);
+
+    await expect(page.locator(".drawing-toolbar-info")).toContainText("2 ストローク");
+
+    // undo (1 ストローク戻す)
+    await page.locator(".drawing-toolbar-btn[title*='ストローク戻す']").click();
+    await expect(page.locator(".drawing-toolbar-info")).toContainText("1 ストローク");
+  });
+
+  test("キャンセルで描画破棄・marker は増えない", async ({ page }) => {
+    await setup(page);
+    await page.locator("button:has-text('描画')").click();
+
+    const overlay = page.locator(".drawing-overlay");
+    const box = await overlay.boundingBox();
+    if (!box) throw new Error("overlay bbox missing");
+
+    await drawStroke(page, box.x + box.width * 0.3, box.y + box.height * 0.3, 100, 50);
+
+    // キャンセル
+    await page.locator(".drawing-toolbar-cancel").click();
+    await expect(page.locator(".drawing-toolbar")).toHaveCount(0);
+
+    // 既存 marker のみ
+    await expect(overlay.locator("path")).toHaveCount(1);
+  });
+
+  test("消しゴムツールで既存 shape marker を削除できる", async ({ page }) => {
+    await setup(page);
+    await page.locator("button:has-text('描画')").click();
+
+    // 消しゴムに切替
+    await page.locator(".drawing-toolbar-btn[title*='消しゴム']").click();
+    await expect(page.locator(".drawing-toolbar-btn.active")).toHaveAttribute("title", /消しゴム/);
+
+    const overlay = page.locator(".drawing-overlay");
+    // 既存 path をクリックで削除 (pointer-events:stroke のため stroke 上のクリックイベントを直接 dispatch)
+    await overlay.locator("path.drawing-existing-shape").first().evaluate((el) => {
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    await expect(overlay.locator("path")).toHaveCount(0);
   });
 });

@@ -524,7 +524,7 @@ export function ActionEditor() {
 
   if (!group) return null;
 
-  const handleDrawComplete = (shape: { type: "path"; d: string }) => {
+  const handleCommitStrokes = (shape: { type: "path"; d: string }) => {
     const body = window.prompt(
       "描画マーカーへの指示を入力:\n(例: ここの SQL を affectedRowsCheck で補強して)",
     );
@@ -539,6 +539,16 @@ export function ActionEditor() {
         createdAt: new Date().toISOString(),
       }];
     });
+    setDrawingMode(false);
+  };
+
+  const handleEraseMarker = (markerId: string) => {
+    updateGroup((g) => {
+      g.markers = (g.markers ?? []).filter((m) => m.id !== markerId);
+    });
+  };
+
+  const handleExitDrawing = () => {
     setDrawingMode(false);
   };
 
@@ -1125,7 +1135,9 @@ export function ActionEditor() {
       <DrawingOverlay
         markers={group.markers ?? []}
         drawing={drawingMode}
-        onDrawComplete={handleDrawComplete}
+        onCommitStrokes={handleCommitStrokes}
+        onEraseMarker={handleEraseMarker}
+        onExitDrawing={handleExitDrawing}
       />
     </div>
   );
