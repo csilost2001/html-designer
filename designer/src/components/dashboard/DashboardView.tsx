@@ -33,6 +33,41 @@ function loadStoredLayouts(): StoredLayouts | null {
   }
 }
 
+/**
+ * 既存の保存済みレイアウトに対し、panelRegistry の最新 min/max 制約を反映する。
+ * - 既存 item の w/h が minW/minH を下回っていれば引き上げる (過去の小さすぎる保存値の救済)
+ * - 未登録の新パネルがあれば default を末尾追加
+ */
+function reconcileLayouts(stored: StoredLayouts, defaults: LayoutItem[]): StoredLayouts {
+  const reconciled: StoredLayouts = {};
+  const defaultById = new Map(defaults.map((d) => [d.i, d]));
+  for (const [bp, layout] of Object.entries(stored)) {
+    if (!layout) continue;
+    const seen = new Set<string>();
+    const merged: LayoutItem[] = layout.map((item) => {
+      seen.add(item.i);
+      const def = defaultById.get(item.i);
+      if (!def) return item;
+      const minW = def.minW ?? item.minW;
+      const minH = def.minH ?? item.minH;
+      return {
+        ...item,
+        w: minW != null ? Math.max(item.w, minW) : item.w,
+        h: minH != null ? Math.max(item.h, minH) : item.h,
+        minW,
+        minH,
+        maxW: def.maxW ?? item.maxW,
+        maxH: def.maxH ?? item.maxH,
+      };
+    });
+    for (const def of defaults) {
+      if (!seen.has(def.i)) merged.push(def);
+    }
+    reconciled[bp] = merged;
+  }
+  return reconciled;
+}
+
 function storeLayouts(layouts: StoredLayouts): void {
   try {
     localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layouts));
@@ -64,7 +99,7 @@ export function DashboardView() {
   const defaultLayout = useMemo(() => buildDefaultLayout(), []);
   const [layouts, setLayouts] = useState<StoredLayouts>(() => {
     const stored = loadStoredLayouts();
-    if (stored) return stored;
+    if (stored) return reconcileLayouts(stored, defaultLayout);
     return { lg: defaultLayout };
   });
 
