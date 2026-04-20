@@ -874,6 +874,21 @@ export const tools = [
     },
   },
   {
+    name: "designer__find_all_markers",
+    description: "全 ActionGroup を横断して未解決マーカーを取得します。/designer-work で「今対応すべき人間指示をまず一望する」ために使用。各マーカーに actionGroupId / actionGroupName が付く。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        unresolvedOnly: { type: "boolean", description: "true で未解決のみ (既定 true)" },
+        kind: {
+          type: "string",
+          enum: ["chat", "attention", "todo", "question"],
+          description: "特定 kind のみ抽出 (省略時は全 kind)",
+        },
+      },
+    },
+  },
+  {
     name: "designer__add_marker",
     description: "ActionGroup にマーカーを追加します。AI 側からの質問・返信・報告等を人間に届ける用途。",
     inputSchema: {

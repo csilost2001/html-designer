@@ -20,6 +20,7 @@ import {
   removeCatalogEntry as editRemoveCatalogEntry,
   insertStepAt as editInsertStepAt,
   listMarkers as editListMarkers,
+  findAllMarkers as editFindAllMarkers,
   addMarker as editAddMarker,
   resolveMarker as editResolveMarker,
   removeMarker as editRemoveMarker,
@@ -1034,6 +1035,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           stepId: typeof a.stepId === "string" ? a.stepId : undefined,
         });
         return { content: [{ type: "text", text: JSON.stringify(markers, null, 2) }] };
+      }
+
+      case "designer__find_all_markers": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        const unresolvedOnly = a.unresolvedOnly !== false; // 既定 true
+        const kindFilter = typeof a.kind === "string"
+          ? (a.kind as "chat" | "attention" | "todo" | "question")
+          : undefined;
+        const agList = await listActionGroupFiles() as Array<{ id: string; name: string }>;
+        const loaded: Array<{ id: string; name: string; ag: ActionGroupDoc }> = [];
+        for (const meta of agList) {
+          const ag = await readActionGroup(meta.id) as ActionGroupDoc | null;
+          if (ag) loaded.push({ id: meta.id, name: meta.name, ag });
+        }
+        const results = editFindAllMarkers(loaded, { unresolvedOnly, kind: kindFilter });
+        return { content: [{ type: "text", text: JSON.stringify({ count: results.length, markers: results }, null, 2) }] };
       }
 
       case "designer__add_marker": {

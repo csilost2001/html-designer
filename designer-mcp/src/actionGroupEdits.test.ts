@@ -10,6 +10,7 @@ import {
   insertStepAt,
   findStep,
   listMarkers,
+  findAllMarkers,
   addMarker,
   resolveMarker,
   removeMarker,
@@ -203,6 +204,57 @@ describe("markers (#261)", () => {
     const ag = makeGroup();
     expect(() => resolveMarker(ag, "nope")).toThrow();
     expect(() => removeMarker(ag, "nope")).toThrow();
+  });
+});
+
+describe("findAllMarkers", () => {
+  function group(id: string, name: string, markers: Array<{ kind: "chat" | "attention" | "todo" | "question"; body: string; resolved?: boolean }>): { id: string; name: string; ag: ActionGroupDoc } {
+    const ag: ActionGroupDoc = { id, actions: [{ id: `${id}-a`, steps: [] }] };
+    for (const m of markers) {
+      const added = addMarker(ag, { kind: m.kind, body: m.body, author: "human" });
+      if (m.resolved) resolveMarker(ag, added.id, "ok");
+    }
+    return { id, name, ag };
+  }
+
+  it("複数 AG を横断し actionGroupId / actionGroupName 付きで返す", () => {
+    const groups = [
+      group("ag-a", "A", [{ kind: "todo", body: "X" }, { kind: "question", body: "Y" }]),
+      group("ag-b", "B", [{ kind: "chat", body: "Z" }]),
+    ];
+    const all = findAllMarkers(groups);
+    expect(all).toHaveLength(3);
+    expect(all[0].actionGroupId).toBe("ag-a");
+    expect(all[0].actionGroupName).toBe("A");
+    expect(all[2].actionGroupId).toBe("ag-b");
+  });
+
+  it("unresolvedOnly=true (既定) で解決済みは除外", () => {
+    const groups = [
+      group("ag-a", "A", [{ kind: "todo", body: "open" }, { kind: "todo", body: "done", resolved: true }]),
+    ];
+    expect(findAllMarkers(groups, { unresolvedOnly: true })).toHaveLength(1);
+    expect(findAllMarkers(groups, { unresolvedOnly: false })).toHaveLength(2);
+  });
+
+  it("kind フィルタで特定種別のみ抽出", () => {
+    const groups = [
+      group("ag-a", "A", [{ kind: "todo", body: "t" }, { kind: "question", body: "q" }]),
+      group("ag-b", "B", [{ kind: "todo", body: "t2" }]),
+    ];
+    const onlyTodo = findAllMarkers(groups, { kind: "todo" });
+    expect(onlyTodo).toHaveLength(2);
+    expect(onlyTodo.every((m) => m.kind === "todo")).toBe(true);
+  });
+
+  it("マーカーなし AG は結果に含まれない (空配列を返すだけ)", () => {
+    const groups = [
+      group("ag-empty", "Empty", []),
+      group("ag-has", "Has", [{ kind: "chat", body: "x" }]),
+    ];
+    const all = findAllMarkers(groups);
+    expect(all).toHaveLength(1);
+    expect(all[0].actionGroupId).toBe("ag-has");
   });
 });
 
