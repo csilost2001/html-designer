@@ -1,0 +1,135 @@
+import { describe, it, expect } from "vitest";
+import { aggregateValidation } from "./aggregatedValidation";
+import type { ActionGroup } from "../types/action";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const repoRoot = resolve(__dirname, "../../../");
+
+function makeGroup(partial: Partial<ActionGroup>): ActionGroup {
+  return {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+    ...partial,
+  } as ActionGroup;
+}
+
+describe("aggregateValidation — 統合テスト", () => {
+  it("既存の structural error (loopBreak out of loop) を保持", () => {
+    const errors = aggregateValidation(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{ id: "s1", type: "loopBreak", description: "" }],
+      }],
+    }));
+    expect(errors.some((e) => e.severity === "error")).toBe(true);
+    expect(errors.some((e) => e.stepId === "s1")).toBe(true);
+  });
+
+  it("referentialIntegrity の UNKNOWN_RESPONSE_REF を取り込む", () => {
+    const errors = aggregateValidation(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [{ id: "201", status: 201 }],
+        steps: [{ id: "s1", type: "return", description: "", responseRef: "404-missing" }],
+      }],
+    }));
+    const w = errors.find((e) => e.code === "UNKNOWN_RESPONSE_REF");
+    expect(w).toBeDefined();
+    expect(w?.severity).toBe("warning");
+    expect(w?.stepId).toBe("s1");
+    expect(w?.path).toBeDefined();
+  });
+
+  it("identifierScope の UNKNOWN_IDENTIFIER を取り込む", () => {
+    const errors = aggregateValidation(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{ id: "s1", type: "compute", description: "", expression: "@unknownX * 2", outputBinding: "r" }],
+      }],
+    }));
+    const w = errors.find((e) => e.code === "UNKNOWN_IDENTIFIER");
+    expect(w).toBeDefined();
+    expect(w?.stepId).toBe("s1");
+  });
+
+  it("ネストした step (branch 内) の issue の stepId 解決", () => {
+    const errors = aggregateValidation(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [{ id: "201", status: 201 }],
+        steps: [{
+          id: "branch1", type: "branch", description: "",
+          branches: [{
+            id: "b1", code: "A", condition: "@flag",
+            steps: [{ id: "inner-return", type: "return", description: "", responseRef: "missing" }],
+          }],
+        }],
+      }],
+    }));
+    const w = errors.find((e) => e.code === "UNKNOWN_RESPONSE_REF");
+    expect(w?.stepId).toBe("inner-return");
+  });
+
+  it("externalSystem.outcomes.sideEffects 内の step も stepId 解決", () => {
+    const errors = aggregateValidation(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "ext", type: "externalSystem", description: "", systemName: "x",
+          outcomes: {
+            failure: {
+              action: "continue",
+              sideEffects: [{ id: "se-unknown", type: "compute", description: "", expression: "@unknownVar", outputBinding: "r" }],
+            },
+          },
+        }],
+      }],
+    }));
+    const w = errors.find((e) => e.code === "UNKNOWN_IDENTIFIER");
+    expect(w?.stepId).toBe("se-unknown");
+  });
+
+  it("UNKNOWN_SECRET_REF は catalog 階層なので stepId は空 ok", () => {
+    const errors = aggregateValidation(makeGroup({
+      secretsCatalog: { k: { source: "env", name: "X" } },
+      externalSystemCatalog: {
+        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.unknown" } },
+      },
+      actions: [],
+    }));
+    const w = errors.find((e) => e.code === "UNKNOWN_SECRET_REF");
+    expect(w).toBeDefined();
+    expect(w?.path).toContain("externalSystemCatalog");
+  });
+
+  it("サンプル 0005 は clean (structural error なし + warning 最小)", () => {
+    const group = JSON.parse(readFileSync(
+      resolve(repoRoot, "docs/sample-project/actions/cccccccc-0005-4000-8000-cccccccccccc.json"),
+      "utf-8",
+    )) as ActionGroup;
+    const errors = aggregateValidation(group);
+    const structuralErrors = errors.filter((e) => e.severity === "error");
+    expect(structuralErrors).toHaveLength(0);
+  });
+
+  it("options.tables / conventions 未指定時は SQL/conv 検査はスキップ", () => {
+    // sql の列チェックは tables 未指定 → skip
+    // conv 参照は conventions null/undefined → skip
+    const errors = aggregateValidation(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [{ name: "x", type: "number" }],
+        steps: [{
+          id: "s1", type: "dbAccess", description: "",
+          tableName: "unknown_table", operation: "SELECT",
+          sql: "SELECT never_existing_col FROM unknown_table WHERE id = @x",
+        }],
+      }],
+    }));
+    // UNKNOWN_COLUMN は tables 未指定なので出ない
+    expect(errors.every((e) => e.code !== "UNKNOWN_COLUMN")).toBe(true);
+  });
+});

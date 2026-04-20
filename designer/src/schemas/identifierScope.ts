@@ -14,7 +14,6 @@
  */
 import type {
   ActionGroup,
-  ActionDefinition,
   Step,
   OutputBinding,
   ValidationStep,

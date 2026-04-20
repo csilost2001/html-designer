@@ -6,6 +6,10 @@ export interface ValidationError {
   stepId: string;
   severity: ValidationSeverity;
   message: string;
+  /** 追加バリデータ由来の JSON path (例: "actions[0].steps[2].sql") */
+  path?: string;
+  /** バリデータ固有のコード (例: "UNKNOWN_RESPONSE_REF", "UNKNOWN_IDENTIFIER") */
+  code?: string;
 }
 
 function collectAllIds(steps: Step[], ids: Set<string>): void {
