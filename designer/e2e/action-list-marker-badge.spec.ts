@@ -125,4 +125,14 @@ test.describe("処理フロー一覧 マーカー件数バッジ (#261)", () => 
     const headerSummary = page.locator(".action-list-header").locator("span[title*='マーカー']");
     await expect(headerSummary).toContainText("4");
   });
+
+  test("「マーカーありのみ」フィルタで marker 入りの AG だけ表示", async ({ page }) => {
+    await setup(page);
+    // チェックボックス ON → marker 入りのみ残る (ag-clean は非表示)
+    await page.locator(".action-list-check-label").filter({ hasText: "マーカーあり" }).click();
+    await expect(page.locator(".data-list-card").filter({ hasText: "マーカー入り" })).toBeVisible();
+    await expect(page.locator(".data-list-card").filter({ hasText: "マーカーなし" })).toHaveCount(0);
+    // FilterBar にラベル表示
+    await expect(page.locator(".filter-bar")).toContainText("マーカーあり");
+  });
 });
