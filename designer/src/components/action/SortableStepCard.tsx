@@ -28,6 +28,8 @@ interface SortableStepCardProps {
   onOutdentSubStep?: (subStepId: string) => void;
   validationErrors?: ValidationError[];
   onAddMarker?: (body: string, kind?: "todo" | "question" | "attention" | "chat") => void;
+  markerCount?: number;
+  markerTooltip?: string;
 }
 
 export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
