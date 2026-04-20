@@ -19,6 +19,11 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/ErrorCatalogEntry" }
     },
+    "externalSystemCatalog": {
+      "description": "外部システムカタログ (#261 v1.3)。キー: systemId (例: \"stripe\")。ExternalSystemStep.systemRef から参照",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/ExternalSystemCatalogEntry" }
+    },
     "actions": {
       "type": "array",
       "items": { "$ref": "#/$defs/ActionDefinition" }
@@ -493,6 +498,39 @@
         "headerName": { "type": "string" }
       }
     },
+    "ExternalHttpCall": {
+      "description": "外部 HTTP 呼出の構造化 (#261 v1.3)。path は式補間可",
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "$ref": "#/$defs/HttpMethod" },
+        "path": { "type": "string" },
+        "query": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "body": { "type": "string" }
+      }
+    },
+    "ExternalSystemCatalogEntry": {
+      "description": "外部システムカタログの 1 エントリ (#261 v1.3)",
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "baseUrl": { "type": "string" },
+        "auth": { "$ref": "#/$defs/ExternalAuth" },
+        "timeoutMs": { "type": "integer", "minimum": 0 },
+        "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "description": { "type": "string" }
+      }
+    },
     "ExternalSystemStep": {
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
@@ -507,7 +545,16 @@
             "externalChain": true, "subSteps": true,
             "type": { "const": "externalSystem" },
             "systemName": { "type": "string" },
-            "protocol": { "type": "string" },
+            "systemRef": {
+              "type": "string",
+              "description": "ActionGroup.externalSystemCatalog のキー参照 (#261 v1.3)"
+            },
+            "protocol": {
+              "type": "string",
+              "deprecated": true,
+              "description": "DEPRECATED (#261): httpCall への移行推奨"
+            },
+            "httpCall": { "$ref": "#/$defs/ExternalHttpCall" },
             "outcomes": {
               "type": "object",
               "additionalProperties": false,

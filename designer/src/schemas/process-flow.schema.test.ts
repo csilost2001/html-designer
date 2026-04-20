@@ -117,6 +117,107 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — externalSystemCatalog + httpCall (#261 v1.3)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("externalSystemCatalog + ExternalSystemStep.systemRef + httpCall", () => {
+    const ok = validate({
+      ...base,
+      externalSystemCatalog: {
+        stripe: {
+          name: "Stripe Japan",
+          baseUrl: "https://api.stripe.com",
+          auth: { kind: "bearer", tokenRef: "ENV:STRIPE_SECRET_KEY" },
+          timeoutMs: 10000,
+          retryPolicy: { maxAttempts: 3, backoff: "exponential", initialDelayMs: 500 },
+          headers: { "Stripe-Version": "2024-06-20" },
+        },
+      },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe Japan", systemRef: "stripe",
+          httpCall: {
+            method: "POST",
+            path: "/v1/payment_intents/@paymentAuth.id/cancel",
+            query: { expand: "charges" },
+          },
+          idempotencyKey: "cancel-@paymentAuth.id",
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("httpCall 構造 (method / path / body)", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe",
+          httpCall: {
+            method: "POST",
+            path: "/v1/payment_intents",
+            body: "{ amount: @order.totalAmount, currency: 'jpy' }",
+          },
+        }],
+      }],
+    });
+    expect(ok).toBe(true);
+  });
+
+  it("protocol (legacy) と httpCall 併用 accept (後方互換)", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe",
+          protocol: "HTTPS POST /v1/foo",
+          httpCall: { method: "POST", path: "/v1/foo" },
+        }],
+      }],
+    })).toBe(true);
+  });
+
+  it("systemRef / httpCall 省略 accept (後方互換)", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe",
+          protocol: "HTTPS POST /v1/foo",
+        }],
+      }],
+    })).toBe(true);
+  });
+
+  it("httpCall.method enum 外は reject", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe",
+          httpCall: { method: "CONNECT", path: "/x" },
+        }],
+      }],
+    })).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — sideEffects の return 禁止 (#261)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

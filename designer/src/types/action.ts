@@ -422,10 +422,68 @@ export interface ExternalAuth {
   headerName?: string;
 }
 
+/**
+ * HTTP 呼出の構造化 (#261 v1.3)。
+ * 旧 `protocol: string` (例: "HTTPS POST /v1/payment_intents/@id/cancel") を
+ * method / path / pathParams / query / body に分解する。
+ * path は式補間を許容 (js-subset の @identifier)。
+ */
+export interface ExternalHttpCall {
+  method: HttpMethod;
+  /** URL パス。式補間可 (例: "/v1/payment_intents/@paymentAuth.id/cancel") */
+  path: string;
+  /** クエリ文字列。値は式可 (例: { limit: "@pageSize", cursor: "@nextCursor" }) */
+  query?: Record<string, string>;
+  /** リクエスト body の式 (例: "{ amount: @order.totalAmount, currency: 'jpy' }")。
+   *  GET 等で body 不要な場合は省略。 */
+  body?: string;
+}
+
+/**
+ * ActionGroup.externalSystemCatalog エントリ (#261 v1.3)。
+ * 同一外部システム (Stripe, SendGrid 等) を使う複数ステップで auth/baseUrl/timeoutMs/retryPolicy を集約し、
+ * step 側は systemRef で参照する。DRY 化と drift 防止。
+ */
+export interface ExternalSystemCatalogEntry {
+  /** 人間可読名 (例: "Stripe Japan") */
+  name: string;
+  /** HTTP ベース URL (例: "https://api.stripe.com") */
+  baseUrl?: string;
+  /** 既定認証 (step 側の auth が優先) */
+  auth?: ExternalAuth;
+  /** 既定タイムアウト (ms) */
+  timeoutMs?: number;
+  /** 既定リトライ方針 */
+  retryPolicy?: RetryPolicy;
+  /** 既定ヘッダ (step 側で上書き可) */
+  headers?: Record<string, string>;
+  /** 補足説明 */
+  description?: string;
+}
+
 export interface ExternalSystemStep extends StepBase {
   type: "externalSystem";
+  /**
+   * 外部システム名。systemRef 指定時はカタログから継承する情報の override ラベル。
+   * 従来互換のため必須継続 (systemRef だけの運用でも表示用に書く)。
+   */
   systemName: string;
+  /**
+   * ActionGroup.externalSystemCatalog のキー参照 (#261 v1.3)。
+   * 指定時はカタログの baseUrl/auth/timeoutMs/retryPolicy/headers を既定値とし、
+   * この step の同名フィールドで override 可能。
+   */
+  systemRef?: string;
+  /**
+   * @deprecated (#261 v1.3): 自由記述。httpCall への移行推奨。
+   * 後方互換のため残す。新規データは httpCall を使用。
+   */
   protocol?: string;
+  /**
+   * HTTP 呼出の構造化 (#261 v1.3)。protocol の後継。
+   * method / path / query / body に分解、path は式補間可。
+   */
+  httpCall?: ExternalHttpCall;
   /**
    * 各 outcome (success / failure / timeout) のハンドリング定義。
    * 省略時は product-scope §11 の既定 (failure/timeout=abort、success=continue) を適用。
@@ -770,6 +828,11 @@ export interface ActionGroup {
    * affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される。
    */
   errorCatalog?: Record<string, ErrorCatalogEntry>;
+  /**
+   * 外部システムカタログ (#261 v1.3)。キー: systemId (例: "stripe", "sendgrid")。
+   * ExternalSystemStep.systemRef から参照され、baseUrl/auth/timeoutMs 等の既定値を提供。
+   */
+  externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
   createdAt: string;
   updatedAt: string;
 }
