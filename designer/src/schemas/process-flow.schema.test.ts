@@ -117,6 +117,59 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — errorCatalog (#253)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("errorCatalog 全フィールド accept", () => {
+    const ok = validate({
+      ...base,
+      errorCatalog: {
+        STOCK_SHORTAGE: {
+          httpStatus: 409,
+          defaultMessage: "在庫不足",
+          responseRef: "409-stock-shortage",
+          description: "引当 UPDATE で rowCount=0",
+        },
+        VALIDATION: {
+          httpStatus: 400,
+          responseRef: "400-validation",
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("errorCatalog 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("errorCatalog 空オブジェクト accept", () => {
+    expect(validate({ ...base, errorCatalog: {} })).toBe(true);
+  });
+
+  it("ErrorCatalogEntry の未知フィールドは reject", () => {
+    expect(validate({
+      ...base,
+      errorCatalog: {
+        FOO: { httpStatus: 400, unknownField: "x" },
+      },
+    })).toBe(false);
+  });
+
+  it("httpStatus 範囲外は reject", () => {
+    expect(validate({
+      ...base,
+      errorCatalog: { FOO: { httpStatus: 99 } },
+    })).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — 明示的な negative ケース", () => {
   it("必須フィールド欠落で reject される", () => {
     const invalid = {

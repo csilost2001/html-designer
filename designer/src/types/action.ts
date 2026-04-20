@@ -685,6 +685,22 @@ export interface ActionDefinition {
 
 // ── アクショングループ ───────────────────────────────────────────────────
 
+/**
+ * エラーコードカタログの 1 エントリ (#253)。
+ * 同一 errorCode が affectedRowsCheck.errorCode / BranchConditionVariant.errorCode / responses[].description の
+ * 複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
+ */
+export interface ErrorCatalogEntry {
+  /** 対応する HTTP ステータス (例: 409) */
+  httpStatus?: number;
+  /** 既定メッセージ (@conv.msg.* 参照も可) */
+  defaultMessage?: string;
+  /** action.responses[].id への参照。ReturnStep / 分岐処理で返却すべき response */
+  responseRef?: string;
+  /** 補足説明 */
+  description?: string;
+}
+
 export interface ActionGroup {
   id: string;
   name: string;
@@ -696,6 +712,11 @@ export interface ActionGroup {
   maturity?: Maturity;
   /** 上流/下流モード。未指定は "upstream" として解釈 (docs/spec/process-flow-maturity.md §5) */
   mode?: ActionGroupMode;
+  /**
+   * エラーコードカタログ (#253)。キー: errorCode (例: "STOCK_SHORTAGE")、値: HTTP ステータス / 既定メッセージ / 対応する responseRef。
+   * affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される。
+   */
+  errorCatalog?: Record<string, ErrorCatalogEntry>;
   createdAt: string;
   updatedAt: string;
 }
