@@ -1117,6 +1117,38 @@
   border-bottom: 1px dashed #fde68a;
 }
 .action-validation-panel-list li:last-child { border-bottom: none; }
+
+.action-validation-panel-bulk-ai {
+  margin-left: auto;
+  color: #1e40af;
+  font-weight: 600;
+}
+.action-validation-panel-bulk-ai:hover {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.validation-ask-ai-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1e40af;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.validation-ask-ai-btn:hover:not(:disabled) {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+.validation-ask-ai-btn.asked,
+.validation-ask-ai-btn:disabled {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+  cursor: default;
+}
 .validation-code {
   font-family: ui-monospace, monospace;
   font-size: 0.7rem;

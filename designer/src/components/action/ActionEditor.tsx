@@ -582,7 +582,41 @@ export function ActionEditor() {
           <div className="action-validation-panel-header">
             <i className="bi bi-exclamation-triangle-fill" /> 警告 ({validationErrors.filter((e) => e.severity === "warning").length} 件)
             <button
-              className="btn btn-sm btn-link ms-auto"
+              className="btn btn-sm btn-link action-validation-panel-bulk-ai"
+              onClick={() => {
+                // 全警告をまとめて marker 化 (既に起票済のものは skip)
+                if (!group) return;
+                const existingKeys = new Set((group.markers ?? [])
+                  .filter((m) => !m.resolvedAt && m.kind === "todo")
+                  .map((m) => `${m.code ?? ""}|${m.path ?? ""}`));
+                const newMarkers = validationErrors
+                  .filter((e) => e.severity === "warning" && e.path)
+                  .filter((e) => !existingKeys.has(`${e.code ?? ""}|${e.path ?? ""}`))
+                  .map((e) => ({
+                    id: generateUUID(),
+                    kind: "todo" as const,
+                    body: `警告解消: ${e.message}`,
+                    stepId: e.stepId || undefined,
+                    code: e.code,
+                    path: e.path,
+                    author: "human" as const,
+                    createdAt: new Date().toISOString(),
+                  }));
+                if (newMarkers.length === 0) {
+                  window.alert("全ての警告は既に AI 依頼済みです");
+                  return;
+                }
+                updateGroup((g) => {
+                  g.markers = [...(g.markers ?? []), ...newMarkers];
+                });
+                window.alert(`${newMarkers.length} 件の警告を marker として起票しました。/designer-work で処理できます。`);
+              }}
+              title="全ての警告をまとめて AI 依頼 marker として起票"
+            >
+              <i className="bi bi-robot" /> 全て AI に依頼
+            </button>
+            <button
+              className="btn btn-sm btn-link ms-1"
               onClick={() => setShowWarningsPanel(false)}
               title="閉じる"
             >
@@ -592,13 +626,42 @@ export function ActionEditor() {
           <ul className="action-validation-panel-list">
             {validationErrors
               .filter((e) => e.severity === "warning")
-              .map((e, i) => (
-                <li key={i}>
-                  {e.code && <span className="validation-code">{e.code}</span>}
-                  <span className="validation-message">{e.message}</span>
-                  {e.path && <span className="validation-path">{e.path}</span>}
-                </li>
-              ))}
+              .map((e, i) => {
+                const isMarked = (group?.markers ?? [])
+                  .some((m) => !m.resolvedAt && m.kind === "todo"
+                    && m.code === e.code && m.path === e.path);
+                return (
+                  <li key={i}>
+                    {e.code && <span className="validation-code">{e.code}</span>}
+                    <span className="validation-message">{e.message}</span>
+                    {e.path && <span className="validation-path">{e.path}</span>}
+                    <button
+                      className={`btn btn-sm validation-ask-ai-btn ${isMarked ? "asked" : ""}`}
+                      disabled={isMarked || !group}
+                      title={isMarked ? "AI に依頼済み" : "この警告を marker として AI に依頼"}
+                      onClick={() => {
+                        if (!group || isMarked) return;
+                        const newMarker = {
+                          id: generateUUID(),
+                          kind: "todo" as const,
+                          body: `警告解消: ${e.message}`,
+                          stepId: e.stepId || undefined,
+                          code: e.code,
+                          path: e.path,
+                          author: "human" as const,
+                          createdAt: new Date().toISOString(),
+                        };
+                        updateGroup((g) => {
+                          g.markers = [...(g.markers ?? []), newMarker];
+                        });
+                      }}
+                    >
+                      <i className={`bi ${isMarked ? "bi-check-circle-fill" : "bi-robot"}`} />
+                      {" "}{isMarked ? "依頼済" : "AI に依頼"}
+                    </button>
+                  </li>
+                );
+              })}
           </ul>
         </div>
       )}

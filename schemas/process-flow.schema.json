@@ -104,7 +104,9 @@
         "author": { "type": "string", "enum": ["human", "ai"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "resolvedAt": { "type": "string", "format": "date-time" },
-        "resolution": { "type": "string" }
+        "resolution": { "type": "string" },
+        "code": { "type": "string", "description": "警告由来 marker の validator code (UNKNOWN_IDENTIFIER 等)" },
+        "path": { "type": "string", "description": "警告由来 marker の JSON path" }
       }
     },
 
