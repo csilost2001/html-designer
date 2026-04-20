@@ -472,12 +472,25 @@ export interface Branch {
   steps: Step[];
 }
 
+/**
+ * else 分岐 (otherwise)。構造は Branch とほぼ同じだが condition は本質的に不要 (#253)。
+ * 旧データ (condition: "" 等の空文字列埋め) を壊さないため、後方互換で condition は optional。
+ */
+export interface ElseBranch {
+  id: string;
+  code: string;
+  label?: string;
+  /** 後方互換用のみ保持。新規データは省略可 */
+  condition?: BranchCondition;
+  steps: Step[];
+}
+
 export interface BranchStep extends StepBase {
   type: "branch";
   /** 最小 1 個、D&D で並び替え可能 */
   branches: Branch[];
   /** 任意、常に最後に描画 */
-  elseBranch?: Branch;
+  elseBranch?: ElseBranch;
 }
 
 /** ループ種別 */
@@ -571,12 +584,20 @@ export type Step =
 
 // ── 入出力の構造化 (docs/spec/process-flow-variables.md §3.1) ─────────────
 
-/** 入出力フィールドの型。primitive + テーブル/画面参照 + 自由記述型の union */
+/**
+ * 入出力フィールドの型。primitive + 複合型 (array/object) + テーブル/画面参照 + 自由記述型の union。
+ *
+ * `array` / `object` は #253 で追加。`custom` の `label` に
+ * `"Array<{itemId, quantity}>"` のような自由記述で逃げていたケースを構造化可能にする。
+ * 従来は custom で表現していたものも、可能なら array / object に移行するのが望ましい。
+ */
 export type FieldType =
   | "string"
   | "number"
   | "boolean"
   | "date"
+  | { kind: "array"; itemType: FieldType }
+  | { kind: "object"; fields: StructuredField[] }
   | { kind: "tableRow"; tableId: string }
   | { kind: "tableList"; tableId: string }
   | { kind: "screenInput"; screenId: string }
