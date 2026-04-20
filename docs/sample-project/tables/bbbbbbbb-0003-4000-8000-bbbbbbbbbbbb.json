@@ -14,6 +14,7 @@
     { "id": "col-o07", "name": "tax_amount", "logicalName": "消費税額", "dataType": "DECIMAL", "length": 12, "scale": 2, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0" },
     { "id": "col-o08", "name": "total_amount", "logicalName": "合計金額", "dataType": "DECIMAL", "length": 12, "scale": 2, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0" },
     { "id": "col-o09", "name": "payment_method", "logicalName": "支払方法", "dataType": "VARCHAR", "length": 30, "notNull": false, "primaryKey": false, "unique": false, "comment": "bank_transfer / credit_card / cash_on_delivery" },
+    { "id": "col-o09b", "name": "payment_id", "logicalName": "決済ID", "dataType": "VARCHAR", "length": 100, "notNull": false, "primaryKey": false, "unique": false, "comment": "Stripe PaymentIntent ID 等" },
     { "id": "col-o10", "name": "shipping_address", "logicalName": "配送先住所", "dataType": "VARCHAR", "length": 500, "notNull": false, "primaryKey": false, "unique": false },
     { "id": "col-o11", "name": "notes", "logicalName": "備考", "dataType": "TEXT", "notNull": false, "primaryKey": false, "unique": false },
     { "id": "col-o12", "name": "created_by", "logicalName": "登録者ID", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false, "foreignKey": { "tableId": "users", "columnName": "id" } },
