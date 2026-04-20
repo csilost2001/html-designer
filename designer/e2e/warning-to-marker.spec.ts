@@ -50,6 +50,9 @@ test.describe("警告 → Marker 起票 (#261)", () => {
       btn?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     });
 
+    // MarkerPanel は既定折りたたみなので展開して確認
+    await page.locator(".marker-panel .catalog-panel-toggle").click();
+
     // marker が 1 件起票
     await expect(page.locator(".marker-panel .marker-row")).toHaveCount(1);
     await expect(page.locator(".marker-panel .marker-kind-badge")).toContainText("TODO");
@@ -68,8 +71,9 @@ test.describe("警告 → Marker 起票 (#261)", () => {
     await page.evaluate(() => {
       document.querySelector(".action-validation-panel-bulk-ai")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     });
+    // MarkerPanel 展開
+    await page.locator(".marker-panel .catalog-panel-toggle").click();
     // 警告は少なくとも 2 件起票される (UNKNOWN_IDENTIFIER + UNKNOWN_RESPONSE_REF)
-    await expect(page.locator(".marker-panel .marker-row")).toHaveCount(await page.locator(".marker-panel .marker-row").count());
     const rows = await page.locator(".marker-panel .marker-row").count();
     expect(rows).toBeGreaterThanOrEqual(2);
   });

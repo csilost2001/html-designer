@@ -75,6 +75,8 @@ test.describe("StepCard から marker 起票 (#261)", () => {
     });
     await page.waitForTimeout(300);
 
+    // MarkerPanel は既定折りたたみ、展開して行を確認
+    await page.locator(".marker-panel .catalog-panel-toggle").click();
     // marker が 3 件 (既存 2 + 新規 1)
     await expect(page.locator(".marker-panel .marker-row")).toHaveCount(3);
     // 新しいのは stepId=s1 紐付き、body は dialog で answered

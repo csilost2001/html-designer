@@ -1379,6 +1379,31 @@
 .marker-timestamps { padding-top: 4px; }
 .marker-add-row { flex-wrap: wrap; gap: 4px; }
 
+/* anchor orphan バッジ (#261) */
+.marker-orphan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.marker-orphan-badge i { font-size: 0.7rem; }
+
+/* anchor 付き描画マーカー (fixed positioned、bbox 上にオーバーレイ) */
+.drawing-anchored-shape {
+  /* position / left / top / width / height は JS 側で設定 */
+}
+.drawing-anchored-shape .drawing-existing-shape {
+  transition: opacity 0.15s ease;
+}
+.drawing-anchored-shape .drawing-existing-shape:hover {
+  opacity: 1 !important;
+}
+
 /* インライン解決フォーム (#261) */
 .marker-resolve-form {
   margin-top: 6px;

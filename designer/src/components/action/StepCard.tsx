@@ -398,6 +398,7 @@ export function StepCard({
     <div>
       <div
         className={cardClass}
+        data-step-id={step.id}
         style={{ borderLeftColor: color }}
         onContextMenu={onContextMenu}
       >
@@ -672,7 +673,7 @@ export function StepCard({
                 />
               </div>
             </div>
-            <div className="row g-2 mb-2">
+            <div className="row g-2 mb-2" data-field-path="runIf">
               <div className="col-12">
                 <label className="form-label small">
                   <i className="bi bi-funnel me-1" />
@@ -754,7 +755,7 @@ export function StepCard({
             {/* ── バリデーション ───────────────────────────────── */}
             {step.type === "validation" && (
               <>
-                <div className="row g-2 mb-2">
+                <div className="row g-2 mb-2" data-field-path="conditions">
                   <div className="col-12">
                     <label className="form-label">バリデーション条件 (自由記述)</label>
                     <input
@@ -890,7 +891,7 @@ export function StepCard({
                     />
                   </div>
                 </div>
-                <div className="form-group">
+                <div className="form-group" data-field-path="sql">
                   <label className="form-label">完全 SQL (sql、fields より優先)</label>
                   <textarea
                     className="form-control form-control-sm"
@@ -1169,7 +1170,7 @@ export function StepCard({
 
             {/* ── 計算ステップ (ComputeStep) ───────────────────── */}
             {step.type === "compute" && (
-              <div className="row g-2 mb-2">
+              <div className="row g-2 mb-2" data-field-path="expression">
                 <div className="col-12">
                   <label className="form-label">
                     <i className="bi bi-calculator me-1" />
@@ -1206,7 +1207,7 @@ export function StepCard({
                       placeholder="例: 409-stock-shortage"
                     />
                   </div>
-                  <div className="col-6">
+                  <div className="col-6" data-field-path="bodyExpression">
                     <label className="form-label">bodyExpression</label>
                     <input
                       type="text"
