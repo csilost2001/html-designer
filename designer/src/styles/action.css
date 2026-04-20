@@ -1354,6 +1354,23 @@
 .marker-timestamps { padding-top: 4px; }
 .marker-add-row { flex-wrap: wrap; gap: 4px; }
 
+/* インライン解決フォーム (#261) */
+.marker-resolve-form {
+  margin-top: 6px;
+  padding: 8px;
+  background: #f0fdf4;
+  border: 1px dashed #86efac;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.marker-resolve-form-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 /* 赤線描画オーバーレイ (#261) */
 .drawing-overlay {
   /* pointer-events / cursor は inline style で drawing に応じて切替 */
