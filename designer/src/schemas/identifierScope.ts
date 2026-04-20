@@ -1,0 +1,233 @@
+/**
+ * 処理フロー @ 参照の識別子スコープ検証 (#261 残タスク)。
+ *
+ * 全ての @identifier が以下のいずれかに存在するかを検査:
+ * - ActionDefinition.inputs[].name
+ * - ActionDefinition.outputs[].name
+ * - ActionGroup.ambientVariables[].name
+ * - 先行ステップの StepBase.outputBinding (string or object.name)
+ * - LoopStep.collectionItemName (ループ配下のスコープのみ)
+ * - ValidationStep.fieldErrorsVar の宣言
+ *
+ * 単純な regex ベースの識別子抽出 + スコープ走査。
+ * 式の完全パースや型推論は今は行わない (path 部分は無視、root 識別子のみ検査)。
+ */
+import type {
+  ActionGroup,
+  ActionDefinition,
+  Step,
+  OutputBinding,
+  ValidationStep,
+  LoopStep,
+  StructuredField,
+} from "../types/action";
+
+export interface IdentifierIssue {
+  path: string;
+  code: "UNKNOWN_IDENTIFIER";
+  identifier: string;
+  message: string;
+}
+
+/** 任意の文字列から @identifier の root 部分を抽出 (property path は無視) */
+function extractIdentifiers(src: string): string[] {
+  const result: string[] = [];
+  const re = /@([a-zA-Z_][\w]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    result.push(m[1]);
+  }
+  return result;
+}
+
+function getBindingName(binding: OutputBinding | undefined): string | null {
+  if (!binding) return null;
+  if (typeof binding === "string") return binding;
+  return binding.name;
+}
+
+function fieldNames(fields: StructuredField[] | undefined): string[] {
+  return fields?.map((f) => f.name) ?? [];
+}
+
+/**
+ * 全 @ 参照の識別子スコープ検証。
+ * 空配列なら問題なし。
+ */
+export function checkIdentifierScopes(group: ActionGroup): IdentifierIssue[] {
+  const issues: IdentifierIssue[] = [];
+  const ambientNames = new Set(fieldNames(group.ambientVariables));
+
+  group.actions.forEach((action, ai) => {
+    const knownInAction = new Set<string>(ambientNames);
+    // inputs
+    if (Array.isArray(action.inputs)) {
+      for (const f of action.inputs) knownInAction.add(f.name);
+    }
+    // outputs (宣言済み変数として扱う、書込は step 側の outputBinding 経由だがここでは参照許容)
+    if (Array.isArray(action.outputs)) {
+      for (const f of action.outputs) knownInAction.add(f.name);
+    }
+
+    walkSteps(
+      action.steps ?? [],
+      `actions[${ai}].steps`,
+      knownInAction,
+      [],
+      issues,
+    );
+  });
+
+  return issues;
+}
+
+/**
+ * ステップ列を走査。
+ * @param known  このスコープで参照可能な識別子の set (mutable: outputBinding で add)
+ * @param loopItems 包含ループの collectionItemName 列 (ネスト可)
+ */
+function walkSteps(
+  steps: Step[],
+  basePath: string,
+  known: Set<string>,
+  loopItems: string[],
+  issues: IdentifierIssue[],
+): void {
+  steps.forEach((step, i) => {
+    const path = `${basePath}[${i}]`;
+    const available = new Set<string>([...known, ...loopItems]);
+    checkStep(step, path, available, issues);
+
+    // この step の outputBinding を known に追加 (後続ステップから参照可能に)
+    const bindName = getBindingName(step.outputBinding);
+    if (bindName) known.add(bindName);
+    // ValidationStep の fieldErrorsVar も known に
+    if (step.type === "validation") {
+      const vStep = step as ValidationStep;
+      if (vStep.fieldErrorsVar) known.add(vStep.fieldErrorsVar);
+      else known.add("fieldErrors"); // 既定
+    }
+    // ReturnStep は新変数を作らない
+
+    // ネスト構造。known は共有 (ループ/ブランチ/sideEffects 内で宣言された
+    // outputBinding は親スコープからも参照可能とする -- accumulate/push を
+    // ループ外で参照するパターンを許容するため、現時点では permissive)。
+    // loopItems はループ配下のみ有効 (ループ外に leak させない)。
+    if ("subSteps" in step && step.subSteps) {
+      walkSteps(step.subSteps, `${path}.subSteps`, known, loopItems, issues);
+    }
+    if (step.type === "branch") {
+      step.branches.forEach((b, bi) => {
+        walkSteps(b.steps, `${path}.branches[${bi}].steps`, known, loopItems, issues);
+      });
+      if (step.elseBranch) {
+        walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, known, loopItems, issues);
+      }
+    }
+    if (step.type === "loop") {
+      const loopStep = step as LoopStep;
+      const childLoopItems = loopStep.collectionItemName
+        ? [...loopItems, loopStep.collectionItemName]
+        : loopItems;
+      walkSteps(loopStep.steps, `${path}.steps`, known, childLoopItems, issues);
+    }
+    if (step.type === "externalSystem") {
+      Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
+        if (spec?.sideEffects) {
+          walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, known, loopItems, issues);
+        }
+      });
+    }
+  });
+}
+
+/** 1 step の式フィールドを全走査、@ 識別子を known と突合 */
+function checkStep(step: Step, path: string, availableIn: Set<string>, issues: IdentifierIssue[]): void {
+  // ValidationStep は自分自身の rules[] 評価結果 fieldErrors を同じ step の ngBodyExpression
+  // で使う (同時に可視) ので、available に足してから式チェック
+  const available = new Set(availableIn);
+  if (step.type === "validation") {
+    const vStep = step as ValidationStep;
+    available.add(vStep.fieldErrorsVar ?? "fieldErrors");
+  }
+
+  const expressions: Array<{ src: string; field: string }> = [];
+
+  if (step.runIf) expressions.push({ src: step.runIf, field: "runIf" });
+
+  if (step.type === "compute") {
+    expressions.push({ src: step.expression, field: "expression" });
+  }
+  if (step.type === "return") {
+    if (step.bodyExpression) expressions.push({ src: step.bodyExpression, field: "bodyExpression" });
+  }
+  if (step.type === "validation") {
+    if (step.conditions) expressions.push({ src: step.conditions, field: "conditions" });
+    (step.rules ?? []).forEach((r, ri) => {
+      if (r.condition) expressions.push({ src: r.condition, field: `rules[${ri}].condition` });
+      if (r.message) expressions.push({ src: r.message, field: `rules[${ri}].message` });
+    });
+    if (step.inlineBranch?.ngBodyExpression) {
+      expressions.push({ src: step.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
+    }
+  }
+  if (step.type === "branch") {
+    step.branches.forEach((b, bi) => {
+      if (typeof b.condition === "string") {
+        expressions.push({ src: b.condition, field: `branches[${bi}].condition` });
+      }
+    });
+  }
+  if (step.type === "loop") {
+    if (step.countExpression) expressions.push({ src: step.countExpression, field: "countExpression" });
+    if (step.conditionExpression) expressions.push({ src: step.conditionExpression, field: "conditionExpression" });
+    if (step.collectionSource) expressions.push({ src: step.collectionSource, field: "collectionSource" });
+  }
+  if (step.type === "dbAccess") {
+    if (step.sql) expressions.push({ src: step.sql, field: "sql" });
+    if (step.fields) expressions.push({ src: step.fields, field: "fields" });
+  }
+  if (step.type === "externalSystem") {
+    if (step.protocol) expressions.push({ src: step.protocol, field: "protocol" });
+    if (step.idempotencyKey) expressions.push({ src: step.idempotencyKey, field: "idempotencyKey" });
+    if (step.httpCall?.path) expressions.push({ src: step.httpCall.path, field: "httpCall.path" });
+    if (step.httpCall?.body) expressions.push({ src: step.httpCall.body, field: "httpCall.body" });
+    Object.entries(step.httpCall?.query ?? {}).forEach(([k, v]) => {
+      expressions.push({ src: v, field: `httpCall.query.${k}` });
+    });
+    Object.entries(step.headers ?? {}).forEach(([k, v]) => {
+      expressions.push({ src: v, field: `headers.${k}` });
+    });
+    Object.entries((step as { argumentMapping?: Record<string, string> }).argumentMapping ?? {}).forEach(
+      ([k, v]) => {
+        expressions.push({ src: v, field: `argumentMapping.${k}` });
+      },
+    );
+  }
+  if (step.type === "commonProcess" && step.argumentMapping) {
+    Object.entries(step.argumentMapping).forEach(([k, v]) => {
+      expressions.push({ src: v, field: `argumentMapping.${k}` });
+    });
+  }
+
+  // outputBinding.initialValue も式扱い
+  if (typeof step.outputBinding === "object" && step.outputBinding?.initialValue) {
+    expressions.push({ src: step.outputBinding.initialValue, field: "outputBinding.initialValue" });
+  }
+
+  for (const { src, field } of expressions) {
+    const ids = extractIdentifiers(src);
+    for (const id of ids) {
+      // @conv.* は規約カタログ (別機能) なので今は除外
+      if (id === "conv") continue;
+      if (!available.has(id)) {
+        issues.push({
+          path: `${path}.${field}`,
+          code: "UNKNOWN_IDENTIFIER",
+          identifier: id,
+          message: `@${id} がこのスコープで宣言されていません (inputs / outputs / outputBinding / ambientVariables / loop item のいずれにも無い)`,
+        });
+      }
+    }
+  }
+}
