@@ -85,6 +85,9 @@ export function MarkerPanel({ group, onChange }: Props) {
           <div className="catalog-help">
             AI (Claude Code) への指示・質問を保持。
             <code>/designer-work</code> で未解決マーカーをまとめて処理させる。
+            <br />
+            <strong>committed な内容を編集させたい場合は kind=TODO + 命令形</strong>で
+            (「〜を追加して」「〜を削除して」)。質問や注目は AI が保守的に保留します。
           </div>
           <div className="d-flex align-items-center gap-2 mb-2">
             <label className="small d-flex align-items-center gap-1">
