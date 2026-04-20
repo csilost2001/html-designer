@@ -451,18 +451,28 @@ PR: #179
 
 ```ts
 type BranchConditionVariant =
-  | { kind: "tryCatch"; errorCode: string; description?: string };
+  | { kind: "tryCatch"; errorCode: string; description?: string }
+  // v1.3 で追加:
+  | { kind: "affectedRowsZero"; stepRef?: string; description?: string }
+  | { kind: "externalOutcome"; stepRef?: string; outcome: "success"|"failure"|"timeout"; description?: string };
 
 type BranchCondition = string | BranchConditionVariant;
 ```
 
-用例 (Saga catch):
+用例:
 
 ```json
+// Saga catch
 "condition": { "kind": "tryCatch", "errorCode": "STOCK_SHORTAGE" }
+
+// 在庫 UPDATE で rowCount が期待未満
+"condition": { "kind": "affectedRowsZero", "stepRef": "step-inventory-update" }
+
+// 外部 API の失敗分岐
+"condition": { "kind": "externalOutcome", "outcome": "failure" }
 ```
 
-PR: #177
+PR: #177 / #265 (#261 v1.3)
 
 ### 7.2 `ElseBranch` (#253 v1.1)
 

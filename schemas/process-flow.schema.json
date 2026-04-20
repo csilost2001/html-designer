@@ -658,14 +658,43 @@
     },
 
     "BranchConditionVariant": {
-      "type": "object",
-      "required": ["kind", "errorCode"],
-      "additionalProperties": false,
-      "properties": {
-        "kind": { "const": "tryCatch" },
-        "errorCode": { "type": "string" },
-        "description": { "type": "string" }
-      }
+      "description": "分岐条件の型付き variant (#176 / #261 v1.3)",
+      "oneOf": [
+        {
+          "description": "tryCatch: errorCode 付きエラーを捕捉",
+          "type": "object",
+          "required": ["kind", "errorCode"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tryCatch" },
+            "errorCode": { "type": "string" },
+            "description": { "type": "string" }
+          }
+        },
+        {
+          "description": "affectedRowsZero: 直前の DbAccess の rowCount が期待未満 (#261 v1.3)",
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "affectedRowsZero" },
+            "stepRef": { "type": "string" },
+            "description": { "type": "string" }
+          }
+        },
+        {
+          "description": "externalOutcome: 直前の ExternalSystem の outcome 分岐 (#261 v1.3)",
+          "type": "object",
+          "required": ["kind", "outcome"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalOutcome" },
+            "stepRef": { "type": "string" },
+            "outcome": { "$ref": "#/$defs/ExternalCallOutcome" },
+            "description": { "type": "string" }
+          }
+        }
+      ]
     },
     "BranchCondition": {
       "oneOf": [

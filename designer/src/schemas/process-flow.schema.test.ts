@@ -117,6 +117,57 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — BranchConditionVariant 拡張 (#261 v1.3)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  function withBranch(condition: unknown) {
+    return {
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "branch", description: "",
+          branches: [{ id: "b1", code: "A", condition, steps: [] }],
+        }],
+      }],
+    };
+  }
+
+  it("tryCatch variant (既存) accept", () => {
+    const ok = validate(withBranch({ kind: "tryCatch", errorCode: "STOCK_SHORTAGE" }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("affectedRowsZero variant accept", () => {
+    const ok = validate(withBranch({ kind: "affectedRowsZero", stepRef: "step-dbupd" }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("externalOutcome variant accept", () => {
+    const ok = validate(withBranch({ kind: "externalOutcome", outcome: "failure" }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("externalOutcome.outcome enum 外は reject", () => {
+    expect(validate(withBranch({ kind: "externalOutcome", outcome: "partial" }))).toBe(false);
+  });
+
+  it("未知 kind は reject", () => {
+    expect(validate(withBranch({ kind: "unknownKind" }))).toBe(false);
+  });
+
+  it("string condition (旧) も引き続き accept", () => {
+    expect(validate(withBranch("@flag == true"))).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — typeCatalog (#261 v1.3)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",
