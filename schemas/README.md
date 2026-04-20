@@ -39,7 +39,7 @@ if (!ok) {
 }
 ```
 
-`$id`: `https://github.com/csilost2001/html-designer/schemas/process-flow.schema.json` — 外部から参照する場合はこの URL を使用 (リモート参照は reliability トレードオフを考慮)。
+`$id`: `https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/process-flow.schema.json` — 外部から参照する場合はこの URL を使用。main ブランチの最新版を指す。特定バージョンに固定したい場合はコミット SHA を含む raw URL を使う (例: `.../html-designer/<SHA>/schemas/process-flow.schema.json`)。
 
 ### 本リポジトリ内の検証テスト
 

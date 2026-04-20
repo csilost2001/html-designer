@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/csilost2001/html-designer/schemas/process-flow.schema.json",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/process-flow.schema.json",
   "title": "ActionGroup (処理フロー定義)",
   "description": "html-designer の処理フロー (ActionGroup) の正規スキーマ。data/actions/*.json の各ファイル・docs/sample-project/actions/*.json の各ファイルに一致する。TypeScript 型は designer/src/types/action.ts の ActionGroup と等価。",
   "type": "object",
