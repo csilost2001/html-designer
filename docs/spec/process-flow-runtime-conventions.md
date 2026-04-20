@@ -202,6 +202,47 @@ step-or2-011 (capture) が失敗
 
 プロジェクト全体で採用している認証方式 (Bearer JWT / Session / OAuth2 等) は `docs/conventions/product-scope.md` に宣言。処理フロー個別のスキーマではなく**プロダクト横断規約**として管理。
 
+### 8.4 inbound auth 具体スキーム決定フロー
+
+実装者が `httpRoute.auth: "required"` を見たとき、以下の順で具体スキームを決定する:
+
+```
+httpRoute.auth == "required" ?
+  ├─ yes → ambientVariables に "userId" / "accountId" 等の identity 変数があるか?
+  │   ├─ yes → scheme は Bearer JWT (token から middleware が userId を解決して @userId に注入)
+  │   └─ no → docs/conventions/product-scope.md §6 の既定 scheme (例: Session cookie) を採用
+  └─ no → スキーム解決不要 (auth: "none" / "optional")
+```
+
+0005 の例: `httpRoute.auth: "required"` + ambientVariables に `sessionId` があるが `userId` なし → product-scope §6 の規定 (Session cookie + httpOnly) を採用。
+
+## 10. `compensatesFor` の配置規約
+
+### 10.1 通常は tryCatch ブランチ配下
+
+`StepBase.compensatesFor: string` (補償対象の step ID) を持つ step は、**通常 `BranchStep.branches[].condition: { kind: "tryCatch" }` の steps 配下**に置く。メインフロー側 (成功経路) に置かない理由: 成功経路では補償する必要がない。
+
+### 10.2 runIf で補償対象の成功を確認
+
+補償が意味を持つのは「対象 step が成功した後にエラーが起きた」場合のみ。対象 step の outputBinding を `runIf` で確認する:
+
+```json
+{
+  "id": "step-stripe-cancel",
+  "type": "externalSystem",
+  "runIf": "@paymentAuth != null",
+  "compensatesFor": "step-stripe-authorize",
+  ...
+}
+```
+
+`@paymentAuth` は authorize 成功時のみ set される → `null` 判定で「既に authorize 済なら cancel」を守る。
+
+### 10.3 参照整合性 (現状の検査範囲)
+
+- `compensatesFor` の値は action 内の既存 step ID であるべき (将来の参照整合性バリデータで検査予定、#261 残)
+- 現状は書き手規約
+
 ## 9. 適用チェックリスト (実装者向け)
 
 処理フロー JSON から Node.js/Express 実装を起こすとき、以下を本仕様に沿って決定する:
