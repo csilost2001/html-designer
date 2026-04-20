@@ -78,6 +78,7 @@ const issues = checkReferentialIntegrity(actionGroup);
 - [`docs/spec/process-flow-extensions.md`](../docs/spec/process-flow-extensions.md) — Phase B スキーマ拡張の網羅リファレンス
 - [`docs/spec/process-flow-maturity.md`](../docs/spec/process-flow-maturity.md) — 成熟度・付箋・モード (Phase 1 基盤)
 - [`docs/spec/process-flow-variables.md`](../docs/spec/process-flow-variables.md) — 変数・入出力・outputBinding (Phase 1 基盤)
+- [`docs/spec/process-flow-expression-language.md`](../docs/spec/process-flow-expression-language.md) — 式言語 (runIf / expression / bodyExpression の BNF)
 
 ## 関連コード
 
