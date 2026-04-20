@@ -153,6 +153,69 @@ argList         = expression (',' expression)*
 | `OutputBindingObject.initialValue` | 任意式 | `"0"` / `"[]"` |
 | `ExternalCallOutcomeSpec.jumpTo` | ステップ ID 文字列 (式ではない) | `"step-error-handler"` |
 | `CommonProcessStep.argumentMapping[k]` | 任意式 | `"@customerId"` |
+| `ExternalSystemStep.protocol` (#261) | 自由記述。URL 中の `@path` 式補間を許容 (例: `"HTTPS POST /v1/payment_intents/@paymentAuth.id/cancel"`) | URL 構造化は v1.3-b 以降の `httpCall` フィールドで予定 |
+| `ExternalSystemStep.idempotencyKey` (#253 v1.2) | 任意式 (下記 §8 参照) | `"order-@registeredOrder.id"` |
+| `ExternalSystemStep.headers[k]` (#253 v1.2) | 任意式 (値のみ。キーは静的文字列) | `"@traceId"` / `"2024-06-20"` |
+
+## 7. runIf 連鎖規則 (#261)
+
+`runIf` はステップ実行の条件ガード。ネスト構造での評価規則を以下に規定する。
+
+### 7.1 short-circuit
+
+親ステップの `runIf` が false の場合、**その子ステップ (subSteps / branch 内 / loop 内 / outcomes.sideEffects 内) の runIf は一切評価されない**。子ステップの変数参照は未初期化扱い。
+
+### 7.2 branch / loop 内の評価順序
+
+`BranchStep.branches[i].steps[j]` の step.runIf は、
+
+```
+effective = branch.condition && step.runIf
+```
+
+で評価される。すなわち **branch.condition が false → step.runIf 評価不要**。
+
+`LoopStep.steps[j]` の step.runIf は、**ループ 1 イテレーションごとに評価**される (count/condition/collection いずれでも同じ)。ループ入口で 1 回だけ評価する挙動は非採用。
+
+### 7.3 outcomes.sideEffects
+
+`ExternalCallOutcomeSpec.sideEffects[]` は outcome 条件 (success/failure/timeout) が matched した時のみ実行される。各 sideEffect の `runIf` は outcome matched 後に評価。
+
+### 7.4 短絡と副作用
+
+`runIf` 式内で副作用を起こす関数呼出は禁止 (§5 で変数代入 `=` を禁止済みのため自動的に担保)。短絡評価を前提とした同等書き換え (`@a && @a.b` 等) は安全に動作する。
+
+## 8. idempotencyKey の評価規約 (#261)
+
+`ExternalSystemStep.idempotencyKey` は以下を満たすべし。
+
+### 8.1 retry 間で安定
+
+`retryPolicy.maxAttempts > 1` の場合、同一 step の複数回試行で idempotencyKey は**同じ値**でなければならない。そうでないと外部 API の冪等性保証が機能しない。
+
+→ 実装上は step 入口で 1 回評価し、retry ループ内で再評価しない方針。
+
+### 8.2 TX ROLLBACK 後の retry は別キー
+
+`txBoundary` に含まれる外部呼出が ROLLBACK 後にユーザ操作で再試行された場合、**新しいリクエストとして別キー**を生成するべき。具体的には `idempotencyKey` の式が `@order.id` のような DB 永続値ではなく、`@requestId` のような**リクエスト単位の識別子**を含むのが望ましい。
+
+### 8.3 フォールバック
+
+`idempotencyKey` 未指定時、実装側は:
+1. 外部 API が `Idempotency-Key` を必須とする場合 → UUID v4 を自動生成して送信
+2. 任意の場合 → ヘッダを送信しない
+
+スキーマでは必須化しない (多くの外部 API は Idempotency-Key をオプション扱い)。
+
+## 9. sideEffects 内で return 禁止 (#261)
+
+`ExternalCallOutcomeSpec.sideEffects` 配列には `ReturnStep` を置けない (JSON Schema レベルで `NonReturnStep` 制約化)。
+
+**理由**: `outcome.action` が `"abort"` (処理中断) の意味と `return` ステップ (HTTP レスポンス返却) の意味が衝突する。
+
+**書き方**:
+- レスポンスで返したい場合: outcome.action = "continue" にして、外側のフロー上に ReturnStep を配置
+- 処理中断する場合: outcome.action = "abort" のみ。body は `errorCatalog` / middleware で生成
 
 ## 7. 参照整合性
 

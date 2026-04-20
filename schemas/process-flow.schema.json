@@ -166,6 +166,8 @@
           }
         },
         {
+          "description": "DEPRECATED (#261 v1.3): 新規データは array / object / primitive を優先。label 文字列に型情報を自由記述するパターンは AI 実装者が構造パースを強いられるため非推奨。",
+          "deprecated": true,
           "type": "object",
           "required": ["kind", "label"],
           "additionalProperties": false,
@@ -436,11 +438,30 @@
         "description": { "type": "string" },
         "jumpTo": { "type": "string" },
         "sideEffects": {
+          "description": "副作用ステップ列 (#261): ReturnStep は禁止。action=abort との意味衝突を避けるため。レスポンス返却は ReturnStep として通常のフロー上に配置する",
           "type": "array",
-          "items": { "$ref": "#/$defs/Step" }
+          "items": { "$ref": "#/$defs/NonReturnStep" }
         },
         "sameAs": { "$ref": "#/$defs/ExternalCallOutcome" }
       }
+    },
+    "NonReturnStep": {
+      "description": "sideEffects 配列で使える Step の制限サブセット。ReturnStep を除外 (#261)",
+      "oneOf": [
+        { "$ref": "#/$defs/ValidationStep" },
+        { "$ref": "#/$defs/DbAccessStep" },
+        { "$ref": "#/$defs/ExternalSystemStep" },
+        { "$ref": "#/$defs/CommonProcessStep" },
+        { "$ref": "#/$defs/ScreenTransitionStep" },
+        { "$ref": "#/$defs/DisplayUpdateStep" },
+        { "$ref": "#/$defs/BranchStep" },
+        { "$ref": "#/$defs/LoopStep" },
+        { "$ref": "#/$defs/LoopBreakStep" },
+        { "$ref": "#/$defs/LoopContinueStep" },
+        { "$ref": "#/$defs/JumpStep" },
+        { "$ref": "#/$defs/ComputeStep" },
+        { "$ref": "#/$defs/OtherStep" }
+      ]
     },
     "RetryPolicy": {
       "type": "object",
