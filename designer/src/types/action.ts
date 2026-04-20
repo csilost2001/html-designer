@@ -828,6 +828,38 @@ export interface ActionDefinition {
  * 複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
  */
 /**
+ * マーカーの種別 (#261)。
+ * - "chat": AI への指示・質問 (会話的)
+ * - "attention": 「ここ確認して」(人間が目印として置く)
+ * - "todo": 未完了タスク
+ * - "question": AI に答えを求める質問
+ */
+export type MarkerKind = "chat" | "attention" | "todo" | "question";
+
+/**
+ * マーカー 1 件 (#261 リアルタイム編集ワークフロー)。
+ * 人間の指示・質問を保持し、Claude Code が読み取って処理する。
+ */
+export interface Marker {
+  id: string;
+  kind: MarkerKind;
+  /** マーカー本文 (自然言語) */
+  body: string;
+  /** 紐付く step id (省略時はグループ全体宛) */
+  stepId?: string;
+  /** 紐付くフィールドパス (例: "expression", "sql")。省略時はステップ全体 */
+  fieldPath?: string;
+  /** 発言者 */
+  author: "human" | "ai";
+  /** ISO timestamp */
+  createdAt: string;
+  /** 解決済みなら設定 (AI が対応完了を記録) */
+  resolvedAt?: string;
+  /** AI 側の対応メモ (resolve 時に併記) */
+  resolution?: string;
+}
+
+/**
  * Secrets カタログの 1 エントリ (#261 v1.6)。
  * 秘匿値そのものは JSON に含めない。取得方法のメタデータのみ。
  */
@@ -916,6 +948,16 @@ export interface ActionGroup {
    * ExternalAuth.tokenRef から `@secret.<key>` 記法で参照される。
    */
   secretsCatalog?: Record<string, SecretRef>;
+  /**
+   * マーカー (#261 リアルタイム編集ワークフロー)。
+   * 人間が designer 画面で付けたコメント・質問・TODO・チャットメッセージを保持。
+   * Claude Code が /designer-work でこれを読み取り、対応した後 resolvedAt を設定する。
+   *
+   * 付箋 (StepNote) との違い:
+   * - StepNote: 仕様書として残す人間向け注記 (成熟度管理)
+   * - Marker: AI への指示・一時的なコミュニケーション (解決後は resolvedAt で非表示)
+   */
+  markers?: Marker[];
   createdAt: string;
   updatedAt: string;
 }

@@ -39,6 +39,11 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/SecretRef" }
     },
+    "markers": {
+      "description": "マーカー (#261)。人間が designer で付けた指示・質問・TODO・チャット。AI が読み取り resolvedAt で解決",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Marker" }
+    },
     "actions": {
       "type": "array",
       "items": { "$ref": "#/$defs/ActionDefinition" }
@@ -85,6 +90,24 @@
         "auth": { "$ref": "#/$defs/HttpAuthRequirement" }
       }
     },
+    "Marker": {
+      "description": "1 マーカー (#261)。人間→AI または AI→人間の 1 メッセージ相当",
+      "type": "object",
+      "required": ["id", "kind", "body", "author", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["chat", "attention", "todo", "question"] },
+        "body": { "type": "string" },
+        "stepId": { "type": "string" },
+        "fieldPath": { "type": "string" },
+        "author": { "type": "string", "enum": ["human", "ai"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "resolution": { "type": "string" }
+      }
+    },
+
     "SecretRef": {
       "description": "Secrets カタログの 1 エントリ (#261 v1.6)。値は含まない",
       "type": "object",

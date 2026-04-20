@@ -860,4 +860,58 @@ export const tools = [
       required: ["actionGroupId", "catalog", "key"],
     },
   },
+  {
+    name: "designer__list_markers",
+    description: "ActionGroup の人間→AI マーカー (指示・質問・TODO・チャット) を取得します。/designer-work の最初に呼ぶ想定。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        unresolvedOnly: { type: "boolean", description: "true で未解決のみ (既定 true)" },
+        stepId: { type: "string", description: "特定 step の marker のみ取得" },
+      },
+      required: ["actionGroupId"],
+    },
+  },
+  {
+    name: "designer__add_marker",
+    description: "ActionGroup にマーカーを追加します。AI 側からの質問・返信・報告等を人間に届ける用途。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        kind: { type: "string", enum: ["chat", "attention", "todo", "question"] },
+        body: { type: "string" },
+        stepId: { type: "string", description: "紐付ける step id (省略時はグループ全体宛)" },
+        fieldPath: { type: "string" },
+        author: { type: "string", enum: ["human", "ai"], description: "既定 \"ai\"" },
+      },
+      required: ["actionGroupId", "kind", "body"],
+    },
+  },
+  {
+    name: "designer__resolve_marker",
+    description: "マーカーを解決済みにします。resolution コメントを付与して人間に応答内容を伝える。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        markerId: { type: "string" },
+        resolution: { type: "string", description: "AI 側の対応メモ (例: \"sql を修正しました\")" },
+      },
+      required: ["actionGroupId", "markerId"],
+    },
+  },
+  {
+    name: "designer__remove_marker",
+    description: "マーカーを完全削除します (resolve とは別、履歴から消す)。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        markerId: { type: "string" },
+      },
+      required: ["actionGroupId", "markerId"],
+    },
+  },
 ];

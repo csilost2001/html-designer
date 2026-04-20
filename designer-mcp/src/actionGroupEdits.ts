@@ -24,6 +24,18 @@ type Action = {
   [k: string]: unknown;
 };
 
+type Marker = {
+  id: string;
+  kind: "chat" | "attention" | "todo" | "question";
+  body: string;
+  stepId?: string;
+  fieldPath?: string;
+  author: "human" | "ai";
+  createdAt: string;
+  resolvedAt?: string;
+  resolution?: string;
+};
+
 export type ActionGroupDoc = {
   id: string;
   maturity?: string;
@@ -32,6 +44,7 @@ export type ActionGroupDoc = {
   secretsCatalog?: Record<string, unknown>;
   typeCatalog?: Record<string, unknown>;
   externalSystemCatalog?: Record<string, unknown>;
+  markers?: Marker[];
   updatedAt?: string;
   [k: string]: unknown;
 };
@@ -197,4 +210,40 @@ export function insertStepAt(
     : position;
   steps.splice(idx, 0, step);
   act.steps = steps;
+}
+
+// ─── Marker 操作 (#261) ─────────────────────────────────────────────
+
+export function listMarkers(ag: ActionGroupDoc, filter: { unresolvedOnly?: boolean; stepId?: string } = {}): Marker[] {
+  let list = ag.markers ?? [];
+  if (filter.unresolvedOnly) list = list.filter((m) => !m.resolvedAt);
+  if (filter.stepId !== undefined) list = list.filter((m) => m.stepId === filter.stepId);
+  return list;
+}
+
+export function addMarker(ag: ActionGroupDoc, marker: Omit<Marker, "id" | "createdAt">): Marker {
+  const next: Marker = {
+    id: `mk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    ...marker,
+  };
+  const markers = ag.markers ?? [];
+  markers.push(next);
+  ag.markers = markers;
+  return next;
+}
+
+export function resolveMarker(ag: ActionGroupDoc, markerId: string, resolution?: string): void {
+  const m = (ag.markers ?? []).find((x) => x.id === markerId);
+  if (!m) throw new Error(`marker ${markerId} が見つかりません`);
+  m.resolvedAt = new Date().toISOString();
+  if (resolution !== undefined) m.resolution = resolution;
+}
+
+export function removeMarker(ag: ActionGroupDoc, markerId: string): void {
+  const list = ag.markers ?? [];
+  const idx = list.findIndex((m) => m.id === markerId);
+  if (idx < 0) throw new Error(`marker ${markerId} が見つかりません`);
+  list.splice(idx, 1);
+  ag.markers = list.length > 0 ? list : undefined;
 }
