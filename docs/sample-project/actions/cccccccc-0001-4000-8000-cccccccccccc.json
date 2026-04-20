@@ -67,7 +67,7 @@
           "tableName": "users",
           "tableId": "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb",
           "operation": "SELECT",
-          "sql": "SELECT id, username, role FROM users WHERE id = @authResult.userId AND is_deleted = false LIMIT 1",
+          "sql": "SELECT id, login_id, display_name, role FROM users WHERE id = @authResult.userId AND is_active = true LIMIT 1",
           "outputBinding": "user"
         },
         {
