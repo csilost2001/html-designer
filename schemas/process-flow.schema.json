@@ -29,6 +29,11 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/TypeCatalogEntry" }
     },
+    "ambientVariables": {
+      "description": "Ambient 変数カタログ (#261 v1.4)。ミドルウェア由来 (@requestId, @traceId, @fieldErrors 等) を宣言",
+      "type": "array",
+      "items": { "$ref": "#/$defs/StructuredField" }
+    },
     "actions": {
       "type": "array",
       "items": { "$ref": "#/$defs/ActionDefinition" }
@@ -389,6 +394,10 @@
             "rules": {
               "type": "array",
               "items": { "$ref": "#/$defs/ValidationRule" }
+            },
+            "fieldErrorsVar": {
+              "type": "string",
+              "description": "rules[] の評価結果変数名 (#261 v1.4)。既定 \"fieldErrors\""
             },
             "inlineBranch": { "$ref": "#/$defs/ValidationInlineBranch" }
           }

@@ -157,6 +157,28 @@ argList         = expression (',' expression)*
 | `ExternalSystemStep.idempotencyKey` (#253 v1.2) | 任意式 (下記 §8 参照) | `"order-@registeredOrder.id"` |
 | `ExternalSystemStep.headers[k]` (#253 v1.2) | 任意式 (値のみ。キーは静的文字列) | `"@traceId"` / `"2024-06-20"` |
 
+## 6.5 Ambient 変数 (#261 v1.4)
+
+`@requestId` / `@traceId` / `@fieldErrors` 等、**ミドルウェア・フレームワーク由来の自動注入変数**は `ActionGroup.ambientVariables?: StructuredField[]` で宣言する。
+
+```json
+"ambientVariables": [
+  { "name": "requestId", "type": "string", "required": true,
+    "description": "リクエスト単位の一意 ID。ミドルウェアが注入" },
+  { "name": "traceId",   "type": "string" },
+  { "name": "fieldErrors", "type": { "kind": "custom", "label": "Record<string, string>" },
+    "description": "ValidationStep.rules[] の結果。既定変数名 (ValidationStep.fieldErrorsVar で上書き可)" }
+]
+```
+
+`@` 参照時、**inputs / outputBinding / ループ変数 / ambientVariables のいずれにも無い変数は未定義エラー**扱い (将来の型推論バリデータで検査)。現状は運用規約として扱う。
+
+### 6.5a `ValidationStep.fieldErrorsVar` (#261 v1.4)
+
+`ValidationStep.rules[]` の評価結果を格納する変数名を明示するフィールド。既定 `"fieldErrors"`。`inlineBranch.ngBodyExpression` 等で `@fieldErrors` として参照する。
+
+型は `Record<fieldName, errorMessage>`。`ambientVariables` で明示宣言すれば式参照との整合性が取れる。
+
 ## 7. runIf 連鎖規則 (#261)
 
 `runIf` はステップ実行の条件ガード。ネスト構造での評価規則を以下に規定する。

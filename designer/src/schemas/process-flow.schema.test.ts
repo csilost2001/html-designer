@@ -117,6 +117,48 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — ambientVariables + fieldErrorsVar (#261 v1.4)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("ambientVariables + ValidationStep.fieldErrorsVar accept", () => {
+    const ok = validate({
+      ...base,
+      ambientVariables: [
+        { name: "requestId", type: "string", required: true },
+        { name: "traceId", type: "string" },
+        { name: "fieldErrors", type: { kind: "custom", label: "Record<string, string>" } },
+      ],
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "validation", description: "",
+          conditions: "",
+          rules: [{ field: "x", type: "required" }],
+          fieldErrorsVar: "fieldErrors",
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ambientVariables 省略 accept", () => {
+    expect(validate({ ...base, actions: [] })).toBe(true);
+  });
+
+  it("ambientVariables.items が StructuredField 型外なら reject", () => {
+    expect(validate({
+      ...base,
+      ambientVariables: [{ foo: "bar" }],
+      actions: [],
+    })).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — BranchConditionVariant 拡張 (#261 v1.3)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",
