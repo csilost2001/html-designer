@@ -221,6 +221,29 @@ export function listMarkers(ag: ActionGroupDoc, filter: { unresolvedOnly?: boole
   return list;
 }
 
+/**
+ * 複数 ActionGroup を横断して marker を収集する (#261)。
+ * 各 marker に actionGroupId / actionGroupName を prepend して返す。
+ */
+export interface MarkerWithAg extends Marker {
+  actionGroupId: string;
+  actionGroupName: string;
+}
+export function findAllMarkers(
+  groups: Array<{ id: string; name: string; ag: ActionGroupDoc }>,
+  filter: { unresolvedOnly?: boolean; kind?: Marker["kind"] } = {},
+): MarkerWithAg[] {
+  const results: MarkerWithAg[] = [];
+  for (const { id, name, ag } of groups) {
+    const markers = listMarkers(ag, { unresolvedOnly: filter.unresolvedOnly });
+    for (const m of markers) {
+      if (filter.kind && m.kind !== filter.kind) continue;
+      results.push({ actionGroupId: id, actionGroupName: name, ...m });
+    }
+  }
+  return results;
+}
+
 export function addMarker(ag: ActionGroupDoc, marker: Omit<Marker, "id" | "createdAt">): Marker {
   const next: Marker = {
     id: `mk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
