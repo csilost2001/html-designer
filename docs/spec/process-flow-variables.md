@@ -49,10 +49,12 @@ interface StructuredField {
 
 type FieldType =
   | "string" | "number" | "boolean" | "date"
+  | { kind: "array"; itemType: FieldType }              // 配列型 (#253 v1.1)
+  | { kind: "object"; fields: StructuredField[] }       // オブジェクト型 (#253 v1.1)
   | { kind: "tableRow"; tableId: string }        // テーブル 1 行
   | { kind: "tableList"; tableId: string }       // テーブルの配列
   | { kind: "screenInput"; screenId: string }    // 画面の入力セット
-  | { kind: "custom"; label: string };           // 自由記述型
+  | { kind: "custom"; label: string };           // 自由記述型 (array/object で表現できない場合の最終手段)
 
 interface ActionDefinition {
   inputs?: string | StructuredField[];

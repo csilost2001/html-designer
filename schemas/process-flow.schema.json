@@ -78,6 +78,29 @@
       "oneOf": [
         { "type": "string", "enum": ["string", "number", "boolean", "date"] },
         {
+          "description": "配列型。itemType で要素型を再帰的に表現。例: Array<{itemId, quantity}>",
+          "type": "object",
+          "required": ["kind", "itemType"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "array" },
+            "itemType": { "$ref": "#/$defs/FieldType" }
+          }
+        },
+        {
+          "description": "オブジェクト型。fields[] で構造を表現。custom の label 逃げを置き換える",
+          "type": "object",
+          "required": ["kind", "fields"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "object" },
+            "fields": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/StructuredField" }
+            }
+          }
+        },
+        {
           "type": "object",
           "required": ["kind", "tableId"],
           "additionalProperties": false,
@@ -516,6 +539,22 @@
         }
       }
     },
+    "ElseBranch": {
+      "description": "else 分岐。condition は不要 (旧データ互換で optional として残す)",
+      "type": "object",
+      "required": ["id", "code", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "label": { "type": "string" },
+        "condition": { "$ref": "#/$defs/BranchCondition" },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Step" }
+        }
+      }
+    },
     "BranchStep": {
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
@@ -534,7 +573,7 @@
               "minItems": 1,
               "items": { "$ref": "#/$defs/Branch" }
             },
-            "elseBranch": { "$ref": "#/$defs/Branch" }
+            "elseBranch": { "$ref": "#/$defs/ElseBranch" }
           }
         }
       ]

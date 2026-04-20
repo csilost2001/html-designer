@@ -322,6 +322,20 @@ type BranchCondition = string | BranchConditionVariant;
 
 PR: #177
 
+### 7.2 `ElseBranch` (#253 v1.1)
+
+`BranchStep.elseBranch` の型を `Branch` から `ElseBranch` に変更。else 分岐は本質的に condition 不要なため、`condition` を optional にした。旧データ (`condition: ""` 等の空文字列埋め) は後方互換で accept。
+
+```ts
+interface ElseBranch {
+  id: string;
+  code: string;
+  label?: string;
+  condition?: BranchCondition;  // 後方互換用のみ
+  steps: Step[];
+}
+```
+
 ## 8. 変数の構造化 (outputBinding 拡張)
 
 ### 8.1 `OutputBinding` union
