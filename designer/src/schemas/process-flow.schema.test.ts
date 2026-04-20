@@ -117,6 +117,49 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — secretsCatalog (#261 v1.6)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("secretsCatalog 全 source (env/vault/file) accept", () => {
+    const ok = validate({
+      ...base,
+      secretsCatalog: {
+        stripeKey: { source: "env", name: "STRIPE_SECRET_KEY", rotationDays: 90 },
+        dbPass: { source: "vault", name: "secret/db/main", description: "main DB" },
+        devSsh: { source: "file", name: "/etc/secrets/dev.pem" },
+      },
+      actions: [],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("source が enum 外なら reject", () => {
+    expect(validate({
+      ...base,
+      secretsCatalog: { x: { source: "aws", name: "foo" } },
+      actions: [],
+    })).toBe(false);
+  });
+
+  it("source / name 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      secretsCatalog: { x: { source: "env" } },
+      actions: [],
+    })).toBe(false);
+    expect(validate({
+      ...base,
+      secretsCatalog: { x: { name: "foo" } },
+      actions: [],
+    })).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — ambientVariables + fieldErrorsVar (#261 v1.4)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

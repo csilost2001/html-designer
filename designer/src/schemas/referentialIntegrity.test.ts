@@ -159,6 +159,66 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
   });
 });
 
+describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
+  it("secretsCatalog 定義時、未登録 @secret を検出", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+      externalSystemCatalog: {
+        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.unknown" } },
+      },
+      actions: [],
+    }));
+    expect(issues.some((i) => i.code === "UNKNOWN_SECRET_REF")).toBe(true);
+  });
+
+  it("catalog にある @secret は OK", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+      externalSystemCatalog: {
+        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.stripeKey" } },
+      },
+      actions: [],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("step 側 auth.tokenRef の @secret も検査", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe",
+          auth: { kind: "bearer", tokenRef: "@secret.unknownKey" },
+        }],
+      }],
+    }));
+    expect(issues.some((i) => i.code === "UNKNOWN_SECRET_REF")).toBe(true);
+  });
+
+  it("secretsCatalog 未定義時は @secret 検査をスキップ (後方互換)", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      externalSystemCatalog: {
+        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.anything" } },
+      },
+      actions: [],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("ENV: / SECRET: 規約文字列は @secret と無関係で後方互換", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      secretsCatalog: { k: { source: "env", name: "X" } },
+      externalSystemCatalog: {
+        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "ENV:STRIPE_SECRET_KEY" } },
+      },
+      actions: [],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+});
+
 describe("checkReferentialIntegrity — typeRef (#261)", () => {
   it("typeCatalog 定義時、未登録 typeRef を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
