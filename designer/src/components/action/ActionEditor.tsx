@@ -61,6 +61,7 @@ import { AmbientVariablesPanel } from "./AmbientVariablesPanel";
 import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
 import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
 import { TypeCatalogPanel } from "./TypeCatalogPanel";
+import { MarkerPanel } from "./MarkerPanel";
 import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -703,6 +704,11 @@ export function ActionEditor() {
             </div>
           );
         })()}
+        {/* AI へのマーカー (#261 リアルタイム編集ワークフロー) — カタログより先に配置して目立たせる */}
+        <MarkerPanel
+          group={group}
+          onChange={(next) => { updateGroup((g) => { g.markers = next.markers; }); }}
+        />
         {/* ActionGroup レベルカタログ編集 (#278) */}
         <ErrorCatalogPanel
           group={group}
