@@ -3,6 +3,10 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "designer-mcp": {
+      "command": "npx",
+      "args": ["tsx", "designer-mcp/src/index.ts"]
     }
   }
 }
