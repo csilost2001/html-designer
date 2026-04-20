@@ -117,6 +117,49 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — sideEffects の return 禁止 (#261)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  function extWithSideEffects(sideEffects: unknown[]) {
+    return {
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe",
+          outcomes: {
+            failure: { action: "continue", sideEffects },
+          },
+        }],
+      }],
+    };
+  }
+
+  it("sideEffects に dbAccess / other は accept", () => {
+    const ok = validate(extWithSideEffects([
+      { id: "se1", type: "dbAccess", description: "", tableName: "t", operation: "UPDATE" },
+      { id: "se2", type: "other", description: "" },
+    ]));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("sideEffects 内 ReturnStep は reject", () => {
+    expect(validate(extWithSideEffects([
+      { id: "ret", type: "return", description: "", responseRef: "201" },
+    ]))).toBe(false);
+  });
+
+  it("sideEffects 空配列 accept", () => {
+    expect(validate(extWithSideEffects([]))).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — HttpResponseSpec.bodySchema union (#253)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",
