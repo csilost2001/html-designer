@@ -76,6 +76,28 @@
       }
     },
 
+    "BodySchemaRef": {
+      "description": "旧 string (自由記述) と新 {typeRef} / {schema} の union (#253)",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["typeRef"],
+          "additionalProperties": false,
+          "properties": {
+            "typeRef": { "type": "string", "description": "型カタログへの名前参照 (例: \"CustomerResponse\")" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["schema"],
+          "additionalProperties": false,
+          "properties": {
+            "schema": { "type": "object", "description": "インライン JSON Schema" }
+          }
+        }
+      ]
+    },
     "HttpResponseSpec": {
       "type": "object",
       "required": ["status"],
@@ -84,7 +106,7 @@
         "id": { "type": "string" },
         "status": { "type": "integer", "minimum": 100, "maximum": 599 },
         "contentType": { "type": "string" },
-        "bodySchema": { "type": "string" },
+        "bodySchema": { "$ref": "#/$defs/BodySchemaRef" },
         "description": { "type": "string" },
         "when": { "type": "string" }
       }

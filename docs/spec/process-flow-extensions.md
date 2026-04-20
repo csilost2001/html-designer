@@ -37,17 +37,27 @@ PR: #161
 action が返し得る **HTTP レスポンス一覧**を列挙。成功・各エラーをまとめて表現。
 
 ```ts
+type BodySchemaRef =
+  | string                        // 旧: 自由記述 ("ApiError" / "{code, detail}")
+  | { typeRef: string }           // 新: 型カタログ名参照 (#253 v1.2)
+  | { schema: object };           // 新: インライン JSON Schema (#253 v1.2)
+
 interface HttpResponseSpec {
   id?: string;                     // ReturnStep.responseRef が参照する ID
   status: number;                  // 201, 400, 409, ...
   contentType?: string;            // 既定 "application/json"
-  bodySchema?: string;             // 自由記述 or 型名参照
+  bodySchema?: BodySchemaRef;      // 3 形式の union
   description?: string;
   when?: string;                   // 発生条件 (自由記述)
 }
 ```
 
-PR: #161 (初版) / #179 (`id` フィールド追加)
+**bodySchema の使い分け**:
+- `string`: 既存データ互換、または人間向け説明としてのみ
+- `{ typeRef: "CustomerResponse" }`: 共有される型を参照 (複数の response / action で同じ形式を使う場合)
+- `{ schema: {...} }`: その response 固有の ad hoc な形式 (JSON Schema draft 2020-12)
+
+PR: #161 (初版) / #179 (`id` フィールド追加) / #260 (BodySchemaRef union 化 #253)
 
 ### 1.3 典型例
 
