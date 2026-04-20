@@ -433,6 +433,23 @@
         "initialDelayMs": { "type": "integer", "minimum": 0 }
       }
     },
+    "ExternalAuthKind": {
+      "type": "string",
+      "enum": ["bearer", "basic", "apiKey", "oauth2", "none"]
+    },
+    "ExternalAuth": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "#/$defs/ExternalAuthKind" },
+        "tokenRef": {
+          "type": "string",
+          "description": "秘密値の参照文字列 (例: \"ENV:STRIPE_SECRET_KEY\", \"SECRET:stripe/api-key\")"
+        },
+        "headerName": { "type": "string" }
+      }
+    },
     "ExternalSystemStep": {
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
@@ -459,7 +476,13 @@
             },
             "timeoutMs": { "type": "integer", "minimum": 0 },
             "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
-            "fireAndForget": { "type": "boolean" }
+            "fireAndForget": { "type": "boolean" },
+            "auth": { "$ref": "#/$defs/ExternalAuth" },
+            "idempotencyKey": { "type": "string" },
+            "headers": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
           }
         }
       ]

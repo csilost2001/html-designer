@@ -117,6 +117,56 @@ describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   });
 });
 
+describe("process-flow.schema.json — ExternalSystemStep auth/idempotency/headers (#253)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  function ext(patch: Record<string, unknown>) {
+    return {
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe", ...patch,
+        }],
+      }],
+    };
+  }
+
+  it("auth.kind=bearer + tokenRef accept", () => {
+    const ok = validate(ext({ auth: { kind: "bearer", tokenRef: "ENV:STRIPE_SECRET_KEY" } }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("auth.kind=apiKey + headerName accept", () => {
+    expect(validate(ext({ auth: { kind: "apiKey", tokenRef: "ENV:X_KEY", headerName: "X-API-Key" } }))).toBe(true);
+  });
+
+  it("auth.kind=none (tokenRef なし) accept", () => {
+    expect(validate(ext({ auth: { kind: "none" } }))).toBe(true);
+  });
+
+  it("auth.kind enum 外は reject", () => {
+    expect(validate(ext({ auth: { kind: "custom-kind" } }))).toBe(false);
+  });
+
+  it("idempotencyKey + headers accept", () => {
+    expect(validate(ext({
+      idempotencyKey: "order-@registeredOrder.id",
+      headers: { "Stripe-Version": "2024-06-20", "X-Trace-Id": "@traceId" },
+    }))).toBe(true);
+  });
+
+  it("auth / idempotencyKey / headers 全省略 accept (後方互換)", () => {
+    expect(validate(ext({}))).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — OutputBindingObject.initialValue (#253)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

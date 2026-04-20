@@ -143,6 +143,27 @@ outcomes?: Partial<Record<ExternalCallOutcome, ExternalCallOutcomeSpec>>;
 
 PR: #159 (初版) / #173 (sideEffects / sameAs 追加)
 
+### 3.1a 認証・冪等性・カスタムヘッダ (#253 v1.2)
+
+```ts
+type ExternalAuthKind = "bearer" | "basic" | "apiKey" | "oauth2" | "none";
+
+interface ExternalAuth {
+  kind: ExternalAuthKind;
+  tokenRef?: string;       // "ENV:STRIPE_SECRET_KEY" / "SECRET:stripe/api-key" 等の規約参照
+  headerName?: string;     // apiKey 時のヘッダ名 (既定 "Authorization")
+}
+
+// ExternalSystemStep に追加
+auth?: ExternalAuth;
+idempotencyKey?: string;                // 式 (例: "order-@registeredOrder.id")
+headers?: Record<string, string>;       // 任意の追加ヘッダ (値は式可)
+```
+
+**tokenRef の規約** (2026-04-20 時点):
+- `"ENV:<var_name>"` — 環境変数参照 (例: `"ENV:STRIPE_SECRET_KEY"`)
+- `"SECRET:<path>"` — 将来の secrets 管理機能への参照 (現状は運用規約)
+
 ### 3.2 `timeoutMs` / `retryPolicy` / `fireAndForget`
 
 ```ts
