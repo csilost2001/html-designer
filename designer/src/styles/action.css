@@ -1221,3 +1221,7 @@
 .catalog-new-key {
   flex: 1;
 }
+.type-catalog-schema {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+}
