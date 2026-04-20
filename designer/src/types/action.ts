@@ -857,6 +857,16 @@ export interface Marker {
   resolvedAt?: string;
   /** AI 側の対応メモ (resolve 時に併記) */
   resolution?: string;
+  /**
+   * 警告由来の marker に紐付く validator コード (UNKNOWN_IDENTIFIER 等)。
+   * 警告→marker 起票時に埋め、重複起票ガードに使う (#261)。
+   */
+  code?: string;
+  /**
+   * 警告由来の marker に紐付く JSON path (例: actions[0].steps[1].responseRef)。
+   * code と併用して「同じ警告を 2 回起票しない」判定。
+   */
+  path?: string;
 }
 
 /**
