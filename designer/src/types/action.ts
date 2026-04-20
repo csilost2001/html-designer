@@ -535,8 +535,12 @@ export interface DisplayUpdateStep extends StepBase {
 }
 
 /**
- * Branch の分岐条件 variant (#176)。
+ * Branch の分岐条件 variant (#176 / #261 v1.3 で拡張)。
  * 旧 string と新しい型付き表現 (tryCatch 等) の union。
+ *
+ * v1.3 で追加:
+ * - `affectedRowsZero`: 直前の DbAccessStep (affectedRowsCheck) で rowCount が期待を満たさなかった場合
+ * - `externalOutcome`: 直前の ExternalSystemStep の outcome (success/failure/timeout) を分岐条件に
  */
 export type BranchConditionVariant =
   | {
@@ -544,6 +548,22 @@ export type BranchConditionVariant =
       kind: "tryCatch";
       /** DbAccessStep.affectedRowsCheck.errorCode 等と対応する識別子 */
       errorCode: string;
+      description?: string;
+    }
+  | {
+      /** 直前の DbAccess (UPDATE/DELETE) の rowCount が期待を満たさなかった時に成立 (#261 v1.3) */
+      kind: "affectedRowsZero";
+      /** 対象の DbAccessStep ID (省略時は直前の DbAccess) */
+      stepRef?: string;
+      description?: string;
+    }
+  | {
+      /** 直前の ExternalSystemStep の outcome に基づく分岐 (#261 v1.3) */
+      kind: "externalOutcome";
+      /** 対象の ExternalSystemStep ID (省略時は直前の external call) */
+      stepRef?: string;
+      /** マッチ対象の outcome */
+      outcome: ExternalCallOutcome;
       description?: string;
     };
 
