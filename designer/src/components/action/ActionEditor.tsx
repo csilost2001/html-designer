@@ -922,7 +922,16 @@ export function ActionEditor() {
               ) : (
                 <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   <div className="step-list" ref={stepListRef}>
-                    {activeAction.steps.map((step, index) => (
+                    {activeAction.steps.map((step, index) => {
+                      // この step に紐付いた未解決 marker 件数
+                      const stepMarkers = (group.markers ?? []).filter(
+                        (m) => !m.resolvedAt && m.stepId === step.id,
+                      );
+                      const markerCount = stepMarkers.length;
+                      const markerTooltip = markerCount > 0
+                        ? `AI 依頼マーカー ${markerCount} 件:\n${stepMarkers.map((m) => `- [${m.kind}] ${m.body.slice(0, 60)}`).join("\n")}`
+                        : undefined;
+                      return (
                       <div key={step.id}>
                         <StepInsertZone
                           index={index}
@@ -968,9 +977,12 @@ export function ActionEditor() {
                               g.markers = [...(g.markers ?? []), m];
                             });
                           }}
+                          markerCount={markerCount}
+                          markerTooltip={markerTooltip}
                         />
                       </div>
-                    ))}
+                      );
+                    })}
                     {/* 末尾の挿入ポイント */}
                     <StepInsertZone
                       index={activeAction.steps.length}

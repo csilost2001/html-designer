@@ -208,6 +208,10 @@ interface StepCardProps {
   validationErrors?: ValidationError[];
   /** この step を対象に AI マーカーを起票 (#261)。body は UI 側で prompt で取る */
   onAddMarker?: (body: string, kind?: "todo" | "question" | "attention" | "chat") => void;
+  /** この step に紐付いた未解決マーカー数 (#261 badge 表示用) */
+  markerCount?: number;
+  /** この step の未解決 marker tooltip 本文 */
+  markerTooltip?: string;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -240,6 +244,8 @@ export function StepCard({
   depth = 0,
   validationErrors = [],
   onAddMarker,
+  markerCount = 0,
+  markerTooltip,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -438,6 +444,15 @@ export function StepCard({
             >
               <i className="bi bi-sticky" />
               {step.notes.length}
+            </span>
+          )}
+          {markerCount > 0 && (
+            <span
+              className="step-marker-badge"
+              title={markerTooltip ?? `AI 依頼マーカー ${markerCount} 件`}
+            >
+              <i className="bi bi-megaphone-fill" />
+              {markerCount}
             </span>
           )}
           {step.runIf && (
