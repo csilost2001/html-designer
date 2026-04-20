@@ -86,3 +86,5 @@ const issues = checkReferentialIntegrity(actionGroup);
 - `designer/src/types/action.ts` — TypeScript 型定義 (本スキーマと同期保守)
 - `designer/src/utils/actionMigration.ts` — 旧形式からの変換 (新スキーマは旧形式も union 側で受け入れる)
 - `designer/src/schemas/process-flow.schema.test.ts` — サンプル検証 + negative ケース
+- `designer/src/schemas/identifierScope.ts` — `@identifier` 参照の scope 検証 (inputs / outputBinding / ambientVariables / ループ変数 との突合)
+- `designer/src/schemas/identifierScope.test.ts` — scope 検証のユニット + サンプル全件検査
