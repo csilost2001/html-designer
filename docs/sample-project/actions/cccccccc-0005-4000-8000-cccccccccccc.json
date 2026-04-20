@@ -10,7 +10,13 @@
   "ambientVariables": [
     { "name": "requestId", "type": "string", "required": true, "description": "リクエスト毎に一意。冪等性キー生成やログ相関に使う。通常はリバプロ/ミドルウェア (X-Request-Id) から注入" },
     { "name": "traceId", "type": "string", "required": false, "description": "分散トレース用。OpenTelemetry 等から注入" },
-    { "name": "sessionId", "type": "string", "required": false, "description": "セッション識別子。auth 経由" }
+    { "name": "sessionId", "type": "string", "required": false, "description": "セッション識別子。auth 経由" },
+    {
+      "name": "fieldErrors",
+      "type": { "kind": "custom", "label": "Record<string, string>" },
+      "required": false,
+      "description": "ValidationStep.rules[] の評価結果。fieldErrorsVar で宣言"
+    }
   ],
 
   "errorCatalog": {
@@ -74,8 +80,11 @@
       "auth": { "kind": "bearer", "tokenRef": "ENV:STRIPE_SECRET_KEY" },
       "timeoutMs": 10000,
       "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
-      "headers": { "Stripe-Version": "2024-06-20" },
-      "description": "Stripe Payment Intents API (2 段階決済)"
+      "headers": {
+        "Stripe-Version": "2024-06-20",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "description": "Stripe Payment Intents API (2 段階決済)。runtime-conventions §2.2 に従い form-urlencoded で送信"
     },
     "sendgrid": {
       "name": "SendGrid",
