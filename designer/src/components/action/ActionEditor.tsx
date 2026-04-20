@@ -62,6 +62,7 @@ import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
 import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
 import { TypeCatalogPanel } from "./TypeCatalogPanel";
 import { MarkerPanel } from "./MarkerPanel";
+import { DrawingOverlay } from "./DrawingOverlay";
 import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -164,6 +165,7 @@ export function ActionEditor() {
   const [commonGroups, setCommonGroups] = useState<{ id: string; name: string }[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showWarningsPanel, setShowWarningsPanel] = useState(false);
+  const [drawingMode, setDrawingMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -522,8 +524,26 @@ export function ActionEditor() {
 
   if (!group) return null;
 
+  const handleDrawComplete = (shape: { type: "path"; d: string }) => {
+    const body = window.prompt(
+      "描画マーカーへの指示を入力:\n(例: ここの SQL を affectedRowsCheck で補強して)",
+    );
+    if (!body || !body.trim()) return;
+    updateGroup((g) => {
+      g.markers = [...(g.markers ?? []), {
+        id: generateUUID(),
+        kind: "todo",
+        body: body.trim(),
+        shape,
+        author: "human",
+        createdAt: new Date().toISOString(),
+      }];
+    });
+    setDrawingMode(false);
+  };
+
   return (
-    <div className="action-page" onClick={() => closeContextMenu()}>
+    <div className="action-page" onClick={() => closeContextMenu()} style={{ position: "relative" }}>
       <TableSubToolbar />
 
       {serverChanged && (
@@ -541,6 +561,14 @@ export function ActionEditor() {
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
         extraRight={
           <>
+            <button
+              type="button"
+              className={`btn btn-sm ${drawingMode ? "btn-danger" : "btn-outline-secondary"}`}
+              onClick={() => setDrawingMode((v) => !v)}
+              title="赤線マーカー (ドラッグで描画、離すとマーカー起票)"
+            >
+              <i className="bi bi-pencil" /> {drawingMode ? "描画中" : "描画"}
+            </button>
             {validationErrors.filter((e) => e.severity === "error").length > 0 && (
               <span
                 className="validation-badge error"
@@ -1093,6 +1121,12 @@ export function ActionEditor() {
           </div>
         </div>
       )}
+      {/* 赤線マーカー描画オーバーレイ (#261) */}
+      <DrawingOverlay
+        markers={group.markers ?? []}
+        drawing={drawingMode}
+        onDrawComplete={handleDrawComplete}
+      />
     </div>
   );
 }
