@@ -741,7 +741,7 @@ export const tools = [
         },
         type: {
           type: "string",
-          enum: ["validation", "dbAccess", "externalSystem", "commonProcess", "screenTransition", "displayUpdate", "branch", "jump", "other"],
+          enum: ["validation", "dbAccess", "externalSystem", "commonProcess", "screenTransition", "displayUpdate", "branch", "loop", "loopBreak", "loopContinue", "jump", "compute", "return", "other"],
           description: "ステップ種別",
         },
         description: {
@@ -752,8 +752,112 @@ export const tools = [
           type: "object",
           description: "ステップ種別固有の詳細（tableName, operation, refId 等）。省略可。",
         },
+        position: {
+          type: "number",
+          description: "挿入位置 (0-based index)。省略時は末尾。",
+        },
       },
       required: ["actionGroupId", "actionId", "type", "description"],
+    },
+  },
+  {
+    name: "designer__update_step",
+    description:
+      "既存ステップの任意フィールドをパッチ更新します。patch にマージされます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        stepId: { type: "string", description: "更新対象の step id (全アクションのネストも走査)" },
+        patch: { type: "object", description: "マージするオブジェクト。空オブジェクトは no-op。" },
+      },
+      required: ["actionGroupId", "stepId", "patch"],
+    },
+  },
+  {
+    name: "designer__remove_step",
+    description: "ステップを削除します。ネスト (branch/loop/subSteps/outcomes.sideEffects) も走査。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        stepId: { type: "string" },
+      },
+      required: ["actionGroupId", "stepId"],
+    },
+  },
+  {
+    name: "designer__move_step",
+    description: "ステップを同一配列内で並び替えます。異なる親への移動は未対応。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        stepId: { type: "string" },
+        newIndex: { type: "number" },
+      },
+      required: ["actionGroupId", "stepId", "newIndex"],
+    },
+  },
+  {
+    name: "designer__set_maturity",
+    description: "ステップ / アクション / アクショングループの maturity を更新します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        target: { type: "string", enum: ["group", "action", "step"], description: "設定対象" },
+        targetId: { type: "string", description: "target=action/step のとき必須" },
+        maturity: { type: "string", enum: ["draft", "provisional", "committed"] },
+      },
+      required: ["actionGroupId", "target", "maturity"],
+    },
+  },
+  {
+    name: "designer__add_step_note",
+    description: "ステップに付箋 (StepNote) を追加します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        stepId: { type: "string" },
+        type: { type: "string", enum: ["assumption", "prerequisite", "todo", "deferred", "question"] },
+        body: { type: "string" },
+      },
+      required: ["actionGroupId", "stepId", "type", "body"],
+    },
+  },
+  {
+    name: "designer__add_catalog_entry",
+    description: "ActionGroup レベルのカタログ (errorCatalog / secretsCatalog / typeCatalog / externalSystemCatalog) にエントリを追加・更新します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        catalog: {
+          type: "string",
+          enum: ["errorCatalog", "secretsCatalog", "typeCatalog", "externalSystemCatalog"],
+        },
+        key: { type: "string", description: "エントリキー (例: STOCK_SHORTAGE / stripeApiKey / ApiError / stripe)" },
+        value: { type: "object", description: "エントリの値。全体置換。" },
+      },
+      required: ["actionGroupId", "catalog", "key", "value"],
+    },
+  },
+  {
+    name: "designer__remove_catalog_entry",
+    description: "ActionGroup カタログからエントリを削除します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        actionGroupId: { type: "string" },
+        catalog: {
+          type: "string",
+          enum: ["errorCatalog", "secretsCatalog", "typeCatalog", "externalSystemCatalog"],
+        },
+        key: { type: "string" },
+      },
+      required: ["actionGroupId", "catalog", "key"],
     },
   },
 ];

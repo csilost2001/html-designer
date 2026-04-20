@@ -10,6 +10,24 @@ import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readActionGroup, writeActionGroup, deleteActionGroup as deleteActionGroupFile, listActionGroups as listActionGroupFiles } from "./projectStorage.js";
+import {
+  updateStep as editUpdateStep,
+  removeStep as editRemoveStep,
+  moveStep as editMoveStep,
+  setMaturity as editSetMaturity,
+  addStepNote as editAddStepNote,
+  addCatalogEntry as editAddCatalogEntry,
+  removeCatalogEntry as editRemoveCatalogEntry,
+  insertStepAt as editInsertStepAt,
+  type ActionGroupDoc,
+  type CatalogName,
+} from "./actionGroupEdits.js";
+
+async function saveAndBroadcast(agId: string, ag: ActionGroupDoc): Promise<void> {
+  ag.updatedAt = new Date().toISOString();
+  await writeActionGroup(agId, ag);
+  wsBridge.broadcast("actionGroupChanged", { id: agId });
+}
 
 // 親プロセス（Claude Code）が死んだら自動終了
 function setupLifecycle(): void {
@@ -886,19 +904,118 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (typeof a.actionGroupId !== "string" || typeof a.actionId !== "string" || typeof a.type !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "actionGroupId, actionId, type は必須です");
         }
-        const ag = await readActionGroup(a.actionGroupId) as Record<string, unknown> | null;
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
         if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
-        const actions = (ag.actions ?? []) as Array<Record<string, unknown>>;
-        const action = actions.find((act) => act.id === a.actionId);
-        if (!action) throw new McpError(ErrorCode.InvalidParams, `アクション ${a.actionId} が見つかりません`);
-        const steps = (action.steps ?? []) as Array<Record<string, unknown>>;
         const stepId = `step-${Date.now()}`;
         const detail = (a.detail ?? {}) as Record<string, unknown>;
-        steps.push({ id: stepId, type: a.type, description: a.description ?? "", ...detail });
-        action.steps = steps;
-        ag.updatedAt = new Date().toISOString();
-        await writeActionGroup(a.actionGroupId, ag);
+        const step = { id: stepId, type: a.type as string, description: (a.description as string) ?? "", ...detail };
+        editInsertStepAt(ag, a.actionId, step, typeof a.position === "number" ? a.position : undefined);
+        await saveAndBroadcast(a.actionGroupId, ag);
         return { content: [{ type: "text", text: `ステップ（${a.type}）を追加しました（ID: ${stepId}）` }] };
+      }
+
+      case "designer__update_step": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string" || typeof a.patch !== "object" || a.patch === null) {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId, patch は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        try {
+          editUpdateStep(ag, a.stepId, a.patch as Record<string, unknown>);
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
+        }
+        await saveAndBroadcast(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `ステップ ${a.stepId} を更新しました。` }] };
+      }
+
+      case "designer__remove_step": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        try {
+          editRemoveStep(ag, a.stepId);
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
+        }
+        await saveAndBroadcast(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `ステップ ${a.stepId} を削除しました。` }] };
+      }
+
+      case "designer__move_step": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string" || typeof a.newIndex !== "number") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId, newIndex は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        try {
+          editMoveStep(ag, a.stepId, a.newIndex);
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
+        }
+        await saveAndBroadcast(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `ステップ ${a.stepId} を位置 ${a.newIndex} に移動しました。` }] };
+      }
+
+      case "designer__set_maturity": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.target !== "string" || typeof a.maturity !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, target, maturity は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        try {
+          editSetMaturity(ag, a.target as "group" | "action" | "step", a.targetId as string | undefined, a.maturity as "draft" | "provisional" | "committed");
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
+        }
+        await saveAndBroadcast(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `maturity を ${a.maturity} に更新しました。` }] };
+      }
+
+      case "designer__add_step_note": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string" || typeof a.type !== "string" || typeof a.body !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId, type, body は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        try {
+          const res = editAddStepNote(ag, a.stepId, a.type as string, a.body as string);
+          await saveAndBroadcast(a.actionGroupId, ag);
+          return { content: [{ type: "text", text: `付箋を追加しました (ID: ${res.id})` }] };
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
+        }
+      }
+
+      case "designer__add_catalog_entry": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.catalog !== "string" || typeof a.key !== "string" || typeof a.value !== "object" || a.value === null) {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, catalog, key, value は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        editAddCatalogEntry(ag, a.catalog as CatalogName, a.key as string, a.value as Record<string, unknown>);
+        await saveAndBroadcast(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `${a.catalog}.${a.key} を追加/更新しました。` }] };
+      }
+
+      case "designer__remove_catalog_entry": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.actionGroupId !== "string" || typeof a.catalog !== "string" || typeof a.key !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "actionGroupId, catalog, key は必須です");
+        }
+        const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+        if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+        editRemoveCatalogEntry(ag, a.catalog as CatalogName, a.key as string);
+        await saveAndBroadcast(a.actionGroupId, ag);
+        return { content: [{ type: "text", text: `${a.catalog}.${a.key} を削除しました。` }] };
       }
 
       // ── タブ管理・保存操作 ──
