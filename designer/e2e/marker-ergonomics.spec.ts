@@ -93,6 +93,25 @@ test.describe("Dashboard marker summary (#261)", () => {
     await expect(panel).toContainText("erg test"); // perGroup ランキング
   });
 
+  test("最新マーカーリストに body preview が表示される", async ({ page }) => {
+    await setupDashboard(page);
+    const recent = page.locator(".markers-summary-panel .markers-recent-list");
+    await expect(recent).toBeVisible();
+    // 2 件とも表示
+    await expect(recent.locator(".markers-recent-item")).toHaveCount(2);
+    // body preview と AG 名
+    await expect(recent).toContainText("A"); // body
+    await expect(recent).toContainText("B");
+    await expect(recent).toContainText("erg test"); // AG name
+  });
+
+  test("最新マーカーアイテムクリックで ActionEditor へ遷移", async ({ page }) => {
+    await setupDashboard(page);
+    const firstRecent = page.locator(".markers-summary-panel .markers-recent-list .markers-recent-btn").first();
+    await firstRecent.click();
+    await expect(page).toHaveURL(/\/process-flow\/edit\//);
+  });
+
   test("marker 0 件の AG は表示なし、未解決 0 件メッセージ表示", async ({ page }) => {
     // 解決済みだけの状態で開く
     const resolved = {
