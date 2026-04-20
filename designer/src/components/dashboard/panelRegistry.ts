@@ -15,6 +15,7 @@ import { FunctionCountsPanel } from "./panels/FunctionCountsPanel";
 import { UnsavedDraftsPanel } from "./panels/UnsavedDraftsPanel";
 import { RecentEditsPanel } from "./panels/RecentEditsPanel";
 import { ProcessFlowMaturityPanel } from "./panels/ProcessFlowMaturityPanel";
+import { MarkersSummaryPanel } from "./panels/MarkersSummaryPanel";
 
 /** react-grid-layout の 1 パネルのレイアウト指定 */
 export interface PanelLayout {
@@ -67,6 +68,13 @@ export const dashboardPanels: DashboardPanel[] = [
     icon: "bi-speedometer2",
     defaultLayout: { w: 6, h: 3, minW: 4, minH: 3 },
     component: ProcessFlowMaturityPanel,
+  },
+  {
+    id: "markers-summary",
+    title: "AI 依頼マーカー",
+    icon: "bi-megaphone",
+    defaultLayout: { w: 6, h: 4, minW: 4, minH: 3 },
+    component: MarkersSummaryPanel,
   },
   {
     id: "unsaved-drafts",
