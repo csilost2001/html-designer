@@ -303,6 +303,12 @@ export interface ValidationStep extends StepBase {
    * 未指定時は conditions の自由記述を読むしかない (後方互換)。
    */
   rules?: ValidationRule[];
+  /**
+   * rules[] の評価結果を格納する変数名 (#261 v1.4)。
+   * 既定は "fieldErrors"。inlineBranch.ngBodyExpression 等で \@fieldErrors として参照される。
+   * 型は Record<fieldName, message> を想定。
+   */
+  fieldErrorsVar?: string;
   inlineBranch?: {
     ok: string;
     ng: string;
@@ -871,6 +877,12 @@ export interface ActionGroup {
    * 値は JSON Schema (inline) またはその略記形。
    */
   typeCatalog?: Record<string, TypeCatalogEntry>;
+  /**
+   * Ambient 変数カタログ (#261 v1.4)。ミドルウェア・フレームワーク由来の自動注入変数 (例: @requestId, @traceId, @fieldErrors)。
+   * @param 記法で参照される際に「inputs にも outputBinding にも無い」と未定義エラー扱いされないよう、
+   * アクション側で明示宣言する。実装側は各フレームワーク (Express/Fastify/Nest) の仕組みで値を供給する責務。
+   */
+  ambientVariables?: StructuredField[];
   createdAt: string;
   updatedAt: string;
 }

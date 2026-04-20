@@ -7,6 +7,12 @@
   "mode": "downstream",
   "maturity": "committed",
 
+  "ambientVariables": [
+    { "name": "requestId", "type": "string", "required": true, "description": "リクエスト毎に一意。冪等性キー生成やログ相関に使う。通常はリバプロ/ミドルウェア (X-Request-Id) から注入" },
+    { "name": "traceId", "type": "string", "required": false, "description": "分散トレース用。OpenTelemetry 等から注入" },
+    { "name": "sessionId", "type": "string", "required": false, "description": "セッション識別子。auth 経由" }
+  ],
+
   "errorCatalog": {
     "VALIDATION": {
       "httpStatus": 400,
@@ -131,6 +137,7 @@
             { "field": "items", "type": "custom", "condition": "@items.every(i => i.quantity >= 1 && i.quantity <= 9999)", "message": "@conv.msg.outOfRange" },
             { "field": "paymentMethod", "type": "enum", "values": ["credit_card", "bank_transfer", "cash_on_delivery"] }
           ],
+          "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
             "ok": "次へ",
             "ng": "400 VALIDATION で return",
