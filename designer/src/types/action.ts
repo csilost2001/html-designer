@@ -867,6 +867,26 @@ export interface Marker {
    * code と併用して「同じ警告を 2 回起票しない」判定。
    */
   path?: string;
+  /**
+   * 自由描画 (赤線マーカー) の形状 (#261)。
+   * ユーザーが画面上で描いた線・矩形などを SVG path として保持し、描画オーバーレイで可視化する。
+   * 座標は editor container に対する % で正規化 (リサイズに追従)。
+   */
+  shape?: MarkerShape;
+}
+
+/**
+ * マーカー形状 (#261)。現状は freeform path のみ。
+ * 将来的に rectangle / arrow / circle 等を enum で拡張予定。
+ */
+export interface MarkerShape {
+  type: "path";
+  /** SVG path の `d` 属性値 (各座標は 0-100 の % 表記、viewBox="0 0 100 100") */
+  d: string;
+  /** 描画色 (省略時は #ef4444 赤) */
+  color?: string;
+  /** 線幅 (省略時は 2) */
+  strokeWidth?: number;
 }
 
 /**

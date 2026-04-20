@@ -106,7 +106,21 @@
         "resolvedAt": { "type": "string", "format": "date-time" },
         "resolution": { "type": "string" },
         "code": { "type": "string", "description": "警告由来 marker の validator code (UNKNOWN_IDENTIFIER 等)" },
-        "path": { "type": "string", "description": "警告由来 marker の JSON path" }
+        "path": { "type": "string", "description": "警告由来 marker の JSON path" },
+        "shape": { "$ref": "#/$defs/MarkerShape" }
+      }
+    },
+
+    "MarkerShape": {
+      "description": "自由描画マーカーの形状 (#261)。SVG viewBox=0 0 100 100 の相対座標",
+      "type": "object",
+      "required": ["type", "d"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["path"] },
+        "d": { "type": "string", "description": "SVG path の d 属性 (0-100 の % 座標)" },
+        "color": { "type": "string", "description": "描画色 (#ef4444 既定)" },
+        "strokeWidth": { "type": "number", "minimum": 0.1 }
       }
     },
 
