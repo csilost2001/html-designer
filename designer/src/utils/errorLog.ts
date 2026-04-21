@@ -46,7 +46,6 @@ export function recordError(entry: Omit<ErrorLogEntry, "ts" | "url"> & Partial<P
     /* localStorage 全滅時は諦める */
   }
   // 開発中に気付けるよう console にも流す
-  // eslint-disable-next-line no-console
   console.error(`[errorLog/${full.source}]`, full.message, full.stack ?? "");
 }
 
