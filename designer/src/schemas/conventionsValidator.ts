@@ -14,9 +14,11 @@ import type {
 
 export interface ConventionsCatalog {
   version: string;
-  msg?: Record<string, { template: string }>;
-  regex?: Record<string, { pattern: string; flags?: string }>;
-  limit?: Record<string, { value: number; unit?: string }>;
+  description?: string;
+  updatedAt?: string;
+  msg?: Record<string, { template: string; params?: string[]; description?: string }>;
+  regex?: Record<string, { pattern: string; flags?: string; description?: string; exampleValid?: string[]; exampleInvalid?: string[] }>;
+  limit?: Record<string, { value: number; unit?: string; description?: string }>;
 }
 
 export interface ConventionIssue {

@@ -36,6 +36,10 @@ const MENU_ITEMS: MenuItem[] = [
     id: "process-flow", label: "処理フロー一覧", icon: "bi-lightning", route: "/process-flow/list",
     activePaths: ["/process-flow/list"], activePrefixes: ["/process-flow/edit/"],
   },
+  {
+    id: "conventions-catalog", label: "規約カタログ", icon: "bi-file-text", route: "/conventions/catalog",
+    activePaths: ["/conventions/catalog"],
+  },
 ];
 
 const DASHBOARD_ITEM: MenuItem = {

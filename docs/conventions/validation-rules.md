@@ -1,19 +1,20 @@
 # バリデーション規約
 
-**ステータス**: 機械可読版あり (`docs/sample-project/conventions/conventions-catalog.json`)、human-readable は本書
-**策定日**: 2026-04-20
-**関連 issue**: #151 (A: 設計書種別の追加) / #261 残
+**ステータス**: JSON 正本 (`data/conventions/catalog.json`)。本書は人間向け参考資料。
+**策定日**: 2026-04-20 (#151-A) / 更新 2026-04-22 (#317 で JSON 正本化・編集 UI 搭載)
+**関連 issue**: #151 (A: 設計書種別の追加) / #261 残 / #317 (UI 編集化)
 
 本書は処理フロー仕様書が参照する横断的なバリデーション規約 (メッセージテンプレート + 正規表現カタログ + 境界値) を定める。
 
-## 機械可読版 (v1.6 新設)
+## 正本の場所 (#317 で改訂)
 
-AI / CI から読める JSON 形式:
-- **カタログ**: [`docs/sample-project/conventions/conventions-catalog.json`](../sample-project/conventions/conventions-catalog.json)
+- **ランタイム正本**: `data/conventions/catalog.json` (gitignored)
+- **サンプル (seed 元)**: [`docs/sample-project/conventions/conventions-catalog.json`](../sample-project/conventions/conventions-catalog.json) — `node docs/sample-project/seed.mjs` で `data/conventions/catalog.json` にコピーされる
 - **JSON Schema**: [`schemas/conventions.schema.json`](../../schemas/conventions.schema.json)
 - **参照整合性検証**: `designer/src/schemas/conventionsValidator.ts` が処理フロー内の `@conv.*` 参照を検査
+- **編集 UI**: 業務システムデザイナーの「規約カタログ」タブから閲覧・編集可 (#317)
 
-本 md 本文 (§1-§3) と JSON カタログが drift しないよう、md を更新したら JSON も更新する。
+**本 md 本文 (§1-§3) は人間向け参考資料**。編集・追加は基本的に designer アプリ経由で JSON を更新する。md と JSON で drift した場合は JSON 側が優先。
 
 ---
 
