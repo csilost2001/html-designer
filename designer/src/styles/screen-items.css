@@ -1,0 +1,114 @@
+/* 画面項目定義ビュー (#318 プロトタイプ) */
+
+.screen-items-view {
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.screen-items-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.screen-items-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.screen-items-screen-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.screen-items-screen-selector select {
+  min-width: 14em;
+}
+
+.screen-items-actions {
+  margin-left: auto;
+}
+
+.screen-items-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 14px;
+}
+
+.screen-items-empty {
+  padding: 40px;
+  text-align: center;
+  color: #64748b;
+}
+
+.screen-items-table-wrap {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.screen-items-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.screen-items-table thead th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 4px 6px;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+}
+
+.screen-items-table tbody td {
+  padding: 3px 6px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.screen-items-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.screen-items-table input.form-control {
+  width: 100%;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  min-width: 0;
+  min-height: 26px;
+  height: 28px;
+}
+
+.screen-items-no {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.screen-items-empty-row {
+  color: #94a3b8;
+  padding: 12px;
+  text-align: center;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.screen-items-add {
+  margin-top: 8px;
+  font-size: 0.82rem;
+}

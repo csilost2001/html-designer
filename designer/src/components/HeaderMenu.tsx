@@ -40,6 +40,10 @@ const MENU_ITEMS: MenuItem[] = [
     id: "conventions-catalog", label: "規約カタログ", icon: "bi-file-text", route: "/conventions/catalog",
     activePaths: ["/conventions/catalog"],
   },
+  {
+    id: "screen-items", label: "画面項目定義 (ドラフト)", icon: "bi-ui-checks-grid", route: "/screen-items",
+    activePaths: ["/screen-items"],
+  },
 ];
 
 const DASHBOARD_ITEM: MenuItem = {
