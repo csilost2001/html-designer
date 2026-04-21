@@ -239,9 +239,11 @@
 /* ─── I/O パネル ─────────────────────────────────────────────────── */
 
 .action-io-panel {
+  /* #310: 上下 2 段 (1fr) に変更。以前は 1fr 1fr で左右分割していたが
+     表形式モードで幅が狭く折り返して縦積みに見えていたため、全幅を確保。 */
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
   margin-bottom: 16px;
   padding: 12px;
   background: #f8fafc;
@@ -260,6 +262,91 @@
   font-size: 0.82rem;
   min-height: 32px;
   resize: vertical;
+}
+
+/* StructuredFieldsEditor (#310): 1 項目 1 行テーブル */
+.structured-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.structured-fields-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.structured-fields-header .btn-group .btn {
+  font-size: 0.7rem;
+  padding: 0 6px;
+}
+.structured-fields-body {
+  font-size: 0.78rem;
+}
+.structured-fields-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+}
+.structured-fields-table thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  padding: 3px 4px;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+  background: transparent;
+}
+.structured-fields-table tbody td {
+  padding: 2px 4px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+}
+.structured-fields-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.structured-fields-table input.form-control,
+.structured-fields-table select.form-select {
+  width: 100%;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  min-width: 0;
+  min-height: 24px;
+  height: 26px;
+}
+.structured-fields-table .col-no { width: 32px; }
+.structured-fields-table .col-name { width: 11em; }
+.structured-fields-table .col-label { width: 9em; }
+.structured-fields-table .col-type { width: 7em; }
+.structured-fields-table .col-required { width: 3.5em; }
+.structured-fields-table .col-desc { width: auto; }
+.structured-fields-table .col-actions { width: 28px; }
+.structured-fields-no {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  text-align: center;
+}
+.structured-fields-required {
+  margin: 0 auto;
+  display: block;
+}
+.structured-fields-delete {
+  line-height: 1;
+  padding: 0 !important;
+}
+.structured-fields-empty {
+  color: #94a3b8;
+  padding: 10px;
+  text-align: center;
+  font-style: italic;
+  font-size: 0.78rem;
+}
+.structured-fields-add {
+  font-size: 0.75rem;
+  margin-top: 4px;
+  align-self: flex-start;
+  padding: 2px 10px;
 }
 
 /* ─── ステップエディタ ────────────────────────────────────────────── */
