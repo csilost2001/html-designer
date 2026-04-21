@@ -240,39 +240,38 @@ class McpBridgeImpl {
 
   /** 接続時: flowStore と customBlockStore にリモートバックエンドをセット */
   private _setStorageBackends(): void {
-    const self = this;
-
+    // arrow 関数内の this は lexical なので、enclosing method の this (インスタンス) をそのまま使う
     const flowBackend: FlowStorageBackend = {
-      loadProject: () => self.request("loadProject"),
-      saveProject: (project) => self.request("saveProject", { project }).then(() => undefined),
-      deleteScreenData: (screenId) => self.request("deleteScreen", { screenId }).then(() => undefined),
+      loadProject: () => this.request("loadProject"),
+      saveProject: (project) => this.request("saveProject", { project }).then(() => undefined),
+      deleteScreenData: (screenId) => this.request("deleteScreen", { screenId }).then(() => undefined),
     };
     setFlowStorageBackend(flowBackend);
 
     const blocksBackend: CustomBlocksStorageBackend = {
-      loadCustomBlocks: () => self.request("loadCustomBlocks").then((r) => (r ?? []) as unknown[]),
-      saveCustomBlocks: (blocks) => self.request("saveCustomBlocks", { blocks }).then(() => undefined),
+      loadCustomBlocks: () => this.request("loadCustomBlocks").then((r) => (r ?? []) as unknown[]),
+      saveCustomBlocks: (blocks) => this.request("saveCustomBlocks", { blocks }).then(() => undefined),
     };
     setCustomBlocksBackend(blocksBackend);
 
     const tableBackend: TableStorageBackend = {
-      loadTable: (tableId) => self.request("loadTable", { tableId }),
-      saveTable: (tableId, data) => self.request("saveTable", { tableId, data }).then(() => undefined),
-      deleteTable: (tableId) => self.request("deleteTable", { tableId }).then(() => undefined),
+      loadTable: (tableId) => this.request("loadTable", { tableId }),
+      saveTable: (tableId, data) => this.request("saveTable", { tableId, data }).then(() => undefined),
+      deleteTable: (tableId) => this.request("deleteTable", { tableId }).then(() => undefined),
     };
     setTableStorageBackend(tableBackend);
 
     const erLayoutBackend: ErLayoutStorageBackend = {
-      loadErLayout: () => self.request("loadErLayout"),
-      saveErLayout: (data) => self.request("saveErLayout", { data }).then(() => undefined),
+      loadErLayout: () => this.request("loadErLayout"),
+      saveErLayout: (data) => this.request("saveErLayout", { data }).then(() => undefined),
     };
     setErLayoutStorageBackend(erLayoutBackend);
 
     const actionBackend: ActionStorageBackend = {
-      loadActionGroup: (id) => self.request("loadActionGroup", { id }),
-      saveActionGroup: (id, data) => self.request("saveActionGroup", { id, data }).then(() => undefined),
-      deleteActionGroup: (id) => self.request("deleteActionGroup", { id }).then(() => undefined),
-      listActionGroups: () => self.request("listActionGroups"),
+      loadActionGroup: (id) => this.request("loadActionGroup", { id }),
+      saveActionGroup: (id, data) => this.request("saveActionGroup", { id, data }).then(() => undefined),
+      deleteActionGroup: (id) => this.request("deleteActionGroup", { id }).then(() => undefined),
+      listActionGroups: () => this.request("listActionGroups"),
     };
     setActionStorageBackend(actionBackend);
   }
