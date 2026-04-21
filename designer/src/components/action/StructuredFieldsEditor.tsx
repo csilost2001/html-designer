@@ -13,9 +13,9 @@ interface Props {
 const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> = ["string", "number", "boolean", "date"];
 
 /**
- * ActionDefinition.inputs / outputs の編集 UI (#226)。
+ * ActionDefinition.inputs / outputs の編集 UI (#226 / #310)。
  * 自由記述モード (textarea) と表形式モード (StructuredField[]) を切替可能。
- * 表形式では name / type / required / description を編集。
+ * 表形式では 1 項目 1 行の <table> で name / label / type / required / description を編集。
  * FieldType は primitive + custom のみ対応、tableRow/tableList/screenInput は将来。
  */
 export function StructuredFieldsEditor({ label, fields, onChange, onCommit, placeholder }: Props) {
@@ -57,14 +57,13 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
 
   return (
     <div className="structured-fields-editor">
-      <div className="d-flex align-items-center gap-2 mb-1">
+      <div className="structured-fields-header">
         <label className="form-label mb-0">{label}</label>
         <div className="btn-group btn-group-sm" role="group" aria-label="表示モード">
           <button
             type="button"
             className={`btn btn-outline-secondary${mode === "text" ? " active" : ""}`}
             onClick={switchToText}
-            style={{ fontSize: "0.7rem", padding: "0 6px" }}
             title="自由記述モード (改行区切り)"
           >
             <i className="bi bi-text-paragraph" />
@@ -73,7 +72,6 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
             type="button"
             className={`btn btn-outline-secondary${mode === "table" ? " active" : ""}`}
             onClick={switchToTable}
-            style={{ fontSize: "0.7rem", padding: "0 6px" }}
             title="表形式モード (構造化)"
           >
             <i className="bi bi-table" />
@@ -91,91 +89,113 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
           placeholder={placeholder}
         />
       ) : (
-        <div style={{ fontSize: "0.8rem" }}>
-          {isStructured && fields.length === 0 && (
-            <div className="text-muted small mb-1">フィールドなし</div>
-          )}
-          {isStructured && fields.map((f, i) => (
-            <div key={i} className="row g-1 mb-1 align-items-center">
-              <div className="col-3">
-                <input
-                  type="text"
-                  className="form-control form-control-sm"
-                  value={f.name}
-                  onChange={(e) => updateField(i, { name: e.target.value })}
-                  onBlur={() => onCommit?.()}
-                  placeholder="name"
-                  style={{ fontSize: "0.8rem" }}
-                />
-              </div>
-              <div className="col-2">
-                <input
-                  type="text"
-                  className="form-control form-control-sm"
-                  value={f.label ?? ""}
-                  onChange={(e) => updateField(i, { label: e.target.value || undefined })}
-                  onBlur={() => onCommit?.()}
-                  placeholder="label"
-                  style={{ fontSize: "0.8rem" }}
-                />
-              </div>
-              <div className="col-2">
-                <select
-                  className="form-select form-select-sm"
-                  value={typeof f.type === "string" ? f.type : "custom"}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (PRIMITIVE_TYPES.includes(v as "string" | "number" | "boolean" | "date")) {
-                      updateField(i, { type: v as FieldType });
-                    } else {
-                      updateField(i, { type: { kind: "custom", label: "" } });
-                    }
-                  }}
-                  style={{ fontSize: "0.8rem" }}
-                >
-                  {PRIMITIVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  <option value="custom">custom</option>
-                </select>
-              </div>
-              <div className="col-auto" style={{ width: 70 }}>
-                <label className="form-check-label small">
-                  <input
-                    type="checkbox"
-                    className="form-check-input me-1"
-                    checked={!!f.required}
-                    onChange={(e) => updateField(i, { required: e.target.checked || undefined })}
-                  />
-                  必須
-                </label>
-              </div>
-              <div className="col">
-                <input
-                  type="text"
-                  className="form-control form-control-sm"
-                  value={f.description ?? ""}
-                  onChange={(e) => updateField(i, { description: e.target.value || undefined })}
-                  onBlur={() => onCommit?.()}
-                  placeholder="description"
-                  style={{ fontSize: "0.8rem" }}
-                />
-              </div>
-              <div className="col-auto">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-link text-danger p-0"
-                  onClick={() => removeField(i)}
-                  title="削除"
-                >
-                  <i className="bi bi-x" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="structured-fields-body">
+          <table className="structured-fields-table">
+            <colgroup>
+              <col className="col-no" />
+              <col className="col-name" />
+              <col className="col-label" />
+              <col className="col-type" />
+              <col className="col-required" />
+              <col className="col-desc" />
+              <col className="col-actions" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">名前</th>
+                <th scope="col">日本語名</th>
+                <th scope="col">型</th>
+                <th scope="col" className="text-center">必須</th>
+                <th scope="col">説明</th>
+                <th scope="col" aria-label="操作" />
+              </tr>
+            </thead>
+            <tbody>
+              {isStructured && fields.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="structured-fields-empty">フィールドなし</td>
+                </tr>
+              )}
+              {isStructured && fields.map((f, i) => (
+                <tr key={i}>
+                  <td className="structured-fields-no">{i + 1}</td>
+                  <td>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={f.name}
+                      onChange={(e) => updateField(i, { name: e.target.value })}
+                      onBlur={() => onCommit?.()}
+                      placeholder="name"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={f.label ?? ""}
+                      onChange={(e) => updateField(i, { label: e.target.value || undefined })}
+                      onBlur={() => onCommit?.()}
+                      placeholder="label"
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="form-select form-select-sm"
+                      value={typeof f.type === "string" ? f.type : "custom"}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (PRIMITIVE_TYPES.includes(v as "string" | "number" | "boolean" | "date")) {
+                          updateField(i, { type: v as FieldType });
+                        } else {
+                          updateField(i, { type: { kind: "custom", label: "" } });
+                        }
+                      }}
+                    >
+                      {PRIMITIVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      <option value="custom">custom</option>
+                    </select>
+                  </td>
+                  <td className="text-center">
+                    <input
+                      type="checkbox"
+                      className="form-check-input structured-fields-required"
+                      checked={!!f.required}
+                      onChange={(e) => updateField(i, { required: e.target.checked || undefined })}
+                      aria-label="必須"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={f.description ?? ""}
+                      onChange={(e) => updateField(i, { description: e.target.value || undefined })}
+                      onBlur={() => onCommit?.()}
+                      placeholder="description"
+                      title={f.description ?? ""}
+                    />
+                  </td>
+                  <td className="text-center">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-link text-danger p-0 structured-fields-delete"
+                      onClick={() => removeField(i)}
+                      title="削除"
+                      aria-label="削除"
+                    >
+                      <i className="bi bi-x" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <button
             type="button"
-            className="btn btn-sm btn-outline-secondary py-0"
+            className="btn btn-sm btn-outline-secondary structured-fields-add"
             onClick={() => { addField(); onCommit?.(); }}
-            style={{ fontSize: "0.75rem" }}
           >
             <i className="bi bi-plus-lg" /> フィールド追加
           </button>
