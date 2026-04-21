@@ -141,21 +141,31 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
                     />
                   </td>
                   <td>
-                    <select
-                      className="form-select form-select-sm"
-                      value={typeof f.type === "string" ? f.type : "custom"}
+                    <input
+                      type="text"
+                      list="structured-fields-type-list"
+                      className="form-control form-control-sm"
+                      value={typeof f.type === "string"
+                        ? f.type
+                        : f.type.kind === "custom"
+                          ? f.type.label ?? ""
+                          : ""}
                       onChange={(e) => {
                         const v = e.target.value;
-                        if (PRIMITIVE_TYPES.includes(v as "string" | "number" | "boolean" | "date")) {
+                        if (v === "") {
+                          updateField(i, { type: "string" });
+                        } else if ((PRIMITIVE_TYPES as string[]).includes(v)) {
                           updateField(i, { type: v as FieldType });
                         } else {
-                          updateField(i, { type: { kind: "custom", label: "" } });
+                          updateField(i, { type: { kind: "custom", label: v } });
                         }
                       }}
-                    >
-                      {PRIMITIVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      <option value="custom">custom</option>
-                    </select>
+                      onBlur={() => onCommit?.()}
+                      placeholder="型 (string/DTO名 等)"
+                      title={typeof f.type === "object" && f.type.kind === "custom"
+                        ? `カスタム型: ${f.type.label}`
+                        : undefined}
+                    />
                   </td>
                   <td className="text-center">
                     <input
@@ -199,6 +209,10 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
           >
             <i className="bi bi-plus-lg" /> フィールド追加
           </button>
+          {/* 型入力の候補 (primitive のみ提示、自由入力も可) — 全 row 共有 */}
+          <datalist id="structured-fields-type-list">
+            {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}
+          </datalist>
         </div>
       )}
     </div>

@@ -239,8 +239,9 @@
 /* ─── I/O パネル ─────────────────────────────────────────────────── */
 
 .action-io-panel {
-  /* #310: 上下 2 段 (1fr) に変更。以前は 1fr 1fr で左右分割していたが
-     表形式モードで幅が狭く折り返して縦積みに見えていたため、全幅を確保。 */
+  /* #310: 上下 2 段 (1fr) を既定に。以前は 1fr 1fr で左右分割していたが、
+     表形式モードで幅が狭く折り返して縦積みに見えていたため、全幅を確保。
+     #310 フォローアップ: 高解像度では左右 2 列に戻す (下の media query 参照)。 */
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
@@ -249,6 +250,15 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
+}
+/* 1600px 以上 (4K 半分や 1920 以上の横広) では入出力を左右並びに戻す。
+   table-layout: fixed + col-*: 11em+9em+7em+... の合計 ≒ 400px 以上あれば折り返し
+   なく 1 項目 1 行が収まる。1600px / 2 ≒ 780px > 400px で十分余裕がある。 */
+@media (min-width: 1600px) {
+  .action-io-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
 }
 
 .action-io-field .form-label {
