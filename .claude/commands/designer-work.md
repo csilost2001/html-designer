@@ -18,7 +18,7 @@ argument-hint: <actionGroupId> [--dry-run]
     - API 課金なし (Claude Code Max プラン内で完結)
 
   前提:
-    - designer-mcp サーバが起動していること (stdio で Claude Code に接続済み)
+    - designer-mcp サーバが起動していること (HTTP で Claude Code に接続済み、`curl http://localhost:5179/` で health 確認可能)
     - 対象 ActionGroup の ID を把握していること (URL の /process-flow/edit/{id})
 -->
 

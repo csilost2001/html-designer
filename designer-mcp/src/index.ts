@@ -54,19 +54,22 @@ await wsBridge.start();
 wsBridge.on("connected", () => console.error("[MCP] Designer connected via WebSocket"));
 wsBridge.on("disconnected", () => console.error("[MCP] Designer disconnected"));
 
-// MCPサーバーを初期化
-const server = new Server(
-  { name: "designer-mcp", version: "0.1.0" },
-  { capabilities: { tools: {} } }
-);
+// MCPサーバーのファクトリ (#302): HTTP リクエスト毎に fresh な Server インスタンスを
+// 作成することで、複数クライアントが同時接続しても互いの initialize 状態と干渉しない
+// (Server.connect(transport) は 1:1 関係、1 Server を複数 transport に share はできないため)
+function createMcpServer(): Server {
+  const server = new Server(
+    { name: "designer-mcp", version: "0.1.0" },
+    { capabilities: { tools: {} } }
+  );
 
-// ツール一覧
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return { tools };
-});
+  // ツール一覧
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools };
+  });
 
-// ツール呼び出し
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  // ツール呼び出し
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
@@ -1190,7 +1193,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       isError: true,
     };
   }
-});
+  });
+
+  return server;
+}
 
 // ── DDL 生成ヘルパー ──
 
@@ -1312,25 +1318,30 @@ function autoIncrementType(dt: string, dialect: string): string {
 }
 
 // 起動 (#302): HTTP transport のみ。port 5179 の `/mcp` endpoint を公開、常駐バックエンド。
-// Streamable HTTP transport はセッション管理を内部で行うため、プロセス全体で 1 インスタンス。
-// Server は transport と 1:1 で connect、全リクエストは transport.handleRequest に委譲。
+// 複数クライアント (Claude Code 複数セッション) が同時接続できるよう、リクエスト毎に
+// fresh な Server + transport を作成する。tools の登録は軽量 (JSON schema + 関数参照)
+// なので per-request コストは無視できる。
 async function main() {
-  const httpTransport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-  });
-  await server.connect(httpTransport);
   wsBridge.registerHttpHandler("/mcp", async (req, res) => {
+    const server = createMcpServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless
+    });
     try {
-      await httpTransport.handleRequest(req, res);
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
     } catch (e) {
       console.error("[MCP/HTTP] handler error:", e);
       if (!res.writableEnded) {
         res.writeHead(500, { "Content-Type": "text/plain" });
         res.end(`Internal error: ${e instanceof Error ? e.message : String(e)}`);
       }
+    } finally {
+      try { await transport.close(); } catch { /* ignore */ }
+      try { await server.close(); } catch { /* ignore */ }
     }
   });
-  console.error("[MCP] designer-mcp HTTP transport mounted at http://localhost:5179/mcp");
+  console.error(`[MCP] designer-mcp HTTP transport mounted at http://localhost:${process.env.DESIGNER_MCP_PORT ?? 5179}/mcp`);
 }
 
 main().catch((err) => {
