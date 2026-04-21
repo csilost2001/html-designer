@@ -736,6 +736,13 @@ export interface StructuredField {
   description?: string;
   /** 自由記述の既定値 */
   defaultValue?: string;
+  /**
+   * 画面項目定義への参照 (#321)。
+   * 設定時は対応する ScreenItem から name/label/type/required/pattern/maxLength 等を上書き解釈する。
+   * 処理フロー側で上書きしたいフィールド (description 等) は本オブジェクトの同名プロパティが優先。
+   * 参照先が存在しない場合は UNKNOWN_SCREEN_ITEM 警告 (参照整合性バリデータ)。
+   */
+  screenItemRef?: { screenId: string; itemId: string };
 }
 
 /** inputs / outputs の値型: 旧形式 (改行区切り文字列) と新形式 (StructuredField[]) の union */

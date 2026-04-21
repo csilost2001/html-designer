@@ -2,12 +2,29 @@ import { useState } from "react";
 import type { ActionFields, FieldType, StructuredField } from "../../types/action";
 import { fieldsToText, isStructuredFields, textToStructuredFields } from "../../utils/actionFields";
 
+/** 画面項目ピッカーで返る型 — StructuredField にコピー元の値を載せて返す */
+export interface ScreenItemPickResult {
+  screenId: string;
+  itemId: string;
+  /** ScreenItem から派生した StructuredField フィールド値 */
+  name: string;
+  label?: string;
+  type: FieldType;
+  required?: boolean;
+  description?: string;
+}
+
 interface Props {
   label: string;
   fields: ActionFields | undefined;
   onChange: (fields: ActionFields | undefined) => void;
   onCommit?: () => void;
   placeholder?: string;
+  /**
+   * 「画面項目から追加」ボタンから呼ばれるピッカー (#321)。親 (ActionEditor) が
+   * モーダルを開いてユーザー選択を返す。undefined ならボタン非表示。
+   */
+  onPickScreenItem?: () => Promise<ScreenItemPickResult | null>;
 }
 
 const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> = ["string", "number", "boolean", "date"];
@@ -18,7 +35,7 @@ const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> = ["strin
  * 表形式では 1 項目 1 行の <table> で name / label / type / required / description を編集。
  * FieldType は primitive + custom のみ対応、tableRow/tableList/screenInput は将来。
  */
-export function StructuredFieldsEditor({ label, fields, onChange, onCommit, placeholder }: Props) {
+export function StructuredFieldsEditor({ label, fields, onChange, onCommit, placeholder, onPickScreenItem }: Props) {
   const isStructured = isStructuredFields(fields);
   const [mode, setMode] = useState<"text" | "table">(isStructured ? "table" : "text");
 
@@ -41,6 +58,36 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
     const curr = isStructured ? fields : [];
     const newField: StructuredField = { name: "", type: "string" };
     onChange([...curr, newField]);
+  };
+
+  /** 画面項目ピッカー経由で新規フィールド追加 (#321) */
+  const addFieldFromScreenItem = async () => {
+    if (!onPickScreenItem) return;
+    const result = await onPickScreenItem();
+    if (!result) return;
+    const curr = isStructured ? fields : [];
+    const newField: StructuredField = {
+      name: result.name,
+      label: result.label,
+      type: result.type,
+      required: result.required,
+      description: result.description,
+      screenItemRef: { screenId: result.screenId, itemId: result.itemId },
+    };
+    onChange([...curr, newField]);
+    onCommit?.();
+  };
+
+  /** 既存フィールドの screenItemRef を解除 (フィールド自体は残す) */
+  const unlinkScreenItem = (idx: number) => {
+    if (!isStructured) return;
+    const next = fields.map((f, i) => {
+      if (i !== idx) return f;
+      const { screenItemRef, ...rest } = f;
+      return rest as StructuredField;
+    });
+    onChange(next);
+    onCommit?.();
   };
 
   const updateField = (idx: number, patch: Partial<StructuredField>) => {
@@ -118,8 +165,16 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
                 </tr>
               )}
               {isStructured && fields.map((f, i) => (
-                <tr key={i}>
-                  <td className="structured-fields-no">{i + 1}</td>
+                <tr key={i} className={f.screenItemRef ? "structured-fields-linked-row" : undefined}>
+                  <td className="structured-fields-no">
+                    {i + 1}
+                    {f.screenItemRef && (
+                      <i
+                        className="bi bi-link-45deg structured-fields-link-badge"
+                        title={`画面項目参照中: ${f.screenItemRef.screenId} / ${f.screenItemRef.itemId}`}
+                      />
+                    )}
+                  </td>
                   <td>
                     <input
                       type="text"
@@ -188,6 +243,17 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
                     />
                   </td>
                   <td className="text-center">
+                    {f.screenItemRef && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-link p-0 me-1 structured-fields-unlink"
+                        onClick={() => unlinkScreenItem(i)}
+                        title="画面項目参照を解除 (フィールド自体は残す)"
+                        aria-label="参照解除"
+                      >
+                        <i className="bi bi-link-45deg" style={{ textDecoration: "line-through" }} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-sm btn-link text-danger p-0 structured-fields-delete"
@@ -209,6 +275,16 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
           >
             <i className="bi bi-plus-lg" /> フィールド追加
           </button>
+          {onPickScreenItem && (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-primary structured-fields-add ms-2"
+              onClick={addFieldFromScreenItem}
+              title="画面項目定義から選択して追加 (#321)"
+            >
+              <i className="bi bi-ui-checks-grid me-1" /> 画面項目から追加
+            </button>
+          )}
           {/* 型入力の候補 (primitive のみ提示、自由入力も可) — 全 row 共有 */}
           <datalist id="structured-fields-type-list">
             {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}

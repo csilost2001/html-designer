@@ -57,7 +57,8 @@ import { MaturityBadge } from "./MaturityBadge";
 import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
 import { ActionMetaTabBar } from "./ActionMetaTabBar";
 import { DrawingOverlay } from "./DrawingOverlay";
-import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
+import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredFieldsEditor";
+import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
@@ -123,6 +124,9 @@ export function ActionEditor() {
   const navigate = useNavigate();
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [showAddAction, setShowAddAction] = useState(false);
+  // 画面項目ピッカー (#321) — Promise ベース: StructuredFieldsEditor に onPickScreenItem を渡す
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerResolveRef = useRef<((r: ScreenItemPickResult | null) => void) | null>(null);
   const [newActionName, setNewActionName] = useState("");
   const [newActionTrigger, setNewActionTrigger] = useState<ActionTrigger>("click");
   const [tables, setTables] = useState<{ id: string; name: string; logicalName: string }[]>([]);
@@ -481,6 +485,14 @@ export function ActionEditor() {
     enabled: selectedIds.size > 0 || clipboard !== null,
   });
 
+  // 画面項目ピッカーのコールバック (#321) — hooks は early return より前で定義
+  const handlePickScreenItem = useCallback((): Promise<ScreenItemPickResult | null> => {
+    return new Promise((resolve) => {
+      pickerResolveRef.current = resolve;
+      setPickerOpen(true);
+    });
+  }, []);
+
   if (!group) return null;
 
   const handleCommitStrokes = (shape: {
@@ -525,6 +537,18 @@ export function ActionEditor() {
 
   const handleExitDrawing = () => {
     setDrawingMode(false);
+  };
+
+  const handlePickerPick = (result: ScreenItemPickResult) => {
+    pickerResolveRef.current?.(result);
+    pickerResolveRef.current = null;
+    setPickerOpen(false);
+  };
+
+  const handlePickerClose = () => {
+    pickerResolveRef.current?.(null);
+    pickerResolveRef.current = null;
+    setPickerOpen(false);
   };
 
   return (
@@ -754,6 +778,7 @@ export function ActionEditor() {
                   }}
                   onCommit={commitGroup}
                   placeholder="例: ユーザID、パスワード（改行で複数項目）"
+                  onPickScreenItem={handlePickScreenItem}
                 />
               </div>
               <div className="action-io-field">
@@ -768,6 +793,7 @@ export function ActionEditor() {
                   }}
                   onCommit={commitGroup}
                   placeholder="例: セッションID、認証トークン（改行で複数項目）"
+                  onPickScreenItem={handlePickScreenItem}
                 />
               </div>
             </div>
@@ -998,6 +1024,12 @@ export function ActionEditor() {
         onCommitStrokes={handleCommitStrokes}
         onEraseMarker={handleEraseMarker}
         onExitDrawing={handleExitDrawing}
+      />
+      {/* 画面項目ピッカー (#321) */}
+      <ScreenItemPickerModal
+        open={pickerOpen}
+        onClose={handlePickerClose}
+        onPick={handlePickerPick}
       />
     </div>
   );
