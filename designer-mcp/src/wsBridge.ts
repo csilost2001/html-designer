@@ -23,6 +23,9 @@ import {
   listActionGroups as listActionGroupFiles,
   readConventions,
   writeConventions,
+  readScreenItems,
+  writeScreenItems,
+  deleteScreenItems,
   getFileMtime,
 } from "./projectStorage.js";
 
@@ -443,6 +446,26 @@ class WsBridge extends EventEmitter {
           await writeConventions(catalog);
           respond({ success: true });
           this.broadcast("conventionsChanged", {}, clientId);
+          break;
+        }
+        case "loadScreenItems": {
+          const { screenId } = (params ?? {}) as { screenId: string };
+          const items = await readScreenItems(screenId);
+          respond(items);
+          break;
+        }
+        case "saveScreenItems": {
+          const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
+          await writeScreenItems(screenId, data);
+          respond({ success: true });
+          this.broadcast("screenItemsChanged", { screenId }, clientId);
+          break;
+        }
+        case "deleteScreenItems": {
+          const { screenId } = (params ?? {}) as { screenId: string };
+          await deleteScreenItems(screenId);
+          respond({ success: true });
+          this.broadcast("screenItemsChanged", { screenId, deleted: true }, clientId);
           break;
         }
         case "getFileMtime": {

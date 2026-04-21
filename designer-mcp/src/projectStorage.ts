@@ -17,6 +17,7 @@ const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
 const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
+const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
@@ -29,6 +30,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(TABLES_DIR, { recursive: true });
   await fs.mkdir(ACTIONS_DIR, { recursive: true });
   await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
+  await fs.mkdir(SCREEN_ITEMS_DIR, { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -77,6 +79,7 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "screen": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
     case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
     case "actionGroup": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
+    case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
     default: return null;
   }
 }
@@ -166,6 +169,24 @@ export async function readConventions(): Promise<unknown | null> {
 export async function writeConventions(data: unknown): Promise<void> {
   await ensureDataDir();
   await writeJSON(CONVENTIONS_FILE, data);
+}
+
+/** screen-items/{screenId}.json を読み込み (#318) */
+export async function readScreenItems(screenId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
+}
+
+/** screen-items/{screenId}.json を書き込み (#318) */
+export async function writeScreenItems(screenId: string, data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`), data);
+}
+
+/** screen-items/{screenId}.json を削除 (#318) */
+export async function deleteScreenItems(screenId: string): Promise<void> {
+  try {
+    await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
+  } catch { /* file not found is OK */ }
 }
 
 /** actions/ ディレクトリ内の全アクショングループを読み込み */

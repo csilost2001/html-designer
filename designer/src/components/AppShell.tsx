@@ -8,6 +8,7 @@ import { ErDiagram } from "./table/ErDiagram";
 import { ActionListView } from "./action/ActionListView";
 import { ActionEditor } from "./action/ActionEditor";
 import { ConventionsCatalogView } from "./conventions/ConventionsCatalogView";
+import { ScreenItemsView } from "./screen-items/ScreenItemsView";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
@@ -159,6 +160,7 @@ export function AppShell() {
       { path: "/table/er",           type: "er",                 label: "ER図" },
       { path: "/process-flow/list",  type: "process-flow-list",  label: "処理フロー一覧" },
       { path: "/conventions/catalog", type: "conventions-catalog", label: "規約カタログ" },
+      { path: "/screen-items",       type: "screen-items",       label: "画面項目定義" },
     ];
     for (const { path, type, label } of singletonRoutes) {
       if (location.pathname === path) {
@@ -185,6 +187,7 @@ export function AppShell() {
       : activeTab.type === "er"               ? "/table/er"
       : activeTab.type === "process-flow-list" ? "/process-flow/list"
       : activeTab.type === "conventions-catalog" ? "/conventions/catalog"
+      : activeTab.type === "screen-items"     ? "/screen-items"
       : activeTab.type === "dashboard"        ? "/"
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
@@ -260,6 +263,7 @@ export function AppShell() {
             <Route path="/process-flow/list" element={<ActionListView />} />
             <Route path="/process-flow/edit/:actionGroupId" element={<ActionEditor />} />
             <Route path="/conventions/catalog" element={<ConventionsCatalogView />} />
+            <Route path="/screen-items" element={<ScreenItemsView />} />
           </Routes>
         </ErrorBoundary>
       )}
