@@ -151,22 +151,44 @@ function ensureProjectDefaults(project: FlowProject): FlowProject {
   return project;
 }
 
-/** プロジェクトを読み込み */
+/** プロジェクトを読み込み
+ *
+ * !!! データ消失バグ修正 (2026-04-22) !!!
+ *
+ * 以前は backend.loadProject() が null を返した場合、createEmptyProject() を
+ * 即座に backend に書き戻していた。これが Playwright テスト並行実行や
+ * designer-mcp 一瞬不通などの race condition で backend が誤って null を
+ * 返した際に、既存の data/project.json を空で上書きしてデータ消失を引き起
+ * こしていた (ユーザー報告で検知: 画面作成ダイアログ閉じたら画面一覧
+ * が空になった現象)。
+ *
+ * 今後は null を受け取っても backend への書き戻しは行わない。最初の
+ * 明示的な saveProject / persistProject が走るまで backend は触らない。
+ * localStorage 側のみ（接続なし時のフォールバック）は従来通り。
+ */
 export async function loadProject(): Promise<FlowProject> {
   if (_backend) {
     const data = await _backend.loadProject();
     if (data) return ensureProjectDefaults(data as FlowProject);
-    // ファイルが存在しない → localStorage から移行
+    // backend にファイルが存在しない (or readProject が一時的に null を返した)
+    // → localStorage に有意義なデータがあればそれを使う、なければメモリのみの空 project
     const local = loadProjectFromLocalStorage();
-    if (local) {
-      await _backend.saveProject(local);
-      console.log("[flowStore] Migrated project from localStorage to file");
+    if (local && (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.actionGroups?.length ?? 0) > 0)) {
+      // localStorage に意味のあるデータがある場合のみ、backend への移行を試みる。
+      // 空 localStorage をきっかけに既存 backend を上書きする事態を避ける。
+      try {
+        await _backend.saveProject(local);
+        console.log("[flowStore] Migrated project from localStorage to file");
+      } catch (e) {
+        console.warn("[flowStore] migration save failed, returning local without persist", e);
+      }
       return local;
     }
-    // 新規プロジェクト
-    const empty = createEmptyProject();
-    await _backend.saveProject(empty);
-    return empty;
+    // 空 localStorage + null backend → メモリ上で空プロジェクトを返すだけに留める。
+    // backend へ書き込むと既存ファイルを壊す race condition になり得る。
+    // 本当に新規プロジェクトなら、ユーザーの最初の操作 (画面追加 → save) で
+    // persistProject 経由で backend に初めて書き込まれる。
+    return createEmptyProject();
   }
   // localStorage フォールバック
   return loadProjectFromLocalStorage() ?? (() => {
@@ -176,7 +198,17 @@ export async function loadProject(): Promise<FlowProject> {
   })();
 }
 
-/** プロジェクトを保存（draftMode 有効時は localStorage のドラフトに書き込む） */
+/** プロジェクトを保存（draftMode 有効時は localStorage のドラフトに書き込む）
+ *
+ * !!! データ消失防止ガード (2026-04-22) !!!
+ *
+ * 書き込み前に backend の既存データと比較し、「既存に有意義なデータ
+ * (screens/tables/actionGroups が 1 件以上) があるのに空プロジェクトで
+ * 上書きしようとしている」ケースを検知したらキャンセル + warning ログ。
+ * 普通の編集フロー (screen 削除 → 0 件に) は一旦有意義だった後に空に
+ * なるので、このガードは「0 件で始まるセッションから 0 件のまま書き込む」
+ * race conditionケースのみを弾く意図。
+ */
 export async function saveProject(project: FlowProject): Promise<void> {
   project.updatedAt = now();
   if (_draftMode) {
@@ -185,16 +217,61 @@ export async function saveProject(project: FlowProject): Promise<void> {
     return;
   }
   if (_backend) {
+    // データ消失防止ガード: 空プロジェクトで非空ファイルを上書きしないかチェック
+    const isProjectEmpty =
+      (project.screens?.length ?? 0) === 0 &&
+      (project.tables?.length ?? 0) === 0 &&
+      (project.actionGroups?.length ?? 0) === 0;
+    if (isProjectEmpty) {
+      try {
+        const current = await _backend.loadProject() as FlowProject | null;
+        const hasExistingData = !!current && (
+          (current.screens?.length ?? 0) > 0 ||
+          (current.tables?.length ?? 0) > 0 ||
+          (current.actionGroups?.length ?? 0) > 0
+        );
+        if (hasExistingData) {
+          console.warn("[flowStore] saveProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)");
+          return;
+        }
+      } catch {
+        // read 失敗は書き込みを続行 (backend 一時不通等で loadProject が 500 等の場合、
+        // write は成功する可能性があるので試す)
+      }
+    }
     await _backend.saveProject(project);
     return;
   }
   localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
 }
 
-/** ドラフトを介さず必ず永続化する（明示的保存ボタン用） */
+/** ドラフトを介さず必ず永続化する（明示的保存ボタン用）
+ *
+ * saveProject と同じデータ消失ガードを適用 (2026-04-22)。
+ */
 export async function persistProject(project: FlowProject): Promise<void> {
   project.updatedAt = now();
   if (_backend) {
+    const isProjectEmpty =
+      (project.screens?.length ?? 0) === 0 &&
+      (project.tables?.length ?? 0) === 0 &&
+      (project.actionGroups?.length ?? 0) === 0;
+    if (isProjectEmpty) {
+      try {
+        const current = await _backend.loadProject() as FlowProject | null;
+        const hasExistingData = !!current && (
+          (current.screens?.length ?? 0) > 0 ||
+          (current.tables?.length ?? 0) > 0 ||
+          (current.actionGroups?.length ?? 0) > 0
+        );
+        if (hasExistingData) {
+          console.warn("[flowStore] persistProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)");
+          return;
+        }
+      } catch {
+        // read 失敗は書き込みを続行
+      }
+    }
     await _backend.saveProject(project);
   } else {
     localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
