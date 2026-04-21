@@ -28,7 +28,8 @@ type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 type BrowserRequest = { type: "request"; id: string; method: string; params?: unknown };
 
-const WS_PORT = 5179;
+// Port は env var で上書き可能 (テスト用に任意 port を使う想定)。未指定なら 5179 (#302)
+const WS_PORT = parseInt(process.env.DESIGNER_MCP_PORT ?? "5179", 10);
 const TIMEOUT_MS = 10000;
 
 /** ポートを占有している古い designer-mcp プロセスを強制終了 */
