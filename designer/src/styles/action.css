@@ -186,16 +186,6 @@
   text-decoration: underline;
 }
 
-.action-editor-info {
-  padding: 16px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.action-editor-info .row {
-  gap: 8px 0;
-}
-
 /* ─── アクションタブ ──────────────────────────────────────────────── */
 
 .action-tabs {
@@ -1263,11 +1253,95 @@
   cursor: pointer;
 }
 .catalog-panel-toggle:hover { background: #f1f5f9; }
+
+/* ─── メタタブバー (#309) ─────────────────────────────────────────
+   ActionEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
+   排他的に 1 つだけ body を全幅で展開する。 */
+.action-meta-tabbar {
+  padding: 6px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.action-meta-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  row-gap: 4px;
+}
+.action-meta-tabs .catalog-panel {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.action-meta-tabs .catalog-panel-toggle {
+  width: auto;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+/* アクティブ (展開中) のパネルを強調: chevron-down アイコンの存在で判定 (:has) */
+.action-meta-tabs .catalog-panel:has(.bi-chevron-down) {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+.action-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle {
+  color: #1e40af;
+}
+.action-meta-tabbar-spacer {
+  flex: 1 1 auto;
+}
+.action-meta-tabbar-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  padding: 0 4px;
+}
+.action-meta-maturity-label {
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.75rem;
+}
+.action-meta-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.action-meta-body {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.action-meta-body.action-meta-info-body {
+  padding: 12px 14px;
+}
+/* メタタブバー配下の body は外枠はタブバーが提供するので、
+   各 Panel の border は解除して内側 padding のみにする */
+.action-meta-body > .catalog-panel {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+.action-meta-body > .catalog-panel > .catalog-panel-body {
+  max-height: none;
+  padding: 0;
+  border-top: none;
+}
 .catalog-panel-body {
   padding: 8px 12px;
   border-top: 1px solid #e2e8f0;
-  /* 長くなった panel (MarkerPanel に marker が大量 等) が .action-editor-info を押し広げて
-     下のステップ領域を viewport 外に押し出すのを防ぐ。各 panel 個別に内部スクロール。 */
+  /* 長くなった panel (MarkerPanel に marker が大量 等) が上部領域を押し広げて
+     下のステップ領域を viewport 外に押し出すのを防ぐ。各 panel 個別に内部スクロール。
+     #309 タブバー化以降は .action-meta-body 内で overrideされる (max-height: none)。 */
   max-height: 40vh;
   overflow-y: auto;
 }

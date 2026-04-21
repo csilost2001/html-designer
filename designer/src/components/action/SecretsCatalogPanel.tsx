@@ -7,10 +7,19 @@ import type { ActionGroup, SecretRef } from "../../types/action";
 interface Props {
   group: ActionGroup;
   onChange: (group: ActionGroup) => void;
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
+  render?: "full" | "toggleOnly" | "bodyOnly";
 }
 
-export function SecretsCatalogPanel({ group, onChange }: Props) {
-  const [expanded, setExpanded] = useState(false);
+export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, onExpandedChange, render = "full" }: Props) {
+  const [expandedState, setExpandedState] = useState(false);
+  const isControlled = expandedProp !== undefined;
+  const expanded = isControlled ? expandedProp : expandedState;
+  const setExpanded = (next: boolean) => {
+    if (!isControlled) setExpandedState(next);
+    onExpandedChange?.(next);
+  };
   const [newKey, setNewKey] = useState("");
   const catalog = group.secretsCatalog ?? {};
   const keys = Object.keys(catalog);
@@ -33,18 +42,22 @@ export function SecretsCatalogPanel({ group, onChange }: Props) {
     setNewKey("");
   };
 
+  const showToggle = render !== "bodyOnly";
+  const showBody = render === "bodyOnly" || (render !== "toggleOnly" && expanded);
   return (
     <div className="catalog-panel secrets-catalog-panel">
-      <button
-        type="button"
-        className="catalog-panel-toggle"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
-        <i className="bi bi-key" />
-        {" "}Secrets (secretsCatalog: {keys.length} 件)
-      </button>
-      {expanded && (
+      {showToggle && (
+        <button
+          type="button"
+          className="catalog-panel-toggle"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
+          <i className="bi bi-key" />
+          {" "}Secrets (secretsCatalog: {keys.length} 件)
+        </button>
+      )}
+      {showBody && (
         <div className="catalog-panel-body">
           <div className="catalog-help">
             秘匿値のメタデータのみ管理。値そのものは含まない。

@@ -34,7 +34,8 @@ async function setup(page: Page) {
 test.describe("MarkerPanel (#261)", () => {
   test("パネル既定折りたたみ、展開後に 0 件メッセージ表示", async ({ page }) => {
     await setup(page);
-    await expect(page.locator(".marker-panel")).toBeVisible();
+    // #309 タブバー化以降、.marker-panel は tabbar 側 (toggleOnly) と body 側の 2 箇所に出現
+    await expect(page.locator(".marker-panel").first()).toBeVisible();
     await expect(page.locator(".marker-panel .catalog-panel-toggle")).toContainText("0 未解決");
     // setup で展開済 → empty メッセージ可視
     await expect(page.locator(".marker-panel .catalog-empty")).toBeVisible();

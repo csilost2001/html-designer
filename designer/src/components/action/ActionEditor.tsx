@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import type {
   ActionGroup,
-  ActionGroupType,
   ActionTrigger,
   Step,
   StepType,
 } from "../../types/action";
 import {
-  ACTION_GROUP_TYPE_LABELS,
   ACTION_TRIGGER_LABELS,
   STEP_TYPE_LABELS,
   STEP_TYPE_ICONS,
@@ -56,46 +54,12 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { SortableStepCard } from "./SortableStepCard";
 import { MaturityBadge } from "./MaturityBadge";
 import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
-import { ErrorCatalogPanel } from "./ErrorCatalogPanel";
-import { AmbientVariablesPanel } from "./AmbientVariablesPanel";
-import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
-import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
-import { TypeCatalogPanel } from "./TypeCatalogPanel";
-import { MarkerPanel } from "./MarkerPanel";
+import { ActionMetaTabBar } from "./ActionMetaTabBar";
 import { DrawingOverlay } from "./DrawingOverlay";
 import { StructuredFieldsEditor } from "./StructuredFieldsEditor";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/action.css";
-
-/** グループ内の全ステップを再帰的に走査して maturity 別カウント + 付箋合計を集計 (#196 / #200) */
-function countMaturity(group: ActionGroup): {
-  draft: number;
-  provisional: number;
-  committed: number;
-  total: number;
-  notes: number;
-} {
-  const acc = { draft: 0, provisional: 0, committed: 0, total: 0, notes: 0 };
-  const visit = (steps: Step[]) => {
-    for (const s of steps) {
-      const m = s.maturity ?? "draft";
-      if (m === "draft") acc.draft++;
-      else if (m === "provisional") acc.provisional++;
-      else acc.committed++;
-      acc.total++;
-      acc.notes += s.notes?.length ?? 0;
-      if (s.subSteps) visit(s.subSteps);
-      if (s.type === "branch") {
-        for (const b of s.branches) visit(b.steps);
-        if (s.elseBranch) visit(s.elseBranch.steps);
-      }
-      if (s.type === "loop") visit(s.steps);
-    }
-  };
-  for (const act of group.actions) visit(act.steps);
-  return acc;
-}
 
 /** ツールバーのドラッグ可能なステップ種別ボタン */
 function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => void }) {
@@ -424,12 +388,6 @@ export function ActionEditor() {
     closeContextMenu();
   };
 
-  const handleGroupInfoChange = (field: string, value: string) => {
-    updateGroupSilent((g) => {
-      (g as unknown as Record<string, string>)[field] = value;
-    });
-  };
-
   // ── 選択操作 ──────────────────────────────────────────────────
   const handleStepClick = (stepId: string, e: React.MouseEvent) => {
     if (!activeAction) return;
@@ -716,134 +674,12 @@ export function ActionEditor() {
         </div>
       )}
 
-      {/* グループ情報 */}
-      <div className="action-editor-info">
-        <div className="row g-2">
-          <div className="col-md-4">
-            <label className="form-label small fw-semibold">名前</label>
-            <input
-              className="form-control form-control-sm"
-              value={group.name}
-              onChange={(e) => handleGroupInfoChange("name", e.target.value)}
-            />
-          </div>
-          <div className="col-md-2">
-            <label className="form-label small fw-semibold">種別</label>
-            <select
-              className="form-select form-select-sm"
-              value={group.type}
-              onChange={(e) => handleGroupInfoChange("type", e.target.value)}
-            >
-              {(["screen", "batch", "scheduled", "system", "common", "other"] as ActionGroupType[]).map((t) => (
-                <option key={t} value={t}>{ACTION_GROUP_TYPE_LABELS[t]}</option>
-              ))}
-            </select>
-          </div>
-          <div className="col-md-6">
-            <label className="form-label small fw-semibold">説明</label>
-            <input
-              className="form-control form-control-sm"
-              value={group.description}
-              onChange={(e) => handleGroupInfoChange("description", e.target.value)}
-              placeholder="処理フローの概要"
-            />
-          </div>
-        </div>
-        <div className="d-flex align-items-center gap-3 mt-2 small">
-          <div className="d-flex align-items-center gap-1">
-            <label className="form-label small fw-semibold mb-0">成熟度</label>
-            <MaturityBadge
-              maturity={group.maturity}
-              size="md"
-              onChange={(next) => handleGroupInfoChange("maturity", next)}
-            />
-          </div>
-          <div className="d-flex align-items-center gap-1">
-            <label className="form-label small fw-semibold mb-0">モード</label>
-            <div className="btn-group btn-group-sm" role="group" aria-label="モード切替">
-              <button
-                type="button"
-                className={`btn btn-outline-secondary${(group.mode ?? "upstream") === "upstream" ? " active" : ""}`}
-                onClick={() => handleGroupInfoChange("mode", "upstream")}
-                title="上流モード: 書きかけ・曖昧を許容"
-              >
-                <i className="bi bi-pencil me-1" />上流
-              </button>
-              <button
-                type="button"
-                className={`btn btn-outline-secondary${group.mode === "downstream" ? " active" : ""}`}
-                onClick={() => handleGroupInfoChange("mode", "downstream")}
-                title="下流モード: AI 実装用に確定"
-              >
-                <i className="bi bi-robot me-1" />下流
-              </button>
-            </div>
-          </div>
-        </div>
-        {(() => {
-          const counts = countMaturity(group);
-          if (counts.total === 0) return null;
-          return (
-            <div className="d-flex align-items-center gap-3 mt-2 small" style={{ fontSize: "0.8rem" }}>
-              <span className="text-muted">進捗:</span>
-              <span title={`確定 ${counts.committed} 件`} style={{ color: "#22c55e" }}>
-                <i className="bi bi-circle-fill" /> {counts.committed}
-              </span>
-              <span title={`暫定 ${counts.provisional} 件`} style={{ color: "#f97316" }}>
-                <i className="bi bi-circle-fill" /> {counts.provisional}
-              </span>
-              <span title={`下書き ${counts.draft} 件`} style={{ color: "#f59e0b" }}>
-                <i className="bi bi-circle-fill" /> {counts.draft}
-              </span>
-              <span className="text-muted">合計 {counts.total} ステップ</span>
-              {counts.notes > 0 && (
-                <span className="text-muted" title={`付箋 ${counts.notes} 件`}>
-                  <i className="bi bi-sticky" /> {counts.notes}
-                </span>
-              )}
-            </div>
-          );
-        })()}
-        {group.mode === "downstream" && (() => {
-          const counts = countMaturity(group);
-          const unfinished = counts.draft + counts.provisional;
-          if (unfinished === 0) return null;
-          return (
-            <div className="alert alert-warning py-1 px-2 mt-2 mb-0 small d-flex align-items-center gap-2" role="alert">
-              <i className="bi bi-exclamation-triangle-fill" />
-              <strong>下流モードで未確定ステップあり:</strong>
-              <span>🟡 draft {counts.draft} / 🟠 provisional {counts.provisional}</span>
-              <span className="text-muted">(AI 実装前に committed に昇格してください)</span>
-            </div>
-          );
-        })()}
-        {/* AI へのマーカー (#261 リアルタイム編集ワークフロー) — カタログより先に配置して目立たせる */}
-        <MarkerPanel
-          group={group}
-          onChange={(next) => { updateGroup((g) => { g.markers = next.markers; }); }}
-        />
-        {/* ActionGroup レベルカタログ編集 (#278) */}
-        <ErrorCatalogPanel
-          group={group}
-          onChange={(next) => { updateGroup((g) => { g.errorCatalog = next.errorCatalog; }); }}
-        />
-        <AmbientVariablesPanel
-          group={group}
-          onChange={(next) => { updateGroup((g) => { g.ambientVariables = next.ambientVariables; }); }}
-        />
-        <SecretsCatalogPanel
-          group={group}
-          onChange={(next) => { updateGroup((g) => { g.secretsCatalog = next.secretsCatalog; }); }}
-        />
-        <ExternalSystemCatalogPanel
-          group={group}
-          onChange={(next) => { updateGroup((g) => { g.externalSystemCatalog = next.externalSystemCatalog; }); }}
-        />
-        <TypeCatalogPanel
-          group={group}
-          onChange={(next) => { updateGroup((g) => { g.typeCatalog = next.typeCatalog; }); }}
-        />
-      </div>
+      {/* グループ情報 + カタログ群 (#309 タブバー化) */}
+      <ActionMetaTabBar
+        group={group}
+        updateGroup={updateGroup}
+        updateGroupSilent={updateGroupSilent}
+      />
 
       {/* アクションタブ */}
       <div className="action-tabs">
