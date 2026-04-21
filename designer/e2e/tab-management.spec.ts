@@ -104,13 +104,20 @@ test.describe("タブ切り替え", () => {
     // 画面A をアクティブにしてから Ctrl+Tab
     await page.locator(".tabbar-tab").filter({ hasText: "画面A" }).click();
     await expect(page.locator(".tabbar-tab.active")).toContainText("画面A");
-    // Ctrl+Tab はブラウザにインターセプトされる可能性があるため document に直接送出
-    await page.evaluate(() => {
-      document.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Tab", ctrlKey: true, bubbles: true, cancelable: true,
-      }));
-    });
-    await expect(page.locator(".tabbar-tab.active")).toContainText("画面B");
+    // page.keyboard.press と document 直接 dispatch の両方を試行:
+    // Playwright driver は Ctrl+Tab を通常のブラウザインターセプトから逃がす模様。
+    // もし page.keyboard で駄目でも dispatch で確実に document listener に届ける。
+    await page.keyboard.press("Control+Tab");
+    try {
+      await expect(page.locator(".tabbar-tab.active")).toContainText("画面B", { timeout: 1000 });
+    } catch {
+      await page.evaluate(() => {
+        document.dispatchEvent(new KeyboardEvent("keydown", {
+          key: "Tab", code: "Tab", keyCode: 9, ctrlKey: true, bubbles: true, cancelable: true,
+        }));
+      });
+      await expect(page.locator(".tabbar-tab.active")).toContainText("画面B");
+    }
   });
 
   test("Ctrl+Shift+Tab で前のタブに移動する", async ({ page }) => {

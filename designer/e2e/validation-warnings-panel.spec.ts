@@ -122,7 +122,8 @@ test.describe("警告パネル UI 配線 (#261 UI 統合)", () => {
     await page.locator(".validation-badge.warning").click();
     await expect(page.locator(".action-validation-panel")).toBeVisible();
 
-    await page.locator(".action-validation-panel-header button").click();
+    // ヘッダには「全て AI に依頼」ボタンもあるため title="閉じる" で指定
+    await page.locator('.action-validation-panel-header button[title="閉じる"]').click();
     await expect(page.locator(".action-validation-panel")).toHaveCount(0);
   });
 });
