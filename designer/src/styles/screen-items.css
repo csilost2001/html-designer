@@ -8,38 +8,7 @@
   background: #f8f9fa;
 }
 
-.screen-items-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 14px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  flex-wrap: wrap;
-}
-
-.screen-items-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #334155;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.screen-items-screen-selector {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.screen-items-screen-selector select {
-  min-width: 14em;
-}
-
-.screen-items-actions {
-  margin-left: auto;
-}
+/* 旧 screen-items-header / title / actions は EditorHeader に置換 (#318 改善) */
 
 .screen-items-content {
   flex: 1;
@@ -108,7 +77,89 @@
   font-size: 0.85rem;
 }
 
-.screen-items-add {
+.screen-items-toolbar {
+  display: flex;
+  gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+.screen-items-add {
   font-size: 0.82rem;
+}
+.screen-items-screen-select {
+  min-width: 14em;
+}
+
+/* 画面項目候補モーダル (#323) */
+.screen-item-candidates-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.screen-item-candidates {
+  background: #fff;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 1000px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+.screen-item-candidates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.screen-item-candidates-body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 14px;
+}
+.screen-item-candidates-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 8px;
+}
+.screen-item-candidates-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.screen-item-candidates-table thead th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 4px 6px;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+}
+.screen-item-candidates-table tbody td {
+  padding: 3px 6px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.screen-item-candidates-table tbody tr.dup {
+  background: #fef3c7;
+  opacity: 0.7;
+}
+.screen-item-candidates-footer {
+  padding: 10px 14px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

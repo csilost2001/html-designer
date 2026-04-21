@@ -40,7 +40,7 @@ async function setup(page: Page) {
 test.describe("画面項目定義プロトタイプ (#318)", () => {
   test("画面一覧が selector に反映される", async ({ page }) => {
     await setup(page);
-    const sel = page.locator(".screen-items-screen-selector select");
+    const sel = page.locator(".screen-items-screen-select");
     await expect(sel).toBeVisible();
     await expect(sel.locator("option")).toHaveCount(2);
     await expect(sel).toContainText("ログイン画面");
@@ -61,8 +61,8 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await labelInput.fill("ユーザー ID");
     // 必須 チェック
     await page.locator('.screen-items-table input[type="checkbox"][aria-label="必須"]').first().check();
-    // 保存
-    const saveBtn = page.locator(".screen-items-actions button:has-text('保存')");
+    // 保存 (EditorHeader 内の SaveResetButtons)
+    const saveBtn = page.locator(".srb-btn-save");
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
     await expect(saveBtn).toBeDisabled({ timeout: 3000 }); // isDirty 解消
@@ -73,15 +73,26 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     // scr-1 に 1 件追加 + 保存
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
     await page.locator('.screen-items-table input[placeholder="email"]').first().fill("field1");
-    await page.locator(".screen-items-actions button:has-text('保存')").click();
-    await expect(page.locator(".screen-items-actions button:has-text('保存')")).toBeDisabled({ timeout: 3000 });
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
     // scr-2 に切替
-    await page.locator(".screen-items-screen-selector select").selectOption(screenId2);
+    await page.locator(".screen-items-screen-select").selectOption(screenId2);
     // scr-2 は項目 0 件
     await expect(page.locator(".screen-items-empty-row")).toBeVisible();
     // scr-1 に戻す
-    await page.locator(".screen-items-screen-selector select").selectOption(screenId1);
+    await page.locator(".screen-items-screen-select").selectOption(screenId1);
     await expect(page.locator('.screen-items-table input[value="field1"]')).toBeVisible({ timeout: 3000 });
+  });
+
+  test("画面デザインから追加モーダルを開ける", async ({ page }) => {
+    await setup(page);
+    const btn = page.locator(".screen-items-view button:has-text('画面デザインから追加')");
+    await expect(btn).toBeVisible();
+    await btn.click();
+    await expect(page.locator(".screen-item-candidates")).toBeVisible();
+    // キャンセルで閉じる
+    await page.locator(".screen-item-candidates-footer button:has-text('キャンセル')").click();
+    await expect(page.locator(".screen-item-candidates")).toHaveCount(0);
   });
 
   test("削除ボタンで項目が消える", async ({ page }) => {
