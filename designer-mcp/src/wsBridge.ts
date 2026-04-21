@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { EventEmitter } from "events";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
+import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import {
   ensureDataDir,
   readProject,
@@ -40,7 +41,8 @@ function killStaleProcessOnPort(port: number): boolean {
 
     for (const line of lines) {
       if (!/LISTENING/.test(line)) continue;
-      const match = line.match(/127\.0\.0\.1:(\d+)\s+\S+\s+LISTENING\s+(\d+)/);
+      // 127.0.0.1 / 0.0.0.0 / [::] いずれの bind でも検出 (#302 対応で HTTP サーバは 0.0.0.0 bind)
+      const match = line.match(/(?:127\.0\.0\.1|0\.0\.0\.0|\[::\]|\[::1\]):(\d+)\s+\S+\s+LISTENING\s+(\d+)/);
       if (!match) continue;
       if (parseInt(match[1], 10) !== port) continue;
       const pid = parseInt(match[2], 10);
@@ -68,8 +70,13 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** HTTP request handler (index.ts が MCP endpoint 等を register するために使用) */
+type HttpRequestHandler = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+
 class WsBridge extends EventEmitter {
   private wss: WebSocketServer | null = null;
+  private httpServer: HttpServer | null = null;
+  private httpRoutes: Array<{ pathPrefix: string; handler: HttpRequestHandler }> = [];
   /** clientId → WebSocket（登録済みクライアント） */
   private clients = new Map<string, WebSocket>();
   /** 接続順（最後が最新）。MCP コマンドの送信先選択に使用 */
@@ -103,10 +110,12 @@ class WsBridge extends EventEmitter {
 
   private async _bind(retries = 3): Promise<void> {
     return new Promise((resolve, reject) => {
-      const wss = new WebSocketServer({ host: "0.0.0.0", port: WS_PORT });
+      // HTTP サーバに WS をアタッチ (同一 port で HTTP + WS を提供 — #302)
+      const httpServer = createServer((req, res) => this._handleHttp(req, res));
+      const wss = new WebSocketServer({ server: httpServer });
 
       const onError = async (err: NodeJS.ErrnoException) => {
-        wss.off("listening", onListening);
+        httpServer.off("listening", onListening);
         if (err.code === "EADDRINUSE" && retries > 0) {
           console.error(`[WsBridge] Port ${WS_PORT} busy, retrying (${retries} left)...`);
           killStaleProcessOnPort(WS_PORT);
@@ -124,16 +133,52 @@ class WsBridge extends EventEmitter {
       };
 
       const onListening = () => {
-        wss.off("error", onError);
+        httpServer.off("error", onError);
+        this.httpServer = httpServer;
         this.wss = wss;
-        console.error(`[WsBridge] WebSocket server listening on ws://0.0.0.0:${WS_PORT}`);
+        console.error(`[WsBridge] HTTP + WebSocket listening on 0.0.0.0:${WS_PORT} (ws:// and http://)`);
         this._attachHandlers();
         resolve();
       };
 
-      wss.once("error", onError);
-      wss.once("listening", onListening);
+      httpServer.once("error", onError);
+      httpServer.once("listening", onListening);
+      httpServer.listen(WS_PORT, "0.0.0.0");
     });
+  }
+
+  /**
+   * index.ts 側が特定 path prefix 用の HTTP ハンドラを登録する (#302: MCP HTTP transport)。
+   * 登録順にマッチ判定、先にマッチしたものが処理。
+   */
+  registerHttpHandler(pathPrefix: string, handler: HttpRequestHandler): void {
+    this.httpRoutes.push({ pathPrefix, handler });
+  }
+
+  private async _handleHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const url = req.url ?? "/";
+    for (const route of this.httpRoutes) {
+      if (url === route.pathPrefix || url.startsWith(route.pathPrefix + "/") || url.startsWith(route.pathPrefix + "?")) {
+        try {
+          await route.handler(req, res);
+        } catch (e) {
+          console.error(`[WsBridge] HTTP handler error (${route.pathPrefix}):`, e);
+          if (!res.writableEnded) {
+            res.writeHead(500, { "Content-Type": "text/plain" });
+            res.end(`Internal error: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        return;
+      }
+    }
+    // Simple health check endpoint
+    if (url === "/" || url === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok", service: "designer-mcp", port: WS_PORT }));
+      return;
+    }
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
   }
 
   private _attachHandlers(): void {

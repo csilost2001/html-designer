@@ -109,23 +109,36 @@ Claude Code は内部で以下を順次実行:
 }
 ```
 
-### ポート 5179 の扱い
+### ポート 5179 の扱い (#302 以降)
 
-designer-mcp は WebSocket を port 5179 で listen する。他の designer-mcp インスタンス (dev server 経由で起動したもの等) が先に掴んでいる場合、新インスタンスが起動時に古い方の終了を待つ。明示的に killしたい場合:
+designer-mcp は HTTP + WebSocket を port 5179 で listen する常駐サーバ。以下の方法で起動:
+
+```bash
+cd designer-mcp
+npm run dev    # 端末を 1 つ占有して常駐、Ctrl+C で終了
+```
+
+同 port に HTTP MCP endpoint (`/mcp`) とブラウザ向け WebSocket を同居。`.mcp.json` の URL エントリ経由で Claude Code が接続、複数 Claude Code セッション同時接続 OK。
+
+旧仕様 (#302 以前): `.mcp.json` の command エントリで `npx tsx designer-mcp/src/index.ts` を自動 spawn していた → port 競合・orphan 発生で廃止。
+
+古い orphan プロセスが残っていた場合は kill:
 
 ```bash
 netstat -ano | grep :5179  # PID 取得
-taskkill /F /PID <PID>     # Windows
+taskkill //F //PID <PID>   # Windows (Git Bash は //F の escape 必要)
 # kill -9 <PID>            # macOS/Linux
 ```
 
 ## トラブル例
 
-### 「designer-mcp が起動しない」
+### 「designer-mcp に接続できない / MCP FAIL」
 
-- `.mcp.json` が正しく読まれているか (`claude` を本プロジェクト内で起動したか)
+- `cd designer-mcp && npm run dev` で **常駐サーバを起動済みか** 確認 (#302 以降は自動 spawn しない)
+- `netstat -ano | grep :5179` で LISTENING プロセスが存在するか
+- `curl http://localhost:5179/` で `{"status":"ok",...}` が返るか
+- `.mcp.json` の designer-mcp エントリが URL 形式 (`"type": "http"`, `"url": "http://localhost:5179/mcp"`) か
 - `designer-mcp` の依存がインストール済みか (`cd designer-mcp && npm install`)
-- ポート 5179 が別プロセスで専有されていないか
 
 ### 「marker 起票したのにブラウザに反映されない」
 

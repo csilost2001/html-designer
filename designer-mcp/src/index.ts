@@ -1,5 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { randomUUID } from "node:crypto";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -34,14 +35,13 @@ async function saveAndBroadcast(agId: string, ag: ActionGroupDoc): Promise<void>
   wsBridge.broadcast("actionGroupChanged", { id: agId });
 }
 
-// 親プロセス（Claude Code）が死んだら自動終了
+// 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
+// stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
 function setupLifecycle(): void {
   const exitHandler = (reason: string) => {
     console.error(`[MCP] Exiting: ${reason}`);
     process.exit(0);
   };
-  process.stdin.on("end", () => exitHandler("stdin ended"));
-  process.stdin.on("close", () => exitHandler("stdin closed"));
   process.on("SIGTERM", () => exitHandler("SIGTERM"));
   process.on("SIGINT", () => exitHandler("SIGINT"));
   process.on("disconnect", () => exitHandler("disconnected from parent"));
@@ -49,7 +49,7 @@ function setupLifecycle(): void {
 
 setupLifecycle();
 
-// WebSocketブリッジを起動（古いプロセスが残っていれば自動終了を待つ）
+// HTTP + WebSocket サーバ起動 (port 5179 に両方同居)
 await wsBridge.start();
 wsBridge.on("connected", () => console.error("[MCP] Designer connected via WebSocket"));
 wsBridge.on("disconnected", () => console.error("[MCP] Designer disconnected"));
@@ -1311,11 +1311,26 @@ function autoIncrementType(dt: string, dialect: string): string {
   }
 }
 
-// 起動
+// 起動 (#302): HTTP transport のみ。port 5179 の `/mcp` endpoint を公開、常駐バックエンド。
+// Streamable HTTP transport はセッション管理を内部で行うため、プロセス全体で 1 インスタンス。
+// Server は transport と 1:1 で connect、全リクエストは transport.handleRequest に委譲。
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("[MCP] designer-mcp server started (stdio)");
+  const httpTransport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  });
+  await server.connect(httpTransport);
+  wsBridge.registerHttpHandler("/mcp", async (req, res) => {
+    try {
+      await httpTransport.handleRequest(req, res);
+    } catch (e) {
+      console.error("[MCP/HTTP] handler error:", e);
+      if (!res.writableEnded) {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end(`Internal error: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  });
+  console.error("[MCP] designer-mcp HTTP transport mounted at http://localhost:5179/mcp");
 }
 
 main().catch((err) => {

@@ -5,8 +5,8 @@
       "args": ["-y", "@playwright/mcp@latest"]
     },
     "designer-mcp": {
-      "command": "npx",
-      "args": ["tsx", "designer-mcp/src/index.ts"]
+      "type": "http",
+      "url": "http://localhost:5179/mcp"
     }
   }
 }

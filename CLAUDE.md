@@ -32,6 +32,8 @@ npm run build      # Compile to dist/
 
 Both servers must run simultaneously for file-based persistence. Without designer-mcp, the frontend falls back to localStorage.
 
+`designer-mcp` は常駐サーバ (#302): `cd designer-mcp && npm run dev` で 1 回起動すれば、ブラウザ・複数の Claude Code セッション双方が接続できる。Claude Code 終了でも停止しないので、次回以降も使い回し可能。
+
 ### Test Data
 
 ```bash
@@ -43,14 +45,21 @@ node docs/sample-project/seed.mjs   # Generate 10 sample screens into data/
 ### Two-Process Design
 
 ```
-Claude Code ──(stdio)──→ designer-mcp ←──(ws://0.0.0.0:5179)──→ Browser
-                              ↕
-                         data/ folder
+Claude Code ──(http://localhost:5179/mcp)──┐
+                                           ▼
+                                      designer-mcp ←──(ws://0.0.0.0:5179)──→ Browser
+                                           ▼
+                                       data/ folder
 ```
 
-- **MCP (stdio):** Claude Code sends commands (add screen, set components, etc.)
-- **WebSocket (port 5179):** Browser reads/writes screen data via wsBridge
+- **MCP (HTTP Streamable, port 5179):** Claude Code が `.mcp.json` の URL エントリで接続 (#302)。常駐サーバなので複数 Claude Code セッション同時接続可、orphan 問題も解消
+- **WebSocket (port 5179):** Browser reads/writes screen data via wsBridge — MCP と同一 port に同居
 - **Shared storage:** Both access `data/` directory (project.json + screens/*.json)
+
+### 起動
+
+- **通常の開発フロー**: `cd designer-mcp && npm run dev` で常駐起動 (任意のタイミングで 1 回)。Claude Code も同プロジェクトで開けば `.mcp.json` の URL エントリ経由で自動接続。
+- **.mcp.json 経由の自動 spawn はしない** (URL mode): Claude Code 起動時に既存サーバが無いと MCP 不接続状態になるため、backend が上がっているか先に確認すること。
 
 ### Routing
 
