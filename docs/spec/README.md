@@ -12,6 +12,7 @@
 | [process-flow-extensions.md](process-flow-extensions.md) | HTTP 契約 / TX / Saga / 外部 outcomes / ValidationRule / compute / return (Phase B) | #151 / #182 |
 | [process-flow-expression-language.md](process-flow-expression-language.md) | runIf / expression / bodyExpression の式言語 BNF (js-subset) | #253 |
 | [process-flow-runtime-conventions.md](process-flow-runtime-conventions.md) | SQL 式補間 / HTTP body シリアライズ / TX×throw×tryCatch / fireAndForget / sideEffects TX 境界等の実行時規約 | #261 |
+| [screen-items.md](screen-items.md) | 画面項目定義 (フォーム系バリデーション 3 層のうち「画面」層) — **ドラフト v0.1** | #318 |
 
 **一次成果物**: JSON スキーマ [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) ([README](../../schemas/README.md))。仕様書と突合する機械可読版。
 
