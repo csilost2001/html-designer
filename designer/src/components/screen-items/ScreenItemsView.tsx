@@ -1,11 +1,19 @@
 /**
- * 画面項目定義ビュー (#318 プロトタイプ)。
+ * 画面項目定義ビュー (#318 プロトタイプ、#323 既存画面からの抽出対応)。
  *
  * MVP: シングルトンタブで、中で画面を選択して項目を編集する。
- * 将来 (#318 v1.0 合意後): /screen/items/:screenId の per-screen タブに分割。
+ * 保存・リセット・undo/redo は useResourceEditor + EditorHeader に統一 (#318 改善)。
+ *
+ * 項目追加経路 3 つ:
+ * 1. 空欄追加 (従来)
+ * 2. 画面デザインから選択 (#323 — モーダルで候補リスト + チェックボックス)
+ * 3. (将来) GrapesJS サイドバーからの直接追加 (#322)
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TableSubToolbar } from "../table/TableSubToolbar";
+import { EditorHeader } from "../common/EditorHeader";
+import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { useResourceEditor } from "../../hooks/useResourceEditor";
 import {
   loadScreenItems,
   saveScreenItems,
@@ -14,6 +22,8 @@ import { loadProject } from "../../store/flowStore";
 import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
 import { generateUUID } from "../../utils/uuid";
+import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
+import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
 import "../../styles/screen-items.css";
 
 const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> =
@@ -21,44 +31,54 @@ const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> =
 
 type ScreenMeta = { id: string; name: string };
 
+/** useResourceEditor 互換のため ScreenItemsFile を読み書きする load/save ラッパー */
+async function loadFile(screenId: string): Promise<ScreenItemsFile | null> {
+  return loadScreenItems(screenId);
+}
+async function saveFile(data: ScreenItemsFile): Promise<void> {
+  await saveScreenItems(data);
+}
+
 export function ScreenItemsView() {
   const [screens, setScreens] = useState<ScreenMeta[]>([]);
-  const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null);
-  const [file, setFile] = useState<ScreenItemsFile | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [selectedScreenId, setSelectedScreenId] = useState<string | undefined>(undefined);
+  const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
 
-  // 画面一覧をロード
+  // 画面一覧をロード (初回 + プロジェクト変更)
   useEffect(() => {
     loadProject().then((p) => {
       const metas = p.screens.map((s) => ({ id: s.id, name: s.name }));
       setScreens(metas);
-      if (metas.length > 0 && !selectedScreenId) {
-        setSelectedScreenId(metas[0].id);
-      }
+      setSelectedScreenId((cur) => cur ?? (metas.length > 0 ? metas[0].id : undefined));
     }).catch(console.error);
   }, []);
 
-  // 選択画面が変わったら項目ファイルをロード
-  useEffect(() => {
-    if (!selectedScreenId) { setFile(null); return; }
-    loadScreenItems(selectedScreenId).then((f) => {
-      setFile(f);
-      setIsDirty(false);
-    }).catch(console.error);
-  }, [selectedScreenId]);
+  const {
+    state: file,
+    isDirty, isSaving, serverChanged,
+    update, updateSilent, commit,
+    undo, redo, canUndo, canRedo,
+    handleSave, handleReset, dismissServerBanner,
+  } = useResourceEditor<ScreenItemsFile>({
+    tabType: "screen-items",
+    mtimeKind: "screenItems",
+    draftKind: "screen-items",
+    id: selectedScreenId,
+    load: loadFile,
+    save: saveFile,
+    broadcastName: "screenItemsChanged",
+    broadcastIdField: "screenId",
+  });
 
-  const update = useCallback((mut: (f: ScreenItemsFile) => void) => {
-    setFile((prev) => {
-      if (!prev) return prev;
-      const next = structuredClone(prev);
-      mut(next);
-      return next;
-    });
-    setIsDirty(true);
-  }, []);
+  const handleSwitchScreen = (nextId: string) => {
+    if (isDirty) {
+      const ok = window.confirm("未保存の変更があります。破棄して別の画面に切り替えますか?");
+      if (!ok) return;
+    }
+    setSelectedScreenId(nextId);
+  };
 
-  const handleAddItem = () => {
+  const handleAddItem = useCallback(() => {
     update((f) => {
       f.items.push({
         id: generateUUID(),
@@ -67,76 +87,90 @@ export function ScreenItemsView() {
         type: "string",
       });
     });
-  };
+  }, [update]);
 
-  const handleUpdateItem = (idx: number, patch: Partial<ScreenItem>) => {
-    update((f) => {
+  const handleUpdateItem = useCallback((idx: number, patch: Partial<ScreenItem>) => {
+    updateSilent((f) => {
       Object.assign(f.items[idx], patch);
     });
-  };
+  }, [updateSilent]);
 
-  const handleRemoveItem = (idx: number) => {
+  const handleRemoveItem = useCallback((idx: number) => {
     update((f) => {
       f.items.splice(idx, 1);
     });
-  };
+  }, [update]);
 
-  const handleSave = async () => {
-    if (!file) return;
-    setIsSaving(true);
-    try {
-      await saveScreenItems(file);
-      setIsDirty(false);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  /** 候補モーダルから受け取った ExtractedCandidate[] を ScreenItem[] として一括追加 */
+  const handleAddCandidates = useCallback((cands: ExtractedCandidate[]) => {
+    if (cands.length === 0) return;
+    update((f) => {
+      for (const c of cands) {
+        f.items.push({
+          id: generateUUID(),
+          name: c.name || "",
+          label: c.label || "",
+          type: c.type,
+          required: c.required,
+          minLength: c.minLength,
+          maxLength: c.maxLength,
+          pattern: c.pattern,
+          placeholder: c.placeholder,
+        });
+      }
+    });
+  }, [update]);
+
+  const existingNames = useMemo(
+    () => new Set((file?.items ?? []).map((i) => i.name).filter(Boolean)),
+    [file]
+  );
+
+  const selectedScreenName = screens.find((s) => s.id === selectedScreenId)?.name;
 
   return (
     <div className="screen-items-view">
       <TableSubToolbar />
 
-      <div className="screen-items-header">
-        <div className="screen-items-title">
-          <i className="bi bi-ui-checks-grid" /> 画面項目定義
-          <span className="badge bg-warning text-dark ms-2" style={{ fontSize: "0.7rem" }}>
-            ドラフト (#318)
+      {serverChanged && (
+        <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
+      )}
+
+      <EditorHeader
+        title={
+          <span className="fw-semibold">
+            <i className="bi bi-ui-checks-grid me-1" />
+            画面項目定義
+            <span className="badge bg-warning text-dark ms-2" style={{ fontSize: "0.7rem" }}>
+              ドラフト (#318)
+            </span>
           </span>
-        </div>
-        <div className="screen-items-screen-selector">
-          <label className="form-label mb-0 small fw-semibold">画面</label>
-          <select
-            className="form-select form-select-sm"
-            value={selectedScreenId ?? ""}
-            onChange={(e) => setSelectedScreenId(e.target.value || null)}
-            disabled={screens.length === 0}
-          >
-            {screens.length === 0 && <option value="">画面がありません</option>}
-            {screens.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="screen-items-actions">
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            onClick={handleSave}
-            disabled={!isDirty || isSaving}
-          >
-            <i className="bi bi-save me-1" />
-            {isSaving ? "保存中..." : "保存"}
-          </button>
-        </div>
-      </div>
+        }
+        centerTools={
+          <div className="d-flex align-items-center gap-2">
+            <label className="form-label mb-0 small fw-semibold">画面</label>
+            <select
+              className="form-select form-select-sm screen-items-screen-select"
+              value={selectedScreenId ?? ""}
+              onChange={(e) => handleSwitchScreen(e.target.value)}
+              disabled={screens.length === 0}
+            >
+              {screens.length === 0 && <option value="">画面がありません</option>}
+              {screens.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        }
+        undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
+        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+      />
 
       <div className="screen-items-content">
         {!selectedScreenId && (
           <div className="screen-items-empty">
             <p>画面を選択してください。</p>
-            <p className="text-muted small">
-              画面が 1 つも存在しない場合は、先に「画面一覧」から画面を作成してください。
-            </p>
+            <p className="text-muted small">画面が存在しない場合は、先に「画面一覧」で画面を作成してください。</p>
           </div>
         )}
         {selectedScreenId && file && (
@@ -171,7 +205,9 @@ export function ScreenItemsView() {
               <tbody>
                 {file.items.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="screen-items-empty-row">項目がありません。下の「項目追加」から追加してください。</td>
+                    <td colSpan={10} className="screen-items-empty-row">
+                      項目がありません。下のボタンから追加してください。
+                    </td>
                   </tr>
                 )}
                 {file.items.map((item, i) => (
@@ -182,6 +218,7 @@ export function ScreenItemsView() {
                         className="form-control form-control-sm"
                         value={item.name}
                         onChange={(e) => handleUpdateItem(i, { name: e.target.value })}
+                        onBlur={commit}
                         placeholder="email"
                       />
                     </td>
@@ -190,6 +227,7 @@ export function ScreenItemsView() {
                         className="form-control form-control-sm"
                         value={item.label}
                         onChange={(e) => handleUpdateItem(i, { label: e.target.value })}
+                        onBlur={commit}
                         placeholder="メールアドレス"
                       />
                     </td>
@@ -213,6 +251,7 @@ export function ScreenItemsView() {
                             handleUpdateItem(i, { type: { kind: "custom", label: v } });
                           }
                         }}
+                        onBlur={commit}
                         placeholder="string"
                       />
                     </td>
@@ -232,6 +271,7 @@ export function ScreenItemsView() {
                         value={item.minLength ?? ""}
                         min={0}
                         onChange={(e) => handleUpdateItem(i, { minLength: e.target.value === "" ? undefined : Number(e.target.value) })}
+                        onBlur={commit}
                       />
                     </td>
                     <td>
@@ -241,6 +281,7 @@ export function ScreenItemsView() {
                         value={item.maxLength ?? ""}
                         min={0}
                         onChange={(e) => handleUpdateItem(i, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
+                        onBlur={commit}
                       />
                     </td>
                     <td>
@@ -248,6 +289,7 @@ export function ScreenItemsView() {
                         className="form-control form-control-sm"
                         value={item.pattern ?? ""}
                         onChange={(e) => handleUpdateItem(i, { pattern: e.target.value || undefined })}
+                        onBlur={commit}
                         placeholder="@conv.regex.email-simple"
                       />
                     </td>
@@ -256,6 +298,7 @@ export function ScreenItemsView() {
                         className="form-control form-control-sm"
                         value={item.description ?? ""}
                         onChange={(e) => handleUpdateItem(i, { description: e.target.value || undefined })}
+                        onBlur={commit}
                       />
                     </td>
                     <td className="text-center">
@@ -273,19 +316,38 @@ export function ScreenItemsView() {
                 ))}
               </tbody>
             </table>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-primary screen-items-add"
-              onClick={handleAddItem}
-            >
-              <i className="bi bi-plus-lg me-1" /> 項目追加
-            </button>
+            <div className="screen-items-toolbar">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-primary screen-items-add"
+                onClick={handleAddItem}
+              >
+                <i className="bi bi-plus-lg me-1" /> 項目追加
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-primary screen-items-add"
+                onClick={() => setCandidatesModalOpen(true)}
+                title="現在選択中の画面デザインから input/select/textarea を抽出してチェックで追加"
+              >
+                <i className="bi bi-ui-checks me-1" /> 画面デザインから追加
+              </button>
+            </div>
             <datalist id="screen-items-type-list">
               {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}
             </datalist>
           </div>
         )}
       </div>
+
+      <ScreenItemCandidatesModal
+        open={candidatesModalOpen}
+        screenId={selectedScreenId ?? null}
+        screenName={selectedScreenName}
+        existingNames={existingNames}
+        onClose={() => setCandidatesModalOpen(false)}
+        onAddCandidates={handleAddCandidates}
+      />
     </div>
   );
 }
