@@ -65,7 +65,6 @@ export function AmbientVariablesPanel({ group, onChange, expanded: expandedProp,
           </div>
           {vars.length === 0 && <div className="catalog-empty">まだエントリがありません。</div>}
           {vars.map((v, i) => {
-            const isPrimitive = typeof v.type === "string";
             return (
               <div className="catalog-row" key={i}>
                 <div className="catalog-row-header">
@@ -98,32 +97,30 @@ export function AmbientVariablesPanel({ group, onChange, expanded: expandedProp,
                   </label>
                   <label>
                     type
-                    <select
-                      className="form-select form-select-sm"
-                      value={isPrimitive ? (v.type as string) : "custom"}
+                    <input
+                      list="ambient-variables-type-list"
+                      className="form-control form-control-sm"
+                      value={typeof v.type === "string"
+                        ? v.type
+                        : v.type.kind === "custom"
+                          ? v.type.label ?? ""
+                          : ""}
                       onChange={(ev) => {
                         const t = ev.target.value;
-                        if (PRIMITIVE_TYPES.includes(t as never)) {
+                        if (t === "") {
+                          update(i, { type: "string" });
+                        } else if ((PRIMITIVE_TYPES as string[]).includes(t)) {
                           update(i, { type: t as FieldType });
                         } else {
-                          update(i, { type: { kind: "custom", label: "" } });
+                          update(i, { type: { kind: "custom", label: t } });
                         }
                       }}
-                    >
-                      {PRIMITIVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      <option value="custom">custom (label 指定)</option>
-                    </select>
+                      placeholder="型 (string/DTO名 等)"
+                      title={typeof v.type === "object" && v.type.kind === "custom"
+                        ? `カスタム型: ${v.type.label}`
+                        : undefined}
+                    />
                   </label>
-                  {!isPrimitive && typeof v.type === "object" && v.type.kind === "custom" && (
-                    <label className="catalog-wide">
-                      custom label
-                      <input
-                        className="form-control form-control-sm"
-                        value={v.type.label}
-                        onChange={(ev) => update(i, { type: { kind: "custom", label: ev.target.value } })}
-                      />
-                    </label>
-                  )}
                   <label className="catalog-wide">
                     description
                     <input
@@ -142,6 +139,10 @@ export function AmbientVariablesPanel({ group, onChange, expanded: expandedProp,
               <i className="bi bi-plus-lg" /> 追加
             </button>
           </div>
+          {/* 型入力の候補 (primitive のみ提示、自由入力も可) — 全 row 共有 */}
+          <datalist id="ambient-variables-type-list">
+            {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}
+          </datalist>
         </div>
       )}
     </div>
