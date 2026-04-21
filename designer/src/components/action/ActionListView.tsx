@@ -13,6 +13,7 @@ import { loadProject, saveProject } from "../../store/flowStore";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+import { loadConventions } from "../../store/conventionsStore";
 import { listTables, loadTable } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -136,8 +137,8 @@ export function ActionListView() {
       );
       if (!cancelled) setTableDefs(defs.filter((d): d is ValidatorTableDef => d !== null));
     }).catch(console.error);
-    fetch("/conventions-catalog.json")
-      .then((r) => (r.ok ? r.json() : null))
+    // 規約カタログは wsBridge / localStorage 経由で取得 (#317)
+    loadConventions()
       .then((c) => { if (!cancelled) setConventions(c as ConventionsCatalog | null); })
       .catch(() => setConventions(null));
     return () => { cancelled = true; };

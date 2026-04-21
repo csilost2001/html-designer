@@ -16,9 +16,11 @@ export const DATA_DIR =
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
 const ACTIONS_DIR = path.join(DATA_DIR, "actions");
+const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
+export const CONVENTIONS_FILE = path.join(CONVENTIONS_DIR, "catalog.json");
 
 /** data/ と data/screens/ と data/tables/ を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
@@ -26,6 +28,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(SCREENS_DIR, { recursive: true });
   await fs.mkdir(TABLES_DIR, { recursive: true });
   await fs.mkdir(ACTIONS_DIR, { recursive: true });
+  await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -70,6 +73,7 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "project": return PROJECT_FILE;
     case "erLayout": return ER_LAYOUT_FILE;
     case "customBlocks": return CUSTOM_BLOCKS_FILE;
+    case "conventions": return CONVENTIONS_FILE;
     case "screen": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
     case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
     case "actionGroup": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
@@ -151,6 +155,17 @@ export async function deleteActionGroup(actionGroupId: string): Promise<void> {
   try {
     await fs.unlink(path.join(ACTIONS_DIR, `${actionGroupId}.json`));
   } catch { /* file not found is OK */ }
+}
+
+/** conventions/catalog.json を読み込み (#317) */
+export async function readConventions(): Promise<unknown | null> {
+  return readJSON<unknown>(CONVENTIONS_FILE);
+}
+
+/** conventions/catalog.json を書き込み (#317) */
+export async function writeConventions(data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(CONVENTIONS_FILE, data);
 }
 
 /** actions/ ディレクトリ内の全アクショングループを読み込み */

@@ -1,0 +1,173 @@
+/* 規約カタログビュー (#317) */
+
+.conventions-catalog-view {
+  height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.conventions-meta-bar {
+  padding: 6px 14px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.conventions-meta-bar label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.conventions-version-input {
+  max-width: 7em;
+}
+
+.conventions-description-input {
+  flex: 1 1 auto;
+  min-width: 20em;
+}
+
+.conventions-category-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0 14px;
+  background: #fff;
+  overflow-x: auto;
+}
+
+.conventions-category-tab {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #64748b;
+  border: none;
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conventions-category-tab:hover {
+  color: #334155;
+}
+
+.conventions-category-tab.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+  font-weight: 600;
+}
+
+.conventions-category-count {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.7rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.conventions-category-tab.active .conventions-category-count {
+  background: #6366f1;
+  color: #fff;
+}
+
+.conventions-category-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 14px;
+}
+
+.conventions-entries {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.conventions-empty {
+  color: #94a3b8;
+  padding: 16px;
+  text-align: center;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.conventions-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+.conventions-table thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 4px 6px;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+  background: transparent;
+}
+
+.conventions-table tbody td {
+  padding: 3px 6px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.conventions-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.conventions-table input.form-control {
+  width: 100%;
+  padding: 2px 6px;
+  font-size: 0.82rem;
+  min-width: 0;
+  min-height: 26px;
+  height: 28px;
+}
+
+.conventions-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.conventions-key-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1e40af;
+  background: #dbeafe;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.conventions-new-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 6px 0;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.conventions-new-key-input {
+  flex: 1 1 auto;
+  max-width: 24em;
+}

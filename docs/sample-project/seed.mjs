@@ -22,10 +22,13 @@ const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 const SEED_SCREENS_DIR = path.join(__dirname, "screens");
 const SEED_TABLES_DIR = path.join(__dirname, "tables");
 const SEED_ACTIONS_DIR = path.join(__dirname, "actions");
+const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
+const SEED_CONVENTIONS_DIR = path.join(__dirname, "conventions");
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });
 fs.mkdirSync(TABLES_DIR, { recursive: true });
 fs.mkdirSync(ACTIONS_DIR, { recursive: true });
+fs.mkdirSync(CONVENTIONS_DIR, { recursive: true });
 fs.mkdirSync(SEED_SCREENS_DIR, { recursive: true });
 
 // ── GrapesJS スクリーンデータ生成ヘルパー ─────────────────────────────────
@@ -856,10 +859,24 @@ if (fs.existsSync(SEED_ACTIONS_DIR)) {
   }
 }
 
+// ── 規約カタログをコピー (#317) ───────────────────────────────────────────
+// docs/sample-project/conventions/conventions-catalog.json を
+// data/conventions/catalog.json にコピー (ファイル名を正規化)
+let conventionsCount = 0;
+if (fs.existsSync(SEED_CONVENTIONS_DIR)) {
+  const src = path.join(SEED_CONVENTIONS_DIR, "conventions-catalog.json");
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.join(CONVENTIONS_DIR, "catalog.json"));
+    conventionsCount++;
+    console.log(`[conventions 1/1] catalog.json`);
+  }
+}
+
 console.log("\n✅ シードデータ生成完了");
 console.log(`   data/screens/        → ${count} ファイル`);
 console.log(`   data/tables/         → ${tableCount} ファイル`);
 console.log(`   data/actions/        → ${actionCount} ファイル`);
+console.log(`   data/conventions/    → ${conventionsCount} ファイル`);
 console.log(`   docs/sample-project/ → バックアップ済み`);
 console.log("\n復元方法:");
 console.log("   node docs/sample-project/seed.mjs");

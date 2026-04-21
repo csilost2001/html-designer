@@ -21,6 +21,8 @@ import {
   writeActionGroup,
   deleteActionGroup as deleteActionGroupFile,
   listActionGroups as listActionGroupFiles,
+  readConventions,
+  writeConventions,
   getFileMtime,
 } from "./projectStorage.js";
 
@@ -429,6 +431,18 @@ class WsBridge extends EventEmitter {
             updatedAt: ag.updatedAt,
           }));
           respond(metas);
+          break;
+        }
+        case "loadConventions": {
+          const catalog = await readConventions();
+          respond(catalog);
+          break;
+        }
+        case "saveConventions": {
+          const { catalog } = (params ?? {}) as { catalog: unknown };
+          await writeConventions(catalog);
+          respond({ success: true });
+          this.broadcast("conventionsChanged", {}, clientId);
           break;
         }
         case "getFileMtime": {

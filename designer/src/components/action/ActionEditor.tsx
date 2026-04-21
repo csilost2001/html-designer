@@ -29,6 +29,7 @@ import { hasBlockingErrors } from "../../utils/actionValidation";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+import { loadConventions } from "../../store/conventionsStore";
 import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
 import {
@@ -171,9 +172,9 @@ export function ActionEditor() {
       );
       setTableDefs(defs.filter((d): d is ValidatorTableDef => d !== null));
     }).catch(console.error);
-    // 規約カタログを public/ から fetch (#261 UI 統合)
-    fetch("/conventions-catalog.json")
-      .then((r) => (r.ok ? r.json() : null))
+    // 規約カタログは wsBridge / localStorage 経由で取得 (#317)。
+    // 未接続時は null。編集は「規約カタログ」タブから。
+    loadConventions()
       .then((c) => setConventions(c as ConventionsCatalog | null))
       .catch(() => setConventions(null));
   }, []);

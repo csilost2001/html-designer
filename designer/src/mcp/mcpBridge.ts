@@ -45,6 +45,10 @@ import {
   setActionStorageBackend,
   type ActionStorageBackend,
 } from "../store/actionStore";
+import {
+  setConventionsStorageBackend,
+  type ConventionsStorageBackend,
+} from "../store/conventionsStore";
 import { loadTable } from "../store/tableStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
@@ -274,6 +278,12 @@ class McpBridgeImpl {
       listActionGroups: () => this.request("listActionGroups"),
     };
     setActionStorageBackend(actionBackend);
+
+    const conventionsBackend: ConventionsStorageBackend = {
+      loadConventions: () => this.request("loadConventions"),
+      saveConventions: (catalog) => this.request("saveConventions", { catalog }).then(() => undefined),
+    };
+    setConventionsStorageBackend(conventionsBackend);
   }
 
   /** 切断時: localStorage フォールバックに戻す */
@@ -283,6 +293,7 @@ class McpBridgeImpl {
     setTableStorageBackend(null);
     setErLayoutStorageBackend(null);
     setActionStorageBackend(null);
+    setConventionsStorageBackend(null);
   }
 
   // ── メッセージ受信 ─────────────────────────────────────────────────────
