@@ -10,12 +10,21 @@ import type { ActionGroup, StructuredField, FieldType } from "../../types/action
 interface Props {
   group: ActionGroup;
   onChange: (group: ActionGroup) => void;
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
+  render?: "full" | "toggleOnly" | "bodyOnly";
 }
 
 const PRIMITIVE_TYPES: Array<FieldType & string> = ["string", "number", "boolean", "date"];
 
-export function AmbientVariablesPanel({ group, onChange }: Props) {
-  const [expanded, setExpanded] = useState(false);
+export function AmbientVariablesPanel({ group, onChange, expanded: expandedProp, onExpandedChange, render = "full" }: Props) {
+  const [expandedState, setExpandedState] = useState(false);
+  const isControlled = expandedProp !== undefined;
+  const expanded = isControlled ? expandedProp : expandedState;
+  const setExpanded = (next: boolean) => {
+    if (!isControlled) setExpandedState(next);
+    onExpandedChange?.(next);
+  };
   const vars = group.ambientVariables ?? [];
 
   const update = (idx: number, patch: Partial<StructuredField>) => {
@@ -33,18 +42,22 @@ export function AmbientVariablesPanel({ group, onChange }: Props) {
     onChange({ ...group, ambientVariables: next.length > 0 ? next : undefined });
   };
 
+  const showToggle = render !== "bodyOnly";
+  const showBody = render === "bodyOnly" || (render !== "toggleOnly" && expanded);
   return (
     <div className="catalog-panel ambient-variables-panel">
-      <button
-        type="button"
-        className="catalog-panel-toggle"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
-        <i className="bi bi-box-arrow-in-down-left" />
-        {" "}Ambient 変数 (ambientVariables: {vars.length} 件)
-      </button>
-      {expanded && (
+      {showToggle && (
+        <button
+          type="button"
+          className="catalog-panel-toggle"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
+          <i className="bi bi-box-arrow-in-down-left" />
+          {" "}Ambient 変数 (ambientVariables: {vars.length} 件)
+        </button>
+      )}
+      {showBody && (
         <div className="catalog-panel-body">
           <div className="catalog-help">
             ミドルウェア / フレームワーク由来の自動注入変数を宣言。@requestId / @traceId /

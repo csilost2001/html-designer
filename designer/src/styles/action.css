@@ -11,7 +11,8 @@
 .action-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  /* #309 フォローアップ: 情報密度優先。4K で余白過多にならないよう縦 8px / 横 14px */
+  padding: 8px 14px;
 }
 
 /* ─── 処理フロー一覧 ─────────────────────────────────────────────── */
@@ -186,16 +187,6 @@
   text-decoration: underline;
 }
 
-.action-editor-info {
-  padding: 16px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.action-editor-info .row {
-  gap: 8px 0;
-}
-
 /* ─── アクションタブ ──────────────────────────────────────────────── */
 
 .action-tabs {
@@ -248,14 +239,26 @@
 /* ─── I/O パネル ─────────────────────────────────────────────────── */
 
 .action-io-panel {
+  /* #310: 上下 2 段 (1fr) を既定に。以前は 1fr 1fr で左右分割していたが、
+     表形式モードで幅が狭く折り返して縦積みに見えていたため、全幅を確保。
+     #310 フォローアップ: 高解像度では左右 2 列に戻す (下の media query 参照)。 */
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
   margin-bottom: 16px;
   padding: 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
+}
+/* 1600px 以上 (4K 半分や 1920 以上の横広) では入出力を左右並びに戻す。
+   table-layout: fixed + col-*: 11em+9em+7em+... の合計 ≒ 400px 以上あれば折り返し
+   なく 1 項目 1 行が収まる。1600px / 2 ≒ 780px > 400px で十分余裕がある。 */
+@media (min-width: 1600px) {
+  .action-io-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
 }
 
 .action-io-field .form-label {
@@ -271,11 +274,97 @@
   resize: vertical;
 }
 
+/* StructuredFieldsEditor (#310): 1 項目 1 行テーブル */
+.structured-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.structured-fields-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.structured-fields-header .btn-group .btn {
+  font-size: 0.7rem;
+  padding: 0 6px;
+}
+.structured-fields-body {
+  font-size: 0.78rem;
+}
+.structured-fields-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+}
+.structured-fields-table thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  padding: 3px 4px;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+  background: transparent;
+}
+.structured-fields-table tbody td {
+  padding: 2px 4px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+}
+.structured-fields-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.structured-fields-table input.form-control,
+.structured-fields-table select.form-select {
+  width: 100%;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  min-width: 0;
+  min-height: 24px;
+  height: 26px;
+}
+.structured-fields-table .col-no { width: 32px; }
+.structured-fields-table .col-name { width: 11em; }
+.structured-fields-table .col-label { width: 9em; }
+.structured-fields-table .col-type { width: 7em; }
+.structured-fields-table .col-required { width: 3.5em; }
+.structured-fields-table .col-desc { width: auto; }
+.structured-fields-table .col-actions { width: 28px; }
+.structured-fields-no {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  text-align: center;
+}
+.structured-fields-required {
+  margin: 0 auto;
+  display: block;
+}
+.structured-fields-delete {
+  line-height: 1;
+  padding: 0 !important;
+}
+.structured-fields-empty {
+  color: #94a3b8;
+  padding: 10px;
+  text-align: center;
+  font-style: italic;
+  font-size: 0.78rem;
+}
+.structured-fields-add {
+  font-size: 0.75rem;
+  margin-top: 4px;
+  align-self: flex-start;
+  padding: 2px 10px;
+}
+
 /* ─── ステップエディタ ────────────────────────────────────────────── */
 
 .step-editor {
-  padding: 20px;
-  max-width: 800px;
+  /* #313: max-width 800px を撤去し viewport 幅を活かす。padding は親の
+     .action-content が担当するので 0。4K でもパネル幅を有効利用する。 */
+  padding: 0;
 }
 
 .step-toolbar {
@@ -1263,11 +1352,95 @@
   cursor: pointer;
 }
 .catalog-panel-toggle:hover { background: #f1f5f9; }
+
+/* ─── メタタブバー (#309) ─────────────────────────────────────────
+   ActionEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
+   排他的に 1 つだけ body を全幅で展開する。 */
+.action-meta-tabbar {
+  padding: 3px 14px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.action-meta-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  row-gap: 3px;
+}
+.action-meta-tabs .catalog-panel {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.action-meta-tabs .catalog-panel-toggle {
+  width: auto;
+  padding: 2px 8px;
+  font-size: 0.76rem;
+}
+/* アクティブ (展開中) のパネルを強調: chevron-down アイコンの存在で判定 (:has) */
+.action-meta-tabs .catalog-panel:has(.bi-chevron-down) {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+.action-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle {
+  color: #1e40af;
+}
+.action-meta-tabbar-spacer {
+  flex: 1 1 auto;
+}
+.action-meta-tabbar-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  padding: 0 4px;
+}
+.action-meta-maturity-label {
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.75rem;
+}
+.action-meta-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.action-meta-body {
+  padding: 6px 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.action-meta-body.action-meta-info-body {
+  padding: 8px 10px;
+}
+/* メタタブバー配下の body は外枠はタブバーが提供するので、
+   各 Panel の border は解除して内側 padding のみにする */
+.action-meta-body > .catalog-panel {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+.action-meta-body > .catalog-panel > .catalog-panel-body {
+  max-height: none;
+  padding: 0;
+  border-top: none;
+}
 .catalog-panel-body {
   padding: 8px 12px;
   border-top: 1px solid #e2e8f0;
-  /* 長くなった panel (MarkerPanel に marker が大量 等) が .action-editor-info を押し広げて
-     下のステップ領域を viewport 外に押し出すのを防ぐ。各 panel 個別に内部スクロール。 */
+  /* 長くなった panel (MarkerPanel に marker が大量 等) が上部領域を押し広げて
+     下のステップ領域を viewport 外に押し出すのを防ぐ。各 panel 個別に内部スクロール。
+     #309 タブバー化以降は .action-meta-body 内で overrideされる (max-height: none)。 */
   max-height: 40vh;
   overflow-y: auto;
 }

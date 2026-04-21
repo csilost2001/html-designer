@@ -38,6 +38,11 @@ function collectStepIds(group: ActionGroup): Set<string> {
 interface Props {
   group: ActionGroup;
   onChange: (group: ActionGroup) => void;
+  /** 親から排他展開を制御する場合に指定 (undefined なら内部 state) */
+  expanded?: boolean;
+  onExpandedChange?: (next: boolean) => void;
+  /** ActionMetaTabBar から toggle / body を別 DOM 位置に描画する場合に使用 */
+  render?: "full" | "toggleOnly" | "bodyOnly";
 }
 
 const KIND_LABELS: Record<MarkerKind, string> = {
@@ -53,10 +58,16 @@ const KIND_ICONS: Record<MarkerKind, string> = {
   question: "bi-question-circle",
 };
 
-export function MarkerPanel({ group, onChange }: Props) {
+export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpandedChange, render = "full" }: Props) {
   // 既定で折りたたみ (#261 anchor 改善とセット): マーカー追加/解決時の
   // 縦方向レイアウト揺れを抑えて、描画マーカーの画面内位置ずれを減らす。
-  const [expanded, setExpanded] = useState(false);
+  const [expandedState, setExpandedState] = useState(false);
+  const isControlled = expandedProp !== undefined;
+  const expanded = isControlled ? expandedProp : expandedState;
+  const setExpanded = (next: boolean) => {
+    if (!isControlled) setExpandedState(next);
+    onExpandedChange?.(next);
+  };
   const [newKind, setNewKind] = useState<MarkerKind>("chat");
   const [newBody, setNewBody] = useState("");
   const [showResolved, setShowResolved] = useState(false);
@@ -70,7 +81,11 @@ export function MarkerPanel({ group, onChange }: Props) {
   const existingStepIds = useMemo(() => collectStepIds(group), [group]);
   const isOrphanAnchor = (m: Marker): boolean => {
     const anchorId = m.shape?.anchorStepId ?? m.stepId;
-    return !!anchorId && !existingStepIds.has(anchorId);
+    if (!anchorId) return false;
+    // ActionMetaTabBar の body (基本情報タブ/カタログタブ) に描画された場合の擬似 ID (#309 フォローアップ)
+    // これは group.actions[*].steps に存在しないが orphan ではなく「タブが閉じている」状態なので除外
+    if (anchorId.startsWith("__meta-tab-")) return false;
+    return !existingStepIds.has(anchorId);
   };
 
   const addMarker = () => {
@@ -125,18 +140,22 @@ export function MarkerPanel({ group, onChange }: Props) {
     onChange({ ...group, markers: next });
   };
 
+  const showToggle = render !== "bodyOnly";
+  const showBody = render === "bodyOnly" || (render !== "toggleOnly" && expanded);
   return (
     <div className="catalog-panel marker-panel">
-      <button
-        type="button"
-        className="catalog-panel-toggle"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
-        <i className="bi bi-megaphone" />
-        {" "}AI へのマーカー ({unresolved} 未解決 / {markers.length} 総件数)
-      </button>
-      {expanded && (
+      {showToggle && (
+        <button
+          type="button"
+          className="catalog-panel-toggle"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
+          <i className="bi bi-megaphone" />
+          {" "}AI へのマーカー ({unresolved} 未解決 / {markers.length} 総件数)
+        </button>
+      )}
+      {showBody && (
         <div className="catalog-panel-body">
           <div className="catalog-help">
             AI (Claude Code) への指示・質問を保持。
