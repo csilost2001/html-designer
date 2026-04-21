@@ -14,6 +14,8 @@ import type { FieldType } from "../types/action";
 export interface ExtractedCandidate {
   /** 元 HTML 要素の outerHTML (モーダルで表示するプレビュー用) */
   elementHtml: string;
+  /** GrapesJS 側で発番された data-item-id (#322)。ScreenItem.id として使う */
+  dataItemId?: string;
   /** HTML name 属性 (なければ placeholder ベースの推測) */
   name: string;
   /** label 推定 (nearby <label> or placeholder or name) */
@@ -133,6 +135,7 @@ export function extractScreenItemCandidates(screenData: unknown): ExtractedCandi
 
     candidates.push({
       elementHtml: (el as HTMLElement).outerHTML.slice(0, 300),
+      dataItemId: el.getAttribute("data-item-id") || undefined,
       name,
       label,
       type,

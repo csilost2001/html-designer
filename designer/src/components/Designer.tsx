@@ -11,6 +11,7 @@ import "grapesjs/dist/css/grapes.min.css";
 
 import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
+import { attachDataItemIdAutoAssign } from "../grapes/dataItemId";
 import { registerRemoteStorage, saveScreenToFile, hasScreenDraft, clearScreenDraft } from "../grapes/remoteStorage";
 import { acknowledgeServerMtime, hasServerBeenUpdated } from "../utils/serverMtime";
 import { DesignSubToolbar } from "./design/DesignSubToolbar";
@@ -233,6 +234,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     };
     editor.on("component:add component:remove component:update style:change", markDirty);
 
+    // #322: input/select/textarea ブロック drop 時に data-item-id を自動発番
+    const unsubDataItemId = attachDataItemIdAutoAssign(editor);
+
     // MCPブリッジ起動
     const unsubscribe = mcpBridge.onStatusChange(setMcpStatus);
     mcpBridge.setThemeHandler((themeId) =>
@@ -255,6 +259,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
     return () => {
       editor.off("component:add component:remove component:update style:change", markDirty);
+      unsubDataItemId();
       unsubscribe();
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);

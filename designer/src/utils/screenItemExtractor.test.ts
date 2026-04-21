@@ -92,4 +92,16 @@ describe("extractScreenItemCandidates", () => {
     expect(cands[0].minLength).toBe(12);
     expect(cands[0].maxLength).toBe(13);
   });
+
+  it("data-item-id 属性 (#322) が抽出される", () => {
+    const html = `<input name="email" type="text" data-item-id="abc-123-item-id" />`;
+    const cands = extractScreenItemCandidates(gjsFromHtml(html));
+    expect(cands[0].dataItemId).toBe("abc-123-item-id");
+  });
+
+  it("data-item-id 無しなら dataItemId は undefined", () => {
+    const html = `<input name="name" type="text" />`;
+    const cands = extractScreenItemCandidates(gjsFromHtml(html));
+    expect(cands[0].dataItemId).toBeUndefined();
+  });
 });
