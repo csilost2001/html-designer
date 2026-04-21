@@ -101,13 +101,15 @@ export function ScreenItemsView() {
     });
   }, [update]);
 
-  /** 候補モーダルから受け取った ExtractedCandidate[] を ScreenItem[] として一括追加 */
+  /** 候補モーダルから受け取った ExtractedCandidate[] を ScreenItem[] として一括追加。
+   *  candidate が data-item-id を持つなら ScreenItem.id として採用し、画面 DOM と
+   *  1:1 でリンクする (#322)。持たない場合は UUID を新規発番。 */
   const handleAddCandidates = useCallback((cands: ExtractedCandidate[]) => {
     if (cands.length === 0) return;
     update((f) => {
       for (const c of cands) {
         f.items.push({
-          id: generateUUID(),
+          id: c.dataItemId || generateUUID(),
           name: c.name || "",
           label: c.label || "",
           type: c.type,
