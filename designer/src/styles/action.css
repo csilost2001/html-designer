@@ -362,8 +362,9 @@
 /* ─── ステップエディタ ────────────────────────────────────────────── */
 
 .step-editor {
-  padding: 20px;
-  max-width: 800px;
+  /* #313: max-width 800px を撤去し viewport 幅を活かす。padding は親の
+     .action-content が担当するので 0。4K でもパネル幅を有効利用する。 */
+  padding: 0;
 }
 
 .step-toolbar {
