@@ -1,0 +1,116 @@
+/**
+ * 画面項目ピッカーモーダル (#321)。
+ *
+ * 処理フローの入出力テーブルから「画面項目から追加」を押したときに開く。
+ * 画面 (左) と項目 (右) を選ばせ、選択された ScreenItem から派生した値
+ * (name / label / type / required / description) を StructuredFieldsEditor に返す。
+ */
+import { useEffect, useState } from "react";
+import { loadProject } from "../../store/flowStore";
+import { loadScreenItems } from "../../store/screenItemsStore";
+import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
+import type { ScreenItemPickResult } from "./StructuredFieldsEditor";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onPick: (result: ScreenItemPickResult) => void;
+}
+
+type ScreenMeta = { id: string; name: string };
+
+export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
+  const [screens, setScreens] = useState<ScreenMeta[]>([]);
+  const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null);
+  const [itemsFile, setItemsFile] = useState<ScreenItemsFile | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    loadProject().then((p) => {
+      setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
+    }).catch(console.error);
+  }, [open]);
+
+  useEffect(() => {
+    if (!selectedScreenId) { setItemsFile(null); return; }
+    loadScreenItems(selectedScreenId).then(setItemsFile).catch(console.error);
+  }, [selectedScreenId]);
+
+  if (!open) return null;
+
+  const handlePick = (item: ScreenItem) => {
+    if (!selectedScreenId) return;
+    onPick({
+      screenId: selectedScreenId,
+      itemId: item.id,
+      name: item.name || item.id,
+      label: item.label || undefined,
+      type: item.type,
+      required: item.required || undefined,
+      description: item.description || undefined,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="screen-item-picker-overlay" onClick={onClose}>
+      <div className="screen-item-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="screen-item-picker-header">
+          <h6 className="mb-0">
+            <i className="bi bi-ui-checks-grid me-1" />画面項目から追加
+          </h6>
+          <button type="button" className="btn btn-sm btn-link" onClick={onClose} aria-label="閉じる">
+            <i className="bi bi-x-lg" />
+          </button>
+        </div>
+        <div className="screen-item-picker-body">
+          <div className="screen-item-picker-screens">
+            <div className="small fw-semibold text-muted mb-1">画面</div>
+            {screens.length === 0 && (
+              <div className="small text-muted">画面が登録されていません</div>
+            )}
+            {screens.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`screen-item-picker-screen-row ${selectedScreenId === s.id ? "active" : ""}`}
+                onClick={() => setSelectedScreenId(s.id)}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+          <div className="screen-item-picker-items">
+            <div className="small fw-semibold text-muted mb-1">項目</div>
+            {!selectedScreenId && <div className="small text-muted">左から画面を選択してください</div>}
+            {selectedScreenId && itemsFile && itemsFile.items.length === 0 && (
+              <div className="small text-muted">この画面に項目がありません。「画面項目定義」タブで追加してください。</div>
+            )}
+            {selectedScreenId && itemsFile?.items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="screen-item-picker-item-row"
+                onClick={() => handlePick(item)}
+              >
+                <div className="screen-item-picker-item-name">{item.name || <span className="text-muted">(名前未設定)</span>}</div>
+                <div className="screen-item-picker-item-meta">
+                  {item.label && <span className="me-2">{item.label}</span>}
+                  <span className="text-muted">
+                    {typeof item.type === "string" ? item.type : item.type.kind === "custom" ? item.type.label : "?"}
+                  </span>
+                  {item.required && <span className="badge bg-danger ms-2" style={{ fontSize: "0.65rem" }}>必須</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="screen-item-picker-footer">
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onClose}>
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

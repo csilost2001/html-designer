@@ -103,9 +103,18 @@ interface ScreenItemsFile {
 
 ---
 
-### (B) 処理フローとの関係
+### (B) 処理フローとの関係 — **#321 で実装着手**
 
 処理フローの `inputs: StructuredField[]` と画面項目定義は重複する可能性がある。どう整合するか。
+
+**✅ 採用: 案 B-1 処理フロー inputs が画面項目を参照** (PR #321 で実装):
+- `StructuredField.screenItemRef?: { screenId: string; itemId: string }` を追加
+- ActionEditor の入出力テーブルに「画面項目から追加」ボタン + `ScreenItemPickerModal`
+- 参照時は ScreenItem から name/label/type/required/description を一回コピー (一方向)
+- 参照解除ボタンで `screenItemRef` のみ削除、フィールドは残る
+- **TODO (別 issue)**: 参照整合性バリデータ (UNKNOWN_SCREEN_ITEM)、参照後の画面項目更新を自動反映する双方向同期
+
+(以降の代替案は履歴として残す)
 
 **案 B-1 処理フロー inputs が画面項目を参照 (推奨)**:
 ```json

@@ -274,7 +274,17 @@
         "type": { "$ref": "#/$defs/FieldType" },
         "required": { "type": "boolean" },
         "description": { "type": "string" },
-        "defaultValue": { "type": "string" }
+        "defaultValue": { "type": "string" },
+        "screenItemRef": {
+          "type": "object",
+          "required": ["screenId", "itemId"],
+          "additionalProperties": false,
+          "description": "画面項目定義への参照 (#321)。設定時は ScreenItem から name/label/type/required/pattern/maxLength 等を上書き解釈する",
+          "properties": {
+            "screenId": { "type": "string" },
+            "itemId": { "type": "string" }
+          }
+        }
       }
     },
     "ActionFields": {
