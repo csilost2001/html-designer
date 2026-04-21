@@ -1266,6 +1266,10 @@
 .catalog-panel-body {
   padding: 8px 12px;
   border-top: 1px solid #e2e8f0;
+  /* 長くなった panel (MarkerPanel に marker が大量 等) が .action-editor-info を押し広げて
+     下のステップ領域を viewport 外に押し出すのを防ぐ。各 panel 個別に内部スクロール。 */
+  max-height: 40vh;
+  overflow-y: auto;
 }
 .catalog-help {
   font-size: 0.75rem;
