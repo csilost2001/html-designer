@@ -498,13 +498,17 @@ export function ActionEditor() {
       // anchor があれば Marker.stepId / fieldPath にも自動反映:
       // /designer-work スラッシュコマンドは stepId / fieldPath を既存で読むので、
       // AI 側は「どの step のどのフィールドへの指示か」を即座に把握できる。
+      // ただし __meta-tab-* は ActionMetaTabBar の body 用擬似 ID (#309 フォローアップ) で
+      // 実 step ID ではないため、Marker.stepId / fieldPath にはコピーしない
+      // (shape.anchorStepId 側に残るので DrawingOverlay の位置追従は効く)。
+      const isMetaTabAnchor = shape.anchorStepId?.startsWith("__meta-tab-") ?? false;
       g.markers = [...(g.markers ?? []), {
         id: generateUUID(),
         kind: "todo",
         body: body.trim(),
         shape,
-        stepId: shape.anchorStepId,
-        fieldPath: shape.anchorFieldPath,
+        stepId: isMetaTabAnchor ? undefined : shape.anchorStepId,
+        fieldPath: isMetaTabAnchor ? undefined : shape.anchorFieldPath,
         author: "human",
         createdAt: new Date().toISOString(),
       }];

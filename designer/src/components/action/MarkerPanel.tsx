@@ -81,7 +81,11 @@ export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpande
   const existingStepIds = useMemo(() => collectStepIds(group), [group]);
   const isOrphanAnchor = (m: Marker): boolean => {
     const anchorId = m.shape?.anchorStepId ?? m.stepId;
-    return !!anchorId && !existingStepIds.has(anchorId);
+    if (!anchorId) return false;
+    // ActionMetaTabBar の body (基本情報タブ/カタログタブ) に描画された場合の擬似 ID (#309 フォローアップ)
+    // これは group.actions[*].steps に存在しないが orphan ではなく「タブが閉じている」状態なので除外
+    if (anchorId.startsWith("__meta-tab-")) return false;
+    return !existingStepIds.has(anchorId);
   };
 
   const addMarker = () => {

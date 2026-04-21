@@ -188,9 +188,12 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
         </div>
       )}
 
-      {/* アクティブタブの body を全幅で展開 */}
+      {/* アクティブタブの body を全幅で展開。
+          data-step-id="__meta-tab-xxx" を付与することで DrawingOverlay が
+          描画マーカーを body 要素に anchor 追従させる (タブ切替で body が消えると
+          orphan 扱いで非表示、再度開くと元位置に戻る)。 */}
       {active === "info" && (
-        <div className="action-meta-body action-meta-info-body">
+        <div className="action-meta-body action-meta-info-body" data-step-id="__meta-tab-info">
           <div className="row g-2">
             <div className="col-md-4">
               <label className="form-label small fw-semibold">名前</label>
@@ -246,22 +249,34 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
         </div>
       )}
       {active === "marker" && (
-        <MarkerPanel group={group} onChange={onMarkersChange} render="bodyOnly" />
+        <div className="action-meta-body" data-step-id="__meta-tab-marker">
+          <MarkerPanel group={group} onChange={onMarkersChange} render="bodyOnly" />
+        </div>
       )}
       {active === "error" && (
-        <ErrorCatalogPanel group={group} onChange={onErrorCatalogChange} render="bodyOnly" />
+        <div className="action-meta-body" data-step-id="__meta-tab-error">
+          <ErrorCatalogPanel group={group} onChange={onErrorCatalogChange} render="bodyOnly" />
+        </div>
       )}
       {active === "ambient" && (
-        <AmbientVariablesPanel group={group} onChange={onAmbientChange} render="bodyOnly" />
+        <div className="action-meta-body" data-step-id="__meta-tab-ambient">
+          <AmbientVariablesPanel group={group} onChange={onAmbientChange} render="bodyOnly" />
+        </div>
       )}
       {active === "secrets" && (
-        <SecretsCatalogPanel group={group} onChange={onSecretsChange} render="bodyOnly" />
+        <div className="action-meta-body" data-step-id="__meta-tab-secrets">
+          <SecretsCatalogPanel group={group} onChange={onSecretsChange} render="bodyOnly" />
+        </div>
       )}
       {active === "external" && (
-        <ExternalSystemCatalogPanel group={group} onChange={onExternalChange} render="bodyOnly" />
+        <div className="action-meta-body" data-step-id="__meta-tab-external">
+          <ExternalSystemCatalogPanel group={group} onChange={onExternalChange} render="bodyOnly" />
+        </div>
       )}
       {active === "type" && (
-        <TypeCatalogPanel group={group} onChange={onTypeChange} render="bodyOnly" />
+        <div className="action-meta-body" data-step-id="__meta-tab-type">
+          <TypeCatalogPanel group={group} onChange={onTypeChange} render="bodyOnly" />
+        </div>
       )}
     </div>
   );

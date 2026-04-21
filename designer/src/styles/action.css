@@ -11,7 +11,8 @@
 .action-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  /* #309 フォローアップ: 情報密度優先。4K で余白過多にならないよう縦 8px / 横 14px */
+  padding: 8px 14px;
 }
 
 /* ─── 処理フロー一覧 ─────────────────────────────────────────────── */
@@ -1258,19 +1259,19 @@
    ActionEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
    排他的に 1 つだけ body を全幅で展開する。 */
 .action-meta-tabbar {
-  padding: 6px 20px;
+  padding: 3px 14px;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 .action-meta-tabs {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  row-gap: 4px;
+  gap: 3px;
+  row-gap: 3px;
 }
 .action-meta-tabs .catalog-panel {
   margin: 0;
@@ -1278,8 +1279,8 @@
 }
 .action-meta-tabs .catalog-panel-toggle {
   width: auto;
-  padding: 4px 10px;
-  font-size: 0.78rem;
+  padding: 2px 8px;
+  font-size: 0.76rem;
 }
 /* アクティブ (展開中) のパネルを強調: chevron-down アイコンの存在で判定 (:has) */
 .action-meta-tabs .catalog-panel:has(.bi-chevron-down) {
@@ -1314,15 +1315,15 @@
   border: 1px solid #e2e8f0;
 }
 .action-meta-body {
-  padding: 10px 14px;
+  padding: 6px 10px;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 4px;
   max-height: 50vh;
   overflow-y: auto;
 }
 .action-meta-body.action-meta-info-body {
-  padding: 12px 14px;
+  padding: 8px 10px;
 }
 /* メタタブバー配下の body は外枠はタブバーが提供するので、
    各 Panel の border は解除して内側 padding のみにする */
