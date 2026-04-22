@@ -17,8 +17,9 @@ screenshots/
 
 # Claude Code local settings (skills/commands はチーム共有のため追跡対象)
 .claude/settings.local.json
-# Claude Code コマンドの一時出力 (例: /review-pr が書き出すレビュー結果)
-.claude/tmp/
+
+# 一時出力 (例: /review-pr /review-issue が書き出すレビュー結果は tmp/review-cache/ 配下)
+tmp/
 
 # Editor / OS
 .DS_Store
