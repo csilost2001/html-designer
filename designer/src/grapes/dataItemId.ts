@@ -20,7 +20,7 @@ import { generateAutoId } from "../utils/screenItemNaming";
 const NAMABLE_TAGS = new Set(["input", "select", "textarea", "button"]);
 const EXCLUDED_INPUT_TYPES = new Set(["button", "submit", "reset", "hidden", "image"]);
 
-function isNamableElement(cmp: Component): boolean {
+export function isNamableElement(cmp: Component): boolean {
   const tag = String(cmp.get("tagName") ?? "").toLowerCase();
   if (!NAMABLE_TAGS.has(tag)) return false;
   if (tag === "input") {
@@ -65,12 +65,24 @@ export function getItemIdPrefix(cmp: Component): string {
 }
 
 /** component とその子孫を再帰走査 */
-function walk(cmp: Component, visit: (c: Component) => void): void {
+export function walk(cmp: Component, visit: (c: Component) => void): void {
   visit(cmp);
   const children = cmp.components?.();
   if (children) {
     children.forEach((c: Component) => walk(c, visit));
   }
+}
+
+/** 画面内の全 name 属性値を収集して返す (reset 時の generateAutoId 用) */
+export function getExistingNamesFromEditor(editor: GEditor): string[] {
+  const wrapper = editor.getWrapper();
+  if (!wrapper) return [];
+  const existing: string[] = [];
+  walk(wrapper, (c) => {
+    const nameVal = String(c.getAttributes?.()?.name ?? "");
+    if (nameVal) existing.push(nameVal);
+  });
+  return existing;
 }
 
 /**
