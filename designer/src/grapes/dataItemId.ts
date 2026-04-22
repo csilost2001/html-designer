@@ -30,18 +30,37 @@ function isFormField(cmp: Component): boolean {
   return true;
 }
 
-function getDataItemId(cmp: Component): string | undefined {
+/**
+ * form field に data-item-id / name / id を一括で付与する。
+ * 既に値がある属性は絶対に上書きしない。
+ * @returns 何か 1 つ以上付与した場合 true
+ */
+export function ensureFormFieldIdentity(cmp: Component): boolean {
+  if (!isFormField(cmp)) return false;
   const attrs = cmp.getAttributes() ?? {};
-  const v = attrs["data-item-id"];
-  return v ? String(v) : undefined;
+  const patch: Record<string, string> = {};
+
+  if (!attrs["data-item-id"]) {
+    patch["data-item-id"] = generateUUID();
+  }
+  const dataItemId = (patch["data-item-id"] ?? String(attrs["data-item-id"])) as string;
+  const shortId = dataItemId.split("-")[0]; // 先頭 8 文字 (hex)
+
+  if (!attrs.name) {
+    patch.name = `field_${shortId}`;
+  }
+  if (!attrs.id) {
+    patch.id = (patch.name ?? String(attrs.name)) as string;
+  }
+
+  if (Object.keys(patch).length === 0) return false;
+  cmp.addAttributes(patch);
+  return true;
 }
 
-/** form field であり data-item-id 未設定なら発番。発番した場合 true */
+/** @deprecated Use ensureFormFieldIdentity instead */
 export function ensureDataItemId(cmp: Component): boolean {
-  if (!isFormField(cmp)) return false;
-  if (getDataItemId(cmp)) return false;
-  cmp.addAttributes({ "data-item-id": generateUUID() });
-  return true;
+  return ensureFormFieldIdentity(cmp);
 }
 
 /** component とその子孫を再帰走査 */
@@ -49,7 +68,7 @@ function walk(cmp: Component, visit: (c: Component) => void): void {
   visit(cmp);
   const children = cmp.components?.();
   if (children) {
-    children.forEach((c) => walk(c, visit));
+    children.forEach((c: Component) => walk(c, visit));
   }
 }
 
@@ -60,7 +79,7 @@ function walk(cmp: Component, visit: (c: Component) => void): void {
 export function attachDataItemIdAutoAssign(editor: GEditor): () => void {
   const onAdd = (cmp: Component) => {
     // 自身 + 子孫を走査 (ブロック drop 時にラッパー要素経由で来ることが多い)
-    walk(cmp, (c) => { ensureDataItemId(c); });
+    walk(cmp, (c) => { ensureFormFieldIdentity(c); });
   };
   editor.on("component:add", onAdd);
 
@@ -81,7 +100,7 @@ export function assignAllMissingDataItemIds(editor: GEditor): number {
   if (!wrapper) return 0;
   let count = 0;
   walk(wrapper, (c) => {
-    if (ensureDataItemId(c)) count++;
+    if (ensureFormFieldIdentity(c)) count++;
   });
   return count;
 }

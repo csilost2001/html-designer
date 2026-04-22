@@ -104,4 +104,15 @@ describe("extractScreenItemCandidates", () => {
     const cands = extractScreenItemCandidates(gjsFromHtml(html));
     expect(cands[0].dataItemId).toBeUndefined();
   });
+
+  it("name と data-item-id が両方入った要素から両方取得できる (#328)", () => {
+    const html = `
+      <input name="user_id" id="user_id" type="text" data-item-id="11000001-0001-4000-8000-aaaaaaaaaaaa"
+             placeholder="ユーザーIDを入力" />
+    `;
+    const cands = extractScreenItemCandidates(gjsFromHtml(html));
+    expect(cands).toHaveLength(1);
+    expect(cands[0].name).toBe("user_id");
+    expect(cands[0].dataItemId).toBe("11000001-0001-4000-8000-aaaaaaaaaaaa");
+  });
 });

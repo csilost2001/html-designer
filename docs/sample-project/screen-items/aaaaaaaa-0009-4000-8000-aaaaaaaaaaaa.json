@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/screen-items.schema.json",
+  "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+  "version": "0.1.0",
+  "updatedAt": "2026-04-22T00:00:00.000Z",
+  "items": [
+    {
+      "id": "11000009-0001-4000-8000-aaaaaaaaaaaa",
+      "name": "customer",
+      "label": "顧客",
+      "type": "string",
+      "required": true
+    },
+    {
+      "id": "11000009-0002-4000-8000-aaaaaaaaaaaa",
+      "name": "order_date",
+      "label": "注文日",
+      "type": "date",
+      "required": true
+    },
+    {
+      "id": "11000009-0003-4000-8000-aaaaaaaaaaaa",
+      "name": "delivery",
+      "label": "配送先",
+      "type": "string"
+    },
+    {
+      "id": "11000009-0004-4000-8000-aaaaaaaaaaaa",
+      "name": "payment",
+      "label": "支払方法",
+      "type": "string"
+    },
+    {
+      "id": "11000009-0005-4000-8000-aaaaaaaaaaaa",
+      "name": "notes",
+      "label": "備考",
+      "type": "string",
+      "maxLength": 500
+    },
+    {
+      "id": "11000009-0006-4000-8000-aaaaaaaaaaaa",
+      "name": "item_name_1",
+      "label": "商品名 (1行目)",
+      "type": "string"
+    },
+    {
+      "id": "11000009-0007-4000-8000-aaaaaaaaaaaa",
+      "name": "unit_price_1",
+      "label": "単価 (1行目)",
+      "type": "number"
+    },
+    {
+      "id": "11000009-0008-4000-8000-aaaaaaaaaaaa",
+      "name": "qty_1",
+      "label": "数量 (1行目)",
+      "type": "number"
+    },
+    {
+      "id": "11000009-0009-4000-8000-aaaaaaaaaaaa",
+      "name": "item_name_2",
+      "label": "商品名 (2行目)",
+      "type": "string"
+    },
+    {
+      "id": "11000009-0010-4000-8000-aaaaaaaaaaaa",
+      "name": "unit_price_2",
+      "label": "単価 (2行目)",
+      "type": "number"
+    },
+    {
+      "id": "11000009-0011-4000-8000-aaaaaaaaaaaa",
+      "name": "qty_2",
+      "label": "数量 (2行目)",
+      "type": "number"
+    }
+  ]
+}

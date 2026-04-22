@@ -24,12 +24,16 @@ const SEED_TABLES_DIR = path.join(__dirname, "tables");
 const SEED_ACTIONS_DIR = path.join(__dirname, "actions");
 const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SEED_CONVENTIONS_DIR = path.join(__dirname, "conventions");
+const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
+const SEED_SCREEN_ITEMS_DIR = path.join(__dirname, "screen-items");
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });
 fs.mkdirSync(TABLES_DIR, { recursive: true });
 fs.mkdirSync(ACTIONS_DIR, { recursive: true });
 fs.mkdirSync(CONVENTIONS_DIR, { recursive: true });
 fs.mkdirSync(SEED_SCREENS_DIR, { recursive: true });
+fs.mkdirSync(SCREEN_ITEMS_DIR, { recursive: true });
+fs.mkdirSync(SEED_SCREEN_ITEMS_DIR, { recursive: true });
 
 // ── GrapesJS スクリーンデータ生成ヘルパー ─────────────────────────────────
 function makeScreenData(html, pageId, frameId) {
@@ -63,12 +67,176 @@ function makeScreenData(html, pageId, frameId) {
   };
 }
 
+// ── 画面項目定義生成ヘルパー ───────────────────────────────────────────────
+function makeScreenItemsFile(screenId, items) {
+  return {
+    $schema: "../../schemas/screen-items.schema.json",
+    screenId,
+    version: "0.1.0",
+    updatedAt: "2026-04-22T00:00:00.000Z",
+    items,
+  };
+}
+
+// ── 固定 UUID 定義 (seed は冪等性のためハードコード) ─────────────────────
+// 0001 ログイン画面
+const UUID_0001_USER_ID   = "11000001-0001-4000-8000-aaaaaaaaaaaa";
+const UUID_0001_PASSWORD  = "11000001-0002-4000-8000-aaaaaaaaaaaa";
+
+// 0003 顧客一覧 (検索フォーム)
+const UUID_0003_KEYWORD   = "11000003-0001-4000-8000-aaaaaaaaaaaa";
+const UUID_0003_PHONE     = "11000003-0002-4000-8000-aaaaaaaaaaaa";
+const UUID_0003_EMAIL     = "11000003-0003-4000-8000-aaaaaaaaaaaa";
+
+// 0005 顧客登録
+const UUID_0005_NAME      = "11000005-0001-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_KANA      = "11000005-0002-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_BIRTHDAY  = "11000005-0003-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_GENDER    = "11000005-0004-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_PHONE     = "11000005-0005-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_EMAIL     = "11000005-0006-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_POSTAL    = "11000005-0007-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_ADDRESS   = "11000005-0008-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_ADDRESS2  = "11000005-0009-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_RANK      = "11000005-0010-4000-8000-aaaaaaaaaaaa";
+const UUID_0005_NOTES     = "11000005-0011-4000-8000-aaaaaaaaaaaa";
+
+// 0006 顧客修正 (0005 と同じ項目名)
+const UUID_0006_NAME      = "11000006-0001-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_KANA      = "11000006-0002-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_BIRTHDAY  = "11000006-0003-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_GENDER    = "11000006-0004-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_PHONE     = "11000006-0005-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_EMAIL     = "11000006-0006-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_POSTAL    = "11000006-0007-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_ADDRESS   = "11000006-0008-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_ADDRESS2  = "11000006-0009-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_RANK      = "11000006-0010-4000-8000-aaaaaaaaaaaa";
+const UUID_0006_NOTES     = "11000006-0011-4000-8000-aaaaaaaaaaaa";
+
+// 0007 削除確認
+const UUID_0007_CONFIRM   = "11000007-0001-4000-8000-aaaaaaaaaaaa";
+
+// 0008 注文一覧 (検索フォーム)
+const UUID_0008_CUST_NAME = "11000008-0001-4000-8000-aaaaaaaaaaaa";
+const UUID_0008_DATE_FROM = "11000008-0002-4000-8000-aaaaaaaaaaaa";
+const UUID_0008_DATE_TO   = "11000008-0003-4000-8000-aaaaaaaaaaaa";
+const UUID_0008_STATUS    = "11000008-0004-4000-8000-aaaaaaaaaaaa";
+
+// 0009 注文登録
+const UUID_0009_CUST        = "11000009-0001-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_ORDER_DATE  = "11000009-0002-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_DELIVERY    = "11000009-0003-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_PAYMENT     = "11000009-0004-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_NOTES       = "11000009-0005-4000-8000-aaaaaaaaaaaa";
+// 注文明細 (テーブル行)
+const UUID_0009_ITEM1_NAME  = "11000009-0006-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_ITEM1_PRICE = "11000009-0007-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_ITEM1_QTY   = "11000009-0008-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_ITEM2_NAME  = "11000009-0009-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_ITEM2_PRICE = "11000009-0010-4000-8000-aaaaaaaaaaaa";
+const UUID_0009_ITEM2_QTY   = "11000009-0011-4000-8000-aaaaaaaaaaaa";
+
+// ── 画面項目定義 ───────────────────────────────────────────────────────────
+const SCREEN_ITEMS = {
+  "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0001_USER_ID,  name: "user_id",  label: "ユーザーID",  type: "string", required: true, maxLength: 50 },
+    { id: UUID_0001_PASSWORD, name: "password", label: "パスワード", type: "string", required: true, maxLength: 100 },
+  ],
+  "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0003_KEYWORD, name: "keyword", label: "顧客名",       type: "string", maxLength: 100 },
+    { id: UUID_0003_PHONE,   name: "phone",   label: "電話番号",     type: "string", maxLength: 20 },
+    { id: UUID_0003_EMAIL,   name: "email",   label: "メールアドレス", type: "string", maxLength: 255 },
+  ],
+  "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0005_NAME,     name: "name",     label: "顧客名",       type: "string", required: true, maxLength: 100 },
+    { id: UUID_0005_KANA,     name: "kana",     label: "フリガナ",     type: "string", required: true, maxLength: 100 },
+    { id: UUID_0005_BIRTHDAY, name: "birthday", label: "生年月日",     type: "date" },
+    { id: UUID_0005_GENDER,   name: "gender",   label: "性別",         type: "string",
+      options: [{ value: "m", label: "男性" }, { value: "f", label: "女性" }, { value: "o", label: "その他" }] },
+    { id: UUID_0005_PHONE,    name: "phone",    label: "電話番号",     type: "string", required: true, maxLength: 20 },
+    { id: UUID_0005_EMAIL,    name: "email",    label: "メールアドレス", type: "string", maxLength: 255 },
+    { id: UUID_0005_POSTAL,   name: "postal",   label: "郵便番号",     type: "string", maxLength: 8, pattern: "\\d{3}-\\d{4}" },
+    { id: UUID_0005_ADDRESS,  name: "address",  label: "住所",         type: "string", maxLength: 200 },
+    { id: UUID_0005_ADDRESS2, name: "address2", label: "住所（建物名）", type: "string", maxLength: 100 },
+    { id: UUID_0005_RANK,     name: "rank",     label: "会員ランク",   type: "string",
+      options: [{ value: "standard", label: "スタンダード" }, { value: "silver", label: "シルバー" },
+                { value: "gold", label: "ゴールド" }, { value: "platinum", label: "プラチナ" }] },
+    { id: UUID_0005_NOTES,    name: "notes",    label: "備考",         type: "string", maxLength: 500 },
+  ],
+  "aaaaaaaa-0006-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0006_NAME,     name: "name",     label: "顧客名",       type: "string", required: true, maxLength: 100 },
+    { id: UUID_0006_KANA,     name: "kana",     label: "フリガナ",     type: "string", required: true, maxLength: 100 },
+    { id: UUID_0006_BIRTHDAY, name: "birthday", label: "生年月日",     type: "date" },
+    { id: UUID_0006_GENDER,   name: "gender",   label: "性別",         type: "string",
+      options: [{ value: "m", label: "男性" }, { value: "f", label: "女性" }, { value: "o", label: "その他" }] },
+    { id: UUID_0006_PHONE,    name: "phone",    label: "電話番号",     type: "string", required: true, maxLength: 20 },
+    { id: UUID_0006_EMAIL,    name: "email",    label: "メールアドレス", type: "string", maxLength: 255 },
+    { id: UUID_0006_POSTAL,   name: "postal",   label: "郵便番号",     type: "string", maxLength: 8, pattern: "\\d{3}-\\d{4}" },
+    { id: UUID_0006_ADDRESS,  name: "address",  label: "住所",         type: "string", maxLength: 200 },
+    { id: UUID_0006_ADDRESS2, name: "address2", label: "住所（建物名）", type: "string", maxLength: 100 },
+    { id: UUID_0006_RANK,     name: "rank",     label: "会員ランク",   type: "string",
+      options: [{ value: "standard", label: "スタンダード" }, { value: "silver", label: "シルバー" },
+                { value: "gold", label: "ゴールド" }, { value: "platinum", label: "プラチナ" }] },
+    { id: UUID_0006_NOTES,    name: "notes",    label: "備考",         type: "string", maxLength: 500 },
+  ],
+  "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0007_CONFIRM, name: "confirm_text", label: "削除確認入力", type: "string", required: true },
+  ],
+  "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0008_CUST_NAME, name: "cust_name",  label: "顧客名",           type: "string", maxLength: 100 },
+    { id: UUID_0008_DATE_FROM, name: "date_from",  label: "注文日（開始）",   type: "date" },
+    { id: UUID_0008_DATE_TO,   name: "date_to",    label: "注文日（終了）",   type: "date" },
+    { id: UUID_0008_STATUS,    name: "status",     label: "ステータス",       type: "string",
+      options: [{ value: "", label: "すべて" }, { value: "processing", label: "処理中" },
+                { value: "completed", label: "完了" }, { value: "cancelled", label: "キャンセル" }] },
+  ],
+  "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa": [
+    { id: UUID_0009_CUST,        name: "customer",     label: "顧客",            type: "string", required: true },
+    { id: UUID_0009_ORDER_DATE,  name: "order_date",   label: "注文日",          type: "date",   required: true },
+    { id: UUID_0009_DELIVERY,    name: "delivery",     label: "配送先",          type: "string" },
+    { id: UUID_0009_PAYMENT,     name: "payment",      label: "支払方法",        type: "string" },
+    { id: UUID_0009_NOTES,       name: "notes",        label: "備考",            type: "string", maxLength: 500 },
+    { id: UUID_0009_ITEM1_NAME,  name: "item_name_1",  label: "商品名 (1行目)",  type: "string" },
+    { id: UUID_0009_ITEM1_PRICE, name: "unit_price_1", label: "単価 (1行目)",    type: "number" },
+    { id: UUID_0009_ITEM1_QTY,   name: "qty_1",        label: "数量 (1行目)",    type: "number" },
+    { id: UUID_0009_ITEM2_NAME,  name: "item_name_2",  label: "商品名 (2行目)",  type: "string" },
+    { id: UUID_0009_ITEM2_PRICE, name: "unit_price_2", label: "単価 (2行目)",    type: "number" },
+    { id: UUID_0009_ITEM2_QTY,   name: "qty_2",        label: "数量 (2行目)",    type: "number" },
+  ],
+};
+
+// ── 属性注入ヘルパー ───────────────────────────────────────────────────────
+// HTML 文字列の <input|select|textarea ...> タグに name/id/data-item-id を注入する
+// match はその要素を一意に識別するための正規表現パターン (string)。
+// select/textarea の場合は後続コンテンツを含んで要素を特定する。
+// 注入は常に「最初の '>'」(= 開始タグの閉じ括弧) の直前に行う。
+function injectAttrs(html, injections) {
+  let result = html;
+  for (const { match, attrs } of injections) {
+    const re = new RegExp(match);
+    result = result.replace(re, (fullMatch) => {
+      // 開始タグの閉じ '>' を探し、その前に属性を注入する
+      // select/textarea はコンテンツを含むマッチになるが、最初の '>' が開始タグの終端
+      const gtIdx = fullMatch.indexOf('>');
+      let openTag = fullMatch.substring(0, gtIdx); // '<tag attrs...'
+      const rest = fullMatch.substring(gtIdx);     // '>' + 後続コンテンツ
+      for (const [k, v] of Object.entries(attrs)) {
+        if (new RegExp(`\\b${k}=`).test(openTag)) continue;
+        openTag += ` ${k}="${v}"`;
+      }
+      return openTag + rest;
+    });
+  }
+  return result;
+}
+
 // ── 画面 HTML 定義 ─────────────────────────────────────────────────────────
 
 const SCREENS = {
   "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-login-0001", frameId: "fr-login-0001",
-    html: `
+    html: injectAttrs(`
 <div style="min-height:100vh;background:#f0f4ff;display:flex;align-items:center;justify-content:center">
   <div style="width:100%;max-width:400px;padding:16px">
     <div class="card shadow">
@@ -104,7 +272,12 @@ const SCREENS = {
     </div>
     <p class="text-center text-muted small mt-3">© 2026 顧客管理システム</p>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control" placeholder="ユーザーIDを入力">`,
+        attrs: { name: "user_id", id: "user_id", "data-item-id": UUID_0001_USER_ID } },
+      { match: `<input type="password" class="form-control" placeholder="パスワードを入力">`,
+        attrs: { name: "password", id: "password", "data-item-id": UUID_0001_PASSWORD } },
+    ]),
   },
 
   "aaaaaaaa-0002-4000-8000-aaaaaaaaaaaa": {
@@ -193,7 +366,7 @@ const SCREENS = {
 
   "aaaaaaaa-0003-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-custlist-0003", frameId: "fr-custlist-0003",
-    html: `
+    html: injectAttrs(`
 <div>
   <nav class="navbar navbar-dark px-3 py-2" style="background:#6366f1">
     <span class="navbar-brand mb-0 fw-bold small"><i class="bi bi-building me-2"></i>顧客管理システム</span>
@@ -296,7 +469,14 @@ const SCREENS = {
       </ul></nav>
     </div>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="例：山田">`,
+        attrs: { name: "keyword", id: "keyword", "data-item-id": UUID_0003_KEYWORD } },
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="例：03-1234">`,
+        attrs: { name: "phone", id: "phone", "data-item-id": UUID_0003_PHONE } },
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="例：@example.com">`,
+        attrs: { name: "email", id: "email", "data-item-id": UUID_0003_EMAIL } },
+    ]),
   },
 
   "aaaaaaaa-0004-4000-8000-aaaaaaaaaaaa": {
@@ -391,7 +571,7 @@ const SCREENS = {
 
   "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-custnew-0005", frameId: "fr-custnew-0005",
-    html: `
+    html: injectAttrs(`
 <div>
   <nav class="navbar navbar-dark px-3 py-2" style="background:#6366f1">
     <span class="navbar-brand mb-0 fw-bold small"><i class="bi bi-building me-2"></i>顧客管理システム</span>
@@ -468,12 +648,35 @@ const SCREENS = {
       </div>
     </div>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="例：山田 太郎">`,
+        attrs: { name: "name", id: "name", "data-item-id": UUID_0005_NAME } },
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="例：ヤマダ タロウ">`,
+        attrs: { name: "kana", id: "kana", "data-item-id": UUID_0005_KANA } },
+      { match: `<input type="date" class="form-control form-control-sm">`,
+        attrs: { name: "birthday", id: "birthday", "data-item-id": UUID_0005_BIRTHDAY } },
+      { match: `<select class="form-select form-select-sm">\\s*<option value="">選択してください`,
+        attrs: { name: "gender", id: "gender", "data-item-id": UUID_0005_GENDER } },
+      { match: `<input type="tel" class="form-control form-control-sm" placeholder="例：03-1234-5678">`,
+        attrs: { name: "phone", id: "phone", "data-item-id": UUID_0005_PHONE } },
+      { match: `<input type="email" class="form-control form-control-sm" placeholder="例：yamada@example.com">`,
+        attrs: { name: "email", id: "email", "data-item-id": UUID_0005_EMAIL } },
+      { match: `<input type="text" class="form-control" placeholder="000-0000">`,
+        attrs: { name: "postal", id: "postal", "data-item-id": UUID_0005_POSTAL } },
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="都道府県・市区町村・番地">`,
+        attrs: { name: "address", id: "address", "data-item-id": UUID_0005_ADDRESS } },
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="マンション名・部屋番号など">`,
+        attrs: { name: "address2", id: "address2", "data-item-id": UUID_0005_ADDRESS2 } },
+      { match: `<select class="form-select form-select-sm">\\s*<option selected>スタンダード`,
+        attrs: { name: "rank", id: "rank", "data-item-id": UUID_0005_RANK } },
+      { match: `<textarea class="form-control form-control-sm" rows="2" placeholder="担当者・特記事項など">`,
+        attrs: { name: "notes", id: "notes", "data-item-id": UUID_0005_NOTES } },
+    ]),
   },
 
   "aaaaaaaa-0006-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-custedit-0006", frameId: "fr-custedit-0006",
-    html: `
+    html: injectAttrs(`
 <div>
   <nav class="navbar navbar-dark px-3 py-2" style="background:#6366f1">
     <span class="navbar-brand mb-0 fw-bold small"><i class="bi bi-building me-2"></i>顧客管理システム</span>
@@ -553,12 +756,35 @@ const SCREENS = {
       </div>
     </div>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control form-control-sm" value="山田 太郎">`,
+        attrs: { name: "name", id: "name", "data-item-id": UUID_0006_NAME } },
+      { match: `<input type="text" class="form-control form-control-sm" value="ヤマダ タロウ">`,
+        attrs: { name: "kana", id: "kana", "data-item-id": UUID_0006_KANA } },
+      { match: `<input type="date" class="form-control form-control-sm" value="1985-03-20">`,
+        attrs: { name: "birthday", id: "birthday", "data-item-id": UUID_0006_BIRTHDAY } },
+      { match: `<select class="form-select form-select-sm">\\s*<option selected>男性`,
+        attrs: { name: "gender", id: "gender", "data-item-id": UUID_0006_GENDER } },
+      { match: `<input type="tel" class="form-control form-control-sm" value="03-1234-5678">`,
+        attrs: { name: "phone", id: "phone", "data-item-id": UUID_0006_PHONE } },
+      { match: `<input type="email" class="form-control form-control-sm" value="yamada@example.com">`,
+        attrs: { name: "email", id: "email", "data-item-id": UUID_0006_EMAIL } },
+      { match: `<input type="text" class="form-control" value="100-0001">`,
+        attrs: { name: "postal", id: "postal", "data-item-id": UUID_0006_POSTAL } },
+      { match: `<input type="text" class="form-control form-control-sm" value="東京都千代田区千代田1-1-1">`,
+        attrs: { name: "address", id: "address", "data-item-id": UUID_0006_ADDRESS } },
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="マンション名・部屋番号など">`,
+        attrs: { name: "address2", id: "address2", "data-item-id": UUID_0006_ADDRESS2 } },
+      { match: `<select class="form-select form-select-sm">\\s*<option>スタンダード`,
+        attrs: { name: "rank", id: "rank", "data-item-id": UUID_0006_RANK } },
+      { match: `<textarea class="form-control form-control-sm" rows="2">月次請求書`,
+        attrs: { name: "notes", id: "notes", "data-item-id": UUID_0006_NOTES } },
+    ]),
   },
 
   "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-custdel-0007", frameId: "fr-custdel-0007",
-    html: `
+    html: injectAttrs(`
 <div style="min-height:100vh;background:#f8fafc;display:flex;align-items:center;justify-content:center">
   <div style="width:100%;max-width:480px;padding:16px">
     <div class="card border-0 shadow">
@@ -592,12 +818,15 @@ const SCREENS = {
       </div>
     </div>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control" placeholder="削除">`,
+        attrs: { name: "confirm_text", id: "confirm_text", "data-item-id": UUID_0007_CONFIRM } },
+    ]),
   },
 
   "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-ordlist-0008", frameId: "fr-ordlist-0008",
-    html: `
+    html: injectAttrs(`
 <div>
   <nav class="navbar navbar-dark px-3 py-2" style="background:#6366f1">
     <span class="navbar-brand mb-0 fw-bold small"><i class="bi bi-building me-2"></i>顧客管理システム</span>
@@ -667,12 +896,22 @@ const SCREENS = {
       </ul></nav>
     </div>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control form-control-sm" placeholder="例：山田">`,
+        attrs: { name: "cust_name", id: "cust_name", "data-item-id": UUID_0008_CUST_NAME } },
+      { match: `<input type="date" class="form-control form-control-sm">`,
+        attrs: { name: "date_from", id: "date_from", "data-item-id": UUID_0008_DATE_FROM } },
+      // positional: 1回目の注入で date_from が決まり、2回目はそれ以外の日付入力にマッチ
+      { match: `<input type="date" class="form-control form-control-sm">`,
+        attrs: { name: "date_to", id: "date_to", "data-item-id": UUID_0008_DATE_TO } },
+      { match: `<select class="form-select form-select-sm">\\s*<option value="">すべて`,
+        attrs: { name: "status", id: "status", "data-item-id": UUID_0008_STATUS } },
+    ]),
   },
 
   "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa": {
     pageId: "pg-ordnew-0009", frameId: "fr-ordnew-0009",
-    html: `
+    html: injectAttrs(`
 <div>
   <nav class="navbar navbar-dark px-3 py-2" style="background:#6366f1">
     <span class="navbar-brand mb-0 fw-bold small"><i class="bi bi-building me-2"></i>顧客管理システム</span>
@@ -769,7 +1008,32 @@ const SCREENS = {
       <button class="btn btn-success"><i class="bi bi-check-lg me-1"></i>注文確定</button>
     </div>
   </div>
-</div>`,
+</div>`, [
+      { match: `<input type="text" class="form-control" placeholder="顧客名で検索">`,
+        attrs: { name: "customer", id: "customer", "data-item-id": UUID_0009_CUST } },
+      { match: `<input type="date" class="form-control form-control-sm" value="2026-04-12">`,
+        attrs: { name: "order_date", id: "order_date", "data-item-id": UUID_0009_ORDER_DATE } },
+      { match: `<select class="form-select form-select-sm">\\s*<option>登録住所と同じ`,
+        attrs: { name: "delivery", id: "delivery", "data-item-id": UUID_0009_DELIVERY } },
+      { match: `<select class="form-select form-select-sm">\\s*<option>銀行振込`,
+        attrs: { name: "payment", id: "payment", "data-item-id": UUID_0009_PAYMENT } },
+      // 注文明細 1行目 (text → number → number の順)
+      { match: `<input type="text" class="form-control form-control-sm" value="商品A">`,
+        attrs: { name: "item_name_1", id: "item_name_1", "data-item-id": UUID_0009_ITEM1_NAME } },
+      { match: `<input type="number" class="form-control form-control-sm" value="50000">`,
+        attrs: { name: "unit_price_1", id: "unit_price_1", "data-item-id": UUID_0009_ITEM1_PRICE } },
+      { match: `<input type="number" class="form-control form-control-sm" value="2">`,
+        attrs: { name: "qty_1", id: "qty_1", "data-item-id": UUID_0009_ITEM1_QTY } },
+      // 注文明細 2行目
+      { match: `<input type="text" class="form-control form-control-sm" value="商品B">`,
+        attrs: { name: "item_name_2", id: "item_name_2", "data-item-id": UUID_0009_ITEM2_NAME } },
+      { match: `<input type="number" class="form-control form-control-sm" value="28000">`,
+        attrs: { name: "unit_price_2", id: "unit_price_2", "data-item-id": UUID_0009_ITEM2_PRICE } },
+      { match: `<input type="number" class="form-control form-control-sm" value="1">`,
+        attrs: { name: "qty_2", id: "qty_2", "data-item-id": UUID_0009_ITEM2_QTY } },
+      { match: `<textarea class="form-control form-control-sm" rows="2" placeholder="配送上の注意点、特記事項など">`,
+        attrs: { name: "notes", id: "notes", "data-item-id": UUID_0009_NOTES } },
+    ]),
   },
 
   "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa": {
@@ -825,6 +1089,16 @@ for (const [screenId, { pageId, frameId, html }] of Object.entries(SCREENS)) {
   console.log(`[${count}/10] ${screenId}`);
 }
 
+// ── 画面項目定義ファイル生成 ───────────────────────────────────────────────
+let siCount = 0;
+for (const [screenId, items] of Object.entries(SCREEN_ITEMS)) {
+  const file = makeScreenItemsFile(screenId, items);
+  const json = JSON.stringify(file, null, 2);
+  fs.writeFileSync(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`), json, "utf8");
+  fs.writeFileSync(path.join(SEED_SCREEN_ITEMS_DIR, `${screenId}.json`), json, "utf8");
+  siCount++;
+}
+
 // project.json を data/ にコピー
 fs.copyFileSync(
   path.join(__dirname, "project.json"),
@@ -874,6 +1148,7 @@ if (fs.existsSync(SEED_CONVENTIONS_DIR)) {
 
 console.log("\n✅ シードデータ生成完了");
 console.log(`   data/screens/        → ${count} ファイル`);
+console.log(`   data/screen-items/   → ${siCount} ファイル`);
 console.log(`   data/tables/         → ${tableCount} ファイル`);
 console.log(`   data/actions/        → ${actionCount} ファイル`);
 console.log(`   data/conventions/    → ${conventionsCount} ファイル`);

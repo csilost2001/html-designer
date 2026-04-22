@@ -37,7 +37,9 @@ Both servers must run simultaneously for file-based persistence. Without designe
 ### Test Data
 
 ```bash
-node docs/sample-project/seed.mjs   # Generate 10 sample screens into data/
+node docs/sample-project/seed.mjs            # Generate 10 sample screens + screen-items into data/
+node scripts/migrate-screen-items.mjs        # Dry-run: show fields missing name/data-item-id
+node scripts/migrate-screen-items.mjs --apply  # Apply: add name/id/data-item-id to existing screens
 ```
 
 ## Architecture
