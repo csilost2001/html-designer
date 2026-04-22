@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { handleMarkerTool } from "./handlers/marker.js";
 import { handleActionGroupTool } from "./handlers/actionGroup.js";
 import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
+import { getRenameContext, applyRenameMapping } from "./renameContext.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -908,6 +909,59 @@ function createMcpServer(): Server {
           `"${a.itemId}" を参照する処理フロー: ${checkRes.affectedActionGroups.length} 件 (合計 ${checkRes.totalRefs} 箇所)`,
           ...checkRes.affectedActionGroups.map((ag) => `  - ${ag.name} (${ag.id}): ${ag.refCount} 箇所`),
         ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      }
+
+      case "designer__get_rename_context": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.screenId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
+        }
+        const ctx = await getRenameContext(a.screenId);
+        const summary = [
+          `画面 ${a.screenId} の未命名項目: ${ctx.unnamedItems.length} 件 (命名済み: ${ctx.namedCount} 件)`,
+        ];
+        return {
+          content: [{
+            type: "text",
+            text: summary.join("\n") + "\n\n" + JSON.stringify(ctx, null, 2),
+          }],
+        };
+      }
+
+      case "designer__apply_rename_mapping": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.screenId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
+        }
+        if (!a.mapping || typeof a.mapping !== "object" || Array.isArray(a.mapping)) {
+          throw new McpError(ErrorCode.InvalidParams, "mapping は {oldId: newId} オブジェクトが必須です");
+        }
+        const mapping = a.mapping as Record<string, string>;
+        const result = await applyRenameMapping(a.screenId, mapping);
+
+        // broadcasts
+        if (result.succeeded.length > 0) {
+          wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
+          const allAgs = new Set(result.succeeded.flatMap((s) => s.actionGroupsUpdated));
+          for (const agId of allAgs) {
+            wsBridge.broadcast("actionGroupChanged", { id: agId });
+          }
+          if (result.succeeded.some((s) => s.screenHtmlUpdated)) {
+            wsBridge.broadcast("screenChanged", { screenId: a.screenId });
+          }
+        }
+
+        const lines: string[] = [
+          `リネーム完了: 成功 ${result.succeeded.length} 件 / 失敗 ${result.failed.length} 件`,
+        ];
+        for (const s of result.succeeded) {
+          const warn = s.warnings.length > 0 ? ` ⚠ ${s.warnings.join(" ")}` : "";
+          lines.push(`  ✓ "${s.oldId}" → "${s.newId}" (処理フロー参照 ${s.refsRenamed} 箇所)${warn}`);
+        }
+        for (const f of result.failed) {
+          lines.push(`  ✗ "${f.oldId}" → "${f.newId}": ${f.error}`);
+        }
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
 

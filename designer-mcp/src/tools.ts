@@ -920,6 +920,40 @@ export const tools = [
   // ── 画面項目 ID リネーム ──
 
   {
+    name: "designer__get_rename_context",
+    description:
+      "指定画面の未命名画面項目 (自動生成 ID のもの) と周辺 HTML コンテキストを返します。" +
+      "呼び出し元 (Claude) がこの情報を基に {oldId: newId} マッピングを推論し、" +
+      "designer__apply_rename_mapping で適用します。命名済み項目は含まれません。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: { type: "string", description: "対象の画面 ID" },
+      },
+      required: ["screenId"],
+    },
+  },
+
+  {
+    name: "designer__apply_rename_mapping",
+    description:
+      "画面項目 ID を一括リネームします。mapping の各エントリに対して rename_screen_item を順次実行し、" +
+      "処理フローの screenItemRef も自動追従します。1 件の失敗は後続エントリの処理を止めません。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: { type: "string", description: "対象の画面 ID" },
+        mapping: {
+          type: "object",
+          description: "{oldId: newId} 形式のマッピング。newId は camelCase の有効な JS 識別子 (30 字以内)。",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: ["screenId", "mapping"],
+    },
+  },
+
+  {
     name: "designer__rename_screen_item",
     description:
       "画面項目の ID を変更し、参照する全処理フローの screenItemRef を自動追従させます。" +
