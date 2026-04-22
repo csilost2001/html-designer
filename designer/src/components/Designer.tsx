@@ -486,7 +486,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
           </main>
 
           <aside className="panel-right">
-            <RightPanel />
+            <RightPanel screenId={screenId} />
           </aside>
         </div>
       </div>
