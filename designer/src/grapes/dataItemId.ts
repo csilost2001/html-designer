@@ -85,21 +85,8 @@ export function getExistingNamesFromEditor(editor: GEditor): string[] {
   return existing;
 }
 
-/**
- * 画面内の既存 name 属性を走査し、次の連番 ID を返す。
- * 実際の採番は screenItemNaming.generateAutoId に委譲。
- */
 function nextItemId(prefix: string, editor: GEditor): string {
-  const wrapper = editor.getWrapper();
-  if (!wrapper) return `${prefix}1`;
-
-  const existing: string[] = [];
-  walk(wrapper, (c) => {
-    const nameVal = String(c.getAttributes?.()?.name ?? "");
-    if (nameVal) existing.push(nameVal);
-  });
-
-  return generateAutoId(prefix, existing);
+  return generateAutoId(prefix, getExistingNamesFromEditor(editor));
 }
 
 /**

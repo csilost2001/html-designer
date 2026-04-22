@@ -320,9 +320,24 @@ export function ScreenItemsView() {
       return;
     }
 
+    // 空文字はリネーム不可 → 元の ID に戻す
+    if (!newId) {
+      updateSilent((f) => { f.items[idx].id = originalId; });
+      commit();
+      return;
+    }
+
     // 無効な JS 識別子はバックエンドに送る前に弾く
-    if (newId && !JS_IDENTIFIER_RE.test(newId)) {
+    if (!JS_IDENTIFIER_RE.test(newId)) {
       alert(`"${newId}" は有効な ID ではありません。英字・_ ・$ で始まり、英数字・_ ・$ のみ使用できます。`);
+      updateSilent((f) => { f.items[idx].id = originalId; });
+      commit();
+      return;
+    }
+
+    // 同画面内の他の項目との重複チェック
+    if (file?.items.some((item, i) => i !== idx && item.id === newId)) {
+      alert(`ID "${newId}" は既に同じ画面内で使用されています。`);
       updateSilent((f) => { f.items[idx].id = originalId; });
       commit();
       return;
@@ -349,7 +364,7 @@ export function ScreenItemsView() {
     } catch {
       commit();
     }
-  }, [selectedScreenId, commit]);
+  }, [selectedScreenId, file, updateSilent, commit]);
 
   /** リネーム確認: バックエンドに実行を委譲 */
   const handleConfirmRename = useCallback(async () => {
@@ -499,7 +514,7 @@ export function ScreenItemsView() {
                   </tr>
                 )}
                 {file.items.map((item, i) => (
-                  <tr key={item.id ? `id-${item.id}` : `idx-${i}`} className={selectedIndices.has(i) ? "screen-items-row-selected" : ""}>
+                  <tr key={i} className={selectedIndices.has(i) ? "screen-items-row-selected" : ""}>
                     <td className="text-center">
                       <input
                         type="checkbox"

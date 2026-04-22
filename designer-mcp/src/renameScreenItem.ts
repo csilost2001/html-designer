@@ -120,11 +120,12 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// 二重引用符・単引用符の両形式に対応。クォートなし属性 (name=value) は未対応
+// (GrapesJS は常に引用符付きで出力するため実用上問題なし)
 function renameAttrInHtml(html: string, oldId: string, newId: string): { html: string; changed: boolean } {
   const esc = escapeRegex(oldId);
   let changed = false;
   let result = html;
-  // 二重引用符・単引用符の両形式に対応
   for (const attr of ["name", "id"]) {
     result = result.replace(
       new RegExp(`(\\b${attr}=["'])${esc}(["'])`, "g"),

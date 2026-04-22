@@ -4,6 +4,7 @@ import { A11yPanel } from "./A11yPanel";
 import { isNamableElement, getItemIdPrefix, getExistingNamesFromEditor } from "../grapes/dataItemId";
 import { generateAutoId } from "../utils/screenItemNaming";
 import { mcpBridge } from "../mcp/mcpBridge";
+import { loadScreenItems, saveScreenItems } from "../store/screenItemsStore";
 
 type TabId = "styles" | "traits" | "layers" | "a11y";
 
@@ -145,9 +146,19 @@ export function RightPanel({ screenId }: RightPanelProps) {
         });
       }
     } catch {
-      // MCP 未接続: ローカルのみ更新
+      // MCP 未接続: GrapesJS インメモリと screen-items localStorage を直接更新
       sel.addAttributes({ name: newId, id: newId });
       setSelectedItemName(newId);
+      try {
+        const siFile = await loadScreenItems(screenId);
+        const item = siFile.items.find((it) => it.id === selectedItemName);
+        if (item) {
+          item.id = newId;
+          await saveScreenItems(siFile);
+        }
+      } catch {
+        // localStorage 更新失敗は無視 (GrapesJS 更新だけで続行)
+      }
     }
   }, [editor, screenId, selectedItemName]);
 
