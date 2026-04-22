@@ -200,4 +200,94 @@ describe("extractScreenItemCandidates", () => {
     expect(cands[0].tag).toBe("select");
     expect(cands[1].tag).toBe("textarea");
   });
+
+  // ── GrapesJS カスタムコンポーネントタイプ (デザイナーで D&D したブロックの実形式) ──
+
+  it("カスタムタイプ validation-input (tagName なし) を抽出 (#329 bug fix)", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                type: "validation-input",
+                void: true,
+                classes: ["form-control", "form-control-sm"],
+                attributes: {
+                  type: "text",
+                  placeholder: "ユーザーIDを入力",
+                  "data-item-id": "69f9561e-2cea-4251-8ec6-f66a3e779a55",
+                  name: "field_69f9561e",
+                  id: "field_69f9561e",
+                },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].tag).toBe("input");
+    expect(cands[0].name).toBe("field_69f9561e");
+    expect(cands[0].dataItemId).toBe("69f9561e-2cea-4251-8ec6-f66a3e779a55");
+    expect(cands[0].type).toBe("string");
+  });
+
+  it("カスタムタイプ validation-select (tagName なし) を抽出 (#329 bug fix)", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                type: "validation-select",
+                classes: ["form-select"],
+                attributes: {
+                  name: "status",
+                  "data-item-id": "aabbccdd-0001-4000-8000-aaaaaaaaaaaa",
+                },
+                components: [],
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].tag).toBe("select");
+    expect(cands[0].name).toBe("status");
+    expect(cands[0].dataItemId).toBe("aabbccdd-0001-4000-8000-aaaaaaaaaaaa");
+  });
+
+  it("カスタムタイプ checkbox (tagName なし) を抽出 (#329 bug fix)", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                type: "checkbox",
+                void: true,
+                attributes: {
+                  type: "checkbox",
+                  name: "agree",
+                  "data-item-id": "ccbbaa99-0001-4000-8000-aaaaaaaaaaaa",
+                },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].tag).toBe("input");
+    expect(cands[0].type).toBe("boolean");
+    expect(cands[0].dataItemId).toBe("ccbbaa99-0001-4000-8000-aaaaaaaaaaaa");
+  });
 });

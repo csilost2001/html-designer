@@ -41,10 +41,20 @@ const VOID_TAGS = new Set([
   "link","meta","param","source","track","wbr",
 ]);
 
+/** GrapesJS カスタムコンポーネントタイプ → HTML タグ名のマッピング。
+ *  デザイナーで D&D したブロックは tagName を持たず type で識別される。 */
+const CUSTOM_TYPE_TO_TAG: Record<string, string> = {
+  "validation-input": "input",
+  "validation-select": "select",
+  "validation-textarea": "textarea",
+  "checkbox": "input",
+};
+
 /** GrapesJS JSON から HTML を再構築して buf に追加。
  *  2 形式に対応:
  *  - seed / 旧形式: components が raw HTML 文字列 (または char 配列)
- *  - GrapesJS 保存形式: components が { tagName, attributes, classes, components[] } の構造化 JSON */
+ *  - GrapesJS 保存形式: components が { tagName, attributes, classes, components[] } の構造化 JSON
+ *  - GrapesJS カスタムタイプ: tagName なし、type でブロック種別を示す */
 function gatherHtml(node: unknown, buf: string[]): void {
   if (typeof node === "string") {
     buf.push(node);
@@ -63,8 +73,11 @@ function gatherHtml(node: unknown, buf: string[]): void {
       return;
     }
 
-    // 構造化 GrapesJS コンポーネント (ユーザーがデザイナーで配置した要素)
-    const tagName = typeof obj.tagName === "string" ? obj.tagName : null;
+    // 構造化 GrapesJS コンポーネント。
+    // tagName が無い場合はカスタムタイプ名から HTML タグを推定する。
+    const tagName = typeof obj.tagName === "string"
+      ? obj.tagName
+      : (typeof obj.type === "string" ? (CUSTOM_TYPE_TO_TAG[obj.type] ?? null) : null);
     if (tagName) {
       let attrStr = "";
       // attributes オブジェクト
@@ -81,7 +94,7 @@ function gatherHtml(node: unknown, buf: string[]): void {
           .join(" ");
         if (names) attrStr += ` class="${names}"`;
       }
-      if (VOID_TAGS.has(tagName.toLowerCase())) {
+      if (VOID_TAGS.has(tagName.toLowerCase()) || obj.void === true) {
         buf.push(`<${tagName}${attrStr}>`);
       } else {
         buf.push(`<${tagName}${attrStr}>`);
