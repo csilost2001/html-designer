@@ -36,7 +36,15 @@ export interface ExtractedCandidate {
   tag: string;
 }
 
-/** GrapesJS JSON から components の文字列断片を集めて連結 */
+const VOID_TAGS = new Set([
+  "area","base","br","col","embed","hr","img","input",
+  "link","meta","param","source","track","wbr",
+]);
+
+/** GrapesJS JSON から HTML を再構築して buf に追加。
+ *  2 形式に対応:
+ *  - seed / 旧形式: components が raw HTML 文字列 (または char 配列)
+ *  - GrapesJS 保存形式: components が { tagName, attributes, classes, components[] } の構造化 JSON */
 function gatherHtml(node: unknown, buf: string[]): void {
   if (typeof node === "string") {
     buf.push(node);
@@ -48,9 +56,44 @@ function gatherHtml(node: unknown, buf: string[]): void {
   }
   if (node && typeof node === "object") {
     const obj = node as Record<string, unknown>;
-    // components は配列 or 文字列
+
+    // テキストノード
+    if (obj.type === "textnode" && typeof obj.content === "string") {
+      buf.push(obj.content);
+      return;
+    }
+
+    // 構造化 GrapesJS コンポーネント (ユーザーがデザイナーで配置した要素)
+    const tagName = typeof obj.tagName === "string" ? obj.tagName : null;
+    if (tagName) {
+      let attrStr = "";
+      // attributes オブジェクト
+      if (obj.attributes && typeof obj.attributes === "object") {
+        for (const [k, v] of Object.entries(obj.attributes as Record<string, unknown>)) {
+          attrStr += ` ${k}="${String(v).replace(/"/g, "&quot;")}"`;
+        }
+      }
+      // classes 配列 → class 属性
+      if (Array.isArray(obj.classes) && obj.classes.length > 0) {
+        const names = (obj.classes as Array<string | { id?: string; label?: string }>)
+          .map((c) => (typeof c === "string" ? c : (c.id ?? c.label ?? "")))
+          .filter(Boolean)
+          .join(" ");
+        if (names) attrStr += ` class="${names}"`;
+      }
+      if (VOID_TAGS.has(tagName.toLowerCase())) {
+        buf.push(`<${tagName}${attrStr}>`);
+      } else {
+        buf.push(`<${tagName}${attrStr}>`);
+        if (typeof obj.content === "string") buf.push(obj.content);
+        if (obj.components) gatherHtml(obj.components, buf);
+        buf.push(`</${tagName}>`);
+      }
+      return;
+    }
+
+    // コンテナ (pages / frames / component / wrapper など tagName なし)
     if ("components" in obj) gatherHtml(obj.components, buf);
-    // 子要素を持つ他のプロパティも一応覗く (pages / frames / component)
     if ("pages" in obj) gatherHtml(obj.pages, buf);
     if ("frames" in obj) gatherHtml(obj.frames, buf);
     if ("component" in obj) gatherHtml(obj.component, buf);

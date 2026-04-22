@@ -115,4 +115,89 @@ describe("extractScreenItemCandidates", () => {
     expect(cands[0].name).toBe("user_id");
     expect(cands[0].dataItemId).toBe("11000001-0001-4000-8000-aaaaaaaaaaaa");
   });
+
+  // ── GrapesJS 構造化 JSON 形式 (デザイナーで D&D して保存した画面の実形式) ──
+
+  it("GrapesJS 構造化 JSON: tagName+attributes で保存された input を抽出", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                tagName: "div",
+                classes: ["container"],
+                components: [
+                  {
+                    tagName: "input",
+                    attributes: {
+                      type: "text",
+                      name: "field_abcd1234",
+                      id: "field_abcd1234",
+                      "data-item-id": "abcd1234-5678-4000-8000-aaaaaaaaaaaa",
+                      class: "form-control",
+                    },
+                    components: [],
+                  },
+                ],
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].name).toBe("field_abcd1234");
+    expect(cands[0].dataItemId).toBe("abcd1234-5678-4000-8000-aaaaaaaaaaaa");
+    expect(cands[0].tag).toBe("input");
+  });
+
+  it("GrapesJS 構造化 JSON: label + input の組み合わせで label を推定", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                tagName: "label",
+                attributes: { for: "email" },
+                components: [{ type: "textnode", content: "メールアドレス" }],
+              },
+              {
+                tagName: "input",
+                attributes: { type: "text", name: "email", id: "email" },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].name).toBe("email");
+    expect(cands[0].label).toBe("メールアドレス");
+  });
+
+  it("GrapesJS 構造化 JSON: select / textarea も抽出", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              { tagName: "select", attributes: { name: "category" }, components: [] },
+              { tagName: "textarea", attributes: { name: "notes" }, components: [] },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(2);
+    expect(cands[0].tag).toBe("select");
+    expect(cands[1].tag).toBe("textarea");
+  });
 });

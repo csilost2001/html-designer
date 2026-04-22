@@ -10,6 +10,7 @@
  * 3. (将来) GrapesJS サイドバーからの直接追加 (#322)
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePersistentState } from "../../hooks/usePersistentState";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -42,7 +43,10 @@ async function saveFile(data: ScreenItemsFile): Promise<void> {
 
 export function ScreenItemsView() {
   const [screens, setScreens] = useState<ScreenMeta[]>([]);
-  const [selectedScreenId, setSelectedScreenId] = useState<string | undefined>(undefined);
+  const [selectedScreenId, setSelectedScreenId] = usePersistentState<string | undefined>(
+    "screen-items:selectedScreenId",
+    undefined,
+  );
   const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
 
   // 画面一覧をロード (初回 + MCP 接続復帰時)
@@ -53,7 +57,10 @@ export function ScreenItemsView() {
         if (!mounted) return;
         const metas = p.screens.map((s) => ({ id: s.id, name: s.name }));
         setScreens(metas);
-        setSelectedScreenId((cur) => cur ?? (metas.length > 0 ? metas[0].id : undefined));
+        setSelectedScreenId((cur) => {
+          if (cur && metas.some((m) => m.id === cur)) return cur; // 有効な保存済み ID を維持
+          return metas.length > 0 ? metas[0].id : undefined;
+        });
       }).catch(console.error);
     };
     mcpBridge.startWithoutEditor();
