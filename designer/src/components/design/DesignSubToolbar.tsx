@@ -106,12 +106,16 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
     setAiRenameProgress({ stage: "auth-check", message: "接続中..." });
     setAiRenameMapping(null);
     try {
-      await fetch(`${MCP_HTTP_BASE}/ai/rename-screen-ids/propose`, {
+      const res = await fetch(`${MCP_HTTP_BASE}/ai/rename-screen-ids/propose`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ screenId, clientId: mcpBridge.getClientId() }),
         signal: abort.signal,
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "不明なエラー" })) as { error?: string };
+        setAiRenameProgress({ stage: "error", message: "サーバーエラー", error: err.error });
+      }
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
         setAiRenameProgress({ stage: "error", message: "通信エラー", error: String(e) });
@@ -570,7 +574,7 @@ function AiRenameModal({ progress, mapping, onCancel, onApply }: AiRenameModalPr
         </div>
 
         <div className="ai-rename-modal-body">
-          <div className={`ai-rename-stage ${isError ? "is-error" : ""}`}>
+          <div className={`ai-rename-stage is-${progress.stage}`}>
             <i className={`bi ${stageIcon[progress.stage]}`} />
             <span>{progress.message}</span>
           </div>

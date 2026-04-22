@@ -30,9 +30,15 @@ function sendProgress(clientId: string, event: AiRenameProgressEvent): void {
   wsBridge.sendToClient(clientId, "aiRenameProgress", event);
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 function jsonBody(res: ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body);
-  res.writeHead(status, { "Content-Type": "application/json" });
+  res.writeHead(status, { "Content-Type": "application/json", ...CORS_HEADERS });
   res.end(json);
 }
 
@@ -56,7 +62,8 @@ function checkAuth(): boolean {
 }
 
 /** GET /ai/rename-screen-ids/auth-check */
-export async function handleAuthCheck(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleAuthCheck(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method === "OPTIONS") { res.writeHead(204, CORS_HEADERS); res.end(); return; }
   const authenticated = checkAuth();
   jsonBody(res, authenticated ? 200 : 503, {
     authenticated,
@@ -68,6 +75,7 @@ export async function handleAuthCheck(_req: IncomingMessage, res: ServerResponse
 
 /** POST /ai/rename-screen-ids/propose */
 export async function handlePropose(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method === "OPTIONS") { res.writeHead(204, CORS_HEADERS); res.end(); return; }
   let body: { screenId?: string; clientId?: string };
   try {
     body = JSON.parse(await readBody(req)) as { screenId?: string; clientId?: string };
