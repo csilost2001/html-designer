@@ -69,17 +69,6 @@
   text-align: center;
 }
 
-.screen-items-row-selected td {
-  background: #eff6ff;
-}
-
-.screen-items-actions-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
 .screen-items-empty-row {
   color: #94a3b8;
   padding: 12px;

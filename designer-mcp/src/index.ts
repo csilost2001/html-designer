@@ -3,7 +3,6 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { randomUUID } from "node:crypto";
 import { handleMarkerTool } from "./handlers/marker.js";
 import { handleActionGroupTool } from "./handlers/actionGroup.js";
-import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -868,47 +867,6 @@ function createMcpServer(): Server {
             }`,
           }],
         };
-      }
-
-      case "designer__rename_screen_item": {
-        const a = (args ?? {}) as Record<string, unknown>;
-        if (typeof a.screenId !== "string" || typeof a.oldId !== "string" || typeof a.newId !== "string") {
-          throw new McpError(ErrorCode.InvalidParams, "screenId, oldId, newId は必須です");
-        }
-        const renameRes = await renameScreenItemId(a.screenId, a.oldId, a.newId);
-        wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
-        for (const agId of renameRes.actionGroupsUpdated) {
-          wsBridge.broadcast("actionGroupChanged", { id: agId });
-        }
-        if (renameRes.screenHtmlUpdated) {
-          wsBridge.broadcast("screenChanged", { screenId: a.screenId });
-        }
-        const lines = [
-          `"${a.oldId}" → "${a.newId}" のリネームが完了しました。`,
-          `  - screen-items: 更新済み`,
-          `  - 画面 HTML: ${renameRes.screenHtmlUpdated ? "更新済み" : "変更なし"}`,
-          `  - 処理フロー: ${renameRes.actionGroupsUpdated.length} 件更新 (参照 ${renameRes.refsRenamed} 箇所)`,
-        ];
-        if (renameRes.warnings.length > 0) {
-          lines.push(...renameRes.warnings.map((w) => `  ⚠ ${w}`));
-        }
-        return { content: [{ type: "text", text: lines.join("\n") }] };
-      }
-
-      case "designer__check_screen_item_refs": {
-        const a = (args ?? {}) as Record<string, unknown>;
-        if (typeof a.screenId !== "string" || typeof a.itemId !== "string") {
-          throw new McpError(ErrorCode.InvalidParams, "screenId, itemId は必須です");
-        }
-        const checkRes = await checkScreenItemRefs(a.screenId, a.itemId);
-        if (checkRes.totalRefs === 0) {
-          return { content: [{ type: "text", text: `"${a.itemId}" を参照する処理フローはありません。` }] };
-        }
-        const lines = [
-          `"${a.itemId}" を参照する処理フロー: ${checkRes.affectedActionGroups.length} 件 (合計 ${checkRes.totalRefs} 箇所)`,
-          ...checkRes.affectedActionGroups.map((ag) => `  - ${ag.name} (${ag.id}): ${ag.refCount} 箇所`),
-        ];
-        return { content: [{ type: "text", text: lines.join("\n") }] };
       }
 
       default:
