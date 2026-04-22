@@ -121,8 +121,7 @@ export function ScreenItemsView() {
   }, [update]);
 
   /** 候補モーダルから受け取った ExtractedCandidate[] を ScreenItem[] として一括追加。
-   *  candidate が data-item-id を持つなら ScreenItem.id として採用し、画面 DOM と
-   *  1:1 でリンクする (#322)。持たない場合は UUID を新規発番。 */
+   *  HTML name 属性 (c.name) を業務識別子 ScreenItem.id として採用する。未設定なら空文字。 */
   const handleAddCandidates = useCallback((cands: ExtractedCandidate[]) => {
     if (cands.length === 0) return;
     update((f) => {
@@ -231,7 +230,7 @@ export function ScreenItemsView() {
                   </tr>
                 )}
                 {file.items.map((item, i) => (
-                  <tr key={i}>
+                  <tr key={item.id ? `id-${item.id}` : `idx-${i}`}>
                     <td className="screen-items-no">{i + 1}</td>
                     <td>
                       <input

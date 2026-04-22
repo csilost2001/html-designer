@@ -129,14 +129,12 @@ function upsertScreenItems(screenId, html, apply) {
       const t = (getAttr(m[0], "type") ?? "text").toLowerCase();
       if (EXCLUDED_INPUT_TYPES.has(t)) continue;
     }
-    const dataItemId = getAttr(m[0], "data-item-id");
     const name = getAttr(m[0], "name");
-    if (!dataItemId || !name) continue;
-    if (existingIds.has(dataItemId)) continue;
+    if (!name) continue;
+    if (existingIds.has(name)) continue;
 
     newItems.push({
-      id: dataItemId,
-      name,
+      id: name,    // #330: 業務識別子。後で変更可能
       label: name, // 後でユーザーが日本語に変更可能
       type: inferType(tagName, getAttr(m[0], "type")),
     });

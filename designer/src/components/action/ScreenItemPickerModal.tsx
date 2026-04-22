@@ -88,7 +88,7 @@ export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
             )}
             {selectedScreenId && itemsFile?.items.map((item, i) => (
               <button
-                key={i}
+                key={item.id ? `id-${item.id}` : `idx-${i}`}
                 type="button"
                 className="screen-item-picker-item-row"
                 onClick={() => handlePick(item)}

@@ -38,8 +38,10 @@ Both servers must run simultaneously for file-based persistence. Without designe
 
 ```bash
 node docs/sample-project/seed.mjs            # Generate 10 sample screens + screen-items into data/
-node scripts/migrate-screen-items.mjs        # Dry-run: show fields missing name/data-item-id
-node scripts/migrate-screen-items.mjs --apply  # Apply: add name/id/data-item-id to existing screens
+node scripts/migrate-screen-items.mjs        # Dry-run: show screens missing data-item-id/name attrs
+node scripts/migrate-screen-items.mjs --apply  # Apply: add id/data-item-id attrs to existing screens
+node scripts/migrate-screen-items-rename.mjs        # Dry-run: show screen-items with old name field (#330)
+node scripts/migrate-screen-items-rename.mjs --apply  # Apply: rename name→id in data/screen-items/
 ```
 
 ## Architecture
@@ -162,5 +164,6 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 - PR 作成時は [`.github/pull_request_template.md`](.github/pull_request_template.md) を**全項目埋める**。不要な項目は削除せず「N/A」と明記 (レビュアーが見落としと区別するため)
 - 「仕様逐条突合 (自己申告)」節は各条項を `file:line` で**個別に列挙**。「全条項 ✓」の一括表記は不可。大規模実装の完了報告前に仕様を逐条突合すること
 - 大規模実装 / spec 絡み / UI 影響のある PR は、別の Claude Code セッション (新しいウィンドウで `/clear` 後) で [`/review-pr <N>`](.claude/commands/review-pr.md) を実行し、独立レビュー結果を PR コメントに投稿してからマージ判断する
+- **1 ISSUE を複数 PR に分割したケース**は、全 PR マージ後に [`/review-issue <N>`](.claude/commands/review-issue.md) で ISSUE 単位の実装網羅性を監査する。PR 単位レビューでは検出できない実装漏れ (ISSUE 計画と全 PR 実装の突合) を拾う
 - レビュー結果が Must-fix を含む場合はマージしない。Should-fix は対応可否をユーザーに確認
 - UI 影響のある PR は auto テスト pass ≠ マージ可。**ユーザーの目視確認必須**
