@@ -74,6 +74,18 @@ describe("getRenameContext", () => {
     expect(result.namedCount).toBe(0);
   });
 
+  it("items が空配列 → 空リスト", async () => {
+    store.screenItems[SCREEN_ID] = {
+      screenId: SCREEN_ID,
+      version: "0.1.0",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      items: [],
+    };
+    const result = await getRenameContext(SCREEN_ID);
+    expect(result.unnamedItems).toHaveLength(0);
+    expect(result.namedCount).toBe(0);
+  });
+
   it("全て命名済み → unnamedItems 空、namedCount = 項目数", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
@@ -289,5 +301,16 @@ describe("applyRenameMapping", () => {
     const result = await applyRenameMapping(SCREEN_ID, {});
     expect(result.succeeded).toHaveLength(0);
     expect(result.failed).toHaveLength(0);
+  });
+
+  it("newId が JS 予約語 → succeeded に入り warnings に記録される", async () => {
+    store.screenItems[SCREEN_ID] = BASE_ITEMS();
+    const result = await applyRenameMapping(SCREEN_ID, { textInput1: "let" });
+    // JS 予約語はエラーではなく警告のみ (renameScreenItemId の仕様)
+    expect(result.failed).toHaveLength(0);
+    expect(result.succeeded).toHaveLength(1);
+    expect(result.succeeded[0].newId).toBe("let");
+    expect(result.succeeded[0].warnings.length).toBeGreaterThan(0);
+    expect(result.succeeded[0].warnings[0]).toMatch(/予約語/);
   });
 });
