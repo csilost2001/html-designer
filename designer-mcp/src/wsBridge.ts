@@ -280,6 +280,15 @@ class WsBridge extends EventEmitter {
     });
   }
 
+  /** 特定クライアントへイベントを送信 */
+  sendToClient(clientId: string, event: string, data: unknown): void {
+    const ws = this.clients.get(clientId);
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try {
+      ws.send(JSON.stringify({ type: "broadcast", event, data }));
+    } catch { /* ignore */ }
+  }
+
   /** 全クライアント（送信元除く）へブロードキャスト */
   broadcast(event: string, data: unknown, excludeClientId?: string): void {
     const msg = JSON.stringify({ type: "broadcast", event, data });

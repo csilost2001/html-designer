@@ -84,6 +84,41 @@ A: ブラウザで `/screen/design/<id>` を開いてから再実行してくだ
 **Q: screen-items ファイルがないと言われた**
 A: 画面デザイナーで一度フォーム要素をドロップして保存すると、`data/screen-items/<id>.json` が生成されます。
 
+---
+
+## ブラウザボタン版 (#337)
+
+Claude Code セッションを開かずにブラウザだけで AI 命名を実行できます。
+
+### 前提
+
+- `designer-mcp` が稼働していること (`cd designer-mcp && npm run dev`)
+- `designer-mcp` が稼働するマシンで `claude login` 済みであること
+
+認証確認コマンド:
+
+```
+claude auth status
+```
+
+### 使い方
+
+1. ブラウザで画面デザイナーを開く (`/screen/design/<id>`)
+2. ツールバー左端の **✦ ボタン** (IDを AI で再命名) をクリック
+3. AI が未命名項目を分析 → マッピングを提示
+4. 内容を確認して **「適用する」** をクリック
+5. 完了トーストで成功 / 失敗件数を確認
+
+> **ボタンが無効の場合**: `claude login` 未実行または `designer-mcp` 未起動です。
+
+### トラブルシューティング
+
+| 症状 | 対処 |
+|------|------|
+| ボタンが灰色でクリックできない | `claude auth status` で認証確認 / `claude login` を実行 |
+| 「通信エラー」が出る | `designer-mcp` が起動しているか確認 |
+| タイムアウト (60秒) | 画面項目数が多すぎる場合は `/rename-screen-ids` コマンド版を使用 |
+
 ## 関連
 
 - MCP ツール仕様: [`docs/spec/screen-items.md` — AI 推論セクション](../spec/screen-items.md)

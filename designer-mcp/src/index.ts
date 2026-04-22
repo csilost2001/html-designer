@@ -13,6 +13,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
+import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readActionGroup, writeActionGroup, deleteActionGroup as deleteActionGroupFile, listActionGroups as listActionGroupFiles } from "./projectStorage.js";
 
@@ -1124,6 +1125,11 @@ async function main() {
       try { await server.close(); } catch { /* ignore */ }
     }
   });
+
+  // AI 命名 endpoints (#337)
+  wsBridge.registerHttpHandler("/ai/rename-screen-ids/auth-check", handleAuthCheck);
+  wsBridge.registerHttpHandler("/ai/rename-screen-ids/propose", handlePropose);
+
   console.error(`[MCP] designer-mcp HTTP transport mounted at http://localhost:${process.env.DESIGNER_MCP_PORT ?? 5179}/mcp`);
 }
 
