@@ -5,8 +5,8 @@
 AI エージェント (Claude Code) 向けの規則・手順書は別途以下にある:
 
 - [`.github/pull_request_template.md`](../.github/pull_request_template.md) — 実装 Claude が PR 本文を埋める時のテンプレ
-- [`.claude/commands/review-pr.md`](../.claude/commands/review-pr.md) — PR レビュー Claude への手順書 (`/review-pr <N>` で起動)
-- [`.claude/commands/review-issue.md`](../.claude/commands/review-issue.md) — ISSUE 完了監査 Claude への手順書 (`/review-issue <N>` で起動)
+- [`.claude/skills/review-pr/SKILL.md`](../.claude/skills/review-pr/SKILL.md) — PR レビュー Claude への手順書 (`/review-pr <N>` で起動)
+- [`.claude/skills/review-issue/SKILL.md`](../.claude/skills/review-issue/SKILL.md) — ISSUE 完了監査 Claude への手順書 (`/review-issue <N>` で起動)
 - [`CLAUDE.md`](../CLAUDE.md) の「PR 作成・レビューの規約」節 — 全 Claude セッションに効く規則
 
 ---
@@ -186,8 +186,8 @@ Step 2 と同じ: 新ウィンドウ → `/clear` → `/review-pr <N>`
 | ファイル | 役割 | 誰が読む |
 |---|---|---|
 | `.github/pull_request_template.md` | PR 作成時の briefing | 実装 Claude |
-| `.claude/commands/review-pr.md` | PR レビュー手順書 | レビュー Claude |
-| `.claude/commands/review-issue.md` | ISSUE 完了監査手順書 | レビュー Claude |
+| `.claude/skills/review-pr/SKILL.md` | PR レビュー手順書 | レビュー Claude |
+| `.claude/skills/review-issue/SKILL.md` | ISSUE 完了監査手順書 | レビュー Claude |
 | `CLAUDE.md` の「PR 作成・レビューの規約」 | 全体ルール | 全 Claude セッション |
 | `tmp/review-cache/` | レビュー結果の一時保存 (gitignored) | 人間 / Claude |
 | **このファイル (`docs/pr-review-workflow.md`)** | 運用手引き | **あなた (人間)** |

@@ -1,18 +1,25 @@
 ---
+name: review-pr
 description: PR を別セッション視点で厳格にレビューし、結果を PR コメントに投稿
 argument-hint: <PR 番号>
+disable-model-invocation: true
 ---
 
 <!--
   使い方:
     - 新しい Claude Code セッション (別ウィンドウ/別タブ) で `/clear` してから起動
-    - `/review-pr 149` のように PR 番号を指定
+    - `/review-pr 149` のように PR 番号を指定して **明示的に** 呼び出す
     - レビュー結果は `gh pr comment` で PR に投稿される
 
   目的:
     - 実装担当とは別セッションで独立レビューすることで、筆者の盲点を洗い出す
     - 「機械 CI = 網羅的・構文的チェック」に加え「意味論的・仕様準拠レビュー」を担う
     - Max プラン内で完結 (追加 API 課金なし)
+
+  発動制御:
+    - frontmatter の `disable-model-invocation: true` により、Claude が description マッチで
+      自動起動することを禁止している。ユーザーが明示的に `/review-pr <N>` と打った時のみ起動。
+    - 「レビュー指摘を確認して」「レビューに対応して」等の指示では起動しない (別ワークフロー)。
 -->
 
 PR #$ARGUMENTS を独立視点で厳格にレビューしてください。
