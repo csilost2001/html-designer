@@ -47,15 +47,15 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await expect(sel).toContainText("顧客登録画面");
   });
 
-  test("項目追加 → name 入力 → 保存", async ({ page }) => {
+  test("項目追加 → ID 入力 → 保存", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
     // 1 行出現
     await expect(page.locator(".screen-items-table tbody tr")).toHaveCount(1);
-    // name 入力
-    const nameInput = page.locator('.screen-items-table input[placeholder="email"]').first();
-    await nameInput.fill("userId");
-    await expect(nameInput).toHaveValue("userId");
+    // ID 入力
+    const idInput = page.locator('.screen-items-table input[placeholder="email"]').first();
+    await idInput.fill("userId");
+    await expect(idInput).toHaveValue("userId");
     // label 入力
     const labelInput = page.locator('.screen-items-table input[placeholder="メールアドレス"]').first();
     await labelInput.fill("ユーザー ID");

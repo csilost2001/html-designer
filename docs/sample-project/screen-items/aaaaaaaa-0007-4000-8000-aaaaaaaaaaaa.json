@@ -4,8 +4,7 @@
   "updatedAt": "2026-04-22T00:00:00.000Z",
   "items": [
     {
-      "id": "11000007-0001-4000-8000-aaaaaaaaaaaa",
-      "name": "confirm_text",
+      "id": "confirm_text",
       "label": "削除確認入力",
       "type": "string",
       "required": true

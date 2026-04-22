@@ -43,7 +43,7 @@ export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
     onPick({
       screenId: selectedScreenId,
       itemId: item.id,
-      name: item.name || item.id,
+      name: item.id,
       label: item.label || undefined,
       type: item.type,
       required: item.required || undefined,
@@ -86,14 +86,14 @@ export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
             {selectedScreenId && itemsFile && itemsFile.items.length === 0 && (
               <div className="small text-muted">この画面に項目がありません。「画面項目定義」タブで追加してください。</div>
             )}
-            {selectedScreenId && itemsFile?.items.map((item) => (
+            {selectedScreenId && itemsFile?.items.map((item, i) => (
               <button
-                key={item.id}
+                key={item.id ? `id-${item.id}` : `idx-${i}`}
                 type="button"
                 className="screen-item-picker-item-row"
                 onClick={() => handlePick(item)}
               >
-                <div className="screen-item-picker-item-name">{item.name || <span className="text-muted">(名前未設定)</span>}</div>
+                <div className="screen-item-picker-item-name">{item.id || <span className="text-muted">(ID未設定)</span>}</div>
                 <div className="screen-item-picker-item-meta">
                   {item.label && <span className="me-2">{item.label}</span>}
                   <span className="text-muted">

@@ -23,10 +23,9 @@ export interface ScreenItemErrorMessages {
 }
 
 export interface ScreenItem {
-  /** 画面内ユニークな ID。GrapesJS の data-item-id と対応する想定 (将来の紐付け用) */
+  /** 業務識別子 (実装コードのフィールド名 / API キー, e.g. userName, postalCode).
+   *  GrapesJS data-item-id と #331 以降で一致させる想定。 */
   id: string;
-  /** 論理名 (実装コードでのフィールド名 / API 上のキー) */
-  name: string;
   /** 日本語表示名 (ラベル・エラーメッセージ内の {label}) */
   label: string;
   /** 型 (処理フロー FieldType と共通、primitive + { kind: "custom", label }) */

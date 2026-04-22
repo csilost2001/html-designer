@@ -46,10 +46,9 @@
 
 ```typescript
 interface ScreenItem {
-  /** 項目 ID (画面内ユニーク、GrapesJS ブロック data-item-id と対応) */
+  /** 業務識別子 (実装コードのフィールド名 / API キー, e.g. userName, postalCode).
+   *  GrapesJS data-item-id と #331 以降で一致させる想定 (#330 で name から改称). */
   id: string;
-  /** 論理名 (実装コードのフィールド名に使われる) */
-  name: string;
   /** 日本語表示名 (ラベル、エラーメッセージの {label} に使われる) */
   label: string;
   /** 型 (処理フロー FieldType と同一、datalist + 自由入力) */
@@ -97,9 +96,10 @@ interface ScreenItemsFile {
 }
 ```
 
-**要決定**:
-- \[ \] `ScreenItem.id` と `name` を分離するか統合するか → **分離案** (GrapesJS ブロックと API フィールド名が乖離する可能性)
-- \[ \] `options` のようなマスタ依存項目をどう扱うか (静的リストか、テーブル参照か) → **MVP は静的、後続でテーブル参照サポート**
+**決定済み** (#330):
+- `ScreenItem.name` は廃止。`id` が業務識別子 (実装コードのフィールド名) を兼ねる。
+- `ScreenItem.id` (旧 UUID 識別子) は廃止。業務識別子を直接 id とする。
+- `options` のようなマスタ依存項目 → **MVP は静的、後続でテーブル参照サポート**
 
 ---
 

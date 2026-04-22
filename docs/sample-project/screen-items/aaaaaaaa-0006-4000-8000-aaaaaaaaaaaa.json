@@ -4,111 +4,79 @@
   "updatedAt": "2026-04-22T00:00:00.000Z",
   "items": [
     {
-      "id": "11000006-0001-4000-8000-aaaaaaaaaaaa",
-      "name": "name",
+      "id": "name",
       "label": "顧客名",
       "type": "string",
       "required": true,
       "maxLength": 100
     },
     {
-      "id": "11000006-0002-4000-8000-aaaaaaaaaaaa",
-      "name": "kana",
+      "id": "kana",
       "label": "フリガナ",
       "type": "string",
       "required": true,
       "maxLength": 100
     },
     {
-      "id": "11000006-0003-4000-8000-aaaaaaaaaaaa",
-      "name": "birthday",
+      "id": "birthday",
       "label": "生年月日",
       "type": "date"
     },
     {
-      "id": "11000006-0004-4000-8000-aaaaaaaaaaaa",
-      "name": "gender",
+      "id": "gender",
       "label": "性別",
       "type": "string",
       "options": [
-        {
-          "value": "m",
-          "label": "男性"
-        },
-        {
-          "value": "f",
-          "label": "女性"
-        },
-        {
-          "value": "o",
-          "label": "その他"
-        }
+        { "value": "m", "label": "男性" },
+        { "value": "f", "label": "女性" },
+        { "value": "o", "label": "その他" }
       ]
     },
     {
-      "id": "11000006-0005-4000-8000-aaaaaaaaaaaa",
-      "name": "phone",
+      "id": "phone",
       "label": "電話番号",
       "type": "string",
       "required": true,
       "maxLength": 20
     },
     {
-      "id": "11000006-0006-4000-8000-aaaaaaaaaaaa",
-      "name": "email",
+      "id": "email",
       "label": "メールアドレス",
       "type": "string",
       "maxLength": 255
     },
     {
-      "id": "11000006-0007-4000-8000-aaaaaaaaaaaa",
-      "name": "postal",
+      "id": "postal",
       "label": "郵便番号",
       "type": "string",
       "maxLength": 8,
       "pattern": "\\d{3}-\\d{4}"
     },
     {
-      "id": "11000006-0008-4000-8000-aaaaaaaaaaaa",
-      "name": "address",
+      "id": "address",
       "label": "住所",
       "type": "string",
       "maxLength": 200
     },
     {
-      "id": "11000006-0009-4000-8000-aaaaaaaaaaaa",
-      "name": "address2",
+      "id": "address2",
       "label": "住所（建物名）",
       "type": "string",
       "maxLength": 100
     },
     {
-      "id": "11000006-0010-4000-8000-aaaaaaaaaaaa",
-      "name": "rank",
+      "id": "rank",
       "label": "会員ランク",
       "type": "string",
       "options": [
-        {
-          "value": "standard",
-          "label": "スタンダード"
-        },
-        {
-          "value": "silver",
-          "label": "シルバー"
-        },
-        {
-          "value": "gold",
-          "label": "ゴールド"
-        },
-        {
-          "value": "platinum",
-          "label": "プラチナ"
-        }
+        { "value": "standard", "label": "スタンダード" },
+        { "value": "silver", "label": "シルバー" },
+        { "value": "gold", "label": "ゴールド" },
+        { "value": "platinum", "label": "プラチナ" }
       ]
     },
     {
-      "id": "11000006-0011-4000-8000-aaaaaaaaaaaa",
-      "name": "notes",
+      "id": "notes",
       "label": "備考",
       "type": "string",
       "maxLength": 500
