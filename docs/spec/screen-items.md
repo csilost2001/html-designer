@@ -185,11 +185,19 @@ interface ScreenItemsFile {
 
 → **MVP は (E-1a) 独立タブ、後続で (E-1b) も追加**
 
-#### (E-2) GrapesJS ブロックとの紐付け
+#### (E-2) GrapesJS ブロック配置時の属性自動入力 (#328 で実装済み)
 
-- GrapesJS の `input` / `select` / `textarea` ブロックに **`data-item-id` 属性**を自動付与
-- 画面項目定義側で `id` を指定すると、GrapesJS 側でその属性を持つ要素がフィールドとして認識
-- 新規ブロック追加時は `data-item-id` を自動発番 (`generateUUID()`)
+GrapesJS で `input` / `select` / `textarea` ブロックを **drop したとき**に、以下の属性を自動付与する:
+
+| 属性 | 値 | 条件 |
+|---|---|---|
+| `data-item-id` | 新規 UUID | 未設定の場合のみ |
+| `name` | `field_<UUID先頭8文字>` | 未設定の場合のみ |
+| `id` | name と同じ値 | 未設定の場合のみ |
+
+**実装**: `designer/src/grapes/dataItemId.ts` の `ensureFormFieldIdentity()` が `component:add` イベントで呼ばれる。  
+**既存属性は絶対に上書きしない** (ユーザーが手で付けた name を壊さない)。  
+`button` / `submit` / `reset` / `hidden` / `image` 型は対象外。
 
 #### (E-3) 既存画面からの移行
 

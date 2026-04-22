@@ -104,4 +104,190 @@ describe("extractScreenItemCandidates", () => {
     const cands = extractScreenItemCandidates(gjsFromHtml(html));
     expect(cands[0].dataItemId).toBeUndefined();
   });
+
+  it("name と data-item-id が両方入った要素から両方取得できる (#328)", () => {
+    const html = `
+      <input name="user_id" id="user_id" type="text" data-item-id="11000001-0001-4000-8000-aaaaaaaaaaaa"
+             placeholder="ユーザーIDを入力" />
+    `;
+    const cands = extractScreenItemCandidates(gjsFromHtml(html));
+    expect(cands).toHaveLength(1);
+    expect(cands[0].name).toBe("user_id");
+    expect(cands[0].dataItemId).toBe("11000001-0001-4000-8000-aaaaaaaaaaaa");
+  });
+
+  // ── GrapesJS 構造化 JSON 形式 (デザイナーで D&D して保存した画面の実形式) ──
+
+  it("GrapesJS 構造化 JSON: tagName+attributes で保存された input を抽出", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                tagName: "div",
+                classes: ["container"],
+                components: [
+                  {
+                    tagName: "input",
+                    attributes: {
+                      type: "text",
+                      name: "field_abcd1234",
+                      id: "field_abcd1234",
+                      "data-item-id": "abcd1234-5678-4000-8000-aaaaaaaaaaaa",
+                      class: "form-control",
+                    },
+                    components: [],
+                  },
+                ],
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].name).toBe("field_abcd1234");
+    expect(cands[0].dataItemId).toBe("abcd1234-5678-4000-8000-aaaaaaaaaaaa");
+    expect(cands[0].tag).toBe("input");
+  });
+
+  it("GrapesJS 構造化 JSON: label + input の組み合わせで label を推定", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                tagName: "label",
+                attributes: { for: "email" },
+                components: [{ type: "textnode", content: "メールアドレス" }],
+              },
+              {
+                tagName: "input",
+                attributes: { type: "text", name: "email", id: "email" },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].name).toBe("email");
+    expect(cands[0].label).toBe("メールアドレス");
+  });
+
+  it("GrapesJS 構造化 JSON: select / textarea も抽出", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              { tagName: "select", attributes: { name: "category" }, components: [] },
+              { tagName: "textarea", attributes: { name: "notes" }, components: [] },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(2);
+    expect(cands[0].tag).toBe("select");
+    expect(cands[1].tag).toBe("textarea");
+  });
+
+  // ── GrapesJS カスタムコンポーネントタイプ (デザイナーで D&D したブロックの実形式) ──
+
+  it("カスタムタイプ validation-input (tagName なし) を抽出 (#329 bug fix)", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                type: "validation-input",
+                void: true,
+                classes: ["form-control", "form-control-sm"],
+                attributes: {
+                  type: "text",
+                  placeholder: "ユーザーIDを入力",
+                  "data-item-id": "69f9561e-2cea-4251-8ec6-f66a3e779a55",
+                  name: "field_69f9561e",
+                  id: "field_69f9561e",
+                },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].tag).toBe("input");
+    expect(cands[0].name).toBe("field_69f9561e");
+    expect(cands[0].dataItemId).toBe("69f9561e-2cea-4251-8ec6-f66a3e779a55");
+    expect(cands[0].type).toBe("string");
+  });
+
+  it("カスタムタイプ validation-select (tagName なし) を抽出 (#329 bug fix)", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                type: "validation-select",
+                classes: ["form-select"],
+                attributes: {
+                  name: "status",
+                  "data-item-id": "aabbccdd-0001-4000-8000-aaaaaaaaaaaa",
+                },
+                components: [],
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].tag).toBe("select");
+    expect(cands[0].name).toBe("status");
+    expect(cands[0].dataItemId).toBe("aabbccdd-0001-4000-8000-aaaaaaaaaaaa");
+  });
+
+  it("カスタムタイプ checkbox (tagName なし) を抽出 (#329 bug fix)", () => {
+    const screenData = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              {
+                type: "checkbox",
+                void: true,
+                attributes: {
+                  type: "checkbox",
+                  name: "agree",
+                  "data-item-id": "ccbbaa99-0001-4000-8000-aaaaaaaaaaaa",
+                },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const cands = extractScreenItemCandidates(screenData);
+    expect(cands).toHaveLength(1);
+    expect(cands[0].tag).toBe("input");
+    expect(cands[0].type).toBe("boolean");
+    expect(cands[0].dataItemId).toBe("ccbbaa99-0001-4000-8000-aaaaaaaaaaaa");
+  });
 });
