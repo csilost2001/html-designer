@@ -70,7 +70,6 @@ function makeScreenData(html, pageId, frameId) {
 // ── 画面項目定義生成ヘルパー ───────────────────────────────────────────────
 function makeScreenItemsFile(screenId, items) {
   return {
-    $schema: "../../schemas/screen-items.schema.json",
     screenId,
     version: "0.1.0",
     updatedAt: "2026-04-22T00:00:00.000Z",

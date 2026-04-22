@@ -58,11 +58,6 @@ export function ensureFormFieldIdentity(cmp: Component): boolean {
   return true;
 }
 
-/** @deprecated Use ensureFormFieldIdentity instead */
-export function ensureDataItemId(cmp: Component): boolean {
-  return ensureFormFieldIdentity(cmp);
-}
-
 /** component とその子孫を再帰走査 */
 function walk(cmp: Component, visit: (c: Component) => void): void {
   visit(cmp);

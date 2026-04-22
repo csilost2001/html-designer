@@ -74,6 +74,30 @@ describe("ensureFormFieldIdentity", () => {
     expect(changed).toBe(false);
   });
 
+  it("reset type は付与しない", () => {
+    const cmp = makeCmp("input", { type: "reset" });
+    const changed = ensureFormFieldIdentity(cmp);
+    expect(changed).toBe(false);
+  });
+
+  it("image type は付与しない", () => {
+    const cmp = makeCmp("input", { type: "image" });
+    const changed = ensureFormFieldIdentity(cmp);
+    expect(changed).toBe(false);
+  });
+
+  it("data-item-id 有り・name/id 無しの場合は name/id だけが既存 data-item-id から派生して付与される", () => {
+    const cmp = makeCmp("input", { type: "text", "data-item-id": "abcd1234-5678-4000-8000-aaaaaaaaaaaa" });
+    const changed = ensureFormFieldIdentity(cmp);
+    expect(changed).toBe(true);
+    const attrs = cmp.getAttributes();
+    // data-item-id は変わらない
+    expect(attrs["data-item-id"]).toBe("abcd1234-5678-4000-8000-aaaaaaaaaaaa");
+    // name は既存 data-item-id の先頭セグメントから派生
+    expect(attrs.name).toBe("field_abcd1234");
+    expect(attrs.id).toBe("field_abcd1234");
+  });
+
   it("select に付与される", () => {
     const cmp = makeCmp("select");
     const changed = ensureFormFieldIdentity(cmp);
