@@ -157,7 +157,13 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
   - シリーズ起票された ISSUE 群で、起票時点で PR グルーピングが宣言されている
   - 同じ画面に対する複数 ISSUE の同時修正
 
-  束ねる場合: PR description に `Closes #A, #B, #C` で全 ISSUE を明示、コミットは ISSUE 単位で分ける。UI 目視確認 / `/review-pr` は**統合 PR 単位で 1 回**。Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
+  束ねる場合: PR description に **各 ISSUE の前に `Closes` キーワードを必ず書く** (GitHub 仕様 "Use full syntax for each issue")。改行区切り推奨:
+  ```
+  Closes #A
+  Closes #B
+  Closes #C
+  ```
+  **NG**: `Closes #A, #B, #C` は**先頭しか自動 close されない** (PR #340 で実例あり)。コミットは ISSUE 単位で分ける。UI 目視確認 / `/review-pr` は**統合 PR 単位で 1 回**。Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
 - PRs are squash-merged into `main`. The PR title should include the issue number (e.g., `feat(ui): ... (#83)`) so the merge commit references it.
 - `data/` directory is gitignored — runtime data only
 - Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
@@ -169,8 +175,8 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 - PR 作成時は [`.github/pull_request_template.md`](.github/pull_request_template.md) を**全項目埋める**。不要な項目は削除せず「N/A」と明記 (レビュアーが見落としと区別するため)
 - 「仕様逐条突合 (自己申告)」節は各条項を `file:line` で**個別に列挙**。「全条項 ✓」の一括表記は不可。大規模実装の完了報告前に仕様を逐条突合すること
-- 大規模実装 / spec 絡み / UI 影響のある PR は、別の Claude Code セッション (新しいウィンドウで `/clear` 後) で [`/review-pr <N>`](.claude/commands/review-pr.md) を実行し、独立レビュー結果を PR コメントに投稿してからマージ判断する
-- **1 ISSUE を複数 PR に分割したケース**は、全 PR マージ後に [`/review-issue <N>`](.claude/commands/review-issue.md) で ISSUE 単位の実装網羅性を監査する。PR 単位レビューでは検出できない実装漏れ (ISSUE 計画と全 PR 実装の突合) を拾う
+- 大規模実装 / spec 絡み / UI 影響のある PR は、別の Claude Code セッション (新しいウィンドウで `/clear` 後) で [`/review-pr <N>`](.claude/skills/review-pr/SKILL.md) を実行し、独立レビュー結果を PR コメントに投稿してからマージ判断する
+- **1 ISSUE を複数 PR に分割したケース**は、全 PR マージ後に [`/review-issue <N>`](.claude/skills/review-issue/SKILL.md) で ISSUE 単位の実装網羅性を監査する。PR 単位レビューでは検出できない実装漏れ (ISSUE 計画と全 PR 実装の突合) を拾う
 - レビュー結果が Must-fix を含む場合はマージしない。Should-fix は対応可否をユーザーに確認
 - UI 影響のある PR は auto テスト pass ≠ マージ可。**ユーザーの目視確認必須**
 
@@ -181,7 +187,13 @@ ISSUE 本文の冒頭に `## 🔗 統合 PR 情報` セクションがある ISS
 1. セクションに記載された **統合ブランチ** を `origin/main` (または指定 base) から切る (既に存在すれば checkout して継続)
 2. 自分の担当 ISSUE 分のコミットをそのブランチに積む (ISSUE 単位で commit メッセージを分ける)
 3. **他の統合対象 ISSUE が全て完了するまで PR を作らない** (draft も不可)
-4. 最後の ISSUE 完了時に PR を作成、description に `Closes #A, #B, #C` で全 ISSUE を列挙
+4. 最後の ISSUE 完了時に PR を作成、description に **各 ISSUE の前に `Closes` を必ず書いて** 全 ISSUE を列挙 (GitHub 仕様: 改行区切り推奨):
+   ```
+   Closes #A
+   Closes #B
+   Closes #C
+   ```
+   **NG**: `Closes #A, #B, #C` は先頭しか自動 close されない
 5. UI 目視確認 / `/review-pr` は統合 PR 単位で 1 回のみ (個別 ISSUE で実行しない)
 
 ユーザーからの指示が `#<N> やって` のように単一 ISSUE 番号でも、本文に本セクションがあれば上記に従う。セクションが無い場合は通常の 1 ISSUE = 1 PR 運用。

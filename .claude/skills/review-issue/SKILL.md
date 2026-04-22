@@ -1,12 +1,14 @@
 ---
+name: review-issue
 description: ISSUE の実装計画が全 PR 横断で網羅されているかを検証し、結果を ISSUE コメントに投稿
 argument-hint: <ISSUE 番号>
+disable-model-invocation: true
 ---
 
 <!--
   使い方:
     - 新しい Claude Code セッション (別ウィンドウ/別タブ) で `/clear` してから起動
-    - `/review-issue 148` のように ISSUE 番号を指定
+    - `/review-issue 148` のように ISSUE 番号を指定して **明示的に** 呼び出す
     - ISSUE に紐づく PR が「全て」マージ済みになったタイミングで実行する
     - レビュー結果は `gh issue comment` で ISSUE に投稿される
 
@@ -14,6 +16,10 @@ argument-hint: <ISSUE 番号>
     - 1 ISSUE が複数 PR に分割された場合でも、ISSUE 本文の実装計画が漏れなく実装されたかを確認する
     - `/review-pr` は PR 単位のコード品質・spec 準拠を見る。こちらは **ISSUE 単位の網羅性** を見る
     - AI エージェントは ISSUE のチェックリスト項目を取りこぼしやすいため、最終的な deliverable 確認が重要
+
+  発動制御:
+    - frontmatter の `disable-model-invocation: true` により、Claude が description マッチで
+      自動起動することを禁止している。ユーザーが明示的に `/review-issue <N>` と打った時のみ起動。
 -->
 
 ISSUE #$ARGUMENTS の実装計画が、紐づく全 PR 横断で網羅されているかを検証してください。
