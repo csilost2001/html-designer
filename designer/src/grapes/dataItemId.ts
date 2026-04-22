@@ -15,6 +15,7 @@
  */
 import type { Editor as GEditor, Component } from "grapesjs";
 import { generateUUID } from "../utils/uuid";
+import { generateAutoId } from "../utils/screenItemNaming";
 
 const NAMABLE_TAGS = new Set(["input", "select", "textarea", "button"]);
 const EXCLUDED_INPUT_TYPES = new Set(["button", "submit", "reset", "hidden", "image"]);
@@ -73,24 +74,20 @@ function walk(cmp: Component, visit: (c: Component) => void): void {
 }
 
 /**
- * 画面内の既存 name 属性を走査し、`prefix + 数字` の最大値 +1 を返す。
- * 例: `textInput1`, `textInput3` が存在すれば `textInput4` を返す。
+ * 画面内の既存 name 属性を走査し、次の連番 ID を返す。
+ * 実際の採番は screenItemNaming.generateAutoId に委譲。
  */
 function nextItemId(prefix: string, editor: GEditor): string {
   const wrapper = editor.getWrapper();
   if (!wrapper) return `${prefix}1`;
 
-  const pattern = new RegExp(`^${prefix}(\\d+)$`);
-  let maxN = 0;
-
+  const existing: string[] = [];
   walk(wrapper, (c) => {
-    const a = c.getAttributes?.() ?? {};
-    const nameVal = String(a.name ?? "");
-    const m = nameVal.match(pattern);
-    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+    const nameVal = String(c.getAttributes?.()?.name ?? "");
+    if (nameVal) existing.push(nameVal);
   });
 
-  return `${prefix}${maxN + 1}`;
+  return generateAutoId(prefix, existing);
 }
 
 /**
