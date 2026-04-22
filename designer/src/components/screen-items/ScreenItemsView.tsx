@@ -31,6 +31,8 @@ import "../../styles/screen-items.css";
 const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> =
   ["string", "number", "boolean", "date"];
 
+const JS_IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+
 type ScreenMeta = { id: string; name: string };
 
 /** useResourceEditor 互換のため ScreenItemsFile を読み書きする load/save ラッパー */
@@ -318,6 +320,14 @@ export function ScreenItemsView() {
       return;
     }
 
+    // 無効な JS 識別子はバックエンドに送る前に弾く
+    if (newId && !JS_IDENTIFIER_RE.test(newId)) {
+      alert(`"${newId}" は有効な ID ではありません。英字・_ ・$ で始まり、英数字・_ ・$ のみ使用できます。`);
+      updateSilent((f) => { f.items[idx].id = originalId; });
+      commit();
+      return;
+    }
+
     try {
       const result = await mcpBridge.request("checkScreenItemRefs", {
         screenId: selectedScreenId,
@@ -352,7 +362,9 @@ export function ScreenItemsView() {
         oldId,
         newId,
       });
-      // broadcast で useResourceEditor がリロードするので追加操作不要
+      // ローカル state は onChange で既に newId に更新済み。draft を確定させるだけ。
+      // (wsBridge は送信元を除外して broadcast するため、このタブへの自動リロードはない)
+      commit();
     } catch (e) {
       alert(`リネームに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
       // 失敗時はローカル状態を元に戻す

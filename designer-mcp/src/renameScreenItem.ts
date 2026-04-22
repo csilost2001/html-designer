@@ -124,14 +124,13 @@ function renameAttrInHtml(html: string, oldId: string, newId: string): { html: s
   const esc = escapeRegex(oldId);
   let changed = false;
   let result = html;
-  result = result.replace(new RegExp(`(\\bname=")${esc}(")`, "g"), (_, p1, p2) => {
-    changed = true;
-    return `${p1}${newId}${p2}`;
-  });
-  result = result.replace(new RegExp(`(\\bid=")${esc}(")`, "g"), (_, p1, p2) => {
-    changed = true;
-    return `${p1}${newId}${p2}`;
-  });
+  // 二重引用符・単引用符の両形式に対応
+  for (const attr of ["name", "id"]) {
+    result = result.replace(
+      new RegExp(`(\\b${attr}=["'])${esc}(["'])`, "g"),
+      (_, p1, p2) => { changed = true; return `${p1}${newId}${p2}`; },
+    );
+  }
   return { html: result, changed };
 }
 

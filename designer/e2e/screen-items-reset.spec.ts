@@ -1,13 +1,13 @@
 /**
  * 画面項目 ID リセット機能 E2E (#334)
  *
- * - 画面項目定義 UI: 行ごとの「IDをリセット」ボタン
- * - 画面項目定義 UI: 複数行選択 + 「選択行のIDをリセット」
- * - 空 ID の行は即時ローカル更新
- * - 既存 ID は処理フロー参照なしの場合に renameScreenItem へ委譲
+ * 本ファイルでは MCP 未接続 (localStorage のみ) の経路を検証する:
+ * - 空 ID 行のリセット → 即時ローカル更新 (toLocalSet パス)
+ * - 非空 ID 行で MCP 未接続 → catch ブロックでローカル更新
+ * - 複数選択リセット / 全選択 / 未保存ガード
  *
- * ※ MCP (renameScreenItem) を使う経路は MCP 起動が必要なため、
- *    ここでは localStorage ベースの動作 (MCP 未接続) を検証する。
+ * MCP 接続済みの renameScreenItem 成功パス (参照なし / 参照あり確認ダイアログ) は
+ * designer/e2e/mcp/ 配下の MCP E2E テストでカバーする想定。
  */
 import { test, expect, type Page } from "@playwright/test";
 
