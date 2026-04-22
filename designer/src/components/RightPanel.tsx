@@ -133,6 +133,8 @@ export function RightPanel({ screenId }: RightPanelProps) {
 
       if (result.totalRefs === 0) {
         await mcpBridge.request("renameScreenItem", { screenId, oldId: selectedItemName, newId });
+        // GrapesJS インメモリも更新 (autosave による上書きを防ぐ)
+        sel.addAttributes({ name: newId, id: newId });
         setSelectedItemName(newId);
       } else {
         setPendingReset({
@@ -150,16 +152,21 @@ export function RightPanel({ screenId }: RightPanelProps) {
   }, [editor, screenId, selectedItemName]);
 
   const handleConfirmReset = useCallback(async () => {
-    if (!pendingReset || !screenId) return;
+    if (!pendingReset || !screenId || !editor) return;
     const { oldId, newId } = pendingReset;
     setPendingReset(null);
     try {
       await mcpBridge.request("renameScreenItem", { screenId, oldId, newId });
+      // GrapesJS インメモリも更新 (autosave による上書きを防ぐ)
+      const sel = editor.getSelected();
+      if (sel && isNamableElement(sel)) {
+        sel.addAttributes({ name: newId, id: newId });
+      }
       setSelectedItemName(newId);
     } catch (e) {
       alert(`IDリセットに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [pendingReset, screenId]);
+  }, [pendingReset, screenId, editor]);
 
   return (
     <div className="right-panel">

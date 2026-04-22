@@ -227,6 +227,13 @@ export function ScreenItemsView() {
             newId,
           });
         }
+        // ローカル state も同期 (保存操作で古い ID が上書きされるのを防ぐ)
+        updateSilent((f) => {
+          for (const { idx, newId } of toRename) {
+            f.items[idx].id = newId;
+          }
+        });
+        commit();
       } else {
         setPendingReset({ resets: toRename, affectedGroups, totalRefs });
       }
@@ -254,10 +261,17 @@ export function ScreenItemsView() {
           newId,
         });
       }
+      // ローカル state も同期 (保存操作で古い ID が上書きされるのを防ぐ)
+      updateSilent((f) => {
+        for (const { idx, newId } of resets) {
+          f.items[idx].id = newId;
+        }
+      });
+      commit();
     } catch (e) {
       alert(`IDリセットに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [pendingReset, selectedScreenId]);
+  }, [pendingReset, selectedScreenId, updateSilent, commit]);
 
   const handleCancelReset = useCallback(() => {
     setPendingReset(null);
