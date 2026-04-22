@@ -24,13 +24,20 @@ const dummyProject = {
 };
 
 async function setup(page: Page) {
+  // MCP WebSocket をブロックして localStorage モードに固定する。
+  // 接続が成立するとプロジェクトが実 MCP データで上書きされ、
+  // テスト途中で画面切替が発生して状態がリセットされるため。
+  await page.routeWebSocket(/ws:\/\/localhost:5179/, (ws) => {
+    ws.close();
+  });
   await page.addInitScript(({ project }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
-    // 既存の項目データをクリア
     for (const k of Object.keys(localStorage)) {
-      if (k.startsWith("screen-items-")) localStorage.removeItem(k);
+      if (k.startsWith("screen-items-") || k.startsWith("draft-screen-items-")) {
+        localStorage.removeItem(k);
+      }
     }
   }, { project: dummyProject });
   await page.goto("/screen-items");
@@ -102,5 +109,79 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await expect(page.locator(".screen-items-table tbody tr")).toHaveCount(1);
     await page.locator('.screen-items-table button[aria-label="削除"]').first().click();
     await expect(page.locator(".screen-items-empty-row")).toBeVisible();
+  });
+
+  test("ID を空にして blur すると元の ID に戻る", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    // tr:last-child で新規追加行のみを対象にする (既存 MCP 行を避ける)
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    const idInput = row.locator('input[placeholder="email"]');
+    const labelInput = row.locator('input[placeholder="メールアドレス"]');
+    // ID を設定して blur で確定 (originalId が "" → !originalId → commit)
+    await idInput.fill("userId");
+    await labelInput.click();
+    // クリックして focus → idFocusVals に "userId" が記録される
+    await idInput.click();
+    await idInput.fill("");
+    await labelInput.click();
+    // 元の ID に戻っているはず
+    await expect(idInput).toHaveValue("userId", { timeout: 2000 });
+  });
+
+  test("ID を既存 ID に変更して blur するとアラートが出て元の ID に戻る", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    // nth-last-child で末尾 2 行のみ操作 (既存 MCP 行を避ける)
+    const rowA = page.locator(".screen-items-table tbody tr:nth-last-child(2)");
+    const rowB = page.locator(".screen-items-table tbody tr:last-child");
+    const idA = rowA.locator('input[placeholder="email"]');
+    const idB = rowB.locator('input[placeholder="email"]');
+    const labelA = rowA.locator('input[placeholder="メールアドレス"]');
+    const labelB = rowB.locator('input[placeholder="メールアドレス"]');
+    // 各行の ID を設定して確定
+    await idA.fill("fieldA");
+    await labelA.click();
+    await idB.fill("fieldB");
+    await labelB.click();
+    // 2 行目をクリックして focus → idFocusVals に "fieldB" が記録される
+    await idB.click();
+    let alertFired = false;
+    page.on("dialog", async (dialog) => {
+      if (dialog.message().includes("既に同じ画面内で使用されています")) {
+        alertFired = true;
+        await dialog.accept();
+      }
+    });
+    await idB.fill("fieldA");
+    await labelB.click();
+    await expect.poll(() => alertFired, { timeout: 3000 }).toBe(true);
+    // 元の ID (fieldB) に戻る
+    await expect(idB).toHaveValue("fieldB", { timeout: 2000 });
+  });
+
+  test("無効な JS 識別子 (数字始まり) を入力して blur するとアラートが出て元の ID に戻る", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    const idInput = row.locator('input[placeholder="email"]');
+    const labelInput = row.locator('input[placeholder="メールアドレス"]');
+    // ID を設定して blur で確定
+    await idInput.fill("myField");
+    await labelInput.click();
+    // クリックして focus → idFocusVals に "myField" が記録される
+    await idInput.click();
+    let alertFired = false;
+    page.on("dialog", async (dialog) => {
+      if (dialog.message().includes("有効な ID ではありません")) {
+        alertFired = true;
+        await dialog.accept();
+      }
+    });
+    await idInput.fill("123invalid");
+    await labelInput.click();
+    await expect.poll(() => alertFired, { timeout: 3000 }).toBe(true);
+    await expect(idInput).toHaveValue("myField", { timeout: 2000 });
   });
 });

@@ -917,6 +917,39 @@ export const tools = [
       required: ["actionGroupId", "markerId"],
     },
   },
+  // ── 画面項目 ID リネーム ──
+
+  {
+    name: "designer__rename_screen_item",
+    description:
+      "画面項目の ID を変更し、参照する全処理フローの screenItemRef を自動追従させます。" +
+      "oldId → newId のリネームが画面 HTML の name/id 属性と screen-items JSON にも反映されます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: { type: "string", description: "対象の画面ID" },
+        oldId:    { type: "string", description: "変更前の業務識別子" },
+        newId:    { type: "string", description: "変更後の業務識別子 (有効な JS 識別子)" },
+      },
+      required: ["screenId", "oldId", "newId"],
+    },
+  },
+
+  {
+    name: "designer__check_screen_item_refs",
+    description:
+      "画面項目 ID を変更したときに影響を受ける処理フローの一覧と件数を返します。" +
+      "rename_screen_item の実行前に呼び出して影響範囲を確認するために使います。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        screenId: { type: "string", description: "対象の画面ID" },
+        itemId:   { type: "string", description: "確認する業務識別子" },
+      },
+      required: ["screenId", "itemId"],
+    },
+  },
+
   {
     name: "designer__remove_marker",
     description: "マーカーを完全削除します (resolve とは別、履歴から消す)。",
