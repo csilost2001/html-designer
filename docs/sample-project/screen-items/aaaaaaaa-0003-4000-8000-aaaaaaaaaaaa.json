@@ -4,22 +4,19 @@
   "updatedAt": "2026-04-22T00:00:00.000Z",
   "items": [
     {
-      "id": "11000003-0001-4000-8000-aaaaaaaaaaaa",
-      "name": "keyword",
+      "id": "keyword",
       "label": "顧客名",
       "type": "string",
       "maxLength": 100
     },
     {
-      "id": "11000003-0002-4000-8000-aaaaaaaaaaaa",
-      "name": "phone",
+      "id": "phone",
       "label": "電話番号",
       "type": "string",
       "maxLength": 20
     },
     {
-      "id": "11000003-0003-4000-8000-aaaaaaaaaaaa",
-      "name": "email",
+      "id": "email",
       "label": "メールアドレス",
       "type": "string",
       "maxLength": 255

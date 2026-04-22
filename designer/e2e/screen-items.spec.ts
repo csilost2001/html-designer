@@ -47,7 +47,7 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await expect(sel).toContainText("顧客登録画面");
   });
 
-  test("項目追加 → name 入力 → 保存", async ({ page }) => {
+  test("項目追加 → ID 入力 → 保存", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
     // 1 行出現

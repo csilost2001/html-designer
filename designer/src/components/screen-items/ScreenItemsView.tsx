@@ -23,7 +23,6 @@ import { loadProject } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
-import { generateUUID } from "../../utils/uuid";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
 import "../../styles/screen-items.css";
@@ -102,8 +101,7 @@ export function ScreenItemsView() {
   const handleAddItem = useCallback(() => {
     update((f) => {
       f.items.push({
-        id: generateUUID(),
-        name: "",
+        id: "",
         label: "",
         type: "string",
       });
@@ -130,8 +128,7 @@ export function ScreenItemsView() {
     update((f) => {
       for (const c of cands) {
         f.items.push({
-          id: c.dataItemId || generateUUID(),
-          name: c.name || "",
+          id: c.name || "",
           label: c.label || "",
           type: c.type,
           required: c.required,
@@ -144,8 +141,8 @@ export function ScreenItemsView() {
     });
   }, [update]);
 
-  const existingNames = useMemo(
-    () => new Set((file?.items ?? []).map((i) => i.name).filter(Boolean)),
+  const existingIds = useMemo(
+    () => new Set((file?.items ?? []).map((i) => i.id).filter(Boolean)),
     [file]
   );
 
@@ -214,8 +211,8 @@ export function ScreenItemsView() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>名前 (name)</th>
-                  <th>ラベル (label)</th>
+                  <th>ID</th>
+                  <th>ラベル</th>
                   <th>型</th>
                   <th className="text-center">必須</th>
                   <th>最小長</th>
@@ -234,13 +231,13 @@ export function ScreenItemsView() {
                   </tr>
                 )}
                 {file.items.map((item, i) => (
-                  <tr key={item.id}>
+                  <tr key={i}>
                     <td className="screen-items-no">{i + 1}</td>
                     <td>
                       <input
                         className="form-control form-control-sm"
-                        value={item.name}
-                        onChange={(e) => handleUpdateItem(i, { name: e.target.value })}
+                        value={item.id}
+                        onChange={(e) => handleUpdateItem(i, { id: e.target.value })}
                         onBlur={commit}
                         placeholder="email"
                       />
@@ -367,7 +364,7 @@ export function ScreenItemsView() {
         open={candidatesModalOpen}
         screenId={selectedScreenId ?? null}
         screenName={selectedScreenName}
-        existingNames={existingNames}
+        existingIds={existingIds}
         onClose={() => setCandidatesModalOpen(false)}
         onAddCandidates={handleAddCandidates}
       />

@@ -12,14 +12,14 @@ interface Props {
   open: boolean;
   screenId: string | null;
   screenName?: string;
-  /** 既存項目の name セット (重複チェック用) */
-  existingNames: Set<string>;
+  /** 既存項目の ID セット (重複チェック用) */
+  existingIds: Set<string>;
   onClose: () => void;
   /** 選択された候補群を一括追加 */
   onAddCandidates: (candidates: ExtractedCandidate[]) => void;
 }
 
-export function ScreenItemCandidatesModal({ open, screenId, screenName, existingNames, onClose, onAddCandidates }: Props) {
+export function ScreenItemCandidatesModal({ open, screenId, screenName, existingIds, onClose, onAddCandidates }: Props) {
   const [candidates, setCandidates] = useState<ExtractedCandidate[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -45,12 +45,12 @@ export function ScreenItemCandidatesModal({ open, screenId, screenName, existing
   }, [open, screenId]);
 
   const newCandidateIndices = useMemo(() => {
-    // 既存 name と重複しないものだけデフォルト選択対象に
+    // 既存 ID と重複しないものだけデフォルト選択対象に
     return candidates
       .map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.name && !existingNames.has(c.name))
+      .filter(({ c }) => c.name && !existingIds.has(c.name))
       .map(({ i }) => i);
-  }, [candidates, existingNames]);
+  }, [candidates, existingIds]);
 
   const toggle = (idx: number) => {
     setSelected((prev) => {
@@ -95,7 +95,7 @@ export function ScreenItemCandidatesModal({ open, screenId, screenName, existing
             <>
               <div className="screen-item-candidates-toolbar">
                 <span className="small text-muted">
-                  {candidates.length} 件検出、{newCandidateIndices.length} 件が新規 (name 重複除く)
+                  {candidates.length} 件検出、{newCandidateIndices.length} 件が新規 (ID 重複除く)
                 </span>
                 <div className="ms-auto d-flex gap-2">
                   <button type="button" className="btn btn-sm btn-outline-secondary" onClick={selectAll}>
@@ -121,7 +121,7 @@ export function ScreenItemCandidatesModal({ open, screenId, screenName, existing
                 <thead>
                   <tr>
                     <th />
-                    <th>name</th>
+                    <th>ID</th>
                     <th>tag</th>
                     <th>型</th>
                     <th>label (推定)</th>
@@ -133,7 +133,7 @@ export function ScreenItemCandidatesModal({ open, screenId, screenName, existing
                 </thead>
                 <tbody>
                   {candidates.map((c, i) => {
-                    const isDup = !!c.name && existingNames.has(c.name);
+                    const isDup = !!c.name && existingIds.has(c.name);
                     const isChecked = selected.has(i);
                     return (
                       <tr key={i} className={isDup ? "dup" : undefined}>
