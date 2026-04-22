@@ -19,6 +19,7 @@ import {
   saveScreenItems,
 } from "../../store/screenItemsStore";
 import { loadProject } from "../../store/flowStore";
+import { mcpBridge } from "../../mcp/mcpBridge";
 import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
 import { generateUUID } from "../../utils/uuid";
@@ -44,13 +45,26 @@ export function ScreenItemsView() {
   const [selectedScreenId, setSelectedScreenId] = useState<string | undefined>(undefined);
   const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
 
-  // 画面一覧をロード (初回 + プロジェクト変更)
+  // 画面一覧をロード (初回 + MCP 接続復帰時)
   useEffect(() => {
-    loadProject().then((p) => {
-      const metas = p.screens.map((s) => ({ id: s.id, name: s.name }));
-      setScreens(metas);
-      setSelectedScreenId((cur) => cur ?? (metas.length > 0 ? metas[0].id : undefined));
-    }).catch(console.error);
+    let mounted = true;
+    const doLoad = () => {
+      loadProject().then((p) => {
+        if (!mounted) return;
+        const metas = p.screens.map((s) => ({ id: s.id, name: s.name }));
+        setScreens(metas);
+        setSelectedScreenId((cur) => cur ?? (metas.length > 0 ? metas[0].id : undefined));
+      }).catch(console.error);
+    };
+    mcpBridge.startWithoutEditor();
+    doLoad();
+    const unsubStatus = mcpBridge.onStatusChange((s) => {
+      if (s === "connected") doLoad();
+    });
+    return () => {
+      mounted = false;
+      unsubStatus();
+    };
   }, []);
 
   const {
