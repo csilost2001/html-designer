@@ -151,7 +151,13 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 - All UI text is in Japanese
 - Commit messages use conventional commits in Japanese (e.g., `feat(flow):`, `fix(designer):`, `improve:`)
-- **Workflow: one issue = one branch = one PR.** Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
+- **Workflow: デフォルトは 1 ISSUE = 1 ブランチ = 1 PR**。ただし以下は複数 ISSUE を 1 PR に束ねる (ISSUE = 作業指示単位 / PR = 1 論理的変更単位、両者は 1:1 とは限らない):
+  - UX / 機能として一体 (単独で動かない・ユーザー体験が完結しない)
+  - 調査の結果、関連バグ・関連修正と判明した
+  - シリーズ起票された ISSUE 群で、起票時点で PR グルーピングが宣言されている
+  - 同じ画面に対する複数 ISSUE の同時修正
+
+  束ねる場合: PR description に `Closes #A, #B, #C` で全 ISSUE を明示、コミットは ISSUE 単位で分ける。UI 目視確認 / `/review-pr` は**統合 PR 単位で 1 回**。Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
 - PRs are squash-merged into `main`. The PR title should include the issue number (e.g., `feat(ui): ... (#83)`) so the merge commit references it.
 - `data/` directory is gitignored — runtime data only
 - Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
@@ -167,3 +173,53 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 - **1 ISSUE を複数 PR に分割したケース**は、全 PR マージ後に [`/review-issue <N>`](.claude/commands/review-issue.md) で ISSUE 単位の実装網羅性を監査する。PR 単位レビューでは検出できない実装漏れ (ISSUE 計画と全 PR 実装の突合) を拾う
 - レビュー結果が Must-fix を含む場合はマージしない。Should-fix は対応可否をユーザーに確認
 - UI 影響のある PR は auto テスト pass ≠ マージ可。**ユーザーの目視確認必須**
+
+## シリーズ PR (統合 PR) 運用
+
+ISSUE 本文の冒頭に `## 🔗 統合 PR 情報` セクションがある ISSUE は、**単独 PR ではなく統合 PR の一部** として実装する。実装者 (Sonnet 等) は ISSUE 本文を読んだ時点で以下を自動実行する:
+
+1. セクションに記載された **統合ブランチ** を `origin/main` (または指定 base) から切る (既に存在すれば checkout して継続)
+2. 自分の担当 ISSUE 分のコミットをそのブランチに積む (ISSUE 単位で commit メッセージを分ける)
+3. **他の統合対象 ISSUE が全て完了するまで PR を作らない** (draft も不可)
+4. 最後の ISSUE 完了時に PR を作成、description に `Closes #A, #B, #C` で全 ISSUE を列挙
+5. UI 目視確認 / `/review-pr` は統合 PR 単位で 1 回のみ (個別 ISSUE で実行しない)
+
+ユーザーからの指示が `#<N> やって` のように単一 ISSUE 番号でも、本文に本セクションがあれば上記に従う。セクションが無い場合は通常の 1 ISSUE = 1 PR 運用。
+
+**壁打ち担当 (Opus 等) は ISSUE 起票時**、UI 一体性 / 関連修正 / 同一画面 / 依存関係のある ISSUE 群は必ず統合 PR 化し、各 ISSUE 本文冒頭に本セクションを挿入する。
+
+### 後付けで関連性が判明した場合 (起票時には無関係に見えた ISSUE)
+
+テスター起票のバグや、他担当者が先行起票した ISSUE など、起票時点では関連性が不明なことは珍しくない。調査・実装の過程で他 ISSUE との共通点が判明した場合、以下で統合 PR 化する。
+
+**実装者 (Sonnet 等) の着手前ルーチン (必須)**:
+
+1. ユーザーから `#<N> やって` を受けた時点でまず `gh issue view <N>` で本文を読む
+2. 本文に `## 🔗 統合 PR 情報` があればそれに従う (以上)
+3. なければ、**着手前に必ず関連検索** する:
+   - `gh issue list --state open --search "<キーワード>"` で同一機能領域の open ISSUE を洗う
+   - 本 ISSUE が触りそうなファイル・モジュール・UI 画面名をキーワードに使う
+   - 親 spec / 同一ディレクトリが対象の ISSUE も確認
+4. 関連を発見した場合は **着手する前に** ユーザーに統合提案 (例: `「#<N> を調査したところ #<M> と同じ X を触ります。統合 PR にまとめていいですか?」`)
+5. 承認後、全関連 ISSUE の本文冒頭に `## 🔗 統合 PR 情報` セクションを prepend (`gh issue edit --body-file`)。以後は通常の統合 PR 運用
+
+**実装中に関連が判明した場合**:
+
+- 作業を一時停止 (コミットは保持、push しない)
+- 同じく統合提案 → 承認 → 本文更新
+- 既に作業ブランチを切っていた場合は、ブランチ名を統合ブランチ名にリネーム (`git branch -m`) or checkout し直す
+
+**壁打ち担当 (Opus 等) の新規起票時**:
+
+- 起票前に `gh issue list --state open` で既存 open ISSUE を検索
+- 関連があれば「新規起票 + 既存 ISSUE を統合 PR でまとめる」提案をユーザーに先に出す
+- 承認後、新規 + 既存の全 ISSUE 本文に統合 PR 情報を追加
+
+**統合 PR 化の判断基準 (いずれか該当で検討)**:
+
+- 同じファイル / モジュール / UI 画面を触る
+- 根本原因が共通 (1 fix で複数 ISSUE が解消する)
+- 変更内容に依存関係がある (A が無いと B が動かない等)
+- UX として一体で単独では動作評価できない
+
+関連性が微妙な場合はユーザーに判断を委ねる。勝手に統合 / 単独を決めない。
