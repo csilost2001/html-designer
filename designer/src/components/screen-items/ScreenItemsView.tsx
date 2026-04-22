@@ -9,7 +9,7 @@
  * 2. 画面デザインから選択 (#323 — モーダルで候補リスト + チェックボックス)
  * 3. (将来) GrapesJS サイドバーからの直接追加 (#322)
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
@@ -47,6 +47,18 @@ export function ScreenItemsView() {
     undefined,
   );
   const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
+
+  /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
+  const idFocusVals = useRef<Map<number, string>>(new Map());
+
+  /** リネーム確認ダイアログの状態 */
+  const [pendingRename, setPendingRename] = useState<{
+    idx: number;
+    oldId: string;
+    newId: string;
+    affectedGroups: Array<{ id: string; name: string; refCount: number }>;
+    totalRefs: number;
+  } | null>(null);
 
   // 画面一覧をロード (初回 + MCP 接続復帰時)
   useEffect(() => {
@@ -139,6 +151,68 @@ export function ScreenItemsView() {
       }
     });
   }, [update]);
+
+  /** ID フィールドの blur 時: 変更あり + 参照あり → 確認ダイアログを表示 */
+  const handleIdBlur = useCallback(async (idx: number, e: React.FocusEvent<HTMLInputElement>) => {
+    const newId = e.target.value;
+    const originalId = idFocusVals.current.get(idx) ?? newId;
+    idFocusVals.current.delete(idx);
+
+    if (newId === originalId || !originalId || !selectedScreenId) {
+      commit();
+      return;
+    }
+
+    try {
+      const result = await mcpBridge.request("checkScreenItemRefs", {
+        screenId: selectedScreenId,
+        itemId: originalId,
+      }) as { affectedActionGroups: Array<{ id: string; name: string; refCount: number }>; totalRefs: number };
+
+      if (result.totalRefs === 0) {
+        commit();
+        return;
+      }
+
+      setPendingRename({
+        idx,
+        oldId: originalId,
+        newId,
+        affectedGroups: result.affectedActionGroups,
+        totalRefs: result.totalRefs,
+      });
+    } catch {
+      commit();
+    }
+  }, [selectedScreenId, commit]);
+
+  /** リネーム確認: バックエンドに実行を委譲 */
+  const handleConfirmRename = useCallback(async () => {
+    if (!pendingRename || !selectedScreenId) return;
+    const { idx, oldId, newId } = pendingRename;
+    setPendingRename(null);
+    try {
+      await mcpBridge.request("renameScreenItem", {
+        screenId: selectedScreenId,
+        oldId,
+        newId,
+      });
+      // broadcast で useResourceEditor がリロードするので追加操作不要
+    } catch (e) {
+      alert(`リネームに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      // 失敗時はローカル状態を元に戻す
+      updateSilent((f) => { f.items[idx].id = oldId; });
+      commit();
+    }
+  }, [pendingRename, selectedScreenId, updateSilent, commit]);
+
+  /** リネームキャンセル: ローカル状態を元に戻す */
+  const handleCancelRename = useCallback(() => {
+    if (!pendingRename) return;
+    updateSilent((f) => { f.items[pendingRename.idx].id = pendingRename.oldId; });
+    commit();
+    setPendingRename(null);
+  }, [pendingRename, updateSilent, commit]);
 
   const existingIds = useMemo(
     () => new Set((file?.items ?? []).map((i) => i.id).filter(Boolean)),
@@ -237,7 +311,8 @@ export function ScreenItemsView() {
                         className="form-control form-control-sm"
                         value={item.id}
                         onChange={(e) => handleUpdateItem(i, { id: e.target.value })}
-                        onBlur={commit}
+                        onFocus={(e) => idFocusVals.current.set(i, e.target.value)}
+                        onBlur={(e) => handleIdBlur(i, e)}
                         placeholder="email"
                       />
                     </td>
@@ -358,6 +433,41 @@ export function ScreenItemsView() {
           </div>
         )}
       </div>
+
+      {pendingRename && (
+        <div className="modal show d-block" style={{ background: "rgba(0,0,0,0.45)" }} role="dialog" aria-modal="true">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">ID リネームの確認</h5>
+              </div>
+              <div className="modal-body">
+                <p>
+                  <code className="me-1">{pendingRename.oldId}</code>
+                  <span className="me-1">→</span>
+                  <code>{pendingRename.newId}</code>
+                </p>
+                <p className="mb-1">
+                  以下の処理フロー ({pendingRename.affectedGroups.length} 件、計 {pendingRename.totalRefs} 箇所) の参照が自動追従されます:
+                </p>
+                <ul className="mb-0">
+                  {pendingRename.affectedGroups.map((ag) => (
+                    <li key={ag.id}>{ag.name}（{ag.refCount} 箇所）</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={handleCancelRename}>
+                  キャンセル
+                </button>
+                <button type="button" className="btn btn-primary" onClick={handleConfirmRename}>
+                  リネーム実行
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ScreenItemCandidatesModal
         open={candidatesModalOpen}

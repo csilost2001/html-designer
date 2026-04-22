@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
+import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
 import {
   ensureDataDir,
   readProject,
@@ -472,6 +473,27 @@ class WsBridge extends EventEmitter {
           const { kind, id: fid } = (params ?? {}) as { kind: string; id?: string };
           const mtime = await getFileMtime(kind, fid);
           respond({ mtime });
+          break;
+        }
+        case "renameScreenItem": {
+          const { screenId, oldId, newId } = (params ?? {}) as {
+            screenId: string; oldId: string; newId: string;
+          };
+          const result = await renameScreenItemId(screenId, oldId, newId);
+          respond(result);
+          this.broadcast("screenItemsChanged", { screenId }, clientId);
+          for (const agId of result.actionGroupsUpdated) {
+            this.broadcast("actionGroupChanged", { id: agId }, clientId);
+          }
+          if (result.screenHtmlUpdated) {
+            this.broadcast("screenChanged", { screenId }, clientId);
+          }
+          break;
+        }
+        case "checkScreenItemRefs": {
+          const { screenId, itemId } = (params ?? {}) as { screenId: string; itemId: string };
+          const result = await checkScreenItemRefs(screenId, itemId);
+          respond(result);
           break;
         }
         default:
