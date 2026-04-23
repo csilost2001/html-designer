@@ -350,6 +350,7 @@
           "type": "branch",
           "maturity": "committed",
           "description": "TX 結果分岐",
+          "tryScope": ["step-or2-007", "step-or2-008", "step-or2-009"],
           "branches": [
             {
               "id": "br-tx-fail",

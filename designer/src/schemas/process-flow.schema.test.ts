@@ -791,3 +791,77 @@ describe("process-flow.schema.json — StructuredField.format + ValidationRule.m
     expect(ok).toBe(true);
   });
 });
+
+describe("process-flow.schema.json — DbAccessStep.bulkValues + BranchStep.tryScope (#253)", () => {
+  const makeGroup = (action: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [action],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  const baseAction = {
+    id: "act-1", name: "test", trigger: "submit",
+    steps: [{ id: "s1", type: "other", description: "" }],
+  };
+
+  it("DbAccessStep.bulkValues accept", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "dbAccess", description: "",
+        tableName: "items", operation: "INSERT",
+        bulkValues: "@poItemValues",
+        sql: "INSERT INTO items SELECT ... FROM (VALUES @poItemValues) AS v(...)",
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("DbAccessStep.bulkValues なしも accept (optional)", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "dbAccess", description: "",
+        tableName: "items", operation: "SELECT",
+        sql: "SELECT * FROM items",
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("BranchStep.tryScope accept", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "branch", description: "",
+        tryScope: ["step-db-insert", "step-inventory-update"],
+        branches: [{
+          id: "br-1", code: "A", label: "catch",
+          condition: { kind: "tryCatch", errorCode: "DEADLOCK" },
+          steps: [],
+        }],
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("BranchStep.tryScope なしも accept (optional)", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "branch", description: "",
+        branches: [{
+          id: "br-1", code: "A", label: "x",
+          condition: "@val == null",
+          steps: [],
+        }],
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
