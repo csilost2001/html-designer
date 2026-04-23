@@ -225,7 +225,8 @@ describe("getRenameContext", () => {
     const result = await getRenameContext(SCREEN_ID);
     expect(result.unnamedItems).toHaveLength(1);
     const item = result.unnamedItems[0];
-    expect(item.htmlFragment).toContain("textInput1");
+    // void-element として <input ...> が正しく出力されることを確認
+    expect(item.htmlFragment).toMatch(/<input[^>]*id="textInput1"/);
     expect(item.headingContext).toContain("ユーザー情報");
   });
 
@@ -254,8 +255,10 @@ describe("getRenameContext", () => {
     };
     const result = await getRenameContext(SCREEN_ID);
     expect(result.unnamedItems).toHaveLength(2);
-    expect(result.unnamedItems[0].htmlFragment).toContain("select1");
-    expect(result.unnamedItems[1].htmlFragment).toContain("textarea1");
+    const selectItem   = result.unnamedItems.find((i) => i.id === "select1");
+    const textareaItem = result.unnamedItems.find((i) => i.id === "textarea1");
+    expect(selectItem?.htmlFragment).toContain("select1");
+    expect(textareaItem?.htmlFragment).toContain("textarea1");
   });
 
   it("label / placeholder が screen-items から引き継がれる", async () => {

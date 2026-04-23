@@ -36,6 +36,9 @@ const VOID_TAGS = new Set([
   "link", "meta", "param", "source", "track", "wbr",
 ]);
 
+// designer/src/utils/screenItemExtractor.ts の CUSTOM_TYPE_TO_TAG と同一マッピング。
+// "checkbox" は GrapesJS カスタムブロック型として checkbox コンポーネントが
+// type フィールドのみで保存される場合の備え (screenItemExtractor.ts との一貫性)。
 const CUSTOM_TYPE_TO_TAG: Record<string, string> = {
   "validation-input": "input",
   "validation-select": "select",
