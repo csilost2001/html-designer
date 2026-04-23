@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { TableDefinition, TableColumn, TableIndex, SqlDialect, ColumnTemplate } from "../../types/table";
-import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, SQL_DIALECT_LABELS, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
+import type { TableDefinition, TableColumn, SqlDialect, ColumnTemplate } from "../../types/table";
+import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
 import type { DataType } from "../../types/table";
-import { loadTable, saveTable, addColumn, removeColumn, addIndex, removeIndex } from "../../store/tableStore";
+import { loadTable, saveTable, addColumn, removeColumn } from "../../store/tableStore";
 import { listTables } from "../../store/tableStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -18,17 +18,23 @@ import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
+import { DdlPreviewDrawer } from "./DdlPreviewDrawer";
+import { ConstraintsTab } from "./ConstraintsTab";
+import { IndexesTab } from "./IndexesTab";
+import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
 
-type TabId = "columns" | "indexes" | "ddl";
+type TabId = "columns" | "constraints" | "indexes" | "triggers" | "comment";
 
 export function TableEditor() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>("columns");
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
+  // FHD (≤1920) は閉じた状態、WQHD (2560+) は開いた状態で初期化
+  const ddlOpen = window.innerWidth >= 2560;
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
 
@@ -122,27 +128,54 @@ export function TableEditor() {
       {/* Tabs */}
       <div className="table-editor-tabs">
         <button className={tab === "columns" ? "active" : ""} onClick={() => setTab("columns")}>
-          <i className="bi bi-columns-gap" /> カラム <span className="tab-count">{table.columns.length}</span>
+          <i className="bi bi-columns-gap" /> 列 <span className="tab-count">{table.columns.length}</span>
+        </button>
+        <button className={tab === "constraints" ? "active" : ""} onClick={() => setTab("constraints")}>
+          <i className="bi bi-shield-check" /> 制約
+          {(table.constraints?.length ?? 0) > 0 && (
+            <span className="tab-count">{table.constraints?.length}</span>
+          )}
         </button>
         <button className={tab === "indexes" ? "active" : ""} onClick={() => setTab("indexes")}>
           <i className="bi bi-lightning" /> インデックス <span className="tab-count">{table.indexes.length}</span>
         </button>
-        <button className={tab === "ddl" ? "active" : ""} onClick={() => setTab("ddl")}>
-          <i className="bi bi-code-square" /> DDL
+        <button className={tab === "triggers" ? "active" : ""} onClick={() => setTab("triggers")}>
+          <i className="bi bi-play-btn" /> トリガー/DEFAULT
+          {((table.triggers?.length ?? 0) + (table.defaults?.length ?? 0)) > 0 && (
+            <span className="tab-count">{(table.triggers?.length ?? 0) + (table.defaults?.length ?? 0)}</span>
+          )}
+        </button>
+        <button className={tab === "comment" ? "active" : ""} onClick={() => setTab("comment")}>
+          <i className="bi bi-chat-left-text" /> コメント
         </button>
       </div>
 
-      {/* Content */}
-      <div className="table-editor-body">
-        {tab === "columns" && (
-          <ColumnsTab table={table} update={update} allTables={allTables} />
-        )}
-        {tab === "indexes" && (
-          <IndexesTab table={table} update={update} />
-        )}
-        {tab === "ddl" && (
-          <DdlTab ddl={ddl} dialect={ddlDialect} onDialectChange={setDdlDialect} />
-        )}
+      {/* Content + DDL drawer */}
+      <div className="table-editor-content-area">
+        <div className="table-editor-body">
+          {tab === "columns" && (
+            <ColumnsTab table={table} update={update} allTables={allTables} />
+          )}
+          {tab === "constraints" && (
+            <ConstraintsTab table={table} update={update} allTables={allTables} />
+          )}
+          {tab === "indexes" && (
+            <IndexesTab key="indexes" table={table} update={update} />
+          )}
+          {tab === "triggers" && (
+            <TriggersDefaultsTab table={table} update={update} />
+          )}
+          {tab === "comment" && (
+            <CommentTab table={table} update={update} />
+          )}
+        </div>
+
+        <DdlPreviewDrawer
+          ddl={ddl}
+          dialect={ddlDialect}
+          onDialectChange={setDdlDialect}
+          defaultOpen={ddlOpen}
+        />
       </div>
     </div>
   );
@@ -905,130 +938,30 @@ function ForeignKeyEditor({
   );
 }
 
-// ── インデックスタブ ──────────────────────────────────────────────────────────
 
-function IndexesTab({
+// ── コメントタブ ──────────────────────────────────────────────────────────────
+
+function CommentTab({
   table, update,
 }: {
   table: TableDefinition;
   update: (fn: (t: TableDefinition) => void) => void;
 }) {
-  const handleAdd = () => {
-    update((t) => addIndex(t));
-  };
-
-  const handleRemove = (idxId: string) => {
-    update((t) => removeIndex(t, idxId));
-  };
-
-  const handleUpdate = (idxId: string, patch: Partial<TableIndex>) => {
-    update((t) => {
-      const idx = t.indexes.find((i) => i.id === idxId);
-      if (idx) Object.assign(idx, patch);
-    });
-  };
-
-  const toggleColumn = (idxId: string, colId: string) => {
-    update((t) => {
-      const idx = t.indexes.find((i) => i.id === idxId);
-      if (!idx) return;
-      if (idx.columns.includes(colId)) {
-        idx.columns = idx.columns.filter((c) => c !== colId);
-      } else {
-        idx.columns.push(colId);
-      }
-    });
-  };
-
   return (
-    <div className="indexes-tab">
-      {table.indexes.length === 0 ? (
-        <div className="indexes-empty">
-          <p>インデックスがまだありません</p>
-        </div>
-      ) : (
-        <div className="indexes-list">
-          {table.indexes.map((idx) => (
-            <div key={idx.id} className="index-card">
-              <div className="index-card-header">
-                <input
-                  type="text"
-                  className="index-name-input"
-                  value={idx.name}
-                  onChange={(e) => handleUpdate(idx.id, { name: e.target.value })}
-                  placeholder="インデックス名"
-                />
-                <label className="column-flag-label">
-                  <input
-                    type="checkbox"
-                    checked={idx.unique}
-                    onChange={(e) => handleUpdate(idx.id, { unique: e.target.checked })}
-                  />
-                  UNIQUE
-                </label>
-                <button className="tbl-btn-icon danger" onClick={() => handleRemove(idx.id)} title="削除">
-                  <i className="bi bi-trash" />
-                </button>
-              </div>
-              <div className="index-columns">
-                <span className="index-columns-label">カラム:</span>
-                {table.columns.map((col) => (
-                  <label key={col.id} className={`index-col-chip${idx.columns.includes(col.id) ? " selected" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={idx.columns.includes(col.id)}
-                      onChange={() => toggleColumn(idx.id, col.id)}
-                    />
-                    {col.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <button className="tbl-btn tbl-btn-primary" onClick={handleAdd}>
-        <i className="bi bi-plus-lg" /> インデックス追加
-      </button>
-    </div>
-  );
-}
-
-// ── DDLタブ ───────────────────────────────────────────────────────────────────
-
-function DdlTab({
-  ddl, dialect, onDialectChange,
-}: {
-  ddl: string;
-  dialect: SqlDialect;
-  onDialectChange: (d: SqlDialect) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(ddl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="ddl-tab">
-      <div className="ddl-toolbar">
-        <select
-          value={dialect}
-          onChange={(e) => onDialectChange(e.target.value as SqlDialect)}
-          className="ddl-dialect-select"
-        >
-          {Object.entries(SQL_DIALECT_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <button className="tbl-btn tbl-btn-ghost" onClick={handleCopy}>
-          <i className={`bi ${copied ? "bi-check-lg" : "bi-clipboard"}`} />
-          {copied ? "コピーしました" : "コピー"}
-        </button>
-      </div>
-      <pre className="ddl-preview"><code>{ddl}</code></pre>
+    <div className="comment-tab">
+      <label className="tbl-field comment-tab-field">
+        <span>テーブルコメント</span>
+        <textarea
+          className="comment-tab-textarea"
+          value={table.comment ?? ""}
+          onChange={(e) => update((t) => { t.comment = e.target.value || undefined; })}
+          placeholder="テーブルの用途・概要を記載します（DDL の COMMENT ON TABLE に反映されます）"
+          rows={4}
+        />
+      </label>
+      <p className="comment-tab-hint">
+        <i className="bi bi-info-circle" /> PostgreSQL では <code>COMMENT ON TABLE {table.name} IS &#39;...&#39;;</code> として DDL に出力されます。
+      </p>
     </div>
   );
 }

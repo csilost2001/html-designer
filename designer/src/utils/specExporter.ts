@@ -228,12 +228,9 @@ function toSpecTable(t: TableDefinition): SpecTable {
       return col;
     }),
     indexes: t.indexes.map((idx) => ({
-      name: idx.name,
-      columns: idx.columns.map((cid) => {
-        const col = t.columns.find((cc) => cc.id === cid);
-        return col ? col.name : cid;
-      }),
-      unique: idx.unique,
+      name: idx.id,
+      columns: idx.columns.map((ic) => ic.name),
+      unique: idx.unique ?? false,
     })),
   };
 }

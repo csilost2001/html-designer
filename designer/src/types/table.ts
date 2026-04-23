@@ -77,12 +77,90 @@ export interface TableColumn {
   comment?: string;
 }
 
+/** インデックス列 */
+export interface IndexColumn {
+  name: string;
+  order?: "asc" | "desc";
+}
+
+export type IndexMethod = "btree" | "hash" | "gin" | "gist";
+
 /** インデックス定義 */
+export interface IndexDefinition {
+  id: string;
+  columns: IndexColumn[];
+  unique?: boolean;
+  method?: IndexMethod;
+  where?: string;
+  description?: string;
+}
+
+/** @deprecated β-3 前の旧型。IndexDefinition を使用してください */
 export interface TableIndex {
   id: string;
   name: string;
   columns: string[];
   unique: boolean;
+}
+
+// ── β-2 制約型 ──────────────────────────────────────────────────────────
+
+/** UNIQUE 制約 */
+export interface UniqueConstraint {
+  id: string;
+  kind: "unique";
+  columns: string[];
+  description?: string;
+}
+
+/** CHECK 制約 */
+export interface CheckConstraint {
+  id: string;
+  kind: "check";
+  expression: string;
+  description?: string;
+}
+
+export type FkAction = "CASCADE" | "SET NULL" | "SET DEFAULT" | "RESTRICT" | "NO ACTION";
+
+/** FOREIGN KEY 制約 */
+export interface ForeignKeyConstraint {
+  id: string;
+  kind: "foreignKey";
+  columns: string[];
+  /** テーブル名 (物理名) */
+  referencedTable: string;
+  referencedColumns: string[];
+  onDelete?: FkAction;
+  onUpdate?: FkAction;
+  description?: string;
+}
+
+export type ConstraintDefinition = UniqueConstraint | CheckConstraint | ForeignKeyConstraint;
+
+// ── β-4 トリガー / DEFAULT 型 ────────────────────────────────────────────
+
+export type TriggerTiming = "BEFORE" | "AFTER";
+export type TriggerEvent = "INSERT" | "UPDATE" | "DELETE";
+
+/** トリガー定義 */
+export interface TriggerDefinition {
+  id: string;
+  timing: TriggerTiming;
+  events: TriggerEvent[];
+  whenCondition?: string;
+  body: string;
+  description?: string;
+}
+
+export type DefaultKind = "literal" | "function" | "sequence" | "conventionRef";
+
+/** 列 DEFAULT 値定義 */
+export interface DefaultDefinition {
+  column: string;
+  kind: DefaultKind;
+  value: string;
+  description?: string;
 }
 
 /** テーブル定義（完全データ） */
@@ -93,7 +171,15 @@ export interface TableDefinition {
   description: string;
   category?: string;
   columns: TableColumn[];
-  indexes: TableIndex[];
+  indexes: IndexDefinition[];
+  /** テーブルコメント (β-1 追加) */
+  comment?: string;
+  /** 制約定義 (β-2) */
+  constraints?: ConstraintDefinition[];
+  /** DEFAULT 値定義 (β-4) */
+  defaults?: DefaultDefinition[];
+  /** トリガー定義 (β-4) */
+  triggers?: TriggerDefinition[];
   createdAt: string;
   updatedAt: string;
 }

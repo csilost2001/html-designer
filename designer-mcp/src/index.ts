@@ -646,14 +646,21 @@ function createMcpServer(): Server {
                 }
                 return col;
               }),
-              indexes: ((t.indexes ?? []) as Array<Record<string, unknown>>).map((idx) => ({
-                name: idx.name,
-                columns: ((idx.columns ?? []) as string[]).map((cid) => {
-                  const c = cols.find((cc) => cc.id === cid);
-                  return c ? c.name : cid;
-                }),
-                unique: idx.unique,
-              })),
+              indexes: ((t.indexes ?? []) as Array<Record<string, unknown>>).map((idx) => {
+                const rawCols = (idx.columns ?? []) as Array<string | { name?: string; order?: string }>;
+                const colNames = rawCols.map((c) => {
+                  if (typeof c === "string") {
+                    const col = cols.find((cc) => cc.id === c);
+                    return col ? col.name : c;
+                  }
+                  return (c as { name?: string }).name ?? "";
+                });
+                return {
+                  name: (idx.id ?? idx.name) as string,
+                  columns: colNames,
+                  unique: idx.unique,
+                };
+              }),
             };
           }),
           relations: [] as Array<Record<string, unknown>>,
@@ -1056,16 +1063,96 @@ function generateDdl(table: Record<string, unknown>, dialect: string): string {
   if (dialect === "mysql") ddl += " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
   ddl += ";";
 
-  // Indexes
+  // Indexes (新形式 IndexDefinition + 旧形式 TableIndex 両対応)
   for (const idx of indexes) {
-    const idxCols = (idx.columns ?? []) as string[];
-    // resolve column IDs to names
-    const colNames = idxCols.map((cid) => {
-      const c = columns.find((cc) => cc.id === cid);
-      return c ? c.name as string : cid;
+    const rawCols = (idx.columns ?? []) as Array<string | { name?: string; order?: string }>;
+    const colNames = rawCols.map((c) => {
+      if (typeof c === "string") {
+        // 旧形式: 列 ID → 列名に解決
+        const col = columns.find((cc) => cc.id === c);
+        return col ? col.name as string : c;
+      }
+      // 新形式: IndexColumn { name, order? }
+      const colName = (c as { name?: string }).name ?? "";
+      const ord = (c as { order?: string }).order === "desc" ? " DESC" : "";
+      return `${colName}${ord}`;
     });
     const unique = idx.unique ? "UNIQUE " : "";
-    ddl += `\n\nCREATE ${unique}INDEX ${idx.name} ON ${name} (${colNames.join(", ")});`;
+    const idxName = ((idx.id ?? idx.name) as string | undefined) ?? "";
+    ddl += `\n\nCREATE ${unique}INDEX ${idxName} ON ${name} (${colNames.join(", ")});`;
+  }
+
+  // Constraints (β-2)
+  for (const c of (table.constraints ?? []) as Array<Record<string, unknown>>) {
+    const kind = c.kind as string;
+    const cid = c.id as string;
+    const cols = (c.columns ?? []) as string[];
+    if (kind === "unique") {
+      ddl += `\n\nALTER TABLE ${name} ADD CONSTRAINT ${cid} UNIQUE (${cols.join(", ")});`;
+    } else if (kind === "check") {
+      ddl += `\n\nALTER TABLE ${name} ADD CONSTRAINT ${cid} CHECK (${c.expression});`;
+    } else if (kind === "foreignKey") {
+      const refTable = c.referencedTable as string;
+      const refCols = (c.referencedColumns ?? []) as string[];
+      let s = `ALTER TABLE ${name} ADD CONSTRAINT ${cid}\n  FOREIGN KEY (${cols.join(", ")}) REFERENCES ${refTable}(${refCols.join(", ")})`;
+      if (c.onDelete) s += `\n  ON DELETE ${c.onDelete}`;
+      if (c.onUpdate) s += `\n  ON UPDATE ${c.onUpdate}`;
+      ddl += `\n\n${s};`;
+    }
+  }
+
+  // DEFAULT values (β-4)
+  for (const def of (table.defaults ?? []) as Array<Record<string, unknown>>) {
+    const defCol = def.column as string;
+    const defKind = def.kind as string;
+    let expr: string;
+    if (defKind === "sequence" && dialect === "postgresql") {
+      expr = `nextval('${def.value}')`;
+    } else if (defKind === "conventionRef") {
+      expr = `NULL /* ${def.value} */`;
+    } else {
+      expr = def.value as string;
+    }
+    if (dialect === "oracle") {
+      ddl += `\n\nALTER TABLE ${name} MODIFY (${defCol} DEFAULT ${expr});`;
+    } else {
+      ddl += `\n\nALTER TABLE ${name} ALTER COLUMN ${defCol} SET DEFAULT ${expr};`;
+    }
+  }
+
+  // Triggers (β-4)
+  for (const trg of (table.triggers ?? []) as Array<Record<string, unknown>>) {
+    const trgId = trg.id as string;
+    const timing = trg.timing as string;
+    const events = ((trg.events ?? []) as string[]).join(" OR ");
+    const trgWhen = trg.whenCondition ? `\n  WHEN (${trg.whenCondition})` : "";
+    const body = trg.body as string;
+    const trgEvents = (trg.events ?? []) as string[];
+    if (dialect === "postgresql") {
+      const fnName = `${trgId}_fn`;
+      const returnStmt = trgEvents.length === 1 && trgEvents[0] === "DELETE" ? "RETURN OLD;" : "RETURN NEW;";
+      ddl += "\n\n" + [
+        `CREATE OR REPLACE FUNCTION ${fnName}() RETURNS TRIGGER AS $$`,
+        `BEGIN`,
+        `  ${body.split("\n").join("\n  ")}`,
+        `  ${returnStmt}`,
+        `END;`,
+        `$$ LANGUAGE plpgsql;`,
+        ``,
+        `CREATE TRIGGER ${trgId}`,
+        `${timing} ${events} ON ${name}${trgWhen}`,
+        `FOR EACH ROW EXECUTE FUNCTION ${fnName}();`,
+      ].join("\n");
+    } else {
+      ddl += "\n\n" + [
+        `CREATE TRIGGER ${trgId}`,
+        `${timing} ${events} ON ${name}${trgWhen}`,
+        `FOR EACH ROW`,
+        `BEGIN`,
+        `  ${body.split("\n").join("\n  ")}`,
+        `END;`,
+      ].join("\n");
+    }
   }
 
   // PostgreSQL / Oracle comments

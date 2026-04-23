@@ -5,7 +5,7 @@
  * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
  * - 未接続の場合: localStorage にフォールバック
  */
-import type { TableDefinition, TableMeta, TableColumn, TableIndex } from "../types/table";
+import type { TableDefinition, TableMeta, TableColumn, IndexDefinition, ConstraintDefinition, TriggerDefinition, DefaultDefinition } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
@@ -52,6 +52,21 @@ export async function loadTable(tableId: string): Promise<TableDefinition | null
   if (!raw) return null;
   // docs/spec/list-common.md §3.10: 読み込み時に no を配列順で補完
   raw.columns = renumber(raw.columns ?? []);
+  // β-3 移行: 旧 TableIndex 形式 { name, columns: string[] } → IndexDefinition 形式
+  raw.indexes = (raw.indexes ?? []).map((idx) => {
+    const i = idx as unknown as Record<string, unknown>;
+    if (typeof i.name === "string" && Array.isArray(i.columns) && (i.columns.length === 0 || typeof i.columns[0] === "string")) {
+      return {
+        id: i.name as string,
+        columns: (i.columns as string[]).map((colId) => {
+          const col = raw.columns.find((c) => c.id === colId);
+          return { name: col ? col.name : colId };
+        }),
+        unique: (i.unique as boolean | undefined) ?? false,
+      } as IndexDefinition;
+    }
+    return idx;
+  });
   return raw;
 }
 
@@ -137,29 +152,33 @@ export function addColumn(
 
 /** カラムを削除 */
 export function removeColumn(table: TableDefinition, columnId: string): void {
+  const removedName = table.columns.find((c) => c.id === columnId)?.name;
   const idx = table.columns.findIndex((c) => c.id === columnId);
   if (idx >= 0) {
     table.columns.splice(idx, 1);
     table.columns = renumber(table.columns);
-    // インデックスからも参照を削除
-    for (const index of table.indexes) {
-      index.columns = index.columns.filter((cid) => cid !== columnId);
+    // インデックスからも参照を削除 (列名で照合)
+    if (removedName) {
+      for (const index of table.indexes) {
+        index.columns = index.columns.filter((ic) => ic.name !== removedName);
+      }
+      table.indexes = table.indexes.filter((idx) => idx.columns.length > 0);
     }
-    // 空になったインデックスを削除
-    table.indexes = table.indexes.filter((idx) => idx.columns.length > 0);
   }
 }
 
 /** インデックスを追加 */
 export function addIndex(
   table: TableDefinition,
-  partial?: Partial<TableIndex>,
-): TableIndex {
-  const idx: TableIndex = {
-    id: generateUUID(),
-    name: partial?.name ?? `idx_${table.name}_${table.indexes.length + 1}`,
+  partial?: Partial<IndexDefinition>,
+): IndexDefinition {
+  const idx: IndexDefinition = {
+    id: partial?.id ?? `idx_${table.name}_${table.indexes.length + 1}`,
     columns: partial?.columns ?? [],
     unique: partial?.unique ?? false,
+    method: partial?.method,
+    where: partial?.where,
+    description: partial?.description,
   };
   table.indexes.push(idx);
   return idx;
@@ -169,6 +188,54 @@ export function addIndex(
 export function removeIndex(table: TableDefinition, indexId: string): void {
   const idx = table.indexes.findIndex((i) => i.id === indexId);
   if (idx >= 0) table.indexes.splice(idx, 1);
+}
+
+/** 制約を追加 */
+export function addConstraint(
+  table: TableDefinition,
+  constraint: Omit<ConstraintDefinition, "id">,
+): ConstraintDefinition {
+  const n = (table.constraints ?? []).length + 1;
+  const c = { id: `con_${table.name}_${n}`, ...constraint } as ConstraintDefinition;
+  table.constraints = [...(table.constraints ?? []), c];
+  return c;
+}
+
+/** 制約を削除 */
+export function removeConstraint(table: TableDefinition, constraintId: string): void {
+  table.constraints = (table.constraints ?? []).filter((c) => c.id !== constraintId);
+}
+
+/** DEFAULT 値定義を追加 */
+export function addDefault(table: TableDefinition, def: DefaultDefinition): void {
+  table.defaults = [...(table.defaults ?? []), def];
+}
+
+/** DEFAULT 値定義を削除 */
+export function removeDefault(table: TableDefinition, column: string): void {
+  table.defaults = (table.defaults ?? []).filter((d) => d.column !== column);
+}
+
+/** トリガーを追加 */
+export function addTrigger(
+  table: TableDefinition,
+  partial?: Partial<TriggerDefinition>,
+): TriggerDefinition {
+  const t: TriggerDefinition = {
+    id: partial?.id ?? `trg_${table.name}_${(table.triggers ?? []).length + 1}`,
+    timing: partial?.timing ?? "BEFORE",
+    events: partial?.events ?? ["INSERT"],
+    whenCondition: partial?.whenCondition,
+    body: partial?.body ?? "",
+    description: partial?.description,
+  };
+  table.triggers = [...(table.triggers ?? []), t];
+  return t;
+}
+
+/** トリガーを削除 */
+export function removeTrigger(table: TableDefinition, triggerId: string): void {
+  table.triggers = (table.triggers ?? []).filter((t) => t.id !== triggerId);
 }
 
 /** テーブル一覧の並び順を変更する (project.tables の物理順) */
