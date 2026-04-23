@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { TableDefinition, TableColumn, TableIndex, SqlDialect, ColumnTemplate } from "../../types/table";
-import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, SQL_DIALECT_LABELS, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
+import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
 import type { DataType } from "../../types/table";
 import { loadTable, saveTable, addColumn, removeColumn, addIndex, removeIndex } from "../../store/tableStore";
 import { listTables } from "../../store/tableStore";
@@ -18,17 +18,20 @@ import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
+import { DdlPreviewDrawer } from "./DdlPreviewDrawer";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
 
-type TabId = "columns" | "indexes" | "ddl";
+type TabId = "columns" | "constraints" | "indexes" | "triggers" | "comment";
 
 export function TableEditor() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>("columns");
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
+  // FHD (≤1920) は閉じた状態、WQHD (2560+) は開いた状態で初期化
+  const [ddlOpen, setDdlOpen] = useState(() => window.innerWidth >= 2560);
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
 
@@ -122,27 +125,57 @@ export function TableEditor() {
       {/* Tabs */}
       <div className="table-editor-tabs">
         <button className={tab === "columns" ? "active" : ""} onClick={() => setTab("columns")}>
-          <i className="bi bi-columns-gap" /> カラム <span className="tab-count">{table.columns.length}</span>
+          <i className="bi bi-columns-gap" /> 列 <span className="tab-count">{table.columns.length}</span>
+        </button>
+        <button className={tab === "constraints" ? "active" : ""} onClick={() => setTab("constraints")}>
+          <i className="bi bi-shield-check" /> 制約
         </button>
         <button className={tab === "indexes" ? "active" : ""} onClick={() => setTab("indexes")}>
           <i className="bi bi-lightning" /> インデックス <span className="tab-count">{table.indexes.length}</span>
         </button>
-        <button className={tab === "ddl" ? "active" : ""} onClick={() => setTab("ddl")}>
-          <i className="bi bi-code-square" /> DDL
+        <button className={tab === "triggers" ? "active" : ""} onClick={() => setTab("triggers")}>
+          <i className="bi bi-play-btn" /> トリガー
+        </button>
+        <button className={tab === "comment" ? "active" : ""} onClick={() => setTab("comment")}>
+          <i className="bi bi-chat-left-text" /> コメント
         </button>
       </div>
 
-      {/* Content */}
-      <div className="table-editor-body">
-        {tab === "columns" && (
-          <ColumnsTab table={table} update={update} allTables={allTables} />
-        )}
-        {tab === "indexes" && (
-          <IndexesTab table={table} update={update} />
-        )}
-        {tab === "ddl" && (
-          <DdlTab ddl={ddl} dialect={ddlDialect} onDialectChange={setDdlDialect} />
-        )}
+      {/* Content + DDL drawer */}
+      <div className="table-editor-content-area">
+        <div className="table-editor-body">
+          {tab === "columns" && (
+            <ColumnsTab table={table} update={update} allTables={allTables} />
+          )}
+          {tab === "constraints" && (
+            <PlaceholderTab
+              icon="bi-shield-check"
+              title="制約 (β-2 で実装予定)"
+              description="CHECK 制約・UNIQUE 制約等を一覧・編集します。"
+            />
+          )}
+          {tab === "indexes" && (
+            <IndexesTab table={table} update={update} />
+          )}
+          {tab === "triggers" && (
+            <PlaceholderTab
+              icon="bi-play-btn"
+              title="トリガー (β-4 で実装予定)"
+              description="BEFORE/AFTER INSERT/UPDATE/DELETE トリガーを一覧・編集します。"
+            />
+          )}
+          {tab === "comment" && (
+            <CommentTab table={table} update={update} />
+          )}
+        </div>
+
+        <DdlPreviewDrawer
+          ddl={ddl}
+          dialect={ddlDialect}
+          onDialectChange={setDdlDialect}
+          defaultOpen={ddlOpen}
+          key={`ddl-drawer-${ddlOpen}`}
+        />
       </div>
     </div>
   );
@@ -994,41 +1027,41 @@ function IndexesTab({
   );
 }
 
-// ── DDLタブ ───────────────────────────────────────────────────────────────────
+// ── プレースホルダータブ (β-2〜4 実装前の仮表示) ──────────────────────────────
 
-function DdlTab({
-  ddl, dialect, onDialectChange,
-}: {
-  ddl: string;
-  dialect: SqlDialect;
-  onDialectChange: (d: SqlDialect) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(ddl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
+function PlaceholderTab({ icon, title, description }: { icon: string; title: string; description: string }) {
   return (
-    <div className="ddl-tab">
-      <div className="ddl-toolbar">
-        <select
-          value={dialect}
-          onChange={(e) => onDialectChange(e.target.value as SqlDialect)}
-          className="ddl-dialect-select"
-        >
-          {Object.entries(SQL_DIALECT_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <button className="tbl-btn tbl-btn-ghost" onClick={handleCopy}>
-          <i className={`bi ${copied ? "bi-check-lg" : "bi-clipboard"}`} />
-          {copied ? "コピーしました" : "コピー"}
-        </button>
-      </div>
-      <pre className="ddl-preview"><code>{ddl}</code></pre>
+    <div className="placeholder-tab">
+      <i className={`bi ${icon} placeholder-tab-icon`} />
+      <p className="placeholder-tab-title">{title}</p>
+      <p className="placeholder-tab-desc">{description}</p>
+    </div>
+  );
+}
+
+// ── コメントタブ ──────────────────────────────────────────────────────────────
+
+function CommentTab({
+  table, update,
+}: {
+  table: TableDefinition;
+  update: (fn: (t: TableDefinition) => void) => void;
+}) {
+  return (
+    <div className="comment-tab">
+      <label className="tbl-field comment-tab-field">
+        <span>テーブルコメント</span>
+        <textarea
+          className="comment-tab-textarea"
+          value={table.comment ?? ""}
+          onChange={(e) => update((t) => { t.comment = e.target.value || undefined; })}
+          placeholder="テーブルの用途・概要を記載します（DDL の COMMENT ON TABLE に反映されます）"
+          rows={4}
+        />
+      </label>
+      <p className="comment-tab-hint">
+        <i className="bi bi-info-circle" /> PostgreSQL では <code>COMMENT ON TABLE {table.name} IS &#39;...&#39;;</code> として DDL に出力されます。
+      </p>
     </div>
   );
 }

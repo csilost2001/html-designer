@@ -583,6 +583,13 @@
 
 /* ── エディタ本体 ──────────────────────────────────────────────────────── */
 
+.table-editor-content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .table-editor-body {
   flex: 1;
   overflow-y: auto;
@@ -951,6 +958,185 @@
 
 /* ── DDLタブ ───────────────────────────────────────────────────────────── */
 
+/* ── DDL プレビュードロワー ────────────────────────────────────────────── */
+
+.ddl-drawer {
+  background: #14142a;
+  border-top: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.ddl-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s;
+  min-height: 38px;
+}
+
+.ddl-drawer-header:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.ddl-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.ddl-drawer-chevron {
+  font-size: 11px;
+  color: #666;
+  transition: transform 0.15s;
+}
+
+.ddl-drawer--open .ddl-drawer-header {
+  border-bottom: 1px solid #2a2a45;
+}
+
+.ddl-drawer-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ddl-drawer-body {
+  padding: 12px 20px 16px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* 4K (≥3840px): content-area を横並びに、ドロワーを右サイドパネル化 */
+@media (min-width: 3840px) {
+  .table-editor-content-area {
+    flex-direction: row;
+  }
+
+  .table-editor-body {
+    flex: 1;
+  }
+
+  .ddl-drawer {
+    width: 480px;
+    border-top: none;
+    border-left: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ddl-drawer-header {
+    border-bottom: 1px solid #2a2a45;
+    cursor: default;
+  }
+
+  .ddl-drawer-header:hover {
+    background: transparent;
+  }
+
+  .ddl-drawer--open .ddl-drawer-header {
+    border-bottom: 1px solid #2a2a45;
+  }
+
+  .ddl-drawer-body {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+  }
+}
+
+/* ── プレースホルダータブ ───────────────────────────────────────────────── */
+
+.placeholder-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: #666;
+  text-align: center;
+}
+
+.placeholder-tab-icon {
+  font-size: 40px;
+  color: #444;
+}
+
+.placeholder-tab-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #888;
+  margin: 0;
+}
+
+.placeholder-tab-desc {
+  font-size: 13px;
+  color: #666;
+  max-width: 400px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── コメントタブ ──────────────────────────────────────────────────────── */
+
+.comment-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 700px;
+}
+
+.comment-tab-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-tab-field > span {
+  font-size: 13px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.comment-tab-textarea {
+  background: #1a1a2e;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+  font-family: inherit;
+  transition: border-color 0.12s;
+}
+
+.comment-tab-textarea:focus {
+  border-color: #7c6bff;
+}
+
+.comment-tab-hint {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.comment-tab-hint code {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* (旧 DDL タブは DdlPreviewDrawer に移行済み、クラス定義は互換のため残す) */
 .ddl-tab {
   display: flex;
   flex-direction: column;

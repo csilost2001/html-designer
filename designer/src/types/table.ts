@@ -85,6 +85,16 @@ export interface TableIndex {
   unique: boolean;
 }
 
+// ── β-2〜4 スロット型 (各 ISSUE で詳細定義) ──────────────────────────────
+
+/** CHECK 制約等の定義スロット (β-2 ISSUE で詳細化) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ConstraintDefinition = Record<string, any>;
+
+/** トリガー定義スロット (β-4 ISSUE で詳細化) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type TriggerDefinition = Record<string, any>;
+
 /** テーブル定義（完全データ） */
 export interface TableDefinition {
   id: string;
@@ -94,6 +104,12 @@ export interface TableDefinition {
   category?: string;
   columns: TableColumn[];
   indexes: TableIndex[];
+  /** テーブルコメント (β-1 追加) */
+  comment?: string;
+  /** 制約定義 (β-2 で中身を実装) */
+  constraints?: ConstraintDefinition[];
+  /** トリガー定義 (β-4 で中身を実装) */
+  triggers?: TriggerDefinition[];
   createdAt: string;
   updatedAt: string;
 }

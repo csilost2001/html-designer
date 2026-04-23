@@ -57,8 +57,9 @@ export function generateDdl(table: TableDefinition, dialect: SqlDialect): string
 
   // Comments for PostgreSQL / Oracle
   if (dialect === "postgresql" || dialect === "oracle") {
-    if (table.logicalName) {
-      ddl += `\n\nCOMMENT ON TABLE ${table.name} IS '${table.logicalName.replace(/'/g, "''")}';`;
+    const tableComment = table.comment || table.logicalName;
+    if (tableComment) {
+      ddl += `\n\nCOMMENT ON TABLE ${table.name} IS '${tableComment.replace(/'/g, "''")}';`;
     }
     for (const col of table.columns) {
       const cmt = col.comment || col.logicalName;
