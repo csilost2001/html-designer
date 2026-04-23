@@ -5,7 +5,7 @@
  * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
  * - 未接続の場合: localStorage にフォールバック
  */
-import type { TableDefinition, TableMeta, TableColumn, TableIndex } from "../types/table";
+import type { TableDefinition, TableMeta, TableColumn, TableIndex, ConstraintDefinition } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
@@ -169,6 +169,21 @@ export function addIndex(
 export function removeIndex(table: TableDefinition, indexId: string): void {
   const idx = table.indexes.findIndex((i) => i.id === indexId);
   if (idx >= 0) table.indexes.splice(idx, 1);
+}
+
+/** 制約を追加 */
+export function addConstraint(
+  table: TableDefinition,
+  constraint: Omit<ConstraintDefinition, "id">,
+): ConstraintDefinition {
+  const c = { id: generateUUID(), ...constraint } as ConstraintDefinition;
+  table.constraints = [...(table.constraints ?? []), c];
+  return c;
+}
+
+/** 制約を削除 */
+export function removeConstraint(table: TableDefinition, constraintId: string): void {
+  table.constraints = (table.constraints ?? []).filter((c) => c.id !== constraintId);
 }
 
 /** テーブル一覧の並び順を変更する (project.tables の物理順) */

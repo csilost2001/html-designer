@@ -3,7 +3,7 @@
  * テーブル定義から DDL (CREATE TABLE) を生成するユーティリティ
  * MySQL / PostgreSQL / Oracle / SQLite / 標準SQL に対応
  */
-import type { TableDefinition, SqlDialect } from "../types/table";
+import type { TableDefinition, SqlDialect, ConstraintDefinition, FkAction } from "../types/table";
 
 export function generateDdl(table: TableDefinition, dialect: SqlDialect): string {
   const colDefs: string[] = [];
@@ -53,6 +53,11 @@ export function generateDdl(table: TableDefinition, dialect: SqlDialect): string
     });
     const uniq = idx.unique ? "UNIQUE " : "";
     ddl += `\n\nCREATE ${uniq}INDEX ${idx.name} ON ${table.name} (${colNames.join(", ")});`;
+  }
+
+  // ALTER TABLE constraints (β-2)
+  for (const c of table.constraints ?? []) {
+    ddl += `\n\n${constraintToDdl(table.name, c, dialect)}`;
   }
 
   // Comments for PostgreSQL / Oracle
@@ -172,6 +177,25 @@ function mapDataType(dt: string, length?: number, scale?: number, dialect?: SqlD
       return "TEXT";
     default: return dt;
   }
+}
+
+function constraintToDdl(tableName: string, c: ConstraintDefinition, _dialect: SqlDialect): string {
+  switch (c.kind) {
+    case "unique":
+      return `ALTER TABLE ${tableName} ADD CONSTRAINT ${c.id} UNIQUE (${c.columns.join(", ")});`;
+    case "check":
+      return `ALTER TABLE ${tableName} ADD CONSTRAINT ${c.id} CHECK (${c.expression});`;
+    case "foreignKey": {
+      let s = `ALTER TABLE ${tableName} ADD CONSTRAINT ${c.id}\n  FOREIGN KEY (${c.columns.join(", ")}) REFERENCES ${c.referencedTable}(${c.referencedColumns.join(", ")})`;
+      if (c.onDelete) s += `\n  ON DELETE ${fkActionSql(c.onDelete)}`;
+      if (c.onUpdate) s += `\n  ON UPDATE ${fkActionSql(c.onUpdate)}`;
+      return s + ";";
+    }
+  }
+}
+
+function fkActionSql(action: FkAction): string {
+  return action;
 }
 
 function autoIncrementType(dt: string, dialect: SqlDialect): string {

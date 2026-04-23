@@ -19,6 +19,7 @@ import { DataList, type DataListColumn } from "../common/DataList";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { DdlPreviewDrawer } from "./DdlPreviewDrawer";
+import { ConstraintsTab } from "./ConstraintsTab";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
@@ -129,6 +130,9 @@ export function TableEditor() {
         </button>
         <button className={tab === "constraints" ? "active" : ""} onClick={() => setTab("constraints")}>
           <i className="bi bi-shield-check" /> 制約
+          {(table.constraints?.length ?? 0) > 0 && (
+            <span className="tab-count">{table.constraints!.length}</span>
+          )}
         </button>
         <button className={tab === "indexes" ? "active" : ""} onClick={() => setTab("indexes")}>
           <i className="bi bi-lightning" /> インデックス <span className="tab-count">{table.indexes.length}</span>
@@ -148,11 +152,7 @@ export function TableEditor() {
             <ColumnsTab table={table} update={update} allTables={allTables} />
           )}
           {tab === "constraints" && (
-            <PlaceholderTab
-              icon="bi-shield-check"
-              title="制約 (β-2 で実装予定)"
-              description="CHECK 制約・UNIQUE 制約等を一覧・編集します。"
-            />
+            <ConstraintsTab table={table} update={update} allTables={allTables} />
           )}
           {tab === "indexes" && (
             <IndexesTab table={table} update={update} />

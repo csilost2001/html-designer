@@ -1136,6 +1136,335 @@
   border-radius: 3px;
 }
 
+/* ── 制約タブ (β-2) ─────────────────────────────────────────────────────── */
+
+.constraints-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.constraints-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.constraints-count {
+  font-size: 13px;
+  color: #888;
+}
+
+.constraints-add-wrap {
+  position: relative;
+}
+
+.constraints-add-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #222240;
+  border: 1px solid #444;
+  border-radius: 6px;
+  z-index: 50;
+  min-width: 160px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+
+.constraints-add-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.constraints-add-menu button:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+.constraints-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #666;
+  text-align: center;
+}
+
+.constraints-empty-icon {
+  font-size: 36px;
+  color: #444;
+}
+
+.constraints-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+.constraints-empty code {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.constraints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── 制約行（折りたたみ） ─────────────────────────────────────────────────── */
+
+.constraint-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #1e1e38;
+  border: 1px solid #333;
+  border-radius: 7px;
+  transition: border-color 0.12s;
+}
+
+.constraint-row:hover {
+  border-color: #555;
+}
+
+.constraint-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.constraint-kind-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.constraint-kind-badge--unique {
+  background: rgba(100, 180, 255, 0.15);
+  color: #64b4ff;
+  border: 1px solid rgba(100, 180, 255, 0.3);
+}
+
+.constraint-kind-badge--check {
+  background: rgba(255, 200, 80, 0.15);
+  color: #ffc850;
+  border: 1px solid rgba(255, 200, 80, 0.3);
+}
+
+.constraint-kind-badge--foreignKey {
+  background: rgba(130, 220, 160, 0.15);
+  color: #82dc9f;
+  border: 1px solid rgba(130, 220, 160, 0.3);
+}
+
+.constraint-id {
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 13px;
+  color: #ddd;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.constraint-desc-inline {
+  font-size: 12px;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.constraint-row-summary {
+  font-size: 12px;
+  color: #999;
+  font-family: "Consolas", "Monaco", monospace;
+  padding-left: 2px;
+}
+
+.constraint-row-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+
+/* ── 制約インライン編集カード ──────────────────────────────────────────────── */
+
+.constraint-editor-card {
+  background: #1a1a2e;
+  border: 1px solid #7c6bff;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.constraint-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.constraint-editor-id-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.constraint-editor-label {
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.constraint-id-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: "Consolas", "Monaco", monospace;
+  outline: none;
+}
+
+.constraint-id-input:focus {
+  border-color: #7c6bff;
+}
+
+.constraint-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.constraint-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.constraint-editor-field > span {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.constraint-editor-field select,
+.constraint-editor-field input[type="text"] {
+  padding: 6px 10px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.constraint-editor-field select:focus,
+.constraint-editor-field input[type="text"]:focus {
+  border-color: #7c6bff;
+}
+
+.constraint-expr-input {
+  font-family: "Consolas", "Monaco", monospace !important;
+}
+
+.constraint-col-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.constraint-col-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: #222240;
+  border: 1px solid #444;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #bbb;
+  cursor: pointer;
+  transition: all 0.1s;
+  user-select: none;
+}
+
+.constraint-col-chip input[type="checkbox"] {
+  display: none;
+}
+
+.constraint-col-chip.selected {
+  background: rgba(124, 107, 255, 0.2);
+  border-color: #7c6bff;
+  color: #c8bfff;
+}
+
+.constraint-col-chip:hover:not(.selected) {
+  border-color: #666;
+  color: #ddd;
+}
+
+.constraint-fk-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.constraint-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid #333;
+}
+
+/* ── 4K: 制約一覧 2 列グリッド ──────────────────────────────────────────── */
+
+@media (min-width: 3840px) {
+  .constraints-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .constraint-editor-card {
+    grid-column: 1 / -1;
+  }
+}
+
 /* (旧 DDL タブは DdlPreviewDrawer に移行済み、クラス定義は互換のため残す) */
 .ddl-tab {
   display: flex;

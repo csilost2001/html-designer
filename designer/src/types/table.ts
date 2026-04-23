@@ -85,11 +85,39 @@ export interface TableIndex {
   unique: boolean;
 }
 
-// ── β-2〜4 スロット型 (各 ISSUE で詳細定義) ──────────────────────────────
+// ── β-2 制約型 ──────────────────────────────────────────────────────────
 
-/** CHECK 制約等の定義スロット (β-2 ISSUE で詳細化) */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ConstraintDefinition = Record<string, any>;
+/** UNIQUE 制約 */
+export interface UniqueConstraint {
+  id: string;
+  kind: "unique";
+  columns: string[];
+  description?: string;
+}
+
+/** CHECK 制約 */
+export interface CheckConstraint {
+  id: string;
+  kind: "check";
+  expression: string;
+  description?: string;
+}
+
+export type FkAction = "CASCADE" | "SET NULL" | "SET DEFAULT" | "RESTRICT" | "NO ACTION";
+
+/** FOREIGN KEY 制約 */
+export interface ForeignKeyConstraint {
+  id: string;
+  kind: "foreignKey";
+  columns: string[];
+  referencedTable: string;
+  referencedColumns: string[];
+  onDelete?: FkAction;
+  onUpdate?: FkAction;
+  description?: string;
+}
+
+export type ConstraintDefinition = UniqueConstraint | CheckConstraint | ForeignKeyConstraint;
 
 /** トリガー定義スロット (β-4 ISSUE で詳細化) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
