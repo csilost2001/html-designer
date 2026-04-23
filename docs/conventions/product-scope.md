@@ -1,12 +1,14 @@
-# プロダクトスコープ規約 (プレースホルダー)
+# プロダクトスコープ規約 (人間向け参考資料)
 
-**ステータス**: Placeholder (仮)
+> **正本は `data/conventions/catalog.json`** (scope / currency / tax / auth / db / numbering / tx / externalOutcomeDefaults カテゴリ)。
+> 本 md はその人間向け参考資料であり、AI・ツールは JSON を参照すること (#346)。
+> `docs/sample-project/conventions/conventions-catalog.json` が seed データ。
+> `docs/conventions/validation-rules.md` と同じ扱い。
+
 **策定日**: 2026-04-20
-**関連 issue**: #151 (A: 設計書種別の追加)
+**関連 issue**: #151 (A: 設計書種別の追加), #346
 
 本書は処理フロー仕様書が暗黙の前提とするプロダクトの**業務スコープ**を定める。個別の仕様書で「国内のみか? 多言語対応要否?」等を毎回書かなくて済むよう、ここで一括宣言する。
-
-**位置づけ**: 将来 designer アプリ内の「システム全体の規約」機能 (issue #151-A) で置き換えられる予定。現時点はテキスト形式の placeholder。
 
 ---
 

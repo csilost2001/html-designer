@@ -1,9 +1,12 @@
 import { useState } from "react";
 import type { ValidationRule, ValidationRuleType } from "../../types/action";
+import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+import { ConvCompletionInput } from "../common/ConvCompletionInput";
 
 interface Props {
   rules: ValidationRule[] | undefined;
   onChange: (rules: ValidationRule[]) => void;
+  conventions?: ConventionsCatalog | null;
 }
 
 const RULE_TYPES: Array<{ value: ValidationRuleType; label: string }> = [
@@ -20,7 +23,7 @@ const RULE_TYPES: Array<{ value: ValidationRuleType; label: string }> = [
  * ValidationStep.rules[] 編集 UI (#212)。
  * 構造化ルール配列の追加/編集/削除。
  */
-export function ValidationRulesPanel({ rules, onChange }: Props) {
+export function ValidationRulesPanel({ rules, onChange, conventions }: Props) {
   const list = rules ?? [];
   const [expanded, setExpanded] = useState(list.length > 0);
 
@@ -143,22 +146,22 @@ export function ValidationRulesPanel({ rules, onChange }: Props) {
           )}
           {r.type === "custom" && (
             <div className="col">
-              <input
-                type="text"
+              <ConvCompletionInput
                 className="form-control form-control-sm"
                 value={r.condition ?? ""}
-                onChange={(e) => updateRule(i, { condition: e.target.value })}
+                onValueChange={(v) => updateRule(i, { condition: v })}
+                conventions={conventions ?? null}
                 placeholder="condition (例: @items.length >= 1)"
                 style={{ fontSize: "0.8rem" }}
               />
             </div>
           )}
           <div className="col-auto" style={{ width: 140 }}>
-            <input
-              type="text"
+            <ConvCompletionInput
               className="form-control form-control-sm"
               value={r.message ?? ""}
-              onChange={(e) => updateRule(i, { message: e.target.value || undefined })}
+              onValueChange={(v) => updateRule(i, { message: v || undefined })}
+              conventions={conventions ?? null}
               placeholder="message (例: @conv.msg.required)"
               style={{ fontSize: "0.8rem" }}
             />

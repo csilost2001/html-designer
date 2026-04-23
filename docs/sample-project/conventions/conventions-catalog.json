@@ -76,5 +76,93 @@
     "quantityMax": { "value": 9999, "unit": "integer", "description": "発注可能数量の上限" },
     "quantityMin": { "value": 1, "unit": "integer" },
     "amountMax": { "value": 999999999999, "unit": "yen", "description": "DECIMAL(12,0) の上限、JPY" }
+  },
+
+  "scope": {
+    "customerRegion": { "value": "domestic", "description": "国内顧客のみ (日本国内在住/在所)" },
+    "timezone": { "value": "Asia/Tokyo", "description": "JST 固定。海外顧客はスコープ外" },
+    "language": { "value": "ja", "description": "日本語のみ。多言語化 (i18n) はスコープ外" }
+  },
+
+  "currency": {
+    "jpy": {
+      "code": "JPY",
+      "subunit": 0,
+      "roundingMode": "floor",
+      "description": "日本円のみ。外税 10%、1 円未満切り捨て、DECIMAL(12,0) 保存"
+    }
+  },
+
+  "tax": {
+    "standard": {
+      "kind": "exclusive",
+      "rate": 0.10,
+      "roundingMode": "floor",
+      "description": "消費税 外税 10% (2026 年時点)、1 円未満切り捨て"
+    }
+  },
+
+  "auth": {
+    "default": {
+      "scheme": "session-cookie",
+      "sessionStorage": "httpOnly-cookie",
+      "passwordHash": "bcrypt(cost=12)",
+      "description": "httpOnly Cookie セッション + bcrypt(cost=12) パスワードハッシュ"
+    }
+  },
+
+  "db": {
+    "default": {
+      "engine": "postgresql@14",
+      "namingConvention": "snake_case",
+      "timestampColumns": ["created_at", "updated_at"],
+      "logicalDeleteColumn": "is_deleted",
+      "description": "PostgreSQL 14+、snake_case、論理削除 is_deleted、タイムスタンプ自動管理"
+    }
+  },
+
+  "numbering": {
+    "customerCode": {
+      "format": "C-NNNN",
+      "implementation": "PG sequence + DEFAULT",
+      "description": "顧客コード 4 桁ゼロパディング (例: C-0001)"
+    },
+    "orderNumber": {
+      "format": "ORD-YYYY-NNNN",
+      "implementation": "PG sequence + trigger",
+      "description": "注文番号 年+4 桁ゼロパディング (例: ORD-2026-0001)"
+    }
+  },
+
+  "tx": {
+    "singleOperation": {
+      "policy": "単一操作は 1 TX。複数操作が原子的である必要があれば明示的に TX 境界を指定",
+      "description": "標準トランザクション方針"
+    },
+    "externalApi": {
+      "policy": "外部 API 呼出は TX 外を原則とする (DB ロック時間短縮、冪等性の外部管理)",
+      "description": "外部 API 連携トランザクション方針"
+    }
+  },
+
+  "externalOutcomeDefaults": {
+    "success": {
+      "outcome": "success",
+      "action": "continue",
+      "retry": "none",
+      "description": "正常完了: 続行"
+    },
+    "failure": {
+      "outcome": "failure",
+      "action": "abort",
+      "retry": "none",
+      "description": "4xx/5xx 明示エラー: クリティカルな呼出は中断。v1 はリトライなし"
+    },
+    "timeout": {
+      "outcome": "timeout",
+      "action": "abort",
+      "retry": "none",
+      "description": "タイムアウト (既定 10 秒): failure と同じ扱い。v1 はリトライなし"
+    }
   }
 }

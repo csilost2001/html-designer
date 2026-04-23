@@ -11,6 +11,16 @@ import type {
   ValidationStep,
   LoopStep,
 } from "../types/action";
+import type {
+  ScopeEntry,
+  CurrencyEntry,
+  TaxEntry,
+  AuthEntry,
+  DbEntry,
+  NumberingEntry,
+  TxEntry,
+  ExternalOutcomeDefaultEntry,
+} from "../types/conventions";
 
 export interface ConventionsCatalog {
   version: string;
@@ -19,6 +29,14 @@ export interface ConventionsCatalog {
   msg?: Record<string, { template: string; params?: string[]; description?: string }>;
   regex?: Record<string, { pattern: string; flags?: string; description?: string; exampleValid?: string[]; exampleInvalid?: string[] }>;
   limit?: Record<string, { value: number; unit?: string; description?: string }>;
+  scope?: Record<string, ScopeEntry>;
+  currency?: Record<string, CurrencyEntry>;
+  tax?: Record<string, TaxEntry>;
+  auth?: Record<string, AuthEntry>;
+  db?: Record<string, DbEntry>;
+  numbering?: Record<string, NumberingEntry>;
+  tx?: Record<string, TxEntry>;
+  externalOutcomeDefaults?: Record<string, ExternalOutcomeDefaultEntry>;
 }
 
 export interface ConventionIssue {
@@ -27,6 +45,14 @@ export interface ConventionIssue {
     | "UNKNOWN_CONV_MSG"
     | "UNKNOWN_CONV_REGEX"
     | "UNKNOWN_CONV_LIMIT"
+    | "UNKNOWN_CONV_SCOPE"
+    | "UNKNOWN_CONV_CURRENCY"
+    | "UNKNOWN_CONV_TAX"
+    | "UNKNOWN_CONV_AUTH"
+    | "UNKNOWN_CONV_DB"
+    | "UNKNOWN_CONV_NUMBERING"
+    | "UNKNOWN_CONV_TX"
+    | "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS"
     | "UNKNOWN_CONV_CATEGORY";
   value: string;
   message: string;
@@ -50,15 +76,33 @@ function codeFor(category: string): ConventionIssue["code"] {
     case "msg": return "UNKNOWN_CONV_MSG";
     case "regex": return "UNKNOWN_CONV_REGEX";
     case "limit": return "UNKNOWN_CONV_LIMIT";
+    case "scope": return "UNKNOWN_CONV_SCOPE";
+    case "currency": return "UNKNOWN_CONV_CURRENCY";
+    case "tax": return "UNKNOWN_CONV_TAX";
+    case "auth": return "UNKNOWN_CONV_AUTH";
+    case "db": return "UNKNOWN_CONV_DB";
+    case "numbering": return "UNKNOWN_CONV_NUMBERING";
+    case "tx": return "UNKNOWN_CONV_TX";
+    case "externalOutcomeDefaults": return "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS";
     default: return "UNKNOWN_CONV_CATEGORY";
   }
 }
 
 function resolveCategory(catalog: ConventionsCatalog, category: string): Record<string, unknown> | null {
-  if (category === "msg") return catalog.msg ?? null;
-  if (category === "regex") return catalog.regex ?? null;
-  if (category === "limit") return catalog.limit ?? null;
-  return null;
+  switch (category) {
+    case "msg": return catalog.msg ?? null;
+    case "regex": return catalog.regex ?? null;
+    case "limit": return catalog.limit ?? null;
+    case "scope": return catalog.scope ?? null;
+    case "currency": return catalog.currency ?? null;
+    case "tax": return catalog.tax ?? null;
+    case "auth": return catalog.auth ?? null;
+    case "db": return catalog.db ?? null;
+    case "numbering": return catalog.numbering ?? null;
+    case "tx": return catalog.tx ?? null;
+    case "externalOutcomeDefaults": return catalog.externalOutcomeDefaults ?? null;
+    default: return null;
+  }
 }
 
 /** ActionGroup 全体で @conv.* 参照を検査。catalog が null なら検査 skip */
@@ -146,7 +190,7 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
           path: `${path}.${field}`,
           code: "UNKNOWN_CONV_CATEGORY",
           value: `@conv.${category}.${key}`,
-          message: `@conv.${category}.* カテゴリは規約カタログに存在しません (msg/regex/limit のみ)`,
+          message: `@conv.${category}.* カテゴリは規約カタログに存在しません`,
         });
         continue;
       }
