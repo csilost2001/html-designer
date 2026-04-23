@@ -519,7 +519,10 @@ class WsBridge extends EventEmitter {
   async tryCommand(method: string, params?: unknown): Promise<unknown | null> {
     try {
       return await this.sendCommand(method, params);
-    } catch {
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error(`[WsBridge] tryCommand(${method}) failed, falling back to file:`, e);
+      }
       return null;
     }
   }

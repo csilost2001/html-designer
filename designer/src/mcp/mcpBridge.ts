@@ -400,8 +400,9 @@ class McpBridgeImpl {
       }
     };
 
-    // フロー操作・タブ操作・AG ハンドラはエディター不要
-    const flowMethods = [
+    // GrapesJS editor インスタンスが不要なメソッド一覧
+    // (フロー操作 / タブ操作 / ActionGroupHandler 操作)
+    const editorFreeMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
       "listCustomBlocks",
@@ -409,7 +410,7 @@ class McpBridgeImpl {
       "getActionGroup", "applyActionGroupMutation",
     ];
 
-    if (!this.editor && !flowMethods.includes(method)) {
+    if (!this.editor && !editorFreeMethods.includes(method)) {
       respondError("エディターが初期化されていません");
       return;
     }

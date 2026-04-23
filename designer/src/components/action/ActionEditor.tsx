@@ -1053,6 +1053,8 @@ export function ActionEditor() {
 }
 
 // ── browser-first 処理フロー変異ヘルパー (#361) ──────────────────────────────
+// add_step / remove_step / moveStep は actionStore の関数を再利用し、
+// ファイルベース (actionGroupEdits.ts) と実装が乖離しないようにする。
 
 function applyActionGroupMutation(
   g: ActionGroup,
@@ -1063,18 +1065,10 @@ function applyActionGroupMutation(
     case "designer__add_step": {
       const act = g.actions.find((a) => a.id === p.actionId);
       if (!act) return;
-      const step = {
-        id: `step-${Date.now()}`,
-        type: p.type as StepType,
-        description: (p.description as string) ?? "",
-        ...((p.detail ?? {}) as object),
-      } as unknown as Step;
       const pos = typeof p.position === "number" ? p.position : undefined;
-      if (pos !== undefined && pos >= 0 && pos <= act.steps.length) {
-        act.steps.splice(pos, 0, step);
-      } else {
-        act.steps.push(step);
-      }
+      const step = addStep(act, p.type as StepType, pos);
+      if (p.description) step.description = p.description as string;
+      Object.assign(step, (p.detail ?? {}) as object);
       break;
     }
     case "designer__update_step": {
@@ -1087,7 +1081,7 @@ function applyActionGroupMutation(
     case "designer__remove_step": {
       for (const act of g.actions) {
         const idx = act.steps.findIndex((s) => s.id === p.stepId);
-        if (idx >= 0) { act.steps.splice(idx, 1); return; }
+        if (idx >= 0) { removeStep(act, p.stepId as string); return; }
       }
       break;
     }
@@ -1095,11 +1089,7 @@ function applyActionGroupMutation(
       const newIndex = p.newIndex as number;
       for (const act of g.actions) {
         const fromIdx = act.steps.findIndex((s) => s.id === p.stepId);
-        if (fromIdx >= 0) {
-          const [step] = act.steps.splice(fromIdx, 1);
-          act.steps.splice(newIndex, 0, step);
-          return;
-        }
+        if (fromIdx >= 0) { moveStep(act, fromIdx, newIndex); return; }
       }
       break;
     }
