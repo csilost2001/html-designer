@@ -16,6 +16,7 @@ import { tools } from "./tools.js";
 import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readActionGroup, writeActionGroup, deleteActionGroup as deleteActionGroupFile, listActionGroups as listActionGroupFiles } from "./projectStorage.js";
+import { mcpTableToSpecEntry } from "./specExport.js";
 
 // 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
 // stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
@@ -623,49 +624,7 @@ function createMcpServer(): Server {
         const spec: Record<string, unknown> = {
           projectName: specProject.name,
           generatedAt: new Date().toISOString(),
-          tables: specTables.map((t) => {
-            const cols = (t.columns ?? []) as Array<Record<string, unknown>>;
-            return {
-              name: t.name,
-              logicalName: t.logicalName,
-              description: t.description,
-              category: t.category,
-              columns: cols.map((c) => {
-                const col: Record<string, unknown> = {
-                  name: c.name, logicalName: c.logicalName, dataType: c.dataType,
-                  ...(c.length != null ? { length: c.length } : {}),
-                  ...(c.scale != null ? { scale: c.scale } : {}),
-                  notNull: c.notNull, primaryKey: c.primaryKey, unique: c.unique,
-                  ...(c.autoIncrement ? { autoIncrement: true } : {}),
-                  ...(c.defaultValue ? { defaultValue: c.defaultValue } : {}),
-                  ...(c.comment ? { comment: c.comment } : {}),
-                };
-                if (c.foreignKey) {
-                  const fk = c.foreignKey as { tableId: string; columnName: string; noConstraint?: boolean };
-                  col.reference = { table: fk.tableId, column: fk.columnName, type: fk.noConstraint ? "logical" : "physical" };
-                }
-                return col;
-              }),
-              indexes: ((t.indexes ?? []) as Array<Record<string, unknown>>).map((idx) => {
-                const rawCols = (idx.columns ?? []) as Array<string | { name?: string; order?: string }>;
-                const colNames = rawCols.map((c) => {
-                  if (typeof c === "string") {
-                    const col = cols.find((cc) => cc.id === c);
-                    return col ? col.name : c;
-                  }
-                  return (c as { name?: string }).name ?? "";
-                });
-                return {
-                  name: (idx.id ?? idx.name) as string,
-                  columns: colNames,
-                  unique: idx.unique,
-                };
-              }),
-              ...((t.constraints as unknown[])?.length ? { constraints: t.constraints } : {}),
-              ...((t.defaults as unknown[])?.length ? { defaults: t.defaults } : {}),
-              ...((t.triggers as unknown[])?.length ? { triggers: t.triggers } : {}),
-            };
-          }),
+          tables: specTables.map((t) => mcpTableToSpecEntry(t)),
           relations: [] as Array<Record<string, unknown>>,
           screens: ((specProject.screens ?? []) as Array<Record<string, unknown>>).map((s) => ({
             name: s.name, type: s.type, path: s.path, description: s.description, hasDesign: s.hasDesign,
