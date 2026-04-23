@@ -45,6 +45,14 @@ export interface ConventionIssue {
     | "UNKNOWN_CONV_MSG"
     | "UNKNOWN_CONV_REGEX"
     | "UNKNOWN_CONV_LIMIT"
+    | "UNKNOWN_CONV_SCOPE"
+    | "UNKNOWN_CONV_CURRENCY"
+    | "UNKNOWN_CONV_TAX"
+    | "UNKNOWN_CONV_AUTH"
+    | "UNKNOWN_CONV_DB"
+    | "UNKNOWN_CONV_NUMBERING"
+    | "UNKNOWN_CONV_TX"
+    | "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS"
     | "UNKNOWN_CONV_CATEGORY";
   value: string;
   message: string;
@@ -68,6 +76,14 @@ function codeFor(category: string): ConventionIssue["code"] {
     case "msg": return "UNKNOWN_CONV_MSG";
     case "regex": return "UNKNOWN_CONV_REGEX";
     case "limit": return "UNKNOWN_CONV_LIMIT";
+    case "scope": return "UNKNOWN_CONV_SCOPE";
+    case "currency": return "UNKNOWN_CONV_CURRENCY";
+    case "tax": return "UNKNOWN_CONV_TAX";
+    case "auth": return "UNKNOWN_CONV_AUTH";
+    case "db": return "UNKNOWN_CONV_DB";
+    case "numbering": return "UNKNOWN_CONV_NUMBERING";
+    case "tx": return "UNKNOWN_CONV_TX";
+    case "externalOutcomeDefaults": return "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS";
     default: return "UNKNOWN_CONV_CATEGORY";
   }
 }
