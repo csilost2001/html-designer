@@ -1007,6 +1007,13 @@ export interface ActionGroup {
    */
   ambientVariables?: StructuredField[];
   /**
+   * 規約カタログ defaults へのフロー固有例外 (#369)。
+   * 未指定時は data/conventions/catalog.json の default:true エントリを全項目で継承。
+   * キーはカタログカテゴリ名 (例: "currency", "scope.timezone")、値は @conv.* 参照文字列またはリテラル値。
+   * 稀用途: 特定フローだけ別通貨・別タイムゾーンで動かす場合のみ記述する。
+   */
+  ambientOverrides?: Record<string, string>;
+  /**
    * Secrets カタログ (#261 v1.6)。API キー・DB パスワード・署名鍵等の秘匿値の**メタデータ**。
    * 値そのものは JSON に保存せず、`source` で実際の取得先を指す (ENV / vault / file 等)。
    * ExternalAuth.tokenRef から `@secret.<key>` 記法で参照される。

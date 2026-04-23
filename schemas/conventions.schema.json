@@ -127,6 +127,7 @@
       "additionalProperties": false,
       "properties": {
         "value": { "type": "string" },
+        "default": { "type": "boolean", "description": "true = このエントリが project-wide ambient default (#369)" },
         "description": { "type": "string" }
       }
     },
@@ -139,6 +140,7 @@
         "code": { "type": "string", "description": "ISO 4217 通貨コード (例: JPY)" },
         "subunit": { "type": "integer", "description": "小数点以下桁数 (0=円単位、2=セント単位)" },
         "roundingMode": { "type": "string", "enum": ["floor", "ceil", "round"] },
+        "default": { "type": "boolean", "description": "true = このエントリが project-wide ambient default (#369)" },
         "description": { "type": "string" }
       }
     },
@@ -151,6 +153,7 @@
         "kind": { "type": "string", "enum": ["inclusive", "exclusive"] },
         "rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "0..1 (例: 0.10)" },
         "roundingMode": { "type": "string", "enum": ["floor", "ceil", "round"] },
+        "default": { "type": "boolean", "description": "true = このエントリが project-wide ambient default (#369)" },
         "description": { "type": "string" }
       }
     },
@@ -163,6 +166,7 @@
         "scheme": { "type": "string", "description": "session-cookie / bearer-jwt / basic" },
         "sessionStorage": { "type": "string", "description": "httpOnly-cookie / redis / memory" },
         "passwordHash": { "type": "string", "description": "bcrypt(cost=12) / argon2id" },
+        "default": { "type": "boolean", "description": "true = このエントリが project-wide ambient default (#369)" },
         "description": { "type": "string" }
       }
     },
@@ -175,6 +179,7 @@
         "namingConvention": { "type": "string", "description": "例: snake_case" },
         "timestampColumns": { "type": "array", "items": { "type": "string" } },
         "logicalDeleteColumn": { "type": "string", "description": "例: is_deleted" },
+        "default": { "type": "boolean", "description": "true = このエントリが project-wide ambient default (#369)" },
         "description": { "type": "string" }
       }
     },

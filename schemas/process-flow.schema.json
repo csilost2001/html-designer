@@ -34,6 +34,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/StructuredField" }
     },
+    "ambientOverrides": {
+      "description": "規約カタログ defaults へのフロー固有例外 (#369)。未指定時は data/conventions/catalog.json の default:true エントリを全項目で継承。キーはカタログカテゴリ名 (例: \"currency\", \"scope.timezone\")、値は @conv.* 参照文字列またはリテラル値",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
     "secretsCatalog": {
       "description": "Secrets カタログ (#261 v1.6)。秘匿値のメタデータ (取得元・ローテーション)。値そのものは含まない",
       "type": "object",
