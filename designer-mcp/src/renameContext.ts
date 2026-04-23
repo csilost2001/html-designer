@@ -36,6 +36,13 @@ const VOID_TAGS = new Set([
   "link", "meta", "param", "source", "track", "wbr",
 ]);
 
+const CUSTOM_TYPE_TO_TAG: Record<string, string> = {
+  "validation-input": "input",
+  "validation-select": "select",
+  "validation-textarea": "textarea",
+  "checkbox": "input",
+};
+
 function serializeComponent(val: unknown): string {
   if (!val) return "";
   if (typeof val === "string") return val;
@@ -46,7 +53,9 @@ function serializeComponent(val: unknown): string {
   if (c.type === "textnode") return String(c.content ?? "");
   if (c.type === "comment") return `<!--${c.content ?? ""}-->`;
 
-  const tag = typeof c.tagName === "string" ? c.tagName : null;
+  const tag = typeof c.tagName === "string"
+    ? c.tagName
+    : (typeof c.type === "string" ? (CUSTOM_TYPE_TO_TAG[c.type] ?? null) : null);
   if (!tag) {
     // wrapper など tagName なし → 子だけ
     return serializeComponent(c.components);
