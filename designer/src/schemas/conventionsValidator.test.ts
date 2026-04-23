@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
-import { checkConventionReferences, type ConventionsCatalog } from "./conventionsValidator";
+import { checkConventionReferences, checkScreenItemConventionReferences, type ConventionsCatalog } from "./conventionsValidator";
 import type { ActionGroup } from "../types/action";
+import type { ScreenItemsFile } from "../types/screenItem";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
@@ -327,6 +328,79 @@ describe("checkConventionReferences", () => {
       null,
     );
     expect(issues).toHaveLength(0);
+  });
+});
+
+// ── checkScreenItemConventionReferences (#351) ────────────────────────────
+
+function makeScreenItemsFile(partial: Partial<ScreenItemsFile>): ScreenItemsFile {
+  return {
+    screenId: "scr1",
+    version: "0.1.0",
+    updatedAt: "2026-01-01T00:00:00Z",
+    items: [],
+    ...partial,
+  };
+}
+
+describe("checkScreenItemConventionReferences", () => {
+  const catalog = loadCatalog();
+
+  it("catalog が null なら空配列", () => {
+    const file = makeScreenItemsFile({ items: [{ id: "email", label: "メール", type: "string", pattern: "@conv.regex.email-simple" }] });
+    expect(checkScreenItemConventionReferences(file, null)).toHaveLength(0);
+  });
+
+  it("items が空なら空配列", () => {
+    expect(checkScreenItemConventionReferences(makeScreenItemsFile({}), catalog)).toHaveLength(0);
+  });
+
+  it("pattern に実在する @conv.regex.* を書くとエラーなし", () => {
+    const file = makeScreenItemsFile({
+      items: [{ id: "phone", label: "電話", type: "string", pattern: "@conv.regex.phone-jp" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("pattern に存在しない @conv.regex を書くと UNKNOWN_CONV_REGEX", () => {
+    const file = makeScreenItemsFile({
+      items: [{ id: "f", label: "F", type: "string", pattern: "@conv.regex.no-such-key" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_REGEX");
+    expect(issues[0].path).toBe("items[0].pattern");
+  });
+
+  it("errorMessages.required に存在しない @conv.msg を書くと UNKNOWN_CONV_MSG", () => {
+    const file = makeScreenItemsFile({
+      items: [{ id: "f", label: "F", type: "string", errorMessages: { required: "@conv.msg.no-such-msg" } }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_MSG");
+    expect(issues[0].path).toBe("items[0].errorMessages.required");
+  });
+
+  it("pattern に @conv 参照なし (直接正規表現) はエラーなし", () => {
+    const file = makeScreenItemsFile({
+      items: [{ id: "f", label: "F", type: "string", pattern: "^[0-9]+$" }],
+    });
+    expect(checkScreenItemConventionReferences(file, catalog)).toHaveLength(0);
+  });
+
+  it("複数 items に問題があれば全件返す", () => {
+    const file = makeScreenItemsFile({
+      items: [
+        { id: "f1", label: "F1", type: "string", pattern: "@conv.regex.bad1" },
+        { id: "f2", label: "F2", type: "string", errorMessages: { maxLength: "@conv.msg.bad2" } },
+      ],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(2);
+    expect(issues[0].path).toBe("items[0].pattern");
+    expect(issues[1].path).toBe("items[1].errorMessages.maxLength");
   });
 });
 

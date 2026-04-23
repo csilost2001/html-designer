@@ -1292,7 +1292,7 @@ export function StepCard({
                             <span className="badge bg-info text-dark" style={{ fontSize: "0.7rem" }}>tryCatch</span>
                             <input
                               className="form-control form-control-sm"
-                              value={br.condition.errorCode}
+                              value={(br.condition as { kind: "tryCatch"; errorCode: string }).errorCode}
                               placeholder="errorCode (例: STOCK_SHORTAGE)"
                               onChange={(e) => setBranchAt(bi, {
                                 ...br,

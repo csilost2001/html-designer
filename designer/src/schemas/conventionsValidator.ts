@@ -3,7 +3,9 @@
  *
  * 処理フロー JSON 内の式・メッセージ中に現れる @conv.<category>.<key> が
  * conventions-catalog.json に存在するかを検査。
+ * 画面項目定義 (ScreenItemsFile) の pattern / errorMessages.* も対象 (#351)。
  */
+import type { ScreenItemsFile } from "../types/screenItem";
 import type {
   ActionGroup,
   Step,
@@ -153,6 +155,28 @@ function walkSteps(
   });
 }
 
+/** 1 文字列値の @conv.* 参照を検査し issues に追記する */
+function checkValue(src: string, path: string, catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
+  for (const { category, key } of extractConvRefs(src)) {
+    const cat = resolveCategory(catalog, category);
+    if (cat === null) {
+      issues.push({
+        path,
+        code: "UNKNOWN_CONV_CATEGORY",
+        value: `@conv.${category}.${key}`,
+        message: `@conv.${category}.* カテゴリは規約カタログに存在しません`,
+      });
+    } else if (!(key in cat)) {
+      issues.push({
+        path,
+        code: codeFor(category),
+        value: `@conv.${category}.${key}`,
+        message: `@conv.${category}.${key} が規約カタログに存在しません`,
+      });
+    }
+  }
+}
+
 function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
   const texts: Array<{ src: string; field: string }> = [];
 
@@ -182,26 +206,28 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
   }
 
   for (const { src, field } of texts) {
-    const refs = extractConvRefs(src);
-    for (const { category, key } of refs) {
-      const cat = resolveCategory(catalog, category);
-      if (cat === null) {
-        issues.push({
-          path: `${path}.${field}`,
-          code: "UNKNOWN_CONV_CATEGORY",
-          value: `@conv.${category}.${key}`,
-          message: `@conv.${category}.* カテゴリは規約カタログに存在しません`,
-        });
-        continue;
-      }
-      if (!(key in cat)) {
-        issues.push({
-          path: `${path}.${field}`,
-          code: codeFor(category),
-          value: `@conv.${category}.${key}`,
-          message: `@conv.${category}.${key} が規約カタログに存在しません`,
-        });
-      }
-    }
+    checkValue(src, `${path}.${field}`, catalog, issues);
   }
+}
+
+/** 画面項目定義ファイル全体で @conv.* 参照を検査 (#351)。catalog が null なら skip */
+export function checkScreenItemConventionReferences(
+  file: ScreenItemsFile,
+  catalog: ConventionsCatalog | null,
+): ConventionIssue[] {
+  if (!catalog) return [];
+  const issues: ConventionIssue[] = [];
+
+  file.items.forEach((item, i) => {
+    if (item.pattern) {
+      checkValue(item.pattern, `items[${i}].pattern`, catalog, issues);
+    }
+    if (item.errorMessages) {
+      Object.entries(item.errorMessages).forEach(([key, val]) => {
+        if (val) checkValue(val, `items[${i}].errorMessages.${key}`, catalog, issues);
+      });
+    }
+  });
+
+  return issues;
 }

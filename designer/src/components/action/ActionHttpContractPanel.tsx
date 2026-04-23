@@ -138,7 +138,7 @@ export function ActionHttpContractPanel({ action, onChange }: Props) {
                 <input
                   type="text"
                   className="form-control form-control-sm"
-                  value={r.bodySchema ?? ""}
+                  value={typeof r.bodySchema === "string" ? (r.bodySchema ?? "") : ""}
                   onChange={(e) => updateResponse(i, { bodySchema: e.target.value || undefined })}
                   placeholder="bodySchema"
                   style={{ fontSize: "0.8rem" }}
