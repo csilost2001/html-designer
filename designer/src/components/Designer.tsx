@@ -12,6 +12,7 @@ import "grapesjs/dist/css/grapes.min.css";
 import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
 import { attachDataItemIdAutoAssign } from "../grapes/dataItemId";
+import { attachScreenItemsSync, reconcileScreenItems } from "../grapes/screenItemsSync";
 import { registerRemoteStorage, saveScreenToFile, hasScreenDraft, clearScreenDraft } from "../grapes/remoteStorage";
 import { acknowledgeServerMtime, hasServerBeenUpdated } from "../utils/serverMtime";
 import { DesignSubToolbar } from "./design/DesignSubToolbar";
@@ -237,6 +238,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     // #322: input/select/textarea ブロック drop 時に data-item-id を自動発番
     const unsubDataItemId = attachDataItemIdAutoAssign(editor);
 
+    // #358: canvas ↔ screen-items 双方向同期 (data-item-id 発番の後に登録)
+    const unsubScreenItemsSync = attachScreenItemsSync(editor, screenId, isInternalLoadRef);
+
     // MCPブリッジ起動
     const unsubscribe = mcpBridge.onStatusChange(setMcpStatus);
     mcpBridge.setThemeHandler((themeId) =>
@@ -260,6 +264,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     return () => {
       editor.off("component:add component:remove component:update style:change", markDirty);
       unsubDataItemId();
+      unsubScreenItemsSync();
       unsubscribe();
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
@@ -280,7 +285,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     // GrapesJS が component:add を遅延発火するケース（ensureValidProject による
     // 最小 pages 補正で空データからでも load() 後に 1 回発火する）に備え、
     // 次のマクロタスクでガードを下げる (#131)。
-    setTimeout(() => { isInternalLoadRef.current = false; }, 0);
+    // #358: ガード解除と同タイミングで canvas ↔ screen-items の初回突合を行う。
+    setTimeout(() => {
+      isInternalLoadRef.current = false;
+      if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
+    }, 0);
     if (editorRef.current) {
       if (activeTheme !== "standard") {
         applyThemeToCanvas(editorRef.current, activeTheme);
