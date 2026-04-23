@@ -69,6 +69,11 @@ type BroadcastHandler = (data: unknown) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 
+type ActionGroupHandler = {
+  get: () => unknown;
+  mutate: (type: string, params: unknown) => void;
+};
+
 const WS_URL = `ws://${window.location.hostname}:5179`;
 const RETRY_DELAY_MS = 5000;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -84,6 +89,7 @@ class McpBridgeImpl {
   private ws: WebSocket | null = null;
   private editor: GEditor | null = null;
   private currentScreenId: string | null = null;
+  private actionGroupHandlers = new Map<string, ActionGroupHandler>();
   private status: McpStatus = "disconnected";
   private statusCallbacks: Set<StatusCallback> = new Set();
   private themeHandler: ThemeHandler | null = null;
@@ -110,6 +116,14 @@ class McpBridgeImpl {
 
   setCurrentScreenId(screenId: string | null): void {
     this.currentScreenId = screenId;
+  }
+
+  setActionGroupHandler(id: string, handler: ActionGroupHandler | null): void {
+    if (handler) {
+      this.actionGroupHandlers.set(id, handler);
+    } else {
+      this.actionGroupHandlers.delete(id);
+    }
   }
 
   setThemeHandler(handler: ThemeHandler | null): void {
@@ -386,12 +400,13 @@ class McpBridgeImpl {
       }
     };
 
-    // フロー操作・タブ操作はエディター不要
+    // フロー操作・タブ操作・AG ハンドラはエディター不要
     const flowMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
       "listCustomBlocks",
       "openTab", "closeTab", "switchTab", "listTabs", "saveScreen", "saveAll",
+      "getActionGroup", "applyActionGroupMutation",
     ];
 
     if (!this.editor && !flowMethods.includes(method)) {
@@ -874,6 +889,39 @@ class McpBridgeImpl {
             }
           }
           respond({ saved: results.filter((r) => r.success).length, total: dirtyTabs.length, results });
+          break;
+        }
+
+        // ── browser-first 処理フロー操作 ──────────────────────────────
+
+        case "getActionGroup": {
+          const { id: agId } = (params ?? {}) as { id: string };
+          const handler = this.actionGroupHandlers.get(agId);
+          if (!handler) {
+            respondError(`ActionEditor が開かれていません: ${agId}`);
+            break;
+          }
+          respond(handler.get());
+          break;
+        }
+
+        case "applyActionGroupMutation": {
+          const { id: agId, type: mutType, params: mutParams } = (params ?? {}) as {
+            id: string;
+            type: string;
+            params: unknown;
+          };
+          const handler = this.actionGroupHandlers.get(agId);
+          if (!handler) {
+            respondError(`ActionEditor が開かれていません: ${agId}`);
+            break;
+          }
+          try {
+            handler.mutate(mutType, mutParams);
+            respond({ success: true });
+          } catch (e) {
+            respondError(String(e));
+          }
           break;
         }
 

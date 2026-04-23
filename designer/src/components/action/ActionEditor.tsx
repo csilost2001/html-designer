@@ -49,6 +49,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { mcpBridge } from "../../mcp/mcpBridge";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
@@ -204,6 +205,21 @@ export function ActionEditor() {
     onNotFound: handleNotFound,
     onLoaded: handleLoaded,
   });
+
+  // ActionEditor の live 状態を mcpBridge に公開 (#361 browser-first)
+  const groupRef = useRef<ActionGroup | null>(null);
+  groupRef.current = group ?? null;
+
+  useEffect(() => {
+    if (!actionGroupId) return;
+    mcpBridge.setActionGroupHandler(actionGroupId, {
+      get: () => groupRef.current,
+      mutate: (type, params) => {
+        updateGroup((g) => applyActionGroupMutation(g, type, params as Record<string, unknown>));
+      },
+    });
+    return () => mcpBridge.setActionGroupHandler(actionGroupId, null);
+  }, [actionGroupId, updateGroup]);
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
@@ -1034,4 +1050,58 @@ export function ActionEditor() {
       />
     </div>
   );
+}
+
+// ── browser-first 処理フロー変異ヘルパー (#361) ──────────────────────────────
+
+function applyActionGroupMutation(
+  g: ActionGroup,
+  type: string,
+  p: Record<string, unknown>,
+): void {
+  switch (type) {
+    case "designer__add_step": {
+      const act = g.actions.find((a) => a.id === p.actionId);
+      if (!act) return;
+      const step = {
+        id: `step-${Date.now()}`,
+        type: p.type as StepType,
+        description: (p.description as string) ?? "",
+        ...((p.detail ?? {}) as object),
+      } as unknown as Step;
+      const pos = typeof p.position === "number" ? p.position : undefined;
+      if (pos !== undefined && pos >= 0 && pos <= act.steps.length) {
+        act.steps.splice(pos, 0, step);
+      } else {
+        act.steps.push(step);
+      }
+      break;
+    }
+    case "designer__update_step": {
+      for (const act of g.actions) {
+        const step = act.steps.find((s) => s.id === p.stepId);
+        if (step) { Object.assign(step, p.patch); return; }
+      }
+      break;
+    }
+    case "designer__remove_step": {
+      for (const act of g.actions) {
+        const idx = act.steps.findIndex((s) => s.id === p.stepId);
+        if (idx >= 0) { act.steps.splice(idx, 1); return; }
+      }
+      break;
+    }
+    case "designer__move_step": {
+      const newIndex = p.newIndex as number;
+      for (const act of g.actions) {
+        const fromIdx = act.steps.findIndex((s) => s.id === p.stepId);
+        if (fromIdx >= 0) {
+          const [step] = act.steps.splice(fromIdx, 1);
+          act.steps.splice(newIndex, 0, step);
+          return;
+        }
+      }
+      break;
+    }
+  }
 }
