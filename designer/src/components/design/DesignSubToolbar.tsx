@@ -3,6 +3,7 @@ import { useEditor } from "@grapesjs/react";
 import type { PanelMode, ThemeId } from "../Designer";
 import type { McpStatus } from "../../mcp/mcpBridge";
 import { mcpBridge } from "../../mcp/mcpBridge";
+import { generateUUID } from "../../utils/uuid";
 import { CodeEditorModal } from "../CodeEditorModal";
 import { SaveBlockModal } from "../SaveBlockModal";
 import { SaveResetButtons } from "../common/SaveResetButtons";
@@ -95,6 +96,8 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
     return unsub;
   }, []);
 
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
+
   const showToast = useCallback((msg: string, warn = false) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setAiRenameToast({ msg, warn });
@@ -103,7 +106,7 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
 
   const handleAiRename = useCallback(async () => {
     if (!screenId) return;
-    const sessionId = crypto.randomUUID();
+    const sessionId = generateUUID();
     aiRenameSessionRef.current = sessionId;
     const abort = new AbortController();
     aiRenameAbortRef.current = abort;
@@ -154,11 +157,10 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
         failed++;
       }
     }
-    const skipped = Object.keys(aiRenameMapping).length - succeeded - failed;
     setAiRenameProgress({ stage: "done", message: "完了" });
     setAiRenameMapping(null);
     setTimeout(() => setAiRenameProgress(null), 800);
-    showToast(`リネーム完了: 成功 ${succeeded} 件、失敗 ${failed} 件${skipped > 0 ? `、スキップ ${skipped} 件` : ""}`, failed > 0);
+    showToast(`リネーム完了: 成功 ${succeeded} 件、失敗 ${failed} 件`, failed > 0);
   }, [screenId, aiRenameMapping, showToast]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [canUndo, setCanUndo] = useState(false);

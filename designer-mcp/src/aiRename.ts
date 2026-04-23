@@ -127,6 +127,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
 
   let mapping: Record<string, string> = {};
   let timedOut = false;
+  let spawnError = false;
 
   await new Promise<void>((resolve) => {
     const child = spawn(
@@ -189,8 +190,14 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
       resolve();
     });
 
-    child.on("error", () => {
+    child.on("error", (err) => {
       clearTimeout(timeout);
+      spawnError = true;
+      sendProgress(clientId, sessionId, {
+        stage: "error",
+        message: "claude CLI の起動に失敗しました",
+        error: String(err),
+      });
       resolve();
     });
   });
@@ -202,6 +209,11 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
       error: "claude CLI の実行がタイムアウトしました",
     });
     jsonBody(res, 504, { error: "タイムアウト" });
+    return;
+  }
+
+  if (spawnError) {
+    jsonBody(res, 500, { error: "claude CLI の起動に失敗しました" });
     return;
   }
 
