@@ -535,6 +535,16 @@ class WsBridge extends EventEmitter {
           this.broadcast("viewChanged", { viewId, deleted: true }, clientId);
           break;
         }
+        case "reorderViews": {
+          const { orderedIds } = (params ?? {}) as { orderedIds: string[] };
+          const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
+          const viewsMap = new Map((existing?.views ?? []).map((v) => [(v as { id: string }).id, v]));
+          const reordered = orderedIds.map((id) => viewsMap.get(id)).filter(Boolean);
+          await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views: reordered });
+          respond({ success: true });
+          this.broadcast("viewChanged", { reordered: true }, clientId);
+          break;
+        }
         case "getFileMtime": {
           const { kind, id: fid } = (params ?? {}) as { kind: string; id?: string };
           const mtime = await getFileMtime(kind, fid);

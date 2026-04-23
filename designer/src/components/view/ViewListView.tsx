@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ViewMeta } from "../../types/view";
 import type { ViewDefinition } from "../../types/view";
-import { listViews, createView, deleteView, loadView, saveView } from "../../store/viewStore";
+import { listViews, createView, deleteView, loadView, saveView, reorderViews } from "../../store/viewStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { DataList, type DataListColumn } from "../common/DataList";
@@ -37,6 +37,7 @@ export function ViewListView() {
   const [showAdd, setShowAdd] = useState(false);
   const [addId, setAddId] = useState("");
   const [addDescription, setAddDescription] = useState("");
+  const [addIdError, setAddIdError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const loadViews = useCallback(async () => {
@@ -44,9 +45,13 @@ export function ViewListView() {
     return await listViews();
   }, []);
 
-  const commitViews = useCallback(async ({ deletedIds }: { itemsInOrder: ViewMeta[]; deletedIds: string[] }) => {
+  const commitViews = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ViewMeta[]; deletedIds: string[] }) => {
     for (const id of deletedIds) {
       await deleteView(id);
+    }
+    const remainingIds = itemsInOrder.filter((v) => !deletedIds.includes(v.id)).map((v) => v.id);
+    if (remainingIds.length > 0) {
+      await reorderViews(remainingIds);
     }
   }, []);
 
@@ -233,10 +238,15 @@ export function ViewListView() {
   const handleAdd = async () => {
     const id = addId.trim();
     if (!id) return;
+    if (editor.items.some((v) => v.id === id)) {
+      setAddIdError(`ビュー名 "${id}" は既に存在します`);
+      return;
+    }
     const v = await createView(id, addDescription.trim() || undefined);
     setShowAdd(false);
     setAddId("");
     setAddDescription("");
+    setAddIdError("");
     navigate(`/view/edit/${encodeURIComponent(v.id)}`);
   };
 
@@ -491,7 +501,7 @@ export function ViewListView() {
         />
 
         {showAdd && (
-          <div className="tbl-modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="tbl-modal-overlay" onClick={() => { setShowAdd(false); setAddIdError(""); }}>
             <div className="tbl-modal" onClick={(e) => e.stopPropagation()}>
               <div className="tbl-modal-title">ビュー追加</div>
               <label className="tbl-field">
@@ -499,11 +509,13 @@ export function ViewListView() {
                 <input
                   type="text"
                   value={addId}
-                  onChange={(e) => setAddId(e.target.value)}
+                  onChange={(e) => { setAddId(e.target.value); setAddIdError(""); }}
                   placeholder="v_customer_with_last_order"
                   autoFocus
+                  className={addIdError ? "input-error" : undefined}
                   onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
                 />
+                {addIdError && <span className="tbl-field-error">{addIdError}</span>}
               </label>
               <label className="tbl-field">
                 <span>説明</span>
@@ -516,7 +528,7 @@ export function ViewListView() {
                 />
               </label>
               <div className="tbl-modal-btns">
-                <button className="tbl-btn tbl-btn-ghost" onClick={() => setShowAdd(false)}>
+                <button className="tbl-btn tbl-btn-ghost" onClick={() => { setShowAdd(false); setAddIdError(""); }}>
                   キャンセル
                 </button>
                 <button

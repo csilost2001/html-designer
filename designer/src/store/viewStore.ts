@@ -8,6 +8,7 @@ export interface ViewStorageBackend {
   saveView(viewId: string, data: unknown): Promise<void>;
   deleteView(viewId: string): Promise<void>;
   loadViewsFile(): Promise<unknown>;
+  reorderViews(orderedIds: string[]): Promise<void>;
 }
 
 let _backend: ViewStorageBackend | null = null;
@@ -61,12 +62,12 @@ export async function loadView(viewId: string): Promise<ViewDefinition | null> {
 
 /** ビュー定義を保存 */
 export async function saveView(view: ViewDefinition): Promise<void> {
-  view.updatedAt = now();
+  const toSave = { ...view, updatedAt: now() };
   if (_backend) {
-    await _backend.saveView(view.id, view);
+    await _backend.saveView(toSave.id, toSave);
   } else {
-    localStorage.setItem(`${LS_PREFIX}${view.id}`, JSON.stringify(view));
-    await _syncLocalMeta(view);
+    localStorage.setItem(`${LS_PREFIX}${toSave.id}`, JSON.stringify(toSave));
+    await _syncLocalMeta(toSave);
   }
 }
 
@@ -84,6 +85,18 @@ export async function createView(id: string, description?: string): Promise<View
   };
   await saveView(view);
   return view;
+}
+
+/** ビューの並び順を永続化 */
+export async function reorderViews(orderedIds: string[]): Promise<void> {
+  if (_backend) {
+    await _backend.reorderViews(orderedIds);
+  } else {
+    const metas = await listViews();
+    const map = new Map(metas.map((m) => [m.id, m]));
+    const reordered = orderedIds.map((id) => map.get(id)).filter(Boolean) as ViewMeta[];
+    localStorage.setItem(LS_META_KEY, JSON.stringify(renumber(reordered)));
+  }
 }
 
 /** ビューを削除 */

@@ -342,6 +342,7 @@ class McpBridgeImpl {
       saveView: (viewId, data) => this.request("saveView", { viewId, data }).then(() => undefined),
       deleteView: (viewId) => this.request("deleteView", { viewId }).then(() => undefined),
       loadViewsFile: () => this.request("loadViewsFile"),
+      reorderViews: (orderedIds) => this.request("reorderViews", { orderedIds }).then(() => undefined),
     };
     setViewStorageBackend(viewBackend);
   }

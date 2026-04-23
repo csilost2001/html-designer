@@ -11,7 +11,7 @@ export function generateViewDdl(view: ViewDefinition): string {
     lines.push("-- SELECT 文を入力してください");
   }
 
-  lines[lines.length - 1] += ";";
+  lines[lines.length - 1] = lines[lines.length - 1].trimEnd().replace(/;+$/, "") + ";";
 
   if (view.description) {
     lines.push(`\nCOMMENT ON VIEW ${view.id} IS '${view.description.replace(/'/g, "''")}';`);
