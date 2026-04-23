@@ -61,6 +61,10 @@ import {
   setSequenceStorageBackend,
   type SequenceStorageBackend,
 } from "../store/sequenceStore";
+import {
+  setViewStorageBackend,
+  type ViewStorageBackend,
+} from "../store/viewStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
@@ -332,6 +336,15 @@ class McpBridgeImpl {
       deleteSequence: (sequenceId) => this.request("deleteSequence", { sequenceId }).then(() => undefined),
     };
     setSequenceStorageBackend(sequenceBackend);
+
+    const viewBackend: ViewStorageBackend = {
+      loadView: (viewId) => this.request("loadView", { viewId }),
+      saveView: (viewId, data) => this.request("saveView", { viewId, data }).then(() => undefined),
+      deleteView: (viewId) => this.request("deleteView", { viewId }).then(() => undefined),
+      loadViewsFile: () => this.request("loadViewsFile"),
+      reorderViews: (orderedIds) => this.request("reorderViews", { orderedIds }).then(() => undefined),
+    };
+    setViewStorageBackend(viewBackend);
   }
 
   /** 切断時: localStorage フォールバックに戻す */
@@ -344,6 +357,7 @@ class McpBridgeImpl {
     setConventionsStorageBackend(null);
     setScreenItemsStorageBackend(null);
     setSequenceStorageBackend(null);
+    setViewStorageBackend(null);
   }
 
   // ── メッセージ受信 ─────────────────────────────────────────────────────

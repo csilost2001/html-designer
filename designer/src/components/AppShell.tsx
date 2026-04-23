@@ -11,6 +11,8 @@ import { ConventionsCatalogView } from "./conventions/ConventionsCatalogView";
 import { ScreenItemsView } from "./screen-items/ScreenItemsView";
 import { SequenceListView } from "./sequence/SequenceListView";
 import { SequenceEditor } from "./sequence/SequenceEditor";
+import { ViewListView } from "./view/ViewListView";
+import { ViewEditor } from "./view/ViewEditor";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
@@ -19,6 +21,7 @@ import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
 import { loadActionGroup } from "../store/actionStore";
 import { loadSequence } from "../store/sequenceStore";
+import { loadView } from "../store/viewStore";
 import {
   getTabs,
   getActiveTabId,
@@ -176,6 +179,28 @@ export function AppShell() {
       return;
     }
 
+    const viewMatch = matchPath("/view/edit/:viewId", location.pathname);
+    if (viewMatch?.params.viewId) {
+      const viewId = viewMatch.params.viewId;
+      const tabId = makeTabId("view", viewId);
+      const existing = getTabs().find((t) => t.id === tabId);
+      if (existing) {
+        setActiveTab(tabId);
+      } else {
+        loadView(viewId).then((v) => {
+          if (v) {
+            openTab({ id: tabId, type: "view", resourceId: viewId, label: v.id });
+          } else {
+            fallbackToDashboard("ビュー", viewId);
+          }
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadView 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("ビュー", viewId);
+        });
+      }
+      return;
+    }
+
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
       { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
@@ -187,6 +212,7 @@ export function AppShell() {
       { path: "/conventions/catalog", type: "conventions-catalog", label: "規約カタログ" },
       { path: "/screen-items",       type: "screen-items",       label: "画面項目定義" },
       { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
+      { path: "/view/list",          type: "view-list",           label: "ビュー一覧" },
     ];
     for (const { path, type, label } of singletonRoutes) {
       if (location.pathname === path) {
@@ -208,6 +234,7 @@ export function AppShell() {
       : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
       : activeTab.type === "action"           ? `/process-flow/edit/${activeTab.resourceId}`
       : activeTab.type === "sequence"         ? `/sequence/edit/${activeTab.resourceId}`
+      : activeTab.type === "view"             ? `/view/edit/${activeTab.resourceId}`
       : activeTab.type === "screen-flow"      ? "/screen/flow"
       : activeTab.type === "screen-list"      ? "/screen/list"
       : activeTab.type === "table-list"       ? "/table/list"
@@ -216,6 +243,7 @@ export function AppShell() {
       : activeTab.type === "conventions-catalog" ? "/conventions/catalog"
       : activeTab.type === "screen-items"     ? "/screen-items"
       : activeTab.type === "sequence-list"    ? "/sequence/list"
+      : activeTab.type === "view-list"        ? "/view/list"
       : activeTab.type === "dashboard"        ? "/"
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
@@ -294,6 +322,8 @@ export function AppShell() {
             <Route path="/screen-items" element={<ScreenItemsView />} />
             <Route path="/sequence/list" element={<SequenceListView />} />
             <Route path="/sequence/edit/:sequenceId" element={<SequenceEditor />} />
+            <Route path="/view/list" element={<ViewListView />} />
+            <Route path="/view/edit/:viewId" element={<ViewEditor />} />
           </Routes>
         </ErrorBoundary>
       )}
