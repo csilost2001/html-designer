@@ -30,6 +30,38 @@ describe("checkIdentifierScopes — inputs / outputs", () => {
     expect(issues).toHaveLength(0);
   });
 
+  it("@inputs 全体参照 (@inputs.items) は OK (structured inputs がある場合)", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [{ name: "items", type: { kind: "array", itemType: "number" } }],
+        steps: [{
+          id: "s1", type: "loop", description: "",
+          loopKind: "collection",
+          collectionSource: "@inputs.items",
+          collectionItemName: "item",
+          steps: [],
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@outputs 全体参照は OK (structured outputs がある場合)", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        outputs: [{ name: "result", type: "string" }],
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "@outputs.result",
+          outputBinding: "x",
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
   it("未定義 @identifier を検出", () => {
     const issues = checkIdentifierScopes(makeGroup({
       actions: [{

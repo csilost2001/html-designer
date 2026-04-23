@@ -67,6 +67,7 @@ argList         = expression (',' expression)*
 - `@identifier` が変数参照の基本形。`@` はこのフロー言語固有のマーカー
 - ドット/ブラケット記法でネストアクセス: `@customer.address.postalCode` / `@items[0].quantity`
 - Optional chain: `@paymentAuth?.id` — undefined プロパティへのアクセス時に null を返す
+- **`@inputs` / `@outputs` 全体参照**: `ActionDefinition.inputs` / `outputs` の配列全体をオブジェクトとして参照できる。例: `@inputs.items` (inputs フィールド "items" へのアクセス)、`@outputs.result`。個別フィールド名 (`@items` 等) と全体参照 (`@inputs.items`) は**どちらも解決可能**だが、**全体参照スタイルを推奨** (名前衝突が生じにくい)。
 
 ### 3.3 比較・論理
 
@@ -150,7 +151,7 @@ argList         = expression (',' expression)*
 | `LoopStep.countExpression` | 数値式 | `"@items.length"` |
 | `LoopStep.conditionExpression` | 真偽式 | `"@remaining > 0"` |
 | `LoopStep.collectionSource` | 配列式 | `"@items"` |
-| `OutputBindingObject.initialValue` | 任意式 | `"0"` / `"[]"` |
+| `OutputBindingObject.initialValue` | JSON 値 または 式文字列 | `0` / `[]` / `"@emptyArr"` |
 | `ExternalCallOutcomeSpec.jumpTo` | ステップ ID 文字列 (式ではない) | `"step-error-handler"` |
 | `CommonProcessStep.argumentMapping[k]` | 任意式 | `"@customerId"` |
 | `ExternalSystemStep.protocol` (#261) | 自由記述。URL 中の `@path` 式補間を許容 (例: `"HTTPS POST /v1/payment_intents/@paymentAuth.id/cancel"`) | URL 構造化は v1.3-b 以降の `httpCall` フィールドで予定 |
