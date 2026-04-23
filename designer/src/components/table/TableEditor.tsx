@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { TableDefinition, TableColumn, TableIndex, SqlDialect, ColumnTemplate } from "../../types/table";
+import type { TableDefinition, TableColumn, SqlDialect, ColumnTemplate } from "../../types/table";
 import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
 import type { DataType } from "../../types/table";
-import { loadTable, saveTable, addColumn, removeColumn, addIndex, removeIndex } from "../../store/tableStore";
+import { loadTable, saveTable, addColumn, removeColumn } from "../../store/tableStore";
 import { listTables } from "../../store/tableStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -20,6 +20,7 @@ import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { DdlPreviewDrawer } from "./DdlPreviewDrawer";
 import { ConstraintsTab } from "./ConstraintsTab";
+import { IndexesTab } from "./IndexesTab";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
@@ -155,7 +156,7 @@ export function TableEditor() {
             <ConstraintsTab table={table} update={update} allTables={allTables} />
           )}
           {tab === "indexes" && (
-            <IndexesTab table={table} update={update} />
+            <IndexesTab key="indexes" table={table} update={update} />
           )}
           {tab === "triggers" && (
             <PlaceholderTab
@@ -938,96 +939,7 @@ function ForeignKeyEditor({
   );
 }
 
-// ── インデックスタブ ──────────────────────────────────────────────────────────
-
-function IndexesTab({
-  table, update,
-}: {
-  table: TableDefinition;
-  update: (fn: (t: TableDefinition) => void) => void;
-}) {
-  const handleAdd = () => {
-    update((t) => addIndex(t));
-  };
-
-  const handleRemove = (idxId: string) => {
-    update((t) => removeIndex(t, idxId));
-  };
-
-  const handleUpdate = (idxId: string, patch: Partial<TableIndex>) => {
-    update((t) => {
-      const idx = t.indexes.find((i) => i.id === idxId);
-      if (idx) Object.assign(idx, patch);
-    });
-  };
-
-  const toggleColumn = (idxId: string, colId: string) => {
-    update((t) => {
-      const idx = t.indexes.find((i) => i.id === idxId);
-      if (!idx) return;
-      if (idx.columns.includes(colId)) {
-        idx.columns = idx.columns.filter((c) => c !== colId);
-      } else {
-        idx.columns.push(colId);
-      }
-    });
-  };
-
-  return (
-    <div className="indexes-tab">
-      {table.indexes.length === 0 ? (
-        <div className="indexes-empty">
-          <p>インデックスがまだありません</p>
-        </div>
-      ) : (
-        <div className="indexes-list">
-          {table.indexes.map((idx) => (
-            <div key={idx.id} className="index-card">
-              <div className="index-card-header">
-                <input
-                  type="text"
-                  className="index-name-input"
-                  value={idx.name}
-                  onChange={(e) => handleUpdate(idx.id, { name: e.target.value })}
-                  placeholder="インデックス名"
-                />
-                <label className="column-flag-label">
-                  <input
-                    type="checkbox"
-                    checked={idx.unique}
-                    onChange={(e) => handleUpdate(idx.id, { unique: e.target.checked })}
-                  />
-                  UNIQUE
-                </label>
-                <button className="tbl-btn-icon danger" onClick={() => handleRemove(idx.id)} title="削除">
-                  <i className="bi bi-trash" />
-                </button>
-              </div>
-              <div className="index-columns">
-                <span className="index-columns-label">カラム:</span>
-                {table.columns.map((col) => (
-                  <label key={col.id} className={`index-col-chip${idx.columns.includes(col.id) ? " selected" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={idx.columns.includes(col.id)}
-                      onChange={() => toggleColumn(idx.id, col.id)}
-                    />
-                    {col.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <button className="tbl-btn tbl-btn-primary" onClick={handleAdd}>
-        <i className="bi bi-plus-lg" /> インデックス追加
-      </button>
-    </div>
-  );
-}
-
-// ── プレースホルダータブ (β-2〜4 実装前の仮表示) ──────────────────────────────
+// ── プレースホルダータブ (β-4 実装前の仮表示) ─────────────────────────────────
 
 function PlaceholderTab({ icon, title, description }: { icon: string; title: string; description: string }) {
   return (

@@ -5,7 +5,7 @@
  * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
  * - 未接続の場合: localStorage にフォールバック
  */
-import type { TableDefinition, TableMeta, TableColumn, TableIndex, ConstraintDefinition } from "../types/table";
+import type { TableDefinition, TableMeta, TableColumn, IndexDefinition, ConstraintDefinition } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
@@ -137,29 +137,33 @@ export function addColumn(
 
 /** カラムを削除 */
 export function removeColumn(table: TableDefinition, columnId: string): void {
+  const removedName = table.columns.find((c) => c.id === columnId)?.name;
   const idx = table.columns.findIndex((c) => c.id === columnId);
   if (idx >= 0) {
     table.columns.splice(idx, 1);
     table.columns = renumber(table.columns);
-    // インデックスからも参照を削除
-    for (const index of table.indexes) {
-      index.columns = index.columns.filter((cid) => cid !== columnId);
+    // インデックスからも参照を削除 (列名で照合)
+    if (removedName) {
+      for (const index of table.indexes) {
+        index.columns = index.columns.filter((ic) => ic.name !== removedName);
+      }
+      table.indexes = table.indexes.filter((idx) => idx.columns.length > 0);
     }
-    // 空になったインデックスを削除
-    table.indexes = table.indexes.filter((idx) => idx.columns.length > 0);
   }
 }
 
 /** インデックスを追加 */
 export function addIndex(
   table: TableDefinition,
-  partial?: Partial<TableIndex>,
-): TableIndex {
-  const idx: TableIndex = {
-    id: generateUUID(),
-    name: partial?.name ?? `idx_${table.name}_${table.indexes.length + 1}`,
+  partial?: Partial<IndexDefinition>,
+): IndexDefinition {
+  const idx: IndexDefinition = {
+    id: partial?.id ?? `idx_${table.name}_${table.indexes.length + 1}`,
     columns: partial?.columns ?? [],
     unique: partial?.unique ?? false,
+    method: partial?.method,
+    where: partial?.where,
+    description: partial?.description,
   };
   table.indexes.push(idx);
   return idx;

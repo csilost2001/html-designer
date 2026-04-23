@@ -1136,6 +1136,305 @@
   border-radius: 3px;
 }
 
+/* ── インデックスタブ (β-3) ─────────────────────────────────────────────── */
+
+.indexes-tab2 {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.indexes-toolbar2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.indexes-count {
+  font-size: 13px;
+  color: #888;
+}
+
+.indexes-empty2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #666;
+  text-align: center;
+}
+
+.indexes-empty-icon {
+  font-size: 36px;
+  color: #444;
+}
+
+.indexes-empty2 p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+.indexes-empty2 code {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.indexes-list2 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.index-row2 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #1e1e38;
+  border: 1px solid #333;
+  border-radius: 7px;
+  transition: border-color 0.12s;
+}
+
+.index-row2:hover {
+  border-color: #555;
+}
+
+.index-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.index-unique-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(100, 180, 255, 0.15);
+  color: #64b4ff;
+  border: 1px solid rgba(100, 180, 255, 0.3);
+  white-space: nowrap;
+}
+
+.index-method-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(200, 160, 255, 0.15);
+  color: #c8a0ff;
+  border: 1px solid rgba(200, 160, 255, 0.3);
+}
+
+.index-row-id {
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 13px;
+  color: #ddd;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.index-row-desc {
+  font-size: 12px;
+  color: #888;
+}
+
+.index-row-summary {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #999;
+  font-family: "Consolas", "Monaco", monospace;
+}
+
+.index-row-where {
+  color: #ffc850;
+}
+
+.index-row-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+
+/* ── インデックス編集カード ────────────────────────────────────────────────── */
+
+.index-editor-card {
+  background: #1a1a2e;
+  border: 1px solid #7c6bff;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.index-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.index-editor-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.index-editor-label {
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.index-name-input2 {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: "Consolas", "Monaco", monospace;
+  outline: none;
+}
+
+.index-name-input2:focus {
+  border-color: #7c6bff;
+}
+
+.index-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.index-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.index-editor-field > span {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.index-editor-field select,
+.index-editor-field input[type="text"] {
+  padding: 6px 10px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.index-editor-field select:focus,
+.index-editor-field input[type="text"]:focus {
+  border-color: #7c6bff;
+}
+
+.index-where-input {
+  font-family: "Consolas", "Monaco", monospace !important;
+}
+
+.index-columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.index-col-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.index-col-select {
+  flex: 1;
+  padding: 5px 8px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+}
+
+.index-col-select:focus {
+  border-color: #7c6bff;
+}
+
+.index-order-select {
+  width: 80px;
+  padding: 5px 8px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+}
+
+.index-order-select:focus {
+  border-color: #7c6bff;
+}
+
+.index-method-select {
+  width: 120px;
+}
+
+.index-editor-flags {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.index-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid #333;
+}
+
+/* ── 4K: インデックス一覧 2 列グリッド ──────────────────────────────────── */
+
+@media (min-width: 3840px) {
+  .indexes-list2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .index-editor-card {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ── 制約タブ (β-2) ─────────────────────────────────────────────────────── */
 
 .constraints-tab {

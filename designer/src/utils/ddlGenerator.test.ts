@@ -140,3 +140,109 @@ describe("generateDdl — constraints (β-2)", () => {
     expect(ddl).toContain("ALTER TABLE orders ADD CONSTRAINT uq_po UNIQUE (po_number);");
   });
 });
+
+describe("generateDdl — indexes (β-3)", () => {
+  it("シンプルなインデックスが CREATE INDEX として出力される", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_orders_created_at", columns: [{ name: "created_at" }] },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("CREATE INDEX idx_orders_created_at ON orders (created_at);");
+  });
+
+  it("UNIQUE インデックスが CREATE UNIQUE INDEX として出力される", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_uq_po_number", columns: [{ name: "po_number" }], unique: true },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("CREATE UNIQUE INDEX idx_uq_po_number ON orders (po_number);");
+  });
+
+  it("複合インデックスがカンマ区切りで出力される", () => {
+    const table = baseTable({
+      indexes: [
+        {
+          id: "idx_supplier_status",
+          columns: [{ name: "supplier_id" }, { name: "amount" }],
+        },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("(supplier_id, amount)");
+  });
+
+  it("DESC 列が DESC 付きで出力される", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_amount_desc", columns: [{ name: "amount", order: "desc" }] },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("(amount DESC)");
+  });
+
+  it("ASC 列は何も付かない", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_amount_asc", columns: [{ name: "amount", order: "asc" }] },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("(amount)");
+    expect(ddl).not.toContain("ASC");
+  });
+
+  it("WHERE 句が指定された場合は部分インデックスとして出力される", () => {
+    const table = baseTable({
+      indexes: [
+        {
+          id: "idx_partial",
+          columns: [{ name: "supplier_id" }],
+          where: "amount > 0",
+        },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("WHERE amount > 0");
+  });
+
+  it("PostgreSQL + hash メソッドが USING HASH として出力される", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_hash", columns: [{ name: "po_number" }], method: "hash" },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("USING HASH");
+  });
+
+  it("btree メソッドは USING 句を出力しない", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_btree", columns: [{ name: "amount" }], method: "btree" },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).not.toContain("USING");
+  });
+
+  it("MySQL では USING を出力しない (btree 以外でも)", () => {
+    const table = baseTable({
+      indexes: [
+        { id: "idx_hash_mysql", columns: [{ name: "amount" }], method: "hash" },
+      ],
+    });
+    const ddl = generateDdl(table, "mysql");
+    expect(ddl).not.toContain("USING");
+  });
+
+  it("indexes が空の場合は CREATE INDEX を出力しない", () => {
+    const table = baseTable();
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).not.toContain("CREATE INDEX");
+  });
+});

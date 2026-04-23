@@ -47,12 +47,17 @@ export function generateDdl(table: TableDefinition, dialect: SqlDialect): string
 
   // Indexes
   for (const idx of table.indexes) {
-    const colNames = idx.columns.map((cid) => {
-      const c = table.columns.find((cc) => cc.id === cid);
-      return c ? c.name : cid;
-    });
+    const colList = idx.columns.map((ic) => {
+      const ord = ic.order === "desc" ? " DESC" : "";
+      return `${ic.name}${ord}`;
+    }).join(", ");
     const uniq = idx.unique ? "UNIQUE " : "";
-    ddl += `\n\nCREATE ${uniq}INDEX ${idx.name} ON ${table.name} (${colNames.join(", ")});`;
+    const method = idx.method && idx.method !== "btree" && dialect === "postgresql"
+      ? ` USING ${idx.method.toUpperCase()}`
+      : "";
+    let stmt = `CREATE ${uniq}INDEX ${idx.id} ON ${table.name}${method} (${colList})`;
+    if (idx.where) stmt += `\n  WHERE ${idx.where}`;
+    ddl += `\n\n${stmt};`;
   }
 
   // ALTER TABLE constraints (β-2)
@@ -109,15 +114,14 @@ export function generateTableMarkdown(table: TableDefinition): string {
   if (table.indexes.length > 0) {
     lines.push("", "**インデックス**", "");
     lines.push(
-      "| インデックス名 | カラム | ユニーク |",
-      "|-------------|--------|---------|",
+      "| インデックス名 | カラム | ユニーク | WHERE |",
+      "|-------------|--------|---------|-------|",
     );
     for (const idx of table.indexes) {
-      const colNames = idx.columns.map((cid) => {
-        const c = table.columns.find((cc) => cc.id === cid);
-        return c ? c.name : cid;
-      });
-      lines.push(`| ${idx.name} | ${colNames.join(", ")} | ${idx.unique ? "✓" : ""} |`);
+      const colList = idx.columns.map((ic) =>
+        `${ic.name}${ic.order === "desc" ? " DESC" : ""}`
+      ).join(", ");
+      lines.push(`| ${idx.id} | ${colList} | ${idx.unique ? "✓" : ""} | ${idx.where ?? ""} |`);
     }
   }
 

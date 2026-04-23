@@ -77,7 +77,25 @@ export interface TableColumn {
   comment?: string;
 }
 
+/** インデックス列 */
+export interface IndexColumn {
+  name: string;
+  order?: "asc" | "desc";
+}
+
+export type IndexMethod = "btree" | "hash" | "gin" | "gist";
+
 /** インデックス定義 */
+export interface IndexDefinition {
+  id: string;
+  columns: IndexColumn[];
+  unique?: boolean;
+  method?: IndexMethod;
+  where?: string;
+  description?: string;
+}
+
+/** @deprecated β-3 前の旧型。IndexDefinition を使用してください */
 export interface TableIndex {
   id: string;
   name: string;
@@ -131,7 +149,7 @@ export interface TableDefinition {
   description: string;
   category?: string;
   columns: TableColumn[];
-  indexes: TableIndex[];
+  indexes: IndexDefinition[];
   /** テーブルコメント (β-1 追加) */
   comment?: string;
   /** 制約定義 (β-2 で中身を実装) */
