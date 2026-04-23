@@ -471,9 +471,10 @@ export function ScreenItemsView() {
     });
   }, []);
 
-  // ファイル切替時に選択を解除
+  // ファイル切替時に選択・展開状態をリセット
   useEffect(() => {
     setSelectedIndices(new Set());
+    setExpandedErrorRows(new Set());
   }, [selectedScreenId]);
 
   const selectedScreenName = screens.find((s) => s.id === selectedScreenId)?.name;
@@ -741,7 +742,7 @@ export function ScreenItemsView() {
                                 onCommit={commit}
                                 conventions={conventions}
                                 className="form-control form-control-sm"
-                                placeholder={`@conv.msg.${key === "required" ? "required" : key === "invalidFormat" ? "invalidFormat" : key}`}
+                                placeholder={`@conv.msg.${key}`}
                               />
                             </label>
                           ))}
