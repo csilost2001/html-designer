@@ -19,6 +19,19 @@ export function setScreenItemsStorageBackend(b: ScreenItemsStorageBackend | null
   _backend = b;
 }
 
+/** in-memory キャッシュ: applyRenameInBrowser でファイル未保存のまま id を更新するために使用 */
+const _cache = new Map<string, ScreenItemsFile>();
+
+/** in-memory キャッシュを更新する (ファイルには書かない) */
+export function setItemsInCache(file: ScreenItemsFile): void {
+  _cache.set(file.screenId, { ...file });
+}
+
+/** in-memory キャッシュを削除する */
+export function clearItemsFromCache(screenId: string): void {
+  _cache.delete(screenId);
+}
+
 const LS_PREFIX = "screen-items-";
 
 function now(): string {
@@ -26,6 +39,8 @@ function now(): string {
 }
 
 export async function loadScreenItems(screenId: string): Promise<ScreenItemsFile> {
+  const cached = _cache.get(screenId);
+  if (cached) return cached;
   if (_backend) {
     const data = await _backend.loadScreenItems(screenId);
     if (data) return data as ScreenItemsFile;
@@ -42,6 +57,7 @@ export async function loadScreenItems(screenId: string): Promise<ScreenItemsFile
 
 export async function saveScreenItems(file: ScreenItemsFile): Promise<void> {
   file.updatedAt = now();
+  _cache.delete(file.screenId);
   if (_backend) {
     await _backend.saveScreenItems(file.screenId, file);
     return;

@@ -24,6 +24,7 @@ import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { loadProject, updateScreenThumbnail } from "../store/flowStore";
 import { makeTabId, setDirty } from "../store/tabStore";
+import { clearItemsFromCache } from "../store/screenItemsStore";
 
 /**
  * editor.getComponents() は GrapesJS が load() 中の Frame.onRemove 経由で一時的に
@@ -246,6 +247,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     mcpBridge.setThemeHandler((themeId) =>
       handleThemeChangeRef.current(themeId as ThemeId)
     );
+    mcpBridge.setCurrentScreenId(screenId);
     mcpBridge.start(editor);
 
     // 他タブ/クライアントで同じ画面が変更されたとき。
@@ -268,7 +270,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       unsubscribe();
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
+      mcpBridge.setCurrentScreenId(null);
       mcpBridge.stop();
+      clearItemsFromCache(screenId);
     };
   }, [screenId, tabId]);
 

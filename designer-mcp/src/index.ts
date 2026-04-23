@@ -3,7 +3,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { randomUUID } from "node:crypto";
 import { handleMarkerTool } from "./handlers/marker.js";
 import { handleActionGroupTool } from "./handlers/actionGroup.js";
-import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
+import { renameScreenItemId, checkScreenItemRefs, updateActionGroupRefs } from "./renameScreenItem.js";
 import { getRenameContext, applyRenameMapping } from "./renameContext.js";
 import {
   ListToolsRequestSchema,
@@ -939,9 +939,37 @@ function createMcpServer(): Server {
           throw new McpError(ErrorCode.InvalidParams, "mapping は {oldId: newId} オブジェクトが必須です");
         }
         const mapping = a.mapping as Record<string, string>;
+
+        // browser-first: ブラウザで in-memory 適用を試みる
+        const browserResult = await wsBridge.tryCommand("applyRenameInBrowser", {
+          screenId: a.screenId,
+          mapping,
+        }) as { succeeded: string[]; failed: Array<{ oldId: string; error: string }> } | null;
+
+        if (browserResult) {
+          // ブラウザ側で適用済み → action group refs のみファイル更新
+          const { actionGroupsUpdated } = await updateActionGroupRefs(a.screenId, mapping);
+          for (const agId of actionGroupsUpdated) {
+            wsBridge.broadcast("actionGroupChanged", { id: agId });
+          }
+          // screenChanged / screenItemsChanged は broadcast しない (browser dirty、ファイルは古いまま)
+
+          const lines: string[] = [
+            `リネーム完了 (browser): 成功 ${browserResult.succeeded.length} 件 / 失敗 ${browserResult.failed.length} 件`,
+            `処理フロー参照更新: ${actionGroupsUpdated.length} 件`,
+          ];
+          for (const oldId of browserResult.succeeded) {
+            lines.push(`  ✓ "${oldId}" → "${mapping[oldId]}"`);
+          }
+          for (const f of browserResult.failed) {
+            lines.push(`  ✗ "${f.oldId}": ${f.error}`);
+          }
+          return { content: [{ type: "text", text: lines.join("\n") }] };
+        }
+
+        // fallback: 従来のファイル全書き
         const result = await applyRenameMapping(a.screenId, mapping);
 
-        // broadcasts
         if (result.succeeded.length > 0) {
           wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
           const allAgs = new Set(result.succeeded.flatMap((s) => s.actionGroupsUpdated));

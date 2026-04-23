@@ -30,6 +30,7 @@ import {
   type CatalogName,
 } from "../actionGroupEdits.js";
 import { saveAndBroadcast, type ToolHandler } from "../mcpHelpers.js";
+import { wsBridge } from "../wsBridge.js";
 
 export const handleActionGroupTool: ToolHandler = async (name, args) => {
   const a = args ?? {};
@@ -50,11 +51,15 @@ export const handleActionGroupTool: ToolHandler = async (name, args) => {
       if (typeof a.actionGroupId !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "actionGroupId は必須です");
       }
-      const agData = await readActionGroup(a.actionGroupId);
+      // browser-first: ActionEditor が開いていれば live 状態を取得
+      const liveData = await wsBridge.tryCommand("getActionGroup", { id: a.actionGroupId });
+      const agData = liveData ?? await readActionGroup(a.actionGroupId);
       if (!agData) {
         throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
       }
-      return { content: [{ type: "text", text: JSON.stringify(agData, null, 2) }] };
+      const source = liveData ? "browser live (unsaved 変更を含む)" : "file";
+      const enriched = { _mcpSource: source, ...(agData as Record<string, unknown>) };
+      return { content: [{ type: "text", text: JSON.stringify(enriched, null, 2) }] };
     }
 
     case "designer__add_action_group": {
@@ -134,6 +139,14 @@ export const handleActionGroupTool: ToolHandler = async (name, args) => {
       if (typeof a.actionGroupId !== "string" || typeof a.actionId !== "string" || typeof a.type !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "actionGroupId, actionId, type は必須です");
       }
+      // browser-first: ActionEditor が開いていれば in-memory に適用
+      const addApplied = await wsBridge.tryCommand("applyActionGroupMutation", {
+        id: a.actionGroupId, type: "designer__add_step", params: a,
+      });
+      if (addApplied) {
+        return { content: [{ type: "text", text: `ステップ（${a.type}）をブラウザで追加しました（保存で確定）` }] };
+      }
+      // fallback: ファイル書き
       const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
       const stepId = `step-${Date.now()}`;
@@ -148,14 +161,21 @@ export const handleActionGroupTool: ToolHandler = async (name, args) => {
       if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string" || typeof a.patch !== "object" || a.patch === null) {
         throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId, patch は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const updApplied = await wsBridge.tryCommand("applyActionGroupMutation", {
+        id: a.actionGroupId, type: "designer__update_step", params: a,
+      });
+      if (updApplied) {
+        return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで更新しました（保存で確定）` }] };
+      }
+      // fallback
+      const updAg = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+      if (!updAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
       try {
-        editUpdateStep(ag, a.stepId, a.patch as Record<string, unknown>);
+        editUpdateStep(updAg, a.stepId, a.patch as Record<string, unknown>);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.actionGroupId, ag);
+      await saveAndBroadcast(a.actionGroupId, updAg);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を更新しました。` }] };
     }
 
@@ -163,14 +183,21 @@ export const handleActionGroupTool: ToolHandler = async (name, args) => {
       if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const rmApplied = await wsBridge.tryCommand("applyActionGroupMutation", {
+        id: a.actionGroupId, type: "designer__remove_step", params: a,
+      });
+      if (rmApplied) {
+        return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで削除しました（保存で確定）` }] };
+      }
+      // fallback
+      const rmAg = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+      if (!rmAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
       try {
-        editRemoveStep(ag, a.stepId);
+        editRemoveStep(rmAg, a.stepId);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.actionGroupId, ag);
+      await saveAndBroadcast(a.actionGroupId, rmAg);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を削除しました。` }] };
     }
 
@@ -178,14 +205,21 @@ export const handleActionGroupTool: ToolHandler = async (name, args) => {
       if (typeof a.actionGroupId !== "string" || typeof a.stepId !== "string" || typeof a.newIndex !== "number") {
         throw new McpError(ErrorCode.InvalidParams, "actionGroupId, stepId, newIndex は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const mvApplied = await wsBridge.tryCommand("applyActionGroupMutation", {
+        id: a.actionGroupId, type: "designer__move_step", params: a,
+      });
+      if (mvApplied) {
+        return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで位置 ${a.newIndex} に移動しました（保存で確定）` }] };
+      }
+      // fallback
+      const mvAg = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
+      if (!mvAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
       try {
-        editMoveStep(ag, a.stepId, a.newIndex);
+        editMoveStep(mvAg, a.stepId, a.newIndex);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.actionGroupId, ag);
+      await saveAndBroadcast(a.actionGroupId, mvAg);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を位置 ${a.newIndex} に移動しました。` }] };
     }
 

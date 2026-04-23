@@ -513,6 +513,20 @@ class WsBridge extends EventEmitter {
     }
   }
 
+  /**
+   * sendCommand のラッパー。ブラウザ未接続・エラー時は null を返す (browser-first fallback 用)。
+   */
+  async tryCommand(method: string, params?: unknown): Promise<unknown | null> {
+    try {
+      return await this.sendCommand(method, params);
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error(`[WsBridge] tryCommand(${method}) failed, falling back to file:`, e);
+      }
+      return null;
+    }
+  }
+
   /** MCP コマンドをアクティブクライアントへ送信 */
   async sendCommand(method: string, params?: unknown): Promise<unknown> {
     const ws = this.activeClient;

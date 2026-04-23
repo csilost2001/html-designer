@@ -50,9 +50,12 @@ import {
   type ConventionsStorageBackend,
 } from "../store/conventionsStore";
 import {
+  loadScreenItems,
+  setItemsInCache,
   setScreenItemsStorageBackend,
   type ScreenItemsStorageBackend,
 } from "../store/screenItemsStore";
+import type { ScreenItemsFile } from "../types/screenItem";
 import { loadTable } from "../store/tableStore";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
@@ -65,6 +68,11 @@ type FlowChangeHandler = () => void;
 type BroadcastHandler = (data: unknown) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
+
+type ActionGroupHandler = {
+  get: () => unknown;
+  mutate: (type: string, params: unknown) => void;
+};
 
 const WS_URL = `ws://${window.location.hostname}:5179`;
 const RETRY_DELAY_MS = 5000;
@@ -80,6 +88,8 @@ declare global {
 class McpBridgeImpl {
   private ws: WebSocket | null = null;
   private editor: GEditor | null = null;
+  private currentScreenId: string | null = null;
+  private actionGroupHandlers = new Map<string, ActionGroupHandler>();
   private status: McpStatus = "disconnected";
   private statusCallbacks: Set<StatusCallback> = new Set();
   private themeHandler: ThemeHandler | null = null;
@@ -103,6 +113,18 @@ class McpBridgeImpl {
   }
 
   // ── ハンドラ setter ────────────────────────────────────────────────────
+
+  setCurrentScreenId(screenId: string | null): void {
+    this.currentScreenId = screenId;
+  }
+
+  setActionGroupHandler(id: string, handler: ActionGroupHandler | null): void {
+    if (handler) {
+      this.actionGroupHandlers.set(id, handler);
+    } else {
+      this.actionGroupHandlers.delete(id);
+    }
+  }
 
   setThemeHandler(handler: ThemeHandler | null): void {
     this.themeHandler = handler;
@@ -378,15 +400,17 @@ class McpBridgeImpl {
       }
     };
 
-    // フロー操作・タブ操作はエディター不要
-    const flowMethods = [
+    // GrapesJS editor インスタンスが不要なメソッド一覧
+    // (フロー操作 / タブ操作 / ActionGroupHandler 操作)
+    const editorFreeMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
       "listCustomBlocks",
       "openTab", "closeTab", "switchTab", "listTabs", "saveScreen", "saveAll",
+      "getActionGroup", "applyActionGroupMutation",
     ];
 
-    if (!this.editor && !flowMethods.includes(method)) {
+    if (!this.editor && !editorFreeMethods.includes(method)) {
       respondError("エディターが初期化されていません");
       return;
     }
@@ -869,6 +893,112 @@ class McpBridgeImpl {
           break;
         }
 
+        // ── browser-first 処理フロー操作 ──────────────────────────────
+
+        case "getActionGroup": {
+          const { id: agId } = (params ?? {}) as { id: string };
+          const handler = this.actionGroupHandlers.get(agId);
+          if (!handler) {
+            respondError(`ActionEditor が開かれていません: ${agId}`);
+            break;
+          }
+          respond(handler.get());
+          break;
+        }
+
+        case "applyActionGroupMutation": {
+          const { id: agId, type: mutType, params: mutParams } = (params ?? {}) as {
+            id: string;
+            type: string;
+            params: unknown;
+          };
+          const handler = this.actionGroupHandlers.get(agId);
+          if (!handler) {
+            respondError(`ActionEditor が開かれていません: ${agId}`);
+            break;
+          }
+          try {
+            handler.mutate(mutType, mutParams);
+            respond({ success: true });
+          } catch (e) {
+            respondError(String(e));
+          }
+          break;
+        }
+
+        // ── browser-first 命名支援 ─────────────────────────────────────
+
+        case "getCanvasSnapshot": {
+          const { screenId: reqScreenId } = (params ?? {}) as { screenId: string };
+          if (this.currentScreenId !== reqScreenId) {
+            respondError(`画面 ${reqScreenId} はブラウザで開かれていません (current: ${this.currentScreenId ?? "none"})`);
+            break;
+          }
+          const html = editor.getHtml();
+          let screenItems: ScreenItemsFile | null = null;
+          try {
+            screenItems = await loadScreenItems(reqScreenId);
+          } catch { /* ignore */ }
+          respond({ html, screenItems });
+          break;
+        }
+
+        case "applyRenameInBrowser": {
+          const { screenId: reqScreenId, mapping } = (params ?? {}) as {
+            screenId: string;
+            mapping: Record<string, string>;
+          };
+          if (this.currentScreenId !== reqScreenId) {
+            respondError(`画面 ${reqScreenId} はブラウザで開かれていません`);
+            break;
+          }
+
+          let siFile: ScreenItemsFile | null = null;
+          try {
+            siFile = await loadScreenItems(reqScreenId);
+          } catch (e) {
+            respondError(`screenItems の読み込みに失敗: ${e}`);
+            break;
+          }
+
+          const succeeded: string[] = [];
+          const failed: Array<{ oldId: string; error: string }> = [];
+          const wrapper = editor.DomComponents.getWrapper();
+
+          // UndoManager を停止して直接更新
+          const um = editor.UndoManager;
+          um.stop();
+          try {
+            for (const [oldId, newId] of Object.entries(mapping)) {
+              try {
+                const domHits = wrapper ? updateComponentIds(wrapper, oldId, newId) : 0;
+                let siHit = false;
+                if (siFile) {
+                  const item = siFile.items.find((i) => i.id === oldId);
+                  if (item) { item.id = newId; siHit = true; }
+                }
+                if (domHits === 0 && !siHit) {
+                  failed.push({ oldId, error: `id "${oldId}" が DOM にも screen-items にも見つかりません` });
+                } else {
+                  succeeded.push(oldId);
+                }
+              } catch (e) {
+                failed.push({ oldId, error: String(e) });
+              }
+            }
+          } finally {
+            um.start();
+          }
+
+          if (succeeded.length > 0) {
+            if (siFile) setItemsInCache(siFile);
+            setDirty(makeTabId("design", reqScreenId), true);
+          }
+
+          respond({ succeeded, failed });
+          break;
+        }
+
         default:
           respondError(`未知のメソッド: ${method}`);
       }
@@ -879,6 +1009,20 @@ class McpBridgeImpl {
 }
 
 // ── ヘルパー関数 ────────────────────────────────────────────────────────────
+
+function updateComponentIds(component: Component, oldId: string, newId: string): number {
+  const attrs = component.getAttributes();
+  const updates: Record<string, string> = {};
+  if (attrs.name === oldId) updates.name = newId;
+  if (attrs.id === oldId) updates.id = newId;
+  let hits = Object.keys(updates).length > 0 ? 1 : 0;
+  if (hits > 0) component.addAttributes(updates);
+  const children = component.components();
+  for (let i = 0; i < children.length; i++) {
+    hits += updateComponentIds(children.at(i) as Component, oldId, newId);
+  }
+  return hits;
+}
 
 function findFirstTextLeaf(c: Component): Component | null {
   const children = c.components();
