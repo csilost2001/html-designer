@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type {
   TableDefinition,
   DefaultDefinition,
@@ -8,17 +8,10 @@ import type {
   TriggerEvent,
 } from "../../types/table";
 import { addDefault, removeDefault, addTrigger, removeTrigger } from "../../store/tableStore";
-
-// @conv.numbering.* の候補 (datalist 補完用)
-const CONVENTION_REF_SUGGESTIONS = [
-  "@conv.numbering.orderNumber",
-  "@conv.numbering.invoiceNumber",
-  "@conv.numbering.purchaseOrderNumber",
-  "@conv.numbering.customerCode",
-  "@conv.numbering.productCode",
-  "@conv.numbering.receiptNumber",
-  "@conv.numbering.shipmentNumber",
-];
+import { listSequences } from "../../store/sequenceStore";
+import { loadConventions } from "../../store/conventionsStore";
+import type { SequenceMeta } from "../../types/sequence";
+import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 
 const DEFAULT_KIND_LABELS: Record<DefaultKind, string> = {
   literal: "リテラル (例: 0, 'active')",
@@ -38,6 +31,18 @@ interface Props {
 export function TriggersDefaultsTab({ table, update }: Props) {
   const [editingDefaultCol, setEditingDefaultCol] = useState<string | null>(null);
   const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
+  const [sequences, setSequences] = useState<SequenceMeta[]>([]);
+  const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
+
+  useEffect(() => {
+    listSequences().then(setSequences).catch(console.error);
+    loadConventions().then(setConventions).catch(console.error);
+  }, []);
+
+  const numberingKeys = useMemo(() => {
+    if (!conventions?.numbering) return [];
+    return Object.keys(conventions.numbering).map((k) => `@conv.numbering.${k}`);
+  }, [conventions]);
 
   const defaults = table.defaults ?? [];
   const triggers = table.triggers ?? [];
@@ -126,6 +131,8 @@ export function TriggersDefaultsTab({ table, update }: Props) {
                   def={def}
                   colNames={colNames}
                   usedCols={new Set(defaults.map((d) => d.column).filter((c) => c !== def.column))}
+                  sequences={sequences}
+                  numberingKeys={numberingKeys}
                   onUpdate={(patch) => handleUpdateDefault(def.column, patch)}
                   onClose={() => setEditingDefaultCol(null)}
                   onDelete={() => handleDeleteDefault(def.column)}
@@ -222,11 +229,13 @@ function DefaultRow({
 // ── DEFAULT 値 編集カード ─────────────────────────────────────────────────────
 
 function DefaultEditorCard({
-  def, colNames, usedCols, onUpdate, onClose, onDelete,
+  def, colNames, usedCols, sequences, numberingKeys, onUpdate, onClose, onDelete,
 }: {
   def: DefaultDefinition;
   colNames: string[];
   usedCols: Set<string>;
+  sequences: SequenceMeta[];
+  numberingKeys: string[];
   onUpdate: (patch: Partial<DefaultDefinition>) => void;
   onClose: () => void;
   onDelete: () => void;
@@ -288,7 +297,7 @@ function DefaultEditorCard({
                 className="td-value-input"
               />
               <datalist id="conv-numbering-list">
-                {CONVENTION_REF_SUGGESTIONS.map((s) => (
+                {numberingKeys.map((s) => (
                   <option key={s} value={s} />
                 ))}
               </datalist>
@@ -297,13 +306,21 @@ function DefaultEditorCard({
               </span>
             </>
           ) : (
-            <input
-              type="text"
-              value={def.value}
-              onChange={(e) => onUpdate({ value: e.target.value })}
-              placeholder={def.kind === "literal" ? "0 または 'active'" : def.kind === "sequence" ? "seq_name" : "NOW()"}
-              className="td-value-input"
-            />
+            <>
+              <input
+                type="text"
+                list={def.kind === "sequence" ? "td-sequence-list" : undefined}
+                value={def.value}
+                onChange={(e) => onUpdate({ value: e.target.value })}
+                placeholder={def.kind === "literal" ? "0 または 'active'" : def.kind === "sequence" ? "seq_name" : "NOW()"}
+                className="td-value-input"
+              />
+              {def.kind === "sequence" && (
+                <datalist id="td-sequence-list">
+                  {sequences.map((s) => <option key={s.id} value={s.id} />)}
+                </datalist>
+              )}
+            </>
           )}
         </label>
 
