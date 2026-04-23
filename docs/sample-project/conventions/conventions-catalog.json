@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/conventions.schema.json",
   "version": "1.0.0",
   "description": "処理フロー仕様書 / ActionGroup から @conv.* で参照される横断規約カタログ。docs/conventions/validation-rules.md の構造化版",
-  "updatedAt": "2026-04-20T00:00:00.000Z",
+  "updatedAt": "2026-04-24T00:00:00.000Z",
 
   "msg": {
     "required": {
@@ -80,7 +80,7 @@
 
   "scope": {
     "customerRegion": { "value": "domestic", "description": "国内顧客のみ (日本国内在住/在所)" },
-    "timezone": { "value": "Asia/Tokyo", "description": "JST 固定。海外顧客はスコープ外" },
+    "timezone": { "value": "Asia/Tokyo", "default": true, "description": "JST 固定。海外顧客はスコープ外" },
     "language": { "value": "ja", "description": "日本語のみ。多言語化 (i18n) はスコープ外" }
   },
 
@@ -89,6 +89,7 @@
       "code": "JPY",
       "subunit": 0,
       "roundingMode": "floor",
+      "default": true,
       "description": "日本円のみ。外税 10%、1 円未満切り捨て、DECIMAL(12,0) 保存"
     }
   },
@@ -98,6 +99,7 @@
       "kind": "exclusive",
       "rate": 0.10,
       "roundingMode": "floor",
+      "default": true,
       "description": "消費税 外税 10% (2026 年時点)、1 円未満切り捨て"
     }
   },
@@ -107,6 +109,7 @@
       "scheme": "session-cookie",
       "sessionStorage": "httpOnly-cookie",
       "passwordHash": "bcrypt(cost=12)",
+      "default": true,
       "description": "httpOnly Cookie セッション + bcrypt(cost=12) パスワードハッシュ"
     }
   },
@@ -117,6 +120,7 @@
       "namingConvention": "snake_case",
       "timestampColumns": ["created_at", "updated_at"],
       "logicalDeleteColumn": "is_deleted",
+      "default": true,
       "description": "PostgreSQL 14+、snake_case、論理削除 is_deleted、タイムスタンプ自動管理"
     }
   },

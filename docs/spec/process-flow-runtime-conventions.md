@@ -242,6 +242,85 @@ httpRoute.auth == "required" ?
 
 0005 の例: `httpRoute.auth: "required"` + ambientVariables に `sessionId` があるが `userId` なし → product-scope §6 の規定 (Session cookie + httpOnly) を採用。
 
+## 9. Ambient Context — 規約カタログ defaults と ambientOverrides (#369)
+
+### 9.1 Ambient Context の定義
+
+**Ambient Context** とは、ActionGroup が明示的に inputs で受け取るのではなく、「プロジェクト全体に共通する前提」として暗黙に利用する環境情報のこと。代表例:
+
+| Ambient 項目 | 参照パス | 既定値 (プロジェクト既定) |
+|---|---|---|
+| タイムゾーン | `@conv.scope.timezone` | `Asia/Tokyo` (JST) |
+| 通貨 | `@conv.currency.jpy` | JPY (subunit=0, roundingMode=floor) |
+| 消費税方式 | `@conv.tax.standard` | 外税 10%, 切り捨て |
+| 認証スキーム | `@conv.auth.default` | session-cookie + httpOnly |
+| DB 規約 | `@conv.db.default` | PostgreSQL 14+, snake_case |
+
+### 9.2 規約カタログが project-wide defaults を担う
+
+`data/conventions/catalog.json` の各エントリに `"default": true` を付与したものが、**全 ActionGroup の共通 ambient default** となる。
+
+- `"default": true` が付いていないエントリは「オプション定義」(比較対象・将来用) として存在可
+- 1 カテゴリ内に複数 `"default": true` がある場合の動作は未定義 (バリデータが将来検出予定)
+- AI 実装者は `data/conventions/catalog.json` を「実装の前提条件」として最初に読む
+- **対象カテゴリ**: `scope` / `currency` / `tax` / `auth` / `db` の 5 カテゴリのみ。`msg` / `regex` / `limit` / `numbering` / `tx` / `externalOutcomeDefaults` はルックアップテーブルまたは複数方針の共存で「単一 default」の概念が適用されないため対象外
+- **注意 — キー名と `default` プロパティ名の重複**: `auth.default`・`db.default` 等、エントリのキー名が `"default"` の場合、新プロパティ `"default": true` を追加すると同名が 2 か所現れる。これは **JSON 構造上は問題ない** (キー名 `"default"` は object のキー、`"default": true` は そのオブジェクト内のプロパティ) が、視覚的に分かりにくい。既存キー名は互換性のため変更せず、コメントが必要な場合は `description` フィールドで補足する
+
+```json
+// data/conventions/catalog.json の例
+{
+  "currency": {
+    "jpy": { "code": "JPY", "subunit": 0, "roundingMode": "floor", "default": true },
+    "usd": { "code": "USD", "subunit": 2, "roundingMode": "round" }
+  }
+}
+```
+
+### 9.3 ActionGroup.ambientOverrides — フロー単位の例外指定
+
+大多数のフローは規約カタログの defaults をそのまま使う。**特定フローだけ例外** (外貨精算・UTC バッチ等) の場合にのみ、`ambientOverrides` フィールドで上書きする。
+
+```json
+// data/actions/xxx.json (override が必要な場合のみ記述)
+{
+  "id": "...",
+  "ambientOverrides": {
+    "currency": "@conv.currency.usd",
+    "scope.timezone": "UTC"
+  },
+  "actions": [...]
+}
+```
+
+**ルール:**
+
+1. `ambientOverrides` が無い ActionGroup は、規約カタログの `default: true` エントリを全項目で継承
+2. `ambientOverrides` で指定したキー (例: `"currency"`) だけ override、残りは defaults 継続
+3. 値は `@conv.*` 形式の参照文字列 (カタログ内のキーパスを指す) または直接値 (例: `"UTC"`)
+4. `@conv.*` 参照の場合、AI 実装者は参照先カタログエントリの全フィールドを引いて利用する
+5. 稀用途: 通常は `ambientOverrides` なしで設計し、必要が生じた時点で追加する
+
+### 9.4 AI 実装者が設計書を読む順序
+
+処理フロー実装時は以下の順で読む:
+
+```
+1. data/conventions/catalog.json          — project-wide defaults (通貨・TZ・税率・認証・DB 規約等)
+2. 対象 ActionGroup の ambientOverrides    — 当該フローの特例 (無い場合は 1. の defaults をそのまま適用)
+3. 処理フロー本体 (actions / steps)        — 具体ロジック
+4. テーブル定義 (DDL)                       — 採番ロジック等のインフラ層
+5. 画面項目定義                             — 入出力の UI 制約
+```
+
+### 9.5 ambientOverrides と ambientVariables の違い
+
+| フィールド | 目的 | 例 |
+|---|---|---|
+| `ambientVariables` | ミドルウェア由来の **変数宣言** (`@requestId` 等が存在することを明示) | `[{ "name": "userId", "type": "number" }]` |
+| `ambientOverrides` | 規約カタログ defaults への **例外指定** (フロー単位で通貨・TZ 等を変える) | `{ "currency": "@conv.currency.usd" }` |
+
+両者は別物。`ambientVariables` はリクエストスコープの変数、`ambientOverrides` はプロジェクト規約に対するフロー固有の例外。
+
 ## 10. `compensatesFor` の配置規約
 
 ### 10.1 通常は tryCatch ブランチ配下
@@ -269,7 +348,7 @@ httpRoute.auth == "required" ?
 - `compensatesFor` の値は action 内の既存 step ID であるべき (将来の参照整合性バリデータで検査予定、#261 残)
 - 現状は書き手規約
 
-## 9. 適用チェックリスト (実装者向け)
+## 11. 適用チェックリスト (実装者向け)
 
 処理フロー JSON から Node.js/Express 実装を起こすとき、以下を本仕様に沿って決定する:
 
@@ -282,3 +361,5 @@ httpRoute.auth == "required" ?
 - [ ] sideEffects 内の dbAccess は autocommit (§6)
 - [ ] `responses[].when` は documentation (§7)
 - [ ] `httpRoute.auth` のスキーム具体化は ambient 変数 + product-scope (§8)
+- [ ] ambient 前提 (TZ / 通貨 / 税率) は `data/conventions/catalog.json` の `default: true` エントリから取得 (§9.2)
+- [ ] フロー固有の ambient 例外は `ambientOverrides` を確認し、未記載なら catalog defaults をそのまま適用 (§9.3)

@@ -653,6 +653,31 @@ PR: #367 (#253 v1.3)
 { "field": "items[*].quantity", "type": "range", "min": 1, "maxRef": "@conv.limit.quantityMax", "message": "@conv.msg.outOfRange" }
 ```
 
+## 8.7 `ActionGroup.ambientOverrides` — 規約カタログ defaults のフロー固有例外 (#369)
+
+規約カタログ (`data/conventions/catalog.json`) の `default: true` エントリが全フローの ambient default となる。**大多数のフローは本フィールド不要**。特定フローだけ別通貨・別タイムゾーン等が必要な稀ケースに限り記述する。
+
+```ts
+// ActionGroup に追加
+ambientOverrides?: Record<string, string>;
+```
+
+```json
+// 例: このフローだけ USD 精算・UTC タイムゾーン
+"ambientOverrides": {
+  "currency": "@conv.currency.usd",
+  "scope.timezone": "UTC"
+}
+```
+
+**キー命名**: `"currency"` はカテゴリ名ルート、`"scope.timezone"` はカテゴリ内パス (`scope` カテゴリの `timezone` キー相当) のいずれかで指定する。
+
+**値の形式**: `@conv.<category>.<key>` 形式の参照文字列、またはリテラル値 (例: `"UTC"`)。
+
+参照: `docs/spec/process-flow-runtime-conventions.md §9`
+
+PR: #369
+
 ## 9. 後方互換性
 
 すべての拡張は **Optional** かつ **Union 型** (string | structured) のいずれかで、既存データは破壊されない。`migrateActionGroup` が読み込み時に:
@@ -685,3 +710,4 @@ PR: #367 (#253 v1.3)
 - 2026-04-20: 初版。#155〜#181 の全 PR をカバー。
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
 - 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
+- 2026-04-24: `ActionGroup.ambientOverrides` 追加 (#369)。§8.7 を新設。
