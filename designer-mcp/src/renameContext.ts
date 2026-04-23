@@ -15,10 +15,13 @@ import { renameScreenItemId, type RenameResult } from "./renameScreenItem.js";
 const OLD_AUTO_PATTERN = /^field_[0-9a-f]{8}$/;
 
 const SEQUENTIAL_PREFIXES = [
+  // 入力系
   "textInput", "passwordInput", "numberInput",
   "dateInput", "datetimeInput", "timeInput", "monthInput", "weekInput",
   "emailInput", "telInput", "urlInput", "fileInput",
   "checkbox", "radio", "textarea", "select", "button", "field",
+  // 出力系 (#359)
+  "textDisplay", "valueLabel", "statusBadge", "tableView",
 ];
 
 const SEQUENTIAL_PATTERN = new RegExp(

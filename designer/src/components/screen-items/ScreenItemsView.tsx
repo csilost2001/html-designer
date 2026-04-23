@@ -568,6 +568,7 @@ export function ScreenItemsView() {
                 <col style={{ width: "12em" }} />
                 <col style={{ width: "12em" }} />
                 <col style={{ width: "9em" }} />
+                <col style={{ width: "5em" }} />
                 <col style={{ width: "4em" }} />
                 <col style={{ width: "5em" }} />
                 <col style={{ width: "5em" }} />
@@ -591,6 +592,7 @@ export function ScreenItemsView() {
                   <th>ID</th>
                   <th>ラベル</th>
                   <th>型</th>
+                  <th>方向</th>
                   <th className="text-center">必須</th>
                   <th>最小長</th>
                   <th>最大長</th>
@@ -602,7 +604,7 @@ export function ScreenItemsView() {
               <tbody>
                 {file.items.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="screen-items-empty-row">
+                    <td colSpan={12} className="screen-items-empty-row">
                       項目がありません。下のボタンから追加してください。
                     </td>
                   </tr>
@@ -670,6 +672,18 @@ export function ScreenItemsView() {
                         onBlur={commit}
                         placeholder="string"
                       />
+                    </td>
+                    <td>
+                      <select
+                        className="form-select form-select-sm"
+                        value={item.direction ?? "input"}
+                        onChange={(e) => handleUpdateItem(i, { direction: e.target.value === "output" ? "output" : undefined })}
+                        onBlur={commit}
+                        aria-label="方向"
+                      >
+                        <option value="input">入力</option>
+                        <option value="output">出力</option>
+                      </select>
                     </td>
                     <td className="text-center">
                       <input

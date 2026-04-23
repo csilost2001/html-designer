@@ -62,6 +62,10 @@ export interface ScreenItem {
   visibleWhen?: string;
   enabledWhen?: string;
 
+  // ─── 画面上での役割 ─────────────────────────────────────────────
+  /** "input": フォーム入力 (デフォルト) / "output": データ表示 */
+  direction?: "input" | "output";
+
   // ─── 備考 ──────────────────────────────────────────────────────
   description?: string;
 }
