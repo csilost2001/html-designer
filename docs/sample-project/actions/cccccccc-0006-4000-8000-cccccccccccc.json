@@ -246,7 +246,7 @@
           "maturity": "committed",
           "tableName": "suppliers",
           "operation": "SELECT",
-          "sql": "SELECT id, name, email FROM suppliers WHERE id = @supplierId AND is_deleted = false",
+          "sql": "SELECT id, name, email FROM suppliers WHERE id = @inputs.supplierId AND is_deleted = false",
           "outputBinding": "supplier"
         },
 
@@ -404,7 +404,7 @@
           "maturity": "committed",
           "tableName": "purchase_orders",
           "operation": "INSERT",
-          "sql": "INSERT INTO purchase_orders (supplier_id, subtotal, tax_amount, total_amount, delivery_note, created_by, created_at, updated_at) VALUES (@supplierId, @subtotal, @taxAmount, @subtotal + @taxAmount, @inputs.deliveryNote, @sessionUserId, NOW(), NOW()) RETURNING id, po_number",
+          "sql": "INSERT INTO purchase_orders (supplier_id, subtotal, tax_amount, total_amount, delivery_note, created_by, created_at, updated_at) VALUES (@inputs.supplierId, @subtotal, @taxAmount, @subtotal + @taxAmount, @inputs.deliveryNote, @sessionUserId, NOW(), NOW()) RETURNING id, po_number",
           "txBoundary": { "role": "begin", "txId": "tx-po-register" },
           "outputBinding": "newOrder"
         },
