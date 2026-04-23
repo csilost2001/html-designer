@@ -144,6 +144,37 @@
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
+/* 詳細フィールド展開行 (#353) */
+.screen-items-detail-row > td {
+  background: #f0f4ff;
+  padding: 6px 8px;
+  border-bottom: 1px solid #dbeafe;
+}
+.screen-items-detail-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.screen-items-detail-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+}
+.screen-items-detail-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.screen-items-detail-num {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 7em;
+}
+
 /* 画面項目候補モーダル (#323) */
 .screen-item-candidates-overlay {
   position: fixed;

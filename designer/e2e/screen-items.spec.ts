@@ -325,3 +325,99 @@ test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () 
     await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
   });
 });
+
+test.describe("詳細フィールド展開行 (#353)", () => {
+  test("⚙ ボタンで detail-row が開閉する", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    // データ行は .screen-items-detail-row 以外の行 (tr:first-child)
+    const dataRow = page.locator(".screen-items-table tbody tr:not(.screen-items-detail-row):first-child");
+    const detailBtn = dataRow.locator('button[aria-label="詳細展開"]');
+    // 初期状態: 非表示
+    await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
+    // ⚙ ボタンで展開
+    await detailBtn.click();
+    await expect(page.locator(".screen-items-detail-row")).toBeVisible({ timeout: 3000 });
+    // 再度クリックで閉じる
+    await detailBtn.click();
+    await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
+  });
+
+  test("readonly チェックを ON にして保存すると localStorage に永続化される", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('input[placeholder="email"]').fill("field1");
+    // 展開して readonly ON
+    await row.locator('button[aria-label="詳細展開"]').click();
+    const detailRow = page.locator(".screen-items-detail-row").last();
+    await expect(detailRow).toBeVisible({ timeout: 3000 });
+    await detailRow.locator('input[aria-label="readonly"]').check();
+    // 保存
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    // localStorage で確認
+    const stored = await page.evaluate((sid) => {
+      const raw = localStorage.getItem(`screen-items-${sid}`);
+      return raw ? JSON.parse(raw) : null;
+    }, screenId1);
+    expect(stored).not.toBeNull();
+    expect(stored.items[0].readonly).toBe(true);
+  });
+
+  test("placeholder を入力して保存すると localStorage に永続化される", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('input[placeholder="email"]').fill("field1");
+    await row.locator('button[aria-label="詳細展開"]').click();
+    const detailRow = page.locator(".screen-items-detail-row").last();
+    await expect(detailRow).toBeVisible({ timeout: 3000 });
+    const placeholderInput = detailRow.locator('input').nth(2); // placeholder field (after 2 checkboxes)
+    await placeholderInput.fill("例: user@example.com");
+    await placeholderInput.blur();
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    const stored = await page.evaluate((sid) => {
+      const raw = localStorage.getItem(`screen-items-${sid}`);
+      return raw ? JSON.parse(raw) : null;
+    }, screenId1);
+    expect(stored?.items[0].placeholder).toBe("例: user@example.com");
+  });
+
+  test("pre-seed した readonly/min/max が展開後に表示される", async ({ page }) => {
+    const preSeeded = {
+      screenId: screenId1,
+      version: "0.1.0",
+      updatedAt: new Date().toISOString(),
+      items: [{ id: "qty", label: "数量", type: "number", readonly: true, min: 1, max: 100 }],
+    };
+    await setup(page, { screenItems: { [`screen-items-${screenId1}`]: preSeeded } });
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('button[aria-label="詳細展開"]').click();
+    const detailRow = page.locator(".screen-items-detail-row").last();
+    await expect(detailRow).toBeVisible({ timeout: 3000 });
+    // readonly チェック ON
+    await expect(detailRow.locator('input[aria-label="readonly"]')).toBeChecked();
+    // min / max フィールドに値
+    const numInputs = detailRow.locator('input[type="number"]');
+    await expect(numInputs.nth(0)).toHaveValue("1");
+    await expect(numInputs.nth(1)).toHaveValue("100");
+  });
+
+  test("画面切替で detail 展開状態がリセットされる", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('button[aria-label="詳細展開"]').click();
+    await expect(page.locator(".screen-items-detail-row")).toBeVisible({ timeout: 3000 });
+    // 保存して画面切替
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    await page.locator(".screen-items-screen-select").selectOption(screenId2);
+    await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
+    // scr-1 に戻っても展開状態はリセット済み
+    await page.locator(".screen-items-screen-select").selectOption(screenId1);
+    await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
+  });
+});
