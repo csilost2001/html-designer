@@ -59,12 +59,14 @@ export function checkIdentifierScopes(group: ActionGroup): IdentifierIssue[] {
 
   group.actions.forEach((action, ai) => {
     const knownInAction = new Set<string>(ambientNames);
-    // inputs
+    // inputs: 個別フィールド名 + "inputs" 全体 (@inputs.field 参照を許容)
     if (Array.isArray(action.inputs)) {
+      knownInAction.add("inputs");
       for (const f of action.inputs) knownInAction.add(f.name);
     }
-    // outputs (宣言済み変数として扱う、書込は step 側の outputBinding 経由だがここでは参照許容)
+    // outputs: 個別フィールド名 + "outputs" 全体
     if (Array.isArray(action.outputs)) {
+      knownInAction.add("outputs");
       for (const f of action.outputs) knownInAction.add(f.name);
     }
 
@@ -209,8 +211,8 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
     });
   }
 
-  // outputBinding.initialValue も式扱い
-  if (typeof step.outputBinding === "object" && step.outputBinding?.initialValue) {
+  // outputBinding.initialValue: 文字列式のみ識別子検査 (JSON 値なら skip)
+  if (typeof step.outputBinding === "object" && typeof step.outputBinding?.initialValue === "string" && step.outputBinding.initialValue) {
     expressions.push({ src: step.outputBinding.initialValue, field: "outputBinding.initialValue" });
   }
 

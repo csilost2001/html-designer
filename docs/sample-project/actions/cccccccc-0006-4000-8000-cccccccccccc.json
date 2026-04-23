@@ -341,7 +341,7 @@
                     "description": "明細オブジェクト生成 (lineAmount = 単価 × 数量、@conv.currency.jpy subunit=0 で整数演算) → poItemValues に追加",
                     "maturity": "committed",
                     "expression": "{ itemId: @item.itemId, quantity: @item.quantity, unitPrice: @itemInfo.unit_price, lineAmount: @itemInfo.unit_price * @item.quantity }",
-                    "outputBinding": { "name": "poItemValues", "operation": "push" }
+                    "outputBinding": { "name": "poItemValues", "operation": "push", "initialValue": [] }
                   }
                 ]
               }

@@ -176,13 +176,13 @@ export interface OutputBindingObject {
   /** 既定は "assign" */
   operation?: OutputBindingOperation;
   /**
-   * 初期値の式 (#253)。
-   * - operation="accumulate": 数値初期化 (例: "0")。未指定は "0" として解釈
-   * - operation="push": 配列初期化 (例: "[]")。未指定は "[]" として解釈
-   * - operation="assign": 通常不要 (代入前に初期化する意味がないため)
-   * 初期化タイミングは変数のスコープ開始時 (通常はアクション開始、ループ入口は operation=accumulate/push を含むループの入口)。
+   * 初期値 (#253)。JSON 値 (例: [], 0) または式文字列 (例: "[]", "@emptyArr")。
+   * - operation="accumulate": 数値 (既定 0)
+   * - operation="push": 配列 (既定 [])
+   * - operation="assign": 通常不要
+   * 初期化タイミング: 変数スコープ開始時 (通常はアクション開始)。
    */
-  initialValue?: string;
+  initialValue?: unknown;
 }
 
 /**

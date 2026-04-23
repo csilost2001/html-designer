@@ -150,7 +150,7 @@ argList         = expression (',' expression)*
 | `LoopStep.countExpression` | 数値式 | `"@items.length"` |
 | `LoopStep.conditionExpression` | 真偽式 | `"@remaining > 0"` |
 | `LoopStep.collectionSource` | 配列式 | `"@items"` |
-| `OutputBindingObject.initialValue` | 任意式 | `"0"` / `"[]"` |
+| `OutputBindingObject.initialValue` | JSON 値 または 式文字列 | `0` / `[]` / `"@emptyArr"` |
 | `ExternalCallOutcomeSpec.jumpTo` | ステップ ID 文字列 (式ではない) | `"step-error-handler"` |
 | `CommonProcessStep.argumentMapping[k]` | 任意式 | `"@customerId"` |
 | `ExternalSystemStep.protocol` (#261) | 自由記述。URL 中の `@path` 式補間を許容 (例: `"HTTPS POST /v1/payment_intents/@paymentAuth.id/cancel"`) | URL 構造化は v1.3-b 以降の `httpCall` フィールドで予定 |

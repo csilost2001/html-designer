@@ -12,18 +12,56 @@
       "name": "検索ボタン",
       "trigger": "click",
       "maturity": "provisional",
-      "httpRoute": { "method": "GET", "path": "/api/customers/search", "auth": "required" },
+      "httpRoute": {
+        "method": "GET",
+        "path": "/api/customers/search",
+        "auth": "required"
+      },
       "responses": [
-        { "id": "200-success", "status": 200, "bodySchema": "CustomerSearchResult", "description": "検索結果" },
-        { "id": "400-validation", "status": 400, "bodySchema": "ApiError", "description": "検索条件不正" }
+        {
+          "id": "200-success",
+          "status": 200,
+          "bodySchema": {
+            "typeRef": "CustomerSearchResult"
+          },
+          "description": "検索結果"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "description": "検索条件不正"
+        }
       ],
       "inputs": [
-        { "name": "name", "label": "顧客名", "type": "string", "description": "部分一致" },
-        { "name": "phone", "label": "電話番号", "type": "string" },
-        { "name": "email", "label": "メール", "type": "string" }
+        {
+          "name": "name",
+          "label": "顧客名",
+          "type": "string",
+          "description": "部分一致"
+        },
+        {
+          "name": "phone",
+          "label": "電話番号",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "label": "メール",
+          "type": "string"
+        }
       ],
       "outputs": [
-        { "name": "customers", "label": "検索結果", "type": { "kind": "tableList", "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb" } }
+        {
+          "name": "customers",
+          "label": "検索結果",
+          "type": {
+            "kind": "tableList",
+            "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb"
+          }
+        }
       ],
       "steps": [
         {
@@ -33,8 +71,18 @@
           "description": "検索条件チェック",
           "conditions": "検索条件の形式チェック（電話番号、メール形式）",
           "rules": [
-            { "field": "phone", "type": "regex", "pattern": "@conv.regex.phone-jp", "message": "@conv.msg.invalidFormat" },
-            { "field": "email", "type": "regex", "pattern": "@conv.regex.email-simple", "message": "@conv.msg.invalidFormat" }
+            {
+              "field": "phone",
+              "type": "regex",
+              "pattern": "@conv.regex.phone-jp",
+              "message": "@conv.msg.invalidFormat"
+            },
+            {
+              "field": "email",
+              "type": "regex",
+              "pattern": "@conv.regex.email-simple",
+              "message": "@conv.msg.invalidFormat"
+            }
           ],
           "inlineBranch": {
             "ok": "検索処理を実行",
@@ -84,7 +132,12 @@
       "trigger": "click",
       "maturity": "provisional",
       "inputs": [
-        { "name": "customerId", "label": "顧客ID", "type": "number", "required": true }
+        {
+          "name": "customerId",
+          "label": "顧客ID",
+          "type": "number",
+          "required": true
+        }
       ],
       "steps": [
         {

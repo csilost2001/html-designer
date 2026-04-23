@@ -792,6 +792,187 @@ describe("process-flow.schema.json — StructuredField.format + ValidationRule.m
   });
 });
 
+describe("process-flow.schema.json — OutputBindingObject.initialValue JSON 値 (#253 #378)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("initialValue: [] (実 JSON 配列) accept", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "@line",
+          outputBinding: { name: "lines", operation: "push", initialValue: [] },
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("initialValue: 0 (数値) accept", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "@line.amount",
+          outputBinding: { name: "subtotal", operation: "accumulate", initialValue: 0 },
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("initialValue: {} (空オブジェクト) accept", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "{ ...@acc, [@key]: @val }",
+          outputBinding: { name: "result", operation: "assign", initialValue: {} },
+        }],
+      }],
+    })).toBe(true);
+  });
+
+  it("initialValue: 文字列式 '[]' も引き続き accept (後方互換)", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "compute", description: "",
+          expression: "@line",
+          outputBinding: { name: "lines", operation: "push", initialValue: "[]" },
+        }],
+      }],
+    })).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — HttpResponseSpec.bodySchema {schema} inline (#253 #378)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  function withResponses(responses: unknown[]) {
+    return {
+      ...base,
+      actions: [{ id: "a1", name: "f", trigger: "click", responses, steps: [] }],
+    };
+  }
+
+  it("bodySchema: {schema} インライン JSON Schema accept", () => {
+    const ok = validate(withResponses([{
+      id: "200", status: 200,
+      bodySchema: {
+        schema: {
+          type: "object",
+          required: ["sessionId", "userId"],
+          properties: {
+            sessionId: { type: "string" },
+            userId: { type: "integer" },
+            permissions: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+    }]));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("bodySchema: {typeRef} 型カタログ参照 accept", () => {
+    expect(validate(withResponses([{ id: "200", status: 200, bodySchema: { typeRef: "LoginResponse" } }]))).toBe(true);
+  });
+
+  it("bodySchema: string (旧形式) 後方互換 accept", () => {
+    expect(validate(withResponses([{ id: "200", status: 200, bodySchema: "LoginResponse" }]))).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — ReturnStep.responseRef スキーマ検証 (#378)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("ReturnStep.responseRef 任意文字列 accept (参照整合性はランタイム)", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        responses: [{ id: "201-created", status: 201 }],
+        steps: [{
+          id: "s1", type: "return", description: "",
+          responseRef: "201-created",
+          bodyExpression: "{ poId: @newOrder.id }",
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("responseRef 省略 accept (optional)", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{ id: "s1", type: "return", description: "" }],
+      }],
+    })).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — ExternalSystemStep auth structured (#253 #378)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("auth.kind=bearer + secretsCatalog + idempotencyKey + headers フル構成 accept", () => {
+    const ok = validate({
+      ...base,
+      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+      externalSystemCatalog: {
+        stripe: {
+          name: "Stripe Japan",
+          baseUrl: "https://api.stripe.com",
+          auth: { kind: "bearer", tokenRef: "@secret.stripeKey" },
+          headers: { "Stripe-Version": "2024-06-20" },
+        },
+      },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "externalSystem", description: "",
+          systemName: "Stripe", systemRef: "stripe",
+          httpCall: { method: "POST", path: "/v1/payment_intents" },
+          idempotencyKey: "order-@registeredOrder.id",
+          headers: { "X-Trace-Id": "@requestId" },
+          auth: { kind: "bearer", tokenRef: "@secret.stripeKey" },
+        }],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — DbAccessStep.bulkValues + BranchStep.tryScope (#253)", () => {
   const makeGroup = (action: object) => ({
     id: "a", name: "x", type: "screen", description: "",

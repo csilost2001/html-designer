@@ -360,8 +360,7 @@
         "name": { "type": "string" },
         "operation": { "$ref": "#/$defs/OutputBindingOperation" },
         "initialValue": {
-          "type": "string",
-          "description": "初期値の式 (#253)。accumulate 時は数値 (既定 '0')、push 時は配列 (既定 '[]')"
+          "description": "初期値。JSON 値 (例: [], 0) または式文字列 (例: '[]', '@emptyArr') (#253)。accumulate: 数値 (既定 0)、push: 配列 (既定 [])"
         }
       }
     },
