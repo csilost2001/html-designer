@@ -551,7 +551,7 @@ errorCatalog?: Record<string, ErrorCatalogEntry>;
 
 実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `errorCatalog.STOCK_SHORTAGE` を引いて httpStatus / responseRef / defaultMessage を 1 箇所で解決。
 
-## 8.6 `StructuredField.format` (#253 v1.3)
+## 8.6 `StructuredField.format` と `ValidationRule.minRef/maxRef` (#253 v1.3)
 
 文字列型フィールドの採番形式・フォーマットパターンを `description` の地の文でなく**構造化フィールド**として宣言する。
 
