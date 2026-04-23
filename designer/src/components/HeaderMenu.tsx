@@ -48,6 +48,10 @@ const MENU_ITEMS: MenuItem[] = [
     id: "sequence-list", label: "シーケンス一覧", icon: "bi-arrow-repeat", route: "/sequence/list",
     activePaths: ["/sequence/list"], activePrefixes: ["/sequence/edit/"],
   },
+  {
+    id: "view-list", label: "ビュー一覧", icon: "bi-eye", route: "/view/list",
+    activePaths: ["/view/list"], activePrefixes: ["/view/edit/"],
+  },
 ];
 
 const DASHBOARD_ITEM: MenuItem = {

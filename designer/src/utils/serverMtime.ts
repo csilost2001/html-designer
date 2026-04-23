@@ -7,7 +7,7 @@
  */
 import { mcpBridge } from "../mcp/mcpBridge";
 
-export type MtimeKind = "project" | "screen" | "table" | "actionGroup" | "erLayout" | "customBlocks" | "conventions" | "screenItems" | "sequence";
+export type MtimeKind = "project" | "screen" | "table" | "actionGroup" | "erLayout" | "customBlocks" | "conventions" | "screenItems" | "sequence" | "view";
 
 const LAST_SEEN_PREFIX = "mtime-";
 
