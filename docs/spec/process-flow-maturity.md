@@ -2,7 +2,7 @@
 
 Issue: #152 (親トラッキング: #151)
 策定日: 2026-04-20
-ステータス: **初版** (#151 のドッグフード検証を踏まえて策定、実装フェーズで改訂予定)
+ステータス: **v1.0 (凍結 2026-04-24)** — データモデル・UI 仕様確定。Phase 実装中は本書を改訂せず、追加仕様は新規ドキュメントに分離する
 
 本ドキュメントは、処理フロー機能を**上流工程 (人間が仕様を書く時) と下流工程 (AI が仕様を読んで実装する時) で兼用する**ための「曖昧さ管理」の仕様を定める。
 
@@ -168,6 +168,8 @@ interface ActionGroup {
 
 ## 9. 受け入れ条件
 
+> これらは実装フェーズの追跡チェックリストです。凍結は設計確定を意味し、実装完了を意味しません。
+
 - [ ] ステップ・アクション・アクショングループに `maturity` フィールドが追加され、JSON に永続化される
 - [ ] 既存 JSON (maturity 欄なし) は `draft` として読み込まれ、初回保存で付与される
 - [ ] 既存 `note: string` は `notes: [{type: "assumption"}]` に自動変換される
@@ -190,10 +192,11 @@ interface ActionGroup {
 
 ## 11. 関連仕様
 
-- `docs/spec/process-flow-variables.md` — 入出力・変数の構造化 (並行策定中)
+- `docs/spec/process-flow-variables.md` — 入出力・変数の構造化 (v1.0 凍結 2026-04-24)
 - `docs/spec/process-flow-extensions.md` — Phase B 以降のスキーマ拡張 (HTTP 契約 / TX / outcome / Saga / runIf / ReturnStep / ComputeStep 等 15 種)
 - `docs/spec/list-common.md` — 一覧系 UI 共通仕様 (変更なし、本仕様は独立)
 
 ## 12. 変更履歴
 
 - 2026-04-20: 初版ドラフト。ドッグフード結果 (別 AI セッション実装依頼) に基づき策定
+- 2026-04-24: v1.0 凍結。データモデル (maturity/notes/mode) と UI 仕様の設計は確定済と判定
