@@ -770,7 +770,7 @@ export function ScreenItemsView() {
                                 onChange={(e) => { handleUpdateItem(i, { readonly: e.target.checked || undefined }); commit(); }}
                                 aria-label="readonly"
                               />
-                              <span className="screen-items-error-label">readonly</span>
+                              <span className="screen-items-detail-label">readonly</span>
                             </label>
                             <label className="screen-items-detail-check">
                               <input
@@ -780,49 +780,53 @@ export function ScreenItemsView() {
                                 onChange={(e) => { handleUpdateItem(i, { disabled: e.target.checked || undefined }); commit(); }}
                                 aria-label="disabled"
                               />
-                              <span className="screen-items-error-label">disabled</span>
+                              <span className="screen-items-detail-label">disabled</span>
                             </label>
                           </div>
-                          <label className="screen-items-error-field">
-                            <span className="screen-items-error-label">placeholder</span>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">placeholder</span>
                             <input
                               className="form-control form-control-sm"
                               value={item.placeholder ?? ""}
                               onChange={(e) => handleUpdateItem(i, { placeholder: e.target.value || undefined })}
                               onBlur={commit}
+                              aria-label="placeholder"
                             />
                           </label>
-                          <label className="screen-items-error-field">
-                            <span className="screen-items-error-label">helperText</span>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">helperText</span>
                             <input
                               className="form-control form-control-sm"
                               value={item.helperText ?? ""}
                               onChange={(e) => handleUpdateItem(i, { helperText: e.target.value || undefined })}
                               onBlur={commit}
+                              aria-label="helperText"
                             />
                           </label>
-                          <label className="screen-items-error-field">
-                            <span className="screen-items-error-label">visibleWhen</span>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">visibleWhen</span>
                             <input
                               className="form-control form-control-sm"
                               value={item.visibleWhen ?? ""}
                               onChange={(e) => handleUpdateItem(i, { visibleWhen: e.target.value || undefined })}
                               onBlur={commit}
                               placeholder="@inputs.role === 'admin'"
+                              aria-label="visibleWhen"
                             />
                           </label>
-                          <label className="screen-items-error-field">
-                            <span className="screen-items-error-label">enabledWhen</span>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">enabledWhen</span>
                             <input
                               className="form-control form-control-sm"
                               value={item.enabledWhen ?? ""}
                               onChange={(e) => handleUpdateItem(i, { enabledWhen: e.target.value || undefined })}
                               onBlur={commit}
                               placeholder="@inputs.status !== 'locked'"
+                              aria-label="enabledWhen"
                             />
                           </label>
                           <label className="screen-items-detail-num">
-                            <span className="screen-items-error-label">min</span>
+                            <span className="screen-items-detail-label">min</span>
                             <input
                               type="number"
                               className="form-control form-control-sm"
@@ -832,7 +836,7 @@ export function ScreenItemsView() {
                             />
                           </label>
                           <label className="screen-items-detail-num">
-                            <span className="screen-items-error-label">max</span>
+                            <span className="screen-items-detail-label">max</span>
                             <input
                               type="number"
                               className="form-control form-control-sm"
@@ -842,7 +846,7 @@ export function ScreenItemsView() {
                             />
                           </label>
                           <label className="screen-items-detail-num">
-                            <span className="screen-items-error-label">step</span>
+                            <span className="screen-items-detail-label">step</span>
                             <input
                               type="number"
                               className="form-control form-control-sm"

@@ -346,7 +346,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
   test("readonly チェックを ON にして保存すると localStorage に永続化される", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
-    const row = page.locator(".screen-items-table tbody tr:last-child");
+    const row = page.locator(".screen-items-table tbody tr:not(.screen-items-detail-row):first-child");
     await row.locator('input[placeholder="email"]').fill("field1");
     // 展開して readonly ON
     await row.locator('button[aria-label="詳細展開"]').click();
@@ -368,12 +368,12 @@ test.describe("詳細フィールド展開行 (#353)", () => {
   test("placeholder を入力して保存すると localStorage に永続化される", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
-    const row = page.locator(".screen-items-table tbody tr:last-child");
+    const row = page.locator(".screen-items-table tbody tr:not(.screen-items-detail-row):first-child");
     await row.locator('input[placeholder="email"]').fill("field1");
     await row.locator('button[aria-label="詳細展開"]').click();
     const detailRow = page.locator(".screen-items-detail-row").last();
     await expect(detailRow).toBeVisible({ timeout: 3000 });
-    const placeholderInput = detailRow.locator('input').nth(2); // placeholder field (after 2 checkboxes)
+    const placeholderInput = detailRow.locator('input[aria-label="placeholder"]');
     await placeholderInput.fill("例: user@example.com");
     await placeholderInput.blur();
     await page.locator(".srb-btn-save").click();
@@ -383,6 +383,46 @@ test.describe("詳細フィールド展開行 (#353)", () => {
       return raw ? JSON.parse(raw) : null;
     }, screenId1);
     expect(stored?.items[0].placeholder).toBe("例: user@example.com");
+  });
+
+  test("helperText を入力して保存すると localStorage に永続化される", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:not(.screen-items-detail-row):first-child");
+    await row.locator('input[placeholder="email"]').fill("field1");
+    await row.locator('button[aria-label="詳細展開"]').click();
+    const detailRow = page.locator(".screen-items-detail-row").last();
+    await expect(detailRow).toBeVisible({ timeout: 3000 });
+    const helperTextInput = detailRow.locator('input[aria-label="helperText"]');
+    await helperTextInput.fill("半角英数字で入力してください");
+    await helperTextInput.blur();
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    const stored = await page.evaluate((sid) => {
+      const raw = localStorage.getItem(`screen-items-${sid}`);
+      return raw ? JSON.parse(raw) : null;
+    }, screenId1);
+    expect(stored?.items[0].helperText).toBe("半角英数字で入力してください");
+  });
+
+  test("visibleWhen を入力して保存すると localStorage に永続化される", async ({ page }) => {
+    await setup(page);
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:not(.screen-items-detail-row):first-child");
+    await row.locator('input[placeholder="email"]').fill("field1");
+    await row.locator('button[aria-label="詳細展開"]').click();
+    const detailRow = page.locator(".screen-items-detail-row").last();
+    await expect(detailRow).toBeVisible({ timeout: 3000 });
+    const visibleWhenInput = detailRow.locator('input[aria-label="visibleWhen"]');
+    await visibleWhenInput.fill("@inputs.role === 'admin'");
+    await visibleWhenInput.blur();
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    const stored = await page.evaluate((sid) => {
+      const raw = localStorage.getItem(`screen-items-${sid}`);
+      return raw ? JSON.parse(raw) : null;
+    }, screenId1);
+    expect(stored?.items[0].visibleWhen).toBe("@inputs.role === 'admin'");
   });
 
   test("pre-seed した readonly/min/max が展開後に表示される", async ({ page }) => {
