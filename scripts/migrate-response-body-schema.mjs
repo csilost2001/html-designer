@@ -17,7 +17,7 @@
  *   dir...   : 対象ディレクトリ (省略時は docs/sample-project/actions data/actions)
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const APPLY = process.argv.includes("--apply");
@@ -32,7 +32,11 @@ if (dirs.length === 0) {
   );
 }
 
-/** bodySchema が単純識別子かどうか (typeRef に変換可能) */
+/**
+ * bodySchema が単純識別子かどうか (typeRef に変換可能)。
+ * アルファベット + 数字のみ (アンダースコアは含まない)。
+ * 例: "ApiError" → true, "ApiError_V2" → false (手動対応)
+ */
 function isSimpleIdentifier(s) {
   return /^[A-Za-z][A-Za-z0-9]*$/.test(s);
 }
@@ -86,7 +90,9 @@ for (const dir of dirs) {
     const after = JSON.stringify(data);
 
     const changed = before !== after;
-    const converted = (before.match(/"bodySchema"\s*:\s*"[^"]+"/g) || []).length;
+    // 変換前 string bodySchema 数 - スキップ数 = 実変換数
+    const totalStringBefore = (before.match(/"bodySchema"\s*:\s*"[^"]+"/g) || []).length;
+    const converted = totalStringBefore - warnings.length;
 
     totalFiles++;
     if (warnings.length) {
