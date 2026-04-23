@@ -3,7 +3,7 @@
  * テーブル定義から DDL (CREATE TABLE) を生成するユーティリティ
  * MySQL / PostgreSQL / Oracle / SQLite / 標準SQL に対応
  */
-import type { TableDefinition, SqlDialect, ConstraintDefinition, FkAction, DefaultDefinition, TriggerDefinition } from "../types/table";
+import type { TableDefinition, SqlDialect, ConstraintDefinition, DefaultDefinition, TriggerDefinition } from "../types/table";
 
 export function generateDdl(table: TableDefinition, dialect: SqlDialect): string {
   const colDefs: string[] = [];
@@ -201,15 +201,11 @@ function constraintToDdl(tableName: string, c: ConstraintDefinition, _dialect: S
       return `ALTER TABLE ${tableName} ADD CONSTRAINT ${c.id} CHECK (${c.expression});`;
     case "foreignKey": {
       let s = `ALTER TABLE ${tableName} ADD CONSTRAINT ${c.id}\n  FOREIGN KEY (${c.columns.join(", ")}) REFERENCES ${c.referencedTable}(${c.referencedColumns.join(", ")})`;
-      if (c.onDelete) s += `\n  ON DELETE ${fkActionSql(c.onDelete)}`;
-      if (c.onUpdate) s += `\n  ON UPDATE ${fkActionSql(c.onUpdate)}`;
+      if (c.onDelete) s += `\n  ON DELETE ${c.onDelete}`;
+      if (c.onUpdate) s += `\n  ON UPDATE ${c.onUpdate}`;
       return s + ";";
     }
   }
-}
-
-function fkActionSql(action: FkAction): string {
-  return action;
 }
 
 function defaultToDdl(tableName: string, def: DefaultDefinition, dialect: SqlDialect): string {
@@ -228,6 +224,9 @@ function defaultToDdl(tableName: string, def: DefaultDefinition, dialect: SqlDia
       expr = `NULL /* ${def.value} */`;
       break;
   }
+  if (dialect === "oracle") {
+    return `ALTER TABLE ${tableName} MODIFY (${def.column} DEFAULT ${expr});`;
+  }
   return `ALTER TABLE ${tableName} ALTER COLUMN ${def.column} SET DEFAULT ${expr};`;
 }
 
@@ -236,11 +235,14 @@ function triggerToDdl(tableName: string, trg: TriggerDefinition, dialect: SqlDia
   const when = trg.whenCondition ? `\n  WHEN (${trg.whenCondition})` : "";
   if (dialect === "postgresql") {
     const fnName = `${trg.id}_fn`;
+    const returnStmt = trg.events.length === 1 && trg.events[0] === "DELETE"
+      ? "RETURN OLD;"
+      : "RETURN NEW;";
     return [
       `CREATE OR REPLACE FUNCTION ${fnName}() RETURNS TRIGGER AS $$`,
       `BEGIN`,
       `  ${trg.body.split("\n").join("\n  ")}`,
-      `  RETURN NEW;`,
+      `  ${returnStmt}`,
       `END;`,
       `$$ LANGUAGE plpgsql;`,
       ``,

@@ -646,14 +646,21 @@ function createMcpServer(): Server {
                 }
                 return col;
               }),
-              indexes: ((t.indexes ?? []) as Array<Record<string, unknown>>).map((idx) => ({
-                name: idx.name,
-                columns: ((idx.columns ?? []) as string[]).map((cid) => {
-                  const c = cols.find((cc) => cc.id === cid);
-                  return c ? c.name : cid;
-                }),
-                unique: idx.unique,
-              })),
+              indexes: ((t.indexes ?? []) as Array<Record<string, unknown>>).map((idx) => {
+                const rawCols = (idx.columns ?? []) as Array<string | { name?: string; order?: string }>;
+                const colNames = rawCols.map((c) => {
+                  if (typeof c === "string") {
+                    const col = cols.find((cc) => cc.id === c);
+                    return col ? col.name : c;
+                  }
+                  return (c as { name?: string }).name ?? "";
+                });
+                return {
+                  name: (idx.id ?? idx.name) as string,
+                  columns: colNames,
+                  unique: idx.unique,
+                };
+              }),
             };
           }),
           relations: [] as Array<Record<string, unknown>>,
@@ -1056,16 +1063,23 @@ function generateDdl(table: Record<string, unknown>, dialect: string): string {
   if (dialect === "mysql") ddl += " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
   ddl += ";";
 
-  // Indexes
+  // Indexes (新形式 IndexDefinition + 旧形式 TableIndex 両対応)
   for (const idx of indexes) {
-    const idxCols = (idx.columns ?? []) as string[];
-    // resolve column IDs to names
-    const colNames = idxCols.map((cid) => {
-      const c = columns.find((cc) => cc.id === cid);
-      return c ? c.name as string : cid;
+    const rawCols = (idx.columns ?? []) as Array<string | { name?: string; order?: string }>;
+    const colNames = rawCols.map((c) => {
+      if (typeof c === "string") {
+        // 旧形式: 列 ID → 列名に解決
+        const col = columns.find((cc) => cc.id === c);
+        return col ? col.name as string : c;
+      }
+      // 新形式: IndexColumn { name, order? }
+      const colName = (c as { name?: string }).name ?? "";
+      const ord = (c as { order?: string }).order === "desc" ? " DESC" : "";
+      return `${colName}${ord}`;
     });
     const unique = idx.unique ? "UNIQUE " : "";
-    ddl += `\n\nCREATE ${unique}INDEX ${idx.name} ON ${name} (${colNames.join(", ")});`;
+    const idxName = ((idx.id ?? idx.name) as string | undefined) ?? "";
+    ddl += `\n\nCREATE ${unique}INDEX ${idxName} ON ${name} (${colNames.join(", ")});`;
   }
 
   // PostgreSQL / Oracle comments

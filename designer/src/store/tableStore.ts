@@ -52,6 +52,21 @@ export async function loadTable(tableId: string): Promise<TableDefinition | null
   if (!raw) return null;
   // docs/spec/list-common.md §3.10: 読み込み時に no を配列順で補完
   raw.columns = renumber(raw.columns ?? []);
+  // β-3 移行: 旧 TableIndex 形式 { name, columns: string[] } → IndexDefinition 形式
+  raw.indexes = (raw.indexes ?? []).map((idx) => {
+    const i = idx as Record<string, unknown>;
+    if (typeof i.name === "string" && Array.isArray(i.columns) && (i.columns.length === 0 || typeof i.columns[0] === "string")) {
+      return {
+        id: i.name as string,
+        columns: (i.columns as string[]).map((colId) => {
+          const col = raw.columns.find((c) => c.id === colId);
+          return { name: col ? col.name : colId };
+        }),
+        unique: (i.unique as boolean | undefined) ?? false,
+      } as IndexDefinition;
+    }
+    return idx;
+  });
   return raw;
 }
 
@@ -180,7 +195,8 @@ export function addConstraint(
   table: TableDefinition,
   constraint: Omit<ConstraintDefinition, "id">,
 ): ConstraintDefinition {
-  const c = { id: generateUUID(), ...constraint } as ConstraintDefinition;
+  const n = (table.constraints ?? []).length + 1;
+  const c = { id: `con_${table.name}_${n}`, ...constraint } as ConstraintDefinition;
   table.constraints = [...(table.constraints ?? []), c];
   return c;
 }

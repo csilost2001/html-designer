@@ -128,6 +128,7 @@ export interface ForeignKeyConstraint {
   id: string;
   kind: "foreignKey";
   columns: string[];
+  /** テーブル名 (物理名) */
   referencedTable: string;
   referencedColumns: string[];
   onDelete?: FkAction;

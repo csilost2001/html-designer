@@ -133,7 +133,7 @@ export function TableEditor() {
         <button className={tab === "constraints" ? "active" : ""} onClick={() => setTab("constraints")}>
           <i className="bi bi-shield-check" /> 制約
           {(table.constraints?.length ?? 0) > 0 && (
-            <span className="tab-count">{table.constraints!.length}</span>
+            <span className="tab-count">{table.constraints?.length}</span>
           )}
         </button>
         <button className={tab === "indexes" ? "active" : ""} onClick={() => setTab("indexes")}>
@@ -175,7 +175,6 @@ export function TableEditor() {
           dialect={ddlDialect}
           onDialectChange={setDdlDialect}
           defaultOpen={ddlOpen}
-          key={`ddl-drawer-${ddlOpen}`}
         />
       </div>
     </div>
@@ -939,17 +938,6 @@ function ForeignKeyEditor({
   );
 }
 
-// ── プレースホルダータブ (β-4 実装前の仮表示) ─────────────────────────────────
-
-function PlaceholderTab({ icon, title, description }: { icon: string; title: string; description: string }) {
-  return (
-    <div className="placeholder-tab">
-      <i className={`bi ${icon} placeholder-tab-icon`} />
-      <p className="placeholder-tab-title">{title}</p>
-      <p className="placeholder-tab-desc">{description}</p>
-    </div>
-  );
-}
 
 // ── コメントタブ ──────────────────────────────────────────────────────────────
 
