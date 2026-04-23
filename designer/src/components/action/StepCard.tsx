@@ -80,6 +80,7 @@ interface InlineStepListProps {
   onCommit?: () => void;
   onNavigateCommon: (refId: string) => void;
   validationErrors?: ValidationError[];
+  conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
 }
 
 function InlineStepList({
@@ -93,6 +94,7 @@ function InlineStepList({
   onCommit,
   onNavigateCommon,
   validationErrors,
+  conventions,
 }: InlineStepListProps) {
   const [showTypePicker, setShowTypePicker] = useState(false);
 
@@ -156,6 +158,7 @@ function InlineStepList({
             onNavigateCommon={onNavigateCommon}
             depth={1}
             validationErrors={validationErrors}
+            conventions={conventions}
           />
         </div>
       ))}
@@ -1378,6 +1381,7 @@ export function StepCard({
                             onCommit={onCommit}
                             onNavigateCommon={onNavigateCommon}
                             validationErrors={validationErrors}
+                            conventions={conventions}
                           />
                         </div>
                       )}
@@ -1430,6 +1434,7 @@ export function StepCard({
                             onCommit={onCommit}
                             onNavigateCommon={onNavigateCommon}
                             validationErrors={validationErrors}
+                            conventions={conventions}
                           />
                         </div>
                       )}
@@ -1563,6 +1568,7 @@ export function StepCard({
                         onCommit={onCommit}
                         onNavigateCommon={onNavigateCommon}
                         validationErrors={validationErrors}
+                        conventions={conventions}
                       />
                     </div>
                   )}

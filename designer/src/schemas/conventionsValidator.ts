@@ -93,14 +93,14 @@ function resolveCategory(catalog: ConventionsCatalog, category: string): Record<
     case "msg": return catalog.msg ?? null;
     case "regex": return catalog.regex ?? null;
     case "limit": return catalog.limit ?? null;
-    case "scope": return catalog.scope as Record<string, unknown> ?? null;
-    case "currency": return catalog.currency as Record<string, unknown> ?? null;
-    case "tax": return catalog.tax as Record<string, unknown> ?? null;
-    case "auth": return catalog.auth as Record<string, unknown> ?? null;
-    case "db": return catalog.db as Record<string, unknown> ?? null;
-    case "numbering": return catalog.numbering as Record<string, unknown> ?? null;
-    case "tx": return catalog.tx as Record<string, unknown> ?? null;
-    case "externalOutcomeDefaults": return catalog.externalOutcomeDefaults as Record<string, unknown> ?? null;
+    case "scope": return catalog.scope ?? null;
+    case "currency": return catalog.currency ?? null;
+    case "tax": return catalog.tax ?? null;
+    case "auth": return catalog.auth ?? null;
+    case "db": return catalog.db ?? null;
+    case "numbering": return catalog.numbering ?? null;
+    case "tx": return catalog.tx ?? null;
+    case "externalOutcomeDefaults": return catalog.externalOutcomeDefaults ?? null;
     default: return null;
   }
 }

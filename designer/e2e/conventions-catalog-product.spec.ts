@@ -151,4 +151,38 @@ test.describe("プロダクト規約タブ (#347)", () => {
     await row.locator('button[aria-label="削除"]').click();
     await expect(page.locator(".conventions-key-badge", { hasText: "willDelete" })).toHaveCount(0);
   });
+
+  test("scope エントリを保存してリロード後も値が残る", async ({ page }) => {
+    // conventions-catalog を消さずに setup — リロード後に localStorage から復元できることを検証
+    await page.addInitScript(({ project }) => {
+      localStorage.setItem("flow-project", JSON.stringify(project));
+      localStorage.removeItem("designer-open-tabs");
+      localStorage.removeItem("designer-active-tab");
+      localStorage.removeItem("conventions-catalog");
+      localStorage.removeItem("draft-conventions-catalog-main");
+    }, { project: dummyProject });
+    await page.goto("/conventions/catalog");
+    await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
+
+    await page.locator(".conventions-category-tab", { hasText: "スコープ" }).click();
+    await page.locator(".conventions-new-key-input").fill("persistTest");
+    await page.locator(".conventions-entries button:has-text('追加')").click();
+    await expect(page.locator(".conventions-key-badge", { hasText: "persistTest" })).toBeVisible();
+    const valueInput = page.locator('.conventions-table input[placeholder="domestic"]').first();
+    await valueInput.fill("overseas");
+    await expect(valueInput).toHaveValue("overseas");
+
+    // 保存
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).not.toHaveClass(/dirty/, { timeout: 5000 });
+
+    // リロード
+    await page.reload();
+    await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
+
+    // スコープタブを開いてエントリが残っていることを確認
+    await page.locator(".conventions-category-tab", { hasText: "スコープ" }).click();
+    await expect(page.locator(".conventions-key-badge", { hasText: "persistTest" })).toBeVisible();
+    await expect(page.locator('.conventions-table input[placeholder="domestic"]').first()).toHaveValue("overseas");
+  });
 });

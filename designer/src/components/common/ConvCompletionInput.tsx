@@ -10,7 +10,6 @@ interface ConvCompletionInputProps {
   className?: string;
   style?: React.CSSProperties;
   placeholder?: string;
-  autoComplete?: string;
 }
 
 /**
