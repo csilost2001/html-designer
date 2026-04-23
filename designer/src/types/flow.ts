@@ -142,5 +142,6 @@ export interface FlowProject {
   edges: ScreenEdge[];
   tables?: TableMeta[];
   actionGroups?: ActionGroupMeta[];
+  sequences?: import("./sequence").SequenceMeta[];
   updatedAt: string;
 }

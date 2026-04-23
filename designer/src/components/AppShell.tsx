@@ -9,6 +9,8 @@ import { ActionListView } from "./action/ActionListView";
 import { ActionEditor } from "./action/ActionEditor";
 import { ConventionsCatalogView } from "./conventions/ConventionsCatalogView";
 import { ScreenItemsView } from "./screen-items/ScreenItemsView";
+import { SequenceListView } from "./sequence/SequenceListView";
+import { SequenceEditor } from "./sequence/SequenceEditor";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
@@ -16,6 +18,7 @@ import { CommonHeader } from "./CommonHeader";
 import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
 import { loadActionGroup } from "../store/actionStore";
+import { loadSequence } from "../store/sequenceStore";
 import {
   getTabs,
   getActiveTabId,
@@ -151,6 +154,28 @@ export function AppShell() {
       return;
     }
 
+    const sequenceMatch = matchPath("/sequence/edit/:sequenceId", location.pathname);
+    if (sequenceMatch?.params.sequenceId) {
+      const sequenceId = sequenceMatch.params.sequenceId;
+      const tabId = makeTabId("sequence", sequenceId);
+      const existing = getTabs().find((t) => t.id === tabId);
+      if (existing) {
+        setActiveTab(tabId);
+      } else {
+        loadSequence(sequenceId).then((seq) => {
+          if (seq) {
+            openTab({ id: tabId, type: "sequence", resourceId: sequenceId, label: seq.id });
+          } else {
+            fallbackToDashboard("シーケンス", sequenceId);
+          }
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadSequence 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("シーケンス", sequenceId);
+        });
+      }
+      return;
+    }
+
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
       { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
@@ -161,6 +186,7 @@ export function AppShell() {
       { path: "/process-flow/list",  type: "process-flow-list",  label: "処理フロー一覧" },
       { path: "/conventions/catalog", type: "conventions-catalog", label: "規約カタログ" },
       { path: "/screen-items",       type: "screen-items",       label: "画面項目定義" },
+      { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
     ];
     for (const { path, type, label } of singletonRoutes) {
       if (location.pathname === path) {
@@ -181,6 +207,7 @@ export function AppShell() {
       activeTab.type === "design"             ? `/screen/design/${activeTab.resourceId}`
       : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
       : activeTab.type === "action"           ? `/process-flow/edit/${activeTab.resourceId}`
+      : activeTab.type === "sequence"         ? `/sequence/edit/${activeTab.resourceId}`
       : activeTab.type === "screen-flow"      ? "/screen/flow"
       : activeTab.type === "screen-list"      ? "/screen/list"
       : activeTab.type === "table-list"       ? "/table/list"
@@ -188,6 +215,7 @@ export function AppShell() {
       : activeTab.type === "process-flow-list" ? "/process-flow/list"
       : activeTab.type === "conventions-catalog" ? "/conventions/catalog"
       : activeTab.type === "screen-items"     ? "/screen-items"
+      : activeTab.type === "sequence-list"    ? "/sequence/list"
       : activeTab.type === "dashboard"        ? "/"
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
@@ -264,6 +292,8 @@ export function AppShell() {
             <Route path="/process-flow/edit/:actionGroupId" element={<ActionEditor />} />
             <Route path="/conventions/catalog" element={<ConventionsCatalogView />} />
             <Route path="/screen-items" element={<ScreenItemsView />} />
+            <Route path="/sequence/list" element={<SequenceListView />} />
+            <Route path="/sequence/edit/:sequenceId" element={<SequenceEditor />} />
           </Routes>
         </ErrorBoundary>
       )}

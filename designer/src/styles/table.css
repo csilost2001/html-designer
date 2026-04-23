@@ -993,3 +993,211 @@
 .ddl-preview code {
   font-family: inherit;
 }
+
+/* ── シーケンス一覧 ─────────────────────────────────────────────── */
+.seq-list-name-code {
+  font-family: "Consolas", monospace;
+  font-size: 13px;
+  color: #c3bfff;
+}
+.seq-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.seq-card-name {
+  font-family: "Consolas", monospace;
+  font-size: 13px;
+  color: #c3bfff;
+  font-weight: 600;
+}
+.seq-card-description {
+  font-size: 12px;
+  color: #bbb;
+}
+.seq-card-conv-ref {
+  font-size: 12px;
+  color: #9ed4a8;
+}
+.seq-card-meta {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+}
+.seq-list-conv-ref {
+  font-size: 12px;
+  color: #9ed4a8;
+  font-family: "Consolas", monospace;
+}
+.seq-list-description {
+  font-size: 13px;
+  color: #ccc;
+}
+
+/* ── シーケンスエディタ ─────────────────────────────────────────── */
+.seq-editor-body {
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 900px;
+}
+.seq-editor-section {
+  background: #1a1a2e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+.seq-editor-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 14px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+.seq-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+}
+.seq-editor-grid-4 {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+.seq-readonly {
+  background: #111;
+  color: #888;
+  cursor: not-allowed;
+}
+.seq-field-checkbox {
+  display: flex;
+  flex-direction: column;
+}
+.seq-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #ccc;
+  margin-top: 6px;
+}
+.seq-conv-preview {
+  margin-top: 10px;
+  background: #111828;
+  border: 1px solid #2a4a3a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.seq-conv-preview-key {
+  font-family: "Consolas", monospace;
+  color: #9ed4a8;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.seq-conv-preview-label {
+  color: #888;
+  margin-right: 4px;
+}
+.seq-conv-preview-format,
+.seq-conv-preview-desc,
+.seq-conv-preview-impl {
+  color: #ccc;
+  margin-bottom: 4px;
+}
+.seq-used-by-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.seq-used-by-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111828;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+.seq-used-by-text {
+  font-size: 13px;
+  color: #ccc;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.seq-used-by-sep {
+  color: #666;
+}
+.seq-used-by-del {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.seq-used-by-del:hover {
+  color: #ff6b6b;
+  background: #2a1a1a;
+}
+.seq-used-by-add-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.seq-used-by-add-form select {
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #ccc;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.seq-add-used-by-btn {
+  margin-top: 4px;
+}
+.seq-ddl-toggle {
+  background: none;
+  border: none;
+  color: #9ed4a8;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+.seq-ddl-toggle:hover {
+  color: #c8efd0;
+}
+.seq-ddl-preview {
+  margin-top: 12px;
+  background: #0d0d1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #ddd;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* 4K responsive: seq-editor-grid で横並び幅を活かす */
+@media (min-width: 2560px) {
+  .seq-editor-body {
+    max-width: 1400px;
+  }
+  .seq-editor-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

@@ -8,6 +8,7 @@ export type TabType =
   | "design"          // 画面デザイナー
   | "table"           // テーブル編集
   | "action"          // 処理フロー編集
+  | "sequence"        // シーケンス編集 (#374)
   // シングルトン（1 インスタンス固定。resourceId は "main" で統一）
   | "screen-flow"        // 画面フロー図
   | "screen-list"        // 画面一覧 (#133 Phase C)
@@ -16,12 +17,13 @@ export type TabType =
   | "process-flow-list"  // 処理フロー一覧
   | "conventions-catalog" // 規約カタログ (#317)
   | "screen-items"       // 画面項目定義 (#318 プロトタイプ)
+  | "sequence-list"      // シーケンス一覧 (#374)
   | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
 
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
-  "design", "table", "action",
+  "design", "table", "action", "sequence",
   "screen-flow", "screen-list", "table-list", "er", "process-flow-list",
-  "conventions-catalog", "screen-items", "dashboard",
+  "conventions-catalog", "screen-items", "sequence-list", "dashboard",
 ]);
 
 export interface TabItem {
