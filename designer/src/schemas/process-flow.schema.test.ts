@@ -707,3 +707,87 @@ describe("process-flow.schema.json — 明示的な negative ケース", () => {
     expect(validate(invalid)).toBe(false);
   });
 });
+
+describe("process-flow.schema.json — StructuredField.format + ValidationRule.maxRef/minRef (#253 v1.3)", () => {
+  const makeGroup = (action: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [action],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  const baseAction = {
+    id: "act-1", name: "test", trigger: "submit",
+    steps: [{ id: "s1", type: "other", description: "" }],
+  };
+
+  it("StructuredField.format accept (@conv.numbering 参照)", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      outputs: [{ name: "poNumber", type: "string", format: "@conv.numbering.orderNumber" }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("StructuredField.format accept (任意文字列)", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      outputs: [{ name: "code", type: "string", format: "^[A-Z]{3}-\\d{4}$" }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("StructuredField.format + description 併記 accept", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      outputs: [{
+        name: "poNumber", type: "string",
+        format: "@conv.numbering.orderNumber",
+        description: "ORD-YYYY-NNNN 形式",
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ValidationRule.maxRef accept (@conv.limit 参照)", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        rules: [{ field: "qty", type: "range", min: 1, maxRef: "@conv.limit.quantityMax", message: "@conv.msg.outOfRange" }],
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ValidationRule.minRef accept (@conv.limit 参照)", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        rules: [{ field: "qty", type: "range", minRef: "@conv.limit.quantityMin", max: 9999 }],
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ValidationRule.min + maxRef 混在 accept", () => {
+    const ok = validate(makeGroup({
+      ...baseAction,
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        rules: [{ field: "qty", type: "range", min: 1, maxRef: "@conv.limit.quantityMax" }],
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});

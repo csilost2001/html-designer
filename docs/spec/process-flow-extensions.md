@@ -380,8 +380,10 @@ interface ValidationRule {
   type: ValidationRuleType;
   pattern?: string;                // regex 用
   length?: number;                 // maxLength/minLength 用
-  min?: number;                    // range 用
-  max?: number;
+  min?: number;                    // range 用: 数値リテラル
+  max?: number;                    // range 用: 数値リテラル
+  minRef?: string;                 // range 用: @conv.limit.* 参照 (min の代替, #253)
+  maxRef?: string;                 // range 用: @conv.limit.* 参照 (max の代替, #253)
   values?: string[];               // enum 用
   condition?: string;              // custom 用
   message?: string;                // @conv.msg.* 参照も可
@@ -549,6 +551,57 @@ errorCatalog?: Record<string, ErrorCatalogEntry>;
 
 実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `errorCatalog.STOCK_SHORTAGE` を引いて httpStatus / responseRef / defaultMessage を 1 箇所で解決。
 
+## 8.6 `StructuredField.format` (#253 v1.3)
+
+文字列型フィールドの採番形式・フォーマットパターンを `description` の地の文でなく**構造化フィールド**として宣言する。
+
+```ts
+interface StructuredField {
+  name: string;
+  label?: string;
+  type: FieldType;
+  required?: boolean;
+  description?: string;
+  format?: string;          // 採番形式 / フォーマットパターン (#253)
+  defaultValue?: string;
+  screenItemRef?: { screenId: string; itemId: string };
+}
+```
+
+**`format` の値の形式**:
+
+| 値の形式 | 意味 | 例 |
+|---|---|---|
+| `@conv.numbering.*` | 採番規約への参照 | `"@conv.numbering.orderNumber"` → `ORD-YYYY-NNNN` |
+| 正規表現文字列 | 書式パターン (検証用) | `"^[A-Z]{3}-\\d{4}$"` |
+| 任意の記述文字列 | 人間可読ヒント | `"YYYY-MM-DD"` |
+
+**適用対象**: `type: "string"` のフィールド。数値・配列・オブジェクト型フィールドへの設定は無意味 (無視される)。
+
+**`description` との関係**: `format` と `description` は併記可。`format` が機械可読な構造化情報、`description` が人間向け補足 (例: `"ORD-YYYY-NNNN 形式"`) を担う。
+
+用例:
+
+```json
+{ "name": "poNumber", "type": "string", "format": "@conv.numbering.orderNumber", "description": "ORD-YYYY-NNNN 形式 (PG sequence + trigger)" }
+```
+
+PR: #367 (#253 v1.3)
+
+**`ValidationRule.minRef` / `maxRef`**:
+
+`range` バリデーションで `@conv.limit.*` 参照を指定できるバリアント。`max: 9999` のような数値リテラルハードコードを避ける。
+
+- `min` + `maxRef` の**混在は有効** (一方を数値、他方を参照にできる)
+- `max` と `maxRef` を**同時指定した場合は `maxRef` が優先** (規約参照が意図的な値を上書きする)
+- `minRef` も同様
+
+用例:
+
+```json
+{ "field": "items[*].quantity", "type": "range", "min": 1, "maxRef": "@conv.limit.quantityMax", "message": "@conv.msg.outOfRange" }
+```
+
 ## 9. 後方互換性
 
 すべての拡張は **Optional** かつ **Union 型** (string | structured) のいずれかで、既存データは破壊されない。`migrateActionGroup` が読み込み時に:
@@ -579,3 +632,4 @@ errorCatalog?: Record<string, ErrorCatalogEntry>;
 ## 12. 変更履歴
 
 - 2026-04-20: 初版。#155〜#181 の全 PR をカバー。
+- 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
