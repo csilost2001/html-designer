@@ -399,7 +399,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } finally {
       // GrapesJS が component:add / autosave を遅延発火するケースに備えて
       // 次のマクロタスクでガードを下げる。遅延中に発火した markDirty も抑制したい。
-      setTimeout(() => { isInternalLoadRef.current = false; }, 0);
+      // #358: リセット後も canvas ↔ screen-items を突合する。
+      setTimeout(() => {
+        isInternalLoadRef.current = false;
+        if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
+      }, 0);
     }
   }, [screenId, tabId, showError]);
 

@@ -1,5 +1,5 @@
 /**
- * canvas ↔ screen-items 双方向同期 (#358)。
+ * canvas ↔ screen-items 双方向同期。
  *
  * - component:add → screen-items に自動登録 (重複 no-op)
  * - component:remove → screen-items から自動削除
@@ -8,6 +8,9 @@
  * ロード中ガード: isInternalLoadRef.current === true の間は add/remove を無視する。
  * 操作シリアライズ: per-screen の Promise チェーンで read→modify→write を直列化し
  * 競合を防ぐ。
+ *
+ * reconcile は canvas 上にない項目を screen-items から削除する。
+ * ユーザーが "先に定義してから配置する" 場合、ロード後の reconcile で削除されることに注意。
  */
 import type { Editor as GEditor, Component } from "grapesjs";
 import type { FieldType } from "../types/action";

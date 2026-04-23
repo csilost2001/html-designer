@@ -193,7 +193,7 @@ export function ScreenItemsView() {
 
     return indices.map((idx) => {
       const item = file.items[idx];
-      const prefix = getFieldTypePrefix(item.type);
+      const prefix = item.direction === "output" ? "textDisplay" : getFieldTypePrefix(item.type);
       const newId = generateAutoId(prefix, pool);
       pool.push(newId);
       return { idx, oldId: item.id, newId };
