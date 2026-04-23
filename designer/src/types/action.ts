@@ -283,6 +283,10 @@ export interface ValidationRule {
   min?: number;
   /** type="range" 時の最大値 */
   max?: number;
+  /** type="range" 時の最小値を @conv.limit.* 参照で指定するバリアント (#253) */
+  minRef?: string;
+  /** type="range" 時の最大値を @conv.limit.* 参照で指定するバリアント (#253) */
+  maxRef?: string;
   /** type="enum" 時の許容値リスト */
   values?: string[];
   /** type="custom" 時の自由記述条件 (例: "@items.length >= 1") */
@@ -734,6 +738,8 @@ export interface StructuredField {
   type: FieldType;
   required?: boolean;
   description?: string;
+  /** 採番形式 / フォーマットパターン (@conv.numbering.* 参照 or 正規表現) (#253) */
+  format?: string;
   /** 自由記述の既定値 */
   defaultValue?: string;
   /**

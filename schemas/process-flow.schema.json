@@ -274,6 +274,10 @@
         "type": { "$ref": "#/$defs/FieldType" },
         "required": { "type": "boolean" },
         "description": { "type": "string" },
+        "format": {
+          "type": "string",
+          "description": "採番形式・フォーマットパターン。文字列型フィールドで @conv.numbering.* 参照や正規表現パターンを構造化宣言する (#253)"
+        },
         "defaultValue": { "type": "string" },
         "screenItemRef": {
           "type": "object",
@@ -427,6 +431,14 @@
         "length": { "type": "integer", "minimum": 0 },
         "min": { "type": "number" },
         "max": { "type": "number" },
+        "minRef": {
+          "type": "string",
+          "description": "type=range 時の最小値を @conv.limit.* 参照で指定するバリアント (数値リテラルの代替) (#253)"
+        },
+        "maxRef": {
+          "type": "string",
+          "description": "type=range 時の最大値を @conv.limit.* 参照で指定するバリアント (数値リテラルの代替) (#253)"
+        },
         "values": {
           "type": "array",
           "items": { "type": "string" }
