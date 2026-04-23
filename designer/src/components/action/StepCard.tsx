@@ -24,6 +24,7 @@ import { MaturityBadge } from "./MaturityBadge";
 import { NotesPanel } from "./NotesPanel";
 import { StepAdvancedMetadataPanel } from "./StepAdvancedMetadataPanel";
 import { ValidationRulesPanel } from "./ValidationRulesPanel";
+import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ExternalOutcomesPanel } from "./ExternalOutcomesPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
 
@@ -187,6 +188,7 @@ interface StepCardProps {
   tables: { id: string; name: string; logicalName: string }[];
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
+  conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
   onChange: (changes: Partial<Step>) => void;
   onCommit?: () => void;
   onMoveUp?: () => void;
@@ -226,6 +228,7 @@ export function StepCard({
   tables,
   screens,
   commonGroups,
+  conventions,
   onChange,
   onCommit,
   onMoveUp,
@@ -770,6 +773,7 @@ export function StepCard({
                 <ValidationRulesPanel
                   rules={step.rules}
                   onChange={(rules) => onChange({ rules } as Partial<Step>)}
+                  conventions={conventions ?? null}
                 />
                 {step.inlineBranch && (
                   <div className="step-inline-branch">
@@ -1176,12 +1180,12 @@ export function StepCard({
                     <i className="bi bi-calculator me-1" />
                     代入式 (expression)
                   </label>
-                  <input
-                    type="text"
+                  <ConvCompletionInput
                     className="form-control form-control-sm"
                     value={step.expression}
-                    onChange={(e) => onChange({ expression: e.target.value } as Partial<Step>)}
-                    onBlur={onCommit}
+                    onValueChange={(v) => onChange({ expression: v } as Partial<Step>)}
+                    onCommit={onCommit}
+                    conventions={conventions ?? null}
                     placeholder="例: Math.floor(@subtotal * 0.10) / @subtotal + @taxAmount"
                     style={{ fontFamily: "monospace" }}
                   />
@@ -1209,12 +1213,12 @@ export function StepCard({
                   </div>
                   <div className="col-6" data-field-path="bodyExpression">
                     <label className="form-label">bodyExpression</label>
-                    <input
-                      type="text"
+                    <ConvCompletionInput
                       className="form-control form-control-sm"
                       value={step.bodyExpression ?? ""}
-                      onChange={(e) => onChange({ bodyExpression: e.target.value || undefined } as Partial<Step>)}
-                      onBlur={onCommit}
+                      onValueChange={(v) => onChange({ bodyExpression: v || undefined } as Partial<Step>)}
+                      onCommit={onCommit}
+                      conventions={conventions ?? null}
                       placeholder="例: { code: 'STOCK_SHORTAGE', detail: @shortageList }"
                       style={{ fontFamily: "monospace" }}
                     />

@@ -903,6 +903,7 @@ export function ActionEditor() {
                           markerCount={markerCount}
                           markerTooltip={markerTooltip}
                           markerKinds={markerKinds}
+                          conventions={conventions}
                         />
                       </div>
                       );
