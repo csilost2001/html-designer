@@ -1192,12 +1192,42 @@
   overflow-x: auto;
 }
 
-/* 4K responsive: seq-editor-grid で横並び幅を活かす */
+/* 4K responsive: フォームセクション + 右サイド DDL 常時表示 */
 @media (min-width: 2560px) {
   .seq-editor-body {
-    max-width: 1400px;
+    flex-direction: row;
+    align-items: flex-start;
+    max-width: 2200px;
+    gap: 24px;
+  }
+  .seq-editor-left-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
   .seq-editor-grid {
     grid-template-columns: 1fr 1fr 1fr;
+  }
+  .seq-editor-ddl-section {
+    width: 520px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 16px;
+  }
+  .seq-ddl-toggle {
+    display: none;
+  }
+  .seq-ddl-preview {
+    display: block !important;
+    margin-top: 0;
+  }
+}
+
+/* FHD: 通常レイアウト (デフォルト flex-direction: column 維持) */
+@media (max-width: 2559px) {
+  .seq-editor-body {
+    max-width: 900px;
   }
 }

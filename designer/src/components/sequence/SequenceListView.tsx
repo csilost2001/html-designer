@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { SequenceMeta } from "../../types/sequence";
-import { listSequences, createSequence, deleteSequence } from "../../store/sequenceStore";
+import type { SequenceDefinition } from "../../types/sequence";
+import { listSequences, createSequence, deleteSequence, loadSequence, saveSequence } from "../../store/sequenceStore";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -123,6 +124,70 @@ export function SequenceListView() {
     editor.markDeleted(items.map((s) => s.id));
   };
 
+  const handleDuplicate = async (items: SequenceMeta[]) => {
+    const newIds: string[] = [];
+    for (const s of items) {
+      const full = await loadSequence(s.id);
+      if (!full) continue;
+      const newId = s.id + "_copy";
+      const dup: SequenceDefinition = {
+        ...full,
+        id: newId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await saveSequence(dup);
+      newIds.push(dup.id);
+    }
+    await editor.reload();
+    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
+  };
+
+  const handlePaste = async (insertIdx: number | null) => {
+    const mode = clipboard.clipboard.mode;
+    const clipItems = clipboard.clipboard.items;
+    if (!clipItems.length) return;
+
+    if (mode === "cut") {
+      const cutIds = new Set(clipItems.map((c) => c.id));
+      const selIds = selection.selectedIds;
+      const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
+      if (sameSet) return;
+
+      // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化される
+      clipboard.consume();
+      const moved = clipItems;
+      const pos0 = insertIdx ?? editor.items.length;
+      const removedBefore = editor.items.slice(0, pos0).filter((s) => cutIds.has(s.id)).length;
+      const remaining = editor.items.filter((s) => !cutIds.has(s.id));
+      const pos = Math.min(remaining.length, pos0 - removedBefore);
+      editor.setItems(() => {
+        const next = [...remaining];
+        next.splice(pos, 0, ...moved);
+        return renumber(next);
+      });
+      selection.setSelectedIds(new Set(moved.map((s) => s.id)));
+    } else {
+      const newIds: string[] = [];
+      for (const s of clipItems) {
+        const full = await loadSequence(s.id);
+        if (!full) continue;
+        const newId = s.id + "_copy";
+        const dup: SequenceDefinition = {
+          ...full,
+          id: newId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await saveSequence(dup);
+        newIds.push(dup.id);
+      }
+      clipboard.consume();
+      await editor.reload();
+      selection.setSelectedIds(new Set(newIds));
+    }
+  };
+
   const handleReorder = (fromIdx: number, toIdx: number) => {
     const visible = sort.sorted;
     const fromId = visible[fromIdx]?.id;
@@ -181,6 +246,8 @@ export function SequenceListView() {
 
   const buildMenuItems = (target: SequenceMeta | null): ContextMenuItem[] => {
     const hasSelection = selection.selectedIds.size > 0 || target !== null;
+    const pasteBlocked = sortActive || !clipboard.hasContent;
+    const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
     const sortReason = "ソート中は無効 (ソート解除で利用可能)";
 
     if (target === null && selection.selectedIds.size === 0) {
@@ -214,7 +281,26 @@ export function SequenceListView() {
         disabled: !hasSelection,
         onClick: () => { if (items.length > 0) clipboard.cut(items); },
       },
+      {
+        key: "paste", label: "貼り付け", icon: "bi-clipboard", shortcut: "Ctrl+V",
+        disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
+        onClick: () => {
+          const ids = Array.from(selection.selectedIds);
+          const allIds = editor.items.map((s) => s.id);
+          const insertIndex = ids.length > 0
+            ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
+            : null;
+          handlePaste(insertIndex).catch(console.error);
+        },
+      },
       { key: "sep2", separator: true },
+      {
+        key: "duplicate", label: "複製", icon: "bi-copy", shortcut: "Ctrl+D",
+        disabled: !hasSelection || sortActive,
+        disabledReason: sortActive ? sortReason : undefined,
+        onClick: () => { if (items.length > 0) handleDuplicate(items).catch(console.error); },
+      },
+      { key: "sep3", separator: true },
       {
         key: "delete", label: "削除", icon: "bi-trash", shortcut: "Delete",
         disabled: !hasSelection, danger: true,
@@ -249,8 +335,10 @@ export function SequenceListView() {
     layout: viewMode === "card" ? "grid" : "list",
     onActivate: handleActivate,
     onDelete: handleDelete,
+    onDuplicate: (items) => { handleDuplicate(items).catch(console.error); },
     onMoveUp: (items) => moveBlock(items, "up"),
     onMoveDown: (items) => moveBlock(items, "down"),
+    onPaste: (idx) => { handlePaste(idx).catch(console.error); },
     onContextMenuKey: handleContextMenuKey,
   });
 

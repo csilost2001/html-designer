@@ -129,6 +129,8 @@ export function SequenceEditor() {
       />
 
       <div className="seq-editor-body">
+        {/* 4K: 左カラム（基本設定・値設定・規約・使用先） */}
+        <div className="seq-editor-left-col">
         {/* 基本設定 */}
         <section className="seq-editor-section">
           <h3 className="seq-editor-section-title">基本設定</h3>
@@ -266,7 +268,7 @@ export function SequenceEditor() {
               {(seq.usedBy ?? []).map((u, i) => {
                 const tbl = tableOptions.find((t) => t.tableId === u.tableId);
                 return (
-                  <div key={i} className="seq-used-by-row">
+                  <div key={`${u.tableId}.${u.columnName}`} className="seq-used-by-row">
                     <span className="seq-used-by-text">
                       <i className="bi bi-table" /> {tbl?.tableName ?? u.tableId}
                       <span className="seq-used-by-sep">.</span>
@@ -329,8 +331,10 @@ export function SequenceEditor() {
           )}
         </section>
 
-        {/* DDL プレビュー */}
-        <section className="seq-editor-section">
+        </div>{/* seq-editor-left-col */}
+
+        {/* DDL プレビュー（4K: 右カラムに常時表示） */}
+        <section className="seq-editor-section seq-editor-ddl-section">
           <button
             className="seq-ddl-toggle"
             onClick={() => setDdlOpen((v) => !v)}
