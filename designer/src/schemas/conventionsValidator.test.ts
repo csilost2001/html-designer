@@ -136,6 +136,123 @@ describe("checkConventionReferences", () => {
     expect(issues.some((i) => i.code === "UNKNOWN_CONV_CATEGORY")).toBe(true);
   });
 
+  it("@conv.scope.customerRegion は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "対象: @conv.scope.customerRegion" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.scope.unknownKey は UNKNOWN_CONV_CATEGORY", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "@conv.scope.unknownKey" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues.some((i) => i.code === "UNKNOWN_CONV_CATEGORY")).toBe(true);
+  });
+
+  it("@conv.currency.jpy は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "通貨: @conv.currency.jpy" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.tax.standard は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "税率: @conv.tax.standard" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.auth.default は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "認証: @conv.auth.default" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.db.default は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "DB: @conv.db.default" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.numbering.customerCode は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "採番: @conv.numbering.customerCode" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.tx.singleOperation は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "TX: @conv.tx.singleOperation" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("@conv.externalOutcomeDefaults.failure は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "失敗時: @conv.externalOutcomeDefaults.failure" }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
   it("catalog が null (未ロード) なら検査スキップ", () => {
     const issues = checkConventionReferences(
       makeGroup({

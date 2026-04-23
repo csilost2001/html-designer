@@ -34,7 +34,15 @@ export function createEmptyCatalog(): ConventionsCatalog {
     msg: {},
     regex: {},
     limit: {},
-  } as ConventionsCatalog;
+    scope: {},
+    currency: {},
+    tax: {},
+    auth: {},
+    db: {},
+    numbering: {},
+    tx: {},
+    externalOutcomeDefaults: {},
+  };
 }
 
 export async function loadConventions(): Promise<ConventionsCatalog | null> {

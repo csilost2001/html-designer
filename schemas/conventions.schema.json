@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/conventions.schema.json",
   "title": "ConventionsCatalog (横断規約カタログ)",
-  "description": "処理フロー仕様書から @conv.msg.* / @conv.regex.* / @conv.limit.* として参照される横断規約の正規 JSON 形式 (#151-A / #261 残)。docs/conventions/validation-rules.md の構造化版。",
+  "description": "処理フロー仕様書から @conv.* として参照される横断規約の正規 JSON 形式 (#151-A / #261 残)。docs/conventions/validation-rules.md / product-scope.md の構造化版。",
   "type": "object",
   "required": ["version"],
   "additionalProperties": false,
@@ -26,6 +26,47 @@
       "type": "object",
       "description": "境界値カタログ。@conv.limit.<key> で参照",
       "additionalProperties": { "$ref": "#/$defs/LimitEntry" }
+    },
+
+    "scope": {
+      "type": "object",
+      "description": "顧客・業務スコープ定義。@conv.scope.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/ScopeEntry" }
+    },
+    "currency": {
+      "type": "object",
+      "description": "通貨定義。@conv.currency.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/CurrencyEntry" }
+    },
+    "tax": {
+      "type": "object",
+      "description": "税率定義。@conv.tax.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/TaxEntry" }
+    },
+    "auth": {
+      "type": "object",
+      "description": "認証・セッション定義。@conv.auth.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/AuthEntry" }
+    },
+    "db": {
+      "type": "object",
+      "description": "DB 規約定義。@conv.db.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/DbEntry" }
+    },
+    "numbering": {
+      "type": "object",
+      "description": "採番規約定義。@conv.numbering.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/NumberingEntry" }
+    },
+    "tx": {
+      "type": "object",
+      "description": "トランザクション方針定義。@conv.tx.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/TxEntry" }
+    },
+    "externalOutcomeDefaults": {
+      "type": "object",
+      "description": "外部連携 outcome 規約。@conv.externalOutcomeDefaults.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/ExternalOutcomeDefaultEntry" }
     }
   },
 
@@ -76,6 +117,97 @@
           "description": "char / integer / yen / ms 等の単位",
           "examples": ["char", "integer", "yen", "ms"]
         },
+        "description": { "type": "string" }
+      }
+    },
+
+    "ScopeEntry": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "CurrencyEntry": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "description": "ISO 4217 通貨コード (例: JPY)" },
+        "subunit": { "type": "integer", "description": "小数点以下桁数 (0=円単位、2=セント単位)" },
+        "roundingMode": { "type": "string", "enum": ["floor", "ceil", "round"] },
+        "description": { "type": "string" }
+      }
+    },
+
+    "TaxEntry": {
+      "type": "object",
+      "required": ["kind", "rate"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["inclusive", "exclusive"] },
+        "rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "0..1 (例: 0.10)" },
+        "roundingMode": { "type": "string", "enum": ["floor", "ceil", "round"] },
+        "description": { "type": "string" }
+      }
+    },
+
+    "AuthEntry": {
+      "type": "object",
+      "required": ["scheme"],
+      "additionalProperties": false,
+      "properties": {
+        "scheme": { "type": "string", "description": "session-cookie / bearer-jwt / basic" },
+        "sessionStorage": { "type": "string", "description": "httpOnly-cookie / redis / memory" },
+        "passwordHash": { "type": "string", "description": "bcrypt(cost=12) / argon2id" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "DbEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "type": "string", "description": "例: postgresql@14" },
+        "namingConvention": { "type": "string", "description": "例: snake_case" },
+        "timestampColumns": { "type": "array", "items": { "type": "string" } },
+        "logicalDeleteColumn": { "type": "string", "description": "例: is_deleted" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "NumberingEntry": {
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": { "type": "string", "description": "例: C-NNNN / ORD-YYYY-NNNN" },
+        "implementation": { "type": "string", "description": "例: PG sequence + DEFAULT" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "TxEntry": {
+      "type": "object",
+      "required": ["policy"],
+      "additionalProperties": false,
+      "properties": {
+        "policy": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "ExternalOutcomeDefaultEntry": {
+      "type": "object",
+      "required": ["outcome", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": { "type": "string", "enum": ["success", "failure", "timeout"] },
+        "action": { "type": "string", "enum": ["continue", "abort", "compensate"] },
+        "retry": { "type": "string", "enum": ["none", "fixed", "exponential"] },
         "description": { "type": "string" }
       }
     }

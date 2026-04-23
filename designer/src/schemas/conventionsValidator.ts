@@ -11,6 +11,16 @@ import type {
   ValidationStep,
   LoopStep,
 } from "../types/action";
+import type {
+  ScopeEntry,
+  CurrencyEntry,
+  TaxEntry,
+  AuthEntry,
+  DbEntry,
+  NumberingEntry,
+  TxEntry,
+  ExternalOutcomeDefaultEntry,
+} from "../types/conventions";
 
 export interface ConventionsCatalog {
   version: string;
@@ -19,6 +29,14 @@ export interface ConventionsCatalog {
   msg?: Record<string, { template: string; params?: string[]; description?: string }>;
   regex?: Record<string, { pattern: string; flags?: string; description?: string; exampleValid?: string[]; exampleInvalid?: string[] }>;
   limit?: Record<string, { value: number; unit?: string; description?: string }>;
+  scope?: Record<string, ScopeEntry>;
+  currency?: Record<string, CurrencyEntry>;
+  tax?: Record<string, TaxEntry>;
+  auth?: Record<string, AuthEntry>;
+  db?: Record<string, DbEntry>;
+  numbering?: Record<string, NumberingEntry>;
+  tx?: Record<string, TxEntry>;
+  externalOutcomeDefaults?: Record<string, ExternalOutcomeDefaultEntry>;
 }
 
 export interface ConventionIssue {
@@ -55,10 +73,20 @@ function codeFor(category: string): ConventionIssue["code"] {
 }
 
 function resolveCategory(catalog: ConventionsCatalog, category: string): Record<string, unknown> | null {
-  if (category === "msg") return catalog.msg ?? null;
-  if (category === "regex") return catalog.regex ?? null;
-  if (category === "limit") return catalog.limit ?? null;
-  return null;
+  switch (category) {
+    case "msg": return catalog.msg ?? null;
+    case "regex": return catalog.regex ?? null;
+    case "limit": return catalog.limit ?? null;
+    case "scope": return catalog.scope as Record<string, unknown> ?? null;
+    case "currency": return catalog.currency as Record<string, unknown> ?? null;
+    case "tax": return catalog.tax as Record<string, unknown> ?? null;
+    case "auth": return catalog.auth as Record<string, unknown> ?? null;
+    case "db": return catalog.db as Record<string, unknown> ?? null;
+    case "numbering": return catalog.numbering as Record<string, unknown> ?? null;
+    case "tx": return catalog.tx as Record<string, unknown> ?? null;
+    case "externalOutcomeDefaults": return catalog.externalOutcomeDefaults as Record<string, unknown> ?? null;
+    default: return null;
+  }
 }
 
 /** ActionGroup 全体で @conv.* 参照を検査。catalog が null なら検査 skip */
@@ -146,7 +174,7 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
           path: `${path}.${field}`,
           code: "UNKNOWN_CONV_CATEGORY",
           value: `@conv.${category}.${key}`,
-          message: `@conv.${category}.* カテゴリは規約カタログに存在しません (msg/regex/limit のみ)`,
+          message: `@conv.${category}.* カテゴリは規約カタログに存在しません`,
         });
         continue;
       }
