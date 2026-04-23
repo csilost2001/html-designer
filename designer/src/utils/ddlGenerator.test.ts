@@ -246,3 +246,110 @@ describe("generateDdl — indexes (β-3)", () => {
     expect(ddl).not.toContain("CREATE INDEX");
   });
 });
+
+describe("generateDdl — defaults (β-4)", () => {
+  it("literal DEFAULT が ALTER TABLE SET DEFAULT として出力される", () => {
+    const table = baseTable({
+      defaults: [{ column: "amount", kind: "literal", value: "0" }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("ALTER TABLE orders ALTER COLUMN amount SET DEFAULT 0;");
+  });
+
+  it("function DEFAULT が ALTER TABLE SET DEFAULT として出力される", () => {
+    const table = baseTable({
+      defaults: [{ column: "created_at", kind: "function", value: "NOW()" }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("ALTER TABLE orders ALTER COLUMN created_at SET DEFAULT NOW();");
+  });
+
+  it("sequence DEFAULT が PostgreSQL で nextval() を使用する", () => {
+    const table = baseTable({
+      defaults: [{ column: "id", kind: "sequence", value: "orders_id_seq" }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("SET DEFAULT nextval('orders_id_seq');");
+  });
+
+  it("conventionRef DEFAULT が DEFAULT NULL /* @conv.* */ として出力される", () => {
+    const table = baseTable({
+      defaults: [{ column: "po_number", kind: "conventionRef", value: "@conv.numbering.orderNumber" }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("SET DEFAULT NULL /* @conv.numbering.orderNumber */;");
+  });
+
+  it("defaults が未定義の場合は ALTER TABLE ALTER COLUMN を出力しない", () => {
+    const table = baseTable();
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).not.toContain("ALTER COLUMN");
+  });
+});
+
+describe("generateDdl — triggers (β-4)", () => {
+  it("PostgreSQL トリガーが CREATE FUNCTION + CREATE TRIGGER として出力される", () => {
+    const table = baseTable({
+      triggers: [{
+        id: "trg_po_number",
+        timing: "BEFORE",
+        events: ["INSERT"],
+        body: "NEW.po_number := 'ORD-001';",
+        description: "発注番号採番",
+      }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("CREATE OR REPLACE FUNCTION trg_po_number_fn()");
+    expect(ddl).toContain("CREATE TRIGGER trg_po_number");
+    expect(ddl).toContain("BEFORE INSERT ON orders");
+    expect(ddl).toContain("FOR EACH ROW EXECUTE FUNCTION trg_po_number_fn();");
+  });
+
+  it("複数イベントが OR 区切りで出力される", () => {
+    const table = baseTable({
+      triggers: [{
+        id: "trg_audit",
+        timing: "AFTER",
+        events: ["INSERT", "UPDATE"],
+        body: "-- audit",
+      }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("AFTER INSERT OR UPDATE ON orders");
+  });
+
+  it("WHEN 句が指定された場合は WHEN (条件) として出力される", () => {
+    const table = baseTable({
+      triggers: [{
+        id: "trg_cond",
+        timing: "BEFORE",
+        events: ["UPDATE"],
+        whenCondition: "NEW.status IS DISTINCT FROM OLD.status",
+        body: "-- status changed",
+      }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("WHEN (NEW.status IS DISTINCT FROM OLD.status)");
+  });
+
+  it("MySQL ではシンプルな CREATE TRIGGER を出力する", () => {
+    const table = baseTable({
+      triggers: [{
+        id: "trg_simple",
+        timing: "BEFORE",
+        events: ["INSERT"],
+        body: "SET NEW.created_at = NOW();",
+      }],
+    });
+    const ddl = generateDdl(table, "mysql");
+    expect(ddl).toContain("CREATE TRIGGER trg_simple");
+    expect(ddl).toContain("BEFORE INSERT ON orders");
+    expect(ddl).not.toContain("CREATE OR REPLACE FUNCTION");
+  });
+
+  it("triggers が未定義の場合は CREATE TRIGGER を出力しない", () => {
+    const table = baseTable();
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).not.toContain("CREATE TRIGGER");
+  });
+});

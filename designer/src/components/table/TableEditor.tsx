@@ -21,6 +21,7 @@ import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu
 import { DdlPreviewDrawer } from "./DdlPreviewDrawer";
 import { ConstraintsTab } from "./ConstraintsTab";
 import { IndexesTab } from "./IndexesTab";
+import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
@@ -139,7 +140,10 @@ export function TableEditor() {
           <i className="bi bi-lightning" /> インデックス <span className="tab-count">{table.indexes.length}</span>
         </button>
         <button className={tab === "triggers" ? "active" : ""} onClick={() => setTab("triggers")}>
-          <i className="bi bi-play-btn" /> トリガー
+          <i className="bi bi-play-btn" /> トリガー/DEFAULT
+          {((table.triggers?.length ?? 0) + (table.defaults?.length ?? 0)) > 0 && (
+            <span className="tab-count">{(table.triggers?.length ?? 0) + (table.defaults?.length ?? 0)}</span>
+          )}
         </button>
         <button className={tab === "comment" ? "active" : ""} onClick={() => setTab("comment")}>
           <i className="bi bi-chat-left-text" /> コメント
@@ -159,11 +163,7 @@ export function TableEditor() {
             <IndexesTab key="indexes" table={table} update={update} />
           )}
           {tab === "triggers" && (
-            <PlaceholderTab
-              icon="bi-play-btn"
-              title="トリガー (β-4 で実装予定)"
-              description="BEFORE/AFTER INSERT/UPDATE/DELETE トリガーを一覧・編集します。"
-            />
+            <TriggersDefaultsTab table={table} update={update} />
           )}
           {tab === "comment" && (
             <CommentTab table={table} update={update} />

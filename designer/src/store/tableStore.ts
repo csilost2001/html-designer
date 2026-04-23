@@ -5,7 +5,7 @@
  * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
  * - 未接続の場合: localStorage にフォールバック
  */
-import type { TableDefinition, TableMeta, TableColumn, IndexDefinition, ConstraintDefinition } from "../types/table";
+import type { TableDefinition, TableMeta, TableColumn, IndexDefinition, ConstraintDefinition, TriggerDefinition, DefaultDefinition } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
@@ -188,6 +188,38 @@ export function addConstraint(
 /** 制約を削除 */
 export function removeConstraint(table: TableDefinition, constraintId: string): void {
   table.constraints = (table.constraints ?? []).filter((c) => c.id !== constraintId);
+}
+
+/** DEFAULT 値定義を追加 */
+export function addDefault(table: TableDefinition, def: DefaultDefinition): void {
+  table.defaults = [...(table.defaults ?? []), def];
+}
+
+/** DEFAULT 値定義を削除 */
+export function removeDefault(table: TableDefinition, column: string): void {
+  table.defaults = (table.defaults ?? []).filter((d) => d.column !== column);
+}
+
+/** トリガーを追加 */
+export function addTrigger(
+  table: TableDefinition,
+  partial?: Partial<TriggerDefinition>,
+): TriggerDefinition {
+  const t: TriggerDefinition = {
+    id: partial?.id ?? `trg_${table.name}_${(table.triggers ?? []).length + 1}`,
+    timing: partial?.timing ?? "BEFORE",
+    events: partial?.events ?? ["INSERT"],
+    whenCondition: partial?.whenCondition,
+    body: partial?.body ?? "",
+    description: partial?.description,
+  };
+  table.triggers = [...(table.triggers ?? []), t];
+  return t;
+}
+
+/** トリガーを削除 */
+export function removeTrigger(table: TableDefinition, triggerId: string): void {
+  table.triggers = (table.triggers ?? []).filter((t) => t.id !== triggerId);
 }
 
 /** テーブル一覧の並び順を変更する (project.tables の物理順) */

@@ -1136,6 +1136,327 @@
   border-radius: 3px;
 }
 
+/* ── トリガー + DEFAULT タブ (β-4) ───────────────────────────────────────── */
+
+.triggers-defaults-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.td-section {
+  padding: 16px;
+  border-bottom: 1px solid #2a2a44;
+}
+
+.td-section:last-child {
+  border-bottom: none;
+}
+
+.td-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.td-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 20px;
+  color: #666;
+  text-align: center;
+}
+
+.td-empty-icon {
+  font-size: 28px;
+  color: #444;
+}
+
+.td-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 520px;
+}
+
+.td-empty-hint {
+  font-size: 12px !important;
+  color: #555 !important;
+}
+
+.td-empty code {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.td-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── 一覧行 ──────────────────────────────────────────────────────────────── */
+
+.td-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #1e1e38;
+  border: 1px solid #333;
+  border-radius: 7px;
+  transition: border-color 0.12s;
+}
+
+.td-row:hover {
+  border-color: #555;
+}
+
+.td-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.td-kind-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.td-kind-badge--literal {
+  background: rgba(180, 200, 100, 0.15);
+  color: #b4c864;
+  border: 1px solid rgba(180, 200, 100, 0.3);
+}
+
+.td-kind-badge--function {
+  background: rgba(100, 200, 220, 0.15);
+  color: #64c8dc;
+  border: 1px solid rgba(100, 200, 220, 0.3);
+}
+
+.td-kind-badge--sequence {
+  background: rgba(200, 130, 255, 0.15);
+  color: #c882ff;
+  border: 1px solid rgba(200, 130, 255, 0.3);
+}
+
+.td-kind-badge--conventionRef {
+  background: rgba(255, 160, 80, 0.18);
+  color: #ffa050;
+  border: 1px solid rgba(255, 160, 80, 0.35);
+}
+
+.td-timing-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(124, 107, 255, 0.18);
+  color: #a99bff;
+  border: 1px solid rgba(124, 107, 255, 0.35);
+}
+
+.td-events-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(100, 200, 180, 0.12);
+  color: #64c8b4;
+  border: 1px solid rgba(100, 200, 180, 0.3);
+}
+
+.td-row-col {
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 13px;
+  color: #ddd;
+  flex: 1;
+  min-width: 0;
+}
+
+.td-row-desc {
+  font-size: 12px;
+  color: #888;
+}
+
+.td-row-summary {
+  font-size: 12px;
+  color: #999;
+  font-family: "Consolas", "Monaco", monospace;
+}
+
+.td-body-preview {
+  opacity: 0.8;
+}
+
+.td-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* ── 編集カード ──────────────────────────────────────────────────────────── */
+
+.td-editor-card {
+  background: #1a1a2e;
+  border: 1px solid #7c6bff;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.td-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.td-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a99bff;
+}
+
+.td-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.td-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.td-editor-field > span {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.td-editor-field select,
+.td-editor-field input[type="text"] {
+  padding: 6px 10px;
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.td-editor-field select:focus,
+.td-editor-field input[type="text"]:focus {
+  border-color: #7c6bff;
+}
+
+.td-value-input {
+  font-family: "Consolas", "Monaco", monospace !important;
+}
+
+.td-trigger-name-input {
+  font-family: "Consolas", "Monaco", monospace;
+}
+
+.td-kind-radios,
+.td-timing-radios,
+.td-events-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.td-kind-radio,
+.td-timing-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.td-body-textarea {
+  background: #0d0d1a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: "Consolas", "Monaco", monospace;
+  padding: 8px 10px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+  transition: border-color 0.12s;
+}
+
+.td-body-textarea:focus {
+  border-color: #7c6bff;
+}
+
+.td-hint {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+
+.td-hint code {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.td-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid #333;
+}
+
+/* ── 4K: 2 列グリッド ───────────────────────────────────────────────────── */
+
+@media (min-width: 3840px) {
+  .td-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .td-editor-card {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ── インデックスタブ (β-3) ─────────────────────────────────────────────── */
 
 .indexes-tab2 {

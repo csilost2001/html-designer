@@ -3,7 +3,7 @@
  * テーブル定義から DDL (CREATE TABLE) を生成するユーティリティ
  * MySQL / PostgreSQL / Oracle / SQLite / 標準SQL に対応
  */
-import type { TableDefinition, SqlDialect, ConstraintDefinition, FkAction } from "../types/table";
+import type { TableDefinition, SqlDialect, ConstraintDefinition, FkAction, DefaultDefinition, TriggerDefinition } from "../types/table";
 
 export function generateDdl(table: TableDefinition, dialect: SqlDialect): string {
   const colDefs: string[] = [];
@@ -63,6 +63,16 @@ export function generateDdl(table: TableDefinition, dialect: SqlDialect): string
   // ALTER TABLE constraints (β-2)
   for (const c of table.constraints ?? []) {
     ddl += `\n\n${constraintToDdl(table.name, c, dialect)}`;
+  }
+
+  // DEFAULT 値定義 (β-4) — ALTER TABLE SET DEFAULT
+  for (const def of table.defaults ?? []) {
+    ddl += `\n\n${defaultToDdl(table.name, def, dialect)}`;
+  }
+
+  // トリガー定義 (β-4)
+  for (const trg of table.triggers ?? []) {
+    ddl += `\n\n${triggerToDdl(table.name, trg, dialect)}`;
   }
 
   // Comments for PostgreSQL / Oracle
@@ -200,6 +210,53 @@ function constraintToDdl(tableName: string, c: ConstraintDefinition, _dialect: S
 
 function fkActionSql(action: FkAction): string {
   return action;
+}
+
+function defaultToDdl(tableName: string, def: DefaultDefinition, dialect: SqlDialect): string {
+  let expr: string;
+  switch (def.kind) {
+    case "literal":
+    case "function":
+      expr = def.value;
+      break;
+    case "sequence":
+      expr = dialect === "postgresql"
+        ? `nextval('${def.value}')`
+        : def.value;
+      break;
+    case "conventionRef":
+      expr = `NULL /* ${def.value} */`;
+      break;
+  }
+  return `ALTER TABLE ${tableName} ALTER COLUMN ${def.column} SET DEFAULT ${expr};`;
+}
+
+function triggerToDdl(tableName: string, trg: TriggerDefinition, dialect: SqlDialect): string {
+  const events = trg.events.join(" OR ");
+  const when = trg.whenCondition ? `\n  WHEN (${trg.whenCondition})` : "";
+  if (dialect === "postgresql") {
+    const fnName = `${trg.id}_fn`;
+    return [
+      `CREATE OR REPLACE FUNCTION ${fnName}() RETURNS TRIGGER AS $$`,
+      `BEGIN`,
+      `  ${trg.body.split("\n").join("\n  ")}`,
+      `  RETURN NEW;`,
+      `END;`,
+      `$$ LANGUAGE plpgsql;`,
+      ``,
+      `CREATE TRIGGER ${trg.id}`,
+      `${trg.timing} ${events} ON ${tableName}${when}`,
+      `FOR EACH ROW EXECUTE FUNCTION ${fnName}();`,
+    ].join("\n");
+  }
+  return [
+    `CREATE TRIGGER ${trg.id}`,
+    `${trg.timing} ${events} ON ${tableName}${when}`,
+    `FOR EACH ROW`,
+    `BEGIN`,
+    `  ${trg.body.split("\n").join("\n  ")}`,
+    `END;`,
+  ].join("\n");
 }
 
 function autoIncrementType(dt: string, dialect: SqlDialect): string {

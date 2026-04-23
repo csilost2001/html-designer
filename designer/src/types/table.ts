@@ -137,9 +137,30 @@ export interface ForeignKeyConstraint {
 
 export type ConstraintDefinition = UniqueConstraint | CheckConstraint | ForeignKeyConstraint;
 
-/** トリガー定義スロット (β-4 ISSUE で詳細化) */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type TriggerDefinition = Record<string, any>;
+// ── β-4 トリガー / DEFAULT 型 ────────────────────────────────────────────
+
+export type TriggerTiming = "BEFORE" | "AFTER";
+export type TriggerEvent = "INSERT" | "UPDATE" | "DELETE";
+
+/** トリガー定義 */
+export interface TriggerDefinition {
+  id: string;
+  timing: TriggerTiming;
+  events: TriggerEvent[];
+  whenCondition?: string;
+  body: string;
+  description?: string;
+}
+
+export type DefaultKind = "literal" | "function" | "sequence" | "conventionRef";
+
+/** 列 DEFAULT 値定義 */
+export interface DefaultDefinition {
+  column: string;
+  kind: DefaultKind;
+  value: string;
+  description?: string;
+}
 
 /** テーブル定義（完全データ） */
 export interface TableDefinition {
@@ -152,9 +173,11 @@ export interface TableDefinition {
   indexes: IndexDefinition[];
   /** テーブルコメント (β-1 追加) */
   comment?: string;
-  /** 制約定義 (β-2 で中身を実装) */
+  /** 制約定義 (β-2) */
   constraints?: ConstraintDefinition[];
-  /** トリガー定義 (β-4 で中身を実装) */
+  /** DEFAULT 値定義 (β-4) */
+  defaults?: DefaultDefinition[];
+  /** トリガー定義 (β-4) */
   triggers?: TriggerDefinition[];
   createdAt: string;
   updatedAt: string;
