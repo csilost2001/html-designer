@@ -661,6 +661,9 @@ function createMcpServer(): Server {
                   unique: idx.unique,
                 };
               }),
+              ...((t.constraints as unknown[])?.length ? { constraints: t.constraints } : {}),
+              ...((t.defaults as unknown[])?.length ? { defaults: t.defaults } : {}),
+              ...((t.triggers as unknown[])?.length ? { triggers: t.triggers } : {}),
             };
           }),
           relations: [] as Array<Record<string, unknown>>,
