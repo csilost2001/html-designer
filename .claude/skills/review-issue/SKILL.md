@@ -44,15 +44,17 @@ ISSUE 本文・コメントが**実装計画の一次ソース**。その上に 
 
 ### Step 0: 情報収集 — 並列実行
 
+**同じ ISSUE への 2 回目以降の呼び出しかもしれないため、最新状態とコメント履歴を必ず取得して現状を判断する。** 過去の Claude Review (ISSUE 完了監査) コメントがあっても「既に監査済み」で即終了せず、追加 PR マージや実装状況の変化を踏まえて **初回監査** / **再監査** / **再監査不要 (変化なし)** のいずれかを判断する。
+
 以下を並列で:
 
-- `gh issue view $ARGUMENTS --comments`
+- `gh issue view $ARGUMENTS --comments` (**過去の Claude Review コメントも確認**)
 - `gh issue view $ARGUMENTS --json title,state,body,labels,assignees,closedAt`
 - 紐づく PR 一覧: `gh pr list --search "$ARGUMENTS in:body" --state all --json number,title,state,mergedAt,body`
   - または ISSUE 本文・コメント内の `#<N>` 参照から抽出
 - spec 参照: ISSUE 本文から `docs/spec/` へのリンクを抽出し全文読む
 
-**前提チェック**: 紐づく PR に `OPEN` / `DRAFT` があれば、「全 PR マージ後に再実行してください」と報告して終了。
+**前提チェック**: 紐づく PR に `OPEN` / `DRAFT` があれば、「全 PR マージ後に再実行してください」と報告して終了。過去の Claude Review コメントがあれば、前回監査以降の追加 PR マージ有無を確認して再監査の要否を判断する。
 
 ### Step 1: 実装計画項目の列挙
 
