@@ -538,8 +538,14 @@ class WsBridge extends EventEmitter {
         case "reorderViews": {
           const { orderedIds } = (params ?? {}) as { orderedIds: string[] };
           const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
-          const viewsMap = new Map((existing?.views ?? []).map((v) => [(v as { id: string }).id, v]));
-          const reordered = orderedIds.map((id) => viewsMap.get(id)).filter(Boolean);
+          const existingViews = existing?.views ?? [];
+          const viewsMap = new Map(existingViews.map((v) => [(v as { id: string }).id, v]));
+          const knownIds = new Set(orderedIds);
+          const unknownViews = existingViews.filter((v) => !knownIds.has((v as { id: string }).id));
+          const reordered = [
+            ...orderedIds.map((id) => viewsMap.get(id)).filter(Boolean),
+            ...unknownViews,
+          ];
           await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views: reordered });
           respond({ success: true });
           this.broadcast("viewChanged", { reordered: true }, clientId);
