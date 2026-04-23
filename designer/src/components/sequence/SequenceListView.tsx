@@ -124,12 +124,24 @@ export function SequenceListView() {
     editor.markDeleted(items.map((s) => s.id));
   };
 
+  const makeCopyId = (baseId: string, existingIds: Set<string>): string => {
+    let candidate = baseId + "_copy";
+    let n = 2;
+    while (existingIds.has(candidate)) {
+      candidate = `${baseId}_copy_${n}`;
+      n++;
+    }
+    return candidate;
+  };
+
   const handleDuplicate = async (items: SequenceMeta[]) => {
     const newIds: string[] = [];
+    const existingIds = new Set(editor.items.map((s) => s.id));
     for (const s of items) {
       const full = await loadSequence(s.id);
       if (!full) continue;
-      const newId = s.id + "_copy";
+      const newId = makeCopyId(s.id, existingIds);
+      existingIds.add(newId);
       const dup: SequenceDefinition = {
         ...full,
         id: newId,
@@ -169,10 +181,12 @@ export function SequenceListView() {
       selection.setSelectedIds(new Set(moved.map((s) => s.id)));
     } else {
       const newIds: string[] = [];
+      const existingIds = new Set(editor.items.map((s) => s.id));
       for (const s of clipItems) {
         const full = await loadSequence(s.id);
         if (!full) continue;
-        const newId = s.id + "_copy";
+        const newId = makeCopyId(s.id, existingIds);
+        existingIds.add(newId);
         const dup: SequenceDefinition = {
           ...full,
           id: newId,
