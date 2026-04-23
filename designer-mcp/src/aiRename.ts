@@ -15,7 +15,10 @@ import * as path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { wsBridge } from "./wsBridge.js";
 
-const SKILL_PATH = ".claude/skills/rename-screen-ids/SKILL.md";
+// projectStorage.ts と同一パターン: src/aiRename.ts → src/ → designer-mcp/ → html-designer/
+const PROJECT_ROOT = path.resolve(import.meta.dirname, "../..");
+const SKILL_PATH = path.join(PROJECT_ROOT, ".claude/skills/rename-screen-ids/SKILL.md");
+const MCP_CONFIG = path.join(PROJECT_ROOT, ".mcp.json");
 const TIMEOUT_MS = 60_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,8 +29,8 @@ export interface AiRenameProgressEvent {
   mapping?: Record<string, string>;
 }
 
-function sendProgress(clientId: string, event: AiRenameProgressEvent): void {
-  wsBridge.sendToClient(clientId, "aiRenameProgress", event);
+function sendProgress(clientId: string, sessionId: string | undefined, event: AiRenameProgressEvent): void {
+  wsBridge.sendToClient(clientId, "aiRenameProgress", { ...event, sessionId });
 }
 
 const CORS_HEADERS = {
@@ -76,15 +79,15 @@ export async function handleAuthCheck(req: IncomingMessage, res: ServerResponse)
 /** POST /ai/rename-screen-ids/propose */
 export async function handlePropose(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method === "OPTIONS") { res.writeHead(204, CORS_HEADERS); res.end(); return; }
-  let body: { screenId?: string; clientId?: string };
+  let body: { screenId?: string; clientId?: string; sessionId?: string };
   try {
-    body = JSON.parse(await readBody(req)) as { screenId?: string; clientId?: string };
+    body = JSON.parse(await readBody(req)) as { screenId?: string; clientId?: string; sessionId?: string };
   } catch {
     jsonBody(res, 400, { error: "リクエストボディが不正です" });
     return;
   }
 
-  const { screenId, clientId } = body;
+  const { screenId, clientId, sessionId } = body;
 
   if (typeof screenId !== "string" || !UUID_RE.test(screenId)) {
     jsonBody(res, 400, { error: "screenId は UUID 形式で指定してください" });
@@ -96,7 +99,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
   }
 
   if (!checkAuth()) {
-    sendProgress(clientId, {
+    sendProgress(clientId, sessionId, {
       stage: "error",
       message: "claude CLI が未認証です",
       error: "claude login を実行してください",
@@ -107,7 +110,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
 
   let skillContent: string;
   try {
-    skillContent = await fs.readFile(path.resolve(SKILL_PATH), "utf-8");
+    skillContent = await fs.readFile(SKILL_PATH, "utf-8");
   } catch {
     jsonBody(res, 500, { error: `SKILL.md が見つかりません: ${SKILL_PATH}` });
     return;
@@ -120,7 +123,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
     "Step 1-3 を実行し、推論した mapping を最終行に `FINAL_MAPPING: {\"oldId\": \"newId\", ...}` の JSON 形式で出力。\n" +
     "apply_rename_mapping は呼ばない (ブラウザ側で確認後に別途実行される)。";
 
-  sendProgress(clientId, { stage: "analyzing", message: "未命名項目を取得中..." });
+  sendProgress(clientId, sessionId, { stage: "analyzing", message: "未命名項目を取得中..." });
 
   let mapping: Record<string, string> = {};
   let timedOut = false;
@@ -128,8 +131,8 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
   await new Promise<void>((resolve) => {
     const child = spawn(
       "claude",
-      ["-p", prompt, "--mcp-config", "./.mcp.json", "--output-format", "stream-json", "--max-turns", "20"],
-      { cwd: process.cwd(), windowsHide: true },
+      ["-p", prompt, "--mcp-config", MCP_CONFIG, "--output-format", "stream-json", "--max-turns", "20"],
+      { cwd: PROJECT_ROOT, windowsHide: true },
     );
 
     const timeout = setTimeout(() => {
@@ -159,7 +162,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
 
         if (type === "assistant" && !inferringNotified) {
           inferringNotified = true;
-          sendProgress(clientId, { stage: "inferring", message: "業務名を推論中..." });
+          sendProgress(clientId, sessionId, { stage: "inferring", message: "業務名を推論中..." });
         }
 
         // content_block_delta に text があれば進捗として流す
@@ -179,7 +182,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
       } catch { /* non-JSON lines are ignored */ }
     });
 
-    child.stderr.on("data", (_d: Buffer) => { /* suppress stderr */ });
+    child.stderr.on("data", (d: Buffer) => { console.error("[aiRename] claude stderr:", d.toString().trim()); });
 
     child.on("close", () => {
       clearTimeout(timeout);
@@ -193,7 +196,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
   });
 
   if (timedOut) {
-    sendProgress(clientId, {
+    sendProgress(clientId, sessionId, {
       stage: "error",
       message: "タイムアウト (60秒) しました",
       error: "claude CLI の実行がタイムアウトしました",
@@ -202,7 +205,7 @@ export async function handlePropose(req: IncomingMessage, res: ServerResponse): 
     return;
   }
 
-  sendProgress(clientId, {
+  sendProgress(clientId, sessionId, {
     stage: "proposed",
     message: `${Object.keys(mapping).length} 件のリネームを提案します`,
     mapping,

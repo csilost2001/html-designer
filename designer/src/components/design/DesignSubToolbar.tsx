@@ -68,9 +68,10 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
   const [aiRenameAuthOk, setAiRenameAuthOk] = useState<boolean | null>(null);
   const [aiRenameProgress, setAiRenameProgress] = useState<AiRenameProgress | null>(null);
   const [aiRenameMapping, setAiRenameMapping] = useState<Record<string, string> | null>(null);
-  const [aiRenameToast, setAiRenameToast] = useState<string | null>(null);
+  const [aiRenameToast, setAiRenameToast] = useState<{ msg: string; warn: boolean } | null>(null);
   const aiRenameAbortRef = useRef<AbortController | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiRenameSessionRef = useRef<string | null>(null);
 
   // auth-check: MCP 接続時に 1 回だけ実行
   useEffect(() => {
@@ -81,10 +82,11 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
       .catch(() => { setAiRenameAuthOk(false); });
   }, [mcpStatus, screenId]);
 
-  // aiRenameProgress イベントを購読
+  // aiRenameProgress イベントを購読（セッション ID が一致するイベントのみ処理）
   useEffect(() => {
     const unsub = mcpBridge.onBroadcast("aiRenameProgress", (data) => {
-      const ev = data as AiRenameProgress;
+      const ev = data as AiRenameProgress & { sessionId?: string };
+      if (ev.sessionId && ev.sessionId !== aiRenameSessionRef.current) return;
       setAiRenameProgress(ev);
       if (ev.stage === "proposed" && ev.mapping) {
         setAiRenameMapping(ev.mapping);
@@ -93,14 +95,16 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
     return unsub;
   }, []);
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, warn = false) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setAiRenameToast(msg);
+    setAiRenameToast({ msg, warn });
     toastTimerRef.current = setTimeout(() => setAiRenameToast(null), 4000);
   }, []);
 
   const handleAiRename = useCallback(async () => {
     if (!screenId) return;
+    const sessionId = crypto.randomUUID();
+    aiRenameSessionRef.current = sessionId;
     const abort = new AbortController();
     aiRenameAbortRef.current = abort;
     setAiRenameProgress({ stage: "auth-check", message: "接続中..." });
@@ -109,7 +113,7 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
       const res = await fetch(`${MCP_HTTP_BASE}/ai/rename-screen-ids/propose`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ screenId, clientId: mcpBridge.getClientId() }),
+        body: JSON.stringify({ screenId, clientId: mcpBridge.getClientId(), sessionId }),
         signal: abort.signal,
       });
       if (!res.ok) {
@@ -124,6 +128,7 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
   }, [screenId]);
 
   const handleAiRenameCancel = useCallback(() => {
+    aiRenameSessionRef.current = null;
     aiRenameAbortRef.current?.abort();
     setAiRenameProgress(null);
     setAiRenameMapping(null);
@@ -153,7 +158,7 @@ export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeC
     setAiRenameProgress({ stage: "done", message: "完了" });
     setAiRenameMapping(null);
     setTimeout(() => setAiRenameProgress(null), 800);
-    showToast(`リネーム完了: 成功 ${succeeded} 件、失敗 ${failed} 件${skipped > 0 ? `、スキップ ${skipped} 件` : ""}`);
+    showToast(`リネーム完了: 成功 ${succeeded} 件、失敗 ${failed} 件${skipped > 0 ? `、スキップ ${skipped} 件` : ""}`, failed > 0);
   }, [screenId, aiRenameMapping, showToast]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [canUndo, setCanUndo] = useState(false);
@@ -519,8 +524,9 @@ ${html}
       )}
 
       {aiRenameToast && (
-        <div className="ai-rename-toast">
-          <i className="bi bi-check-circle-fill" /> {aiRenameToast}
+        <div className={`ai-rename-toast${aiRenameToast.warn ? " is-warn" : ""}`}>
+          <i className={`bi ${aiRenameToast.warn ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill"}`} />
+          {aiRenameToast.msg}
         </div>
       )}
 
