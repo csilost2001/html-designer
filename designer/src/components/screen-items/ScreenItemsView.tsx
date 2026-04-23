@@ -63,13 +63,11 @@ const VALUE_SOURCE_KINDS = [
 type OutputFieldsProps = {
   item: ScreenItem;
   idx: number;
-  actionGroups: ActionGroupMeta[];
-  tables: TableMeta[];
   onUpdate: (idx: number, patch: Partial<ScreenItem>) => void;
   onCommit: () => void;
 };
 
-function OutputFields({ item, idx, actionGroups, tables, onUpdate, onCommit }: OutputFieldsProps) {
+function OutputFields({ item, idx, onUpdate, onCommit }: OutputFieldsProps) {
   const kind = item.valueFrom?.kind ?? "";
 
   const handleKindChange = (newKind: string) => {
@@ -78,9 +76,9 @@ function OutputFields({ item, idx, actionGroups, tables, onUpdate, onCommit }: O
     } else if (newKind === "flowVariable") {
       onUpdate(idx, { valueFrom: { kind: "flowVariable", variableName: "" } });
     } else if (newKind === "tableColumn") {
-      onUpdate(idx, { valueFrom: { kind: "tableColumn", tableId: "", columnName: "" } });
+      onUpdate(idx, { valueFrom: { kind: "tableColumn", tableName: "", columnName: "" } });
     } else if (newKind === "viewColumn") {
-      onUpdate(idx, { valueFrom: { kind: "viewColumn", viewId: "", columnName: "" } });
+      onUpdate(idx, { valueFrom: { kind: "viewColumn", viewName: "", columnName: "" } });
     } else if (newKind === "expression") {
       onUpdate(idx, { valueFrom: { kind: "expression", expression: "" } });
     }
@@ -151,13 +149,13 @@ function OutputFields({ item, idx, actionGroups, tables, onUpdate, onCommit }: O
           {kind === "tableColumn" && (
             <>
               <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">テーブル</span>
+                <span className="screen-items-detail-label">テーブル名</span>
                 <input
                   type="text"
                   list="screen-items-table-list"
                   className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>).tableId}
-                  onChange={(e) => handleValueFromPatch({ tableId: e.target.value } as Partial<ValueSource>)}
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>).tableName}
+                  onChange={(e) => handleValueFromPatch({ tableName: e.target.value } as Partial<ValueSource>)}
                   onBlur={onCommit}
                   placeholder="users"
                 />
@@ -177,11 +175,14 @@ function OutputFields({ item, idx, actionGroups, tables, onUpdate, onCommit }: O
           {kind === "viewColumn" && (
             <>
               <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">ビュー</span>
+                <span className="screen-items-detail-label">
+                  ビュー名
+                  <span className="screen-items-todo-note" title="ビュー一覧は #376 で実装予定">※手動入力</span>
+                </span>
                 <input
                   className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).viewId}
-                  onChange={(e) => handleValueFromPatch({ viewId: e.target.value } as Partial<ValueSource>)}
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).viewName}
+                  onChange={(e) => handleValueFromPatch({ viewName: e.target.value } as Partial<ValueSource>)}
                   onBlur={onCommit}
                   placeholder="v_customer_summary"
                 />
@@ -212,15 +213,6 @@ function OutputFields({ item, idx, actionGroups, tables, onUpdate, onCommit }: O
           )}
         </div>
       </div>
-      <datalist id="screen-items-display-format-list">
-        {DISPLAY_FORMAT_PRESETS.map((f) => <option key={f} value={f} />)}
-      </datalist>
-      <datalist id="screen-items-action-group-list">
-        {actionGroups.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
-      </datalist>
-      <datalist id="screen-items-table-list">
-        {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
-      </datalist>
     </div>
   );
 }
@@ -1073,8 +1065,6 @@ export function ScreenItemsView() {
                           <OutputFields
                             item={item}
                             idx={i}
-                            actionGroups={actionGroups}
-                            tables={tables}
                             onUpdate={handleUpdateItem}
                             onCommit={commit}
                           />
@@ -1137,6 +1127,15 @@ export function ScreenItemsView() {
             </div>
             <datalist id="screen-items-type-list">
               {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}
+            </datalist>
+            <datalist id="screen-items-display-format-list">
+              {DISPLAY_FORMAT_PRESETS.map((f) => <option key={f} value={f} />)}
+            </datalist>
+            <datalist id="screen-items-action-group-list">
+              {actionGroups.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
+            </datalist>
+            <datalist id="screen-items-table-list">
+              {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
             </datalist>
           </div>
           </>

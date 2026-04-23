@@ -100,8 +100,8 @@ interface ScreenItem {
  */
 type ValueSource =
   | { kind: "flowVariable"; actionGroupId?: string; variableName: string }
-  | { kind: "tableColumn"; tableId: string; columnName: string }
-  | { kind: "viewColumn"; viewId: string; columnName: string }
+  | { kind: "tableColumn"; tableName: string; columnName: string }   // tableName は物理名
+  | { kind: "viewColumn"; viewName: string; columnName: string }     // viewName は物理名
   | { kind: "expression"; expression: string };
 
 interface ScreenItemsFile {

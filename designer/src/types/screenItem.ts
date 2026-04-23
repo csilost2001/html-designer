@@ -14,8 +14,8 @@ import type { FieldType } from "./action";
  */
 export type ValueSource =
   | { kind: "flowVariable"; actionGroupId?: string; variableName: string }
-  | { kind: "tableColumn"; tableId: string; columnName: string }
-  | { kind: "viewColumn"; viewId: string; columnName: string }
+  | { kind: "tableColumn"; tableName: string; columnName: string }
+  | { kind: "viewColumn"; viewName: string; columnName: string }
   | { kind: "expression"; expression: string };
 
 export interface ScreenItemSelectOption {
