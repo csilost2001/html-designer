@@ -198,6 +198,69 @@ describe("getRenameContext", () => {
     expect(result.unnamedItems[0].headingContext).toEqual([]);
   });
 
+  it("validation-input (tagName なし) の htmlFragment が取得できる (#357)", async () => {
+    store.screenItems[SCREEN_ID] = {
+      screenId: SCREEN_ID,
+      version: "0.1.0",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      items: [{ id: "textInput1", label: "氏名", type: "string" }],
+    };
+    store.screens[SCREEN_ID] = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              { tagName: "h3", components: [{ type: "textnode", content: "ユーザー情報" }] },
+              {
+                type: "validation-input",
+                void: true,
+                attributes: { type: "text", id: "textInput1", name: "textInput1", placeholder: "お名前" },
+              },
+            ],
+          },
+        }],
+      }],
+    };
+    const result = await getRenameContext(SCREEN_ID);
+    expect(result.unnamedItems).toHaveLength(1);
+    const item = result.unnamedItems[0];
+    // void-element として <input ...> が正しく出力されることを確認
+    expect(item.htmlFragment).toMatch(/<input[^>]*id="textInput1"/);
+    expect(item.headingContext).toContain("ユーザー情報");
+  });
+
+  it("validation-select / validation-textarea も HTML 断片に含まれる (#357)", async () => {
+    store.screenItems[SCREEN_ID] = {
+      screenId: SCREEN_ID,
+      version: "0.1.0",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      items: [
+        { id: "select1",   label: "種別",     type: "string" },
+        { id: "textarea1", label: "備考",     type: "string" },
+      ],
+    };
+    store.screens[SCREEN_ID] = {
+      pages: [{
+        frames: [{
+          component: {
+            type: "wrapper",
+            components: [
+              { type: "validation-select",   attributes: { id: "select1",   name: "select1" } },
+              { type: "validation-textarea", attributes: { id: "textarea1", name: "textarea1" } },
+            ],
+          },
+        }],
+      }],
+    };
+    const result = await getRenameContext(SCREEN_ID);
+    expect(result.unnamedItems).toHaveLength(2);
+    const selectItem   = result.unnamedItems.find((i) => i.id === "select1");
+    const textareaItem = result.unnamedItems.find((i) => i.id === "textarea1");
+    expect(selectItem?.htmlFragment).toContain("select1");
+    expect(textareaItem?.htmlFragment).toContain("textarea1");
+  });
+
   it("label / placeholder が screen-items から引き継がれる", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
