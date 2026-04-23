@@ -168,7 +168,8 @@
           "name": "poNumber",
           "label": "発注番号",
           "type": "string",
-          "description": "@conv.numbering.orderNumber 準拠 ORD-YYYY-NNNN"
+          "format": "@conv.numbering.orderNumber",
+          "description": "ORD-YYYY-NNNN 形式 (PG sequence + trigger で自動採番)"
         },
         {
           "name": "totalAmount",
@@ -225,7 +226,7 @@
               "field": "items[*].quantity",
               "type": "range",
               "min": 1,
-              "max": 9999,
+              "maxRef": "@conv.limit.quantityMax",
               "message": "@conv.msg.outOfRange"
             }
           ],
