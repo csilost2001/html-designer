@@ -18,12 +18,13 @@ const TABLES_DIR = path.join(DATA_DIR, "tables");
 const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
+const SEQUENCES_DIR = path.join(DATA_DIR, "sequences");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
 export const CONVENTIONS_FILE = path.join(CONVENTIONS_DIR, "catalog.json");
 
-/** data/ と data/screens/ と data/tables/ を作成（既存なら無視） */
+/** data/ ディレクトリ群を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.mkdir(SCREENS_DIR, { recursive: true });
@@ -31,6 +32,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(ACTIONS_DIR, { recursive: true });
   await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
   await fs.mkdir(SCREEN_ITEMS_DIR, { recursive: true });
+  await fs.mkdir(SEQUENCES_DIR, { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -80,6 +82,7 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
     case "actionGroup": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
     case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
+    case "sequence": return id ? path.join(SEQUENCES_DIR, `${id}.json`) : null;
     default: return null;
   }
 }
@@ -186,6 +189,24 @@ export async function writeScreenItems(screenId: string, data: unknown): Promise
 export async function deleteScreenItems(screenId: string): Promise<void> {
   try {
     await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
+  } catch { /* file not found is OK */ }
+}
+
+/** sequences/{sequenceId}.json を読み込み (#374) */
+export async function readSequence(sequenceId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(SEQUENCES_DIR, `${sequenceId}.json`));
+}
+
+/** sequences/{sequenceId}.json を書き込み (#374) */
+export async function writeSequence(sequenceId: string, data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(path.join(SEQUENCES_DIR, `${sequenceId}.json`), data);
+}
+
+/** sequences/{sequenceId}.json を削除（存在しない場合は無視） (#374) */
+export async function deleteSequence(sequenceId: string): Promise<void> {
+  try {
+    await fs.unlink(path.join(SEQUENCES_DIR, `${sequenceId}.json`));
   } catch { /* file not found is OK */ }
 }
 

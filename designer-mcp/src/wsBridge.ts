@@ -27,6 +27,9 @@ import {
   readScreenItems,
   writeScreenItems,
   deleteScreenItems,
+  readSequence,
+  writeSequence,
+  deleteSequence as deleteSequenceFile,
   getFileMtime,
 } from "./projectStorage.js";
 
@@ -476,6 +479,26 @@ class WsBridge extends EventEmitter {
           await deleteScreenItems(screenId);
           respond({ success: true });
           this.broadcast("screenItemsChanged", { screenId, deleted: true }, clientId);
+          break;
+        }
+        case "loadSequence": {
+          const { sequenceId } = (params ?? {}) as { sequenceId: string };
+          const seqData = await readSequence(sequenceId);
+          respond(seqData);
+          break;
+        }
+        case "saveSequence": {
+          const { sequenceId, data } = (params ?? {}) as { sequenceId: string; data: unknown };
+          await writeSequence(sequenceId, data);
+          respond({ success: true });
+          this.broadcast("sequenceChanged", { sequenceId }, clientId);
+          break;
+        }
+        case "deleteSequence": {
+          const { sequenceId } = (params ?? {}) as { sequenceId: string };
+          await deleteSequenceFile(sequenceId);
+          respond({ success: true });
+          this.broadcast("sequenceChanged", { sequenceId, deleted: true }, clientId);
           break;
         }
         case "getFileMtime": {
