@@ -5,7 +5,7 @@
  * PG工程のAIが正確に解釈可能な構造化フォーマットで、
  * テーブル定義・リレーション（物理/論理）・画面情報を統合出力する。
  */
-import type { TableDefinition } from "../types/table";
+import type { TableDefinition, ConstraintDefinition, DefaultDefinition, TriggerDefinition } from "../types/table";
 import type { ErRelation, ErLayout } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import type { ActionGroup, Step } from "../types/action";
@@ -39,6 +39,9 @@ export interface SpecTable {
   category?: string;
   columns: SpecColumn[];
   indexes: SpecIndex[];
+  constraints?: ConstraintDefinition[];
+  defaults?: DefaultDefinition[];
+  triggers?: TriggerDefinition[];
 }
 
 export interface SpecColumn {
@@ -232,6 +235,9 @@ function toSpecTable(t: TableDefinition): SpecTable {
       columns: idx.columns.map((ic) => ic.name),
       unique: idx.unique ?? false,
     })),
+    ...(t.constraints && t.constraints.length > 0 ? { constraints: t.constraints } : {}),
+    ...(t.defaults && t.defaults.length > 0 ? { defaults: t.defaults } : {}),
+    ...(t.triggers && t.triggers.length > 0 ? { triggers: t.triggers } : {}),
   };
 }
 
