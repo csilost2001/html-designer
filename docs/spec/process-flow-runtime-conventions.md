@@ -263,6 +263,8 @@ httpRoute.auth == "required" ?
 - `"default": true` が付いていないエントリは「オプション定義」(比較対象・将来用) として存在可
 - 1 カテゴリ内に複数 `"default": true` がある場合の動作は未定義 (バリデータが将来検出予定)
 - AI 実装者は `data/conventions/catalog.json` を「実装の前提条件」として最初に読む
+- **対象カテゴリ**: `scope` / `currency` / `tax` / `auth` / `db` の 5 カテゴリのみ。`msg` / `regex` / `limit` / `numbering` / `tx` / `externalOutcomeDefaults` はルックアップテーブルまたは複数方針の共存で「単一 default」の概念が適用されないため対象外
+- **注意 — キー名と `default` プロパティ名の重複**: `auth.default`・`db.default` 等、エントリのキー名が `"default"` の場合、新プロパティ `"default": true` を追加すると同名が 2 か所現れる。これは **JSON 構造上は問題ない** (キー名 `"default"` は object のキー、`"default": true` は そのオブジェクト内のプロパティ) が、視覚的に分かりにくい。既存キー名は互換性のため変更せず、コメントが必要な場合は `description` フィールドで補足する
 
 ```json
 // data/conventions/catalog.json の例

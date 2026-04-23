@@ -865,3 +865,35 @@ describe("process-flow.schema.json — DbAccessStep.bulkValues + BranchStep.tryS
     expect(ok).toBe(true);
   });
 });
+
+describe("process-flow.schema.json — ambientOverrides (#369)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("ambientOverrides (Record<string, string>) accept", () => {
+    const ok = validate({
+      ...base,
+      ambientOverrides: {
+        "currency": "@conv.currency.usd",
+        "scope.timezone": "UTC",
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ambientOverrides 省略 accept", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("ambientOverrides の value が string 以外 (number) なら reject", () => {
+    expect(validate({
+      ...base,
+      ambientOverrides: { "currency": 123 },
+    })).toBe(false);
+  });
+});
