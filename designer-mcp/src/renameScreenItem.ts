@@ -172,6 +172,44 @@ function renameInScreenValue(val: unknown, oldId: string, newId: string): { upda
   return { updated: val, changed: false };
 }
 
+// ── 複数 ID の一括 AG 参照更新 ──────────────────────────────────────────
+
+/**
+ * mapping の全エントリに対してアクショングループ内の screenItemRef.itemId を更新する。
+ * screen-items ファイルや画面 HTML は触らない (browser-first パスで使用)。
+ */
+export async function updateActionGroupRefs(
+  screenId: string,
+  mapping: Record<string, string>,
+): Promise<{ actionGroupsUpdated: string[]; refsRenamed: number }> {
+  const ags = (await listActionGroups()) as Array<{ id: string; name: string }>;
+  const updatedAgs: string[] = [];
+  let refsRenamed = 0;
+
+  for (const agMeta of ags) {
+    const ag = await readActionGroup(agMeta.id);
+    if (!ag) continue;
+
+    let current = ag as unknown;
+    let count = 0;
+
+    for (const [oldId, newId] of Object.entries(mapping)) {
+      const r = renameRefsInValue(current, screenId, oldId, newId);
+      count += r.count;
+      current = r.updated;
+    }
+
+    if (count > 0) {
+      (current as Record<string, unknown>).updatedAt = new Date().toISOString();
+      await writeActionGroup(agMeta.id, current);
+      updatedAgs.push(agMeta.id);
+      refsRenamed += count;
+    }
+  }
+
+  return { actionGroupsUpdated: updatedAgs, refsRenamed };
+}
+
 // ── 公開 API ────────────────────────────────────────────────────────────
 
 export async function renameScreenItemId(

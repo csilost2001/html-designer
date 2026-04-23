@@ -9,6 +9,7 @@
  */
 import { readScreenItems, readScreen } from "./projectStorage.js";
 import { renameScreenItemId, type RenameResult } from "./renameScreenItem.js";
+import { wsBridge } from "./wsBridge.js";
 
 // ── 自動生成 ID 判定 (designer/src/utils/screenItemNaming.ts と同一) ─────────
 
@@ -172,21 +173,38 @@ export interface ApplyRenameMappingResult {
 
 // ── 公開 API ────────────────────────────────────────────────────────────────
 
+type ScreenItemsFileShape = {
+  items: Array<{ id: string; type: string; label?: string; placeholder?: string }>;
+};
+
 /**
  * 指定画面の未命名画面項目と周辺 HTML コンテキストを返す。
- * 呼び出し元 (Claude Code) はこの情報を基に {oldId: newId} マッピングを推論する。
+ * ブラウザが開いていれば unsaved の canvas 状態を優先し、
+ * 未接続の場合はファイルベースの fallback を使用する。
  */
 export async function getRenameContext(screenId: string): Promise<GetRenameContextResult> {
-  const siFile = (await readScreenItems(screenId)) as {
-    items: Array<{ id: string; type: string; label?: string; placeholder?: string }>;
+  let siFile: ScreenItemsFileShape | null = null;
+  let html: string;
+
+  // ブラウザから live 状態を取得
+  const snapshot = await wsBridge.tryCommand("getCanvasSnapshot", { screenId }) as {
+    html: string;
+    screenItems: ScreenItemsFileShape | null;
   } | null;
+
+  if (snapshot) {
+    html = snapshot.html;
+    siFile = snapshot.screenItems;
+  } else {
+    // fallback: ファイルベース
+    siFile = (await readScreenItems(screenId)) as ScreenItemsFileShape | null;
+    const screenDoc = await readScreen(screenId);
+    html = screenToHtml(screenDoc);
+  }
 
   if (!siFile || !Array.isArray(siFile.items)) {
     return { screenId, unnamedItems: [], namedCount: 0 };
   }
-
-  const screenDoc = await readScreen(screenId);
-  const html = screenToHtml(screenDoc);
 
   let namedCount = 0;
   const unnamedItems: RenameContextItem[] = [];

@@ -242,6 +242,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     mcpBridge.setThemeHandler((themeId) =>
       handleThemeChangeRef.current(themeId as ThemeId)
     );
+    mcpBridge.setCurrentScreenId(screenId);
     mcpBridge.start(editor);
 
     // 他タブ/クライアントで同じ画面が変更されたとき。
@@ -263,6 +264,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       unsubscribe();
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
+      mcpBridge.setCurrentScreenId(null);
       mcpBridge.stop();
     };
   }, [screenId, tabId]);
