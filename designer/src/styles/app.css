@@ -1689,3 +1689,157 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   cursor: default;
   opacity: 0.4;
 }
+
+/* ── AI 命名 (#337) ─────────────────────────────────────────────────────────── */
+
+.ai-rename-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.ai-rename-modal {
+  background: var(--dz-bg-2);
+  border: 1px solid var(--dz-border);
+  border-radius: 12px;
+  width: 520px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.ai-rename-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dz-border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dz-text);
+}
+
+.ai-rename-modal-header i {
+  font-size: 16px;
+  color: var(--dz-accent);
+}
+
+.ai-rename-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ai-rename-stage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--dz-text);
+  margin-bottom: 12px;
+}
+
+.ai-rename-stage i {
+  font-size: 18px;
+  color: var(--dz-accent);
+  animation: ai-spin 1.5s linear infinite;
+}
+
+.ai-rename-stage.is-error i {
+  color: #dc3545;
+  animation: none;
+}
+
+.ai-rename-stage.is-proposed i,
+.ai-rename-stage.is-done i {
+  animation: none;
+}
+
+@keyframes ai-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ai-rename-error-detail {
+  font-size: 12px;
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+
+.ai-rename-mapping-title {
+  font-size: 13px;
+  color: var(--dz-text-dim);
+  margin: 0 0 10px;
+}
+
+.ai-rename-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ai-rename-table th {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--dz-bg-3);
+  border-bottom: 1px solid var(--dz-border);
+  color: var(--dz-text-dim);
+  font-weight: 600;
+}
+
+.ai-rename-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--dz-border);
+  color: var(--dz-text);
+}
+
+.ai-rename-table td code {
+  background: var(--dz-bg-3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.ai-rename-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--dz-border);
+}
+
+.ai-rename-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #198754;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toast-in 0.2s ease-out;
+}
+
+.ai-rename-toast.is-warn {
+  background: #fd7e14;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

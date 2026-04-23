@@ -435,6 +435,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
             onSaveToFile={handleSaveToFile}
             onReset={handleReset}
             backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
+            screenId={screenId}
           />
         </WithEditor>
 

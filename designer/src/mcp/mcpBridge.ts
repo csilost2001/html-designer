@@ -98,6 +98,10 @@ class McpBridgeImpl {
     { resolve: (r: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
   >();
 
+  getClientId(): string {
+    return this.clientId;
+  }
+
   // ── ハンドラ setter ────────────────────────────────────────────────────
 
   setThemeHandler(handler: ThemeHandler | null): void {

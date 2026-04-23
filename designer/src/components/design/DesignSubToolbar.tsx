@@ -1,13 +1,26 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useEditor } from "@grapesjs/react";
 import type { PanelMode, ThemeId } from "../Designer";
 import type { McpStatus } from "../../mcp/mcpBridge";
+import { mcpBridge } from "../../mcp/mcpBridge";
+import { generateUUID } from "../../utils/uuid";
 import { CodeEditorModal } from "../CodeEditorModal";
 import { SaveBlockModal } from "../SaveBlockModal";
 import { SaveResetButtons } from "../common/SaveResetButtons";
 import { EditorHeader } from "../common/EditorHeader";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { upsertCustomBlock } from "../../store/customBlockStore";
+
+const MCP_HTTP_BASE = `http://${window.location.hostname}:5179`;
+
+type AiRenameStage = "auth-check" | "analyzing" | "inferring" | "proposed" | "applying" | "done" | "error";
+
+interface AiRenameProgress {
+  stage: AiRenameStage;
+  message: string;
+  error?: string;
+  mapping?: Record<string, string>;
+}
 
 export const CUSTOM_BLOCK_CATEGORY = "マイブロック";
 
@@ -45,11 +58,110 @@ interface Props {
   isSaving?: boolean;
   onSaveToFile?: () => Promise<void>;
   onReset?: () => Promise<void>;
+  screenId?: string;
 }
 
-export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset }: Props) {
+export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
+
+  // ── AI 命名 (#337) ───────────────────────────────────────────────────────
+  const [aiRenameAuthOk, setAiRenameAuthOk] = useState<boolean | null>(null);
+  const [aiRenameProgress, setAiRenameProgress] = useState<AiRenameProgress | null>(null);
+  const [aiRenameMapping, setAiRenameMapping] = useState<Record<string, string> | null>(null);
+  const [aiRenameToast, setAiRenameToast] = useState<{ msg: string; warn: boolean } | null>(null);
+  const aiRenameAbortRef = useRef<AbortController | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiRenameSessionRef = useRef<string | null>(null);
+
+  // auth-check: MCP 接続時に 1 回だけ実行
+  useEffect(() => {
+    if (mcpStatus !== "connected" || !screenId) return;
+    fetch(`${MCP_HTTP_BASE}/ai/rename-screen-ids/auth-check`)
+      .then((r) => r.json())
+      .then((d: unknown) => { setAiRenameAuthOk((d as { authenticated: boolean }).authenticated); })
+      .catch(() => { setAiRenameAuthOk(false); });
+  }, [mcpStatus, screenId]);
+
+  // aiRenameProgress イベントを購読（セッション ID が一致するイベントのみ処理）
+  useEffect(() => {
+    const unsub = mcpBridge.onBroadcast("aiRenameProgress", (data) => {
+      const ev = data as AiRenameProgress & { sessionId?: string };
+      if (ev.sessionId && ev.sessionId !== aiRenameSessionRef.current) return;
+      setAiRenameProgress(ev);
+      if (ev.stage === "proposed" && ev.mapping) {
+        setAiRenameMapping(ev.mapping);
+      }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
+
+  const showToast = useCallback((msg: string, warn = false) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setAiRenameToast({ msg, warn });
+    toastTimerRef.current = setTimeout(() => setAiRenameToast(null), 4000);
+  }, []);
+
+  const handleAiRename = useCallback(async () => {
+    if (!screenId) return;
+    const sessionId = generateUUID();
+    aiRenameSessionRef.current = sessionId;
+    const abort = new AbortController();
+    aiRenameAbortRef.current = abort;
+    setAiRenameProgress({ stage: "auth-check", message: "接続中..." });
+    setAiRenameMapping(null);
+    try {
+      const res = await fetch(`${MCP_HTTP_BASE}/ai/rename-screen-ids/propose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ screenId, clientId: mcpBridge.getClientId(), sessionId }),
+        signal: abort.signal,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "不明なエラー" })) as { error?: string };
+        setAiRenameProgress({ stage: "error", message: "サーバーエラー", error: err.error });
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        setAiRenameProgress({ stage: "error", message: "通信エラー", error: String(e) });
+      }
+    }
+  }, [screenId]);
+
+  const handleAiRenameCancel = useCallback(() => {
+    aiRenameSessionRef.current = null;
+    aiRenameAbortRef.current?.abort();
+    setAiRenameProgress(null);
+    setAiRenameMapping(null);
+  }, []);
+
+  const handleAiRenameApply = useCallback(async () => {
+    if (!screenId || !aiRenameMapping) return;
+    const entries = Object.entries(aiRenameMapping);
+    if (entries.length === 0) {
+      setAiRenameProgress(null);
+      setAiRenameMapping(null);
+      showToast("リネーム対象がありません");
+      return;
+    }
+    setAiRenameProgress({ stage: "applying", message: `${entries.length} 件を適用中...` });
+    let succeeded = 0;
+    let failed = 0;
+    for (const [oldId, newId] of entries) {
+      try {
+        await mcpBridge.request("renameScreenItem", { screenId, oldId, newId });
+        succeeded++;
+      } catch {
+        failed++;
+      }
+    }
+    setAiRenameProgress({ stage: "done", message: "完了" });
+    setAiRenameMapping(null);
+    setTimeout(() => setAiRenameProgress(null), 800);
+    showToast(`リネーム完了: 成功 ${succeeded} 件、失敗 ${failed} 件`, failed > 0);
+  }, [screenId, aiRenameMapping, showToast]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -277,6 +389,25 @@ ${html}
         }
         centerTools={
           <>
+            {screenId && (
+              <>
+                <button
+                  className="icon-btn"
+                  onClick={() => { void handleAiRename(); }}
+                  disabled={!aiRenameAuthOk || aiRenameProgress !== null}
+                  title={
+                    aiRenameAuthOk === false
+                      ? "claude CLI が未認証です (claude login を実行してください)"
+                      : aiRenameAuthOk === null
+                      ? "認証を確認中..."
+                      : "ID を AI で再命名"
+                  }
+                >
+                  <i className="bi bi-stars" />
+                </button>
+                <div className="divider" />
+              </>
+            )}
             <button className="icon-btn" onClick={handlePreview} title="プレビュー (Ctrl+P)">
               <i className="bi bi-eye" />
             </button>
@@ -385,6 +516,22 @@ ${html}
         }
       />
 
+      {aiRenameProgress && (
+        <AiRenameModal
+          progress={aiRenameProgress}
+          mapping={aiRenameMapping}
+          onCancel={handleAiRenameCancel}
+          onApply={() => { void handleAiRenameApply(); }}
+        />
+      )}
+
+      {aiRenameToast && (
+        <div className={`ai-rename-toast${aiRenameToast.warn ? " is-warn" : ""}`}>
+          <i className={`bi ${aiRenameToast.warn ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill"}`} />
+          {aiRenameToast.msg}
+        </div>
+      )}
+
       <CodeEditorModal
         open={codeModalOpen}
         initialHtml={codeModalHtml}
@@ -402,6 +549,92 @@ ${html}
         onClose={() => setSaveBlockOpen(false)}
       />
     </>
+  );
+}
+
+interface AiRenameModalProps {
+  progress: AiRenameProgress;
+  mapping: Record<string, string> | null;
+  onCancel: () => void;
+  onApply: () => void;
+}
+
+function AiRenameModal({ progress, mapping, onCancel, onApply }: AiRenameModalProps) {
+  const isApplying = progress.stage === "applying" || progress.stage === "done";
+  const isProposed = progress.stage === "proposed" && mapping !== null;
+  const isError = progress.stage === "error";
+
+  const stageIcon: Record<AiRenameStage, string> = {
+    "auth-check": "bi-shield-check",
+    "analyzing": "bi-search",
+    "inferring": "bi-cpu",
+    "proposed": "bi-list-check",
+    "applying": "bi-arrow-repeat",
+    "done": "bi-check-circle-fill",
+    "error": "bi-exclamation-triangle-fill",
+  };
+
+  return (
+    <div className="ai-rename-overlay">
+      <div className="ai-rename-modal">
+        <div className="ai-rename-modal-header">
+          <i className="bi bi-stars" /> IDを AI で再命名
+        </div>
+
+        <div className="ai-rename-modal-body">
+          <div className={`ai-rename-stage is-${progress.stage}`}>
+            <i className={`bi ${stageIcon[progress.stage]}`} />
+            <span>{progress.message}</span>
+          </div>
+
+          {isError && progress.error && (
+            <div className="ai-rename-error-detail">{progress.error}</div>
+          )}
+
+          {isProposed && mapping && (
+            <div className="ai-rename-mapping">
+              <p className="ai-rename-mapping-title">
+                以下の {Object.keys(mapping).length} 件をリネームします:
+              </p>
+              <table className="ai-rename-table">
+                <thead>
+                  <tr>
+                    <th>現在の ID</th>
+                    <th>推論した名前</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(mapping).map(([oldId, newId]) => (
+                    <tr key={oldId}>
+                      <td><code>{oldId}</code></td>
+                      <td><code>{newId}</code></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="ai-rename-modal-footer">
+          {!isApplying && (
+            <button className="btn-secondary-sm" onClick={onCancel}>
+              キャンセル
+            </button>
+          )}
+          {isProposed && (
+            <button className="btn-primary-sm" onClick={onApply}>
+              <i className="bi bi-check-lg" /> 適用する
+            </button>
+          )}
+          {isError && (
+            <button className="btn-secondary-sm" onClick={onCancel}>
+              閉じる
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
