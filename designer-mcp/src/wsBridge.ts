@@ -30,6 +30,8 @@ import {
   readSequence,
   writeSequence,
   deleteSequence as deleteSequenceFile,
+  readViewsFile,
+  writeViewsFile,
   getFileMtime,
 } from "./projectStorage.js";
 
@@ -499,6 +501,38 @@ class WsBridge extends EventEmitter {
           await deleteSequenceFile(sequenceId);
           respond({ success: true });
           this.broadcast("sequenceChanged", { sequenceId, deleted: true }, clientId);
+          break;
+        }
+        case "loadViewsFile": {
+          const data = await readViewsFile();
+          respond(data);
+          break;
+        }
+        case "loadView": {
+          const { viewId } = (params ?? {}) as { viewId: string };
+          const file = (await readViewsFile()) as { views?: { id: string }[] } | null;
+          const view = file?.views?.find((v) => v.id === viewId) ?? null;
+          respond(view);
+          break;
+        }
+        case "saveView": {
+          const { viewId, data } = (params ?? {}) as { viewId: string; data: unknown };
+          const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
+          const views: unknown[] = existing?.views ? [...existing.views] : [];
+          const idx = views.findIndex((v) => (v as { id: string }).id === viewId);
+          if (idx >= 0) { views[idx] = data; } else { views.push(data); }
+          await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views });
+          respond({ success: true });
+          this.broadcast("viewChanged", { viewId }, clientId);
+          break;
+        }
+        case "deleteView": {
+          const { viewId } = (params ?? {}) as { viewId: string };
+          const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
+          const views = (existing?.views ?? []).filter((v) => (v as { id: string }).id !== viewId);
+          await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views });
+          respond({ success: true });
+          this.broadcast("viewChanged", { viewId, deleted: true }, clientId);
           break;
         }
         case "getFileMtime": {
