@@ -282,10 +282,10 @@
         {
           "id": "step-04",
           "type": "compute",
-          "description": "行金額配列を初期化 (@conv.currency.jpy: JPY, subunit=0 前提で整数演算)",
+          "description": "発注明細値オブジェクト配列を初期化 (ループで push し step-10 の一括 INSERT に使用)",
           "maturity": "committed",
           "expression": "[]",
-          "outputBinding": "lineAmounts"
+          "outputBinding": "poItemValues"
         },
 
         {
@@ -337,10 +337,10 @@
                   {
                     "id": "step-05-03",
                     "type": "compute",
-                    "description": "行金額 = 単価 × 数量 (整数演算、@conv.currency.jpy subunit=0)",
+                    "description": "明細オブジェクト生成 (lineAmount = 単価 × 数量、@conv.currency.jpy subunit=0 で整数演算) → poItemValues に追加",
                     "maturity": "committed",
-                    "expression": "@itemInfo.unit_price * @item.quantity",
-                    "outputBinding": { "name": "lineAmounts", "operation": "push" }
+                    "expression": "{ itemId: @item.itemId, quantity: @item.quantity, unitPrice: @itemInfo.unit_price, lineAmount: @itemInfo.unit_price * @item.quantity }",
+                    "outputBinding": { "name": "poItemValues", "operation": "push" }
                   }
                 ]
               }
@@ -353,7 +353,7 @@
           "type": "compute",
           "description": "小計 = Σ 行金額",
           "maturity": "committed",
-          "expression": "@lineAmounts.reduce((a, b) => a + b, 0)",
+          "expression": "@poItemValues.reduce((a, b) => a + b.lineAmount, 0)",
           "outputBinding": "subtotal"
         },
 
@@ -429,7 +429,7 @@
           "httpCall": {
             "method": "POST",
             "path": "/v3/mail/send",
-            "body": "{ to: @supplier.email, subject: '発注確認 ' + @newOrder.po_number, content: '発注金額: ' + (@subtotal + @taxAmount) + '円 (税込, @conv.scope.timezone: JST)' }"
+            "body": "{ to: @supplier.email, subject: '発注確認 ' + @newOrder.po_number, content: '発注金額: ' + (@subtotal + @taxAmount) + '円 (税込)' }"
           },
           "fireAndForget": true,
           "outcomes": {
