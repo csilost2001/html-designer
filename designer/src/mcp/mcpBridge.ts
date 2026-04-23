@@ -970,12 +970,17 @@ class McpBridgeImpl {
           try {
             for (const [oldId, newId] of Object.entries(mapping)) {
               try {
-                if (wrapper) updateComponentIds(wrapper, oldId, newId);
+                const domHits = wrapper ? updateComponentIds(wrapper, oldId, newId) : 0;
+                let siHit = false;
                 if (siFile) {
                   const item = siFile.items.find((i) => i.id === oldId);
-                  if (item) item.id = newId;
+                  if (item) { item.id = newId; siHit = true; }
                 }
-                succeeded.push(oldId);
+                if (domHits === 0 && !siHit) {
+                  failed.push({ oldId, error: `id "${oldId}" が DOM にも screen-items にも見つかりません` });
+                } else {
+                  succeeded.push(oldId);
+                }
               } catch (e) {
                 failed.push({ oldId, error: String(e) });
               }
@@ -1004,16 +1009,18 @@ class McpBridgeImpl {
 
 // ── ヘルパー関数 ────────────────────────────────────────────────────────────
 
-function updateComponentIds(component: Component, oldId: string, newId: string): void {
+function updateComponentIds(component: Component, oldId: string, newId: string): number {
   const attrs = component.getAttributes();
   const updates: Record<string, string> = {};
   if (attrs.name === oldId) updates.name = newId;
   if (attrs.id === oldId) updates.id = newId;
-  if (Object.keys(updates).length > 0) component.addAttributes(updates);
+  let hits = Object.keys(updates).length > 0 ? 1 : 0;
+  if (hits > 0) component.addAttributes(updates);
   const children = component.components();
   for (let i = 0; i < children.length; i++) {
-    updateComponentIds(children.at(i) as Component, oldId, newId);
+    hits += updateComponentIds(children.at(i) as Component, oldId, newId);
   }
+  return hits;
 }
 
 function findFirstTextLeaf(c: Component): Component | null {

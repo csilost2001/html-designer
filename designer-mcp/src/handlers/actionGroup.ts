@@ -58,7 +58,8 @@ export const handleActionGroupTool: ToolHandler = async (name, args) => {
         throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
       }
       const source = liveData ? "browser live (unsaved 変更を含む)" : "file";
-      return { content: [{ type: "text", text: `// source: ${source}\n${JSON.stringify(agData, null, 2)}` }] };
+      const enriched = { _mcpSource: source, ...(agData as Record<string, unknown>) };
+      return { content: [{ type: "text", text: JSON.stringify(enriched, null, 2) }] };
     }
 
     case "designer__add_action_group": {
