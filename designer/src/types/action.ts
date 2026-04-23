@@ -369,6 +369,11 @@ export interface DbAccessStep extends StepBase {
    */
   sql?: string;
   /**
+   * 一括 INSERT 時に VALUES 句へ展開する配列変数の参照 (例: "@poItemValues")。
+   * 配列の各要素が 1 レコードとして INSERT される (#253)。
+   */
+  bulkValues?: string;
+  /**
    * 影響行数チェック。UPDATE / DELETE で条件付き並行制御する場合に使う。
    * SELECT / INSERT では通常不要。
    */
@@ -618,6 +623,8 @@ export interface BranchStep extends StepBase {
   branches: Branch[];
   /** 任意、常に最後に描画 */
   elseBranch?: ElseBranch;
+  /** tryCatch 分岐がガードするステップ ID の一覧。kind=tryCatch の Branch と組み合わせて try 範囲を明示 (#253) */
+  tryScope?: string[];
 }
 
 /** ループ種別 */

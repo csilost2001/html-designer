@@ -364,6 +364,31 @@ interface AffectedRowsCheck {
 
 PR: #165
 
+### 4.3 `DbAccessStep.bulkValues` (#253)
+
+一括 INSERT 時に `VALUES` 句へ展開する配列変数を構造化宣言するフィールド。`sql` に `@arrayVar` を埋め込むだけでは「これが bulk insert である」という意図が機械可読でないため追加。
+
+```ts
+interface DbAccessStep extends StepBase {
+  // ... 既存フィールド省略 ...
+  bulkValues?: string;  // 例: "@poItemValues"
+}
+```
+
+**用法**: `bulkValues` に配列変数の参照を設定し、`sql` 内で同じ変数を `VALUES @poItemValues` のように展開する。両フィールドの整合は実装側の責務。
+
+```json
+{
+  "type": "dbAccess",
+  "tableName": "purchase_order_items",
+  "operation": "INSERT",
+  "bulkValues": "@poItemValues",
+  "sql": "INSERT INTO purchase_order_items (...) SELECT ... FROM (VALUES @poItemValues) AS v(...)"
+}
+```
+
+PR: #368 (#253)
+
 ## 5. バリデーションの構造化
 
 ### 5.1 `ValidationStep.rules[]`
@@ -476,7 +501,33 @@ type BranchCondition = string | BranchConditionVariant;
 
 PR: #177 / #265 (#261 v1.3)
 
-### 7.2 `ElseBranch` (#253 v1.1)
+### 7.2 `BranchStep.tryScope` (#253)
+
+`kind: "tryCatch"` の Branch を持つ `BranchStep` で、**どのステップが try 範囲に含まれるか**を明示するフィールド。これまでは読者がフロー図から類推するしかなかった。
+
+```ts
+interface BranchStep extends StepBase {
+  branches: Branch[];
+  elseBranch?: ElseBranch;
+  tryScope?: string[];  // try 範囲のステップ ID 一覧
+}
+```
+
+**用法**: tryCatch 分岐を持つ BranchStep に `tryScope` を設定する。ステップ ID の配列で宣言し、catch 側 Branch の `condition.kind == "tryCatch"` と対応する。
+
+```json
+{
+  "type": "branch",
+  "tryScope": ["step-db-insert", "step-inventory-update"],
+  "branches": [
+    { "condition": { "kind": "tryCatch", "errorCode": "DEADLOCK" }, "steps": [...] }
+  ]
+}
+```
+
+PR: #368 (#253)
+
+### 7.3 `ElseBranch` (#253 v1.1)
 
 `BranchStep.elseBranch` の型を `Branch` から `ElseBranch` に変更。else 分岐は本質的に condition 不要なため、`condition` を optional にした。旧データ (`condition: ""` 等の空文字列埋め) は後方互換で accept。
 
@@ -633,3 +684,4 @@ PR: #367 (#253 v1.3)
 
 - 2026-04-20: 初版。#155〜#181 の全 PR をカバー。
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
+- 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
