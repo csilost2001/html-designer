@@ -424,7 +424,7 @@ function kindBadge(kind: ConstraintDefinition["kind"]): string {
   }
 }
 
-function constraintSummary(c: ConstraintDefinition, table: TableDefinition): string {
+function constraintSummary(c: ConstraintDefinition, _table: TableDefinition): string {
   switch (c.kind) {
     case "unique":
       return c.columns.length > 0 ? `列: ${c.columns.join(", ")}` : "(列未選択)";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TableDefinition, IndexDefinition, IndexColumn, IndexMethod } from "../../types/table";
+import type { TableDefinition, IndexDefinition, IndexMethod } from "../../types/table";
 import { addIndex, removeIndex } from "../../store/tableStore";
 
 const INDEX_METHODS: IndexMethod[] = ["btree", "hash", "gin", "gist"];

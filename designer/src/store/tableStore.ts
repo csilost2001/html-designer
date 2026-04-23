@@ -54,7 +54,7 @@ export async function loadTable(tableId: string): Promise<TableDefinition | null
   raw.columns = renumber(raw.columns ?? []);
   // β-3 移行: 旧 TableIndex 形式 { name, columns: string[] } → IndexDefinition 形式
   raw.indexes = (raw.indexes ?? []).map((idx) => {
-    const i = idx as Record<string, unknown>;
+    const i = idx as unknown as Record<string, unknown>;
     if (typeof i.name === "string" && Array.isArray(i.columns) && (i.columns.length === 0 || typeof i.columns[0] === "string")) {
       return {
         id: i.name as string,

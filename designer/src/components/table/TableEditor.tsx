@@ -34,7 +34,7 @@ export function TableEditor() {
   const [tab, setTab] = useState<TabId>("columns");
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
   // FHD (≤1920) は閉じた状態、WQHD (2560+) は開いた状態で初期化
-  const [ddlOpen, setDdlOpen] = useState(() => window.innerWidth >= 2560);
+  const ddlOpen = window.innerWidth >= 2560;
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<TableDefinition[]>([]);
 
