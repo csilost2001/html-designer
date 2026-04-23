@@ -1,9 +1,10 @@
 # 画面項目定義 (Screen Items)
 
-**ステータス**: v1.0 (凍結)
+**ステータス**: v1.1 (凍結)
 **策定開始**: 2026-04-22
-**凍結日**: 2026-04-23
-**関連 issue**: #318 #354
+**凍結日 v1.0**: 2026-04-23
+**更新 v1.1**: 2026-04-24 — 出力項目の `displayFormat` / `valueFrom` 追加 (#377)
+**関連 issue**: #318 #354 #377
 
 本書は画面項目定義 (画面 UI のフォーム項目に宣言的にバリデーション・ラベル・表示制御を紐付ける設計書) の仕様を定める。
 
@@ -86,9 +87,22 @@ interface ScreenItem {
   enabledWhen?: string;
   /** 画面上での役割 (デフォルト: "input") */
   direction?: "input" | "output";
+  /** 表示書式 (direction="output" 専用, 例: "YYYY/MM/DD", "¥#,##0") — #377 */
+  displayFormat?: string;
+  /** バインド元 (direction="output" 専用) — #377 */
+  valueFrom?: ValueSource;
   /** 備考 */
   description?: string;
 }
+
+/**
+ * 出力項目のバインド元 (4 種別) — #377
+ */
+type ValueSource =
+  | { kind: "flowVariable"; actionGroupId?: string; variableName: string }
+  | { kind: "tableColumn"; tableId: string; columnName: string }
+  | { kind: "viewColumn"; viewId: string; columnName: string }
+  | { kind: "expression"; expression: string };
 
 interface ScreenItemsFile {
   $schema?: string;
@@ -374,6 +388,9 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 ### (A) データモデル
 - **A-1**: 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用
 - **A-2**: `ScreenItem` スキーマは上記の通り。`direction?: "input" | "output"` を追加 (#359 連動)
+- **A-3 (v1.1)**: `displayFormat?: string` / `valueFrom?: ValueSource` を追加 (#377)。`direction="output"` のときのみ使用。
+  - `displayFormat`: 自由記述 + datalist 補完 (日付 / 数値 / 金額 / パーセント プリセット)
+  - `valueFrom`: `flowVariable` / `tableColumn` / `viewColumn` / `expression` の 4 種別。入力項目 (`direction="input"` または未設定) ではエディタに表示されない
 - `name` は廃止、`id` が業務識別子を兼ねる (#330)
 
 ### (B) 処理フローとの関係

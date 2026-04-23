@@ -1,5 +1,5 @@
 /**
- * 画面項目定義 (#318 / docs/spec/screen-items.md v0.1 相当)。
+ * 画面項目定義 (#318 / docs/spec/screen-items.md v1.1 相当)。
  *
  * 画面 (GrapesJS) のフォーム要素に紐付けるバリデーション・ラベル・表示制御を
  * 宣言的に保持する。処理フローの inputs から screenItemRef で参照される想定。
@@ -7,6 +7,16 @@
  * ファイル配置: data/screen-items/{screenId}.json (1 画面 = 1 ファイル)
  */
 import type { FieldType } from "./action";
+
+/**
+ * 出力項目 (direction="output") のバインド元 (#377)。
+ * 処理フロー変数 / テーブル列 / ビュー列 / 計算式 の 4 種別。
+ */
+export type ValueSource =
+  | { kind: "flowVariable"; actionGroupId?: string; variableName: string }
+  | { kind: "tableColumn"; tableId: string; columnName: string }
+  | { kind: "viewColumn"; viewId: string; columnName: string }
+  | { kind: "expression"; expression: string };
 
 export interface ScreenItemSelectOption {
   value: string;
@@ -65,6 +75,12 @@ export interface ScreenItem {
   // ─── 画面上での役割 ─────────────────────────────────────────────
   /** "input": フォーム入力 (デフォルト) / "output": データ表示 */
   direction?: "input" | "output";
+
+  // ─── 出力項目専用 (direction="output" のみ) ──────────────────────
+  /** 表示書式 (例: "YYYY/MM/DD", "¥#,##0", "0.00%") */
+  displayFormat?: string;
+  /** バインド元 — どのデータを表示するか (#377) */
+  valueFrom?: ValueSource;
 
   // ─── 備考 ──────────────────────────────────────────────────────
   description?: string;
