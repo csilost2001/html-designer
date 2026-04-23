@@ -188,6 +188,41 @@
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
+/* 出力項目専用フィールド (#377) */
+.screen-items-output-section {
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #bfdbfe;
+}
+.screen-items-output-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+.screen-items-output-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.screen-items-valuefrom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  flex: 1;
+}
+.screen-items-todo-note {
+  margin-left: 4px;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: #94a3b8;
+  font-family: inherit;
+}
+
 /* 画面項目候補モーダル (#323) */
 .screen-item-candidates-overlay {
   position: fixed;

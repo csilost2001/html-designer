@@ -24,8 +24,12 @@ import { loadConventions } from "../../store/conventionsStore";
 import { checkScreenItemConventionReferences } from "../../schemas/conventionsValidator";
 import type { ConventionsCatalog, ConventionIssue } from "../../schemas/conventionsValidator";
 import { mcpBridge } from "../../mcp/mcpBridge";
-import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
+import type { ScreenItem, ScreenItemsFile, ValueSource } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
+import type { ActionGroupMeta } from "../../types/action";
+import type { TableMeta } from "../../types/table";
+import { listActionGroups } from "../../store/actionStore";
+import { listTables } from "../../store/tableStore";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
@@ -34,6 +38,184 @@ import "../../styles/screen-items.css";
 
 const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> =
   ["string", "number", "boolean", "date"];
+
+const DISPLAY_FORMAT_PRESETS = [
+  "YYYY/MM/DD",
+  "YYYY-MM-DD",
+  "YYYY年MM月DD日",
+  "YYYY/MM/DD HH:mm:ss",
+  "#,##0",
+  "0.00",
+  "#,##0.00",
+  "¥#,##0",
+  "$#,##0.00",
+  "0%",
+  "0.00%",
+];
+
+const VALUE_SOURCE_KINDS = [
+  { value: "flowVariable", label: "処理フロー変数" },
+  { value: "tableColumn", label: "テーブル列" },
+  { value: "viewColumn", label: "ビュー列" },
+  { value: "expression", label: "計算式" },
+] as const;
+
+type OutputFieldsProps = {
+  item: ScreenItem;
+  idx: number;
+  onUpdate: (idx: number, patch: Partial<ScreenItem>) => void;
+  onCommit: () => void;
+};
+
+function OutputFields({ item, idx, onUpdate, onCommit }: OutputFieldsProps) {
+  const kind = item.valueFrom?.kind ?? "";
+
+  const handleKindChange = (newKind: string) => {
+    if (!newKind) {
+      onUpdate(idx, { valueFrom: undefined });
+    } else if (newKind === "flowVariable") {
+      onUpdate(idx, { valueFrom: { kind: "flowVariable", variableName: "" } });
+    } else if (newKind === "tableColumn") {
+      onUpdate(idx, { valueFrom: { kind: "tableColumn", tableName: "", columnName: "" } });
+    } else if (newKind === "viewColumn") {
+      onUpdate(idx, { valueFrom: { kind: "viewColumn", viewName: "", columnName: "" } });
+    } else if (newKind === "expression") {
+      onUpdate(idx, { valueFrom: { kind: "expression", expression: "" } });
+    }
+    onCommit();
+  };
+
+  const handleValueFromPatch = (patch: Partial<ValueSource>) => {
+    if (!item.valueFrom) return;
+    onUpdate(idx, { valueFrom: { ...item.valueFrom, ...patch } as ValueSource });
+  };
+
+  return (
+    <div className="screen-items-output-section">
+      <div className="screen-items-output-title">出力設定</div>
+      <div className="screen-items-output-fields">
+        <label className="screen-items-detail-field" style={{ minWidth: "14em", maxWidth: "20em" }}>
+          <span className="screen-items-detail-label">表示フォーマット</span>
+          <input
+            type="text"
+            list="screen-items-display-format-list"
+            className="form-control form-control-sm"
+            value={item.displayFormat ?? ""}
+            onChange={(e) => onUpdate(idx, { displayFormat: e.target.value || undefined })}
+            onBlur={onCommit}
+            placeholder="YYYY/MM/DD"
+          />
+        </label>
+        <div className="screen-items-valuefrom">
+          <label className="screen-items-detail-field" style={{ minWidth: "10em", maxWidth: "14em" }}>
+            <span className="screen-items-detail-label">バインド元 (種別)</span>
+            <select
+              className="form-select form-select-sm"
+              value={kind}
+              onChange={(e) => handleKindChange(e.target.value)}
+            >
+              <option value="">— 未設定 —</option>
+              {VALUE_SOURCE_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>{k.label}</option>
+              ))}
+            </select>
+          </label>
+          {kind === "flowVariable" && (
+            <>
+              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                <span className="screen-items-detail-label">処理フロー</span>
+                <input
+                  type="text"
+                  list="screen-items-action-group-list"
+                  className="form-control form-control-sm"
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>).actionGroupId ?? ""}
+                  onChange={(e) => handleValueFromPatch({ actionGroupId: e.target.value || undefined } as Partial<ValueSource>)}
+                  onBlur={onCommit}
+                  placeholder="省略可"
+                />
+              </label>
+              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                <span className="screen-items-detail-label">変数名</span>
+                <input
+                  className="form-control form-control-sm"
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>).variableName}
+                  onChange={(e) => handleValueFromPatch({ variableName: e.target.value } as Partial<ValueSource>)}
+                  onBlur={onCommit}
+                  placeholder="result"
+                />
+              </label>
+            </>
+          )}
+          {kind === "tableColumn" && (
+            <>
+              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                <span className="screen-items-detail-label">テーブル名</span>
+                <input
+                  type="text"
+                  list="screen-items-table-list"
+                  className="form-control form-control-sm"
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>).tableName}
+                  onChange={(e) => handleValueFromPatch({ tableName: e.target.value } as Partial<ValueSource>)}
+                  onBlur={onCommit}
+                  placeholder="users"
+                />
+              </label>
+              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                <span className="screen-items-detail-label">列名</span>
+                <input
+                  className="form-control form-control-sm"
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>).columnName}
+                  onChange={(e) => handleValueFromPatch({ columnName: e.target.value } as Partial<ValueSource>)}
+                  onBlur={onCommit}
+                  placeholder="created_at"
+                />
+              </label>
+            </>
+          )}
+          {kind === "viewColumn" && (
+            <>
+              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                <span className="screen-items-detail-label">
+                  ビュー名
+                  <span className="screen-items-todo-note" title="ビュー一覧は #376 で実装予定">※手動入力</span>
+                </span>
+                <input
+                  className="form-control form-control-sm"
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).viewName}
+                  onChange={(e) => handleValueFromPatch({ viewName: e.target.value } as Partial<ValueSource>)}
+                  onBlur={onCommit}
+                  placeholder="v_customer_summary"
+                />
+              </label>
+              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                <span className="screen-items-detail-label">列名</span>
+                <input
+                  className="form-control form-control-sm"
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).columnName}
+                  onChange={(e) => handleValueFromPatch({ columnName: e.target.value } as Partial<ValueSource>)}
+                  onBlur={onCommit}
+                  placeholder="last_order_at"
+                />
+              </label>
+            </>
+          )}
+          {kind === "expression" && (
+            <label className="screen-items-detail-field" style={{ minWidth: "18em", flex: 2 }}>
+              <span className="screen-items-detail-label">計算式</span>
+              <input
+                className="form-control form-control-sm"
+                value={(item.valueFrom as Extract<ValueSource, { kind: "expression" }>).expression}
+                onChange={(e) => handleValueFromPatch({ expression: e.target.value } as Partial<ValueSource>)}
+                onBlur={onCommit}
+                placeholder="@inputs.price * @inputs.qty"
+              />
+            </label>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const JS_IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
@@ -58,6 +240,8 @@ export function ScreenItemsView() {
   const [lintIssues, setLintIssues] = useState<ConventionIssue[]>([]);
   const [expandedErrorRows, setExpandedErrorRows] = useState<Set<number>>(new Set());
   const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
+  const [actionGroups, setActionGroups] = useState<ActionGroupMeta[]>([]);
+  const [tables, setTables] = useState<TableMeta[]>([]);
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -84,6 +268,12 @@ export function ScreenItemsView() {
   // 規約カタログをロード (初回のみ)
   useEffect(() => {
     loadConventions().then(setConventions).catch(console.error);
+  }, []);
+
+  // 処理フロー・テーブル一覧をロード (valueFrom datalist 用)
+  useEffect(() => {
+    listActionGroups().then(setActionGroups).catch(console.error);
+    listTables().then(setTables).catch(console.error);
   }, []);
 
   // 画面一覧をロード (初回 + MCP 接続復帰時)
@@ -871,6 +1061,14 @@ export function ScreenItemsView() {
                             />
                           </label>
                         </div>
+                        {item.direction === "output" && (
+                          <OutputFields
+                            item={item}
+                            idx={i}
+                            onUpdate={handleUpdateItem}
+                            onCommit={commit}
+                          />
+                        )}
                       </td>
                     </tr>
                   )}
@@ -929,6 +1127,15 @@ export function ScreenItemsView() {
             </div>
             <datalist id="screen-items-type-list">
               {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}
+            </datalist>
+            <datalist id="screen-items-display-format-list">
+              {DISPLAY_FORMAT_PRESETS.map((f) => <option key={f} value={f} />)}
+            </datalist>
+            <datalist id="screen-items-action-group-list">
+              {actionGroups.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
+            </datalist>
+            <datalist id="screen-items-table-list">
+              {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
             </datalist>
           </div>
           </>
