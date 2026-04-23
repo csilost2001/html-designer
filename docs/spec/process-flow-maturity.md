@@ -168,6 +168,8 @@ interface ActionGroup {
 
 ## 9. 受け入れ条件
 
+> これらは実装フェーズの追跡チェックリストです。凍結は設計確定を意味し、実装完了を意味しません。
+
 - [ ] ステップ・アクション・アクショングループに `maturity` フィールドが追加され、JSON に永続化される
 - [ ] 既存 JSON (maturity 欄なし) は `draft` として読み込まれ、初回保存で付与される
 - [ ] 既存 `note: string` は `notes: [{type: "assumption"}]` に自動変換される
@@ -190,7 +192,7 @@ interface ActionGroup {
 
 ## 11. 関連仕様
 
-- `docs/spec/process-flow-variables.md` — 入出力・変数の構造化 (並行策定中)
+- `docs/spec/process-flow-variables.md` — 入出力・変数の構造化 (v1.0 凍結 2026-04-24)
 - `docs/spec/process-flow-extensions.md` — Phase B 以降のスキーマ拡張 (HTTP 契約 / TX / outcome / Saga / runIf / ReturnStep / ComputeStep 等 15 種)
 - `docs/spec/list-common.md` — 一覧系 UI 共通仕様 (変更なし、本仕様は独立)
 
