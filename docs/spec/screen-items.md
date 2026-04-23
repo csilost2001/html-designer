@@ -1,8 +1,9 @@
 # 画面項目定義 (Screen Items)
 
-**ステータス**: ドラフト v0.1 (仕様策定中)
+**ステータス**: v1.0 (凍結)
 **策定開始**: 2026-04-22
-**関連 issue**: #318
+**凍結日**: 2026-04-23
+**関連 issue**: #318 #354
 
 本書は画面項目定義 (画面 UI のフォーム項目に宣言的にバリデーション・ラベル・表示制御を紐付ける設計書) の仕様を定める。
 
@@ -83,6 +84,8 @@ interface ScreenItem {
   /** 表示制御 (式言語、docs/spec/process-flow-expression-language.md と共有) */
   visibleWhen?: string;
   enabledWhen?: string;
+  /** 画面上での役割 (デフォルト: "input") */
+  direction?: "input" | "output";
   /** 備考 */
   description?: string;
 }
@@ -136,9 +139,17 @@ interface ScreenItemsFile {
 
 → **(B-1) 参照方式**
 
-**要決定**:
-- \[ \] 処理フロー inputs の従来 `required` / `description` 等との共存方法 (参照優先 / 上書き可 等)
-- \[ \] 画面なしフロー (batch / scheduled) での `screenItemRef` 無しケースの扱い
+**決定済み** (#354):
+
+- **[x] 処理フロー inputs の `required` / `description` 等との共存方法**:
+  - ScreenItem が正本 (source of truth)。ProcessFlow inputs 側の同名フィールドは「参照時の一回コピー」として保持する。
+  - `screenItemRef` が存在する場合、AI 実装コード生成時は ScreenItem の値を優先参照する。
+  - ProcessFlow inputs 側のフィールド値が ScreenItem と異なる場合は「意図的な上書き」として扱い、AI が判断する。
+  - ScreenItem が更新されても ProcessFlow inputs は自動同期しない (一方向コピーのまま)。差異の解決は実装時に AI が行う。
+
+- **[x] 画面なしフロー (batch / scheduled) での `screenItemRef` 無しケースの扱い**:
+  - `screenItemRef` の省略が正常ケース。バッチ・定時実行・イベント駆動などの画面なしフローでは `screenItemRef` を使用しない。
+  - `screenItemRef` は任意フィールドであり省略が正常。lint/バリデータは `screenItemRef` の有無を問わない。
 
 ---
 
@@ -358,12 +369,28 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 
 ---
 
-## レビュー観点
+## 決定事項 (v1.0 確定内容)
 
-この v0.1 ドラフトで特に確認してほしい点:
+### (A) データモデル
+- **A-1**: 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用
+- **A-2**: `ScreenItem` スキーマは上記の通り。`direction?: "input" | "output"` を追加 (#359 連動)
+- `name` は廃止、`id` が業務識別子を兼ねる (#330)
 
-1. **論点 (A) の ScreenItem スキーマは十分か** — 不足フィールド / 過剰フィールドがないか
-2. **論点 (B) の screenItemRef 方式は妥当か** — 処理フロー側の既存 `inputs` との整合
-3. **論点 (C) の規約参照は自然か** — `@conv.*` を画面項目から参照する UX
-4. **論点 (E-1) 独立タブ案で問題ないか** — GrapesJS サイドバーでのインライン編集は MVP から外してよいか
-5. **命名 "画面項目定義" / "screen-items" / "ScreenItem"** — 用語の妥当性
+### (B) 処理フローとの関係
+- **B-1**: 参照方式を採用 (`screenItemRef`) (#321)
+- **共存ルール**: ScreenItem が正本。ProcessFlow inputs は一回コピー (一方向)。AI 実装時は ScreenItem 優先
+- **画面なしフロー**: `screenItemRef` 省略が正常。バリデータは有無を問わない
+
+### (C) 規約カタログ連携
+- `@conv.regex.*` / `@conv.msg.*` / `@conv.limit.*` 参照可能
+- 画面項目編集 UI で `@conv.` prefix 入力時に候補補完 (別 issue)
+
+### (D) フレームワーク中立 → 実装展開
+- 抽象制約のみ記述。`product-scope.md` stack 宣言は別 issue
+
+### (E) 画面デザイナーとの UX 統合
+- **E-1**: 独立タブ `/screen/items/:screenId` を MVP。GrapesJS インライン編集は後続
+- **E-2**: ブロック配置時の `data-item-id` 自動付与 (#328 実装済み)
+- **E-2b (canvas 双方向同期)**: ブロック drop → screen-items 自動追加、ブロック削除 → screen-items 自動削除。ロード後の reconcile で canvas と全件突合する。
+  - **制約**: 「先に画面項目を定義してから canvas に配置する」ワークフローは、ロード後の reconcile で定義が削除される。データ損失を避けるには、先にブロックを配置してから項目を編集すること。
+- **E-3**: 既存画面 migration は「空リストから手動追加」のみ。自動抽出は後続

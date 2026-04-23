@@ -65,6 +65,7 @@ disable-model-invocation: true
 - 日本語の業務用語は英訳する (氏名→`fullName`, 郵便番号→`postalCode`)
 - 単語の組み合わせは実装慣習に従う (メールアドレス→`email` or `emailAddress`)
 - **推論不能な場合は mapping に含めない** (現在の自動採番 ID を維持する。無理に命名しない)
+- `direction: "output"` の項目 (出力・表示系) も命名対象に含める。入力系と同じ命名規則を適用する (#359)
 
 ## Step 4: マッピングをユーザーに提示して確認を求める
 
