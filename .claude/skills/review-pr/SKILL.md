@@ -41,14 +41,17 @@ PR #$ARGUMENTS を独立視点で厳格にレビューしてください。
 
 ### Step 0: 情報収集 — 並列実行
 
+**同じ PR への 2 回目以降の呼び出しかもしれないため、最新状態とコメント履歴を必ず取得して現状を判断する。** 過去の Claude Review コメントがあっても「既にレビュー済み」で即終了せず、PR を読んだ上で **初回レビュー** / **再レビュー (対応監査)** / **再レビュー不要 (対応コミットなし)** のいずれかを判断する。
+
 以下を並列で:
 
 - `gh pr view $ARGUMENTS --json title,state,body,additions,deletions,changedFiles,baseRefName,headRefName,mergeable`
+- `gh pr view $ARGUMENTS --comments` (**過去の Claude Review コメントも取得**)
 - `gh pr diff $ARGUMENTS --name-only`
 - PR 本文から関連 issue 番号を抽出し `gh issue view <N> --comments` で決定経緯を追う
 - PR 本文「関連」節の spec ファイルを特定し全文読む (該当節だけでなく前後関係も)
 
-情報収集が終わったら、PR 本文「レビュー担当への申し送り」節を熟読し、何を重点的に見るかを決める。
+情報収集が終わったら、PR 本文「レビュー担当への申し送り」節を熟読し、何を重点的に見るかを決める。過去の Claude Review コメントがあれば、前回指摘と最新コミットを突合して対応状況を確認する (再レビュー時)。
 
 ### Step 1: spec 逐条突合
 
