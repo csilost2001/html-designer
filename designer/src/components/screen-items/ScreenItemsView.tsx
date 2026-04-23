@@ -9,7 +9,7 @@
  * 2. 画面デザインから選択 (#323 — モーダルで候補リスト + チェックボックス)
  * 3. (将来) GrapesJS サイドバーからの直接追加 (#322)
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
@@ -20,9 +20,13 @@ import {
   saveScreenItems,
 } from "../../store/screenItemsStore";
 import { loadProject } from "../../store/flowStore";
+import { loadConventions } from "../../store/conventionsStore";
+import { checkScreenItemConventionReferences } from "../../schemas/conventionsValidator";
+import type { ConventionsCatalog, ConventionIssue } from "../../schemas/conventionsValidator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
+import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
 import { generateAutoId, getFieldTypePrefix } from "../../utils/screenItemNaming";
@@ -50,6 +54,9 @@ export function ScreenItemsView() {
     undefined,
   );
   const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
+  const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
+  const [lintIssues, setLintIssues] = useState<ConventionIssue[]>([]);
+  const [expandedErrorRows, setExpandedErrorRows] = useState<Set<number>>(new Set());
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -72,6 +79,11 @@ export function ScreenItemsView() {
 
   /** 複数選択中の行インデックス */
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+
+  // 規約カタログをロード (初回のみ)
+  useEffect(() => {
+    loadConventions().then(setConventions).catch(console.error);
+  }, []);
 
   // 画面一覧をロード (初回 + MCP 接続復帰時)
   useEffect(() => {
@@ -144,6 +156,14 @@ export function ScreenItemsView() {
       f.items.splice(idx, 1);
     });
     setSelectedIndices((prev) => {
+      const next = new Set<number>();
+      for (const i of prev) {
+        if (i < idx) next.add(i);
+        else if (i > idx) next.add(i - 1);
+      }
+      return next;
+    });
+    setExpandedErrorRows((prev) => {
       const next = new Set<number>();
       for (const i of prev) {
         if (i < idx) next.add(i);
@@ -396,6 +416,26 @@ export function ScreenItemsView() {
     setPendingRename(null);
   }, [pendingRename, updateSilent, commit]);
 
+  // @conv.* lint (file または conventions 更新時)
+  useEffect(() => {
+    if (!file || !conventions) { setLintIssues([]); return; }
+    setLintIssues(checkScreenItemConventionReferences(file, conventions));
+  }, [file, conventions]);
+
+  // 行インデックスごとの lint issues (行ハイライト用)
+  const lintByRow = useMemo(() => {
+    const map = new Map<number, ConventionIssue[]>();
+    for (const issue of lintIssues) {
+      const m = issue.path.match(/^items\[(\d+)\]/);
+      if (m) {
+        const idx = +m[1];
+        if (!map.has(idx)) map.set(idx, []);
+        map.get(idx)!.push(issue);
+      }
+    }
+    return map;
+  }, [lintIssues]);
+
   const existingIds = useMemo(
     () => new Set((file?.items ?? []).map((i) => i.id).filter(Boolean)),
     [file]
@@ -413,9 +453,28 @@ export function ScreenItemsView() {
     }
   }, [allSelected, itemCount]);
 
-  // ファイル切替時に選択を解除
+  const handleUpdateErrorMessage = useCallback((idx: number, key: string, val: string) => {
+    updateSilent((f) => {
+      const em = { ...(f.items[idx].errorMessages ?? {}) };
+      if (val) em[key] = val;
+      else delete em[key];
+      f.items[idx].errorMessages = Object.keys(em).length > 0 ? em : undefined;
+    });
+  }, [updateSilent]);
+
+  const handleToggleErrorRow = useCallback((idx: number) => {
+    setExpandedErrorRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  // ファイル切替時に選択・展開状態をリセット
   useEffect(() => {
     setSelectedIndices(new Set());
+    setExpandedErrorRows(new Set());
   }, [selectedScreenId]);
 
   const selectedScreenName = screens.find((s) => s.id === selectedScreenId)?.name;
@@ -466,6 +525,22 @@ export function ScreenItemsView() {
           </div>
         )}
         {selectedScreenId && file && (
+          <>
+          {lintIssues.length > 0 && (
+            <div className="screen-items-lint-warnings">
+              <i className="bi bi-exclamation-triangle-fill me-1" />
+              <strong>@conv.* 参照エラー {lintIssues.length} 件</strong>
+              <ul className="mb-0 mt-1">
+                {lintIssues.map((issue, i) => (
+                  <li key={i}>
+                    <code className="me-1">{issue.value}</code>
+                    <span className="text-muted">({issue.path})</span>
+                    <span className="ms-1">{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="screen-items-table-wrap">
             <table className="screen-items-table">
               <colgroup>
@@ -479,7 +554,7 @@ export function ScreenItemsView() {
                 <col style={{ width: "5em" }} />
                 <col style={{ width: "12em" }} />
                 <col />
-                <col style={{ width: 54 }} />
+                <col style={{ width: 76 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -514,7 +589,8 @@ export function ScreenItemsView() {
                   </tr>
                 )}
                 {file.items.map((item, i) => (
-                  <tr key={i} className={selectedIndices.has(i) ? "screen-items-row-selected" : ""}>
+                  <React.Fragment key={i}>
+                  <tr className={selectedIndices.has(i) ? "screen-items-row-selected" : ""}>
                     <td className="text-center">
                       <input
                         type="checkbox"
@@ -524,7 +600,15 @@ export function ScreenItemsView() {
                         aria-label={`行${i + 1}を選択`}
                       />
                     </td>
-                    <td className="screen-items-no">{i + 1}</td>
+                    <td className="screen-items-no">
+                      {i + 1}
+                      {lintByRow.has(i) && (
+                        <i
+                          className="bi bi-exclamation-circle-fill text-warning ms-1"
+                          title={lintByRow.get(i)!.map((e) => e.message).join("\n")}
+                        />
+                      )}
+                    </td>
                     <td>
                       <input
                         className="form-control form-control-sm"
@@ -598,11 +682,12 @@ export function ScreenItemsView() {
                       />
                     </td>
                     <td>
-                      <input
-                        className="form-control form-control-sm"
+                      <ConvCompletionInput
                         value={item.pattern ?? ""}
-                        onChange={(e) => handleUpdateItem(i, { pattern: e.target.value || undefined })}
-                        onBlur={commit}
+                        onValueChange={(v) => handleUpdateItem(i, { pattern: v || undefined })}
+                        onCommit={commit}
+                        conventions={conventions}
+                        className="form-control form-control-sm"
                         placeholder="@conv.regex.email-simple"
                       />
                     </td>
@@ -615,6 +700,15 @@ export function ScreenItemsView() {
                       />
                     </td>
                     <td className="text-center screen-items-actions-cell">
+                      <button
+                        type="button"
+                        className={`btn btn-sm btn-link p-0 ${expandedErrorRows.has(i) ? "text-primary" : "text-secondary"}`}
+                        onClick={() => handleToggleErrorRow(i)}
+                        title="エラーメッセージ欄を展開"
+                        aria-label="エラーメッセージ展開"
+                      >
+                        <i className={`bi bi-${expandedErrorRows.has(i) ? "chat-text-fill" : "chat-text"}`} />
+                      </button>
                       <button
                         type="button"
                         className="btn btn-sm btn-link text-secondary p-0"
@@ -635,6 +729,28 @@ export function ScreenItemsView() {
                       </button>
                     </td>
                   </tr>
+                  {expandedErrorRows.has(i) && (
+                    <tr className="screen-items-error-row">
+                      <td colSpan={11}>
+                        <div className="screen-items-error-fields">
+                          {(["required", "minLength", "maxLength", "invalidFormat", "outOfRange"] as const).map((key) => (
+                            <label key={key} className="screen-items-error-field">
+                              <span className="screen-items-error-label">{key}</span>
+                              <ConvCompletionInput
+                                value={item.errorMessages?.[key] ?? ""}
+                                onValueChange={(v) => handleUpdateErrorMessage(i, key, v)}
+                                onCommit={commit}
+                                conventions={conventions}
+                                className="form-control form-control-sm"
+                                placeholder={`@conv.msg.${key}`}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -670,6 +786,7 @@ export function ScreenItemsView() {
               {PRIMITIVE_TYPES.map((t) => <option key={t} value={t} />)}
             </datalist>
           </div>
+          </>
         )}
       </div>
 

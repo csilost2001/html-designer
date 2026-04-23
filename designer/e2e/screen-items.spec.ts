@@ -6,11 +6,29 @@
  * - 新規項目の追加 / name / type / required 編集
  * - 項目の削除
  * - 保存ボタン押下で isDirty が解消されること
+ * - @conv.* lint バナー表示 (#351)
+ * - pattern 欄の @conv.* 補完 (#352)
+ * - errorMessages.* 保存・リロード後の永続化 (#352)
  */
 import { test, expect, type Page } from "@playwright/test";
 
 const screenId1 = "scr-1";
 const screenId2 = "scr-2";
+
+const sampleCatalog = {
+  version: "1.0.0",
+  msg: { required: { template: "{label}は必須入力です" } },
+  regex: { "email-simple": { pattern: "^[^@]+@[^@]+$", description: "メールアドレス" } },
+  limit: {},
+  scope: {},
+  currency: {},
+  tax: {},
+  auth: {},
+  db: {},
+  numbering: {},
+  tx: {},
+  externalOutcomeDefaults: {},
+};
 
 const dummyProject = {
   version: 1,
@@ -23,14 +41,21 @@ const dummyProject = {
   updatedAt: new Date().toISOString(),
 };
 
-async function setup(page: Page) {
+interface SetupOptions {
+  /** 規約カタログを localStorage にシード (lint / 補完テスト用) */
+  catalog?: typeof sampleCatalog;
+  /** 画面項目定義を localStorage にシード */
+  screenItems?: Record<string, unknown>;
+}
+
+async function setup(page: Page, opts: SetupOptions = {}) {
   // MCP WebSocket をブロックして localStorage モードに固定する。
   // 接続が成立するとプロジェクトが実 MCP データで上書きされ、
   // テスト途中で画面切替が発生して状態がリセットされるため。
   await page.routeWebSocket(/ws:\/\/localhost:5179/, (ws) => {
     ws.close();
   });
-  await page.addInitScript(({ project }) => {
+  await page.addInitScript(({ project, catalog, screenItems }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
@@ -39,7 +64,17 @@ async function setup(page: Page) {
         localStorage.removeItem(k);
       }
     }
-  }, { project: dummyProject });
+    if (catalog) {
+      localStorage.setItem("conventions-catalog", JSON.stringify(catalog));
+    } else {
+      localStorage.removeItem("conventions-catalog");
+    }
+    if (screenItems) {
+      for (const [key, val] of Object.entries(screenItems)) {
+        localStorage.setItem(key, JSON.stringify(val));
+      }
+    }
+  }, { project: dummyProject, catalog: opts.catalog ?? null, screenItems: opts.screenItems ?? null });
   await page.goto("/screen-items");
   await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
 }
@@ -183,5 +218,110 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await labelInput.click();
     await expect.poll(() => alertFired, { timeout: 3000 }).toBe(true);
     await expect(idInput).toHaveValue("myField", { timeout: 2000 });
+  });
+});
+
+test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () => {
+  test("存在しない @conv.regex を pattern に書いて保存すると lint バナーが表示される", async ({ page }) => {
+    await setup(page, { catalog: sampleCatalog });
+    // 項目追加
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('input[placeholder="email"]').fill("phone");
+    // pattern 欄に存在しないキー
+    const patternInput = row.locator('input[placeholder="@conv.regex.email-simple"]');
+    await patternInput.fill("@conv.regex.no-such-key");
+    await patternInput.blur();
+    // 保存
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    // lint バナーが表示される
+    await expect(page.locator(".screen-items-lint-warnings")).toBeVisible({ timeout: 3000 });
+    await expect(page.locator(".screen-items-lint-warnings")).toContainText("@conv.regex.no-such-key");
+  });
+
+  test("実在する @conv.regex を pattern に書いても lint バナーが出ない", async ({ page }) => {
+    await setup(page, { catalog: sampleCatalog });
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('input[placeholder="email"]').fill("email");
+    const patternInput = row.locator('input[placeholder="@conv.regex.email-simple"]');
+    await patternInput.fill("@conv.regex.email-simple");
+    await patternInput.blur();
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    await expect(page.locator(".screen-items-lint-warnings")).toHaveCount(0);
+  });
+
+  test("pattern 欄で @conv. と打つと補完ポップアップが表示される", async ({ page }) => {
+    await setup(page, { catalog: sampleCatalog });
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    const patternInput = row.locator('input[placeholder="@conv.regex.email-simple"]');
+    await patternInput.click();
+    await patternInput.fill("@conv.");
+    await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 3000 });
+  });
+
+  test("errorMessages.required を入力して保存すると localStorage に永続化される", async ({ page }) => {
+    await setup(page, { catalog: sampleCatalog });
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('input[placeholder="email"]').fill("email");
+    // 💬 ボタンで errorMessages 展開
+    await row.locator('button[aria-label="エラーメッセージ展開"]').click();
+    const errorRow = page.locator(".screen-items-error-row").last();
+    await expect(errorRow).toBeVisible({ timeout: 3000 });
+    // required フィールドに入力
+    const requiredInput = errorRow.locator('input[placeholder="@conv.msg.required"]');
+    await requiredInput.fill("@conv.msg.required");
+    await requiredInput.blur();
+    // 保存
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    // localStorage に errorMessages が書き込まれていることを確認
+    const stored = await page.evaluate((sid) => {
+      const raw = localStorage.getItem(`screen-items-${sid}`);
+      return raw ? JSON.parse(raw) : null;
+    }, screenId1);
+    expect(stored).not.toBeNull();
+    expect(stored.items[0].errorMessages?.required).toBe("@conv.msg.required");
+  });
+
+  test("保存済み errorMessages を持つ画面項目は展開後に値が表示される", async ({ page }) => {
+    // リロード相当: 初期 localStorage に errorMessages 込みのデータを seed して表示を検証
+    const preSeeded = {
+      screenId: screenId1,
+      version: "0.1.0",
+      updatedAt: new Date().toISOString(),
+      items: [{ id: "email", label: "メール", type: "string", errorMessages: { required: "@conv.msg.required" } }],
+    };
+    await setup(page, {
+      catalog: sampleCatalog,
+      screenItems: { [`screen-items-${screenId1}`]: preSeeded },
+    });
+    // 展開して値を確認
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    await row.locator('button[aria-label="エラーメッセージ展開"]').click();
+    const errorRow = page.locator(".screen-items-error-row").last();
+    await expect(errorRow.locator('input[placeholder="@conv.msg.required"]')).toHaveValue("@conv.msg.required", { timeout: 3000 });
+  });
+
+  test("画面切替で errorMessages 展開状態がリセットされる", async ({ page }) => {
+    await setup(page, { catalog: sampleCatalog });
+    await page.locator(".screen-items-view button:has-text('項目追加')").click();
+    const row = page.locator(".screen-items-table tbody tr:last-child");
+    // 💬 ボタンで展開
+    await row.locator('button[aria-label="エラーメッセージ展開"]').click();
+    await expect(page.locator(".screen-items-error-row")).toBeVisible({ timeout: 3000 });
+    // 保存して画面切替
+    await page.locator(".srb-btn-save").click();
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+    await page.locator(".screen-items-screen-select").selectOption(screenId2);
+    // scr-2 では展開行なし
+    await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
+    // scr-1 に戻っても展開状態はリセットされている
+    await page.locator(".screen-items-screen-select").selectOption(screenId1);
+    await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
   });
 });

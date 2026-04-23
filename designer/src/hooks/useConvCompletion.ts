@@ -32,7 +32,7 @@ export function computeCompletion(
     const candidates = ALL_CONV_CATEGORIES.filter((c) => c.startsWith(prefix));
     return { phase: "category", prefix, candidates: [...candidates] };
   } else {
-    const cat = (catalog as Record<string, unknown>)[catPart!];
+    const cat = (catalog as unknown as Record<string, unknown>)[catPart!];
     if (!cat || typeof cat !== "object") return { phase: "idle" };
     const keys = Object.keys(cat);
     const candidates = keys.filter((k) => k.startsWith(keyPart));
