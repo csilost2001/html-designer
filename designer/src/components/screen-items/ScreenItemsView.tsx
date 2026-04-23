@@ -57,6 +57,7 @@ export function ScreenItemsView() {
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
   const [lintIssues, setLintIssues] = useState<ConventionIssue[]>([]);
   const [expandedErrorRows, setExpandedErrorRows] = useState<Set<number>>(new Set());
+  const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -164,6 +165,14 @@ export function ScreenItemsView() {
       return next;
     });
     setExpandedErrorRows((prev) => {
+      const next = new Set<number>();
+      for (const i of prev) {
+        if (i < idx) next.add(i);
+        else if (i > idx) next.add(i - 1);
+      }
+      return next;
+    });
+    setExpandedDetailRows((prev) => {
       const next = new Set<number>();
       for (const i of prev) {
         if (i < idx) next.add(i);
@@ -471,10 +480,20 @@ export function ScreenItemsView() {
     });
   }, []);
 
+  const handleToggleDetailRow = useCallback((idx: number) => {
+    setExpandedDetailRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }, []);
+
   // ファイル切替時に選択・展開状態をリセット
   useEffect(() => {
     setSelectedIndices(new Set());
     setExpandedErrorRows(new Set());
+    setExpandedDetailRows(new Set());
   }, [selectedScreenId]);
 
   const selectedScreenName = screens.find((s) => s.id === selectedScreenId)?.name;
@@ -702,6 +721,15 @@ export function ScreenItemsView() {
                     <td className="text-center screen-items-actions-cell">
                       <button
                         type="button"
+                        className={`btn btn-sm btn-link p-0 ${expandedDetailRows.has(i) ? "text-primary" : "text-secondary"}`}
+                        onClick={() => handleToggleDetailRow(i)}
+                        title="詳細フィールドを展開"
+                        aria-label="詳細展開"
+                      >
+                        <i className={`bi bi-${expandedDetailRows.has(i) ? "sliders2-vertical" : "sliders"}`} />
+                      </button>
+                      <button
+                        type="button"
                         className={`btn btn-sm btn-link p-0 ${expandedErrorRows.has(i) ? "text-primary" : "text-secondary"}`}
                         onClick={() => handleToggleErrorRow(i)}
                         title="エラーメッセージ欄を展開"
@@ -729,6 +757,109 @@ export function ScreenItemsView() {
                       </button>
                     </td>
                   </tr>
+                  {expandedDetailRows.has(i) && (
+                    <tr className="screen-items-detail-row">
+                      <td colSpan={11}>
+                        <div className="screen-items-detail-fields">
+                          <div className="screen-items-detail-checks">
+                            <label className="screen-items-detail-check">
+                              <input
+                                type="checkbox"
+                                className="form-check-input"
+                                checked={!!item.readonly}
+                                onChange={(e) => { handleUpdateItem(i, { readonly: e.target.checked || undefined }); commit(); }}
+                                aria-label="readonly"
+                              />
+                              <span className="screen-items-detail-label">readonly</span>
+                            </label>
+                            <label className="screen-items-detail-check">
+                              <input
+                                type="checkbox"
+                                className="form-check-input"
+                                checked={!!item.disabled}
+                                onChange={(e) => { handleUpdateItem(i, { disabled: e.target.checked || undefined }); commit(); }}
+                                aria-label="disabled"
+                              />
+                              <span className="screen-items-detail-label">disabled</span>
+                            </label>
+                          </div>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">placeholder</span>
+                            <input
+                              className="form-control form-control-sm"
+                              value={item.placeholder ?? ""}
+                              onChange={(e) => handleUpdateItem(i, { placeholder: e.target.value || undefined })}
+                              onBlur={commit}
+                              aria-label="placeholder"
+                            />
+                          </label>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">helperText</span>
+                            <input
+                              className="form-control form-control-sm"
+                              value={item.helperText ?? ""}
+                              onChange={(e) => handleUpdateItem(i, { helperText: e.target.value || undefined })}
+                              onBlur={commit}
+                              aria-label="helperText"
+                            />
+                          </label>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">visibleWhen</span>
+                            <input
+                              className="form-control form-control-sm"
+                              value={item.visibleWhen ?? ""}
+                              onChange={(e) => handleUpdateItem(i, { visibleWhen: e.target.value || undefined })}
+                              onBlur={commit}
+                              placeholder="@inputs.role === 'admin'"
+                              aria-label="visibleWhen"
+                            />
+                          </label>
+                          <label className="screen-items-detail-field">
+                            <span className="screen-items-detail-label">enabledWhen</span>
+                            <input
+                              className="form-control form-control-sm"
+                              value={item.enabledWhen ?? ""}
+                              onChange={(e) => handleUpdateItem(i, { enabledWhen: e.target.value || undefined })}
+                              onBlur={commit}
+                              placeholder="@inputs.status !== 'locked'"
+                              aria-label="enabledWhen"
+                            />
+                          </label>
+                          <label className="screen-items-detail-num">
+                            <span className="screen-items-detail-label">min</span>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={item.min ?? ""}
+                              onChange={(e) => handleUpdateItem(i, { min: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              onBlur={commit}
+                            />
+                          </label>
+                          <label className="screen-items-detail-num">
+                            <span className="screen-items-detail-label">max</span>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={item.max ?? ""}
+                              onChange={(e) => handleUpdateItem(i, { max: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              onBlur={commit}
+                            />
+                          </label>
+                          <label className="screen-items-detail-num">
+                            <span className="screen-items-detail-label">step</span>
+                            <input
+                              type="number"
+                              className="form-control form-control-sm"
+                              value={item.step ?? ""}
+                              min={0}
+                              onChange={(e) => handleUpdateItem(i, { step: e.target.value === "" ? undefined : Number(e.target.value) })}
+                              onBlur={commit}
+                            />
+                          </label>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {expandedErrorRows.has(i) && (
                     <tr className="screen-items-error-row">
                       <td colSpan={11}>
