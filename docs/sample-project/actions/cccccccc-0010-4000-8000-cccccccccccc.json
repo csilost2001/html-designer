@@ -1,0 +1,143 @@
+{
+  "id": "cccccccc-0010-4000-8000-cccccccccccc",
+  "name": "注文一覧画面 (v2 フォーマット試作)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0008-4000-8000-aaaaaaaaaaaa",
+  "description": "注文検索と一覧表示。検索結果の件数に応じて表示を分岐 (0件メッセージ / 1件自動遷移 / 複数件一覧)。v2 フォーマット試作。",
+  "mode": "upstream",
+  "maturity": "provisional",
+  "actions": [
+    {
+      "id": "act-orderlist-001",
+      "name": "検索ボタン",
+      "trigger": "click",
+      "maturity": "provisional",
+      "description": "検索条件で orders を検索し、件数に応じて表示または自動遷移する。",
+      "inputs": [
+        { "name": "customerName", "label": "顧客名", "type": "string", "required": false, "description": "部分一致" },
+        { "name": "dateFrom", "label": "期間開始日", "type": "date", "required": false },
+        { "name": "dateTo", "label": "期間終了日", "type": "date", "required": false },
+        { "name": "status", "label": "ステータス", "type": "string", "required": false }
+      ],
+      "outputs": [
+        { "name": "searchResults", "label": "検索結果一覧", "type": { "kind": "tableList", "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb" } },
+        { "name": "resultCount", "label": "結果件数", "type": "number" },
+        { "name": "resultMessage", "label": "結果メッセージ", "type": "string" }
+      ],
+      "steps": [
+        {
+          "id": "step-orderlist-001",
+          "type": "validation",
+          "maturity": "provisional",
+          "description": "検索条件チェック",
+          "conditions": "@dateFrom ≤ @dateTo / 期間未指定時は直近3ヶ月を既定",
+          "inlineBranch": {
+            "ok": "検索処理を実行",
+            "ng": "エラーメッセージを検索条件エリア上部に表示"
+          },
+          "notes": [
+            { "id": "n-orderlist-001", "type": "question", "body": "片側のみ指定時の既定値補完は FE / BE どちらが担うか。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-orderlist-002",
+          "type": "dbAccess",
+          "maturity": "provisional",
+          "description": "注文検索 (customers JOIN)",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "注文ID, 注文日, customers.name AS customer_name, 合計金額, ステータス WHERE (@customerName 部分一致 OR 未指定) AND order_date BETWEEN @dateFrom AND @dateTo AND (@status = status OR 未指定)",
+          "outputBinding": "searchResults",
+          "notes": [
+            { "id": "n-orderlist-002", "type": "assumption", "body": "@searchResults は結果配列。customers との JOIN は customer_id で紐付け。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderlist-003", "type": "deferred", "body": "ページング仕様は将来検討 (v1 は全件返却、1000 件までの想定)。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderlist-004", "type": "question", "body": "論理削除された顧客の注文を結果に含めるか要確認。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderlist-005", "type": "question", "body": "ソート順序は既定 (注文日 DESC, 注文ID DESC) で良いか。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-orderlist-003",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "件数による動作分岐",
+          "branches": [
+            {
+              "id": "branch-orderlist-a",
+              "code": "A",
+              "label": "0件",
+              "condition": "@searchResults.length == 0",
+              "steps": [
+                {
+                  "id": "step-orderlist-003-a-1",
+                  "type": "displayUpdate",
+                  "maturity": "committed",
+                  "description": "『該当データがありません』を一覧エリアに表示",
+                  "target": "一覧テーブルのゼロ件表示領域"
+                }
+              ]
+            },
+            {
+              "id": "branch-orderlist-b",
+              "code": "B",
+              "label": "1件",
+              "condition": "@searchResults.length == 1",
+              "steps": [
+                {
+                  "id": "step-orderlist-003-b-1",
+                  "type": "screenTransition",
+                  "maturity": "draft",
+                  "description": "注文詳細画面へ自動遷移",
+                  "targetScreenName": "注文詳細",
+                  "notes": [
+                    { "id": "n-orderlist-006", "type": "prerequisite", "body": "注文詳細画面は未設計。遷移パラメータとして @searchResults.0.orderId を渡す想定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "branch-orderlist-c",
+              "code": "C",
+              "label": "複数件",
+              "condition": "@searchResults.length >= 2",
+              "steps": [
+                {
+                  "id": "step-orderlist-003-c-1",
+                  "type": "displayUpdate",
+                  "maturity": "committed",
+                  "description": "検索結果を一覧テーブルに表示",
+                  "target": "注文一覧テーブル"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "act-orderlist-002",
+      "name": "行クリック",
+      "trigger": "select",
+      "maturity": "draft",
+      "description": "一覧の行クリック時、注文詳細へ遷移する。",
+      "inputs": [
+        { "name": "selectedOrderId", "label": "選択された注文ID", "type": "string", "required": true }
+      ],
+      "outputs": [],
+      "steps": [
+        {
+          "id": "step-orderlist-004",
+          "type": "screenTransition",
+          "maturity": "draft",
+          "description": "注文詳細画面へ遷移",
+          "targetScreenName": "注文詳細",
+          "notes": [
+            { "id": "n-orderlist-007", "type": "prerequisite", "body": "注文詳細画面は未設計。@selectedOrderId をパラメータとして引き渡す想定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T12:00:00.000Z",
+  "updatedAt": "2026-04-20T13:00:00.000Z"
+}

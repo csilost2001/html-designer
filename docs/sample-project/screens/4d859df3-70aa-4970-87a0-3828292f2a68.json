@@ -1,0 +1,413 @@
+{
+  "dataSources": [],
+  "assets": [],
+  "styles": [],
+  "pages": [
+    {
+      "frames": [
+        {
+          "component": {
+            "type": "wrapper",
+            "stylable": [
+              "background",
+              "background-color",
+              "background-image",
+              "background-repeat",
+              "background-attachment",
+              "background-position",
+              "background-size"
+            ],
+            "attributes": {
+              "id": "i5iq"
+            },
+            "components": [
+              {
+                "classes": [
+                  "card",
+                  "border-0",
+                  "shadow-sm",
+                  "mb-3"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "card-header",
+                      "bg-white",
+                      "border-bottom",
+                      "py-2"
+                    ],
+                    "components": [
+                      {
+                        "tagName": "span",
+                        "type": "text",
+                        "classes": [
+                          "fw-medium",
+                          "small",
+                          "text-muted"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "基本情報"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "classes": [
+                      "card-body"
+                    ],
+                    "components": [
+                      {
+                        "classes": [
+                          "row",
+                          "g-3"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "col-md-6"
+                            ],
+                            "components": [
+                              {
+                                "type": "label",
+                                "classes": [
+                                  "form-label",
+                                  "small",
+                                  "text-muted",
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "項目名1"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "p",
+                                "type": "text",
+                                "classes": [
+                                  "mb-0",
+                                  "fw-medium"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "値1"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "classes": [
+                              "col-md-6"
+                            ],
+                            "components": [
+                              {
+                                "type": "label",
+                                "classes": [
+                                  "form-label",
+                                  "small",
+                                  "text-muted",
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "項目名2"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "p",
+                                "type": "text",
+                                "classes": [
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "値2"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "classes": [
+                              "col-md-6"
+                            ],
+                            "components": [
+                              {
+                                "type": "label",
+                                "classes": [
+                                  "form-label",
+                                  "small",
+                                  "text-muted",
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "項目名3"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "p",
+                                "type": "text",
+                                "classes": [
+                                  "mb-0",
+                                  "fw-medium"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "値3"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "classes": [
+                              "col-md-6"
+                            ],
+                            "components": [
+                              {
+                                "type": "label",
+                                "classes": [
+                                  "form-label",
+                                  "small",
+                                  "text-muted",
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "項目名4"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "p",
+                                "type": "text",
+                                "classes": [
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "値4"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "classes": [
+                              "col-12"
+                            ],
+                            "components": [
+                              {
+                                "type": "label",
+                                "classes": [
+                                  "form-label",
+                                  "small",
+                                  "text-muted",
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "全幅項目"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "p",
+                                "type": "text",
+                                "classes": [
+                                  "mb-0"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "全幅の値"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "項目名"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-input",
+                            "void": true,
+                            "classes": [
+                              "form-control",
+                              "form-control-sm"
+                            ],
+                            "attributes": {
+                              "type": "text",
+                              "placeholder": "",
+                              "data-item-id": "c6e6f006-6508-47e0-9fa3-c3360eadea78",
+                              "name": "textInput1",
+                              "id": "textInput1"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "項目名"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-input",
+                            "void": true,
+                            "classes": [
+                              "form-control",
+                              "form-control-sm"
+                            ],
+                            "attributes": {
+                              "type": "text",
+                              "placeholder": "",
+                              "data-item-id": "2480ca6b-6f41-4c15-936a-9812eb63844c",
+                              "name": "textInput2",
+                              "id": "textInput2"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "項目名"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-input",
+                            "void": true,
+                            "classes": [
+                              "form-control",
+                              "form-control-sm"
+                            ],
+                            "attributes": {
+                              "type": "text",
+                              "placeholder": "",
+                              "data-item-id": "714a1f71-edef-4a72-952a-32dda81cf6fc",
+                              "name": "textInput3",
+                              "id": "textInput3"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "head": {
+              "type": "head"
+            },
+            "docEl": {
+              "tagName": "html"
+            }
+          },
+          "id": "wNs9iePnQFDOmPxB"
+        }
+      ],
+      "id": "ZRr8ozTNr7qqFRVd"
+    }
+  ],
+  "symbols": []
+}

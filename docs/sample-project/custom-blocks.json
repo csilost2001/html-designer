@@ -1,0 +1,11 @@
+[
+  {
+    "id": "custom-block-1776079074303",
+    "label": "ログインカード",
+    "category": "マイブロック",
+    "content": "<input type=\"text\" placeholder=\"ユーザーIDを入力\" class=\"form-control\" data-shared-block-id=\"custom-block-1776079074303\">",
+    "shared": true,
+    "createdAt": "2026-04-13T11:17:54.303Z",
+    "updatedAt": "2026-04-13T11:17:54.303Z"
+  }
+]

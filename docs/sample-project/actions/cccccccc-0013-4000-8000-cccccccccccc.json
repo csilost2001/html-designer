@@ -1,0 +1,135 @@
+{
+  "id": "cccccccc-0013-4000-8000-cccccccccccc",
+  "name": "顧客登録画面 (詳細設計版 / ゴールドスタンダード)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客の新規登録。詳細設計レベル。全ステップ maturity=committed、全 notes=assumption。AI エージェントが単独で本番品質コードを書けることを目標とするゴールドスタンダード版。\n\n【前提仕様 (本フロー外で確定済とみなす)】\n- customers テーブルの customer_code 列は DB DEFAULT で自動生成: 'C-' || LPAD(nextval('customer_code_seq')::text, 4, '0') の PostgreSQL シーケンス + DEFAULT 式 (本フローでは customer_code を指定しない)\n- customers テーブルに部分 UNIQUE INDEX が設定されている: UNIQUE (email) WHERE is_deleted = false\n- DB トランザクションは Express ミドルウェア層で提供 (req.db.tx(async (tx) => { ... }) 形式)\n- エラーレスポンス形式: { code: string, message: string, fieldErrors?: Record<string,string> }\n- HTTP ステータスマッピング: VALIDATION=400 / DUPLICATE_EMAIL=409 / INTERNAL=500\n- 本画面は公開経路、認証不要\n\n【トランザクション境界】\n- step-custreg-005 (INSERT) のみ TX 内で実行\n- step-custreg-006 (メール送信) は TX COMMIT 後に TX 外で fire-and-forget\n\n【命名規約】\n- HTTP API パス: POST /api/customers\n- DB 列名: snake_case (customers.name_kana 等)\n- JSON フィールド名 (API I/O): camelCase (customerId, customerCode, fieldErrors 等)\n- フロー内変数名 (@xxx): camelCase",
+  "mode": "downstream",
+  "maturity": "committed",
+  "actions": [
+    {
+      "id": "act-custreg-001",
+      "name": "登録ボタン",
+      "trigger": "submit",
+      "maturity": "committed",
+      "description": "HTTP Route: POST /api/customers\n\n【フロー概要】\n入力バリデーション → 郵便番号正規化 → メール重複 SELECT → 分岐 (重複 A: 409 early return / なし ELSE: INSERT → メール送信 → 201 レスポンス)\n\n【成功時レスポンス】\nHTTP 201 Content-Type: application/json\n{ customerId: number, customerCode: string }\n\n【エラーレスポンス】\nHTTP 400 { code: 'VALIDATION', message, fieldErrors }\nHTTP 409 { code: 'DUPLICATE_EMAIL', message, fieldErrors: { email } }\nHTTP 500 { code: 'INTERNAL', message }",
+      "inputs": [
+        { "name": "name", "label": "氏名", "type": "string", "required": true, "description": "customers.name (VARCHAR 100, NOT NULL)。非空、100 文字以内。" },
+        { "name": "nameKana", "label": "フリガナ", "type": "string", "required": true, "description": "customers.name_kana (VARCHAR 100, NULL 可だが本フローでは必須)。正規表現 /^[\\u30A0-\\u30FF ー・]+$/ に一致 (全角カタカナ、長音符・中黒・半角空白許容)、100 文字以内。" },
+        { "name": "postalCode", "label": "郵便番号", "type": "string", "required": true, "description": "customers.postal_code (VARCHAR 10, NULL 可だが本フローでは必須)。正規表現 /^\\d{3}-?\\d{4}$/ (ハイフン任意)。保存時は NNN-NNNN 形式に正規化。" },
+        { "name": "address", "label": "住所", "type": "string", "required": true, "description": "customers.address (VARCHAR 500, NULL 可だが本フローでは必須)。非空、500 文字以内。" },
+        { "name": "phone", "label": "電話番号", "type": "string", "required": true, "description": "customers.phone (VARCHAR 20, NULL 可だが本フローでは必須)。正規表現 /^0\\d{1,4}-\\d{1,4}-\\d{4}$/ (国内電話番号、ハイフン必須)、20 文字以内。" },
+        { "name": "email", "label": "メールアドレス", "type": "string", "required": true, "description": "customers.email (VARCHAR 255, NULL 可だが本フローでは必須)。正規表現 /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/ (RFC5322 簡易)、255 文字以内。論理削除済み顧客 (is_deleted=true) のメールとは重複扱いしない。" }
+      ],
+      "outputs": [
+        { "name": "customerId", "label": "登録済み顧客ID", "type": "number", "description": "customers.id (INTEGER, auto-increment PK)。API レスポンス body の customerId に返す。" },
+        { "name": "customerCode", "label": "顧客コード", "type": "string", "description": "customers.customer_code (DB DEFAULT で自動生成、'C-0001' 形式)。API レスポンス body の customerCode に返す。" }
+      ],
+      "steps": [
+        {
+          "id": "step-custreg-001",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "入力バリデーション (構文チェック)。各 inputs[].description に記載された検証ルールを全項目に適用。違反があれば違反項目名をキー・理由メッセージを値とする fieldErrors マップを構築して早期レスポンス。",
+          "conditions": "@name 非空かつ 100 文字以内 / @nameKana が /^[\\u30A0-\\u30FF ー・]+$/ マッチかつ 100 文字以内 / @postalCode が /^\\d{3}-?\\d{4}$/ マッチ / @address 非空かつ 500 文字以内 / @phone が /^0\\d{1,4}-\\d{1,4}-\\d{4}$/ マッチかつ 20 文字以内 / @email が /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/ マッチかつ 255 文字以内",
+          "inlineBranch": {
+            "ok": "次のステップへ続行",
+            "ng": "HTTP 400 { code: 'VALIDATION', message: '入力内容を確認してください', fieldErrors: { [違反項目]: [違反理由] } } でレスポンスして処理中断"
+          }
+        },
+        {
+          "id": "step-custreg-002",
+          "type": "other",
+          "maturity": "committed",
+          "description": "郵便番号を NNN-NNNN 形式に正規化。実装: @postalCode.replace(/^(\\d{3})-?(\\d{4})$/, '$1-$2')。step-custreg-001 のバリデーションを通過しているため失敗ケースなし。",
+          "outputBinding": "normalizedPostalCode"
+        },
+        {
+          "id": "step-custreg-003",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "メールアドレス重複の先行 SELECT チェック。論理削除済み (is_deleted=true) は対象外。LIMIT 1 で十分。",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "SELECT id FROM customers WHERE email = @email AND is_deleted = false LIMIT 1",
+          "outputBinding": "duplicateCustomer",
+          "notes": [
+            { "id": "n-custreg-001", "type": "assumption", "body": "@duplicateCustomer は {id: number} を持つオブジェクト、または null。node-postgres では rows[0] ?? null で取得。", "createdAt": "2026-04-20T14:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-004",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "重複判定。重複あり (分岐 A) なら 409 で早期 return。なし (ELSE) なら INSERT 以降を実行 (elseBranch 内に入れ子配置)。",
+          "branches": [
+            {
+              "id": "branch-custreg-a",
+              "code": "A",
+              "label": "重複あり",
+              "condition": "@duplicateCustomer != null",
+              "steps": [
+                {
+                  "id": "step-custreg-004-a-1",
+                  "type": "other",
+                  "maturity": "committed",
+                  "description": "HTTP 409 { code: 'DUPLICATE_EMAIL', message: 'このメールアドレスは既に登録されています', fieldErrors: { email: 'このメールアドレスは既に登録されています' } } でレスポンス。Express ハンドラでは res.status(409).json(...) で return し、関数実行を終える。分岐 A 内の終端のため、以降のステップ (elseBranch 内の INSERT 等) には到達しない。"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "branch-custreg-else",
+            "code": "ELSE",
+            "label": "重複なし (INSERT 経路)",
+            "condition": "",
+            "steps": [
+              {
+                "id": "step-custreg-005",
+                "type": "dbAccess",
+                "maturity": "committed",
+                "description": "顧客マスタへ INSERT。req.db.tx(async (tx) => {...}) の TX 内で実行。customer_code は DB DEFAULT で自動付与、rank/is_deleted/created_at/updated_at も DB DEFAULT 使用。company_name/department/notes は本画面で入力しないため NULL 保存。",
+                "tableName": "customers",
+                "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+                "operation": "INSERT",
+                "fields": "INSERT INTO customers (name, name_kana, email, phone, postal_code, address) VALUES (@name, @nameKana, @email, @phone, @normalizedPostalCode, @address) RETURNING id, customer_code",
+                "outputBinding": "registeredCustomer",
+                "notes": [
+                  { "id": "n-custreg-002", "type": "assumption", "body": "@registeredCustomer は { id: number, customer_code: string } を持つ RETURNING 結果 (rows[0])。", "createdAt": "2026-04-20T14:00:00.000Z" },
+                  { "id": "n-custreg-003", "type": "assumption", "body": "UNIQUE 違反 (PG エラーコード 23505、制約名 idx_customers_email_active 相当) をキャッチしたら step-custreg-004-a-1 と同じ 409 レスポンス。step-custreg-003 の SELECT チェックと本 INSERT の間に並行登録が入った場合の最終防壁。Express のエラーハンドリングミドルウェアで PG エラー → HTTP 変換する方針。", "createdAt": "2026-04-20T14:00:00.000Z" }
+                ]
+              },
+              {
+                "id": "step-custreg-006",
+                "type": "externalSystem",
+                "maturity": "committed",
+                "description": "確認メール送信。TX COMMIT 後・非同期 fire-and-forget。\n\n【outcome】\n- success (2xx レスポンス): 成功ログに記録して次のステップへ。\n- failure (4xx/5xx レスポンス): エラーログ (Sentry) に記録して次のステップへ。同期 API の HTTP ステータスは変更しない (登録は成功済み)。\n- timeout (10 秒超過): failure と同じ扱い。\n\n【リトライ方針】\n同期パスでのリトライなし。v1 はリトライキュー未導入、運用監視 (Sentry アラート) で検知して手動対応。",
+                "systemName": "SendGrid (メール送信 SaaS)",
+                "protocol": "HTTPS (SendGrid v3 API)。POST https://api.sendgrid.com/v3/mail/send、Authorization: Bearer ${SENDGRID_API_KEY}、Content-Type: application/json。Body: { personalizations: [{ to: [{email: @email}], dynamic_template_data: { name: @name, customerCode: @registeredCustomer.customer_code } }], from: { email: process.env.FROM_EMAIL }, template_id: 'customer-welcome' }",
+                "argumentMapping": {
+                  "to": "@email",
+                  "template": "customer-welcome",
+                  "variables.name": "@name",
+                  "variables.customerCode": "@registeredCustomer.customer_code"
+                },
+                "notes": [
+                  { "id": "n-custreg-004", "type": "assumption", "body": "テンプレート 'customer-welcome' は SendGrid 側のテンプレートレジストリで事前設定済み。動的変数 {{name}} / {{customerCode}} を本仕様で固定。", "createdAt": "2026-04-20T14:00:00.000Z" },
+                  { "id": "n-custreg-005", "type": "assumption", "body": "API キー SENDGRID_API_KEY と From アドレス FROM_EMAIL は環境変数で注入。ローカル開発時は Mailtrap 等の stub。", "createdAt": "2026-04-20T14:00:00.000Z" }
+                ]
+              },
+              {
+                "id": "step-custreg-007",
+                "type": "other",
+                "maturity": "committed",
+                "description": "HTTP 201 { customerId: @registeredCustomer.id, customerCode: @registeredCustomer.customer_code } でレスポンス。\n\n【FE 側の扱い】\nPOST /api/customers の 201 レスポンスを受領したら、React Router の navigate('/complete', { state: { customerId, customerCode, name: @name } }) で処理完了画面へ遷移する。state 経由で name / customerCode を引き渡す (ブラウザリロード時は state が消失するため、完了画面は state 有無で表示を分岐: 有りなら個別メッセージ、無しなら汎用メッセージ)。"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T14:00:00.000Z",
+  "updatedAt": "2026-04-20T14:00:00.000Z"
+}

@@ -2,88 +2,171 @@
   "$schema": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/conventions.schema.json",
   "version": "1.0.0",
   "description": "処理フロー仕様書 / ActionGroup から @conv.* で参照される横断規約カタログ。docs/conventions/validation-rules.md の構造化版",
-  "updatedAt": "2026-04-24T00:00:00.000Z",
-
+  "updatedAt": "2026-04-23T02:03:57.564Z",
   "msg": {
     "required": {
       "template": "{label}は必須入力です",
-      "params": ["label"],
+      "params": [
+        "label"
+      ],
       "description": "非空必須エラーの既定メッセージ"
     },
     "maxLength": {
       "template": "{label}は{max}文字以内で入力してください",
-      "params": ["label", "max"]
+      "params": [
+        "label",
+        "max"
+      ]
     },
     "invalidFormat": {
       "template": "{label}の形式が正しくありません",
-      "params": ["label"]
+      "params": [
+        "label"
+      ]
     },
     "duplicate": {
       "template": "この{label}は既に登録されています",
-      "params": ["label"]
+      "params": [
+        "label"
+      ]
     },
     "outOfRange": {
       "template": "{label}は{min}〜{max}の範囲で入力してください",
-      "params": ["label", "min", "max"]
+      "params": [
+        "label",
+        "min",
+        "max"
+      ]
     },
     "mustBePositive": {
       "template": "{label}は1以上の数値を入力してください",
-      "params": ["label"]
+      "params": [
+        "label"
+      ]
     }
   },
-
   "regex": {
     "email-simple": {
       "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
       "description": "メールアドレス (RFC5322 簡易)",
-      "exampleValid": ["a@b.jp", "user@example.com"],
-      "exampleInvalid": ["a@b", "no-at-sign"]
+      "exampleValid": [
+        "a@b.jp",
+        "user@example.com"
+      ],
+      "exampleInvalid": [
+        "a@b",
+        "no-at-sign"
+      ]
     },
     "phone-jp": {
       "pattern": "^0\\d{1,4}-\\d{1,4}-\\d{4}$",
       "description": "国内電話番号 (固定/携帯、ハイフン必須)",
-      "exampleValid": ["080-1234-5678", "03-1234-5678"],
-      "exampleInvalid": ["+81-80-1234-5678", "08012345678"]
+      "exampleValid": [
+        "080-1234-5678",
+        "03-1234-5678"
+      ],
+      "exampleInvalid": [
+        "+81-80-1234-5678",
+        "08012345678"
+      ]
     },
     "postal-jp": {
       "pattern": "^\\d{3}-?\\d{4}$",
       "description": "日本の郵便番号 (ハイフン任意、保存時は NNN-NNNN 正規化)",
-      "exampleValid": ["100-0001", "1000001"],
-      "exampleInvalid": ["10-00001"]
+      "exampleValid": [
+        "100-0001",
+        "1000001"
+      ],
+      "exampleInvalid": [
+        "10-00001"
+      ]
     },
     "kana-fullwidth": {
       "pattern": "^[\\u30A0-\\u30FF ー・]+$",
       "description": "全角カタカナ (長音符・中黒・半角空白許容)",
-      "exampleValid": ["ヤマダ タロウ", "オオノ・ケンイチ"],
-      "exampleInvalid": ["やまだ", "YAMADA"]
+      "exampleValid": [
+        "ヤマダ タロウ",
+        "オオノ・ケンイチ"
+      ],
+      "exampleInvalid": [
+        "やまだ",
+        "YAMADA"
+      ]
     },
     "alnum": {
       "pattern": "^[A-Za-z0-9]+$",
       "description": "英数字のみ",
-      "exampleValid": ["Abc123"],
-      "exampleInvalid": ["あいう", "A-1"]
+      "exampleValid": [
+        "Abc123"
+      ],
+      "exampleInvalid": [
+        "あいう",
+        "A-1"
+      ]
     }
   },
-
   "limit": {
-    "nameMax": { "value": 100, "unit": "char", "description": "氏名最大長 (customers.name 等)" },
-    "nameKanaMax": { "value": 100, "unit": "char" },
-    "emailMax": { "value": 255, "unit": "char", "description": "RFC5321 準拠" },
-    "phoneMax": { "value": 20, "unit": "char" },
-    "postalMax": { "value": 10, "unit": "char", "description": "NNN-NNNN 正規化後は 8 文字" },
-    "addressMax": { "value": 500, "unit": "char" },
-    "companyNameMax": { "value": 200, "unit": "char" },
-    "quantityMax": { "value": 9999, "unit": "integer", "description": "発注可能数量の上限" },
-    "quantityMin": { "value": 1, "unit": "integer" },
-    "amountMax": { "value": 999999999999, "unit": "yen", "description": "DECIMAL(12,0) の上限、JPY" }
+    "nameMax": {
+      "value": 100,
+      "unit": "char",
+      "description": "氏名最大長 (customers.name 等)"
+    },
+    "nameKanaMax": {
+      "value": 100,
+      "unit": "char"
+    },
+    "emailMax": {
+      "value": 255,
+      "unit": "char",
+      "description": "RFC5321 準拠"
+    },
+    "phoneMax": {
+      "value": 20,
+      "unit": "char"
+    },
+    "postalMax": {
+      "value": 10,
+      "unit": "char",
+      "description": "NNN-NNNN 正規化後は 8 文字"
+    },
+    "addressMax": {
+      "value": 500,
+      "unit": "char"
+    },
+    "companyNameMax": {
+      "value": 200,
+      "unit": "char"
+    },
+    "quantityMax": {
+      "value": 9999,
+      "unit": "integer",
+      "description": "発注可能数量の上限"
+    },
+    "quantityMin": {
+      "value": 1,
+      "unit": "integer"
+    },
+    "amountMax": {
+      "value": 999999999999,
+      "unit": "yen",
+      "description": "DECIMAL(12,0) の上限、JPY"
+    }
   },
-
   "scope": {
-    "customerRegion": { "value": "domestic", "description": "国内顧客のみ (日本国内在住/在所)" },
-    "timezone": { "value": "Asia/Tokyo", "default": true, "description": "JST 固定。海外顧客はスコープ外" },
-    "language": { "value": "ja", "description": "日本語のみ。多言語化 (i18n) はスコープ外" }
+    "customerRegion": {
+      "value": "domestic",
+      "description": "国内顧客のみ (日本国内在住/在所)"
+    },
+    "timezone": {
+      "value": "Asia/Tokyo",
+      "default": true,
+      "description": "JST 固定。海外顧客はスコープ外"
+    },
+    "language": {
+      "value": "ja",
+      "description": "日本語のみ。多言語化 (i18n) はスコープ外"
+    }
   },
-
   "currency": {
     "jpy": {
       "code": "JPY",
@@ -93,17 +176,15 @@
       "description": "日本円のみ。外税 10%、1 円未満切り捨て、DECIMAL(12,0) 保存"
     }
   },
-
   "tax": {
     "standard": {
       "kind": "exclusive",
-      "rate": 0.10,
+      "rate": 0.1,
       "roundingMode": "floor",
       "default": true,
       "description": "消費税 外税 10% (2026 年時点)、1 円未満切り捨て"
     }
   },
-
   "auth": {
     "default": {
       "scheme": "session-cookie",
@@ -113,18 +194,19 @@
       "description": "httpOnly Cookie セッション + bcrypt(cost=12) パスワードハッシュ"
     }
   },
-
   "db": {
     "default": {
       "engine": "postgresql@14",
       "namingConvention": "snake_case",
-      "timestampColumns": ["created_at", "updated_at"],
+      "timestampColumns": [
+        "created_at",
+        "updated_at"
+      ],
       "logicalDeleteColumn": "is_deleted",
       "default": true,
       "description": "PostgreSQL 14+、snake_case、論理削除 is_deleted、タイムスタンプ自動管理"
     }
   },
-
   "numbering": {
     "customerCode": {
       "format": "C-NNNN",
@@ -137,18 +219,17 @@
       "description": "注文番号 年+4 桁ゼロパディング (例: ORD-2026-0001)"
     }
   },
-
   "tx": {
     "singleOperation": {
       "policy": "単一操作は 1 TX。複数操作が原子的である必要があれば明示的に TX 境界を指定",
-      "description": "標準トランザクション方針"
+      "description": "標準トランザクション方針",
+      "default": true
     },
     "externalApi": {
       "policy": "外部 API 呼出は TX 外を原則とする (DB ロック時間短縮、冪等性の外部管理)",
       "description": "外部 API 連携トランザクション方針"
     }
   },
-
   "externalOutcomeDefaults": {
     "success": {
       "outcome": "success",

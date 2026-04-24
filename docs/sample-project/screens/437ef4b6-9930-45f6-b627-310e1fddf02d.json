@@ -1,0 +1,1090 @@
+{
+  "dataSources": [],
+  "assets": [],
+  "styles": [
+    {
+      "selectors": [
+        "#i0ud"
+      ],
+      "style": {
+        "width": "32px",
+        "height": "32px",
+        "background": "rgba(255,255,255,0.2)",
+        "border-radius": "8px",
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "center"
+      }
+    },
+    {
+      "selectors": [
+        "#i017"
+      ],
+      "style": {
+        "background": "#6366f1"
+      }
+    },
+    {
+      "selectors": [
+        "#ibn79"
+      ],
+      "style": {
+        "background": "#6366f1"
+      }
+    },
+    {
+      "selectors": [
+        "#ixh1x"
+      ],
+      "style": {
+        "width": "48px",
+        "height": "48px",
+        "background": "#eff6ff",
+        "border-radius": "12px",
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "center",
+        "flex-shrink": "0"
+      }
+    },
+    {
+      "selectors": [
+        "#iqr3z"
+      ],
+      "style": {
+        "cursor": "pointer"
+      }
+    },
+    {
+      "selectors": [
+        "#ie3al"
+      ],
+      "style": {
+        "width": "48px",
+        "height": "48px",
+        "background": "#f0fdf4",
+        "border-radius": "12px",
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "center",
+        "flex-shrink": "0"
+      }
+    },
+    {
+      "selectors": [
+        "#ipyn2"
+      ],
+      "style": {
+        "cursor": "pointer"
+      }
+    },
+    {
+      "selectors": [
+        "#ineo4"
+      ],
+      "style": {
+        "width": "48px",
+        "height": "48px",
+        "background": "#fffbeb",
+        "border-radius": "12px",
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "center",
+        "flex-shrink": "0"
+      }
+    },
+    {
+      "selectors": [
+        "#i42oj"
+      ],
+      "style": {
+        "cursor": "pointer"
+      }
+    },
+    {
+      "selectors": [
+        "#iu62k"
+      ],
+      "style": {
+        "width": "48px",
+        "height": "48px",
+        "background": "#f8fafc",
+        "border-radius": "12px",
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "center",
+        "flex-shrink": "0"
+      }
+    },
+    {
+      "selectors": [
+        "#icjgu"
+      ],
+      "style": {
+        "cursor": "pointer"
+      }
+    },
+    {
+      "selectors": [
+        "#i8f4k"
+      ],
+      "style": {
+        "cursor": "pointer"
+      }
+    }
+  ],
+  "pages": [
+    {
+      "frames": [
+        {
+          "component": {
+            "type": "wrapper",
+            "stylable": [
+              "background",
+              "background-color",
+              "background-image",
+              "background-repeat",
+              "background-attachment",
+              "background-position",
+              "background-size"
+            ],
+            "attributes": {
+              "id": "ie33"
+            },
+            "components": [
+              {
+                "tagName": "nav",
+                "classes": [
+                  "navbar",
+                  "navbar-dark",
+                  "px-3"
+                ],
+                "attributes": {
+                  "id": "i017"
+                },
+                "components": [
+                  {
+                    "classes": [
+                      "d-flex",
+                      "align-items-center",
+                      "gap-2"
+                    ],
+                    "components": [
+                      {
+                        "attributes": {
+                          "id": "i0ud"
+                        },
+                        "components": [
+                          {
+                            "tagName": "i",
+                            "classes": [
+                              "bi",
+                              "bi-building",
+                              "text-white"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "tagName": "span",
+                        "type": "text",
+                        "classes": [
+                          "navbar-brand",
+                          "mb-0",
+                          "fw-bold"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "システム名"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "classes": [
+                      "d-flex",
+                      "align-items-center",
+                      "gap-2"
+                    ],
+                    "components": [
+                      {
+                        "tagName": "span",
+                        "type": "text",
+                        "classes": [
+                          "text-white",
+                          "small"
+                        ],
+                        "components": [
+                          {
+                            "tagName": "i",
+                            "classes": [
+                              "bi",
+                              "bi-person-circle",
+                              "me-1"
+                            ]
+                          },
+                          {
+                            "type": "textnode",
+                            "content": "ユーザー名 様"
+                          }
+                        ]
+                      },
+                      {
+                        "tagName": "button",
+                        "type": "text",
+                        "classes": [
+                          "btn",
+                          "btn-sm",
+                          "btn-outline-light"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "ログアウト"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "tagName": "nav",
+                "classes": [
+                  "navbar",
+                  "navbar-dark",
+                  "px-3",
+                  "py-2"
+                ],
+                "attributes": {
+                  "id": "ibn79"
+                },
+                "components": [
+                  {
+                    "tagName": "span",
+                    "type": "text",
+                    "classes": [
+                      "navbar-brand",
+                      "mb-0",
+                      "fw-bold",
+                      "small"
+                    ],
+                    "components": [
+                      {
+                        "tagName": "i",
+                        "classes": [
+                          "bi",
+                          "bi-building",
+                          "me-2"
+                        ]
+                      },
+                      {
+                        "type": "textnode",
+                        "content": "システム名"
+                      }
+                    ]
+                  },
+                  {
+                    "tagName": "span",
+                    "type": "text",
+                    "classes": [
+                      "text-white",
+                      "small"
+                    ],
+                    "components": [
+                      {
+                        "type": "textnode",
+                        "content": "ユーザー名 様"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "container",
+                  "mt-4"
+                ],
+                "components": [
+                  {
+                    "tagName": "p",
+                    "type": "text",
+                    "classes": [
+                      "text-muted",
+                      "small",
+                      "mb-4"
+                    ],
+                    "components": [
+                      {
+                        "type": "textnode",
+                        "content": "操作する機能を選択してください"
+                      }
+                    ]
+                  },
+                  {
+                    "classes": [
+                      "row",
+                      "g-3"
+                    ],
+                    "components": [
+                      {
+                        "classes": [
+                          "col-md-6"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "card",
+                              "border-0",
+                              "shadow-sm",
+                              "h-100"
+                            ],
+                            "attributes": {
+                              "id": "iqr3z"
+                            },
+                            "components": [
+                              {
+                                "classes": [
+                                  "card-body",
+                                  "p-4"
+                                ],
+                                "components": [
+                                  {
+                                    "classes": [
+                                      "d-flex",
+                                      "align-items-center",
+                                      "gap-3"
+                                    ],
+                                    "components": [
+                                      {
+                                        "attributes": {
+                                          "id": "ixh1x"
+                                        },
+                                        "components": [
+                                          {
+                                            "tagName": "i",
+                                            "classes": [
+                                              "bi",
+                                              "bi-people-fill",
+                                              "text-primary",
+                                              "fs-4"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "components": [
+                                          {
+                                            "tagName": "h6",
+                                            "type": "text",
+                                            "classes": [
+                                              "mb-0",
+                                              "fw-bold"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "メニュー項目1"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "tagName": "small",
+                                            "type": "text",
+                                            "classes": [
+                                              "text-muted"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "説明文をここに記入"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "col-md-6"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "card",
+                              "border-0",
+                              "shadow-sm",
+                              "h-100"
+                            ],
+                            "attributes": {
+                              "id": "ipyn2"
+                            },
+                            "components": [
+                              {
+                                "classes": [
+                                  "card-body",
+                                  "p-4"
+                                ],
+                                "components": [
+                                  {
+                                    "classes": [
+                                      "d-flex",
+                                      "align-items-center",
+                                      "gap-3"
+                                    ],
+                                    "components": [
+                                      {
+                                        "attributes": {
+                                          "id": "ie3al"
+                                        },
+                                        "components": [
+                                          {
+                                            "tagName": "i",
+                                            "classes": [
+                                              "bi",
+                                              "bi-cart-fill",
+                                              "text-success",
+                                              "fs-4"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "components": [
+                                          {
+                                            "tagName": "h6",
+                                            "type": "text",
+                                            "classes": [
+                                              "mb-0",
+                                              "fw-bold"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "メニュー項目2"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "tagName": "small",
+                                            "type": "text",
+                                            "classes": [
+                                              "text-muted"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "説明文をここに記入"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "col-md-6"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "card",
+                              "border-0",
+                              "shadow-sm",
+                              "h-100"
+                            ],
+                            "attributes": {
+                              "id": "i42oj"
+                            },
+                            "components": [
+                              {
+                                "classes": [
+                                  "card-body",
+                                  "p-4"
+                                ],
+                                "components": [
+                                  {
+                                    "classes": [
+                                      "d-flex",
+                                      "align-items-center",
+                                      "gap-3"
+                                    ],
+                                    "components": [
+                                      {
+                                        "attributes": {
+                                          "id": "ineo4"
+                                        },
+                                        "components": [
+                                          {
+                                            "tagName": "i",
+                                            "classes": [
+                                              "bi",
+                                              "bi-graph-up-arrow",
+                                              "text-warning",
+                                              "fs-4"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "components": [
+                                          {
+                                            "tagName": "h6",
+                                            "type": "text",
+                                            "classes": [
+                                              "mb-0",
+                                              "fw-bold"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "メニュー項目3"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "tagName": "small",
+                                            "type": "text",
+                                            "classes": [
+                                              "text-muted"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "説明文をここに記入"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "col-md-6"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "card",
+                              "border-0",
+                              "shadow-sm",
+                              "h-100"
+                            ],
+                            "attributes": {
+                              "id": "icjgu"
+                            },
+                            "components": [
+                              {
+                                "classes": [
+                                  "card-body",
+                                  "p-4"
+                                ],
+                                "components": [
+                                  {
+                                    "classes": [
+                                      "d-flex",
+                                      "align-items-center",
+                                      "gap-3"
+                                    ],
+                                    "components": [
+                                      {
+                                        "attributes": {
+                                          "id": "iu62k"
+                                        },
+                                        "components": [
+                                          {
+                                            "tagName": "i",
+                                            "classes": [
+                                              "bi",
+                                              "bi-gear-fill",
+                                              "text-secondary",
+                                              "fs-4"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "components": [
+                                          {
+                                            "tagName": "h6",
+                                            "type": "text",
+                                            "classes": [
+                                              "mb-0",
+                                              "fw-bold"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "メニュー項目4"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "tagName": "small",
+                                            "type": "text",
+                                            "classes": [
+                                              "text-muted"
+                                            ],
+                                            "components": [
+                                              {
+                                                "type": "textnode",
+                                                "content": "説明文をここに記入"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "col-md-6"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "card",
+                      "border-0",
+                      "shadow-sm",
+                      "h-100"
+                    ],
+                    "attributes": {
+                      "id": "i8f4k"
+                    }
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-2"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label",
+                          "required"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "氏名"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-input",
+                            "void": true,
+                            "classes": [
+                              "form-control",
+                              "form-control-sm"
+                            ],
+                            "attributes": {
+                              "type": "text",
+                              "placeholder": "",
+                              "data-item-id": "69f9561e-2cea-4251-8ec6-f66a3e779a55",
+                              "name": "field_69f9561e",
+                              "id": "field_69f9561e"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "フリガナ"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-input",
+                            "void": true,
+                            "classes": [
+                              "form-control",
+                              "form-control-sm"
+                            ],
+                            "attributes": {
+                              "type": "text",
+                              "placeholder": "カタカナ",
+                              "data-item-id": "1166b39f-4f2e-401b-b539-da1fa51f3608",
+                              "name": "field_1166b39f",
+                              "id": "field_1166b39f"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "チェック"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "check-group"
+                            ],
+                            "components": [
+                              {
+                                "type": "label",
+                                "components": [
+                                  {
+                                    "type": "validation-input",
+                                    "void": true,
+                                    "attributes": {
+                                      "type": "checkbox",
+                                      "data-item-id": "02aeb23e-737a-4cc8-821c-7df13067db6f",
+                                      "name": "field_02aeb23e",
+                                      "id": "field_02aeb23e"
+                                    }
+                                  },
+                                  {
+                                    "type": "textnode",
+                                    "content": " 項目1"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "label",
+                                "components": [
+                                  {
+                                    "type": "validation-input",
+                                    "void": true,
+                                    "attributes": {
+                                      "type": "checkbox",
+                                      "data-item-id": "349e61a5-b383-4a7f-94d3-8d119345c645",
+                                      "name": "field_349e61a5",
+                                      "id": "field_349e61a5"
+                                    }
+                                  },
+                                  {
+                                    "type": "textnode",
+                                    "content": " 項目2"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "label",
+                                "components": [
+                                  {
+                                    "type": "validation-input",
+                                    "void": true,
+                                    "attributes": {
+                                      "type": "checkbox",
+                                      "data-item-id": "50225b76-fe92-4649-9a30-ddf916c8412f",
+                                      "name": "field_50225b76",
+                                      "id": "field_50225b76"
+                                    }
+                                  },
+                                  {
+                                    "type": "textnode",
+                                    "content": " 項目3"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "有効"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "form-check",
+                              "form-switch"
+                            ],
+                            "components": [
+                              {
+                                "type": "validation-input",
+                                "void": true,
+                                "classes": [
+                                  "form-check-input"
+                                ],
+                                "attributes": {
+                                  "type": "checkbox",
+                                  "role": "switch",
+                                  "data-item-id": "a3d11311-6b25-4fd9-9fe3-0c66b1826301",
+                                  "name": "field_a3d11311",
+                                  "id": "field_a3d11311"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "選択"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-select",
+                            "classes": [
+                              "form-select",
+                              "form-select-sm"
+                            ],
+                            "attributes": {
+                              "data-item-id": "3b3b7152-5130-44da-93b5-2a2818af2b68",
+                              "name": "field_3b3b7152",
+                              "id": "field_3b3b7152"
+                            },
+                            "components": [
+                              {
+                                "tagName": "option",
+                                "type": "text",
+                                "attributes": {
+                                  "value": ""
+                                },
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "（選択してください）"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "option",
+                                "type": "text",
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "選択肢1"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "option",
+                                "type": "text",
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "選択肢2"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "option",
+                                "type": "text",
+                                "components": [
+                                  {
+                                    "type": "textnode",
+                                    "content": "選択肢3"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-1"
+                ],
+                "components": [
+                  {
+                    "classes": [
+                      "form-field"
+                    ],
+                    "components": [
+                      {
+                        "type": "text",
+                        "classes": [
+                          "field-label"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "項目名"
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "field-value"
+                        ],
+                        "components": [
+                          {
+                            "type": "validation-input",
+                            "void": true,
+                            "classes": [
+                              "form-control",
+                              "form-control-sm"
+                            ],
+                            "attributes": {
+                              "type": "text",
+                              "placeholder": "",
+                              "data-item-id": "3b9cbcba-2155-4b3e-bc8d-1c59bb2d4012",
+                              "name": "field_3b9cbcba",
+                              "id": "field_3b9cbcba"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "head": {
+              "type": "head"
+            },
+            "docEl": {
+              "tagName": "html"
+            }
+          },
+          "id": "EP6FZyZX6B0LK38N"
+        }
+      ],
+      "id": "uAY9awnFHqsLAfRF"
+    }
+  ],
+  "symbols": []
+}

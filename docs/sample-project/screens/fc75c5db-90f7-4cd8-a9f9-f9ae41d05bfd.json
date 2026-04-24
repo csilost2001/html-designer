@@ -1,0 +1,569 @@
+{
+  "dataSources": [],
+  "assets": [],
+  "styles": [
+    {
+      "selectors": [
+        "#ijestd"
+      ],
+      "style": {
+        "width": "56px",
+        "height": "56px",
+        "background": "#6366f1",
+        "border-radius": "12px",
+        "display": "inline-flex",
+        "align-items": "center",
+        "justify-content": "center"
+      }
+    },
+    {
+      "selectors": [
+        "#ixcaid"
+      ],
+      "style": {
+        "width": "100%",
+        "max-width": "400px",
+        "padding": "16px"
+      }
+    },
+    {
+      "selectors": [
+        "#iepr5r"
+      ],
+      "style": {
+        "min-height": "100vh",
+        "background": "#f0f4ff",
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "center"
+      }
+    },
+    {
+      "selectors": [
+        "#ickqb1"
+      ],
+      "style": {
+        "width": "140px"
+      }
+    },
+    {
+      "selectors": [
+        "#ijf9q6"
+      ],
+      "style": {
+        "width": "200px"
+      }
+    },
+    {
+      "selectors": [
+        "#ijc2sk"
+      ],
+      "style": {
+        "width": "140px"
+      }
+    }
+  ],
+  "pages": [
+    {
+      "frames": [
+        {
+          "component": {
+            "type": "wrapper",
+            "stylable": [
+              "background",
+              "background-color",
+              "background-image",
+              "background-repeat",
+              "background-attachment",
+              "background-position",
+              "background-size"
+            ],
+            "components": [
+              {
+                "classes": [
+                  "form-row",
+                  "fcol-3"
+                ]
+              },
+              {
+                "classes": [
+                  "form-section"
+                ],
+                "components": [
+                  {
+                    "type": "text",
+                    "classes": [
+                      "form-section-title"
+                    ],
+                    "components": [
+                      {
+                        "type": "textnode",
+                        "content": "［セクション名］"
+                      }
+                    ]
+                  },
+                  {
+                    "classes": [
+                      "form-section-body"
+                    ]
+                  }
+                ]
+              },
+              {
+                "attributes": {
+                  "id": "iepr5r"
+                },
+                "components": [
+                  {
+                    "attributes": {
+                      "id": "ixcaid"
+                    },
+                    "components": [
+                      {
+                        "classes": [
+                          "search-area"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "search-fields"
+                            ],
+                            "components": [
+                              {
+                                "classes": [
+                                  "search-field"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "label",
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "コード"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "validation-input",
+                                    "void": true,
+                                    "classes": [
+                                      "form-control",
+                                      "form-control-sm"
+                                    ],
+                                    "attributes": {
+                                      "type": "text",
+                                      "id": "ickqb1"
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "classes": [
+                                  "search-field"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "label",
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "名称"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "validation-input",
+                                    "void": true,
+                                    "classes": [
+                                      "form-control",
+                                      "form-control-sm"
+                                    ],
+                                    "attributes": {
+                                      "type": "text",
+                                      "id": "ijf9q6"
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "classes": [
+                                  "search-field"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "label",
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "ステータス"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "validation-select",
+                                    "classes": [
+                                      "form-select",
+                                      "form-select-sm"
+                                    ],
+                                    "attributes": {
+                                      "id": "ijc2sk"
+                                    },
+                                    "components": [
+                                      {
+                                        "tagName": "option",
+                                        "type": "text",
+                                        "attributes": {
+                                          "value": ""
+                                        },
+                                        "components": [
+                                          {
+                                            "type": "textnode",
+                                            "content": "全て"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "tagName": "option",
+                                        "type": "text",
+                                        "components": [
+                                          {
+                                            "type": "textnode",
+                                            "content": "有効"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "tagName": "option",
+                                        "type": "text",
+                                        "components": [
+                                          {
+                                            "type": "textnode",
+                                            "content": "無効"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "classes": [
+                              "search-buttons"
+                            ],
+                            "components": [
+                              {
+                                "tagName": "button",
+                                "type": "text",
+                                "classes": [
+                                  "btn",
+                                  "btn-outline-secondary",
+                                  "btn-sm"
+                                ],
+                                "attributes": {
+                                  "type": "button"
+                                },
+                                "components": [
+                                  {
+                                    "tagName": "i",
+                                    "classes": [
+                                      "bi",
+                                      "bi-x-circle"
+                                    ]
+                                  },
+                                  {
+                                    "type": "textnode",
+                                    "content": " クリア"
+                                  }
+                                ]
+                              },
+                              {
+                                "tagName": "button",
+                                "type": "text",
+                                "classes": [
+                                  "btn",
+                                  "btn-primary",
+                                  "btn-sm"
+                                ],
+                                "attributes": {
+                                  "type": "button"
+                                },
+                                "components": [
+                                  {
+                                    "tagName": "i",
+                                    "classes": [
+                                      "bi",
+                                      "bi-search"
+                                    ]
+                                  },
+                                  {
+                                    "type": "textnode",
+                                    "content": " 検索"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "classes": [
+                          "card",
+                          "shadow"
+                        ],
+                        "components": [
+                          {
+                            "classes": [
+                              "card-body",
+                              "p-4"
+                            ],
+                            "components": [
+                              {
+                                "classes": [
+                                  "text-center",
+                                  "mb-4"
+                                ],
+                                "components": [
+                                  {
+                                    "attributes": {
+                                      "id": "ijestd"
+                                    },
+                                    "components": [
+                                      {
+                                        "tagName": "i",
+                                        "classes": [
+                                          "bi",
+                                          "bi-building",
+                                          "text-white",
+                                          "fs-4"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "tagName": "h5",
+                                    "type": "text",
+                                    "classes": [
+                                      "mt-3",
+                                      "mb-0",
+                                      "fw-bold"
+                                    ],
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "システム名"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "tagName": "small",
+                                    "type": "text",
+                                    "classes": [
+                                      "text-muted"
+                                    ],
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "System Name"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "classes": [
+                                  "mb-3"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "label",
+                                    "classes": [
+                                      "form-label",
+                                      "fw-medium",
+                                      "small"
+                                    ],
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "ユーザーID"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "classes": [
+                                      "input-group"
+                                    ],
+                                    "components": [
+                                      {
+                                        "tagName": "span",
+                                        "classes": [
+                                          "input-group-text"
+                                        ],
+                                        "components": [
+                                          {
+                                            "tagName": "i",
+                                            "classes": [
+                                              "bi",
+                                              "bi-person"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "validation-input",
+                                        "void": true,
+                                        "classes": [
+                                          "form-control"
+                                        ],
+                                        "attributes": {
+                                          "type": "text",
+                                          "placeholder": "ユーザーIDを入力"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "classes": [
+                                  "mb-4"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "label",
+                                    "classes": [
+                                      "form-label",
+                                      "fw-medium",
+                                      "small"
+                                    ],
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "パスワード"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "classes": [
+                                      "input-group"
+                                    ],
+                                    "components": [
+                                      {
+                                        "tagName": "span",
+                                        "classes": [
+                                          "input-group-text"
+                                        ],
+                                        "components": [
+                                          {
+                                            "tagName": "i",
+                                            "classes": [
+                                              "bi",
+                                              "bi-lock"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "validation-input",
+                                        "void": true,
+                                        "classes": [
+                                          "form-control"
+                                        ],
+                                        "attributes": {
+                                          "type": "password",
+                                          "placeholder": "パスワードを入力"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "classes": [
+                                  "d-grid"
+                                ],
+                                "components": [
+                                  {
+                                    "tagName": "button",
+                                    "type": "text",
+                                    "classes": [
+                                      "btn",
+                                      "btn-primary",
+                                      "btn-lg"
+                                    ],
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "ログイン"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "classes": [
+                                  "text-center",
+                                  "mt-3"
+                                ],
+                                "components": [
+                                  {
+                                    "type": "link",
+                                    "classes": [
+                                      "text-decoration-none",
+                                      "small",
+                                      "text-muted"
+                                    ],
+                                    "attributes": {
+                                      "href": "#"
+                                    },
+                                    "components": [
+                                      {
+                                        "type": "textnode",
+                                        "content": "パスワードを忘れた方はこちら"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "tagName": "p",
+                        "type": "text",
+                        "classes": [
+                          "text-center",
+                          "text-muted",
+                          "small",
+                          "mt-3"
+                        ],
+                        "components": [
+                          {
+                            "type": "textnode",
+                            "content": "© 2026 システム名"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "head": {
+              "type": "head"
+            },
+            "docEl": {
+              "tagName": "html"
+            }
+          },
+          "id": "TjAQ6jazEGPWKHa8"
+        }
+      ],
+      "type": "main",
+      "id": "OgFSUl7G4f3fNXBR"
+    }
+  ],
+  "symbols": []
+}

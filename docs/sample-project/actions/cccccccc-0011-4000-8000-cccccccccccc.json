@@ -1,0 +1,254 @@
+{
+  "id": "cccccccc-0011-4000-8000-cccccccccccc",
+  "name": "注文登録画面 (v2 フォーマット試作)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客選択→明細入力→在庫確認→決済→注文登録→メール送信→完了画面の一連処理。ループ / 分岐 / エラーパスを広く踏む。v2 フォーマット試作。",
+  "mode": "upstream",
+  "maturity": "provisional",
+  "actions": [
+    {
+      "id": "act-orderreg-001",
+      "name": "顧客選択時",
+      "trigger": "change",
+      "maturity": "provisional",
+      "description": "顧客選択ドロップダウンの変更時、顧客情報を画面に反映する。",
+      "inputs": [
+        { "name": "customerId", "label": "選択された顧客ID", "type": "string", "required": true }
+      ],
+      "outputs": [
+        { "name": "customerDisplay", "label": "顧客表示情報", "type": { "kind": "tableRow", "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb" } }
+      ],
+      "steps": [
+        {
+          "id": "step-orderreg-001",
+          "type": "dbAccess",
+          "maturity": "provisional",
+          "description": "顧客情報取得",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "name, name_kana, phone, email, address WHERE id = @customerId",
+          "outputBinding": "customerDisplay"
+        },
+        {
+          "id": "step-orderreg-002",
+          "type": "displayUpdate",
+          "maturity": "committed",
+          "description": "顧客情報を読み取り専用エリアに反映",
+          "target": "顧客情報表示エリア (@customerDisplay)"
+        }
+      ]
+    },
+    {
+      "id": "act-orderreg-002",
+      "name": "注文確定ボタン",
+      "trigger": "submit",
+      "maturity": "provisional",
+      "description": "バリデーション→在庫確認→決済→DB登録 (ヘッダ+明細+在庫引当)→メール送信→完了画面遷移。",
+      "inputs": [
+        { "name": "customerId", "label": "顧客ID", "type": "string", "required": true },
+        { "name": "items", "label": "明細一覧", "type": { "kind": "custom", "label": "OrderItemInput[] {itemId, quantity, unitPrice}" }, "required": true },
+        { "name": "paymentMethod", "label": "支払方法", "type": "string", "required": true },
+        { "name": "orderNotes", "label": "備考", "type": "string", "required": false }
+      ],
+      "outputs": [
+        { "name": "orderId", "label": "登録済み注文ID", "type": "string" },
+        { "name": "message", "label": "処理結果メッセージ", "type": "string" }
+      ],
+      "steps": [
+        {
+          "id": "step-orderreg-003",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "入力値チェック",
+          "conditions": "@customerId 必須 / @items.length >= 1 / 各 @items[].quantity > 0 / @paymentMethod 必須",
+          "inlineBranch": {
+            "ok": "在庫確認へ",
+            "ng": "エラーメッセージを画面上部に表示、処理中断"
+          }
+        },
+        {
+          "id": "step-orderreg-004",
+          "type": "loop",
+          "maturity": "provisional",
+          "description": "明細ごとに在庫確認",
+          "loopKind": "collection",
+          "collectionSource": "@items",
+          "collectionItemName": "item",
+          "notes": [
+            { "id": "n-orderreg-001", "type": "prerequisite", "body": "inventory テーブル未設計。仮スキーマ想定: inventory(item_id PK, stock INT, reserved INT, updated_at)。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderreg-002", "type": "prerequisite", "body": "商品マスタ (items テーブル) も未設計。item_id の整合性検査は実装時に定める。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ],
+          "steps": [
+            {
+              "id": "step-orderreg-004-1",
+              "type": "dbAccess",
+              "maturity": "draft",
+              "description": "在庫残数取得",
+              "tableName": "inventory",
+              "operation": "SELECT",
+              "fields": "stock WHERE item_id = @item.itemId",
+              "outputBinding": "stockInfo"
+            },
+            {
+              "id": "step-orderreg-004-2",
+              "type": "branch",
+              "maturity": "provisional",
+              "description": "在庫判定",
+              "branches": [
+                {
+                  "id": "branch-orderreg-stock-a",
+                  "code": "A",
+                  "label": "不足",
+                  "condition": "@item.quantity > @stockInfo.stock",
+                  "steps": [
+                    {
+                      "id": "step-orderreg-004-2-a-1",
+                      "type": "other",
+                      "maturity": "provisional",
+                      "description": "在庫不足明細リストに追加",
+                      "outputBinding": "shortageList",
+                      "notes": [
+                        { "id": "n-orderreg-003", "type": "assumption", "body": "@shortageList はループ外スコープに累積する配列として扱う。ループ完了後に件数>0 で判定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-005",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "在庫不足チェック結果による分岐",
+          "branches": [
+            {
+              "id": "branch-orderreg-a",
+              "code": "A",
+              "label": "不足あり",
+              "condition": "@shortageList != null && @shortageList.length > 0",
+              "steps": [
+                {
+                  "id": "step-orderreg-005-a-1",
+                  "type": "displayUpdate",
+                  "maturity": "committed",
+                  "description": "不足商品一覧と共にエラー表示",
+                  "target": "明細エリア上部のエラー表示 (@shortageList)"
+                },
+                {
+                  "id": "step-orderreg-005-a-2",
+                  "type": "jump",
+                  "maturity": "provisional",
+                  "description": "処理中断",
+                  "jumpTo": "end-of-action"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-006",
+          "type": "externalSystem",
+          "maturity": "draft",
+          "description": "決済処理",
+          "systemName": "決済ゲートウェイ",
+          "protocol": "HTTPS (想定: クレジットカード決済API)",
+          "outputBinding": "paymentResult",
+          "notes": [
+            { "id": "n-orderreg-004", "type": "deferred", "body": "決済失敗時の挙動: 暫定は処理中断してエラー表示。タイムアウト時のリトライ有無は別仕様『エラー outcome』で。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderreg-005", "type": "assumption", "body": "@paymentResult.paymentId を保持して、後続 step-orderreg-007 で orders.payment_id に記録。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderreg-006", "type": "question", "body": "idempotency-key の採番方法 (FE 採番 / BE 採番 どちら)。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-orderreg-007",
+          "type": "dbAccess",
+          "maturity": "provisional",
+          "description": "注文ヘッダ登録",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "INSERT",
+          "fields": "customer_id=@customerId, order_date=now(), subtotal=..., tax_amount=..., total_amount=..., payment_method=@paymentMethod, payment_id=@paymentResult.paymentId, status='processing'",
+          "outputBinding": "registeredOrder",
+          "notes": [
+            { "id": "n-orderreg-007", "type": "assumption", "body": "@registeredOrder.id, @registeredOrder.order_number を以降のステップで使用。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderreg-008", "type": "deferred", "body": "order_number (NOT NULL UNIQUE) の採番規約は別紙『採番規約』で横断策定予定。暫定形式: ORD-YYYY-NNNN。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderreg-009", "type": "deferred", "body": "税計算 (内税/外税, 税率) は別紙『金額計算規約』で横断策定予定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-orderreg-008",
+          "type": "loop",
+          "maturity": "provisional",
+          "description": "明細を注文明細テーブルに登録",
+          "loopKind": "collection",
+          "collectionSource": "@items",
+          "collectionItemName": "item",
+          "steps": [
+            {
+              "id": "step-orderreg-008-1",
+              "type": "dbAccess",
+              "maturity": "provisional",
+              "description": "注文明細 INSERT",
+              "tableName": "order_items",
+              "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+              "operation": "INSERT",
+              "fields": "order_id=@registeredOrder.id, item_id=@item.itemId, quantity=@item.quantity, unit_price=@item.unitPrice, subtotal=@item.quantity * @item.unitPrice"
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-009",
+          "type": "loop",
+          "maturity": "draft",
+          "description": "在庫引当 (inventory 更新)",
+          "loopKind": "collection",
+          "collectionSource": "@items",
+          "collectionItemName": "item",
+          "notes": [
+            { "id": "n-orderreg-010", "type": "deferred", "body": "決済成功後に DB 登録が失敗した時の補償処理 (Saga) は未設計。暫定: 運用通知してオペレータ払い戻し。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-orderreg-011", "type": "deferred", "body": "step-orderreg-004 の在庫確認と本ステップの引当の間に他注文が挟まる場合の競合制御は未設計。別仕様『競合制御規約』で策定予定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ],
+          "steps": [
+            {
+              "id": "step-orderreg-009-1",
+              "type": "dbAccess",
+              "maturity": "draft",
+              "description": "在庫残数を減算",
+              "tableName": "inventory",
+              "operation": "UPDATE",
+              "fields": "SET stock = stock - @item.quantity WHERE item_id = @item.itemId"
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-010",
+          "type": "externalSystem",
+          "maturity": "draft",
+          "description": "注文確認メール送信",
+          "systemName": "メール送信サービス",
+          "protocol": "SMTP or HTTPS",
+          "notes": [
+            { "id": "n-orderreg-012", "type": "deferred", "body": "送信失敗時: 登録成功済みなので完了画面へは進む、失敗はログのみ、が暫定。最終方針は別仕様『エラー outcome』で。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-orderreg-011",
+          "type": "screenTransition",
+          "maturity": "provisional",
+          "description": "処理完了画面へ遷移",
+          "targetScreenId": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+          "targetScreenName": "処理完了",
+          "notes": [
+            { "id": "n-orderreg-013", "type": "assumption", "body": "引き渡し情報: @registeredOrder.id, @registeredOrder.order_number。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T12:00:00.000Z",
+  "updatedAt": "2026-04-20T13:00:00.000Z"
+}

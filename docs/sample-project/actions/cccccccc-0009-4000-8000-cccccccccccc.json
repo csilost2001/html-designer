@@ -1,0 +1,159 @@
+{
+  "id": "cccccccc-0009-4000-8000-cccccccccccc",
+  "name": "顧客登録画面 (v2 フォーマット試作)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客の新規登録。必須/形式チェックと重複チェック後、顧客マスタへ INSERT し、確認メールを送信して完了画面へ遷移する。本ファイルは docs/spec/process-flow-maturity.md と process-flow-variables.md で提案した新フォーマットの試作版。",
+  "mode": "upstream",
+  "maturity": "provisional",
+  "actions": [
+    {
+      "id": "act-custreg-001",
+      "name": "登録ボタン",
+      "trigger": "submit",
+      "maturity": "provisional",
+      "description": "入力内容をバリデーションし、重複チェック後に顧客マスタへ登録する。",
+      "inputs": [
+        { "name": "name", "label": "氏名", "type": "string", "required": true },
+        { "name": "nameKana", "label": "フリガナ", "type": "string", "required": true, "description": "全角カタカナ" },
+        { "name": "postalCode", "label": "郵便番号", "type": "string", "required": true },
+        { "name": "address", "label": "住所", "type": "string", "required": true },
+        { "name": "phone", "label": "電話番号", "type": "string", "required": true },
+        { "name": "email", "label": "メールアドレス", "type": "string", "required": true }
+      ],
+      "outputs": [
+        { "name": "customerId", "label": "登録済み顧客ID", "type": "string", "description": "DB 採番。customer_code 規約は別途策定予定" },
+        { "name": "message", "label": "処理結果メッセージ", "type": "string" }
+      ],
+      "steps": [
+        {
+          "id": "step-custreg-001",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "入力値チェック",
+          "conditions": "@name 必須 / @nameKana 全角カタカナ / @email 形式 / @phone 形式 / @postalCode 形式",
+          "inlineBranch": {
+            "ok": "次のステップへ続行",
+            "ng": "エラーメッセージを各項目下に表示、処理中断"
+          },
+          "notes": [
+            { "id": "n-custreg-001", "type": "deferred", "body": "各形式の正規表現の具体パターンは別紙「バリデーション規約」で横断策定予定。カナ範囲 (ー・ 含む可否) も同所で。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-002",
+          "type": "commonProcess",
+          "maturity": "draft",
+          "description": "郵便番号から住所補完",
+          "refId": "",
+          "refName": "郵便番号→住所補完",
+          "outputBinding": "addressAutofill",
+          "argumentMapping": {
+            "postalCode": "@postalCode"
+          },
+          "notes": [
+            { "id": "n-custreg-002", "type": "prerequisite", "body": "郵便番号→住所補完の共通処理フローは未設計。refId 未確定。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-custreg-003", "type": "deferred", "body": "API 失敗時の挙動は将来検討。暫定: 失敗時は手入力に任せて次のステップへ。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-003",
+          "type": "dbAccess",
+          "maturity": "provisional",
+          "description": "メールアドレス重複チェック",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "id WHERE email = @email",
+          "outputBinding": "duplicateCustomers",
+          "notes": [
+            { "id": "n-custreg-004", "type": "assumption", "body": "@duplicateCustomers は該当顧客の配列。件数>0 で重複扱い。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-custreg-005", "type": "question", "body": "論理削除 (is_deleted) を検索条件に含めるか要確認。含める想定で暫定実装。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-004",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "重複判定",
+          "branches": [
+            {
+              "id": "branch-custreg-a",
+              "code": "A",
+              "label": "重複あり",
+              "condition": "@duplicateCustomers.length > 0",
+              "steps": [
+                {
+                  "id": "step-custreg-004-a-1",
+                  "type": "displayUpdate",
+                  "maturity": "committed",
+                  "description": "「このメールアドレスは既に登録されています」エラー表示",
+                  "target": "メールアドレス入力欄の下"
+                },
+                {
+                  "id": "step-custreg-004-a-2",
+                  "type": "jump",
+                  "maturity": "provisional",
+                  "description": "処理終了",
+                  "jumpTo": "end-of-action",
+                  "notes": [
+                    { "id": "n-custreg-006", "type": "deferred", "body": "jumpTo のラベル設計 (BE の return / FE の早期 return) は別仕様 (jumpTo 規約) で策定予定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "branch-custreg-else",
+            "code": "ELSE",
+            "label": "重複なし",
+            "condition": "",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-custreg-005",
+          "type": "dbAccess",
+          "maturity": "provisional",
+          "description": "顧客マスタへ INSERT",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "INSERT",
+          "fields": "name=@name, name_kana=@nameKana, postal_code=@postalCode, address=@address, phone=@phone, email=@email",
+          "outputBinding": "registeredCustomer",
+          "notes": [
+            { "id": "n-custreg-007", "type": "assumption", "body": "@registeredCustomer.id が採番された顧客ID。以降のステップで参照する。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-custreg-008", "type": "deferred", "body": "customer_code (NOT NULL UNIQUE) の採番規約は全プロジェクト横断で別紙「採番規約」策定予定。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-custreg-009", "type": "question", "body": "rank, company_name, department, note 等、画面で入力させない列はテーブルの default/nullable に依存。要整理。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-006",
+          "type": "externalSystem",
+          "maturity": "draft",
+          "description": "確認メール送信",
+          "systemName": "メール送信サービス",
+          "protocol": "SMTP or HTTPS",
+          "outputBinding": "mailResult",
+          "notes": [
+            { "id": "n-custreg-010", "type": "assumption", "body": "宛先=@email, 件名=「ご登録ありがとうございます」, 本文テンプレートは別管理。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-custreg-011", "type": "deferred", "body": "送信失敗時の挙動: 登録は成功しているので完了画面遷移は続行、失敗はログのみ、を暫定。最終方針は別仕様「エラー outcome」で。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-007",
+          "type": "screenTransition",
+          "maturity": "provisional",
+          "description": "処理完了画面へ遷移",
+          "targetScreenId": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+          "targetScreenName": "処理完了",
+          "notes": [
+            { "id": "n-custreg-012", "type": "assumption", "body": "引き渡し情報: @registeredCustomer.id, @name。引き渡し方法 (router state / query) は将来検討。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T12:00:00.000Z",
+  "updatedAt": "2026-04-20T13:00:00.000Z"
+}

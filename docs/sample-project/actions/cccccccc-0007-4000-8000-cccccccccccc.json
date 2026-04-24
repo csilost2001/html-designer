@@ -1,0 +1,195 @@
+{
+  "id": "cccccccc-0007-4000-8000-cccccccccccc",
+  "name": "注文登録画面",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客選択→明細入力→在庫確認→決済→注文登録→メール送信→完了画面の一連処理。ループ / 分岐 / エラーパスを広く踏む想定サンプル。",
+  "actions": [
+    {
+      "id": "act-orderreg-001",
+      "name": "顧客選択時",
+      "trigger": "change",
+      "description": "顧客選択ドロップダウンの変更時、顧客情報を画面に反映する。",
+      "inputs": "選択された顧客ID",
+      "outputs": "顧客表示情報（氏名、連絡先、住所）",
+      "steps": [
+        {
+          "id": "step-orderreg-001",
+          "type": "dbAccess",
+          "description": "顧客情報取得",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "氏名、フリガナ、電話番号、メールアドレス、住所"
+        },
+        {
+          "id": "step-orderreg-002",
+          "type": "displayUpdate",
+          "description": "顧客情報を読み取り専用エリアに反映",
+          "target": "顧客情報表示エリア"
+        }
+      ]
+    },
+    {
+      "id": "act-orderreg-002",
+      "name": "注文確定ボタン",
+      "trigger": "submit",
+      "description": "バリデーション→在庫確認→決済→DB登録（ヘッダ+明細+在庫引当）→メール送信→完了画面遷移。",
+      "inputs": "顧客ID\n明細一覧（商品ID、数量、単価）\n支払方法\n備考",
+      "outputs": "登録済み注文ID\n処理結果メッセージ",
+      "steps": [
+        {
+          "id": "step-orderreg-003",
+          "type": "validation",
+          "description": "入力値チェック",
+          "conditions": "顧客選択済 / 明細1件以上 / 各明細の数量>0 / 支払方法選択済",
+          "inlineBranch": {
+            "ok": "在庫確認へ",
+            "ng": "エラーメッセージを画面上部に表示、処理中断"
+          }
+        },
+        {
+          "id": "step-orderreg-004",
+          "type": "loop",
+          "description": "明細ごとに在庫確認",
+          "loopKind": "collection",
+          "collectionSource": "明細一覧",
+          "collectionItemName": "明細",
+          "note": "想定: 在庫テーブル（inventory）は未設計。ここでは『商品IDで問い合わせ、数量不足があれば在庫不足明細リストに追加』として扱う。",
+          "steps": [
+            {
+              "id": "step-orderreg-004-1",
+              "type": "dbAccess",
+              "description": "在庫残数取得（想定：inventory テーブル未設計）",
+              "tableName": "inventory",
+              "operation": "SELECT",
+              "fields": "商品ID、在庫数",
+              "note": "想定: 明細.商品IDで問い合わせ。テーブル未設計のため tableId 未指定。"
+            },
+            {
+              "id": "step-orderreg-004-2",
+              "type": "branch",
+              "description": "在庫判定",
+              "branches": [
+                {
+                  "id": "branch-orderreg-stock-a",
+                  "code": "A",
+                  "label": "不足",
+                  "condition": "明細.数量 > 在庫数",
+                  "steps": [
+                    {
+                      "id": "step-orderreg-004-2-a-1",
+                      "type": "other",
+                      "description": "在庫不足明細リストに追加",
+                      "note": "想定: ループ完了後に在庫不足リストが空でなければエラー表示。"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-005",
+          "type": "branch",
+          "description": "在庫不足チェック結果による分岐",
+          "branches": [
+            {
+              "id": "branch-orderreg-a",
+              "code": "A",
+              "label": "不足あり",
+              "condition": "在庫不足明細リスト.件数 > 0",
+              "steps": [
+                {
+                  "id": "step-orderreg-005-a-1",
+                  "type": "displayUpdate",
+                  "description": "不足商品一覧と共にエラー表示",
+                  "target": "明細エリア上部のエラー表示"
+                },
+                {
+                  "id": "step-orderreg-005-a-2",
+                  "type": "jump",
+                  "description": "処理中断",
+                  "jumpTo": "end-of-action",
+                  "note": "想定: 在庫不足があれば決済以降は実行しない。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-006",
+          "type": "externalSystem",
+          "description": "決済処理",
+          "systemName": "決済ゲートウェイ",
+          "protocol": "HTTPS（想定: クレジットカード決済API）",
+          "note": "想定: 決済失敗時は処理中断してエラー表示。タイムアウト時の扱いは暫定（リトライか即エラーかは将来検討）。決済IDを保持し、後続で orders.payment_id に記録する想定。"
+        },
+        {
+          "id": "step-orderreg-007",
+          "type": "dbAccess",
+          "description": "注文ヘッダ登録",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "INSERT",
+          "fields": "顧客ID、注文日時、合計金額、支払方法、決済ID、ステータス",
+          "note": "想定: 採番された注文IDを以降のステップで使用。"
+        },
+        {
+          "id": "step-orderreg-008",
+          "type": "loop",
+          "description": "明細を注文明細テーブルに登録",
+          "loopKind": "collection",
+          "collectionSource": "明細一覧",
+          "collectionItemName": "明細",
+          "steps": [
+            {
+              "id": "step-orderreg-008-1",
+              "type": "dbAccess",
+              "description": "注文明細 INSERT",
+              "tableName": "order_items",
+              "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+              "operation": "INSERT",
+              "fields": "注文ID、商品ID、数量、単価、小計"
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-009",
+          "type": "loop",
+          "description": "在庫引当（inventory 更新）",
+          "loopKind": "collection",
+          "collectionSource": "明細一覧",
+          "collectionItemName": "明細",
+          "note": "想定: inventory テーブルは未設計。決済が成功しているため、在庫引当失敗時のロールバック（補償処理）は暫定で将来検討。",
+          "steps": [
+            {
+              "id": "step-orderreg-009-1",
+              "type": "dbAccess",
+              "description": "在庫残数を明細.数量分減算",
+              "tableName": "inventory",
+              "operation": "UPDATE"
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-010",
+          "type": "externalSystem",
+          "description": "注文確認メール送信",
+          "systemName": "メール送信サービス",
+          "protocol": "SMTP or HTTPS",
+          "note": "想定: 送信失敗時の扱いは暫定。登録は成功済みなので完了画面へは進める、ただし失敗ログは残したい。"
+        },
+        {
+          "id": "step-orderreg-011",
+          "type": "screenTransition",
+          "description": "処理完了画面へ遷移",
+          "targetScreenId": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+          "targetScreenName": "処理完了"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T12:00:00.000Z",
+  "updatedAt": "2026-04-20T12:00:00.000Z"
+}

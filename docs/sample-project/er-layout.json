@@ -1,0 +1,30 @@
+{
+  "positions": {
+    "bbbbbbbb-0001-4000-8000-bbbbbbbbbbbb": {
+      "x": 394,
+      "y": 339
+    },
+    "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb": {
+      "x": -445,
+      "y": 104
+    },
+    "d93cb9da-6dc1-4105-9ef5-e6670fed8e84": {
+      "x": 40,
+      "y": 0
+    },
+    "ad1d4af4-cb1d-4600-a9bf-51fdf2bb0673": {
+      "x": 360,
+      "y": 0
+    },
+    "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb": {
+      "x": -120,
+      "y": 320
+    },
+    "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb": {
+      "x": -473,
+      "y": 517
+    }
+  },
+  "logicalRelations": [],
+  "updatedAt": "2026-04-14T00:19:59.706Z"
+}

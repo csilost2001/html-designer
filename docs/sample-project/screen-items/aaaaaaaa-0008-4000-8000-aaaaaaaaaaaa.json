@@ -24,10 +24,22 @@
       "label": "ステータス",
       "type": "string",
       "options": [
-        { "value": "", "label": "すべて" },
-        { "value": "processing", "label": "処理中" },
-        { "value": "completed", "label": "完了" },
-        { "value": "cancelled", "label": "キャンセル" }
+        {
+          "value": "",
+          "label": "すべて"
+        },
+        {
+          "value": "processing",
+          "label": "処理中"
+        },
+        {
+          "value": "completed",
+          "label": "完了"
+        },
+        {
+          "value": "cancelled",
+          "label": "キャンセル"
+        }
       ]
     }
   ]

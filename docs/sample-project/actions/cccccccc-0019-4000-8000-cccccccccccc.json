@@ -1,115 +1,11 @@
 {
-  "id": "cccccccc-0005-4000-8000-cccccccccccc",
-  "name": "注文登録画面 (v1.3 全機能実証版)",
+  "id": "cccccccc-0019-4000-8000-cccccccccccc",
+  "name": "注文登録画面 (詳細設計版 / 5.0 目標・地の文ゼロ)",
   "type": "screen",
   "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
-  "description": "data/actions/cccccccc-0019 を v1.3 全機能 (errorCatalog / typeCatalog / externalSystemCatalog / httpCall / systemRef / FieldType.array+object / BodySchemaRef.typeRef / ExternalAuth / idempotencyKey / initialValue / BranchConditionVariant.affectedRowsZero) で migrate。地の文依存ゼロを目標とする正規サンプル。\n\n【前提スキーマ】items / inventory / orders / order_items / customers テーブル、Stripe Japan 2 段階決済 (authorize → capture)、SendGrid。\n【参照規約】docs/conventions/validation-rules.md / product-scope.md (ambient)。",
+  "description": "0018 を #178 の拡張 (StepBase.runIf / ReturnStep / responses.id) で更新。残っていた Minor 曖昧 (条件付きステップ実行・レスポンス返却の構造化) を解消した版。\n\n【前提スキーマ】\n- items (id / item_code I-NNNN / name / unit_price DECIMAL 12,0 税抜 / is_deleted / timestamps)\n- inventory (item_id PK FK / stock / reserved / updated_at)\n- orders (既存 + payment_id VARCHAR 100 NULL / order_number DB DEFAULT 'ORD-YYYY-NNNN' / status 列挙に 'payment_failed' 追加済)\n- DB TX: req.db.tx(async (tx) => {...})\n- 決済: Stripe Japan 2 段階 (authorize → capture)\n- 参照規約: docs/conventions/validation-rules.md / product-scope.md (ambient)",
   "mode": "downstream",
   "maturity": "committed",
-
-  "ambientVariables": [
-    { "name": "requestId", "type": "string", "required": true, "description": "リクエスト毎に一意。冪等性キー生成やログ相関に使う。通常はリバプロ/ミドルウェア (X-Request-Id) から注入" },
-    { "name": "traceId", "type": "string", "required": false, "description": "分散トレース用。OpenTelemetry 等から注入" },
-    { "name": "sessionId", "type": "string", "required": false, "description": "セッション識別子。auth 経由" },
-    {
-      "name": "fieldErrors",
-      "type": { "kind": "custom", "label": "Record<string, string>" },
-      "required": false,
-      "description": "ValidationStep.rules[] の評価結果。fieldErrorsVar で宣言"
-    }
-  ],
-
-  "errorCatalog": {
-    "VALIDATION": {
-      "httpStatus": 400,
-      "defaultMessage": "入力値エラー",
-      "responseRef": "400-validation",
-      "description": "rules[] の unsatisfied"
-    },
-    "NOT_FOUND": {
-      "httpStatus": 404,
-      "defaultMessage": "対象が存在しません",
-      "responseRef": "404-not-found",
-      "description": "customers / items の存在確認失敗"
-    },
-    "PAYMENT_FAILED": {
-      "httpStatus": 402,
-      "defaultMessage": "決済に失敗しました",
-      "responseRef": "402-payment-failed",
-      "description": "Stripe authorize が failure/timeout"
-    },
-    "STOCK_SHORTAGE": {
-      "httpStatus": 409,
-      "defaultMessage": "在庫が不足しています",
-      "responseRef": "409-stock-shortage",
-      "description": "事前確認 or 引当 UPDATE で rowCount=0"
-    }
-  },
-
-  "typeCatalog": {
-    "ApiError": {
-      "description": "product-scope §7 共通エラーレスポンス",
-      "schema": {
-        "type": "object",
-        "required": ["code", "message"],
-        "properties": {
-          "code": { "type": "string" },
-          "message": { "type": "string" },
-          "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } },
-          "detail": {}
-        }
-      }
-    },
-    "OrderRegisterResponse": {
-      "description": "注文登録成功時の body",
-      "schema": {
-        "type": "object",
-        "required": ["orderId", "orderNumber"],
-        "properties": {
-          "orderId": { "type": "number" },
-          "orderNumber": { "type": "string" }
-        }
-      }
-    }
-  },
-
-  "secretsCatalog": {
-    "stripeApiKey": {
-      "source": "env",
-      "name": "STRIPE_SECRET_KEY",
-      "description": "Stripe Payment Intents API 認証用 secret key",
-      "rotationDays": 90
-    },
-    "sendgridApiKey": {
-      "source": "env",
-      "name": "SENDGRID_API_KEY",
-      "description": "SendGrid Mail API 送信用 API key",
-      "rotationDays": 180
-    }
-  },
-
-  "externalSystemCatalog": {
-    "stripe": {
-      "name": "Stripe Japan",
-      "baseUrl": "https://api.stripe.com",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.stripeApiKey" },
-      "timeoutMs": 10000,
-      "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
-      "headers": {
-        "Stripe-Version": "2024-06-20",
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      "description": "Stripe Payment Intents API (2 段階決済)。runtime-conventions §2.2 に従い form-urlencoded で送信"
-    },
-    "sendgrid": {
-      "name": "SendGrid",
-      "baseUrl": "https://api.sendgrid.com",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.sendgridApiKey" },
-      "timeoutMs": 10000,
-      "description": "SendGrid Mail API v3"
-    }
-  },
-
   "actions": [
     {
       "id": "act-orderreg-002",
@@ -118,29 +14,15 @@
       "maturity": "committed",
       "httpRoute": { "method": "POST", "path": "/api/orders", "auth": "required" },
       "responses": [
-        { "id": "201-success", "status": 201, "bodySchema": { "typeRef": "OrderRegisterResponse" }, "description": "登録成功" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" }, "description": "バリデーション違反" },
-        { "id": "404-not-found", "status": 404, "bodySchema": { "typeRef": "ApiError" }, "description": "顧客/商品が存在しない" },
-        { "id": "402-payment-failed", "status": 402, "bodySchema": { "typeRef": "ApiError" }, "description": "決済拒否", "when": "@paymentAuth.status == 'failed'" },
-        { "id": "409-stock-shortage", "status": 409, "bodySchema": { "typeRef": "ApiError" }, "description": "在庫不足" }
+        { "id": "201-success", "status": 201, "bodySchema": "{orderId, orderNumber}", "description": "登録成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": "ApiError", "description": "バリデーション違反" },
+        { "id": "404-not-found", "status": 404, "bodySchema": "ApiError", "description": "顧客/商品が存在しない" },
+        { "id": "402-payment-failed", "status": 402, "bodySchema": "ApiError", "description": "決済拒否", "when": "@paymentAuth.status == 'failed'" },
+        { "id": "409-stock-shortage", "status": 409, "bodySchema": "ApiError", "description": "在庫不足" }
       ],
       "inputs": [
         { "name": "customerId", "label": "顧客ID", "type": "number", "required": true },
-        {
-          "name": "items",
-          "label": "明細一覧",
-          "required": true,
-          "type": {
-            "kind": "array",
-            "itemType": {
-              "kind": "object",
-              "fields": [
-                { "name": "itemId", "type": "number", "required": true },
-                { "name": "quantity", "type": "number", "required": true }
-              ]
-            }
-          }
-        },
+        { "name": "items", "label": "明細一覧", "type": { "kind": "custom", "label": "Array<{itemId, quantity}>" }, "required": true },
         { "name": "paymentMethod", "label": "支払方法", "type": "string", "required": true },
         { "name": "orderNotes", "label": "備考", "type": "string", "required": false }
       ],
@@ -161,7 +43,6 @@
             { "field": "items", "type": "custom", "condition": "@items.every(i => i.quantity >= 1 && i.quantity <= 9999)", "message": "@conv.msg.outOfRange" },
             { "field": "paymentMethod", "type": "enum", "values": ["credit_card", "bank_transfer", "cash_on_delivery"] }
           ],
-          "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
             "ok": "次へ",
             "ng": "400 VALIDATION で return",
@@ -206,7 +87,7 @@
               "description": "在庫不足判定時に shortageList へ push",
               "runIf": "@item.quantity > @itemDetail.stock",
               "expression": "{ itemId: @item.itemId, name: @itemDetail.name, required: @item.quantity, stock: @itemDetail.stock }",
-              "outputBinding": { "name": "shortageList", "operation": "push", "initialValue": "[]" }
+              "outputBinding": { "name": "shortageList", "operation": "push" }
             },
             {
               "id": "step-or2-003-3",
@@ -214,7 +95,7 @@
               "maturity": "committed",
               "description": "小計を累積",
               "expression": "@itemDetail.unit_price * @item.quantity",
-              "outputBinding": { "name": "subtotal", "operation": "accumulate", "initialValue": "0" }
+              "outputBinding": { "name": "subtotal", "operation": "accumulate" }
             },
             {
               "id": "step-or2-003-4",
@@ -222,7 +103,7 @@
               "maturity": "committed",
               "description": "enrichedItems 構築",
               "expression": "{ itemId: @item.itemId, name: @itemDetail.name, quantity: @item.quantity, unit_price: @itemDetail.unit_price, subtotal: @itemDetail.unit_price * @item.quantity }",
-              "outputBinding": { "name": "enrichedItems", "operation": "push", "initialValue": "[]" }
+              "outputBinding": { "name": "enrichedItems", "operation": "push" }
             }
           ]
         },
@@ -231,7 +112,7 @@
           "type": "return",
           "maturity": "committed",
           "description": "事前在庫不足なら 409 で return",
-          "runIf": "@shortageList.length > 0",
+          "runIf": "@shortageList != null && @shortageList.length > 0",
           "responseRef": "409-stock-shortage",
           "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }"
         },
@@ -258,29 +139,33 @@
           "description": "決済 authorize",
           "runIf": "@paymentMethod == 'credit_card'",
           "systemName": "Stripe Japan",
-          "systemRef": "stripe",
-          "httpCall": {
-            "method": "POST",
-            "path": "/v1/payment_intents",
-            "body": "{ amount: @totalAmount, currency: 'jpy', payment_method_types: ['card'], capture_method: 'manual', metadata: { customer_id: @customerId } }"
-          },
-          "idempotencyKey": "auth-@customerId-@requestId",
+          "protocol": "HTTPS POST /v1/payment_intents (capture_method=manual)",
           "outputBinding": "paymentAuth",
           "externalChain": { "chainId": "stripe-pi-order", "phase": "authorize" },
+          "timeoutMs": 10000,
           "outcomes": {
             "success": { "action": "continue" },
             "failure": {
               "action": "abort",
               "sideEffects": [
                 {
-                  "id": "se-auth-log",
-                  "type": "other",
-                  "description": "Sentry にエラー記録",
+                  "id": "se-auth-return",
+                  "type": "return",
+                  "description": "402 PAYMENT_FAILED",
+                  "responseRef": "402-payment-failed",
+                  "bodyExpression": "{ code: 'PAYMENT_FAILED', detail: @paymentAuth.error }",
                   "maturity": "committed"
                 }
               ]
             },
             "timeout": { "action": "abort", "sameAs": "failure" }
+          },
+          "argumentMapping": {
+            "amount": "@totalAmount",
+            "currency": "jpy",
+            "payment_method_types[]": "card",
+            "capture_method": "manual",
+            "metadata[customer_id]": "@customerId"
           }
         },
         {
@@ -364,14 +249,10 @@
                   "description": "Stripe cancel (void_authorization)",
                   "runIf": "@paymentAuth != null",
                   "systemName": "Stripe Japan",
-                  "systemRef": "stripe",
-                  "httpCall": {
-                    "method": "POST",
-                    "path": "/v1/payment_intents/@paymentAuth.id/cancel"
-                  },
-                  "idempotencyKey": "cancel-@paymentAuth.id",
+                  "protocol": "HTTPS POST /v1/payment_intents/@paymentAuth.id/cancel",
                   "externalChain": { "chainId": "stripe-pi-order", "phase": "cancel" },
                   "compensatesFor": "step-or2-006",
+                  "timeoutMs": 10000,
                   "outcomes": {
                     "success": { "action": "continue" },
                     "failure": {
@@ -390,7 +271,7 @@
                   "maturity": "committed",
                   "description": "409 STOCK_SHORTAGE で return",
                   "responseRef": "409-stock-shortage",
-                  "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }"
+                  "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: { itemId, name, required } }"
                 }
               ]
             }
@@ -399,6 +280,7 @@
             "id": "br-tx-ok",
             "code": "ELSE",
             "label": "続行",
+            "condition": "",
             "steps": [
               {
                 "id": "step-or2-011",
@@ -407,13 +289,9 @@
                 "description": "決済 capture",
                 "runIf": "@paymentMethod == 'credit_card'",
                 "systemName": "Stripe Japan",
-                "systemRef": "stripe",
-                "httpCall": {
-                  "method": "POST",
-                  "path": "/v1/payment_intents/@paymentAuth.id/capture"
-                },
-                "idempotencyKey": "capture-@paymentAuth.id",
+                "protocol": "HTTPS POST /v1/payment_intents/@paymentAuth.id/capture",
                 "externalChain": { "chainId": "stripe-pi-order", "phase": "capture" },
+                "timeoutMs": 10000,
                 "outcomes": {
                   "success": { "action": "continue" },
                   "failure": {
@@ -442,13 +320,9 @@
                 "maturity": "committed",
                 "description": "注文確認メール",
                 "systemName": "SendGrid",
-                "systemRef": "sendgrid",
-                "httpCall": {
-                  "method": "POST",
-                  "path": "/v3/mail/send",
-                  "body": "{ personalizations: [{ to: [{ email: @customer.email }], dynamic_template_data: { customerName: @customer.name, orderNumber: @registeredOrder.order_number, items: @enrichedItems, totalAmount: @totalAmount } }], template_id: 'order-confirmation' }"
-                },
+                "protocol": "HTTPS POST /v3/mail/send",
                 "fireAndForget": true,
+                "timeoutMs": 10000,
                 "outcomes": {
                   "success": { "action": "continue" },
                   "failure": {
@@ -458,6 +332,14 @@
                     ]
                   },
                   "timeout": { "action": "continue", "sameAs": "failure" }
+                },
+                "argumentMapping": {
+                  "to": "@customer.email",
+                  "template_id": "order-confirmation",
+                  "dynamic_template_data.customerName": "@customer.name",
+                  "dynamic_template_data.orderNumber": "@registeredOrder.order_number",
+                  "dynamic_template_data.items": "@enrichedItems",
+                  "dynamic_template_data.totalAmount": "@totalAmount"
                 }
               },
               {

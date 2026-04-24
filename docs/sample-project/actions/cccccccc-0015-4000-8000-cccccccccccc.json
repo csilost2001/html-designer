@@ -1,0 +1,340 @@
+{
+  "id": "cccccccc-0015-4000-8000-cccccccccccc",
+  "name": "注文登録画面 (詳細設計版 / ゴールドスタンダード)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客が商品を注文する一連の処理 (顧客選択 → 明細入力 → 事前在庫確認 → 決済 authorize → TX[注文登録+明細+在庫引当] → Saga 補償判定 → 決済 capture → 確認メール → 完了画面)。ループ / 多分岐 / 外部決済 / 複数 DB 書込 / Saga 補償処理を含む複雑フローの詳細設計版。\n\n【前提仕様 (未実装の追加テーブルを含めて本フロー外で確定済とみなす)】\n\n■ items テーブル (商品マスタ、未実装だが本フローで参照):\n  - id INTEGER PK auto-increment\n  - item_code VARCHAR(20) NOT NULL UNIQUE (DB DEFAULT で 'I-NNNN' 採番)\n  - name VARCHAR(200) NOT NULL\n  - unit_price DECIMAL(12,0) NOT NULL (税抜単価)\n  - is_deleted BOOLEAN NOT NULL DEFAULT false\n  - created_at / updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\n■ inventory テーブル (在庫、未実装だが本フローで参照):\n  - item_id INTEGER PK (FK items.id ON DELETE RESTRICT)\n  - stock INTEGER NOT NULL DEFAULT 0 (引当可能残数)\n  - reserved INTEGER NOT NULL DEFAULT 0 (引当済、発送待ち)\n  - updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n\n■ orders テーブル (既存、本仕様で以下を追加済と前提):\n  - order_number は DB DEFAULT で 'ORD-YYYY-NNNN' 採番 (PG シーケンス + トリガ、product-scope §9)\n  - payment_id VARCHAR(100) NULL を追加 (Stripe PaymentIntent ID を保持)\n\n■ DB TX: Express ミドルウェア層で req.db.tx(async (tx) => {...}) 形式を提供。ネスト不可、COMMIT/ROLLBACK は暗黙 (throw で ROLLBACK)。\n\n■ 決済ゲートウェイ: Stripe Japan (product-scope §4)。2 段階認証を採用 (authorize → capture)、authorize は最大 7 日保持可能。\n\n■ 参照する横断規約 (ambient):\n  - docs/conventions/validation-rules.md (メッセージ / 正規表現 / 境界値)\n  - docs/conventions/product-scope.md (顧客スコープ / 税 / 採番 / TX / 外部連携 outcome)\n\n■ 本画面は認証必須 (product-scope §6)。未認証アクセスは 401 UNAUTHENTICATED。認証セッションから req.session.userId を取得できる前提。\n\n【トランザクション境界】\n- step-orderreg-009 〜 step-orderreg-011 (INSERT orders + INSERT order_items x N + UPDATE inventory x N) を単一 TX で実行\n- step-orderreg-007 (payment authorize) は TX 前\n- step-orderreg-013 (payment capture) / step-orderreg-014 (mail) は TX 後\n- TX 内で StockShortageError を throw すると ROLLBACK。catch 側で void_authorization 補償 + 409 レスポンス (step-orderreg-012)\n\n【HTTP】\n- act-orderreg-001: GET /api/customers/:customerId/summary (認証必須)\n- act-orderreg-002: POST /api/orders (認証必須、Body: JSON)\n\n【エラーレスポンス (product-scope §7)】\n- 400 VALIDATION | 401 UNAUTHENTICATED | 404 NOT_FOUND (顧客/商品) | 402 PAYMENT_FAILED | 409 STOCK_SHORTAGE | 500 INTERNAL\n- 形式: { code, message, fieldErrors?, detail? }",
+  "mode": "downstream",
+  "maturity": "committed",
+  "actions": [
+    {
+      "id": "act-orderreg-001",
+      "name": "顧客選択時",
+      "trigger": "change",
+      "maturity": "committed",
+      "description": "HTTP Route: GET /api/customers/:customerId/summary (認証必須)\n\n顧客選択ドロップダウン変更時、画面の読み取り専用エリアに顧客基本情報を反映する。論理削除済みは 404。",
+      "inputs": [
+        { "name": "customerId", "label": "顧客ID", "type": "number", "required": true, "description": "URL パスパラメータ。customers.id (INTEGER)。" }
+      ],
+      "outputs": [
+        { "name": "customerDisplay", "label": "顧客表示情報", "type": { "kind": "tableRow", "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb" }, "description": "id, name, name_kana, phone, email, address のみ返す" }
+      ],
+      "steps": [
+        {
+          "id": "step-orderreg-001",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "顧客情報取得。NULL (論理削除済 or 未存在) なら 404 NOT_FOUND { code: 'NOT_FOUND', message: '顧客が見つかりません' } でレスポンス。",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "SELECT id, name, name_kana, phone, email, address FROM customers WHERE id = @customerId AND is_deleted = false LIMIT 1",
+          "outputBinding": "customerDisplay"
+        },
+        {
+          "id": "step-orderreg-002",
+          "type": "other",
+          "maturity": "committed",
+          "description": "HTTP 200 @customerDisplay を JSON 返却。FE は受領後、注文フォームの顧客情報エリアを更新する。"
+        }
+      ]
+    },
+    {
+      "id": "act-orderreg-002",
+      "name": "注文確定ボタン",
+      "trigger": "submit",
+      "maturity": "committed",
+      "description": "HTTP Route: POST /api/orders (認証必須)\n\n【フロー概要】\n1. バリデーション → 2. 顧客存在 SELECT (メール取得) → 3. 明細ループ (商品 SELECT + 事前在庫 / 小計累積 / enrichedItems 構築) → 4. 事前在庫不足分岐 (409) → 5. 税額/合計計算 → 6. 決済 authorize → 7. auth 失敗分岐 (402) → 8. TX{ INSERT orders + loop INSERT items + loop 条件付き UPDATE inventory } → 9. TX 結果分岐 (rollback 時: void auth + 409) → 10. 決済 capture → 11. メール fire-and-forget → 12. 201 レスポンス\n\n【成功レスポンス】\nHTTP 201 { orderId: number, orderNumber: string }\n\n【補償処理 (Saga)】\nauthorize 成功後に TX が rollback した場合、Stripe PaymentIntent を cancel して与信を解放。void 失敗は Sentry error + 運用通知。",
+      "inputs": [
+        { "name": "customerId", "label": "顧客ID", "type": "number", "required": true, "description": "customers.id。is_deleted=false かつ存在すること。" },
+        { "name": "items", "label": "明細一覧", "type": { "kind": "custom", "label": "Array<{itemId: number, quantity: number}>" }, "required": true, "description": "明細配列。各明細は itemId と quantity のみ。unit_price は FE から受け取らず、商品マスタから取得する (改ざん防止)。" },
+        { "name": "paymentMethod", "label": "支払方法", "type": "string", "required": true, "description": "'credit_card' | 'bank_transfer' | 'cash_on_delivery' の 3 種 (product-scope §4)。credit_card 以外は Stripe 呼出を skip (step-orderreg-007, step-orderreg-013) して @paymentAuth=null とする。" },
+        { "name": "orderNotes", "label": "備考", "type": "string", "required": false, "description": "orders.notes (TEXT) へ保存。任意入力、制限なし。" }
+      ],
+      "outputs": [
+        { "name": "orderId", "label": "注文ID", "type": "number", "description": "orders.id (INTEGER auto-increment)" },
+        { "name": "orderNumber", "label": "注文番号", "type": "string", "description": "orders.order_number (DB DEFAULT で 'ORD-YYYY-NNNN' 採番)" }
+      ],
+      "steps": [
+        {
+          "id": "step-orderreg-003",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "入力バリデーション。違反時は 400 VALIDATION で即時レスポンス。メッセージは validation-rules.md §1 テンプレートから生成 (@conv.msg.required 等を適用)。",
+          "conditions": "@customerId INTEGER 必須 / @items.length >= 1 (required) / 各 @items[].itemId INTEGER 必須 / 各 @items[].quantity が 1..9999 の整数 (validation-rules §3 境界値) / @paymentMethod が {'credit_card','bank_transfer','cash_on_delivery'} のいずれか",
+          "inlineBranch": {
+            "ok": "次へ続行",
+            "ng": "HTTP 400 { code:'VALIDATION', message:'入力内容を確認してください', fieldErrors } でレスポンスして処理中断"
+          }
+        },
+        {
+          "id": "step-orderreg-004",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "顧客存在確認 + メール取得 (メール送信ステップで使用)。NULL なら 404 NOT_FOUND { code:'NOT_FOUND', message:'顧客が見つかりません' }。",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "SELECT id, name, email FROM customers WHERE id = @customerId AND is_deleted = false LIMIT 1",
+          "outputBinding": "customer"
+        },
+        {
+          "id": "step-orderreg-005",
+          "type": "loop",
+          "maturity": "committed",
+          "description": "明細ごとに商品マスタ + 在庫を JOIN SELECT し、@enrichedItems / @shortageList / @subtotal を構築する。",
+          "loopKind": "collection",
+          "collectionSource": "@items",
+          "collectionItemName": "item",
+          "steps": [
+            {
+              "id": "step-orderreg-005-1",
+              "type": "dbAccess",
+              "maturity": "committed",
+              "description": "商品 + 在庫の JOIN SELECT。商品が削除済 or 未存在なら 404 NOT_FOUND { code:'NOT_FOUND', message:'商品が見つかりません', detail:{itemId:@item.itemId} }。LEFT JOIN により inventory 未登録でも商品情報は取れる (その場合 stock は NULL → 0 扱い)。",
+              "tableName": "items",
+              "operation": "SELECT",
+              "fields": "SELECT i.id, i.name, i.unit_price, COALESCE(v.stock, 0) AS stock FROM items i LEFT JOIN inventory v ON v.item_id = i.id WHERE i.id = @item.itemId AND i.is_deleted = false LIMIT 1",
+              "outputBinding": "itemDetail"
+            },
+            {
+              "id": "step-orderreg-005-2",
+              "type": "other",
+              "maturity": "committed",
+              "description": "事前在庫チェック。@item.quantity > @itemDetail.stock なら @shortageList[@item.itemId] = { required:@item.quantity, stock:@itemDetail.stock, name:@itemDetail.name } を累積。",
+              "outputBinding": "shortageList"
+            },
+            {
+              "id": "step-orderreg-005-3",
+              "type": "other",
+              "maturity": "committed",
+              "description": "小計累積 + @enrichedItems 構築。@subtotal += @itemDetail.unit_price * @item.quantity。@enrichedItems[] に { itemId:@item.itemId, name:@itemDetail.name, quantity:@item.quantity, unit_price:@itemDetail.unit_price, subtotal:@itemDetail.unit_price * @item.quantity } を追加 (後段の INSERT 用)。",
+              "outputBinding": "enrichedItems"
+            }
+          ]
+        },
+        {
+          "id": "step-orderreg-006",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "事前在庫不足分岐。ここで弾けば決済呼出を無駄にしない。",
+          "branches": [
+            {
+              "id": "branch-orderreg-shortage",
+              "code": "A",
+              "label": "在庫不足あり",
+              "condition": "Object.keys(@shortageList ?? {}).length > 0",
+              "steps": [
+                {
+                  "id": "step-orderreg-006-a-1",
+                  "type": "other",
+                  "maturity": "committed",
+                  "description": "HTTP 409 { code:'STOCK_SHORTAGE', message:'一部の商品が在庫不足です', detail:@shortageList } でレスポンスして処理中断。"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "branch-orderreg-noshortage",
+            "code": "ELSE",
+            "label": "在庫あり (続行)",
+            "condition": "",
+            "steps": [
+              {
+                "id": "step-orderreg-007",
+                "type": "other",
+                "maturity": "committed",
+                "description": "税額/合計計算。product-scope §3 に従い外税 10% 切り捨て。@amounts = { subtotal:@subtotal, taxAmount:Math.floor(@subtotal * 0.10), totalAmount:@subtotal + Math.floor(@subtotal * 0.10) }。",
+                "outputBinding": "amounts"
+              },
+              {
+                "id": "step-orderreg-008",
+                "type": "externalSystem",
+                "maturity": "committed",
+                "description": "決済 authorize (与信確保)。@paymentMethod が 'credit_card' の場合のみ実行、それ以外は skip して @paymentAuth=null。Stripe PaymentIntent を capture_method='manual' で作成。\n\n【outcome (product-scope §11 準拠)】\n- success: @paymentAuth.id が取得される、次のステップへ\n- failure: @paymentAuth.status === 'failed'、step-orderreg-009 で 402 レスポンス\n- timeout (10 秒): failure と同じ扱い\n\n【冪等性】\nIdempotency-Key ヘッダに server 側で採番した UUIDv4 を付与。ネットワークリトライ時の二重請求防止。",
+                "systemName": "Stripe Japan",
+                "protocol": "HTTPS POST https://api.stripe.com/v1/payment_intents、Authorization: Bearer ${STRIPE_SECRET_KEY}、Content-Type: application/x-www-form-urlencoded、Idempotency-Key: {UUIDv4}",
+                "outputBinding": "paymentAuth",
+                "argumentMapping": {
+                  "amount": "@amounts.totalAmount",
+                  "currency": "jpy",
+                  "payment_method_types[]": "card",
+                  "capture_method": "manual",
+                  "metadata[customer_id]": "@customerId",
+                  "metadata[order_flow]": "order-registration-v1"
+                }
+              },
+              {
+                "id": "step-orderreg-009",
+                "type": "branch",
+                "maturity": "committed",
+                "description": "決済 authorize 結果分岐。",
+                "branches": [
+                  {
+                    "id": "branch-orderreg-payfail",
+                    "code": "A",
+                    "label": "authorize 失敗",
+                    "condition": "@paymentAuth != null && @paymentAuth.status === 'failed'",
+                    "steps": [
+                      {
+                        "id": "step-orderreg-009-a-1",
+                        "type": "other",
+                        "maturity": "committed",
+                        "description": "HTTP 402 { code:'PAYMENT_FAILED', message:'決済が拒否されました', detail:@paymentAuth.error } でレスポンスして処理中断。与信確保が失敗しているため補償処理不要。"
+                      }
+                    ]
+                  }
+                ],
+                "elseBranch": {
+                  "id": "branch-orderreg-payok",
+                  "code": "ELSE",
+                  "label": "authorize 成功 (TX へ)",
+                  "condition": "",
+                  "steps": [
+                    {
+                      "id": "step-orderreg-010",
+                      "type": "other",
+                      "maturity": "committed",
+                      "description": "【TX 開始】req.db.tx(async (tx) => { ... }) を開始。以下の step-orderreg-011 / step-orderreg-012 / step-orderreg-013 を TX 内で順次実行。いずれかで throw すると ROLLBACK、全成功で COMMIT。catch 側は step-orderreg-014 で判定。",
+                      "notes": [
+                        { "id": "n-orderreg-001", "type": "assumption", "body": "TX マーカーステップ。実装では req.db.tx((tx) => {...}) の実引数関数の中に step-orderreg-011 〜 step-orderreg-013 の処理を書く。TX COMMIT 直後に step-orderreg-014 の分岐を評価する。", "createdAt": "2026-04-20T15:00:00.000Z" }
+                      ]
+                    },
+                    {
+                      "id": "step-orderreg-011",
+                      "type": "dbAccess",
+                      "maturity": "committed",
+                      "description": "【TX 内 1/3】注文ヘッダ INSERT。order_number は DB DEFAULT で 'ORD-YYYY-NNNN' 採番。status は初期 'processing'。",
+                      "tableName": "orders",
+                      "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+                      "operation": "INSERT",
+                      "fields": "INSERT INTO orders (customer_id, order_date, subtotal, tax_amount, total_amount, payment_method, payment_id, status, notes) VALUES (@customerId, CURRENT_TIMESTAMP, @amounts.subtotal, @amounts.taxAmount, @amounts.totalAmount, @paymentMethod, @paymentAuth?.id, 'processing', @orderNotes) RETURNING id, order_number",
+                      "outputBinding": "registeredOrder"
+                    },
+                    {
+                      "id": "step-orderreg-012",
+                      "type": "loop",
+                      "maturity": "committed",
+                      "description": "【TX 内 2/3】注文明細を一括 INSERT。item_name は商品マスタから取得した名前を保存 (履歴保持)。",
+                      "loopKind": "collection",
+                      "collectionSource": "@enrichedItems",
+                      "collectionItemName": "eitem",
+                      "steps": [
+                        {
+                          "id": "step-orderreg-012-1",
+                          "type": "dbAccess",
+                          "maturity": "committed",
+                          "description": "order_items INSERT。",
+                          "tableName": "order_items",
+                          "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+                          "operation": "INSERT",
+                          "fields": "INSERT INTO order_items (order_id, item_name, quantity, unit_price, subtotal) VALUES (@registeredOrder.id, @eitem.name, @eitem.quantity, @eitem.unit_price, @eitem.subtotal)"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "step-orderreg-013",
+                      "type": "loop",
+                      "maturity": "committed",
+                      "description": "【TX 内 3/3】在庫引当。product-scope §10 の並行減算パターン: WHERE stock >= 要求数量 の条件付き UPDATE。影響行数 0 なら並行競合で在庫不足発覚 → StockShortageError を throw して TX ROLLBACK。",
+                      "loopKind": "collection",
+                      "collectionSource": "@enrichedItems",
+                      "collectionItemName": "eitem",
+                      "steps": [
+                        {
+                          "id": "step-orderreg-013-1",
+                          "type": "dbAccess",
+                          "maturity": "committed",
+                          "description": "在庫減算。rowCount で判定。",
+                          "tableName": "inventory",
+                          "operation": "UPDATE",
+                          "fields": "UPDATE inventory SET stock = stock - @eitem.quantity, reserved = reserved + @eitem.quantity, updated_at = CURRENT_TIMESTAMP WHERE item_id = @eitem.itemId AND stock >= @eitem.quantity",
+                          "outputBinding": "updateResult",
+                          "notes": [
+                            { "id": "n-orderreg-002", "type": "assumption", "body": "@updateResult.rowCount === 0 なら並行引当により在庫切れ発生。throw new StockShortageError({itemId:@eitem.itemId, name:@eitem.name, required:@eitem.quantity}) で TX 全体を ROLLBACK させる。catch 側で void_authorization 補償 + 409 レスポンス (step-orderreg-014)。", "createdAt": "2026-04-20T15:00:00.000Z" }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "step-orderreg-014",
+                      "type": "branch",
+                      "maturity": "committed",
+                      "description": "TX 結果分岐。catch で StockShortageError を捕捉した場合は Saga 補償 → 409。正常 COMMIT なら続行。",
+                      "branches": [
+                        {
+                          "id": "branch-orderreg-txfail",
+                          "code": "A",
+                          "label": "TX rollback (在庫引当で StockShortageError)",
+                          "condition": "TX catch で StockShortageError が捕捉された",
+                          "steps": [
+                            {
+                              "id": "step-orderreg-014-a-1",
+                              "type": "externalSystem",
+                              "maturity": "committed",
+                              "description": "Saga 補償: Stripe PaymentIntent を cancel (void_authorization)。@paymentMethod !== 'credit_card' の場合は skip (そもそも authorize していない)。\n\n【outcome】\n- success: 与信解放完了、次へ (409 レスポンス)\n- failure/timeout: product-scope §11 に従い Sentry error + 運用通知、409 レスポンスは続行 (レスポンス優先)",
+                              "systemName": "Stripe Japan",
+                              "protocol": "HTTPS POST https://api.stripe.com/v1/payment_intents/@paymentAuth.id/cancel"
+                            },
+                            {
+                              "id": "step-orderreg-014-a-2",
+                              "type": "other",
+                              "maturity": "committed",
+                              "description": "HTTP 409 { code:'STOCK_SHORTAGE', message:'在庫が確保できませんでした (他注文と競合)', detail:{ itemId, name, required } } でレスポンスして処理中断。"
+                            }
+                          ]
+                        }
+                      ],
+                      "elseBranch": {
+                        "id": "branch-orderreg-txok",
+                        "code": "ELSE",
+                        "label": "TX commit (続行)",
+                        "condition": "",
+                        "steps": [
+                          {
+                            "id": "step-orderreg-015",
+                            "type": "externalSystem",
+                            "maturity": "committed",
+                            "description": "決済 capture (本請求)。@paymentMethod === 'credit_card' の場合のみ実行。\n\n【outcome (product-scope §11 準拠)】\n- success: 次へ\n- failure: 稀 (authorize 成功後の capture 失敗)。orders.status を 'payment_failed' に UPDATE (別 DB 呼出)、Sentry error + 運用通知。**同期レスポンスは 201 を返し、運用で手動対応**。\n- timeout: failure と同じ扱い",
+                            "systemName": "Stripe Japan",
+                            "protocol": "HTTPS POST https://api.stripe.com/v1/payment_intents/@paymentAuth.id/capture"
+                          },
+                          {
+                            "id": "step-orderreg-016",
+                            "type": "externalSystem",
+                            "maturity": "committed",
+                            "description": "注文確認メール送信。TX 後・fire-and-forget。テンプレート 'order-confirmation' は SendGrid 側で管理。\n\n【outcome (product-scope §11 準拠)】\n- success: info ログ\n- failure/timeout: Sentry error、同期レスポンス (201) は変更しない。手動再送は運用対応。",
+                            "systemName": "SendGrid",
+                            "protocol": "HTTPS POST https://api.sendgrid.com/v3/mail/send、Authorization: Bearer ${SENDGRID_API_KEY}",
+                            "argumentMapping": {
+                              "to": "@customer.email",
+                              "template_id": "order-confirmation",
+                              "dynamic_template_data.customerName": "@customer.name",
+                              "dynamic_template_data.orderNumber": "@registeredOrder.order_number",
+                              "dynamic_template_data.items": "@enrichedItems",
+                              "dynamic_template_data.subtotal": "@amounts.subtotal",
+                              "dynamic_template_data.taxAmount": "@amounts.taxAmount",
+                              "dynamic_template_data.totalAmount": "@amounts.totalAmount"
+                            }
+                          },
+                          {
+                            "id": "step-orderreg-017",
+                            "type": "other",
+                            "maturity": "committed",
+                            "description": "HTTP 201 { orderId:@registeredOrder.id, orderNumber:@registeredOrder.order_number } でレスポンス。FE は受領後 navigate('/complete', { state: { orderId, orderNumber } }) で完了画面へ遷移。state 消失時は汎用メッセージ。"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T15:00:00.000Z",
+  "updatedAt": "2026-04-20T15:00:00.000Z"
+}

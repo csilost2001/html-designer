@@ -1,0 +1,163 @@
+{
+  "id": "cccccccc-0012-4000-8000-cccccccccccc",
+  "name": "注文データ整合性チェックバッチ (v2 フォーマット試作)",
+  "type": "batch",
+  "description": "夜間バッチ。指定期間の全注文を走査し、注文ヘッダの小計 (orders.subtotal) と明細の小計合計が一致するか、および明細欠落を検証してエラーリストとして記録する。税額突合 (orders.total_amount == orders.subtotal + orders.tax_amount) は副チェックとして将来検討。v2 フォーマット試作。",
+  "mode": "upstream",
+  "maturity": "provisional",
+  "actions": [
+    {
+      "id": "act-batch-consistency-001",
+      "name": "整合性チェック実行",
+      "trigger": "timer",
+      "maturity": "provisional",
+      "description": "対象期間の全注文を走査し、金額不一致・明細欠落を検出する。",
+      "inputs": [
+        { "name": "dateFrom", "label": "期間開始日", "type": "date", "required": true },
+        { "name": "dateTo", "label": "期間終了日", "type": "date", "required": true }
+      ],
+      "outputs": [
+        { "name": "processedCount", "label": "処理件数", "type": "number" },
+        { "name": "errorCount", "label": "エラー件数", "type": "number" },
+        { "name": "errorDetails", "label": "エラー詳細リスト", "type": { "kind": "custom", "label": "Array<{orderId, type, ...}>" } }
+      ],
+      "steps": [
+        {
+          "id": "step-batch-consistency-001",
+          "type": "dbAccess",
+          "maturity": "provisional",
+          "description": "対象期間の注文ヘッダ取得",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "id, order_date, subtotal, total_amount, tax_amount, status WHERE order_date BETWEEN @dateFrom AND @dateTo",
+          "outputBinding": "targetOrders",
+          "notes": [
+            { "id": "n-batch-001", "type": "question", "body": "対象期間の基準: order_date か created_at か。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-batch-002", "type": "question", "body": "キャンセル済 (status='cancelled') の注文を対象に含めるか。", "createdAt": "2026-04-20T12:00:00.000Z" },
+            { "id": "n-batch-003", "type": "deferred", "body": "件数が非常に多い場合のストリーム処理は将来検討。v1 は一括 SELECT。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-batch-consistency-002",
+          "type": "loop",
+          "maturity": "provisional",
+          "description": "各注文について整合性をチェック",
+          "loopKind": "collection",
+          "collectionSource": "@targetOrders",
+          "collectionItemName": "order",
+          "notes": [
+            { "id": "n-batch-004", "type": "assumption", "body": "1件で例外発生時はループ継続 (暫定)。中断閾値は将来検討。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ],
+          "steps": [
+            {
+              "id": "step-batch-consistency-002-1",
+              "type": "dbAccess",
+              "maturity": "provisional",
+              "description": "注文明細取得",
+              "tableName": "order_items",
+              "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+              "operation": "SELECT",
+              "fields": "item_id, quantity, unit_price, subtotal WHERE order_id = @order.id",
+              "outputBinding": "orderItems"
+            },
+            {
+              "id": "step-batch-consistency-002-2",
+              "type": "branch",
+              "maturity": "committed",
+              "description": "明細欠落チェック",
+              "branches": [
+                {
+                  "id": "branch-batch-missing",
+                  "code": "A",
+                  "label": "明細0件",
+                  "condition": "@orderItems.length == 0",
+                  "steps": [
+                    {
+                      "id": "step-batch-consistency-002-2-a-1",
+                      "type": "other",
+                      "maturity": "draft",
+                      "description": "エラー詳細リストに『明細欠落』を追加 (@order.id)",
+                      "outputBinding": "errorDetails",
+                      "notes": [
+                        { "id": "n-batch-005", "type": "deferred", "body": "error_log テーブル未設計。ログ出力 / DB 登録 / 両方 の選択は将来検討。暫定: 戻り値リストに集約。", "createdAt": "2026-04-20T12:00:00.000Z" }
+                      ]
+                    },
+                    {
+                      "id": "step-batch-consistency-002-2-a-2",
+                      "type": "loopContinue",
+                      "maturity": "committed",
+                      "description": "次の注文へ"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "step-batch-consistency-002-3",
+              "type": "other",
+              "maturity": "provisional",
+              "description": "明細合計を計算 (税抜小計の合算)",
+              "outputBinding": "itemsSubtotal",
+              "notes": [
+                { "id": "n-batch-006", "type": "assumption", "body": "@itemsSubtotal = sum(@orderItems[].subtotal)。税額は含めない。比較対象は @order.subtotal。", "createdAt": "2026-04-20T12:00:00.000Z" }
+              ]
+            },
+            {
+              "id": "step-batch-consistency-002-4",
+              "type": "branch",
+              "maturity": "committed",
+              "description": "金額一致チェック",
+              "branches": [
+                {
+                  "id": "branch-batch-mismatch",
+                  "code": "A",
+                  "label": "金額不一致",
+                  "condition": "@order.subtotal != @itemsSubtotal",
+                  "steps": [
+                    {
+                      "id": "step-batch-consistency-002-4-a-1",
+                      "type": "other",
+                      "maturity": "draft",
+                      "description": "エラー詳細リストに『金額不一致』を追加 (@order.id, 差額=@order.subtotal - @itemsSubtotal)",
+                      "outputBinding": "errorDetails"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "step-batch-consistency-003",
+          "type": "commonProcess",
+          "maturity": "draft",
+          "description": "結果ログ出力",
+          "refId": "",
+          "refName": "ログ出力",
+          "argumentMapping": {
+            "processedCount": "@targetOrders.length",
+            "errorCount": "@errorDetails.length",
+            "errorDetails": "@errorDetails"
+          },
+          "notes": [
+            { "id": "n-batch-007", "type": "prerequisite", "body": "ログ出力共通処理は未設計。refId 未確定。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-batch-consistency-004",
+          "type": "externalSystem",
+          "maturity": "draft",
+          "description": "エラー通知 (エラーがあった場合のみ)",
+          "systemName": "運用通知チャネル",
+          "protocol": "HTTPS (想定: Slack Webhook)",
+          "notes": [
+            { "id": "n-batch-008", "type": "question", "body": "通知条件: エラー件数>0 時のみか、ゼロ件時も通知か。暫定は『エラー時のみ』。", "createdAt": "2026-04-20T12:00:00.000Z" }
+          ]
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T12:00:00.000Z",
+  "updatedAt": "2026-04-20T13:00:00.000Z"
+}

@@ -27,9 +27,18 @@
       "label": "性別",
       "type": "string",
       "options": [
-        { "value": "m", "label": "男性" },
-        { "value": "f", "label": "女性" },
-        { "value": "o", "label": "その他" }
+        {
+          "value": "m",
+          "label": "男性"
+        },
+        {
+          "value": "f",
+          "label": "女性"
+        },
+        {
+          "value": "o",
+          "label": "その他"
+        }
       ]
     },
     {
@@ -69,10 +78,22 @@
       "label": "会員ランク",
       "type": "string",
       "options": [
-        { "value": "standard", "label": "スタンダード" },
-        { "value": "silver", "label": "シルバー" },
-        { "value": "gold", "label": "ゴールド" },
-        { "value": "platinum", "label": "プラチナ" }
+        {
+          "value": "standard",
+          "label": "スタンダード"
+        },
+        {
+          "value": "silver",
+          "label": "シルバー"
+        },
+        {
+          "value": "gold",
+          "label": "ゴールド"
+        },
+        {
+          "value": "platinum",
+          "label": "プラチナ"
+        }
       ]
     },
     {

@@ -1,0 +1,149 @@
+{
+  "id": "cccccccc-0020-4000-8000-cccccccccccc",
+  "name": "顧客登録画面 (新スキーマ完全版 / シンプルフロー検証)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+  "description": "0013 (シンプルフローで 5/5 達成) を新スキーマ (runIf / ReturnStep / responses.id / outcome.sideEffects / sameAs / rules[] / inlineBranch.ngResponseRef / ComputeStep / affectedRowsCheck) で書き直した版。\n\n検証目的: 複雑フロー (0019) で 5.0 到達した新スキーマが、**シンプルフロー**でも 5.0 を維持できるか確認。複雑フロー特有の機能 (TX 境界・Saga・compute・在庫引当) は使わないため、新スキーマの一部しか触らないが、それでも説明文依存ゼロで書けるかを見る。\n\n【前提】\n- customers.customer_code は DB DEFAULT で 'C-NNNN' 自動生成\n- customers に部分 UNIQUE INDEX: UNIQUE (email) WHERE is_deleted = false\n- DB TX: req.db.tx(async (tx) => {...})\n- 本画面は認証不要 (公開経路、product-scope §7 の例外)",
+  "mode": "downstream",
+  "maturity": "committed",
+  "actions": [
+    {
+      "id": "act-custreg-001",
+      "name": "登録ボタン",
+      "trigger": "submit",
+      "maturity": "committed",
+      "httpRoute": { "method": "POST", "path": "/api/customers", "auth": "none" },
+      "responses": [
+        { "id": "201-success", "status": 201, "bodySchema": "{customerId, customerCode}", "description": "登録成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": "ApiError", "description": "バリデーション違反" },
+        { "id": "409-duplicate-email", "status": 409, "bodySchema": "ApiError", "description": "メール重複", "when": "@duplicateCustomer != null" }
+      ],
+      "inputs": [
+        { "name": "name", "label": "氏名", "type": "string", "required": true, "description": "customers.name (VARCHAR 100)" },
+        { "name": "nameKana", "label": "フリガナ", "type": "string", "required": true, "description": "customers.name_kana (VARCHAR 100)、@conv.regex.kana-fullwidth" },
+        { "name": "postalCode", "label": "郵便番号", "type": "string", "required": true, "description": "@conv.regex.postal-jp" },
+        { "name": "address", "label": "住所", "type": "string", "required": true },
+        { "name": "phone", "label": "電話番号", "type": "string", "required": true, "description": "@conv.regex.phone-jp (国内のみ、product-scope §1)" },
+        { "name": "email", "label": "メールアドレス", "type": "string", "required": true, "description": "@conv.regex.email-simple" }
+      ],
+      "outputs": [
+        { "name": "customerId", "label": "登録済み顧客ID", "type": "number" },
+        { "name": "customerCode", "label": "顧客コード", "type": "string", "description": "C-NNNN (product-scope §9)" }
+      ],
+      "steps": [
+        {
+          "id": "step-custreg-001",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "入力バリデーション",
+          "conditions": "",
+          "rules": [
+            { "field": "name", "type": "required", "message": "@conv.msg.required" },
+            { "field": "name", "type": "maxLength", "length": 100, "message": "@conv.msg.maxLength" },
+            { "field": "nameKana", "type": "required" },
+            { "field": "nameKana", "type": "regex", "pattern": "@conv.regex.kana-fullwidth", "message": "@conv.msg.invalidFormat" },
+            { "field": "nameKana", "type": "maxLength", "length": 100 },
+            { "field": "postalCode", "type": "required" },
+            { "field": "postalCode", "type": "regex", "pattern": "@conv.regex.postal-jp" },
+            { "field": "address", "type": "required" },
+            { "field": "address", "type": "maxLength", "length": 500 },
+            { "field": "phone", "type": "required" },
+            { "field": "phone", "type": "regex", "pattern": "@conv.regex.phone-jp" },
+            { "field": "email", "type": "required" },
+            { "field": "email", "type": "regex", "pattern": "@conv.regex.email-simple" },
+            { "field": "email", "type": "maxLength", "length": 255 }
+          ],
+          "inlineBranch": {
+            "ok": "次へ",
+            "ng": "400 VALIDATION で return",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力内容を確認してください', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-custreg-002",
+          "type": "compute",
+          "maturity": "committed",
+          "description": "郵便番号正規化 (NNN-NNNN 形式に統一)",
+          "expression": "@postalCode.replace(/^(\\d{3})-?(\\d{4})$/, '$1-$2')",
+          "outputBinding": "normalizedPostalCode"
+        },
+        {
+          "id": "step-custreg-003",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "メール重複 SELECT チェック",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "sql": "SELECT id FROM customers WHERE email = @email AND is_deleted = false LIMIT 1",
+          "outputBinding": "duplicateCustomer"
+        },
+        {
+          "id": "step-custreg-004",
+          "type": "return",
+          "maturity": "committed",
+          "description": "重複時は 409 で return",
+          "runIf": "@duplicateCustomer != null",
+          "responseRef": "409-duplicate-email",
+          "bodyExpression": "{ code: 'DUPLICATE_EMAIL', message: 'このメールアドレスは既に登録されています', fieldErrors: { email: 'このメールアドレスは既に登録されています' } }"
+        },
+        {
+          "id": "step-custreg-005",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "顧客マスタ INSERT (TX 内)",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "INSERT",
+          "sql": "INSERT INTO customers (name, name_kana, email, phone, postal_code, address) VALUES (@name, @nameKana, @email, @phone, @normalizedPostalCode, @address) RETURNING id, customer_code",
+          "outputBinding": "registeredCustomer",
+          "txBoundary": { "role": "begin", "txId": "tx-custreg" },
+          "affectedRowsCheck": {
+            "operator": "=",
+            "expected": 1,
+            "onViolation": "throw",
+            "errorCode": "DUPLICATE_EMAIL",
+            "description": "UNIQUE 違反 (23505) を想定。SELECT チェック後の並行登録を防ぐ最終防壁"
+          }
+        },
+        {
+          "id": "step-custreg-006",
+          "type": "externalSystem",
+          "maturity": "committed",
+          "description": "確認メール送信 (TX 後・fire-and-forget)",
+          "systemName": "SendGrid",
+          "protocol": "HTTPS POST /v3/mail/send",
+          "fireAndForget": true,
+          "timeoutMs": 10000,
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": {
+              "action": "continue",
+              "sideEffects": [
+                { "id": "se-mail-1", "type": "other", "description": "Sentry error 記録", "maturity": "committed" }
+              ]
+            },
+            "timeout": { "action": "continue", "sameAs": "failure" }
+          },
+          "argumentMapping": {
+            "to": "@email",
+            "template_id": "customer-welcome",
+            "dynamic_template_data.name": "@name",
+            "dynamic_template_data.customerCode": "@registeredCustomer.customer_code"
+          }
+        },
+        {
+          "id": "step-custreg-007",
+          "type": "return",
+          "maturity": "committed",
+          "description": "201 成功",
+          "responseRef": "201-success",
+          "bodyExpression": "{ customerId: @registeredCustomer.id, customerCode: @registeredCustomer.customer_code }"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T20:00:00.000Z",
+  "updatedAt": "2026-04-20T20:00:00.000Z"
+}

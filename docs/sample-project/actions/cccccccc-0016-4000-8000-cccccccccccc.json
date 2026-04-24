@@ -1,0 +1,133 @@
+{
+  "id": "cccccccc-0016-4000-8000-cccccccccccc",
+  "name": "顧客登録画面 (詳細設計版 / 規約 ID 参照スタイル)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0005-4000-8000-aaaaaaaaaaaa",
+  "description": "顧客の新規登録。詳細設計レベル。本ファイルは `cccccccc-0013` (5/5 達成版) をベースに、重複記述していた正規表現・エラーメッセージ・outcome パターン等を `@conv.*` ID 参照 / `(product-scope §N)` 節参照に置き換えた版。検証目的: **規約 ID 参照スタイルで記述しても同等の実装品質が得られるか**。\n\n【前提仕様】\n- customers.customer_code は DB DEFAULT (PG シーケンス 'C-NNNN') で自動生成 (@conv.scope §9 採番規約)\n- customers に部分 UNIQUE INDEX: UNIQUE (email) WHERE is_deleted = false\n- DB TX は req.db.tx(async (tx) => {...}) 形式 (@conv.scope §10)\n- エラーレスポンス形式・HTTP ステータスマッピング: @conv.scope §7 準拠\n- 本画面は公開経路、認証不要 (@conv.scope §6 の例外として明示)\n\n【トランザクション境界】\n- step-custreg-005 (INSERT) のみ TX 内\n- step-custreg-006 (メール送信) は TX COMMIT 後・TX 外で fire-and-forget (@conv.scope §10, §11)",
+  "mode": "downstream",
+  "maturity": "committed",
+  "actions": [
+    {
+      "id": "act-custreg-001",
+      "name": "登録ボタン",
+      "trigger": "submit",
+      "maturity": "committed",
+      "description": "HTTP Route: POST /api/customers\n\n【フロー】\nバリデーション → 郵便番号正規化 → メール重複 SELECT → 分岐 (重複 A: 409 / なし ELSE: INSERT → メール送信 → 201)\n\n【レスポンス】\nSuccess: HTTP 201 { customerId: number, customerCode: string }\nError: HTTP 400/409/500 (@conv.scope §7 の形式)",
+      "inputs": [
+        { "name": "name", "label": "氏名", "type": "string", "required": true, "description": "customers.name。非空必須、最大 @conv.limit.nameMax (= 100) 文字。" },
+        { "name": "nameKana", "label": "フリガナ", "type": "string", "required": true, "description": "customers.name_kana。@conv.regex.kana-fullwidth に一致、最大 @conv.limit.nameKanaMax (= 100) 文字。" },
+        { "name": "postalCode", "label": "郵便番号", "type": "string", "required": true, "description": "customers.postal_code。@conv.regex.postal-jp に一致、保存時は NNN-NNNN 形式に正規化。" },
+        { "name": "address", "label": "住所", "type": "string", "required": true, "description": "customers.address。非空必須、最大 @conv.limit.addressMax (= 500) 文字。" },
+        { "name": "phone", "label": "電話番号", "type": "string", "required": true, "description": "customers.phone。@conv.regex.phone-jp に一致 (国内のみ、@conv.scope §1)、最大 @conv.limit.phoneMax (= 20) 文字。" },
+        { "name": "email", "label": "メールアドレス", "type": "string", "required": true, "description": "customers.email。@conv.regex.email-simple に一致、最大 @conv.limit.emailMax (= 255) 文字。論理削除済顧客 (is_deleted=true) のメールとは重複扱いしない。" }
+      ],
+      "outputs": [
+        { "name": "customerId", "label": "登録済み顧客ID", "type": "number", "description": "customers.id (INTEGER auto-increment)。" },
+        { "name": "customerCode", "label": "顧客コード", "type": "string", "description": "customers.customer_code (@conv.scope §9 採番: 'C-NNNN')。" }
+      ],
+      "steps": [
+        {
+          "id": "step-custreg-001",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "入力バリデーション。各 inputs[].description の @conv.regex.* / @conv.limit.* を適用。違反時は違反項目名→メッセージの fieldErrors マップを構築。メッセージは @conv.msg.* テンプレートから生成 ({label} は inputs[].label で置換)。",
+          "conditions": "@name: @conv.msg.required / @conv.msg.maxLength (max=100) / @nameKana: @conv.msg.required / @conv.regex.kana-fullwidth (→ @conv.msg.invalidFormat) / @conv.msg.maxLength (max=100) / @postalCode: @conv.msg.required / @conv.regex.postal-jp / @address: @conv.msg.required / @conv.msg.maxLength (max=500) / @phone: @conv.msg.required / @conv.regex.phone-jp / @conv.msg.maxLength (max=20) / @email: @conv.msg.required / @conv.regex.email-simple / @conv.msg.maxLength (max=255)",
+          "inlineBranch": {
+            "ok": "次のステップへ続行",
+            "ng": "HTTP 400 @conv.scope §7 形式でレスポンスして処理中断。message は '入力内容を確認してください'、fieldErrors に個別メッセージ。"
+          },
+          "notes": [
+            { "id": "n-custreg-001", "type": "assumption", "body": "メッセージ優先順位: 必須 → 形式 → 長さ の順で最初の 1 件を fieldErrors に入れる (validation-rules 側の規約が仮にこの順を採用と仮定、未明記事項)。", "createdAt": "2026-04-20T16:00:00.000Z" }
+          ]
+        },
+        {
+          "id": "step-custreg-002",
+          "type": "other",
+          "maturity": "committed",
+          "description": "郵便番号を NNN-NNNN 形式に正規化 (@conv.regex.postal-jp の正規化)。実装: @postalCode.replace(/^(\\d{3})-?(\\d{4})$/, '$1-$2')。step-custreg-001 を通過済のため失敗なし。",
+          "outputBinding": "normalizedPostalCode"
+        },
+        {
+          "id": "step-custreg-003",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "メール重複先行 SELECT。論理削除済みは対象外。",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "SELECT id FROM customers WHERE email = @email AND is_deleted = false LIMIT 1",
+          "outputBinding": "duplicateCustomer"
+        },
+        {
+          "id": "step-custreg-004",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "重複判定。重複ありなら @conv.msg.duplicate ({label:'メールアドレス'}) で 409 early return。なしなら INSERT 以降を elseBranch 内で実行。",
+          "branches": [
+            {
+              "id": "branch-custreg-a",
+              "code": "A",
+              "label": "重複あり",
+              "condition": "@duplicateCustomer != null",
+              "steps": [
+                {
+                  "id": "step-custreg-004-a-1",
+                  "type": "other",
+                  "maturity": "committed",
+                  "description": "HTTP 409 @conv.scope §7 形式で { code:'DUPLICATE_EMAIL', message:@conv.msg.duplicate({label:'メールアドレス'}), fieldErrors:{ email:@conv.msg.duplicate({label:'メールアドレス'}) } } をレスポンスして処理中断。"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "branch-custreg-else",
+            "code": "ELSE",
+            "label": "重複なし",
+            "condition": "",
+            "steps": [
+              {
+                "id": "step-custreg-005",
+                "type": "dbAccess",
+                "maturity": "committed",
+                "description": "顧客マスタへ INSERT。TX 内 (req.db.tx)。customer_code は DB DEFAULT で自動付与 (@conv.scope §9)、rank/is_deleted/created_at/updated_at も DB DEFAULT。company_name/department/notes は NULL 保存 (画面入力なし)。",
+                "tableName": "customers",
+                "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+                "operation": "INSERT",
+                "fields": "INSERT INTO customers (name, name_kana, email, phone, postal_code, address) VALUES (@name, @nameKana, @email, @phone, @normalizedPostalCode, @address) RETURNING id, customer_code",
+                "outputBinding": "registeredCustomer",
+                "notes": [
+                  { "id": "n-custreg-002", "type": "assumption", "body": "UNIQUE 違反 (PG 23505) をキャッチしたら step-custreg-004-a-1 と同じ 409 レスポンス (step-003 SELECT と本 INSERT の間の並行登録の防壁)。", "createdAt": "2026-04-20T16:00:00.000Z" }
+                ]
+              },
+              {
+                "id": "step-custreg-006",
+                "type": "externalSystem",
+                "maturity": "committed",
+                "description": "確認メール送信。TX 外・fire-and-forget。outcome は @conv.scope §11 外部連携 outcome 規約に準拠 (success=info ログ / failure/timeout=Sentry error + 同期レスポンスは 201 を維持 / v1 リトライなし / タイムアウト 10 秒)。",
+                "systemName": "SendGrid",
+                "protocol": "HTTPS (SendGrid v3 API: POST /v3/mail/send、Authorization: Bearer ${SENDGRID_API_KEY})",
+                "argumentMapping": {
+                  "to": "@email",
+                  "template_id": "customer-welcome",
+                  "dynamic_template_data.name": "@name",
+                  "dynamic_template_data.customerCode": "@registeredCustomer.customer_code"
+                },
+                "notes": [
+                  { "id": "n-custreg-003", "type": "assumption", "body": "テンプレート 'customer-welcome' は SendGrid 側テンプレートレジストリで事前設定済。API キー SENDGRID_API_KEY と From アドレス FROM_EMAIL は環境変数で注入。", "createdAt": "2026-04-20T16:00:00.000Z" }
+                ]
+              },
+              {
+                "id": "step-custreg-007",
+                "type": "other",
+                "maturity": "committed",
+                "description": "HTTP 201 { customerId: @registeredCustomer.id, customerCode: @registeredCustomer.customer_code } でレスポンス。FE は受領後 navigate('/complete', { state: { customerId, customerCode, name: @name } }) で完了画面へ遷移。state 消失時は汎用表示にフォールバック。"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T16:00:00.000Z",
+  "updatedAt": "2026-04-20T16:00:00.000Z"
+}

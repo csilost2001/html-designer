@@ -1,0 +1,120 @@
+{
+  "id": "cccccccc-0008-4000-8000-cccccccccccc",
+  "name": "注文データ整合性チェックバッチ",
+  "type": "batch",
+  "description": "夜間バッチ。指定期間の全注文を走査し、注文ヘッダの小計 (orders.subtotal 想定) と明細の小計合計が一致するか、および明細欠落を検証してエラーリストとして記録する。税額突合 (orders.total_amount == orders.subtotal + orders.tax_amount) は副チェックとして将来検討。",
+  "actions": [
+    {
+      "id": "act-batch-consistency-001",
+      "name": "整合性チェック実行",
+      "trigger": "timer",
+      "description": "対象期間の全注文を走査し、金額不一致・明細欠落を検出する。",
+      "inputs": "対象期間（開始日、終了日）",
+      "outputs": "処理件数\nエラー件数\nエラー詳細リスト",
+      "steps": [
+        {
+          "id": "step-batch-consistency-001",
+          "type": "dbAccess",
+          "description": "対象期間の注文ヘッダ取得",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "fields": "注文ID、注文日、合計金額、ステータス",
+          "note": "想定: 結果を『対象注文リスト』として保持。件数が非常に多い場合のページング・ストリーム処理は将来検討。"
+        },
+        {
+          "id": "step-batch-consistency-002",
+          "type": "loop",
+          "description": "各注文について整合性をチェック",
+          "loopKind": "collection",
+          "collectionSource": "対象注文リスト",
+          "collectionItemName": "注文",
+          "note": "想定: 1件の処理で例外が発生した場合、ループを中断するか継続するかは曖昧（継続が運用上望ましいが、暫定判断）。",
+          "steps": [
+            {
+              "id": "step-batch-consistency-002-1",
+              "type": "dbAccess",
+              "description": "注文明細取得",
+              "tableName": "order_items",
+              "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+              "operation": "SELECT",
+              "fields": "商品ID、数量、単価、小計",
+              "note": "想定: 注文.ID で紐付け。結果を『明細リスト』として保持。"
+            },
+            {
+              "id": "step-batch-consistency-002-2",
+              "type": "branch",
+              "description": "明細欠落チェック",
+              "branches": [
+                {
+                  "id": "branch-batch-missing",
+                  "code": "A",
+                  "label": "明細0件",
+                  "condition": "明細リスト.件数 == 0",
+                  "steps": [
+                    {
+                      "id": "step-batch-consistency-002-2-a-1",
+                      "type": "other",
+                      "description": "エラー詳細リストに『明細欠落』として追加",
+                      "note": "想定: エラー記録用テーブル（error_log 等）は未設計。ログ出力 / DB登録 / 両方 のどれにするかは将来検討。"
+                    },
+                    {
+                      "id": "step-batch-consistency-002-2-a-2",
+                      "type": "loopContinue",
+                      "description": "次の注文へ"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "step-batch-consistency-002-3",
+              "type": "other",
+              "description": "明細合計を計算",
+              "note": "想定: 明細リストの subtotal (税抜小計) を合算して『明細合計金額』とする。税額は含めない。比較対象は注文.小計 (orders.subtotal) とする想定。"
+            },
+            {
+              "id": "step-batch-consistency-002-4",
+              "type": "branch",
+              "description": "金額一致チェック",
+              "branches": [
+                {
+                  "id": "branch-batch-mismatch",
+                  "code": "A",
+                  "label": "金額不一致",
+                  "condition": "注文.小計 != 明細合計金額",
+                  "steps": [
+                    {
+                      "id": "step-batch-consistency-002-4-a-1",
+                      "type": "other",
+                      "description": "エラー詳細リストに『金額不一致』として追加",
+                      "note": "想定: 差額と該当注文IDを記録。"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "step-batch-consistency-003",
+          "type": "commonProcess",
+          "description": "結果ログ出力",
+          "refId": "",
+          "refName": "ログ出力",
+          "note": "想定: 処理件数・エラー件数・エラー詳細を運用ログに出力。共通処理IDは別途設計予定。"
+        },
+        {
+          "id": "step-batch-consistency-004",
+          "type": "externalSystem",
+          "description": "エラー通知（エラーがあった場合のみ）",
+          "systemName": "運用通知チャネル",
+          "protocol": "HTTPS（想定: Slack Webhook）",
+          "note": "想定: エラー件数>0 の時のみ通知。ゼロ件時は通知不要（=運用者が静かな日に気付く方式）か、常に通知（=異常ゼロを毎日確認したい方式）かは将来検討。"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T12:00:00.000Z",
+  "updatedAt": "2026-04-20T12:00:00.000Z"
+}

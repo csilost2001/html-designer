@@ -12,73 +12,19 @@
       "name": "ログインボタン",
       "trigger": "click",
       "maturity": "provisional",
-      "httpRoute": {
-        "method": "POST",
-        "path": "/api/auth/login",
-        "auth": "none"
-      },
+      "httpRoute": { "method": "POST", "path": "/api/auth/login", "auth": "none" },
       "responses": [
-        {
-          "id": "200-success",
-          "status": 200,
-          "bodySchema": {
-            "schema": {
-              "type": "object",
-              "required": ["sessionId", "userId"],
-              "properties": {
-                "sessionId": { "type": "string" },
-                "userId": { "type": "integer" },
-                "permissions": { "type": "array", "items": { "type": "string" } }
-              }
-            }
-          },
-          "description": "ログイン成功"
-        },
-        {
-          "id": "400-validation",
-          "status": 400,
-          "bodySchema": {
-            "typeRef": "ApiError"
-          },
-          "description": "入力不正"
-        },
-        {
-          "id": "401-unauthorized",
-          "status": 401,
-          "bodySchema": {
-            "typeRef": "ApiError"
-          },
-          "description": "認証失敗"
-        }
+        { "id": "200-success", "status": 200, "bodySchema": "{ sessionId, userId, permissions }", "description": "ログイン成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": "ApiError", "description": "入力不正" },
+        { "id": "401-unauthorized", "status": 401, "bodySchema": "ApiError", "description": "認証失敗" }
       ],
       "inputs": [
-        {
-          "name": "userId",
-          "label": "ユーザーID",
-          "type": "string",
-          "required": true
-        },
-        {
-          "name": "password",
-          "label": "パスワード",
-          "type": "string",
-          "required": true
-        }
+        { "name": "userId", "label": "ユーザーID", "type": "string", "required": true },
+        { "name": "password", "label": "パスワード", "type": "string", "required": true }
       ],
       "outputs": [
-        {
-          "name": "sessionId",
-          "label": "セッションID",
-          "type": "string"
-        },
-        {
-          "name": "permissions",
-          "label": "権限情報",
-          "type": {
-            "kind": "custom",
-            "label": "string[]"
-          }
-        }
+        { "name": "sessionId", "label": "セッションID", "type": "string" },
+        { "name": "permissions", "label": "権限情報", "type": { "kind": "custom", "label": "string[]" } }
       ],
       "steps": [
         {
@@ -88,16 +34,8 @@
           "description": "入力値チェック",
           "conditions": "ユーザーID・パスワードの必須チェック",
           "rules": [
-            {
-              "field": "userId",
-              "type": "required",
-              "message": "@conv.msg.required"
-            },
-            {
-              "field": "password",
-              "type": "required",
-              "message": "@conv.msg.required"
-            }
+            { "field": "userId", "type": "required", "message": "@conv.msg.required" },
+            { "field": "password", "type": "required", "message": "@conv.msg.required" }
           ],
           "inlineBranch": {
             "ok": "次のステップへ続行",
@@ -118,12 +56,7 @@
             "password": "@password"
           },
           "notes": [
-            {
-              "id": "n-login-001",
-              "type": "assumption",
-              "body": "@authResult.success で成功判定、@authResult.sessionId で session 取得",
-              "createdAt": "2026-04-14T00:00:00.000Z"
-            }
+            { "id": "n-login-001", "type": "assumption", "body": "@authResult.success で成功判定、@authResult.sessionId で session 取得", "createdAt": "2026-04-14T00:00:00.000Z" }
           ]
         },
         {
@@ -160,12 +93,7 @@
           "description": "パスワードリセット画面へ遷移",
           "targetScreenName": "パスワードリセット画面",
           "notes": [
-            {
-              "id": "n-login-002",
-              "type": "prerequisite",
-              "body": "パスワードリセット画面は未設計",
-              "createdAt": "2026-04-14T00:00:00.000Z"
-            }
+            { "id": "n-login-002", "type": "prerequisite", "body": "パスワードリセット画面は未設計", "createdAt": "2026-04-14T00:00:00.000Z" }
           ]
         }
       ]
