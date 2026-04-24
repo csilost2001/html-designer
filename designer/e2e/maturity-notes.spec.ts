@@ -78,9 +78,9 @@ async function setupEditor(page: Page) {
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
   await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".action-editor")).toBeVisible({ timeout: 10000 }).catch(async () => {
+  await expect(page.locator(".process-flow-editor")).toBeVisible({ timeout: 10000 }).catch(async () => {
     // 別の top-level class を試す (フェイルセーフ)
-    await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 5000 });
   });
 }
 
@@ -121,7 +121,7 @@ async function setupList(page: Page) {
     localStorage.removeItem("list-view-mode:process-flow-list");
   }, { project, groups: moreGroups });
   await page.goto("/process-flow/list");
-  await expect(page.locator(".action-page")).toBeVisible();
+  await expect(page.locator(".process-flow-page")).toBeVisible();
 }
 
 test.describe("成熟度バッジ (#185/#189)", () => {
@@ -202,6 +202,6 @@ test.describe("処理フロー一覧のカード成熟度 + フィルタ (#187/#
   test("プロジェクト全体サマリが表示される (#233)", async ({ page }) => {
     await setupList(page);
     // ヘッダに "全体:" ラベル
-    await expect(page.locator(".action-list-header").getByText("全体:")).toBeVisible();
+    await expect(page.locator(".process-flow-list-header").getByText("全体:")).toBeVisible();
   });
 });

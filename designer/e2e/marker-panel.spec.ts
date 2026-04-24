@@ -25,7 +25,7 @@ async function setup(page: Page) {
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
   await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
   // MarkerPanel は既定で折りたたみ (#261 anchor 対応): 明示的に展開する
   await page.locator(".marker-panel .catalog-panel-toggle").click();
   await expect(page.locator(".marker-panel .catalog-panel-body")).toBeVisible();

@@ -83,7 +83,7 @@ async function setupEditor(page: Page) {
     localStorage.removeItem("designer-active-tab");
   }, { project, group, tableDef, groupId, tableId });
   await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
 }
 
 test.describe("SQL 列検査 + 規約参照 の UI 統合 (#261)", () => {
@@ -94,7 +94,7 @@ test.describe("SQL 列検査 + 規約参照 の UI 統合 (#261)", () => {
     const badge = page.locator(".validation-badge.warning");
     await expect(badge).toBeVisible();
     await badge.click();
-    const panel = page.locator(".action-validation-panel");
+    const panel = page.locator(".process-flow-validation-panel");
     await expect(panel).toBeVisible();
     await expect(panel).toContainText("UNKNOWN_COLUMN");
     await expect(panel).toContainText("nonexistent_col");
@@ -104,7 +104,7 @@ test.describe("SQL 列検査 + 規約参照 の UI 統合 (#261)", () => {
     await setupEditor(page);
     await page.waitForTimeout(500);
     await page.locator(".validation-badge.warning").click();
-    const panel = page.locator(".action-validation-panel");
+    const panel = page.locator(".process-flow-validation-panel");
     await expect(panel).toContainText("UNKNOWN_CONV_MSG");
     await expect(panel).toContainText("thisDoesNotExist");
   });

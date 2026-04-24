@@ -33,7 +33,7 @@ async function setup(page: Page) {
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
   await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
 }
 
 test.describe("警告 → Marker 起票 (#261)", () => {
@@ -41,12 +41,12 @@ test.describe("警告 → Marker 起票 (#261)", () => {
     await setup(page);
     // 警告バッジが出ていること
     await page.locator(".validation-badge.warning").click();
-    const panel = page.locator(".action-validation-panel");
+    const panel = page.locator(".process-flow-validation-panel");
     await expect(panel).toBeVisible();
 
     // UNKNOWN_IDENTIFIER 警告の行で AI に依頼
     await page.evaluate(() => {
-      const btn = document.querySelector(".action-validation-panel .validation-ask-ai-btn");
+      const btn = document.querySelector(".process-flow-validation-panel .validation-ask-ai-btn");
       btn?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     });
 
@@ -69,7 +69,7 @@ test.describe("警告 → Marker 起票 (#261)", () => {
     await page.locator(".validation-badge.warning").click();
     page.on("dialog", (d) => d.accept());
     await page.evaluate(() => {
-      document.querySelector(".action-validation-panel-bulk-ai")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      document.querySelector(".process-flow-validation-panel-bulk-ai")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     });
     // MarkerPanel 展開
     await page.locator(".marker-panel .catalog-panel-toggle").click();
@@ -82,7 +82,7 @@ test.describe("警告 → Marker 起票 (#261)", () => {
     await setup(page);
     await page.locator(".validation-badge.warning").click();
     await page.evaluate(() => {
-      document.querySelector(".action-validation-panel .validation-ask-ai-btn")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      document.querySelector(".process-flow-validation-panel .validation-ask-ai-btn")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
     });
 
     // パネルを閉じて開き直し、disabled のまま

@@ -78,7 +78,7 @@ async function setupEditor(page: Page) {
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
   await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
 }
 
 test.describe("警告パネル UI 配線 (#261 UI 統合)", () => {
@@ -92,7 +92,7 @@ test.describe("警告パネル UI 配線 (#261 UI 統合)", () => {
 
   test("バッジクリックで詳細パネルが開く", async ({ page }) => {
     await setupEditor(page);
-    const panel = page.locator(".action-validation-panel");
+    const panel = page.locator(".process-flow-validation-panel");
     await expect(panel).toHaveCount(0);
 
     await page.locator(".validation-badge.warning").click();
@@ -103,7 +103,7 @@ test.describe("警告パネル UI 配線 (#261 UI 統合)", () => {
     await setupEditor(page);
     await page.locator(".validation-badge.warning").click();
 
-    const panel = page.locator(".action-validation-panel");
+    const panel = page.locator(".process-flow-validation-panel");
     await expect(panel).toBeVisible();
     await expect(panel).toContainText("UNKNOWN_IDENTIFIER");
     await expect(panel).toContainText("UNKNOWN_RESPONSE_REF");
@@ -120,10 +120,10 @@ test.describe("警告パネル UI 配線 (#261 UI 統合)", () => {
   test("閉じるボタンでパネルが閉じる", async ({ page }) => {
     await setupEditor(page);
     await page.locator(".validation-badge.warning").click();
-    await expect(page.locator(".action-validation-panel")).toBeVisible();
+    await expect(page.locator(".process-flow-validation-panel")).toBeVisible();
 
     // ヘッダには「全て AI に依頼」ボタンもあるため title="閉じる" で指定
-    await page.locator('.action-validation-panel-header button[title="閉じる"]').click();
-    await expect(page.locator(".action-validation-panel")).toHaveCount(0);
+    await page.locator('.process-flow-validation-panel-header button[title="閉じる"]').click();
+    await expect(page.locator(".process-flow-validation-panel")).toHaveCount(0);
   });
 });

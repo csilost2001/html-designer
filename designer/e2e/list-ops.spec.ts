@@ -35,7 +35,7 @@ async function setupList(page: Page) {
     localStorage.removeItem("list-view-mode:process-flow-list");
   }, { project, groups: listGroups });
   await page.goto("/process-flow/list");
-  await expect(page.locator(".action-page")).toBeVisible();
+  await expect(page.locator(".process-flow-page")).toBeVisible();
 }
 
 test.describe("ProcessFlowListView 操作 (#248)", () => {
@@ -80,7 +80,7 @@ test.describe("ProcessFlowListView 操作 (#248)", () => {
   test("成熟度サマリバーが total を表示する", async ({ page }) => {
     await setupList(page);
     // 全体: 1 committed / 1 provisional / 2 draft
-    const header = page.locator(".action-list-header");
+    const header = page.locator(".process-flow-list-header");
     // committed 1 / provisional 1 / draft 2
     await expect(header.getByText("全体:")).toBeVisible();
   });

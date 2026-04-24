@@ -1,6 +1,6 @@
 /* ─── 処理フロー定義 共通 ─────────────────────────────────────────── */
 
-.action-page {
+.process-flow-page {
   height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   display: flex;
   flex-direction: column;
@@ -8,7 +8,7 @@
   background: #f8f9fa;
 }
 
-.action-content {
+.process-flow-content {
   flex: 1;
   overflow-y: auto;
   /* #309 フォローアップ: 情報密度優先。4K で余白過多にならないよう縦 8px / 横 14px */
@@ -17,36 +17,36 @@
 
 /* ─── 処理フロー一覧 ─────────────────────────────────────────────── */
 
-.action-list-header {
+.process-flow-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
 }
 
-.action-list-header h5 {
+.process-flow-list-header h5 {
   margin: 0;
   font-weight: 700;
 }
 
-.action-list-filters {
+.process-flow-list-filters {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
-.action-list-filters .btn {
+.process-flow-list-filters .btn {
   font-size: 0.82rem;
   padding: 4px 12px;
 }
 
-.action-list-filters .btn.active {
+.process-flow-list-filters .btn.active {
   font-weight: 600;
 }
 
 /* ─── ProcessFlowListView ヘッダ右側 ───────────────────────────────────── */
-.action-list-header-right {
+.process-flow-list-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -70,19 +70,19 @@
 .process-flow-type-badge.other { background: #f1f5f9; color: #475569; }
 
 /* ─── DataList カード内コンテンツ ────────────────────────────────── */
-.action-card-content {
+.process-flow-card-content {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.action-card-head {
+.process-flow-card-head {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.action-card-name {
+.process-flow-card-name {
   font-weight: 600;
   font-size: 0.95rem;
   flex: 1 1 auto;
@@ -91,38 +91,38 @@
   white-space: nowrap;
 }
 
-.action-card-meta {
+.process-flow-card-meta {
   font-size: 0.8rem;
   color: #64748b;
   display: flex;
   gap: 12px;
 }
 
-.action-list-name {
+.process-flow-list-name {
   font-weight: 600;
 }
 
-.action-validation-ok {
+.process-flow-validation-ok {
   color: #10b981;
 }
 
 /* エラー/警告状態のカード装飾 (:has() で外側を着色) */
-.action-data-list .data-list-card:has(.action-card-content.has-error) {
+.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-error) {
   background: #fff5f5;
   border-color: #fecaca;
 }
-.action-data-list .data-list-card:has(.action-card-content.has-error):hover {
+.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-error):hover {
   border-color: #f87171;
 }
-.action-data-list .data-list-card:has(.action-card-content.has-warning:not(.has-error)) {
+.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-warning:not(.has-error)) {
   background: #fffbeb;
   border-color: #fde68a;
 }
-.action-data-list .data-list-card:has(.action-card-content.has-warning:not(.has-error)):hover {
+.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-warning:not(.has-error)):hover {
   border-color: #fbbf24;
 }
 
-.action-validation-badges {
+.process-flow-validation-badges {
   display: flex;
   gap: 4px;
   margin-left: auto;
@@ -130,13 +130,13 @@
 }
 
 /* ─── 処理フロー一覧 マーカー件数バッジ (#261) ──────────────────────── */
-.action-marker-badges {
+.process-flow-marker-badges {
   display: inline-flex;
   gap: 3px;
   align-items: center;
   flex-wrap: wrap;
 }
-.action-marker-badge {
+.process-flow-marker-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -146,22 +146,22 @@
   font-weight: 600;
   line-height: 1.3;
 }
-.action-marker-badge i {
+.process-flow-marker-badge i {
   font-size: 0.7rem;
 }
-.action-marker-badge.kind-todo { background: #d1fae5; color: #065f46; }
-.action-marker-badge.kind-question { background: #ede9fe; color: #5b21b6; }
-.action-marker-badge.kind-attention { background: #fef3c7; color: #92400e; }
-.action-marker-badge.kind-chat { background: #dbeafe; color: #1e40af; }
+.process-flow-marker-badge.kind-todo { background: #d1fae5; color: #065f46; }
+.process-flow-marker-badge.kind-question { background: #ede9fe; color: #5b21b6; }
+.process-flow-marker-badge.kind-attention { background: #fef3c7; color: #92400e; }
+.process-flow-marker-badge.kind-chat { background: #dbeafe; color: #1e40af; }
 
-.action-list-filter-sep {
+.process-flow-list-filter-sep {
   width: 1px;
   background: #e2e8f0;
   margin: 0 4px;
   align-self: stretch;
 }
 
-.action-list-check-label {
+.process-flow-list-check-label {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -173,23 +173,23 @@
 
 /* ─── 処理フロー編集 ─────────────────────────────────────────────── */
 
-.action-editor-breadcrumb {
+.process-flow-editor-breadcrumb {
   font-size: 0.85rem;
   color: #64748b;
 }
 
-.action-editor-breadcrumb a {
+.process-flow-editor-breadcrumb a {
   color: #6366f1;
   text-decoration: none;
 }
 
-.action-editor-breadcrumb a:hover {
+.process-flow-editor-breadcrumb a:hover {
   text-decoration: underline;
 }
 
 /* ─── アクションタブ ──────────────────────────────────────────────── */
 
-.action-tabs {
+.process-flow-tabs {
   display: flex;
   gap: 0;
   border-bottom: 2px solid #e2e8f0;
@@ -198,7 +198,7 @@
   overflow-x: auto;
 }
 
-.action-tab {
+.process-flow-tab {
   padding: 10px 16px;
   font-size: 0.85rem;
   font-weight: 500;
@@ -212,17 +212,17 @@
   transition: color 0.15s, border-color 0.15s;
 }
 
-.action-tab:hover {
+.process-flow-tab:hover {
   color: #334155;
 }
 
-.action-tab.active {
+.process-flow-tab.active {
   color: #6366f1;
   border-bottom-color: #6366f1;
   font-weight: 600;
 }
 
-.action-tab-add {
+.process-flow-tab-add {
   padding: 10px 12px;
   font-size: 0.85rem;
   color: #94a3b8;
@@ -232,13 +232,13 @@
   margin-bottom: -2px;
 }
 
-.action-tab-add:hover {
+.process-flow-tab-add:hover {
   color: #6366f1;
 }
 
 /* ─── I/O パネル ─────────────────────────────────────────────────── */
 
-.action-io-panel {
+.process-flow-io-panel {
   /* #310: 上下 2 段 (1fr) を既定に。以前は 1fr 1fr で左右分割していたが、
      表形式モードで幅が狭く折り返して縦積みに見えていたため、全幅を確保。
      #310 フォローアップ: 高解像度では左右 2 列に戻す (下の media query 参照)。 */
@@ -255,20 +255,20 @@
    table-layout: fixed + col-*: 11em+9em+7em+... の合計 ≒ 400px 以上あれば折り返し
    なく 1 項目 1 行が収まる。1600px / 2 ≒ 780px > 400px で十分余裕がある。 */
 @media (min-width: 1600px) {
-  .action-io-panel {
+  .process-flow-io-panel {
     grid-template-columns: 1fr 1fr;
     gap: 16px;
   }
 }
 
-.action-io-field .form-label {
+.process-flow-io-field .form-label {
   font-size: 0.78rem;
   font-weight: 600;
   color: #64748b;
   margin-bottom: 4px;
 }
 
-.action-io-textarea {
+.process-flow-io-textarea {
   font-size: 0.82rem;
   min-height: 32px;
   resize: vertical;
@@ -363,7 +363,7 @@
 
 .step-editor {
   /* #313: max-width 800px を撤去し viewport 幅を活かす。padding は親の
-     .action-content が担当するので 0。4K でもパネル幅を有効利用する。 */
+     .process-flow-content が担当するので 0。4K でもパネル幅を有効利用する。 */
   padding: 0;
 }
 
@@ -812,7 +812,7 @@
 
 /* ─── モーダル ────────────────────────────────────────────────────── */
 
-.action-modal-overlay {
+.process-flow-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -825,7 +825,7 @@
   z-index: 1000;
 }
 
-.action-modal {
+.process-flow-modal {
   background: #fff;
   border-radius: 12px;
   padding: 24px;
@@ -834,22 +834,22 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
-.action-modal h6 {
+.process-flow-modal h6 {
   font-weight: 700;
   margin-bottom: 16px;
 }
 
-.action-modal .form-group {
+.process-flow-modal .form-group {
   margin-bottom: 12px;
 }
 
-.action-modal .form-label {
+.process-flow-modal .form-label {
   font-size: 0.82rem;
   font-weight: 600;
   margin-bottom: 4px;
 }
 
-.action-modal-footer {
+.process-flow-modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -1305,14 +1305,14 @@
 }
 
 /* 警告詳細パネル (#261 UI 統合) */
-.action-validation-panel {
+.process-flow-validation-panel {
   margin: 4px 16px 8px;
   border: 1px solid #fde68a;
   border-radius: 8px;
   background: #fffbeb;
   overflow: hidden;
 }
-.action-validation-panel-header {
+.process-flow-validation-panel-header {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1323,14 +1323,14 @@
   background: #fef3c7;
   border-bottom: 1px solid #fde68a;
 }
-.action-validation-panel-list {
+.process-flow-validation-panel-list {
   list-style: none;
   margin: 0;
   padding: 4px 12px;
   max-height: 240px;
   overflow-y: auto;
 }
-.action-validation-panel-list li {
+.process-flow-validation-panel-list li {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1338,14 +1338,14 @@
   font-size: 0.8rem;
   border-bottom: 1px dashed #fde68a;
 }
-.action-validation-panel-list li:last-child { border-bottom: none; }
+.process-flow-validation-panel-list li:last-child { border-bottom: none; }
 
-.action-validation-panel-bulk-ai {
+.process-flow-validation-panel-bulk-ai {
   margin-left: auto;
   color: #1e40af;
   font-weight: 600;
 }
-.action-validation-panel-bulk-ai:hover {
+.process-flow-validation-panel-bulk-ai:hover {
   background: #dbeafe;
   color: #1e3a8a;
 }
@@ -1464,7 +1464,7 @@
 /* ─── メタタブバー (#309) ─────────────────────────────────────────
    ProcessFlowEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
    排他的に 1 つだけ body を全幅で展開する。 */
-.action-meta-tabbar {
+.process-flow-meta-tabbar {
   padding: 3px 14px;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
@@ -1472,46 +1472,46 @@
   flex-direction: column;
   gap: 2px;
 }
-.action-meta-tabs {
+.process-flow-meta-tabs {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 3px;
   row-gap: 3px;
 }
-.action-meta-tabs .catalog-panel {
+.process-flow-meta-tabs .catalog-panel {
   margin: 0;
   flex: 0 0 auto;
 }
-.action-meta-tabs .catalog-panel-toggle {
+.process-flow-meta-tabs .catalog-panel-toggle {
   width: auto;
   padding: 2px 8px;
   font-size: 0.76rem;
 }
 /* アクティブ (展開中) のパネルを強調: chevron-down アイコンの存在で判定 (:has) */
-.action-meta-tabs .catalog-panel:has(.bi-chevron-down) {
+.process-flow-meta-tabs .catalog-panel:has(.bi-chevron-down) {
   background: #dbeafe;
   border-color: #60a5fa;
 }
-.action-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle {
+.process-flow-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle {
   color: #1e40af;
 }
-.action-meta-tabbar-spacer {
+.process-flow-meta-tabbar-spacer {
   flex: 1 1 auto;
 }
-.action-meta-tabbar-inline {
+.process-flow-meta-tabbar-inline {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.78rem;
   padding: 0 4px;
 }
-.action-meta-maturity-label {
+.process-flow-meta-maturity-label {
   font-weight: 600;
   color: #475569;
   font-size: 0.75rem;
 }
-.action-meta-progress {
+.process-flow-meta-progress {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1520,7 +1520,7 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
 }
-.action-meta-body {
+.process-flow-meta-body {
   padding: 6px 10px;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
@@ -1528,17 +1528,17 @@
   max-height: 50vh;
   overflow-y: auto;
 }
-.action-meta-body.action-meta-info-body {
+.process-flow-meta-body.process-flow-meta-info-body {
   padding: 8px 10px;
 }
 /* メタタブバー配下の body は外枠はタブバーが提供するので、
    各 Panel の border は解除して内側 padding のみにする */
-.action-meta-body > .catalog-panel {
+.process-flow-meta-body > .catalog-panel {
   margin: 0;
   border: none;
   background: transparent;
 }
-.action-meta-body > .catalog-panel > .catalog-panel-body {
+.process-flow-meta-body > .catalog-panel > .catalog-panel-body {
   max-height: none;
   padding: 0;
   border-top: none;
@@ -1548,7 +1548,7 @@
   border-top: 1px solid #e2e8f0;
   /* 長くなった panel (MarkerPanel に marker が大量 等) が上部領域を押し広げて
      下のステップ領域を viewport 外に押し出すのを防ぐ。各 panel 個別に内部スクロール。
-     #309 タブバー化以降は .action-meta-body 内で overrideされる (max-height: none)。 */
+     #309 タブバー化以降は .process-flow-meta-body 内で overrideされる (max-height: none)。 */
   max-height: 40vh;
   overflow-y: auto;
 }

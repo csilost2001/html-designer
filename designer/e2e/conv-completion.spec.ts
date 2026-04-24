@@ -63,7 +63,7 @@ async function setup(page: Page) {
   }, { project: dummyProject, group: sampleGroup, catalog: sampleCatalog });
   await page.goto(`/process-flow/edit/${sampleGroup.id}`);
   // ProcessFlowEditor が表示されるまで待機
-  await expect(page.locator(".action-editor, [class*='action-editor']")).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".process-flow-editor, [class*='process-flow-editor']")).toBeVisible({ timeout: 10000 });
 }
 
 async function openComputeStep(page: Page) {
