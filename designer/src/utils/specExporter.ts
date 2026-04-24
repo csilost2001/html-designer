@@ -8,7 +8,7 @@
 import type { TableDefinition, ConstraintDefinition, DefaultDefinition, TriggerDefinition } from "../types/table";
 import type { ErRelation, ErLayout } from "../types/table";
 import type { FlowProject } from "../types/flow";
-import type { ActionGroup, Step } from "../types/action";
+import type { ProcessFlow, Step } from "../types/action";
 import { getAllRelations } from "./erUtils";
 import { getStepLabel } from "./actionUtils";
 import { fieldsToText } from "./actionFields";
@@ -27,7 +27,7 @@ export interface SpecJson {
   /** 画面遷移 */
   transitions: SpecTransition[];
   /** 処理フロー定義 */
-  actionGroups?: SpecActionGroup[];
+  processFlows?: SpecProcessFlow[];
   /** 共通処理定義 */
   commonProcesses?: SpecCommonProcess[];
 }
@@ -97,7 +97,7 @@ export interface SpecTransition {
   trigger: string;
 }
 
-export interface SpecActionGroup {
+export interface SpecProcessFlow {
   name: string;
   type: string;
   screenName?: string;
@@ -134,13 +134,13 @@ export function generateSpecJson(
   project: FlowProject,
   tables: TableDefinition[],
   erLayout: ErLayout | null,
-  actionGroups?: ActionGroup[],
+  processFlows?: ProcessFlow[],
 ): SpecJson {
   const relations = getAllRelations(tables, erLayout);
 
   // 共通処理とそれ以外を分離
-  const commonGroups = (actionGroups ?? []).filter((g) => g.type === "common");
-  const nonCommonGroups = (actionGroups ?? []).filter((g) => g.type !== "common");
+  const commonGroups = (processFlows ?? []).filter((g) => g.type === "common");
+  const nonCommonGroups = (processFlows ?? []).filter((g) => g.type !== "common");
 
   const result: SpecJson = {
     projectName: project.name,
@@ -166,8 +166,8 @@ export function generateSpecJson(
     }),
   };
 
-  if (actionGroups && actionGroups.length > 0) {
-    result.actionGroups = nonCommonGroups.map((g) => {
+  if (processFlows && processFlows.length > 0) {
+    result.processFlows = nonCommonGroups.map((g) => {
       const screenName = g.screenId
         ? project.screens.find((s) => s.id === g.screenId)?.name
         : undefined;

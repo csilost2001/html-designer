@@ -14,10 +14,10 @@ import {
   addMarker,
   resolveMarker,
   removeMarker,
-  type ActionGroupDoc,
-} from "./actionGroupEdits.js";
+  type ProcessFlowDoc,
+} from "./processFlowEdits.js";
 
-function makeGroup(): ActionGroupDoc {
+function makeGroup(): ProcessFlowDoc {
   return {
     id: "ag-1",
     actions: [{
@@ -208,8 +208,8 @@ describe("markers (#261)", () => {
 });
 
 describe("findAllMarkers", () => {
-  function group(id: string, name: string, markers: Array<{ kind: "chat" | "attention" | "todo" | "question"; body: string; resolved?: boolean }>): { id: string; name: string; ag: ActionGroupDoc } {
-    const ag: ActionGroupDoc = { id, actions: [{ id: `${id}-a`, steps: [] }] };
+  function group(id: string, name: string, markers: Array<{ kind: "chat" | "attention" | "todo" | "question"; body: string; resolved?: boolean }>): { id: string; name: string; ag: ProcessFlowDoc } {
+    const ag: ProcessFlowDoc = { id, actions: [{ id: `${id}-a`, steps: [] }] };
     for (const m of markers) {
       const added = addMarker(ag, { kind: m.kind, body: m.body, author: "human" });
       if (m.resolved) resolveMarker(ag, added.id, "ok");
@@ -217,16 +217,16 @@ describe("findAllMarkers", () => {
     return { id, name, ag };
   }
 
-  it("複数 AG を横断し actionGroupId / actionGroupName 付きで返す", () => {
+  it("複数 AG を横断し processFlowId / processFlowName 付きで返す", () => {
     const groups = [
       group("ag-a", "A", [{ kind: "todo", body: "X" }, { kind: "question", body: "Y" }]),
       group("ag-b", "B", [{ kind: "chat", body: "Z" }]),
     ];
     const all = findAllMarkers(groups);
     expect(all).toHaveLength(3);
-    expect(all[0].actionGroupId).toBe("ag-a");
-    expect(all[0].actionGroupName).toBe("A");
-    expect(all[2].actionGroupId).toBe("ag-b");
+    expect(all[0].processFlowId).toBe("ag-a");
+    expect(all[0].processFlowName).toBe("A");
+    expect(all[2].processFlowId).toBe("ag-b");
   });
 
   it("unresolvedOnly=true (既定) で解決済みは除外", () => {
@@ -254,7 +254,7 @@ describe("findAllMarkers", () => {
     ];
     const all = findAllMarkers(groups);
     expect(all).toHaveLength(1);
-    expect(all[0].actionGroupId).toBe("ag-has");
+    expect(all[0].processFlowId).toBe("ag-has");
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, ExternalSystemStep, ExternalCallOutcomeSpec, Step } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import type { ProcessFlow, ExternalSystemStep, ExternalCallOutcomeSpec, Step } from "./action";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("ExternalCallOutcomeSpec の sideEffects (#172)", () => {
   it("outcome.failure.sideEffects に副作用ステップ列を保持できる (capture 失敗時の例)", () => {
@@ -65,7 +65,7 @@ describe("ExternalCallOutcomeSpec の sideEffects (#172)", () => {
   });
 });
 
-describe("migrateActionGroup — outcome sideEffects / sameAs 透過保持 (#172)", () => {
+describe("migrateProcessFlow — outcome sideEffects / sameAs 透過保持 (#172)", () => {
   it("新フィールドを持つ outcome を冪等にマイグレーションできる", () => {
     const raw = {
       id: "g",
@@ -107,8 +107,8 @@ describe("migrateActionGroup — outcome sideEffects / sameAs 透過保持 (#172
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
 
     const step = once.actions[0].steps[0] as ExternalSystemStep;

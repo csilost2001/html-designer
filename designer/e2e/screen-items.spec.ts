@@ -37,7 +37,7 @@ const dummyProject = {
     { id: screenId1, no: 1, name: "ログイン画面", type: "standard", updatedAt: new Date().toISOString() },
     { id: screenId2, no: 2, name: "顧客登録画面", type: "standard", updatedAt: new Date().toISOString() },
   ],
-  groups: [], edges: [], tables: [], actionGroups: [],
+  groups: [], edges: [], tables: [], processFlows: [],
   updatedAt: new Date().toISOString(),
 };
 

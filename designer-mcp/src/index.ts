@@ -2,8 +2,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { randomUUID } from "node:crypto";
 import { handleMarkerTool } from "./handlers/marker.js";
-import { handleActionGroupTool } from "./handlers/actionGroup.js";
-import { renameScreenItemId, checkScreenItemRefs, updateActionGroupRefs } from "./renameScreenItem.js";
+import { handleProcessFlowTool } from "./handlers/processFlow.js";
+import { renameScreenItemId, checkScreenItemRefs, updateProcessFlowRefs } from "./renameScreenItem.js";
 import { getRenameContext, applyRenameMapping } from "./renameContext.js";
 import {
   ListToolsRequestSchema,
@@ -15,7 +15,7 @@ import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
-import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readActionGroup, writeActionGroup, deleteActionGroup as deleteActionGroupFile, listActionGroups as listActionGroupFiles } from "./projectStorage.js";
+import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles } from "./projectStorage.js";
 import { mcpTableToSpecEntry } from "./specExport.js";
 
 // 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
@@ -59,7 +59,7 @@ function createMcpServer(): Server {
   // 分離済ハンドラーに委譲 (#302 後のリファクタ): 該当すれば結果を返す、無ければ下の switch へ
   const markerResult = await handleMarkerTool(name, argRecord);
   if (markerResult) return markerResult;
-  const agResult = await handleActionGroupTool(name, argRecord);
+  const agResult = await handleProcessFlowTool(name, argRecord);
   if (agResult) return agResult;
 
   try {
@@ -761,7 +761,7 @@ function createMcpServer(): Server {
         };
       }
 
-      // ── 処理フロー定義 (list/get/add/update/delete/add_action/add_step/update_step/remove_step/move_step/set_maturity/add_step_note/add_catalog_entry/remove_catalog_entry) は handlers/actionGroup.ts に移設
+      // ── 処理フロー定義 (list/get/add/update/delete/add_action/add_step/update_step/remove_step/move_step/set_maturity/add_step_note/add_catalog_entry/remove_catalog_entry) は handlers/processFlow.ts に移設
 
       // marker 関連 (list/find_all/add/resolve/remove) は handlers/marker.ts に移設
 
@@ -848,8 +848,8 @@ function createMcpServer(): Server {
         }
         const renameRes = await renameScreenItemId(a.screenId, a.oldId, a.newId);
         wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
-        for (const agId of renameRes.actionGroupsUpdated) {
-          wsBridge.broadcast("actionGroupChanged", { id: agId });
+        for (const agId of renameRes.processFlowsUpdated) {
+          wsBridge.broadcast("processFlowChanged", { id: agId });
         }
         if (renameRes.screenHtmlUpdated) {
           wsBridge.broadcast("screenChanged", { screenId: a.screenId });
@@ -858,7 +858,7 @@ function createMcpServer(): Server {
           `"${a.oldId}" → "${a.newId}" のリネームが完了しました。`,
           `  - screen-items: 更新済み`,
           `  - 画面 HTML: ${renameRes.screenHtmlUpdated ? "更新済み" : "変更なし"}`,
-          `  - 処理フロー: ${renameRes.actionGroupsUpdated.length} 件更新 (参照 ${renameRes.refsRenamed} 箇所)`,
+          `  - 処理フロー: ${renameRes.processFlowsUpdated.length} 件更新 (参照 ${renameRes.refsRenamed} 箇所)`,
         ];
         if (renameRes.warnings.length > 0) {
           lines.push(...renameRes.warnings.map((w) => `  ⚠ ${w}`));
@@ -876,8 +876,8 @@ function createMcpServer(): Server {
           return { content: [{ type: "text", text: `"${a.itemId}" を参照する処理フローはありません。` }] };
         }
         const lines = [
-          `"${a.itemId}" を参照する処理フロー: ${checkRes.affectedActionGroups.length} 件 (合計 ${checkRes.totalRefs} 箇所)`,
-          ...checkRes.affectedActionGroups.map((ag) => `  - ${ag.name} (${ag.id}): ${ag.refCount} 箇所`),
+          `"${a.itemId}" を参照する処理フロー: ${checkRes.affectedProcessFlows.length} 件 (合計 ${checkRes.totalRefs} 箇所)`,
+          ...checkRes.affectedProcessFlows.map((ag) => `  - ${ag.name} (${ag.id}): ${ag.refCount} 箇所`),
         ];
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
@@ -916,16 +916,16 @@ function createMcpServer(): Server {
         }) as { succeeded: string[]; failed: Array<{ oldId: string; error: string }> } | null;
 
         if (browserResult) {
-          // ブラウザ側で適用済み → action group refs のみファイル更新
-          const { actionGroupsUpdated } = await updateActionGroupRefs(a.screenId, mapping);
-          for (const agId of actionGroupsUpdated) {
-            wsBridge.broadcast("actionGroupChanged", { id: agId });
+          // ブラウザ側で適用済み → process flow refs のみファイル更新
+          const { processFlowsUpdated } = await updateProcessFlowRefs(a.screenId, mapping);
+          for (const agId of processFlowsUpdated) {
+            wsBridge.broadcast("processFlowChanged", { id: agId });
           }
           // screenChanged / screenItemsChanged は broadcast しない (browser dirty、ファイルは古いまま)
 
           const lines: string[] = [
             `リネーム完了 (browser): 成功 ${browserResult.succeeded.length} 件 / 失敗 ${browserResult.failed.length} 件`,
-            `処理フロー参照更新: ${actionGroupsUpdated.length} 件`,
+            `処理フロー参照更新: ${processFlowsUpdated.length} 件`,
           ];
           for (const oldId of browserResult.succeeded) {
             lines.push(`  ✓ "${oldId}" → "${mapping[oldId]}"`);
@@ -941,9 +941,9 @@ function createMcpServer(): Server {
 
         if (result.succeeded.length > 0) {
           wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
-          const allAgs = new Set(result.succeeded.flatMap((s) => s.actionGroupsUpdated));
+          const allAgs = new Set(result.succeeded.flatMap((s) => s.processFlowsUpdated));
           for (const agId of allAgs) {
-            wsBridge.broadcast("actionGroupChanged", { id: agId });
+            wsBridge.broadcast("processFlowChanged", { id: agId });
           }
           if (result.succeeded.some((s) => s.screenHtmlUpdated)) {
             wsBridge.broadcast("screenChanged", { screenId: a.screenId });

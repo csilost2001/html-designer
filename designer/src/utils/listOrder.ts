@@ -3,7 +3,7 @@
  *
  * 仕様: docs/spec/list-common.md §3.10
  *
- * 各一覧系アイテム (TableMeta / ScreenNode / ActionGroupMeta / TableColumn) は `no: number`
+ * 各一覧系アイテム (TableMeta / ScreenNode / ProcessFlowMeta / TableColumn) は `no: number`
  * フィールドを持ち、連番 1..N を厳密に維持する。D&D / 新規作成 / 削除 / Ctrl+V / Ctrl+D /
  * Alt+↑↓ などの物理順変更操作のたびに全体を再採番する。
  */

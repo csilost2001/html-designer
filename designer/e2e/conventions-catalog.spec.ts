@@ -9,7 +9,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 const dummyProject = {
   version: 1, name: "conventions-ui", screens: [], groups: [], edges: [],
-  tables: [], actionGroups: [],
+  tables: [], processFlows: [],
   updatedAt: new Date().toISOString(),
 };
 

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ActionGroupMeta, ActionGroupType, ActionGroup } from "../../types/action";
-import { ACTION_GROUP_TYPE_LABELS, ACTION_GROUP_TYPE_ICONS } from "../../types/action";
+import type { ProcessFlowMeta, ProcessFlowType, ProcessFlow } from "../../types/action";
+import { PROCESS_FLOW_TYPE_LABELS, PROCESS_FLOW_TYPE_ICONS } from "../../types/action";
 import {
-  listActionGroups,
-  loadActionGroup,
-  saveActionGroup,
-  createActionGroup,
-  deleteActionGroup,
-} from "../../store/actionStore";
+  listProcessFlows,
+  loadProcessFlow,
+  saveProcessFlow,
+  createProcessFlow,
+  deleteProcessFlow,
+} from "../../store/processFlowStore";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
@@ -35,7 +35,7 @@ import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/action.css";
 
-const ALL_TYPES: ActionGroupType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
+const ALL_TYPES: ProcessFlowType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
 const STORAGE_KEY = "list-view-mode:process-flow-list";
 const TAB_ID = makeTabId("process-flow-list", "main");
 
@@ -59,9 +59,9 @@ const MARKER_BADGE_META: Array<{ kind: "todo" | "question" | "attention" | "chat
   { kind: "chat", icon: "bi-chat-dots-fill", label: "メモ" },
 ];
 
-export function ActionListView() {
+export function ProcessFlowListView() {
   const navigate = useNavigate();
-  const [filterType, setFilterType] = useState<ActionGroupType | "all">("all");
+  const [filterType, setFilterType] = useState<ProcessFlowType | "all">("all");
   const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
   const [filterMarkersOnly, setFilterMarkersOnly] = useState(false);
   const [filterMaturity, setFilterMaturity] = useState<"all" | "draft" | "provisional" | "committed">("all");
@@ -69,7 +69,7 @@ export function ActionListView() {
   const [markerMap, setMarkerMap] = useState<Map<string, MarkerSummary>>(new Map());
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
-  const [addType, setAddType] = useState<ActionGroupType>("screen");
+  const [addType, setAddType] = useState<ProcessFlowType>("screen");
   const [addScreenId, setAddScreenId] = useState("");
   const [addDescription, setAddDescription] = useState("");
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
@@ -82,25 +82,25 @@ export function ActionListView() {
     mcpBridge.startWithoutEditor();
     const p = await loadProject();
     setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
-    return await listActionGroups();
+    return await listProcessFlows();
   }, []);
 
-  const commitGroups = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ActionGroupMeta[]; deletedIds: string[] }) => {
+  const commitGroups = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ProcessFlowMeta[]; deletedIds: string[] }) => {
     for (const id of deletedIds) {
-      await deleteActionGroup(id);
+      await deleteProcessFlow(id);
     }
     const project = await loadProject();
-    if (project.actionGroups) {
+    if (project.processFlows) {
       const deletedSet = new Set(deletedIds);
       const orderMap = new Map(itemsInOrder.map((g, i) => [g.id, i]));
-      project.actionGroups = project.actionGroups
+      project.processFlows = project.processFlows
         .filter((g) => !deletedSet.has(g.id))
         .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
       await saveProject(project);
     }
   }, []);
 
-  const editor = useListEditor<ActionGroupMeta>({
+  const editor = useListEditor<ProcessFlowMeta>({
     getId: (g) => g.id,
     load: loadGroups,
     commit: commitGroups,
@@ -153,7 +153,7 @@ export function ActionListView() {
     (async () => {
       for (const meta of groups) {
         if (cancelled) break;
-        const group = await loadActionGroup(meta.id);
+        const group = await loadProcessFlow(meta.id);
         if (!group || cancelled) continue;
         const errs = aggregateValidation(group, { tables: tableDefs, conventions });
         setValidationMap((prev) => {
@@ -212,10 +212,10 @@ export function ActionListView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterType, filterErrorsOnly, filterMarkersOnly, filterMaturity, validationMap, markerMap]);
 
-  const sortAccessor = useCallback((g: ActionGroupMeta, key: string): string | number => {
+  const sortAccessor = useCallback((g: ProcessFlowMeta, key: string): string | number => {
     switch (key) {
       case "name": return g.name;
-      case "type": return ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type;
+      case "type": return PROCESS_FLOW_TYPE_LABELS[g.type as ProcessFlowType] ?? g.type;
       case "actionCount": return g.actionCount;
       case "screenId": return g.screenId ? 1 : 0;
       case "errorPriority": return getErrorPriority(g.id);
@@ -232,14 +232,14 @@ export function ActionListView() {
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (g) => g.id);
-  const clipboard = useListClipboard<ActionGroupMeta>((g) => g.id);
+  const clipboard = useListClipboard<ProcessFlowMeta>((g) => g.id);
 
-  const handleActivate = useCallback((g: ActionGroupMeta) => {
+  const handleActivate = useCallback((g: ProcessFlowMeta) => {
     if (editor.isDeleted(g.id)) return;
     navigate(`/process-flow/edit/${g.id}`);
   }, [navigate, editor]);
 
-  const handleDelete = (items: ActionGroupMeta[]) => {
+  const handleDelete = (items: ProcessFlowMeta[]) => {
     editor.markDeleted(items.map((g) => g.id));
   };
 
@@ -255,7 +255,7 @@ export function ActionListView() {
     editor.reorder(realFrom, realTo);
   };
 
-  const moveBlock = (items: ActionGroupMeta[], direction: "up" | "down") => {
+  const moveBlock = (items: ProcessFlowMeta[], direction: "up" | "down") => {
     // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化される
     const ids = new Set(items.map((g) => g.id));
     const idxs = editor.items
@@ -282,10 +282,10 @@ export function ActionListView() {
     }
   };
 
-  const duplicateGroup = async (src: ActionGroupMeta): Promise<string | null> => {
-    const full = await loadActionGroup(src.id);
+  const duplicateGroup = async (src: ProcessFlowMeta): Promise<string | null> => {
+    const full = await loadProcessFlow(src.id);
     if (!full) return null;
-    const dup: ActionGroup = {
+    const dup: ProcessFlow = {
       ...full,
       id: generateUUID(),
       name: full.name + " (コピー)",
@@ -297,11 +297,11 @@ export function ActionListView() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    await saveActionGroup(dup);
+    await saveProcessFlow(dup);
     return dup.id;
   };
 
-  const handleDuplicate = async (items: ActionGroupMeta[]) => {
+  const handleDuplicate = async (items: ProcessFlowMeta[]) => {
     const newIds: string[] = [];
     for (const g of items) {
       const id = await duplicateGroup(g);
@@ -361,7 +361,7 @@ export function ActionListView() {
   const handleAdd = async () => {
     const name = addName.trim();
     if (!name) return;
-    const group = await createActionGroup(
+    const group = await createProcessFlow(
       name,
       addType,
       addType === "screen" && addScreenId ? addScreenId : undefined,
@@ -376,7 +376,7 @@ export function ActionListView() {
   };
 
   // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築
-  const buildMenuItems = (target: ActionGroupMeta | null): ContextMenuItem[] => {
+  const buildMenuItems = (target: ProcessFlowMeta | null): ContextMenuItem[] => {
     const hasSelection = selection.selectedIds.size > 0 || target !== null;
     const pasteBlocked = sortActive || !clipboard.hasContent;
     const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
@@ -441,11 +441,11 @@ export function ActionListView() {
     ];
   };
 
-  const handleContextMenu = (e: React.MouseEvent, target: ActionGroupMeta | null) => {
+  const handleContextMenu = (e: React.MouseEvent, target: ProcessFlowMeta | null) => {
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
-  const handleContextMenuKey = (first: ActionGroupMeta | null, rect: DOMRect | null) => {
+  const handleContextMenuKey = (first: ProcessFlowMeta | null, rect: DOMRect | null) => {
     if (first && !selection.isSelected(first.id)) {
       selection.setSelectedIds(new Set([first.id]));
     }
@@ -454,7 +454,7 @@ export function ActionListView() {
     setContextMenu({ x, y, items: buildMenuItems(first) });
   };
 
-  const handleRowDelete = (g: ActionGroupMeta) => {
+  const handleRowDelete = (g: ProcessFlowMeta) => {
     handleDelete([g]);
   };
 
@@ -485,7 +485,7 @@ export function ActionListView() {
     selection.clearSelection();
   };
 
-  const renderMarkerBadges = (g: ActionGroupMeta) => {
+  const renderMarkerBadges = (g: ProcessFlowMeta) => {
     const m = markerMap.get(g.id);
     if (!m || m.total === 0) return null;
     const tooltip = MARKER_BADGE_META
@@ -508,7 +508,7 @@ export function ActionListView() {
     );
   };
 
-  const columns = useMemo<DataListColumn<ActionGroupMeta>[]>(() => [
+  const columns = useMemo<DataListColumn<ProcessFlowMeta>[]>(() => [
     {
       key: "name",
       header: "名前",
@@ -521,11 +521,11 @@ export function ActionListView() {
       header: "種別",
       width: "130px",
       sortable: true,
-      sortAccessor: (g) => ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type,
+      sortAccessor: (g) => PROCESS_FLOW_TYPE_LABELS[g.type as ProcessFlowType] ?? g.type,
       render: (g) => (
-        <span className={`action-group-type-badge ${g.type}`}>
-          <i className={`${ACTION_GROUP_TYPE_ICONS[g.type as ActionGroupType] ?? "bi-three-dots"} me-1`} />
-          {ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type}
+        <span className={`process-flow-type-badge ${g.type}`}>
+          <i className={`${PROCESS_FLOW_TYPE_ICONS[g.type as ProcessFlowType] ?? "bi-three-dots"} me-1`} />
+          {PROCESS_FLOW_TYPE_LABELS[g.type as ProcessFlowType] ?? g.type}
         </span>
       ),
     },
@@ -594,16 +594,16 @@ export function ActionListView() {
     },
   ], [validationMap, getErrorPriority, markerMap]);
 
-  const renderCard = (g: ActionGroupMeta) => {
+  const renderCard = (g: ProcessFlowMeta) => {
     const v = validationMap.get(g.id);
     const hasError = (v?.errors ?? 0) > 0;
     const hasWarning = (v?.warnings ?? 0) > 0;
     return (
       <div className={`action-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
         <div className="action-card-head">
-          <span className={`action-group-type-badge ${g.type}`}>
-            <i className={`${ACTION_GROUP_TYPE_ICONS[g.type as ActionGroupType] ?? "bi-three-dots"} me-1`} />
-            {ACTION_GROUP_TYPE_LABELS[g.type as ActionGroupType] ?? g.type}
+          <span className={`process-flow-type-badge ${g.type}`}>
+            <i className={`${PROCESS_FLOW_TYPE_ICONS[g.type as ProcessFlowType] ?? "bi-three-dots"} me-1`} />
+            {PROCESS_FLOW_TYPE_LABELS[g.type as ProcessFlowType] ?? g.type}
           </span>
           <MaturityBadge maturity={g.maturity} />
           <span className="action-card-name">{g.name}</span>
@@ -750,7 +750,7 @@ export function ActionListView() {
                 className={`btn btn-sm ${filterType === t ? "btn-primary" : "btn-outline-secondary"}`}
                 onClick={() => setFilterType(t)}
               >
-                {ACTION_GROUP_TYPE_LABELS[t]} ({count})
+                {PROCESS_FLOW_TYPE_LABELS[t]} ({count})
               </button>
             );
           })}
@@ -799,7 +799,7 @@ export function ActionListView() {
           visibleCount={filter.visibleCount}
           label={(() => {
             const parts: string[] = [];
-            if (filterType !== "all") parts.push(`種別: ${ACTION_GROUP_TYPE_LABELS[filterType]}`);
+            if (filterType !== "all") parts.push(`種別: ${PROCESS_FLOW_TYPE_LABELS[filterType]}`);
             if (filterErrorsOnly) parts.push("エラーあり");
             if (filterMarkersOnly) parts.push("マーカーあり");
             if (filterMaturity !== "all") parts.push(`成熟度: ${filterMaturity}`);
@@ -855,10 +855,10 @@ export function ActionListView() {
               <select
                 className="form-select form-select-sm"
                 value={addType}
-                onChange={(e) => setAddType(e.target.value as ActionGroupType)}
+                onChange={(e) => setAddType(e.target.value as ProcessFlowType)}
               >
                 {ALL_TYPES.map((t) => (
-                  <option key={t} value={t}>{ACTION_GROUP_TYPE_LABELS[t]}</option>
+                  <option key={t} value={t}>{PROCESS_FLOW_TYPE_LABELS[t]}</option>
                 ))}
               </select>
             </div>

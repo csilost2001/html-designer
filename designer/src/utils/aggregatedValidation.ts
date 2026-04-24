@@ -1,15 +1,15 @@
 /**
- * ActionGroup に対する全バリデータの集約 (#261 UI 統合)。
+ * ProcessFlow に対する全バリデータの集約 (#261 UI 統合)。
  *
- * validateActionGroup (既存の構造ルール) に加え、以下の scheme-external バリデータを統合:
+ * validateProcessFlow (既存の構造ルール) に加え、以下の scheme-external バリデータを統合:
  * - checkReferentialIntegrity (responseRef / errorCode / systemRef / typeRef / secretRef)
  * - checkIdentifierScopes (@identifier が inputs/outputBinding/ambient/loop item に存在)
  *
  * SQL 列検査 (要 TableDefinition) と conventions 検査 (要 conventions-catalog) は
  * 依存データが必要なため optional パラメータで受け取る。未指定時は skip。
  */
-import type { ActionGroup, Step } from "../types/action";
-import { validateActionGroup, type ValidationError } from "./actionValidation";
+import type { ProcessFlow, Step } from "../types/action";
+import { validateProcessFlow, type ValidationError } from "./actionValidation";
 import { checkReferentialIntegrity } from "../schemas/referentialIntegrity";
 import { checkIdentifierScopes } from "../schemas/identifierScope";
 import { checkSqlColumns, type TableDefinition } from "../schemas/sqlColumnValidator";
@@ -23,18 +23,18 @@ export interface AggregatedValidationOptions {
 }
 
 /**
- * ActionGroup に対する全バリデータを実行し、ValidationError[] 形式で返す。
- * 構造的エラー (validateActionGroup) は既存の severity を維持、
+ * ProcessFlow に対する全バリデータを実行し、ValidationError[] 形式で返す。
+ * 構造的エラー (validateProcessFlow) は既存の severity を維持、
  * scheme-external issues は全て severity="warning" として扱う。
  */
 export function aggregateValidation(
-  group: ActionGroup,
+  group: ProcessFlow,
   options: AggregatedValidationOptions = {},
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
   // 1. 既存の構造バリデータ (loopBreak スコープ、branch 空 等)
-  errors.push(...validateActionGroup(group));
+  errors.push(...validateProcessFlow(group));
 
   // 2. 参照整合性 (responseRef / errorCode / systemRef / typeRef / secretRef)
   for (const issue of checkReferentialIntegrity(group)) {
@@ -92,7 +92,7 @@ export function aggregateValidation(
  * 深くネストしたパス (branches / elseBranch / loop / subSteps / sideEffects) も辿る。
  * 解決できない場合 (catalog レベルの issue 等) は null。
  */
-function stepIdFromPath(path: string, group: ActionGroup): string | null {
+function stepIdFromPath(path: string, group: ProcessFlow): string | null {
   const m = path.match(/^actions\[(\d+)\]\.steps\[(\d+)\]/);
   if (!m) return null;
   const action = group.actions[+m[1]];

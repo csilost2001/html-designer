@@ -3,7 +3,7 @@
  *
  * docs/spec/list-common.md §3.9 / §3.10
  *
- * 画面一覧 (/screen/list) を代表として検証。同じ仕様は TableListView / ActionListView /
+ * 画面一覧 (/screen/list) を代表として検証。同じ仕様は TableListView / ProcessFlowListView /
  * TableEditor のカラム一覧でも共通部品 (DataList / useListKeyboard / SortBar) 経由で適用される。
  */
 

@@ -7,12 +7,12 @@
  * 検証する規約:
  * 1. ReturnStep.responseRef は action.responses[].id に存在すること
  * 2. ValidationStep.inlineBranch.ngResponseRef は action.responses[].id に存在すること
- * 3. BranchConditionVariant.errorCode は ActionGroup.errorCatalog のキーに存在すること
+ * 3. BranchConditionVariant.errorCode は ProcessFlow.errorCatalog のキーに存在すること
  *    (errorCatalog が定義されている場合のみ)
  * 4. DbAccessStep.affectedRowsCheck.errorCode も同上
  * 5. ErrorCatalogEntry.responseRef は action.responses[].id に存在すること (errorCatalog → responses)
  */
-import type { ActionGroup, Step } from "../types/action";
+import type { ProcessFlow, Step } from "../types/action";
 
 export interface IntegrityIssue {
   /** ドットパス (例: "actions[0].steps[2].responseRef") */
@@ -33,8 +33,8 @@ export interface IntegrityIssue {
 /** @secret.KEY にマッチ */
 const SECRET_RE = /@secret\.([a-zA-Z_][\w-]*)/g;
 
-/** ActionGroup 全体のクロスリファレンス検証。空配列なら OK */
-export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] {
+/** ProcessFlow 全体のクロスリファレンス検証。空配列なら OK */
+export function checkReferentialIntegrity(group: ProcessFlow): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
   const errorCodes = new Set(Object.keys(group.errorCatalog ?? {}));
   const hasErrorCatalog = errorCodes.size > 0;
@@ -57,7 +57,7 @@ export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] 
               path: `externalSystemCatalog.${k}.auth.tokenRef`,
               code: "UNKNOWN_SECRET_REF",
               value: `@secret.${m[1]}`,
-              message: `@secret.${m[1]} が ActionGroup.secretsCatalog に存在しません`,
+              message: `@secret.${m[1]} が ProcessFlow.secretsCatalog に存在しません`,
             });
           }
         }
@@ -77,7 +77,7 @@ export function checkReferentialIntegrity(group: ActionGroup): IntegrityIssue[] 
             path: `actions[${ai}].responses[${ri}].bodySchema.typeRef`,
             code: "UNKNOWN_TYPE_REF",
             value: resp.bodySchema.typeRef,
-            message: `bodySchema.typeRef "${resp.bodySchema.typeRef}" が ActionGroup.typeCatalog に存在しません`,
+            message: `bodySchema.typeRef "${resp.bodySchema.typeRef}" が ProcessFlow.typeCatalog に存在しません`,
           });
         }
       }
@@ -152,7 +152,7 @@ function checkStep(
       path: `${path}.systemRef`,
       code: "UNKNOWN_SYSTEM_REF",
       value: step.systemRef,
-      message: `ExternalSystemStep.systemRef "${step.systemRef}" が ActionGroup.externalSystemCatalog に存在しません`,
+      message: `ExternalSystemStep.systemRef "${step.systemRef}" が ProcessFlow.externalSystemCatalog に存在しません`,
     });
   }
   // step 側 auth.tokenRef の @secret.* 参照を検査
@@ -166,7 +166,7 @@ function checkStep(
           path: `${path}.auth.tokenRef`,
           code: "UNKNOWN_SECRET_REF",
           value: `@secret.${m[1]}`,
-          message: `@secret.${m[1]} が ActionGroup.secretsCatalog に存在しません`,
+          message: `@secret.${m[1]} が ProcessFlow.secretsCatalog に存在しません`,
         });
       }
     }
@@ -197,7 +197,7 @@ function checkStep(
         path: `${path}.affectedRowsCheck.errorCode`,
         code: "UNKNOWN_ERROR_CODE",
         value: e,
-        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" が ActionGroup.errorCatalog に存在しません`,
+        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" が ProcessFlow.errorCatalog に存在しません`,
       });
     }
   }
@@ -210,7 +210,7 @@ function checkStep(
             path: `${path}.branches[${bi}].condition.errorCode`,
             code: "UNKNOWN_ERROR_CODE",
             value: c.errorCode,
-            message: `BranchConditionVariant.errorCode "${c.errorCode}" が ActionGroup.errorCatalog に存在しません`,
+            message: `BranchConditionVariant.errorCode "${c.errorCode}" が ProcessFlow.errorCatalog に存在しません`,
           });
         }
       }

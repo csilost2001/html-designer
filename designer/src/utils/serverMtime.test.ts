@@ -29,10 +29,10 @@ describe("getLastSeenMtime / setLastSeenMtime / clearLastSeenMtime", () => {
   it("kind と id が独立したキーに保存される", () => {
     setLastSeenMtime("table", "abc", 1);
     setLastSeenMtime("table", "def", 2);
-    setLastSeenMtime("actionGroup", "abc", 3);
+    setLastSeenMtime("processFlow", "abc", 3);
     expect(getLastSeenMtime("table", "abc")).toBe(1);
     expect(getLastSeenMtime("table", "def")).toBe(2);
-    expect(getLastSeenMtime("actionGroup", "abc")).toBe(3);
+    expect(getLastSeenMtime("processFlow", "abc")).toBe(3);
   });
 
   it("上書き保存できる", () => {

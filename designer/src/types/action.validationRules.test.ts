@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, ValidationRule, ValidationStep } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import type { ProcessFlow, ValidationRule, ValidationStep } from "./action";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("ValidationStep の rules[] (#166)", () => {
   it("required / regex / maxLength を同一ステップで定義できる", () => {
@@ -64,7 +64,7 @@ describe("ValidationStep の rules[] (#166)", () => {
   });
 });
 
-describe("migrateActionGroup — ValidationStep.rules[] 透過保持 (#166)", () => {
+describe("migrateProcessFlow — ValidationStep.rules[] 透過保持 (#166)", () => {
   it("rules[] を持つ ValidationStep を冪等にマイグレーションできる", () => {
     const raw = {
       id: "g", name: "x", type: "screen", description: "",
@@ -82,8 +82,8 @@ describe("migrateActionGroup — ValidationStep.rules[] 透過保持 (#166)", ()
       }],
       createdAt: "", updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     const step = once.actions[0].steps[0] as ValidationStep;
     expect(step.rules).toHaveLength(2);
@@ -104,7 +104,7 @@ describe("migrateActionGroup — ValidationStep.rules[] 透過保持 (#166)", ()
       }],
       createdAt: "", updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const step = migrated.actions[0].steps[0] as ValidationStep;
     expect(step.rules).toBeUndefined();
     expect(step.conditions).toBe("旧");

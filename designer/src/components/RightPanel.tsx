@@ -130,7 +130,7 @@ export function RightPanel({ screenId }: RightPanelProps) {
       const result = await mcpBridge.request("checkScreenItemRefs", {
         screenId,
         itemId: selectedItemName,
-      }) as { affectedActionGroups: Array<{ id: string; name: string; refCount: number }>; totalRefs: number };
+      }) as { affectedProcessFlows: Array<{ id: string; name: string; refCount: number }>; totalRefs: number };
 
       if (result.totalRefs === 0) {
         await mcpBridge.request("renameScreenItem", { screenId, oldId: selectedItemName, newId });
@@ -141,7 +141,7 @@ export function RightPanel({ screenId }: RightPanelProps) {
         setPendingReset({
           oldId: selectedItemName,
           newId,
-          affectedGroups: result.affectedActionGroups,
+          affectedGroups: result.affectedProcessFlows,
           totalRefs: result.totalRefs,
         });
       }

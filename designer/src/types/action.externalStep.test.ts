@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, ExternalSystemStep } from "./action";
+import type { ProcessFlow, ExternalSystemStep } from "./action";
 import { EXTERNAL_CALL_OUTCOME_VALUES } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("ExternalSystemStep の新規フィールド (#158)", () => {
   it("outcomes / timeoutMs / retryPolicy / fireAndForget をすべて保持できる", () => {
@@ -75,7 +75,7 @@ describe("ExternalSystemStep の新規フィールド (#158)", () => {
   });
 });
 
-describe("migrateActionGroup — ExternalSystemStep の新フィールド透過保持 (#158)", () => {
+describe("migrateProcessFlow — ExternalSystemStep の新フィールド透過保持 (#158)", () => {
   it("新フィールドを持つ ExternalSystemStep を冪等にマイグレーションできる", () => {
     const raw = {
       id: "g",
@@ -107,8 +107,8 @@ describe("migrateActionGroup — ExternalSystemStep の新フィールド透過�
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
 
     const step = once.actions[0].steps[0] as ExternalSystemStep;
@@ -145,7 +145,7 @@ describe("migrateActionGroup — ExternalSystemStep の新フィールド透過�
       createdAt: "",
       updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const step = migrated.actions[0].steps[0] as ExternalSystemStep;
     expect(step.systemName).toBe("Legacy");
     expect(step.outcomes).toBeUndefined();

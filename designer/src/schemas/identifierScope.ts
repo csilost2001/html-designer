@@ -4,7 +4,7 @@
  * 全ての @identifier が以下のいずれかに存在するかを検査:
  * - ActionDefinition.inputs[].name
  * - ActionDefinition.outputs[].name
- * - ActionGroup.ambientVariables[].name
+ * - ProcessFlow.ambientVariables[].name
  * - 先行ステップの StepBase.outputBinding (string or object.name)
  * - LoopStep.collectionItemName (ループ配下のスコープのみ)
  * - ValidationStep.fieldErrorsVar の宣言
@@ -13,7 +13,7 @@
  * 式の完全パースや型推論は今は行わない (path 部分は無視、root 識別子のみ検査)。
  */
 import type {
-  ActionGroup,
+  ProcessFlow,
   Step,
   OutputBinding,
   ValidationStep,
@@ -53,7 +53,7 @@ function fieldNames(fields: StructuredField[] | undefined): string[] {
  * 全 @ 参照の識別子スコープ検証。
  * 空配列なら問題なし。
  */
-export function checkIdentifierScopes(group: ActionGroup): IdentifierIssue[] {
+export function checkIdentifierScopes(group: ProcessFlow): IdentifierIssue[] {
   const issues: IdentifierIssue[] = [];
   const ambientNames = new Set(fieldNames(group.ambientVariables));
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, ValidationStep } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import type { ProcessFlow, ValidationStep } from "./action";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("ValidationStep.inlineBranch.ngResponseRef (#180)", () => {
   it("NG 時のレスポンス参照と body 式を保持できる", () => {
@@ -33,7 +33,7 @@ describe("ValidationStep.inlineBranch.ngResponseRef (#180)", () => {
     expect(step.inlineBranch?.ngBodyExpression).toBeUndefined();
   });
 
-  it("migrateActionGroup で冪等保持", () => {
+  it("migrateProcessFlow で冪等保持", () => {
     const raw = {
       id: "g", name: "x", type: "screen", description: "",
       actions: [{
@@ -53,8 +53,8 @@ describe("ValidationStep.inlineBranch.ngResponseRef (#180)", () => {
       }],
       createdAt: "", updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     const step = once.actions[0].steps[0] as ValidationStep;
     expect(step.inlineBranch?.ngResponseRef).toBe("400-validation");

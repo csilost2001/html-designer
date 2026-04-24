@@ -14,8 +14,8 @@
  */
 import type {
   ActionDefinition,
-  ActionGroup,
-  ActionGroupMode,
+  ProcessFlow,
+  ProcessFlowMode,
   Branch,
   Maturity,
   Step,
@@ -77,7 +77,7 @@ function isValidMaturity(v: unknown): v is Maturity {
   return v === "draft" || v === "provisional" || v === "committed";
 }
 
-function isValidMode(v: unknown): v is ActionGroupMode {
+function isValidMode(v: unknown): v is ProcessFlowMode {
   return v === "upstream" || v === "downstream";
 }
 
@@ -182,15 +182,15 @@ function migrateActionInPlace(raw: unknown): ActionDefinition {
 }
 
 /**
- * ActionGroup を旧形式から新形式に変換。
+ * ProcessFlow を旧形式から新形式に変換。
  * 元データは変更せず、deep clone した結果を返す。
  * 既に新形式の場合は実質コピーのみ (冪等)。
  * docs/spec/process-flow-maturity.md Phase 1 に基づき、maturity ("draft") / mode ("upstream")
  * の既定値も付与する。
  */
-export function migrateActionGroup(raw: unknown): ActionGroup {
+export function migrateProcessFlow(raw: unknown): ProcessFlow {
   if (!raw || typeof raw !== "object") {
-    throw new Error("migrateActionGroup: input is not an object");
+    throw new Error("migrateProcessFlow: input is not an object");
   }
   const cloned = JSON.parse(JSON.stringify(raw)) as Record<string, unknown>;
   if (Array.isArray(cloned.actions)) {
@@ -202,7 +202,7 @@ export function migrateActionGroup(raw: unknown): ActionGroup {
   if (!isValidMode(cloned.mode)) {
     cloned.mode = "upstream";
   }
-  return cloned as unknown as ActionGroup;
+  return cloned as unknown as ProcessFlow;
 }
 
 /** 単一 Step のマイグレーション（テスト・特定用途向け） */

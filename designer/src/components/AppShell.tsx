@@ -5,8 +5,8 @@ import { ScreenListView } from "./flow/ScreenListView";
 import { TableListView } from "./table/TableListView";
 import { TableEditor } from "./table/TableEditor";
 import { ErDiagram } from "./table/ErDiagram";
-import { ActionListView } from "./action/ActionListView";
-import { ActionEditor } from "./action/ActionEditor";
+import { ProcessFlowListView } from "./process-flow/ProcessFlowListView";
+import { ProcessFlowEditor } from "./process-flow/ProcessFlowEditor";
 import { ConventionsCatalogView } from "./conventions/ConventionsCatalogView";
 import { ScreenItemsView } from "./screen-items/ScreenItemsView";
 import { SequenceListView } from "./sequence/SequenceListView";
@@ -19,7 +19,7 @@ import { TabBar } from "./TabBar";
 import { CommonHeader } from "./CommonHeader";
 import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
-import { loadActionGroup } from "../store/actionStore";
+import { loadProcessFlow } from "../store/processFlowStore";
 import { loadSequence } from "../store/sequenceStore";
 import { loadView } from "../store/viewStore";
 import {
@@ -135,23 +135,23 @@ export function AppShell() {
       return;
     }
 
-    const actionMatch = matchPath("/process-flow/edit/:actionGroupId", location.pathname);
-    if (actionMatch?.params.actionGroupId) {
-      const actionGroupId = actionMatch.params.actionGroupId;
-      const tabId = makeTabId("action", actionGroupId);
+    const actionMatch = matchPath("/process-flow/edit/:processFlowId", location.pathname);
+    if (actionMatch?.params.processFlowId) {
+      const processFlowId = actionMatch.params.processFlowId;
+      const tabId = makeTabId("process-flow", processFlowId);
       const existing = getTabs().find((t) => t.id === tabId);
       if (existing) {
         setActiveTab(tabId);
       } else {
-        loadActionGroup(actionGroupId).then((ag) => {
+        loadProcessFlow(processFlowId).then((ag) => {
           if (ag) {
-            openTab({ id: tabId, type: "action", resourceId: actionGroupId, label: ag.name });
+            openTab({ id: tabId, type: "process-flow", resourceId: processFlowId, label: ag.name });
           } else {
-            fallbackToDashboard("処理フロー", actionGroupId);
+            fallbackToDashboard("処理フロー", processFlowId);
           }
         }).catch((e) => {
-          recordError({ source: "manual", message: "loadActionGroup 失敗", stack: e instanceof Error ? e.stack : undefined });
-          fallbackToDashboard("処理フロー", actionGroupId);
+          recordError({ source: "manual", message: "loadProcessFlow 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("処理フロー", processFlowId);
         });
       }
       return;
@@ -316,8 +316,8 @@ export function AppShell() {
             <Route path="/table/list" element={<TableListView />} />
             <Route path="/table/edit/:tableId" element={<TableEditor />} />
             <Route path="/table/er" element={<ErDiagram />} />
-            <Route path="/process-flow/list" element={<ActionListView />} />
-            <Route path="/process-flow/edit/:actionGroupId" element={<ActionEditor />} />
+            <Route path="/process-flow/list" element={<ProcessFlowListView />} />
+            <Route path="/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
             <Route path="/conventions/catalog" element={<ConventionsCatalogView />} />
             <Route path="/screen-items" element={<ScreenItemsView />} />
             <Route path="/sequence/list" element={<SequenceListView />} />

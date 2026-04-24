@@ -185,7 +185,7 @@ step-or2-011 (capture) が失敗
 
 `auth: "required" | "optional" | "none"` は **認証の有無**を示すフラグ。具体的な認証スキーム (Bearer / Session cookie / Basic / API key 等) は:
 
-### 8.1 推奨: ActionGroup.ambientVariables で明示
+### 8.1 推奨: ProcessFlow.ambientVariables で明示
 
 ```json
 "ambientVariables": [
@@ -206,7 +206,7 @@ step-or2-011 (capture) が失敗
 
 ExternalAuth.tokenRef は以下 3 形式を受け付ける:
 
-1. **`@secret.<key>`** (推奨): ActionGroup.secretsCatalog 参照。参照整合性バリデータが未登録エラーを検出
+1. **`@secret.<key>`** (推奨): ProcessFlow.secretsCatalog 参照。参照整合性バリデータが未登録エラーを検出
 2. **`ENV:<envName>`** (後方互換): 環境変数名直書き
 3. **`SECRET:<path>`** (後方互換): 外部 secret store パス直書き
 
@@ -246,7 +246,7 @@ httpRoute.auth == "required" ?
 
 ### 9.1 Ambient Context の定義
 
-**Ambient Context** とは、ActionGroup が明示的に inputs で受け取るのではなく、「プロジェクト全体に共通する前提」として暗黙に利用する環境情報のこと。代表例:
+**Ambient Context** とは、ProcessFlow が明示的に inputs で受け取るのではなく、「プロジェクト全体に共通する前提」として暗黙に利用する環境情報のこと。代表例:
 
 | Ambient 項目 | 参照パス | 既定値 (プロジェクト既定) |
 |---|---|---|
@@ -258,7 +258,7 @@ httpRoute.auth == "required" ?
 
 ### 9.2 規約カタログが project-wide defaults を担う
 
-`data/conventions/catalog.json` の各エントリに `"default": true` を付与したものが、**全 ActionGroup の共通 ambient default** となる。
+`data/conventions/catalog.json` の各エントリに `"default": true` を付与したものが、**全 ProcessFlow の共通 ambient default** となる。
 
 - `"default": true` が付いていないエントリは「オプション定義」(比較対象・将来用) として存在可
 - 1 カテゴリ内に複数 `"default": true` がある場合の動作は未定義 (バリデータが将来検出予定)
@@ -276,12 +276,12 @@ httpRoute.auth == "required" ?
 }
 ```
 
-### 9.3 ActionGroup.ambientOverrides — フロー単位の例外指定
+### 9.3 ProcessFlow.ambientOverrides — フロー単位の例外指定
 
 大多数のフローは規約カタログの defaults をそのまま使う。**特定フローだけ例外** (外貨精算・UTC バッチ等) の場合にのみ、`ambientOverrides` フィールドで上書きする。
 
 ```json
-// data/actions/xxx.json (override が必要な場合のみ記述)
+// data/process-flows/xxx.json (override が必要な場合のみ記述)
 {
   "id": "...",
   "ambientOverrides": {
@@ -294,7 +294,7 @@ httpRoute.auth == "required" ?
 
 **ルール:**
 
-1. `ambientOverrides` が無い ActionGroup は、規約カタログの `default: true` エントリを全項目で継承
+1. `ambientOverrides` が無い ProcessFlow は、規約カタログの `default: true` エントリを全項目で継承
 2. `ambientOverrides` で指定したキー (例: `"currency"`) だけ override、残りは defaults 継続
 3. 値は `@conv.*` 形式の参照文字列 (カタログ内のキーパスを指す) または直接値 (例: `"UTC"`)
 4. `@conv.*` 参照の場合、AI 実装者は参照先カタログエントリの全フィールドを引いて利用する
@@ -306,7 +306,7 @@ httpRoute.auth == "required" ?
 
 ```
 1. data/conventions/catalog.json          — project-wide defaults (通貨・TZ・税率・認証・DB 規約等)
-2. 対象 ActionGroup の ambientOverrides    — 当該フローの特例 (無い場合は 1. の defaults をそのまま適用)
+2. 対象 ProcessFlow の ambientOverrides    — 当該フローの特例 (無い場合は 1. の defaults をそのまま適用)
 3. 処理フロー本体 (actions / steps)        — 具体ロジック
 4. テーブル定義 (DDL)                       — 採番ロジック等のインフラ層
 5. 画面項目定義                             — 入出力の UI 制約

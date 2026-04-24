@@ -4,7 +4,7 @@
  * docs/spec/list-common.md §3.11 (操作) / §4.6 (見た目) / §5.10 (API)
  *
  * 画面一覧 (/screen/list) を代表として検証。同じ動作は TableListView /
- * ActionListView / TableEditor のカラム一覧でも共通部品経由で適用される。
+ * ProcessFlowListView / TableEditor のカラム一覧でも共通部品経由で適用される。
  */
 
 import { test, expect, type Page } from "@playwright/test";

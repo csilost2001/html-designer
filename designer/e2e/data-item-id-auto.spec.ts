@@ -24,7 +24,7 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: [],
+  processFlows: [],
   updatedAt: new Date().toISOString(),
 };
 

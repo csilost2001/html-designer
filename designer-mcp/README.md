@@ -22,11 +22,11 @@ Claude Code (MCP client) ──(HTTP /mcp)──┐
 - `designer__get_html` / `designer__set_components` / `designer__screenshot`
 - `designer__list_blocks` / `designer__add_block` / `designer__update_element`
 
-### 処理フロー編集 (ActionGroup)
-- `designer__list_action_groups` / `designer__get_action_group`
+### 処理フロー編集 (ProcessFlow)
+- `designer__list_process_flows` / `designer__get_process_flow`
 - `designer__update_step` / `designer__set_maturity` / `designer__add_step_note`
 - `designer__list_markers` / `designer__add_marker` / `designer__resolve_marker`
-- `designer__find_all_markers` (全 ActionGroup 横断、#296)
+- `designer__find_all_markers` (全 ProcessFlow 横断、#296)
 
 ### その他
 - Screen/Flow 操作、Table/ER 編集、Custom Blocks、DDL 生成、etc.
@@ -70,7 +70,7 @@ Claude Code をプロジェクト内で起動すると自動接続。designer-mc
 1. designer 起動: `cd designer && npm run dev` → http://localhost:5173 を開く
 2. designer-mcp 起動: `cd designer-mcp && npm run dev`
 3. Claude Code をプロジェクト内で起動 → `.mcp.json` 経由で自動接続
-4. `/designer-work <actionGroupId>` 等で AI に編集指示を出す
+4. `/designer-work <processFlowId>` 等で AI に編集指示を出す
 
 ### 使用例
 
@@ -115,5 +115,5 @@ npm run build
 
 ## テスト
 
-- `npx vitest run` — unit tests (actionGroupEdits、etc.) + HTTP transport integration test
+- `npx vitest run` — unit tests (processFlowEdits、etc.) + HTTP transport integration test
 - HTTP transport test は port 5201 で server を spawn するため、**手動起動中の designer-mcp と並行して走らせても OK** (port 競合しない)

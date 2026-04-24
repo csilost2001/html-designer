@@ -19,7 +19,7 @@ import type { ValidationError } from "../../utils/actionValidation";
 import { getBranchConditionText } from "../../utils/branchCondition";
 import { getBindingName, getBindingOperation } from "../../utils/outputBinding";
 import { generateUUID } from "../../utils/uuid";
-import { createDefaultStep } from "../../store/actionStore";
+import { createDefaultStep } from "../../store/processFlowStore";
 import { MaturityBadge } from "./MaturityBadge";
 import { NotesPanel } from "./NotesPanel";
 import { StepAdvancedMetadataPanel } from "./StepAdvancedMetadataPanel";

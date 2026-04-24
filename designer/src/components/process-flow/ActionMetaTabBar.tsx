@@ -10,8 +10,8 @@
  * body を展開する。成熟度バッジ・進捗・下流モード警告はタブバーに常時表示。
  */
 import { useState } from "react";
-import type { ActionGroup, ActionGroupType, Step } from "../../types/action";
-import { ACTION_GROUP_TYPE_LABELS } from "../../types/action";
+import type { ProcessFlow, ProcessFlowType, Step } from "../../types/action";
+import { PROCESS_FLOW_TYPE_LABELS } from "../../types/action";
 import { MaturityBadge } from "./MaturityBadge";
 import { MarkerPanel } from "./MarkerPanel";
 import { ErrorCatalogPanel } from "./ErrorCatalogPanel";
@@ -23,7 +23,7 @@ import { TypeCatalogPanel } from "./TypeCatalogPanel";
 type TabKey = "info" | "marker" | "error" | "ambient" | "secrets" | "external" | "type";
 
 /** グループ内の全ステップを再帰的に走査して maturity 別カウント + 付箋合計を集計 (#196 / #200) */
-function countMaturity(group: ActionGroup): {
+function countMaturity(group: ProcessFlow): {
   draft: number;
   provisional: number;
   committed: number;
@@ -52,9 +52,9 @@ function countMaturity(group: ActionGroup): {
 }
 
 interface Props {
-  group: ActionGroup;
-  updateGroup: (recipe: (g: ActionGroup) => void) => void;
-  updateGroupSilent: (recipe: (g: ActionGroup) => void) => void;
+  group: ProcessFlow;
+  updateGroup: (recipe: (g: ProcessFlow) => void) => void;
+  updateGroupSilent: (recipe: (g: ProcessFlow) => void) => void;
 }
 
 export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Props) {
@@ -71,22 +71,22 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
   const unfinished = counts.draft + counts.provisional;
 
   // MarkerPanel / 各カタログパネルへの onChange を 1 箇所でまとめる
-  const onMarkersChange = (next: ActionGroup) => {
+  const onMarkersChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.markers = next.markers; });
   };
-  const onErrorCatalogChange = (next: ActionGroup) => {
+  const onErrorCatalogChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.errorCatalog = next.errorCatalog; });
   };
-  const onAmbientChange = (next: ActionGroup) => {
+  const onAmbientChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.ambientVariables = next.ambientVariables; });
   };
-  const onSecretsChange = (next: ActionGroup) => {
+  const onSecretsChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.secretsCatalog = next.secretsCatalog; });
   };
-  const onExternalChange = (next: ActionGroup) => {
+  const onExternalChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.externalSystemCatalog = next.externalSystemCatalog; });
   };
-  const onTypeChange = (next: ActionGroup) => {
+  const onTypeChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.typeCatalog = next.typeCatalog; });
   };
 
@@ -210,8 +210,8 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
                 value={group.type}
                 onChange={(e) => handleInfoChange("type", e.target.value)}
               >
-                {(["screen", "batch", "scheduled", "system", "common", "other"] as ActionGroupType[]).map((t) => (
-                  <option key={t} value={t}>{ACTION_GROUP_TYPE_LABELS[t]}</option>
+                {(["screen", "batch", "scheduled", "system", "common", "other"] as ProcessFlowType[]).map((t) => (
+                  <option key={t} value={t}>{PROCESS_FLOW_TYPE_LABELS[t]}</option>
                 ))}
               </select>
             </div>

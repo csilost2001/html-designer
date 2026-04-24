@@ -147,7 +147,7 @@ function ensureProjectDefaults(project: FlowProject): FlowProject {
   // 連番 1..N になるよう保証する (既に正しければ renumber は冪等)
   project.screens = renumber(project.screens);
   if (project.tables) project.tables = renumber(project.tables);
-  if (project.actionGroups) project.actionGroups = renumber(project.actionGroups);
+  if (project.processFlows) project.processFlows = renumber(project.processFlows);
   return project;
 }
 
@@ -173,7 +173,7 @@ export async function loadProject(): Promise<FlowProject> {
     // backend にファイルが存在しない (or readProject が一時的に null を返した)
     // → localStorage に有意義なデータがあればそれを使う、なければメモリのみの空 project
     const local = loadProjectFromLocalStorage();
-    if (local && (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.actionGroups?.length ?? 0) > 0)) {
+    if (local && (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.processFlows?.length ?? 0) > 0)) {
       // localStorage に意味のあるデータがある場合のみ、backend への移行を試みる。
       // 空 localStorage をきっかけに既存 backend を上書きする事態を避ける。
       try {
@@ -203,7 +203,7 @@ export async function loadProject(): Promise<FlowProject> {
  * !!! データ消失防止ガード (2026-04-22) !!!
  *
  * 書き込み前に backend の既存データと比較し、「既存に有意義なデータ
- * (screens/tables/actionGroups が 1 件以上) があるのに空プロジェクトで
+ * (screens/tables/processFlows が 1 件以上) があるのに空プロジェクトで
  * 上書きしようとしている」ケースを検知したらキャンセル + warning ログ。
  * 普通の編集フロー (screen 削除 → 0 件に) は一旦有意義だった後に空に
  * なるので、このガードは「0 件で始まるセッションから 0 件のまま書き込む」
@@ -221,14 +221,14 @@ export async function saveProject(project: FlowProject): Promise<void> {
     const isProjectEmpty =
       (project.screens?.length ?? 0) === 0 &&
       (project.tables?.length ?? 0) === 0 &&
-      (project.actionGroups?.length ?? 0) === 0;
+      (project.processFlows?.length ?? 0) === 0;
     if (isProjectEmpty) {
       try {
         const current = await _backend.loadProject() as FlowProject | null;
         const hasExistingData = !!current && (
           (current.screens?.length ?? 0) > 0 ||
           (current.tables?.length ?? 0) > 0 ||
-          (current.actionGroups?.length ?? 0) > 0
+          (current.processFlows?.length ?? 0) > 0
         );
         if (hasExistingData) {
           console.warn("[flowStore] saveProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)");
@@ -255,14 +255,14 @@ export async function persistProject(project: FlowProject): Promise<void> {
     const isProjectEmpty =
       (project.screens?.length ?? 0) === 0 &&
       (project.tables?.length ?? 0) === 0 &&
-      (project.actionGroups?.length ?? 0) === 0;
+      (project.processFlows?.length ?? 0) === 0;
     if (isProjectEmpty) {
       try {
         const current = await _backend.loadProject() as FlowProject | null;
         const hasExistingData = !!current && (
           (current.screens?.length ?? 0) > 0 ||
           (current.tables?.length ?? 0) > 0 ||
-          (current.actionGroups?.length ?? 0) > 0
+          (current.processFlows?.length ?? 0) > 0
         );
         if (hasExistingData) {
           console.warn("[flowStore] persistProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)");

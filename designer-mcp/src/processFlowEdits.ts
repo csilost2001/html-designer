@@ -1,8 +1,8 @@
 /**
- * ActionGroup の細粒度編集ヘルパー (#261 MCP リアルタイム編集対応)。
+ * ProcessFlow の細粒度編集ヘルパー (#261 MCP リアルタイム編集対応)。
  *
- * 各関数は ActionGroup を mutate して返す (同じ参照)。呼び出し側で writeActionGroup し、
- * wsBridge.broadcast("actionGroupChanged", { id }) してブラウザを再描画させる。
+ * 各関数は ProcessFlow を mutate して返す (同じ参照)。呼び出し側で writeProcessFlow し、
+ * wsBridge.broadcast("processFlowChanged", { id }) してブラウザを再描画させる。
  */
 
 type Step = {
@@ -36,7 +36,7 @@ type Marker = {
   resolution?: string;
 };
 
-export type ActionGroupDoc = {
+export type ProcessFlowDoc = {
   id: string;
   maturity?: string;
   actions: Action[];
@@ -75,12 +75,12 @@ function walkSteps(
 }
 
 /** 全 step を対象にコールバック実行 */
-export function forEachStep(ag: ActionGroupDoc, visit: (step: Step) => void): void {
+export function forEachStep(ag: ProcessFlowDoc, visit: (step: Step) => void): void {
   for (const a of ag.actions) walkSteps(a.steps, (s) => { visit(s); });
 }
 
 /** stepId で step を探す (見つからなければ null) */
-export function findStep(ag: ActionGroupDoc, stepId: string): Step | null {
+export function findStep(ag: ProcessFlowDoc, stepId: string): Step | null {
   let found: Step | null = null;
   for (const a of ag.actions) {
     walkSteps(a.steps, (s) => {
@@ -93,7 +93,7 @@ export function findStep(ag: ActionGroupDoc, stepId: string): Step | null {
 
 /** stepId を含む配列と index を探す */
 function findStepWithContext(
-  ag: ActionGroupDoc,
+  ag: ProcessFlowDoc,
   stepId: string,
 ): { parentArray: Step[]; index: number } | null {
   let result: { parentArray: Step[]; index: number } | null = null;
@@ -106,19 +106,19 @@ function findStepWithContext(
   return result;
 }
 
-export function updateStep(ag: ActionGroupDoc, stepId: string, patch: Record<string, unknown>): void {
+export function updateStep(ag: ProcessFlowDoc, stepId: string, patch: Record<string, unknown>): void {
   const s = findStep(ag, stepId);
   if (!s) throw new Error(`step ${stepId} が見つかりません`);
   Object.assign(s, patch);
 }
 
-export function removeStep(ag: ActionGroupDoc, stepId: string): void {
+export function removeStep(ag: ProcessFlowDoc, stepId: string): void {
   const ctx = findStepWithContext(ag, stepId);
   if (!ctx) throw new Error(`step ${stepId} が見つかりません`);
   ctx.parentArray.splice(ctx.index, 1);
 }
 
-export function moveStep(ag: ActionGroupDoc, stepId: string, newIndex: number): void {
+export function moveStep(ag: ProcessFlowDoc, stepId: string, newIndex: number): void {
   const ctx = findStepWithContext(ag, stepId);
   if (!ctx) throw new Error(`step ${stepId} が見つかりません`);
   const [removed] = ctx.parentArray.splice(ctx.index, 1);
@@ -127,7 +127,7 @@ export function moveStep(ag: ActionGroupDoc, stepId: string, newIndex: number): 
 }
 
 export function setMaturity(
-  ag: ActionGroupDoc,
+  ag: ProcessFlowDoc,
   target: "group" | "action" | "step",
   targetId: string | undefined,
   maturity: "draft" | "provisional" | "committed",
@@ -150,7 +150,7 @@ export function setMaturity(
 }
 
 export function addStepNote(
-  ag: ActionGroupDoc,
+  ag: ProcessFlowDoc,
   stepId: string,
   type: string,
   body: string,
@@ -172,7 +172,7 @@ export function addStepNote(
 export type CatalogName = "errorCatalog" | "secretsCatalog" | "typeCatalog" | "externalSystemCatalog";
 
 export function addCatalogEntry(
-  ag: ActionGroupDoc,
+  ag: ProcessFlowDoc,
   catalog: CatalogName,
   key: string,
   value: Record<string, unknown>,
@@ -183,7 +183,7 @@ export function addCatalogEntry(
 }
 
 export function removeCatalogEntry(
-  ag: ActionGroupDoc,
+  ag: ProcessFlowDoc,
   catalog: CatalogName,
   key: string,
 ): void {
@@ -197,7 +197,7 @@ export function removeCatalogEntry(
 }
 
 export function insertStepAt(
-  ag: ActionGroupDoc,
+  ag: ProcessFlowDoc,
   actionId: string,
   step: Step,
   position?: number,
@@ -214,7 +214,7 @@ export function insertStepAt(
 
 // ─── Marker 操作 (#261) ─────────────────────────────────────────────
 
-export function listMarkers(ag: ActionGroupDoc, filter: { unresolvedOnly?: boolean; stepId?: string } = {}): Marker[] {
+export function listMarkers(ag: ProcessFlowDoc, filter: { unresolvedOnly?: boolean; stepId?: string } = {}): Marker[] {
   let list = ag.markers ?? [];
   if (filter.unresolvedOnly) list = list.filter((m) => !m.resolvedAt);
   if (filter.stepId !== undefined) list = list.filter((m) => m.stepId === filter.stepId);
@@ -222,15 +222,15 @@ export function listMarkers(ag: ActionGroupDoc, filter: { unresolvedOnly?: boole
 }
 
 /**
- * 複数 ActionGroup を横断して marker を収集する (#261)。
- * 各 marker に actionGroupId / actionGroupName を prepend して返す。
+ * 複数 ProcessFlow を横断して marker を収集する (#261)。
+ * 各 marker に processFlowId / processFlowName を prepend して返す。
  */
 export interface MarkerWithAg extends Marker {
-  actionGroupId: string;
-  actionGroupName: string;
+  processFlowId: string;
+  processFlowName: string;
 }
 export function findAllMarkers(
-  groups: Array<{ id: string; name: string; ag: ActionGroupDoc }>,
+  groups: Array<{ id: string; name: string; ag: ProcessFlowDoc }>,
   filter: { unresolvedOnly?: boolean; kind?: Marker["kind"] } = {},
 ): MarkerWithAg[] {
   const results: MarkerWithAg[] = [];
@@ -238,13 +238,13 @@ export function findAllMarkers(
     const markers = listMarkers(ag, { unresolvedOnly: filter.unresolvedOnly });
     for (const m of markers) {
       if (filter.kind && m.kind !== filter.kind) continue;
-      results.push({ actionGroupId: id, actionGroupName: name, ...m });
+      results.push({ processFlowId: id, processFlowName: name, ...m });
     }
   }
   return results;
 }
 
-export function addMarker(ag: ActionGroupDoc, marker: Omit<Marker, "id" | "createdAt">): Marker {
+export function addMarker(ag: ProcessFlowDoc, marker: Omit<Marker, "id" | "createdAt">): Marker {
   const next: Marker = {
     id: `mk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
@@ -256,14 +256,14 @@ export function addMarker(ag: ActionGroupDoc, marker: Omit<Marker, "id" | "creat
   return next;
 }
 
-export function resolveMarker(ag: ActionGroupDoc, markerId: string, resolution?: string): void {
+export function resolveMarker(ag: ProcessFlowDoc, markerId: string, resolution?: string): void {
   const m = (ag.markers ?? []).find((x) => x.id === markerId);
   if (!m) throw new Error(`marker ${markerId} が見つかりません`);
   m.resolvedAt = new Date().toISOString();
   if (resolution !== undefined) m.resolution = resolution;
 }
 
-export function removeMarker(ag: ActionGroupDoc, markerId: string): void {
+export function removeMarker(ag: ProcessFlowDoc, markerId: string): void {
   const list = ag.markers ?? [];
   const idx = list.findIndex((m) => m.id === markerId);
   if (idx < 0) throw new Error(`marker ${markerId} が見つかりません`);

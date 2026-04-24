@@ -103,7 +103,7 @@ describe("designer-mcp HTTP transport (#302)", () => {
     expect(parsed.result?.tools).toBeInstanceOf(Array);
     expect(parsed.result!.tools.length).toBeGreaterThanOrEqual(20);
     const names = parsed.result!.tools.map((t) => t.name);
-    expect(names).toContain("designer__list_action_groups");
+    expect(names).toContain("designer__list_process_flows");
     expect(names).toContain("designer__list_markers");
     expect(names).toContain("designer__find_all_markers");
   });

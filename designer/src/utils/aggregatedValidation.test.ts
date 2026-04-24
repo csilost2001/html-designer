@@ -1,19 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { aggregateValidation } from "./aggregatedValidation";
-import type { ActionGroup } from "../types/action";
+import type { ProcessFlow } from "../types/action";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
 
-function makeGroup(partial: Partial<ActionGroup>): ActionGroup {
+function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
     id: "a", name: "x", type: "screen", description: "",
     actions: [],
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
-  } as ActionGroup;
+  } as ProcessFlow;
 }
 
 describe("aggregateValidation — 統合テスト", () => {
@@ -107,9 +107,9 @@ describe("aggregateValidation — 統合テスト", () => {
 
   it("サンプル 0005 は clean (structural error なし + warning 最小)", () => {
     const group = JSON.parse(readFileSync(
-      resolve(repoRoot, "docs/sample-project/actions/cccccccc-0005-4000-8000-cccccccccccc.json"),
+      resolve(repoRoot, "docs/sample-project/process-flows/cccccccc-0005-4000-8000-cccccccccccc.json"),
       "utf-8",
-    )) as ActionGroup;
+    )) as ProcessFlow;
     const errors = aggregateValidation(group);
     const structuralErrors = errors.filter((e) => e.severity === "error");
     expect(structuralErrors).toHaveLength(0);

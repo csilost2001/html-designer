@@ -2,7 +2,7 @@
  * 警告詳細パネルの UI 配線テスト (#261 UI 統合)
  *
  * aggregateValidation が新バリデータ (referentialIntegrity / identifierScope)
- * の issue を ValidationError にマップし、ActionEditor 側で:
+ * の issue を ValidationError にマップし、ProcessFlowEditor 側で:
  * - 警告バッジが表示される
  * - クリックで詳細パネルが開く
  * - 詳細パネルに code / message / path が表示される
@@ -58,7 +58,7 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: [{
+  processFlows: [{
     id: groupId,
     no: 1,
     name: dummyGroup.name,
@@ -73,7 +73,7 @@ const dummyProject = {
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });

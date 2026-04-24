@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, AffectedRowsCheck, DbAccessStep } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import type { ProcessFlow, AffectedRowsCheck, DbAccessStep } from "./action";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("DbAccessStep の affectedRowsCheck (#164)", () => {
   it("在庫引当の条件付き UPDATE + throw パターンを表現できる", () => {
@@ -63,7 +63,7 @@ describe("DbAccessStep の affectedRowsCheck (#164)", () => {
   });
 });
 
-describe("migrateActionGroup — affectedRowsCheck 透過保持 (#164)", () => {
+describe("migrateProcessFlow — affectedRowsCheck 透過保持 (#164)", () => {
   it("新フィールドを持つ DbAccessStep を冪等にマイグレーションできる", () => {
     const raw = {
       id: "g", name: "x", type: "screen", description: "",
@@ -81,8 +81,8 @@ describe("migrateActionGroup — affectedRowsCheck 透過保持 (#164)", () => {
       }],
       createdAt: "", updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     const step = once.actions[0].steps[0] as DbAccessStep;
     expect(step.affectedRowsCheck?.errorCode).toBe("STOCK_SHORTAGE");
@@ -97,7 +97,7 @@ describe("migrateActionGroup — affectedRowsCheck 透過保持 (#164)", () => {
       }],
       createdAt: "", updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const step = migrated.actions[0].steps[0] as DbAccessStep;
     expect(step.affectedRowsCheck).toBeUndefined();
   });

@@ -5,9 +5,9 @@
  * - ステップ成熟度バッジの表示
  * - 成熟度クリックで循環切替 (draft → provisional → committed → draft)
  * - 付箋の追加・削除
- * - グループ成熟度バッジ (ActionListView)
+ * - グループ成熟度バッジ (ProcessFlowListView)
  * - mode 切替 (upstream/downstream)
- * - ActionListView の maturity フィルタ
+ * - ProcessFlowListView の maturity フィルタ
  */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -56,7 +56,7 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: [
+  processFlows: [
     {
       id: groupId,
       no: 1,
@@ -73,7 +73,7 @@ const dummyProject = {
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
@@ -86,7 +86,7 @@ async function setupEditor(page: Page) {
 
 async function setupList(page: Page) {
   const moreGroups = [
-    { ...dummyProject.actionGroups[0] },
+    { ...dummyProject.processFlows[0] },
     {
       id: "ag-committed",
       no: 2,
@@ -106,11 +106,11 @@ async function setupList(page: Page) {
       maturity: "provisional",
     },
   ];
-  const project = { ...dummyProject, actionGroups: moreGroups };
+  const project = { ...dummyProject, processFlows: moreGroups };
   await page.addInitScript(({ project, groups }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     for (const g of groups) {
-      localStorage.setItem(`action-group-${g.id}`, JSON.stringify({
+      localStorage.setItem(`process-flow-${g.id}`, JSON.stringify({
         id: g.id, name: g.name, type: g.type, description: "",
         maturity: g.maturity, mode: "upstream",
         actions: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import type {
-  ActionGroup,
+  ProcessFlow,
   ActionTrigger,
   Step,
   StepType,
@@ -13,15 +13,15 @@ import {
   STEP_TEMPLATES,
 } from "../../types/action";
 import {
-  loadActionGroup,
-  saveActionGroup,
+  loadProcessFlow,
+  saveProcessFlow,
   addAction,
   removeAction,
   addStep,
   removeStep,
   moveStep,
   addSubStep,
-} from "../../store/actionStore";
+} from "../../store/processFlowStore";
 import { listTables, loadTable } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
@@ -120,8 +120,8 @@ const ALL_SUB_STEP_TYPES: StepType[] = [
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];
 
-export function ActionEditor() {
-  const { actionGroupId } = useParams<{ actionGroupId: string }>();
+export function ProcessFlowEditor() {
+  const { processFlowId } = useParams<{ processFlowId: string }>();
   const navigate = useNavigate();
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [showAddAction, setShowAddAction] = useState(false);
@@ -154,11 +154,11 @@ export function ActionEditor() {
 
   const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
 
-  const handleLoaded = useCallback((g: ActionGroup) => {
+  const handleLoaded = useCallback((g: ProcessFlow) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
     loadProject().then((p) => {
       setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
-      const agMetas = p.actionGroups ?? [];
+      const agMetas = p.processFlows ?? [];
       setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
     listTables().then(async (metas) => {
@@ -193,33 +193,33 @@ export function ActionEditor() {
     undo, redo, canUndo, canRedo,
     handleSave: hookHandleSave,
     handleReset, dismissServerBanner,
-  } = useResourceEditor<ActionGroup>({
-    tabType: "action",
-    mtimeKind: "actionGroup",
-    draftKind: "action",
-    id: actionGroupId,
-    load: loadActionGroup,
-    save: saveActionGroup,
-    broadcastName: "actionGroupChanged",
+  } = useResourceEditor<ProcessFlow>({
+    tabType: "process-flow",
+    mtimeKind: "processFlow",
+    draftKind: "process-flow",
+    id: processFlowId,
+    load: loadProcessFlow,
+    save: saveProcessFlow,
+    broadcastName: "processFlowChanged",
     broadcastIdField: "id",
     onNotFound: handleNotFound,
     onLoaded: handleLoaded,
   });
 
-  // ActionEditor の live 状態を mcpBridge に公開 (#361 browser-first)
-  const groupRef = useRef<ActionGroup | null>(null);
+  // ProcessFlowEditor の live 状態を mcpBridge に公開 (#361 browser-first)
+  const groupRef = useRef<ProcessFlow | null>(null);
   groupRef.current = group ?? null;
 
   useEffect(() => {
-    if (!actionGroupId) return;
-    mcpBridge.setActionGroupHandler(actionGroupId, {
+    if (!processFlowId) return;
+    mcpBridge.setProcessFlowHandler(processFlowId, {
       get: () => groupRef.current,
       mutate: (type, params) => {
-        updateGroup((g) => applyActionGroupMutation(g, type, params as Record<string, unknown>));
+        updateGroup((g) => applyProcessFlowMutation(g, type, params as Record<string, unknown>));
       },
     });
-    return () => mcpBridge.setActionGroupHandler(actionGroupId, null);
-  }, [actionGroupId, updateGroup]);
+    return () => mcpBridge.setProcessFlowHandler(processFlowId, null);
+  }, [processFlowId, updateGroup]);
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
@@ -1053,11 +1053,11 @@ export function ActionEditor() {
 }
 
 // ── browser-first 処理フロー変異ヘルパー (#361) ──────────────────────────────
-// add_step / remove_step / moveStep は actionStore の関数を再利用し、
-// ファイルベース (actionGroupEdits.ts) と実装が乖離しないようにする。
+// add_step / remove_step / moveStep は processFlowStore の関数を再利用し、
+// ファイルベース (processFlowEdits.ts) と実装が乖離しないようにする。
 
-function applyActionGroupMutation(
-  g: ActionGroup,
+function applyProcessFlowMutation(
+  g: ProcessFlow,
   type: string,
   p: Record<string, unknown>,
 ): void {

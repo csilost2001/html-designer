@@ -9,15 +9,15 @@
  * - designer__remove_marker
  */
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { readActionGroup, listActionGroups as listActionGroupFiles } from "../projectStorage.js";
+import { readProcessFlow, listProcessFlows as listProcessFlowFiles } from "../projectStorage.js";
 import {
   listMarkers as editListMarkers,
   findAllMarkers as editFindAllMarkers,
   addMarker as editAddMarker,
   resolveMarker as editResolveMarker,
   removeMarker as editRemoveMarker,
-  type ActionGroupDoc,
-} from "../actionGroupEdits.js";
+  type ProcessFlowDoc,
+} from "../processFlowEdits.js";
 import { saveAndBroadcast, type ToolHandler } from "../mcpHelpers.js";
 
 export const handleMarkerTool: ToolHandler = async (name, args) => {
@@ -25,11 +25,11 @@ export const handleMarkerTool: ToolHandler = async (name, args) => {
 
   switch (name) {
     case "designer__list_markers": {
-      if (typeof a.actionGroupId !== "string") {
-        throw new McpError(ErrorCode.InvalidParams, "actionGroupId は必須です");
+      if (typeof a.processFlowId !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowId は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       const markers = editListMarkers(ag, {
         unresolvedOnly: a.unresolvedOnly !== false, // 既定 true
         stepId: typeof a.stepId === "string" ? a.stepId : undefined,
@@ -42,10 +42,10 @@ export const handleMarkerTool: ToolHandler = async (name, args) => {
       const kindFilter = typeof a.kind === "string"
         ? (a.kind as "chat" | "attention" | "todo" | "question")
         : undefined;
-      const agList = await listActionGroupFiles() as Array<{ id: string; name: string }>;
-      const loaded: Array<{ id: string; name: string; ag: ActionGroupDoc }> = [];
+      const agList = await listProcessFlowFiles() as Array<{ id: string; name: string }>;
+      const loaded: Array<{ id: string; name: string; ag: ProcessFlowDoc }> = [];
       for (const meta of agList) {
-        const ag = await readActionGroup(meta.id) as ActionGroupDoc | null;
+        const ag = await readProcessFlow(meta.id) as ProcessFlowDoc | null;
         if (ag) loaded.push({ id: meta.id, name: meta.name, ag });
       }
       const results = editFindAllMarkers(loaded, { unresolvedOnly, kind: kindFilter });
@@ -53,11 +53,11 @@ export const handleMarkerTool: ToolHandler = async (name, args) => {
     }
 
     case "designer__add_marker": {
-      if (typeof a.actionGroupId !== "string" || typeof a.kind !== "string" || typeof a.body !== "string") {
-        throw new McpError(ErrorCode.InvalidParams, "actionGroupId, kind, body は必須です");
+      if (typeof a.processFlowId !== "string" || typeof a.kind !== "string" || typeof a.body !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowId, kind, body は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       const m = editAddMarker(ag, {
         kind: a.kind as "chat" | "attention" | "todo" | "question",
         body: a.body as string,
@@ -65,37 +65,37 @@ export const handleMarkerTool: ToolHandler = async (name, args) => {
         fieldPath: typeof a.fieldPath === "string" ? a.fieldPath : undefined,
         author: (a.author === "human" || a.author === "ai") ? a.author : "ai",
       });
-      await saveAndBroadcast(a.actionGroupId, ag);
+      await saveAndBroadcast(a.processFlowId, ag);
       return { content: [{ type: "text", text: `マーカーを追加しました (id: ${m.id})` }] };
     }
 
     case "designer__resolve_marker": {
-      if (typeof a.actionGroupId !== "string" || typeof a.markerId !== "string") {
-        throw new McpError(ErrorCode.InvalidParams, "actionGroupId, markerId は必須です");
+      if (typeof a.processFlowId !== "string" || typeof a.markerId !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowId, markerId は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         editResolveMarker(ag, a.markerId as string, typeof a.resolution === "string" ? a.resolution : undefined);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.actionGroupId, ag);
+      await saveAndBroadcast(a.processFlowId, ag);
       return { content: [{ type: "text", text: `マーカー ${a.markerId} を解決しました。` }] };
     }
 
     case "designer__remove_marker": {
-      if (typeof a.actionGroupId !== "string" || typeof a.markerId !== "string") {
-        throw new McpError(ErrorCode.InvalidParams, "actionGroupId, markerId は必須です");
+      if (typeof a.processFlowId !== "string" || typeof a.markerId !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowId, markerId は必須です");
       }
-      const ag = await readActionGroup(a.actionGroupId) as ActionGroupDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.actionGroupId} が見つかりません`);
+      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         editRemoveMarker(ag, a.markerId as string);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.actionGroupId, ag);
+      await saveAndBroadcast(a.processFlowId, ag);
       return { content: [{ type: "text", text: `マーカー ${a.markerId} を削除しました。` }] };
     }
 

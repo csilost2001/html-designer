@@ -614,9 +614,9 @@ export const tools = [
   // ── 処理フロー定義ツール ──
 
   {
-    name: "designer__list_action_groups",
+    name: "designer__list_process_flows",
     description:
-      "処理フロー定義（アクショングループ）の一覧を取得します。画面・バッチ・共通処理等のタイプ別に管理されます。",
+      "処理フロー定義（処理フロー）の一覧を取得します。画面・バッチ・共通処理等のタイプ別に管理されます。",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -624,24 +624,24 @@ export const tools = [
     },
   },
   {
-    name: "designer__get_action_group",
+    name: "designer__get_process_flow",
     description:
       "指定した処理フロー定義の詳細（アクション・ステップ含む）を取得します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: {
+        processFlowId: {
           type: "string",
-          description: "取得するアクショングループのID",
+          description: "取得する処理フローのID",
         },
       },
-      required: ["actionGroupId"],
+      required: ["processFlowId"],
     },
   },
   {
-    name: "designer__add_action_group",
+    name: "designer__add_process_flow",
     description:
-      "新しい処理フロー定義（アクショングループ）を作成します。",
+      "新しい処理フロー定義（処理フロー）を作成します。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -667,49 +667,49 @@ export const tools = [
     },
   },
   {
-    name: "designer__update_action_group",
+    name: "designer__update_process_flow",
     description:
       "処理フロー定義を更新します。アクション・ステップを含む完全な定義を渡します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: {
+        processFlowId: {
           type: "string",
-          description: "更新対象のアクショングループID",
+          description: "更新対象の処理フローID",
         },
         definition: {
           type: "object",
-          description: "アクショングループ定義の完全なJSON（ActionGroup型）",
+          description: "処理フロー定義の完全なJSON（ProcessFlow型）",
         },
       },
-      required: ["actionGroupId", "definition"],
+      required: ["processFlowId", "definition"],
     },
   },
   {
-    name: "designer__delete_action_group",
+    name: "designer__delete_process_flow",
     description:
       "処理フロー定義を削除します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: {
+        processFlowId: {
           type: "string",
-          description: "削除するアクショングループID",
+          description: "削除する処理フローID",
         },
       },
-      required: ["actionGroupId"],
+      required: ["processFlowId"],
     },
   },
   {
     name: "designer__add_action",
     description:
-      "アクショングループにアクション（ボタンクリック等のイベント）を追加します。",
+      "処理フローにアクション（ボタンクリック等のイベント）を追加します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: {
+        processFlowId: {
           type: "string",
-          description: "対象のアクショングループID",
+          description: "対象の処理フローID",
         },
         name: {
           type: "string",
@@ -721,7 +721,7 @@ export const tools = [
           description: "トリガー種別",
         },
       },
-      required: ["actionGroupId", "name", "trigger"],
+      required: ["processFlowId", "name", "trigger"],
     },
   },
   {
@@ -731,9 +731,9 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: {
+        processFlowId: {
           type: "string",
-          description: "対象のアクショングループID",
+          description: "対象の処理フローID",
         },
         actionId: {
           type: "string",
@@ -757,7 +757,7 @@ export const tools = [
           description: "挿入位置 (0-based index)。省略時は末尾。",
         },
       },
-      required: ["actionGroupId", "actionId", "type", "description"],
+      required: ["processFlowId", "actionId", "type", "description"],
     },
   },
   {
@@ -767,11 +767,11 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         stepId: { type: "string", description: "更新対象の step id (全アクションのネストも走査)" },
         patch: { type: "object", description: "マージするオブジェクト。空オブジェクトは no-op。" },
       },
-      required: ["actionGroupId", "stepId", "patch"],
+      required: ["processFlowId", "stepId", "patch"],
     },
   },
   {
@@ -780,10 +780,10 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         stepId: { type: "string" },
       },
-      required: ["actionGroupId", "stepId"],
+      required: ["processFlowId", "stepId"],
     },
   },
   {
@@ -792,25 +792,25 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         stepId: { type: "string" },
         newIndex: { type: "number" },
       },
-      required: ["actionGroupId", "stepId", "newIndex"],
+      required: ["processFlowId", "stepId", "newIndex"],
     },
   },
   {
     name: "designer__set_maturity",
-    description: "ステップ / アクション / アクショングループの maturity を更新します。",
+    description: "ステップ / アクション / 処理フローの maturity を更新します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         target: { type: "string", enum: ["group", "action", "step"], description: "設定対象" },
         targetId: { type: "string", description: "target=action/step のとき必須" },
         maturity: { type: "string", enum: ["draft", "provisional", "committed"] },
       },
-      required: ["actionGroupId", "target", "maturity"],
+      required: ["processFlowId", "target", "maturity"],
     },
   },
   {
@@ -819,21 +819,21 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         stepId: { type: "string" },
         type: { type: "string", enum: ["assumption", "prerequisite", "todo", "deferred", "question"] },
         body: { type: "string" },
       },
-      required: ["actionGroupId", "stepId", "type", "body"],
+      required: ["processFlowId", "stepId", "type", "body"],
     },
   },
   {
     name: "designer__add_catalog_entry",
-    description: "ActionGroup レベルのカタログ (errorCatalog / secretsCatalog / typeCatalog / externalSystemCatalog) にエントリを追加・更新します。",
+    description: "ProcessFlow レベルのカタログ (errorCatalog / secretsCatalog / typeCatalog / externalSystemCatalog) にエントリを追加・更新します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         catalog: {
           type: "string",
           enum: ["errorCatalog", "secretsCatalog", "typeCatalog", "externalSystemCatalog"],
@@ -841,41 +841,41 @@ export const tools = [
         key: { type: "string", description: "エントリキー (例: STOCK_SHORTAGE / stripeApiKey / ApiError / stripe)" },
         value: { type: "object", description: "エントリの値。全体置換。" },
       },
-      required: ["actionGroupId", "catalog", "key", "value"],
+      required: ["processFlowId", "catalog", "key", "value"],
     },
   },
   {
     name: "designer__remove_catalog_entry",
-    description: "ActionGroup カタログからエントリを削除します。",
+    description: "ProcessFlow カタログからエントリを削除します。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         catalog: {
           type: "string",
           enum: ["errorCatalog", "secretsCatalog", "typeCatalog", "externalSystemCatalog"],
         },
         key: { type: "string" },
       },
-      required: ["actionGroupId", "catalog", "key"],
+      required: ["processFlowId", "catalog", "key"],
     },
   },
   {
     name: "designer__list_markers",
-    description: "ActionGroup の人間→AI マーカー (指示・質問・TODO・チャット) を取得します。/designer-work の最初に呼ぶ想定。",
+    description: "ProcessFlow の人間→AI マーカー (指示・質問・TODO・チャット) を取得します。/designer-work の最初に呼ぶ想定。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         unresolvedOnly: { type: "boolean", description: "true で未解決のみ (既定 true)" },
         stepId: { type: "string", description: "特定 step の marker のみ取得" },
       },
-      required: ["actionGroupId"],
+      required: ["processFlowId"],
     },
   },
   {
     name: "designer__find_all_markers",
-    description: "全 ActionGroup を横断して未解決マーカーを取得します。/designer-work で「今対応すべき人間指示をまず一望する」ために使用。各マーカーに actionGroupId / actionGroupName が付く。",
+    description: "全 ProcessFlow を横断して未解決マーカーを取得します。/designer-work で「今対応すべき人間指示をまず一望する」ために使用。各マーカーに processFlowId / processFlowName が付く。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -890,18 +890,18 @@ export const tools = [
   },
   {
     name: "designer__add_marker",
-    description: "ActionGroup にマーカーを追加します。AI 側からの質問・返信・報告等を人間に届ける用途。",
+    description: "ProcessFlow にマーカーを追加します。AI 側からの質問・返信・報告等を人間に届ける用途。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         kind: { type: "string", enum: ["chat", "attention", "todo", "question"] },
         body: { type: "string" },
         stepId: { type: "string", description: "紐付ける step id (省略時はグループ全体宛)" },
         fieldPath: { type: "string" },
         author: { type: "string", enum: ["human", "ai"], description: "既定 \"ai\"" },
       },
-      required: ["actionGroupId", "kind", "body"],
+      required: ["processFlowId", "kind", "body"],
     },
   },
   {
@@ -910,11 +910,11 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         markerId: { type: "string" },
         resolution: { type: "string", description: "AI 側の対応メモ (例: \"sql を修正しました\")" },
       },
-      required: ["actionGroupId", "markerId"],
+      required: ["processFlowId", "markerId"],
     },
   },
   // ── 画面項目 ID リネーム ──
@@ -990,10 +990,10 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        actionGroupId: { type: "string" },
+        processFlowId: { type: "string" },
         markerId: { type: "string" },
       },
-      required: ["actionGroupId", "markerId"],
+      required: ["processFlowId", "markerId"],
     },
   },
 ];

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/conventions.schema.json",
   "version": "1.0.0",
-  "description": "処理フロー仕様書 / ActionGroup から @conv.* で参照される横断規約カタログ。docs/conventions/validation-rules.md の構造化版",
+  "description": "処理フロー仕様書 / ProcessFlow から @conv.* で参照される横断規約カタログ。docs/conventions/validation-rules.md の構造化版",
   "updatedAt": "2026-04-20T00:00:00.000Z",
 
   "msg": {

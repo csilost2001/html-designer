@@ -21,7 +21,7 @@ interface Props {
   onCommit?: () => void;
   placeholder?: string;
   /**
-   * 「画面項目から追加」ボタンから呼ばれるピッカー (#321)。親 (ActionEditor) が
+   * 「画面項目から追加」ボタンから呼ばれるピッカー (#321)。親 (ProcessFlowEditor) が
    * モーダルを開いてユーザー選択を返す。undefined ならボタン非表示。
    */
   onPickScreenItem?: () => Promise<ScreenItemPickResult | null>;

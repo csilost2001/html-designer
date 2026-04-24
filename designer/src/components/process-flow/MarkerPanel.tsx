@@ -1,5 +1,5 @@
 /**
- * ActionGroup.markers 編集パネル (#261)
+ * ProcessFlow.markers 編集パネル (#261)
  *
  * グループ全体宛のマーカー + ステップ紐付きマーカーを一覧表示。
  * 新規追加 (chat / attention / todo / question)、解決済みの非表示切替、
@@ -9,11 +9,11 @@
  * 対応後 resolvedAt を埋めて resolution コメントを付ける。
  */
 import { useMemo, useState } from "react";
-import type { ActionGroup, Marker, MarkerKind, Step } from "../../types/action";
+import type { ProcessFlow, Marker, MarkerKind, Step } from "../../types/action";
 import { generateUUID } from "../../utils/uuid";
 
-/** ActionGroup 内の全 step.id を再帰的に収集 (anchor orphan 判定用) */
-function collectStepIds(group: ActionGroup): Set<string> {
+/** ProcessFlow 内の全 step.id を再帰的に収集 (anchor orphan 判定用) */
+function collectStepIds(group: ProcessFlow): Set<string> {
   const ids = new Set<string>();
   const visit = (steps: Step[]) => {
     for (const s of steps) {
@@ -36,8 +36,8 @@ function collectStepIds(group: ActionGroup): Set<string> {
 }
 
 interface Props {
-  group: ActionGroup;
-  onChange: (group: ActionGroup) => void;
+  group: ProcessFlow;
+  onChange: (group: ProcessFlow) => void;
   /** 親から排他展開を制御する場合に指定 (undefined なら内部 state) */
   expanded?: boolean;
   onExpandedChange?: (next: boolean) => void;

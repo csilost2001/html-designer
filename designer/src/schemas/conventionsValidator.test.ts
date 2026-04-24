@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { checkConventionReferences, checkScreenItemConventionReferences, type ConventionsCatalog } from "./conventionsValidator";
-import type { ActionGroup } from "../types/action";
+import type { ProcessFlow } from "../types/action";
 import type { ScreenItemsFile } from "../types/screenItem";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -10,20 +10,20 @@ import { resolve, join } from "node:path";
 const repoRoot = resolve(__dirname, "../../../");
 const catalogPath = resolve(repoRoot, "docs/sample-project/conventions/conventions-catalog.json");
 const catalogSchemaPath = resolve(repoRoot, "schemas/conventions.schema.json");
-const samplesDir = resolve(repoRoot, "docs/sample-project/actions");
+const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
 
 function loadCatalog(): ConventionsCatalog {
   return JSON.parse(readFileSync(catalogPath, "utf-8")) as ConventionsCatalog;
 }
 
-function makeGroup(partial: Partial<ActionGroup>): ActionGroup {
+function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
     id: "a", name: "x", type: "screen", description: "",
     actions: [],
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
-  } as ActionGroup;
+  } as ProcessFlow;
 }
 
 describe("conventions-catalog.json がスキーマに適合", () => {
@@ -404,13 +404,13 @@ describe("checkScreenItemConventionReferences", () => {
   });
 });
 
-describe("checkConventionReferences — サンプル (docs/sample-project/actions/*.json) 横断", () => {
+describe("checkConventionReferences — サンプル (docs/sample-project/process-flows/*.json) 横断", () => {
   const catalog = loadCatalog();
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
 
   for (const f of files) {
     it(`${f} の @conv.* 参照が全て解決`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ActionGroup;
+      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
       const issues = checkConventionReferences(group, catalog);
       if (issues.length > 0) {
         throw new Error(

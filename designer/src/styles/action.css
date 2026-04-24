@@ -45,7 +45,7 @@
   font-weight: 600;
 }
 
-/* ─── ActionListView ヘッダ右側 ───────────────────────────────────── */
+/* ─── ProcessFlowListView ヘッダ右側 ───────────────────────────────────── */
 .action-list-header-right {
   display: flex;
   align-items: center;
@@ -53,7 +53,7 @@
 }
 
 /* ─── 種別バッジ (list/table 共通) ────────────────────────────────── */
-.action-group-type-badge {
+.process-flow-type-badge {
   display: inline-block;
   font-size: 0.72rem;
   padding: 2px 8px;
@@ -62,12 +62,12 @@
   white-space: nowrap;
 }
 
-.action-group-type-badge.screen { background: #dbeafe; color: #1d4ed8; }
-.action-group-type-badge.batch { background: #fef3c7; color: #92400e; }
-.action-group-type-badge.scheduled { background: #e0e7ff; color: #4338ca; }
-.action-group-type-badge.system { background: #fce7f3; color: #9d174d; }
-.action-group-type-badge.common { background: #d1fae5; color: #065f46; }
-.action-group-type-badge.other { background: #f1f5f9; color: #475569; }
+.process-flow-type-badge.screen { background: #dbeafe; color: #1d4ed8; }
+.process-flow-type-badge.batch { background: #fef3c7; color: #92400e; }
+.process-flow-type-badge.scheduled { background: #e0e7ff; color: #4338ca; }
+.process-flow-type-badge.system { background: #fce7f3; color: #9d174d; }
+.process-flow-type-badge.common { background: #d1fae5; color: #065f46; }
+.process-flow-type-badge.other { background: #f1f5f9; color: #475569; }
 
 /* ─── DataList カード内コンテンツ ────────────────────────────────── */
 .action-card-content {
@@ -1462,7 +1462,7 @@
 .catalog-panel-toggle:hover { background: #f1f5f9; }
 
 /* ─── メタタブバー (#309) ─────────────────────────────────────────
-   ActionEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
+   ProcessFlowEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
    排他的に 1 つだけ body を全幅で展開する。 */
 .action-meta-tabbar {
   padding: 3px 14px;

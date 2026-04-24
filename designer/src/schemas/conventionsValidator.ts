@@ -7,7 +7,7 @@
  */
 import type { ScreenItemsFile } from "../types/screenItem";
 import type {
-  ActionGroup,
+  ProcessFlow,
   Step,
   ActionDefinition,
   ValidationStep,
@@ -107,9 +107,9 @@ function resolveCategory(catalog: ConventionsCatalog, category: string): Record<
   }
 }
 
-/** ActionGroup 全体で @conv.* 参照を検査。catalog が null なら検査 skip */
+/** ProcessFlow 全体で @conv.* 参照を検査。catalog が null なら検査 skip */
 export function checkConventionReferences(
-  group: ActionGroup,
+  group: ProcessFlow,
   catalog: ConventionsCatalog | null,
 ): ConventionIssue[] {
   if (!catalog) return [];

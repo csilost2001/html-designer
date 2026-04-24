@@ -1,15 +1,15 @@
 /**
- * ActionGroup.ambientVariables 編集パネル (#278)
+ * ProcessFlow.ambientVariables 編集パネル (#278)
  *
  * middleware 由来の自動注入変数 (@requestId, @traceId, @fieldErrors 等) を
  * StructuredField[] として宣言する UI。
  */
 import { useState } from "react";
-import type { ActionGroup, StructuredField, FieldType } from "../../types/action";
+import type { ProcessFlow, StructuredField, FieldType } from "../../types/action";
 
 interface Props {
-  group: ActionGroup;
-  onChange: (group: ActionGroup) => void;
+  group: ProcessFlow;
+  onChange: (group: ProcessFlow) => void;
   expanded?: boolean;
   onExpandedChange?: (next: boolean) => void;
   render?: "full" | "toggleOnly" | "bodyOnly";

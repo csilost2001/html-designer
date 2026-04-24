@@ -1,7 +1,7 @@
 /**
  * SQL 列検査 + 規約参照 を含む統合的な警告パネル検証 (#261 UI 統合 第 2 弾)
  *
- * ActionEditor が tableStore からテーブル定義を、public/conventions-catalog.json から
+ * ProcessFlowEditor が tableStore からテーブル定義を、public/conventions-catalog.json から
  * 規約カタログをロードして、aggregateValidation に渡す経路のテスト。
  */
 import { test, expect, type Page } from "@playwright/test";
@@ -68,7 +68,7 @@ const project = {
   groups: [],
   edges: [],
   tables: [{ id: tableId, no: 1, name: "customers", logicalName: "顧客", columnCount: 2, updatedAt: tableDef.updatedAt }],
-  actionGroups: [{
+  processFlows: [{
     id: groupId, no: 1, name: group.name, type: group.type, actionCount: 1, updatedAt: group.updatedAt, maturity: "draft",
   }],
   updatedAt: new Date().toISOString(),
@@ -77,7 +77,7 @@ const project = {
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group, tableDef, groupId, tableId }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${groupId}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${groupId}`, JSON.stringify(group));
     localStorage.setItem(`table-${tableId}`, JSON.stringify(tableDef));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");

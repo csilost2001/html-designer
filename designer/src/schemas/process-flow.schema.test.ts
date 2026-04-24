@@ -6,7 +6,7 @@ import { resolve, join } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
 const schemaPath = resolve(repoRoot, "schemas/process-flow.schema.json");
-const samplesDir = resolve(repoRoot, "docs/sample-project/actions");
+const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
 
 let validate: ValidateFunction;
 
@@ -17,7 +17,7 @@ beforeAll(() => {
   validate = ajv.compile(schema);
 });
 
-describe("process-flow.schema.json — docs/sample-project/actions/*.json", () => {
+describe("process-flow.schema.json — docs/sample-project/process-flows/*.json", () => {
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
 
   it("サンプルファイルが存在する (防御)", () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, ComputeStep, Step } from "./action";
+import type { ProcessFlow, ComputeStep, Step } from "./action";
 import { STEP_TYPE_LABELS, STEP_TYPE_ICONS, STEP_TYPE_COLORS } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("ComputeStep (#174)", () => {
   it("税額計算の典型パターンを表現できる", () => {
@@ -47,7 +47,7 @@ describe("ComputeStep (#174)", () => {
   });
 });
 
-describe("migrateActionGroup — ComputeStep 透過保持 (#174)", () => {
+describe("migrateProcessFlow — ComputeStep 透過保持 (#174)", () => {
   it("ComputeStep を冪等にマイグレーションできる", () => {
     const raw = {
       id: "g",
@@ -73,8 +73,8 @@ describe("migrateActionGroup — ComputeStep 透過保持 (#174)", () => {
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     const step = once.actions[0].steps[0] as ComputeStep;
     expect(step.type).toBe("compute");
@@ -115,7 +115,7 @@ describe("migrateActionGroup — ComputeStep 透過保持 (#174)", () => {
       createdAt: "",
       updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const br = migrated.actions[0].steps[0] as unknown as {
       elseBranch: { steps: Step[] };
     };

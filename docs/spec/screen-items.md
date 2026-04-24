@@ -99,7 +99,7 @@ interface ScreenItem {
  * 出力項目のバインド元 (4 種別) — #377
  */
 type ValueSource =
-  | { kind: "flowVariable"; actionGroupId?: string; variableName: string }
+  | { kind: "flowVariable"; processFlowId?: string; variableName: string }
   | { kind: "tableColumn"; tableName: string; columnName: string }   // tableName は物理名
   | { kind: "viewColumn"; viewName: string; columnName: string }     // viewName は物理名
   | { kind: "expression"; expression: string };
@@ -126,7 +126,7 @@ interface ScreenItemsFile {
 
 **✅ 採用: 案 B-1 処理フロー inputs が画面項目を参照** (PR #321 で実装):
 - `StructuredField.screenItemRef?: { screenId: string; itemId: string }` を追加
-- ActionEditor の入出力テーブルに「画面項目から追加」ボタン + `ScreenItemPickerModal`
+- ProcessFlowEditor の入出力テーブルに「画面項目から追加」ボタン + `ScreenItemPickerModal`
 - 参照時は ScreenItem から name/label/type/required/description を一回コピー (一方向)
 - 参照解除ボタンで `screenItemRef` のみ削除、フィールドは残る
 - **TODO (別 issue)**: 参照整合性バリデータ (UNKNOWN_SCREEN_ITEM)、参照後の画面項目更新を自動反映する双方向同期
@@ -286,8 +286,8 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 
 ### 参照走査の対象フィールド
 
-- `ActionGroup.actions[].inputs[].screenItemRef`
-- `ActionGroup.actions[].outputs[].screenItemRef`
+- `ProcessFlow.actions[].inputs[].screenItemRef`
+- `ProcessFlow.actions[].outputs[].screenItemRef`
 - 上記のネスト (サブステップ / loop / branch 内) も再帰走査
 
 ### 対象外
@@ -346,7 +346,7 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
     succeeded: Array<{
       oldId: string; newId: string;
       screenHtmlUpdated: boolean;
-      actionGroupsUpdated: string[];
+      processFlowsUpdated: string[];
       refsRenamed: number;
       warnings: string[];
     }>;

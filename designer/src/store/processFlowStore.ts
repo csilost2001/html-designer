@@ -1,43 +1,43 @@
 /**
- * actionStore.ts
+ * processFlowStore.ts
  * 処理フロー定義の永続化ストア
  *
  * - wsBridge 接続済み: サーバー側ファイルに保存（mcpBridge 経由）
  * - 未接続: localStorage にフォールバック
  */
 import type {
-  ActionGroup,
-  ActionGroupMeta,
+  ProcessFlow,
+  ProcessFlowMeta,
   ActionDefinition,
   Step,
   StepType,
   ActionTrigger,
-  ActionGroupType,
+  ProcessFlowType,
 } from "../types/action";
 import type { FlowProject } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
-import { migrateActionGroup } from "../utils/actionMigration";
+import { migrateProcessFlow } from "../utils/actionMigration";
 import { renumber, nextNo } from "../utils/listOrder";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
 
-export interface ActionStorageBackend {
-  loadActionGroup(id: string): Promise<unknown>;
-  saveActionGroup(id: string, data: unknown): Promise<void>;
-  deleteActionGroup(id: string): Promise<void>;
-  listActionGroups(): Promise<unknown>;
+export interface ProcessFlowStorageBackend {
+  loadProcessFlow(id: string): Promise<unknown>;
+  saveProcessFlow(id: string, data: unknown): Promise<void>;
+  deleteProcessFlow(id: string): Promise<void>;
+  listProcessFlows(): Promise<unknown>;
 }
 
-let _backend: ActionStorageBackend | null = null;
+let _backend: ProcessFlowStorageBackend | null = null;
 
-export function setActionStorageBackend(b: ActionStorageBackend | null): void {
+export function setProcessFlowStorageBackend(b: ProcessFlowStorageBackend | null): void {
   _backend = b;
 }
 
 // ─── localStorage キー ───────────────────────────────────────────────────
 
-const ACTION_PREFIX = "action-group-";
+const ACTION_PREFIX = "process-flow-";
 
 function now(): string {
   return new Date().toISOString();
@@ -45,50 +45,50 @@ function now(): string {
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** アクショングループ一覧を取得（project.json のメタ情報） */
-export async function listActionGroups(): Promise<ActionGroupMeta[]> {
+/** 処理フロー一覧を取得（project.json のメタ情報） */
+export async function listProcessFlows(): Promise<ProcessFlowMeta[]> {
   const project = await loadProject();
-  return (project.actionGroups ?? []) as ActionGroupMeta[];
+  return (project.processFlows ?? []) as ProcessFlowMeta[];
 }
 
-/** アクショングループを読み込み（旧形式データは自動マイグレーション） */
-export async function loadActionGroup(id: string): Promise<ActionGroup | null> {
+/** 処理フローを読み込み（旧形式データは自動マイグレーション） */
+export async function loadProcessFlow(id: string): Promise<ProcessFlow | null> {
   if (_backend) {
-    const data = await _backend.loadActionGroup(id);
-    return data ? migrateActionGroup(data) : null;
+    const data = await _backend.loadProcessFlow(id);
+    return data ? migrateProcessFlow(data) : null;
   }
   const raw = localStorage.getItem(`${ACTION_PREFIX}${id}`);
   if (!raw) return null;
   try {
-    return migrateActionGroup(JSON.parse(raw));
+    return migrateProcessFlow(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
-/** アクショングループを保存（project.json のメタも同期） */
-export async function saveActionGroup(group: ActionGroup): Promise<void> {
+/** 処理フローを保存（project.json のメタも同期） */
+export async function saveProcessFlow(group: ProcessFlow): Promise<void> {
   group.updatedAt = now();
 
   if (_backend) {
-    await _backend.saveActionGroup(group.id, group);
+    await _backend.saveProcessFlow(group.id, group);
   } else {
     localStorage.setItem(`${ACTION_PREFIX}${group.id}`, JSON.stringify(group));
   }
 
-  await syncActionGroupMeta(group);
+  await syncProcessFlowMeta(group);
 }
 
-/** アクショングループを新規作成 */
-export async function createActionGroup(
+/** 処理フローを新規作成 */
+export async function createProcessFlow(
   name: string,
-  type: ActionGroupType,
+  type: ProcessFlowType,
   screenId?: string,
   description?: string,
-): Promise<ActionGroup> {
+): Promise<ProcessFlow> {
   const id = generateUUID();
   const ts = now();
-  const group: ActionGroup = {
+  const group: ProcessFlow = {
     id,
     name,
     type,
@@ -98,41 +98,41 @@ export async function createActionGroup(
     createdAt: ts,
     updatedAt: ts,
   };
-  await saveActionGroup(group);
+  await saveProcessFlow(group);
   return group;
 }
 
-/** アクショングループを削除 */
-export async function deleteActionGroup(id: string): Promise<void> {
+/** 処理フローを削除 */
+export async function deleteProcessFlow(id: string): Promise<void> {
   if (_backend) {
-    await _backend.deleteActionGroup(id);
+    await _backend.deleteProcessFlow(id);
   } else {
     localStorage.removeItem(`${ACTION_PREFIX}${id}`);
   }
 
   const project = await loadProject();
-  if (project.actionGroups) {
-    project.actionGroups = renumber(project.actionGroups.filter((a) => a.id !== id));
+  if (project.processFlows) {
+    project.processFlows = renumber(project.processFlows.filter((a) => a.id !== id));
     await saveProject(project);
   }
 }
 
-/** 処理フロー一覧の並び順を変更する (project.actionGroups の物理順) */
-export async function reorderActionGroups(fromIndex: number, toIndex: number): Promise<void> {
+/** 処理フロー一覧の並び順を変更する (project.processFlows の物理順) */
+export async function reorderProcessFlows(fromIndex: number, toIndex: number): Promise<void> {
   const project = await loadProject();
-  if (!project.actionGroups) return;
+  if (!project.processFlows) return;
   if (fromIndex < 0 || toIndex < 0) return;
-  if (fromIndex >= project.actionGroups.length || toIndex >= project.actionGroups.length) return;
+  if (fromIndex >= project.processFlows.length || toIndex >= project.processFlows.length) return;
   if (fromIndex === toIndex) return;
-  const [moved] = project.actionGroups.splice(fromIndex, 1);
-  project.actionGroups.splice(toIndex, 0, moved);
-  project.actionGroups = renumber(project.actionGroups);
+  const [moved] = project.processFlows.splice(fromIndex, 1);
+  project.processFlows.splice(toIndex, 0, moved);
+  project.processFlows = renumber(project.processFlows);
   await saveProject(project);
 }
 
 /** アクションを追加 */
 export function addAction(
-  group: ActionGroup,
+  group: ProcessFlow,
   name: string,
   trigger: ActionTrigger,
 ): ActionDefinition {
@@ -147,7 +147,7 @@ export function addAction(
 }
 
 /** アクションを削除 */
-export function removeAction(group: ActionGroup, actionId: string): void {
+export function removeAction(group: ProcessFlow, actionId: string): void {
   const idx = group.actions.findIndex((a) => a.id === actionId);
   if (idx >= 0) group.actions.splice(idx, 1);
 }
@@ -256,7 +256,7 @@ export function createDefaultStep(type: StepType): Step {
 }
 
 /** グループ内の全ステップを再帰走査して付箋合計をカウント (#228) */
-function countGroupNotes(group: ActionGroup): number {
+function countGroupNotes(group: ProcessFlow): number {
   let count = 0;
   const visit = (steps: Step[]) => {
     for (const s of steps) {
@@ -273,15 +273,15 @@ function countGroupNotes(group: ActionGroup): number {
   return count;
 }
 
-/** project.json のアクショングループメタを同期 */
-async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
+/** project.json の処理フローメタを同期 */
+async function syncProcessFlowMeta(group: ProcessFlow): Promise<void> {
   const project = await loadProject();
-  if (!project.actionGroups) project.actionGroups = [];
+  if (!project.processFlows) project.processFlows = [];
 
-  const idx = project.actionGroups.findIndex((a) => a.id === group.id);
-  const meta: FlowProject["actionGroups"] extends (infer T)[] | undefined ? T : never = {
+  const idx = project.processFlows.findIndex((a) => a.id === group.id);
+  const meta: FlowProject["processFlows"] extends (infer T)[] | undefined ? T : never = {
     id: group.id,
-    no: idx >= 0 ? project.actionGroups[idx].no : nextNo(project.actionGroups),
+    no: idx >= 0 ? project.processFlows[idx].no : nextNo(project.processFlows),
     name: group.name,
     type: group.type,
     screenId: group.screenId,
@@ -292,10 +292,10 @@ async function syncActionGroupMeta(group: ActionGroup): Promise<void> {
   };
 
   if (idx >= 0) {
-    project.actionGroups[idx] = meta;
+    project.processFlows[idx] = meta;
   } else {
-    project.actionGroups.push(meta);
+    project.processFlows.push(meta);
   }
-  project.actionGroups = renumber(project.actionGroups);
+  project.processFlows = renumber(project.processFlows);
   await saveProject(project);
 }

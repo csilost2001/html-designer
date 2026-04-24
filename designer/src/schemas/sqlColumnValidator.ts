@@ -10,7 +10,7 @@
  * node-sql-parser v5 ベース。複雑な CTE / window / サブクエリは best-effort。
  */
 import { Parser } from "node-sql-parser";
-import type { ActionGroup, DbAccessStep, Step } from "../types/action";
+import type { ProcessFlow, DbAccessStep, Step } from "../types/action";
 
 /** テーブル定義 (最小シェイプ、docs/sample-project/tables/*.json 形式) */
 export interface TableDefinition {
@@ -193,9 +193,9 @@ export function validateSql(
   return issues;
 }
 
-/** ActionGroup 内の全 DbAccessStep.sql を検証 */
+/** ProcessFlow 内の全 DbAccessStep.sql を検証 */
 export function checkSqlColumns(
-  group: ActionGroup,
+  group: ProcessFlow,
   tables: TableDefinition[],
 ): SqlColumnIssue[] {
   const issues: SqlColumnIssue[] = [];

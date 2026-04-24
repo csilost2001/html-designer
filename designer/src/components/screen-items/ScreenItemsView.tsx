@@ -26,9 +26,9 @@ import type { ConventionsCatalog, ConventionIssue } from "../../schemas/conventi
 import { mcpBridge } from "../../mcp/mcpBridge";
 import type { ScreenItem, ScreenItemsFile, ValueSource } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
-import type { ActionGroupMeta } from "../../types/action";
+import type { ProcessFlowMeta } from "../../types/action";
 import type { TableMeta } from "../../types/table";
-import { listActionGroups } from "../../store/actionStore";
+import { listProcessFlows } from "../../store/processFlowStore";
 import { listTables } from "../../store/tableStore";
 import { listViews } from "../../store/viewStore";
 import type { ViewMeta } from "../../types/view";
@@ -128,10 +128,10 @@ function OutputFields({ item, idx, onUpdate, onCommit }: OutputFieldsProps) {
                 <span className="screen-items-detail-label">処理フロー</span>
                 <input
                   type="text"
-                  list="screen-items-action-group-list"
+                  list="screen-items-process-flow-list"
                   className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>).actionGroupId ?? ""}
-                  onChange={(e) => handleValueFromPatch({ actionGroupId: e.target.value || undefined } as Partial<ValueSource>)}
+                  value={(item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>).processFlowId ?? ""}
+                  onChange={(e) => handleValueFromPatch({ processFlowId: e.target.value || undefined } as Partial<ValueSource>)}
                   onBlur={onCommit}
                   placeholder="省略可"
                 />
@@ -241,7 +241,7 @@ export function ScreenItemsView() {
   const [lintIssues, setLintIssues] = useState<ConventionIssue[]>([]);
   const [expandedErrorRows, setExpandedErrorRows] = useState<Set<number>>(new Set());
   const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
-  const [actionGroups, setActionGroups] = useState<ActionGroupMeta[]>([]);
+  const [processFlows, setProcessFlows] = useState<ProcessFlowMeta[]>([]);
   const [tables, setTables] = useState<TableMeta[]>([]);
   const [views, setViews] = useState<ViewMeta[]>([]);
 
@@ -274,7 +274,7 @@ export function ScreenItemsView() {
 
   // 処理フロー・テーブル・ビュー一覧をロード (valueFrom datalist 用)
   useEffect(() => {
-    listActionGroups().then(setActionGroups).catch(console.error);
+    listProcessFlows().then(setProcessFlows).catch(console.error);
     listTables().then(setTables).catch(console.error);
     listViews().then(setViews).catch(console.error);
   }, []);
@@ -425,7 +425,7 @@ export function ScreenItemsView() {
           mcpBridge.request("checkScreenItemRefs", {
             screenId: selectedScreenId,
             itemId: r.oldId,
-          }) as Promise<{ affectedActionGroups: Array<{ id: string; name: string; refCount: number }>; totalRefs: number }>,
+          }) as Promise<{ affectedProcessFlows: Array<{ id: string; name: string; refCount: number }>; totalRefs: number }>,
         ),
       );
 
@@ -434,7 +434,7 @@ export function ScreenItemsView() {
       // 処理フロー名でまとめる (同一グループが複数 reset で重複する可能性あり)
       const groupMap = new Map<string, { id: string; name: string; refCount: number }>();
       for (const r of results) {
-        for (const ag of r.affectedActionGroups) {
+        for (const ag of r.affectedProcessFlows) {
           const existing = groupMap.get(ag.id);
           if (existing) existing.refCount += ag.refCount;
           else groupMap.set(ag.id, { ...ag });
@@ -569,7 +569,7 @@ export function ScreenItemsView() {
       const result = await mcpBridge.request("checkScreenItemRefs", {
         screenId: selectedScreenId,
         itemId: originalId,
-      }) as { affectedActionGroups: Array<{ id: string; name: string; refCount: number }>; totalRefs: number };
+      }) as { affectedProcessFlows: Array<{ id: string; name: string; refCount: number }>; totalRefs: number };
 
       if (result.totalRefs === 0) {
         commit();
@@ -580,7 +580,7 @@ export function ScreenItemsView() {
         idx,
         oldId: originalId,
         newId,
-        affectedGroups: result.affectedActionGroups,
+        affectedGroups: result.affectedProcessFlows,
         totalRefs: result.totalRefs,
       });
     } catch {
@@ -1134,8 +1134,8 @@ export function ScreenItemsView() {
             <datalist id="screen-items-display-format-list">
               {DISPLAY_FORMAT_PRESETS.map((f) => <option key={f} value={f} />)}
             </datalist>
-            <datalist id="screen-items-action-group-list">
-              {actionGroups.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
+            <datalist id="screen-items-process-flow-list">
+              {processFlows.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
             </datalist>
             <datalist id="screen-items-table-list">
               {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}

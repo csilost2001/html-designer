@@ -19,7 +19,7 @@ const dummyProject = {
   screens: [
     { id: screenId, no: 1, name: "リセットテスト画面", type: "standard", updatedAt: new Date().toISOString() },
   ],
-  groups: [], edges: [], tables: [], actionGroups: [],
+  groups: [], edges: [], tables: [], processFlows: [],
   updatedAt: new Date().toISOString(),
 };
 

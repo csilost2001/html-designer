@@ -1,7 +1,7 @@
 /**
  * 赤線 free-form マーカー オーバーレイ (#261)
  *
- * ActionEditor 上に被せる SVG オーバーレイ。描画モード ON で:
+ * ProcessFlowEditor 上に被せる SVG オーバーレイ。描画モード ON で:
  * - ペンツール: ドラッグで自由描画。複数ストロークは path "d" 内で M 区切り合体
  *   色 / 太さ をツールバーで選択可能 (MarkerShape.color / strokeWidth に格納)
  * - 消しゴムツール: 既存 shape 付き marker をクリックで削除
@@ -253,7 +253,7 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
       anchorStepId,
       anchorFieldPath,
     });
-    // ActionEditor 側が drawing=false にするので useEffect でリセットされる
+    // ProcessFlowEditor 側が drawing=false にするので useEffect でリセットされる
   };
 
   const cancel = () => {

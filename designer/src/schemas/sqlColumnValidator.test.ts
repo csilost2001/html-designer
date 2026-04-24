@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { validateSql, checkSqlColumns } from "./sqlColumnValidator";
 import type { TableDefinition } from "./sqlColumnValidator";
-import type { ActionGroup } from "../types/action";
+import type { ProcessFlow } from "../types/action";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
-const samplesDir = resolve(repoRoot, "docs/sample-project/actions");
+const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
 const tablesDir = resolve(repoRoot, "docs/sample-project/tables");
 
 function loadTables(): TableDefinition[] {
@@ -102,7 +102,7 @@ describe("checkSqlColumns — サンプル (docs/sample-project) 横断", () => 
   for (const f of files) {
     const tester = LEGACY_DRIFT_FILES.has(f) ? it.skip : it;
     tester(`${f} の全 SQL 列参照が整合`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ActionGroup;
+      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
       const issues = checkSqlColumns(group, tables);
       const columnIssues = issues.filter((i) => i.code === "UNKNOWN_COLUMN");
       if (columnIssues.length > 0) {

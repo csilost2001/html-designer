@@ -1,5 +1,5 @@
 /**
- * ActionListView の追加 E2E (#248)
+ * ProcessFlowListView の追加 E2E (#248)
  * - view mode toggle (card ⇔ table)
  * - type ヘッダクリックソート (表モード)
  * - 複数選択 (Shift+Click)
@@ -19,12 +19,12 @@ const listGroups = [
 async function setupList(page: Page) {
   const project = {
     version: 1, name: "list-ops", screens: [], groups: [], edges: [], tables: [],
-    actionGroups: listGroups, updatedAt: baseNow,
+    processFlows: listGroups, updatedAt: baseNow,
   };
   await page.addInitScript(({ project, groups }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     for (const g of groups) {
-      localStorage.setItem(`action-group-${g.id}`, JSON.stringify({
+      localStorage.setItem(`process-flow-${g.id}`, JSON.stringify({
         id: g.id, name: g.name, type: g.type, description: "",
         maturity: g.maturity, mode: "upstream",
         actions: [], createdAt: baseNow, updatedAt: baseNow,
@@ -38,7 +38,7 @@ async function setupList(page: Page) {
   await expect(page.locator(".action-page")).toBeVisible();
 }
 
-test.describe("ActionListView 操作 (#248)", () => {
+test.describe("ProcessFlowListView 操作 (#248)", () => {
   test("view mode toggle でカード ⇔ 表切替", async ({ page }) => {
     await setupList(page);
     // 既定はカード

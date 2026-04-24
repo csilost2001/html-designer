@@ -80,8 +80,8 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 | `/table/list` | TableListView | テーブル一覧 | ✅ singleton |
 | `/table/edit/:tableId` | TableEditor | テーブル編集 | ✅ per-resource |
 | `/table/er` | ErDiagram | ER 図 | ✅ singleton |
-| `/process-flow/list` | ActionListView | 処理フロー一覧 | ✅ singleton |
-| `/process-flow/edit/:actionGroupId` | ActionEditor | 処理フロー編集 | ✅ per-resource |
+| `/process-flow/list` | ProcessFlowListView | 処理フロー一覧 | ✅ singleton |
+| `/process-flow/edit/:processFlowId` | ProcessFlowEditor | 処理フロー編集 | ✅ per-resource |
 
 ### Tab policy
 
@@ -90,7 +90,7 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 | 種別 | 対象 | 性質 |
 |------|------|------|
 | シングルトンタブ | Dashboard / 画面フロー / 画面一覧 / テーブル一覧 / ER 図 / 処理フロー一覧 | 1 インスタンス固定、再オープン時は既存を再利用 |
-| マルチインスタンスタブ | Designer / TableEditor / ActionEditor | リソース ID 毎に独立タブ |
+| マルチインスタンスタブ | Designer / TableEditor / ProcessFlowEditor | リソース ID 毎に独立タブ |
 | route only | なし | — |
 
 **理由**: 一覧画面は全機能の俯瞰・順序変更・検索・帳票出力等の中心機能で、**詳細より頻繁に開かれる**。タブ化しないと毎回 HeaderMenu から辿り直しで UX 劣化する。VS Code も Welcome / Settings / Source Control などシングルトンをタブで開く。
@@ -137,11 +137,11 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/actions/*.json` の全件をスキーマで検証する。
+検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/process-flows/*.json` の全件をスキーマで検証する。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 
-**命名注意 (2026-04-25 決定)**: `ActionGroup` を `ProcessFlow` にリネーム予定。移行中は両表記が混在する可能性あり。詳細はメモリ `project_framework_research_2026_04_25.md` (Claude Code memory) を参照。
+**命名注意 (2026-04-25 決定)**: `ProcessFlow` を `ProcessFlow` にリネーム予定。移行中は両表記が混在する可能性あり。詳細はメモリ `project_framework_research_2026_04_25.md` (Claude Code memory) を参照。
 
 ## UI Conventions
 

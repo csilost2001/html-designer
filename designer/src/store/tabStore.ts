@@ -23,7 +23,7 @@ export type TabType =
   | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
 
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
-  "design", "table", "action", "sequence", "view",
+  "design", "table", "process-flow", "sequence", "view",
   "screen-flow", "screen-list", "table-list", "er", "process-flow-list",
   "conventions-catalog", "screen-items", "sequence-list", "view-list", "dashboard",
 ]);

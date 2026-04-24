@@ -12,16 +12,16 @@ import { mcpBridge } from "../../../mcp/mcpBridge";
 interface Counts {
   screens: number;
   tables: number;
-  actionGroups: number;
+  processFlows: number;
   foreignKeys: number;
 }
 
-const INITIAL: Counts = { screens: 0, tables: 0, actionGroups: 0, foreignKeys: 0 };
+const INITIAL: Counts = { screens: 0, tables: 0, processFlows: 0, foreignKeys: 0 };
 
 async function fetchCounts(): Promise<Counts> {
   const project = await loadProject();
   const screens = project.screens?.length ?? 0;
-  const actionGroups = project.actionGroups?.length ?? 0;
+  const processFlows = project.processFlows?.length ?? 0;
 
   const tableMetas = await listTables();
   const tables = tableMetas.length;
@@ -36,7 +36,7 @@ async function fetchCounts(): Promise<Counts> {
     }
   }
 
-  return { screens, tables, actionGroups, foreignKeys };
+  return { screens, tables, processFlows, foreignKeys };
 }
 
 export function FunctionCountsPanel() {
@@ -66,7 +66,7 @@ export function FunctionCountsPanel() {
     // プロジェクト変更 / テーブル変更 / 処理フロー変更で再集計
     const unsubProject = mcpBridge.onBroadcast("projectChanged", reload);
     const unsubTable = mcpBridge.onBroadcast("tableChanged", reload);
-    const unsubAction = mcpBridge.onBroadcast("actionGroupChanged", reload);
+    const unsubAction = mcpBridge.onBroadcast("processFlowChanged", reload);
     const unsubStatus = mcpBridge.onStatusChange((s) => {
       if (s === "connected") reload();
     });
@@ -87,7 +87,7 @@ export function FunctionCountsPanel() {
   const items: Array<{ label: string; value: number; icon: string; color: string }> = [
     { label: "画面", value: counts.screens, icon: "bi-window", color: "#6366f1" },
     { label: "テーブル", value: counts.tables, icon: "bi-table", color: "#0284c7" },
-    { label: "処理フロー", value: counts.actionGroups, icon: "bi-lightning-charge", color: "#f59e0b" },
+    { label: "処理フロー", value: counts.processFlows, icon: "bi-lightning-charge", color: "#f59e0b" },
     { label: "FK 関係", value: counts.foreignKeys, icon: "bi-share", color: "#10b981" },
   ];
 

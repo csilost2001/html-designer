@@ -164,12 +164,12 @@ interface ExternalHttpCall {
 }
 
 // ExternalSystemStep に追加
-systemRef?: string;                  // ActionGroup.externalSystemCatalog のキー
+systemRef?: string;                  // ProcessFlow.externalSystemCatalog のキー
 httpCall?: ExternalHttpCall;         // 旧 protocol の後継
 protocol?: string;                   // DEPRECATED: httpCall への移行推奨
 ```
 
-### 3.0c typeCatalog (ActionGroup レベル, #261 v1.3)
+### 3.0c typeCatalog (ProcessFlow レベル, #261 v1.3)
 
 `HttpResponseSpec.bodySchema: { typeRef: string }` の解決先カタログ。同じ型 (`ApiError` 等) を複数 response で使い回すための DRY 化。
 
@@ -179,7 +179,7 @@ interface TypeCatalogEntry {
   schema: object;                    // JSON Schema draft 2020-12
 }
 
-// ActionGroup に追加
+// ProcessFlow に追加
 typeCatalog?: Record<string, TypeCatalogEntry>;
 ```
 
@@ -212,7 +212,7 @@ response 側:
 
 参照整合性バリデータが `typeRef → typeCatalog` 存在検査を行う (typeCatalog 未定義時は後方互換で skip)。
 
-### 3.0b externalSystemCatalog (ActionGroup レベル, #261 v1.3)
+### 3.0b externalSystemCatalog (ProcessFlow レベル, #261 v1.3)
 
 同じ外部システム (Stripe, SendGrid 等) を使う複数ステップで **auth / baseUrl / timeoutMs / retryPolicy / headers** を 1 箇所に集約。drift 防止と DRY 化。
 
@@ -227,7 +227,7 @@ interface ExternalSystemCatalogEntry {
   description?: string;
 }
 
-// ActionGroup に追加
+// ProcessFlow に追加
 externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
 ```
 
@@ -569,9 +569,9 @@ type OutputBinding = string | OutputBindingObject;
 
 PR: #169 / #255 (#253 v1.2)
 
-## 8.5 エラーカタログ (ActionGroup.errorCatalog, #253 v1.2)
+## 8.5 エラーカタログ (ProcessFlow.errorCatalog, #253 v1.2)
 
-同一 `errorCode` が `affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` / `responses[].description` の複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
+同一 `errorCode` が `affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` / `responses[].description` の複数箇所に散在する問題を解決するため、ProcessFlow 単位で 1 箇所に集約する。
 
 ```ts
 interface ErrorCatalogEntry {
@@ -581,7 +581,7 @@ interface ErrorCatalogEntry {
   description?: string;
 }
 
-// ActionGroup に追加
+// ProcessFlow に追加
 errorCatalog?: Record<string, ErrorCatalogEntry>;
 ```
 
@@ -653,12 +653,12 @@ PR: #367 (#253 v1.3)
 { "field": "items[*].quantity", "type": "range", "min": 1, "maxRef": "@conv.limit.quantityMax", "message": "@conv.msg.outOfRange" }
 ```
 
-## 8.7 `ActionGroup.ambientOverrides` — 規約カタログ defaults のフロー固有例外 (#369)
+## 8.7 `ProcessFlow.ambientOverrides` — 規約カタログ defaults のフロー固有例外 (#369)
 
 規約カタログ (`data/conventions/catalog.json`) の `default: true` エントリが全フローの ambient default となる。**大多数のフローは本フィールド不要**。特定フローだけ別通貨・別タイムゾーン等が必要な稀ケースに限り記述する。
 
 ```ts
-// ActionGroup に追加
+// ProcessFlow に追加
 ambientOverrides?: Record<string, string>;
 ```
 
@@ -680,7 +680,7 @@ PR: #369
 
 ## 9. 後方互換性
 
-すべての拡張は **Optional** かつ **Union 型** (string | structured) のいずれかで、既存データは破壊されない。`migrateActionGroup` が読み込み時に:
+すべての拡張は **Optional** かつ **Union 型** (string | structured) のいずれかで、既存データは破壊されない。`migrateProcessFlow` が読み込み時に:
 
 - 旧 `note: string` → `notes[{type:"assumption"}]`
 - 旧 `condition: string` → そのまま (union 型)
@@ -695,7 +695,7 @@ PR: #369
 
 本スキーマは以下のドッグフード履歴で**説明文ゼロ依存・自信度 5.0/5・スキーマ確定可能 (YES)** を達成:
 
-- `data/actions/cccccccc-0019-*.json` で別 AI セッションに実装依頼 → 地の文を無視して機能的に完全な実装生成可能と判定
+- `data/process-flows/cccccccc-0019-*.json` で別 AI セッションに実装依頼 → 地の文を無視して機能的に完全な実装生成可能と判定
 - 詳細履歴: #151 最終コメント
 
 ## 11. 関連
@@ -710,4 +710,4 @@ PR: #369
 - 2026-04-20: 初版。#155〜#181 の全 PR をカバー。
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
 - 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
-- 2026-04-24: `ActionGroup.ambientOverrides` 追加 (#369)。§8.7 を新設。
+- 2026-04-24: `ProcessFlow.ambientOverrides` 追加 (#369)。§8.7 を新設。

@@ -1,15 +1,15 @@
 /**
- * ActionGroup.typeCatalog 編集パネル (#278)
+ * ProcessFlow.typeCatalog 編集パネル (#278)
  *
  * JSON Schema は複雑なので、エントリごとに description + schema (JSON textarea)
  * での編集に留める。JSON パースエラーはローカル state で表示、parseable なら onChange。
  */
 import { useState, useEffect } from "react";
-import type { ActionGroup, TypeCatalogEntry } from "../../types/action";
+import type { ProcessFlow, TypeCatalogEntry } from "../../types/action";
 
 interface Props {
-  group: ActionGroup;
-  onChange: (group: ActionGroup) => void;
+  group: ProcessFlow;
+  onChange: (group: ProcessFlow) => void;
   expanded?: boolean;
   onExpandedChange?: (next: boolean) => void;
   render?: "full" | "toggleOnly" | "bodyOnly";

@@ -1149,7 +1149,7 @@ console.log("\n✅ シードデータ生成完了");
 console.log(`   data/screens/        → ${count} ファイル`);
 console.log(`   data/screen-items/   → ${siCount} ファイル`);
 console.log(`   data/tables/         → ${tableCount} ファイル`);
-console.log(`   data/actions/        → ${actionCount} ファイル`);
+console.log(`   data/process-flows/        → ${actionCount} ファイル`);
 console.log(`   data/conventions/    → ${conventionsCount} ファイル`);
 console.log(`   docs/sample-project/ → バックアップ済み`);
 console.log("\n復元方法:");

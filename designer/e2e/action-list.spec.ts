@@ -39,7 +39,7 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: dummyGroups,
+  processFlows: dummyGroups,
   updatedAt: new Date().toISOString(),
 };
 
@@ -47,7 +47,7 @@ async function setupActionList(page: Page) {
   await page.addInitScript(({ project, groups }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     for (const g of groups) {
-      localStorage.setItem(`action-group-${g.id}`, JSON.stringify({ ...g, actions: [] }));
+      localStorage.setItem(`process-flow-${g.id}`, JSON.stringify({ ...g, actions: [] }));
     }
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");

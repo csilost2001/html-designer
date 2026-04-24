@@ -3,30 +3,30 @@
  *
  * 使い方:
  *   cd designer-mcp
- *   npx tsx src/dogfoodDesignerWork.ts <actionGroupId>
+ *   npx tsx src/dogfoodDesignerWork.ts <processFlowId>
  *
  * 動作:
- *   1. data/actions/<id>.json を読む
+ *   1. data/process-flows/<id>.json を読む
  *   2. markers を kind 別に処理 (todo=編集解決 / question=chat返信+resolve /
  *      attention=提案保留 / chat=返信+resolve)
- *   3. data/actions/<id>.json に書き戻す
- *   4. ws://localhost:5179 に接続し browser 役で saveActionGroup を送信して broadcast 発火
- *      (これで開いている browser の ActionEditor が自動再描画される)
+ *   3. data/process-flows/<id>.json に書き戻す
+ *   4. ws://localhost:5179 に接続し browser 役で saveProcessFlow を送信して broadcast 発火
+ *      (これで開いている browser の ProcessFlowEditor が自動再描画される)
  *
  * 目的: MCP stdio がなくても dev env で /designer-work の挙動を再現し、
  *       ブラウザでリアルタイム反映を検証できるようにする。
  */
-import { readActionGroup, writeActionGroup } from "./projectStorage.js";
+import { readProcessFlow, writeProcessFlow } from "./projectStorage.js";
 import {
   listMarkers,
   addMarker,
   resolveMarker,
   addCatalogEntry,
-  type ActionGroupDoc,
-} from "./actionGroupEdits.js";
+  type ProcessFlowDoc,
+} from "./processFlowEdits.js";
 import WebSocket from "ws";
 
-async function broadcastSave(id: string, data: ActionGroupDoc): Promise<void> {
+async function broadcastSave(id: string, data: ProcessFlowDoc): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket("ws://localhost:5179");
     const clientId = `dogfood-${Date.now()}`;
@@ -34,7 +34,7 @@ async function broadcastSave(id: string, data: ActionGroupDoc): Promise<void> {
     ws.on("open", () => {
       ws.send(JSON.stringify({ type: "register", clientId }));
       setTimeout(() => {
-        ws.send(JSON.stringify({ type: "request", id: reqId, method: "saveActionGroup", params: { id, data } }));
+        ws.send(JSON.stringify({ type: "request", id: reqId, method: "saveProcessFlow", params: { id, data } }));
       }, 100);
     });
     ws.on("message", (raw) => {
@@ -52,13 +52,13 @@ async function broadcastSave(id: string, data: ActionGroupDoc): Promise<void> {
 async function main() {
   const id = process.argv[2];
   if (!id) {
-    console.error("使い方: tsx src/dogfoodDesignerWork.ts <actionGroupId>");
+    console.error("使い方: tsx src/dogfoodDesignerWork.ts <processFlowId>");
     process.exit(1);
   }
 
-  const ag = await readActionGroup(id) as ActionGroupDoc | null;
+  const ag = await readProcessFlow(id) as ProcessFlowDoc | null;
   if (!ag) {
-    console.error(`ActionGroup ${id} が見つかりません (data/actions/${id}.json)`);
+    console.error(`ProcessFlow ${id} が見つかりません (data/process-flows/${id}.json)`);
     process.exit(1);
   }
 
@@ -116,8 +116,8 @@ async function main() {
   }
 
   ag.updatedAt = new Date().toISOString();
-  await writeActionGroup(id, ag);
-  console.log(`ファイル書き戻し完了: data/actions/${id}.json`);
+  await writeProcessFlow(id, ag);
+  console.log(`ファイル書き戻し完了: data/process-flows/${id}.json`);
 
   console.log("ws broadcast を試行...");
   await broadcastSave(id, ag);

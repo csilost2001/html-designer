@@ -12,12 +12,12 @@ Issue: #253 (部分対応)
 
 ## 2. 設計判断: convention over configuration
 
-**採用案**: ActionGroup 全体に 1 言語を convention として採用。現時点では `js-subset` (下記 §3 で定義) 1 種のみ。
+**採用案**: ProcessFlow 全体に 1 言語を convention として採用。現時点では `js-subset` (下記 §3 で定義) 1 種のみ。
 
 **不採用案**: `expression: { lang: "js-subset", src: "..." }` のラッパー。理由:
 - 現時点で 1 言語しか使わないため、ラッパーは純粋な冗長化
 - 既存データ全件の migration が必要
-- 将来 2 言語以上混在する必要が出てきたら、その時点で `expressionLang: "js-subset" | "custom-dsl"` を ActionGroup に追加すれば済む (YAGNI)
+- 将来 2 言語以上混在する必要が出てきたら、その時点で `expressionLang: "js-subset" | "custom-dsl"` を ProcessFlow に追加すれば済む (YAGNI)
 
 ## 3. `js-subset` 許容構文 (BNF)
 
@@ -160,7 +160,7 @@ argList         = expression (',' expression)*
 
 ## 6.5 Ambient 変数 (#261 v1.4)
 
-`@requestId` / `@traceId` / `@fieldErrors` 等、**ミドルウェア・フレームワーク由来の自動注入変数**は `ActionGroup.ambientVariables?: StructuredField[]` で宣言する。
+`@requestId` / `@traceId` / `@fieldErrors` 等、**ミドルウェア・フレームワーク由来の自動注入変数**は `ProcessFlow.ambientVariables?: StructuredField[]` で宣言する。
 
 ```json
 "ambientVariables": [
@@ -246,6 +246,6 @@ effective = branch.condition && step.runIf
 
 ## 8. 将来の拡張余地
 
-- `ActionGroup.expressionLang: "js-subset" | "custom-dsl"` を追加して複数言語を併存
+- `ProcessFlow.expressionLang: "js-subset" | "custom-dsl"` を追加して複数言語を併存
 - 式のパース結果を AST として `parsedExpression?: AstNode` のように保持 (静的解析可能化)
 - `@conv.regex.phone-jp` 等の規約 ID 参照を式内で使えるように拡張

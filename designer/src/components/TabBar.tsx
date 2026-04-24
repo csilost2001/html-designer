@@ -66,7 +66,7 @@ function TabItem({
   const icon =
     tab.type === "design" ? "bi-window"
     : tab.type === "table" ? "bi-columns-gap"
-    : tab.type === "action" ? "bi-lightning-charge"
+    : tab.type === "process-flow" ? "bi-lightning-charge"
     : tab.type === "screen-flow" ? "bi-diagram-3"
     : tab.type === "table-list" ? "bi-table"
     : tab.type === "er" ? "bi-share"

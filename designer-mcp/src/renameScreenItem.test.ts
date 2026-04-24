@@ -11,17 +11,17 @@ import type { CheckRefsResult, RenameResult } from "./renameScreenItem.js";
 const store: {
   screenItems: Record<string, unknown>;
   screens: Record<string, unknown>;
-  actionGroups: Record<string, unknown>;
+  processFlows: Record<string, unknown>;
 } = {
   screenItems: {},
   screens: {},
-  actionGroups: {},
+  processFlows: {},
 };
 
 function resetStore() {
   store.screenItems = {};
   store.screens = {};
-  store.actionGroups = {};
+  store.processFlows = {};
 }
 
 vi.mock("./projectStorage.js", () => ({
@@ -29,9 +29,9 @@ vi.mock("./projectStorage.js", () => ({
   writeScreenItems: (id: string, data: unknown) => { store.screenItems[id] = data; return Promise.resolve(); },
   readScreen:       (id: string) => Promise.resolve(store.screens[id] ?? null),
   writeScreen:      (id: string, data: unknown) => { store.screens[id] = data; return Promise.resolve(); },
-  listActionGroups: () => Promise.resolve(Object.values(store.actionGroups)),
-  readActionGroup:  (id: string) => Promise.resolve(store.actionGroups[id] ?? null),
-  writeActionGroup: (id: string, data: unknown) => { store.actionGroups[id] = data; return Promise.resolve(); },
+  listProcessFlows: () => Promise.resolve(Object.values(store.processFlows)),
+  readProcessFlow:  (id: string) => Promise.resolve(store.processFlows[id] ?? null),
+  writeProcessFlow: (id: string, data: unknown) => { store.processFlows[id] = data; return Promise.resolve(); },
 }));
 
 import { checkScreenItemRefs, renameScreenItemId } from "./renameScreenItem.js";
@@ -60,7 +60,7 @@ const BASE_SCREEN_HTML = () => ({
   }],
 });
 
-const BASE_ACTION_GROUP = () => ({
+const BASE_PROCESS_FLOW = () => ({
   id: "ag-001",
   name: "ログイン処理",
   type: "screen",
@@ -93,25 +93,25 @@ beforeEach(() => resetStore());
 // checkScreenItemRefs
 // ---------------------------------------------------------------------------
 describe("checkScreenItemRefs", () => {
-  it("ActionGroup なし → totalRefs=0", async () => {
+  it("ProcessFlow なし → totalRefs=0", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
     const result = await checkScreenItemRefs(SCREEN_ID, "userName");
     expect(result.totalRefs).toBe(0);
-    expect(result.affectedActionGroups).toHaveLength(0);
+    expect(result.affectedProcessFlows).toHaveLength(0);
   });
 
   it("1 AG に 1 参照 → 正しくカウント", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
-    store.actionGroups["ag-001"] = BASE_ACTION_GROUP();
+    store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
     const result = await checkScreenItemRefs(SCREEN_ID, "userName");
     expect(result.totalRefs).toBe(1);
-    expect(result.affectedActionGroups[0].id).toBe("ag-001");
-    expect(result.affectedActionGroups[0].refCount).toBe(1);
+    expect(result.affectedProcessFlows[0].id).toBe("ag-001");
+    expect(result.affectedProcessFlows[0].refCount).toBe(1);
   });
 
   it("別画面への参照は無視される", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
-    store.actionGroups["ag-other"] = {
+    store.processFlows["ag-other"] = {
       id: "ag-other",
       name: "別画面",
       actions: [{
@@ -126,7 +126,7 @@ describe("checkScreenItemRefs", () => {
 
   it("参照していない項目 → 0", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
-    store.actionGroups["ag-001"] = BASE_ACTION_GROUP();
+    store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
     const result = await checkScreenItemRefs(SCREEN_ID, "address");
     expect(result.totalRefs).toBe(0);
   });
@@ -219,20 +219,20 @@ describe("renameScreenItemId 正常系", () => {
   });
 
   it("AG の screenItemRef.itemId が更新される", async () => {
-    store.actionGroups["ag-001"] = BASE_ACTION_GROUP();
+    store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
     const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
-    expect(result.actionGroupsUpdated).toContain("ag-001");
+    expect(result.processFlowsUpdated).toContain("ag-001");
     expect(result.refsRenamed).toBe(1);
-    const ag = store.actionGroups["ag-001"] as {
+    const ag = store.processFlows["ag-001"] as {
       actions: [{ inputs: [{ screenItemRef: { itemId: string } }] }]
     };
     expect(ag.actions[0].inputs[0].screenItemRef.itemId).toBe("loginId");
   });
 
   it("同一 AG 内の別項目参照は変更しない", async () => {
-    store.actionGroups["ag-001"] = BASE_ACTION_GROUP();
+    store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
     await renameScreenItemId(SCREEN_ID, "userName", "loginId");
-    const ag = store.actionGroups["ag-001"] as {
+    const ag = store.processFlows["ag-001"] as {
       actions: [{ inputs: Array<{ screenItemRef: { itemId: string } }> }]
     };
     expect(ag.actions[0].inputs[1].screenItemRef.itemId).toBe("password");
@@ -248,17 +248,17 @@ describe("renameScreenItemId 正常系", () => {
         }],
       }],
     };
-    store.actionGroups["ag-other"] = otherAg;
-    store.actionGroups["ag-001"] = BASE_ACTION_GROUP();
+    store.processFlows["ag-other"] = otherAg;
+    store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
     const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
-    expect(result.actionGroupsUpdated).not.toContain("ag-other");
+    expect(result.processFlowsUpdated).not.toContain("ag-other");
     expect((otherAg.actions[0].inputs[0].screenItemRef as { itemId: string }).itemId).toBe("userName");
   });
 
   it("AG がない場合でも正常に完了する", async () => {
     const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
     expect(result.refsRenamed).toBe(0);
-    expect(result.actionGroupsUpdated).toHaveLength(0);
+    expect(result.processFlowsUpdated).toHaveLength(0);
   });
 
   it("連続リネーム (A→B → B→C) が正しく動作する", async () => {

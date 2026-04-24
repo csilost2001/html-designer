@@ -1,7 +1,7 @@
 /**
  * @conv.* 補完ポップアップ E2E (#349)
  *
- * ActionEditor の ComputeStep expression 欄で @conv. 入力時に補完候補が
+ * ProcessFlowEditor の ComputeStep expression 欄で @conv. 入力時に補完候補が
  * 表示され、2 段選択 (category → key) でテキストが挿入されることを検証。
  */
 import { test, expect, type Page } from "@playwright/test";
@@ -49,20 +49,20 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: [{ id: sampleGroup.id, name: sampleGroup.name, type: sampleGroup.type, actionCount: 1, createdAt: sampleGroup.createdAt, updatedAt: sampleGroup.updatedAt }],
+  processFlows: [{ id: sampleGroup.id, name: sampleGroup.name, type: sampleGroup.type, actionCount: 1, createdAt: sampleGroup.createdAt, updatedAt: sampleGroup.updatedAt }],
   updatedAt: new Date().toISOString(),
 };
 
 async function setup(page: Page) {
   await page.addInitScript(({ project, group, catalog }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.setItem("conventions-catalog", JSON.stringify(catalog));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: sampleGroup, catalog: sampleCatalog });
   await page.goto(`/process-flow/edit/${sampleGroup.id}`);
-  // ActionEditor が表示されるまで待機
+  // ProcessFlowEditor が表示されるまで待機
   await expect(page.locator(".action-editor, [class*='action-editor']")).toBeVisible({ timeout: 10000 });
 }
 
