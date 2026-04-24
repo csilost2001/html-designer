@@ -33,7 +33,7 @@ import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
-import "../../styles/action.css";
+import "../../styles/processFlow.css";
 
 const ALL_TYPES: ProcessFlowType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
 const STORAGE_KEY = "list-view-mode:process-flow-list";

@@ -54,7 +54,7 @@ async function setupActionList(page: Page) {
     localStorage.removeItem("list-view-mode:process-flow-list");
   }, { project: dummyProject, groups: dummyGroups });
   await page.goto("/process-flow/list");
-  await expect(page.locator(".action-page")).toBeVisible();
+  await expect(page.locator(".process-flow-page")).toBeVisible();
 }
 
 test.describe("処理フロー一覧", () => {

@@ -78,9 +78,9 @@ async function setup(page: Page) {
     localStorage.removeItem("list-view-mode:process-flow-list");
   }, { project: dummyProject, fullMarkers: fullGroupWithMarkers, fullClean: fullGroupClean });
   await page.goto("/process-flow/list");
-  await expect(page.locator(".action-page")).toBeVisible();
+  await expect(page.locator(".process-flow-page")).toBeVisible();
   // マーカー集計は非同期バックグラウンド処理なので待つ
-  await expect(page.locator(".action-marker-badges").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".process-flow-marker-badges").first()).toBeVisible({ timeout: 10000 });
 }
 
 test.describe("処理フロー一覧 マーカー件数バッジ (#261)", () => {
@@ -91,20 +91,20 @@ test.describe("処理フロー一覧 マーカー件数バッジ (#261)", () => 
     const cleanCard = page.locator(".data-list-card").filter({ hasText: "マーカーなし" });
 
     // todo 2 件
-    await expect(markerCard.locator(".action-marker-badge.kind-todo")).toContainText("2");
+    await expect(markerCard.locator(".process-flow-marker-badge.kind-todo")).toContainText("2");
     // question 1 件
-    await expect(markerCard.locator(".action-marker-badge.kind-question")).toContainText("1");
+    await expect(markerCard.locator(".process-flow-marker-badge.kind-question")).toContainText("1");
     // attention 1 件
-    await expect(markerCard.locator(".action-marker-badge.kind-attention")).toContainText("1");
+    await expect(markerCard.locator(".process-flow-marker-badge.kind-attention")).toContainText("1");
     // chat は 0 件なので表示されない
-    await expect(markerCard.locator(".action-marker-badge.kind-chat")).toHaveCount(0);
+    await expect(markerCard.locator(".process-flow-marker-badge.kind-chat")).toHaveCount(0);
 
     // resolved なマーカーはカウントされない (todo の総数が 2 であることで担保)
     // mk5 (resolved) を含めれば 3 になるはず
-    await expect(markerCard.locator(".action-marker-badge.kind-todo")).not.toContainText("3");
+    await expect(markerCard.locator(".process-flow-marker-badge.kind-todo")).not.toContainText("3");
 
     // マーカーなしグループには badges 自体が表示されない
-    await expect(cleanCard.locator(".action-marker-badges")).toHaveCount(0);
+    await expect(cleanCard.locator(".process-flow-marker-badges")).toHaveCount(0);
   });
 
   test("表ビューに マーカー 列が出て、badge が表示される", async ({ page }) => {
@@ -115,21 +115,21 @@ test.describe("処理フロー一覧 マーカー件数バッジ (#261)", () => 
     await expect(page.locator("thead th").filter({ hasText: "マーカー" })).toBeVisible();
 
     const markerRow = page.locator(".data-list-row").filter({ hasText: "マーカー入り" });
-    await expect(markerRow.locator(".action-marker-badge.kind-todo")).toContainText("2");
-    await expect(markerRow.locator(".action-marker-badge.kind-question")).toContainText("1");
+    await expect(markerRow.locator(".process-flow-marker-badge.kind-todo")).toContainText("2");
+    await expect(markerRow.locator(".process-flow-marker-badge.kind-question")).toContainText("1");
   });
 
   test("ヘッダ全体サマリにマーカー合計が表示される", async ({ page }) => {
     await setup(page);
     // 合計: todo 2 + question 1 + attention 1 = 4
-    const headerSummary = page.locator(".action-list-header").locator("span[title*='マーカー']");
+    const headerSummary = page.locator(".process-flow-list-header").locator("span[title*='マーカー']");
     await expect(headerSummary).toContainText("4");
   });
 
   test("「マーカーありのみ」フィルタで marker 入りの AG だけ表示", async ({ page }) => {
     await setup(page);
     // チェックボックス ON → marker 入りのみ残る (ag-clean は非表示)
-    await page.locator(".action-list-check-label").filter({ hasText: "マーカーあり" }).click();
+    await page.locator(".process-flow-list-check-label").filter({ hasText: "マーカーあり" }).click();
     await expect(page.locator(".data-list-card").filter({ hasText: "マーカー入り" })).toBeVisible();
     await expect(page.locator(".data-list-card").filter({ hasText: "マーカーなし" })).toHaveCount(0);
     // FilterBar にラベル表示

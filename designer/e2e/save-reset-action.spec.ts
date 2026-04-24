@@ -75,17 +75,17 @@ async function setupProcessFlowEditor(page: Page, draft: object | null = null) {
     },
   );
   await page.goto(`/process-flow/edit/${PROCESS_FLOW_ID}`);
-  await expect(page.locator(".action-page")).toBeVisible();
+  await expect(page.locator(".process-flow-page")).toBeVisible();
 }
 
 /** アクションを追加してアクティブにする（ステップ追加の前提条件） */
 async function addAction(page: Page, name: string) {
   // 「+」ボタン（アクション追加）をクリック
-  await page.locator(".action-tab-add").click();
-  await page.locator(".action-modal input.form-control").first().fill(name);
-  await page.locator(".action-modal button.btn-primary").click();
+  await page.locator(".process-flow-tab-add").click();
+  await page.locator(".process-flow-modal input.form-control").first().fill(name);
+  await page.locator(".process-flow-modal button.btn-primary").click();
   // モーダルが閉じるまで待つ
-  await expect(page.locator(".action-modal")).not.toBeVisible();
+  await expect(page.locator(".process-flow-modal")).not.toBeVisible();
 }
 
 // ─── テスト ────────────────────────────────────────────────────────────────

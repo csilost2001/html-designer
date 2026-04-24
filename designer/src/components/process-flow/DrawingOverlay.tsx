@@ -96,9 +96,9 @@ function AnchoredMarker({
     const ro = new ResizeObserver(measure);
     ro.observe(document.body);
     const mo = new MutationObserver(measure);
-    // .action-page 全体を観察 (.action-editor-info の MarkerPanel 展開も含む)。
+    // .process-flow-page 全体を観察 (.process-flow-editor-info の MarkerPanel 展開も含む)。
     // attributeFilter で style/class 変化のみに絞り、入力文字列の変更などノイズを避ける。
-    const scope = document.querySelector(".action-page") ?? document.body;
+    const scope = document.querySelector(".process-flow-page") ?? document.body;
     mo.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class"] });
     window.addEventListener("scroll", measure, true);
     window.addEventListener("resize", measure);

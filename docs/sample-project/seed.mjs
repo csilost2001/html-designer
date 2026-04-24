@@ -18,10 +18,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, "../../data");
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
-const ACTIONS_DIR = path.join(DATA_DIR, "actions");
+const PROCESS_FLOWS_DIR = path.join(DATA_DIR, "process-flows");
 const SEED_SCREENS_DIR = path.join(__dirname, "screens");
 const SEED_TABLES_DIR = path.join(__dirname, "tables");
-const SEED_ACTIONS_DIR = path.join(__dirname, "actions");
+const SEED_PROCESS_FLOWS_DIR = path.join(__dirname, "process-flows");
 const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SEED_CONVENTIONS_DIR = path.join(__dirname, "conventions");
 const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
@@ -29,7 +29,7 @@ const SEED_SCREEN_ITEMS_DIR = path.join(__dirname, "screen-items");
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });
 fs.mkdirSync(TABLES_DIR, { recursive: true });
-fs.mkdirSync(ACTIONS_DIR, { recursive: true });
+fs.mkdirSync(PROCESS_FLOWS_DIR, { recursive: true });
 fs.mkdirSync(CONVENTIONS_DIR, { recursive: true });
 fs.mkdirSync(SEED_SCREENS_DIR, { recursive: true });
 fs.mkdirSync(SCREEN_ITEMS_DIR, { recursive: true });
@@ -1120,12 +1120,12 @@ if (fs.existsSync(SEED_TABLES_DIR)) {
 
 // ── 処理フロー定義データをコピー ──────────────────────────────────────────
 let actionCount = 0;
-if (fs.existsSync(SEED_ACTIONS_DIR)) {
-  const actionFiles = fs.readdirSync(SEED_ACTIONS_DIR).filter((f) => f.endsWith(".json"));
+if (fs.existsSync(SEED_PROCESS_FLOWS_DIR)) {
+  const actionFiles = fs.readdirSync(SEED_PROCESS_FLOWS_DIR).filter((f) => f.endsWith(".json"));
   for (const file of actionFiles) {
     fs.copyFileSync(
-      path.join(SEED_ACTIONS_DIR, file),
-      path.join(ACTIONS_DIR, file),
+      path.join(SEED_PROCESS_FLOWS_DIR, file),
+      path.join(PROCESS_FLOWS_DIR, file),
     );
     actionCount++;
     console.log(`[action ${actionCount}/${actionFiles.length}] ${file.replace(".json", "")}`);

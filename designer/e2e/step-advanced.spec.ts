@@ -65,7 +65,7 @@ async function setupEditor(page: Page) {
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
   await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
 }
 
 test.describe("ステップ追加 (条件分岐 / ループ) (#248)", () => {

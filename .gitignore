@@ -20,6 +20,13 @@ screenshots/
 
 # 一時出力 (例: /review-pr /review-issue が書き出すレビュー結果は tmp/review-cache/ 配下)
 tmp/
+.tmp/
+
+# Codex CLI のプロジェクト固有設定 (ユーザー個人の sandbox 設定等、共有しない)
+.codex/
+
+# Playwright / vitest 等のテスト実行結果
+test-results/
 
 # Editor / OS
 .DS_Store

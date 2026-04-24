@@ -62,7 +62,7 @@ import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredF
 import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
-import "../../styles/action.css";
+import "../../styles/processFlow.css";
 
 /** ツールバーのドラッグ可能なステップ種別ボタン */
 function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => void }) {
