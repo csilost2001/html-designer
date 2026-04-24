@@ -1,237 +1,49 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Claude Code 向けの補足ガイダンス。
 
-## Project Overview
+**プロジェクト全般のルールは [AGENTS.md](./AGENTS.md) を参照してください** (Codex CLI 等の他 AI コーディングエージェントも同ファイルを読みます)。以下は Claude Code 固有の事項のみ記載します。
 
-業務システム デザイナー — Japanese business application WYSIWYG screen designer. Two main components:
+@AGENTS.md
 
-- **designer/** — Frontend (React + Vite + GrapesJS + ReactFlow)
-- **designer-mcp/** — MCP server + WebSocket bridge for file persistence
+---
 
-## Commands
+## Claude Code 固有の環境
 
-### Designer (Frontend)
+### MCP 接続
 
-```bash
-cd designer
-npm install        # Install dependencies
-npm run dev        # Dev server (http://localhost:5173)
-npm run build      # TypeScript check + Vite build
-npm run lint       # ESLint
-```
+- `.mcp.json` の URL エントリ経由で `designer-mcp` に自動接続 (port 5179)
+- 起動前提: `cd designer-mcp && npm run dev` で常駐済みであること
+- 接続先: `http://localhost:5179/mcp`
 
-### Designer-MCP (Backend)
+### Slash Commands / Skills
 
-```bash
-cd designer-mcp
-npm install
-npm run dev        # Watch mode (tsx)
-npm run build      # Compile to dist/
-```
+本プロジェクトで利用する Claude Code 固有スキル (`.claude/skills/`):
 
-Both servers must run simultaneously for file-based persistence. Without designer-mcp, the frontend falls back to localStorage.
+- **`/review-pr <N>`** — PR 独立レビュー (`.claude/skills/review-pr/SKILL.md`)
+- **`/review-issue <N>`** — ISSUE 単位の実装網羅性監査 (`.claude/skills/review-issue/SKILL.md`)
+- **`/test-strategy`** — テスト実装時の自動起動スキル (`.claude/skills/test-strategy/SKILL.md`)
+- **`/rename-screen-ids`** — AI 推論による画面項目 ID 再命名 (`.claude/skills/rename-screen-ids/SKILL.md`)
 
-`designer-mcp` は常駐サーバ (#302): `cd designer-mcp && npm run dev` で 1 回起動すれば、ブラウザ・複数の Claude Code セッション双方が接続できる。Claude Code 終了でも停止しないので、次回以降も使い回し可能。
+Codex CLI 利用時はこれらのスキルは直接呼び出せません。等価機能は Codex plugin の `/codex:review` 等で代替するか、Opus が briefing で代替指示を出します。
 
-### Test Data
+### Memory システム
 
-```bash
-node docs/sample-project/seed.mjs            # Generate 10 sample screens + screen-items into data/
-node scripts/migrate-screen-items.mjs        # Dry-run: show screens missing data-item-id/name attrs
-node scripts/migrate-screen-items.mjs --apply  # Apply: add id/data-item-id attrs to existing screens
-node scripts/migrate-screen-items-rename.mjs        # Dry-run: show screen-items with old name field (#330)
-node scripts/migrate-screen-items-rename.mjs --apply  # Apply: rename name→id in data/screen-items/
-```
+- 自動メモリの保存先: `C:\Users\csilo\.claude\projects\C--projects-html-designer\memory\`
+- `MEMORY.md` が index、個別ファイルは `feedback_*.md` / `project_*.md` / `reference_*.md` 等の命名規約
+- Codex 経由のタスクでは memory は自動共有されないため、必要な文脈は Opus が briefing に転記する
 
-## Architecture
+### 命名運用中の重要事項
 
-### Two-Process Design
+- `ActionGroup` → `ProcessFlow` への大規模リネームを計画中 (2026-04-25 決定)
+- 詳細は memory `project_framework_research_2026_04_25.md` を参照
+- リネーム完了まで当面は混在表記あり
 
-```
-Claude Code ──(http://localhost:5179/mcp)──┐
-                                           ▼
-                                      designer-mcp ←──(ws://0.0.0.0:5179)──→ Browser
-                                           ▼
-                                       data/ folder
-```
+### Codex plugin 連携 (2026-04-25 以降導入)
 
-- **MCP (HTTP Streamable, port 5179):** Claude Code が `.mcp.json` の URL エントリで接続 (#302)。常駐サーバなので複数 Claude Code セッション同時接続可、orphan 問題も解消
-- **WebSocket (port 5179):** Browser reads/writes screen data via wsBridge — MCP と同一 port に同居
-- **Shared storage:** Both access `data/` directory (project.json + screens/*.json)
+本プロジェクトでは **Codex plugin 経由で GPT-5.5 にタスク委譲** する運用を試行中。詳細は memory `project_framework_research_2026_04_25.md` を参照。
 
-### 起動
-
-- **通常の開発フロー**: `cd designer-mcp && npm run dev` で常駐起動 (任意のタイミングで 1 回)。Claude Code も同プロジェクトで開けば `.mcp.json` の URL エントリ経由で自動接続。
-- **.mcp.json 経由の自動 spawn はしない** (URL mode): Claude Code 起動時に既存サーバが無いと MCP 不接続状態になるため、backend が上がっているか先に確認すること。
-
-### Routing
-
-URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルートは単一概念で意味が通るよう、複数解釈できる複数形は避ける（例: `/flow` は 画面フロー／処理フロー どちらか不明なため不採用）。
-
-| Path | Component | Purpose | Opens as tab? |
-|------|-----------|---------|---------------|
-| `/` | DashboardView | 全体俯瞰ダッシュボード | ✅ singleton |
-| `/screen/flow` | FlowEditor | 画面フロー図（ReactFlow、キャンバス固定）| ✅ singleton |
-| `/screen/list` | ScreenListView | 画面一覧（カード ⇔ 表切替）| ✅ singleton |
-| `/screen/design/:screenId` | Designer | 画面デザイナー（GrapesJS）| ✅ per-resource |
-| `/table/list` | TableListView | テーブル一覧 | ✅ singleton |
-| `/table/edit/:tableId` | TableEditor | テーブル編集 | ✅ per-resource |
-| `/table/er` | ErDiagram | ER 図 | ✅ singleton |
-| `/process-flow/list` | ActionListView | 処理フロー一覧 | ✅ singleton |
-| `/process-flow/edit/:actionGroupId` | ActionEditor | 処理フロー編集 | ✅ per-resource |
-
-### Tab policy
-
-**HeaderMenu から到達できる画面と、個別リソース編集画面は、すべてタブ。**
-
-| 種別 | 対象 | 性質 |
-|------|------|------|
-| シングルトンタブ | Dashboard / 画面フロー / 画面一覧 / テーブル一覧 / ER 図 / 処理フロー一覧 | 1 インスタンス固定、再オープン時は既存を再利用 |
-| マルチインスタンスタブ | Designer / TableEditor / ActionEditor | リソース ID 毎に独立タブ |
-| route only | なし | — |
-
-**理由**: 一覧画面は全機能の俯瞰・順序変更・検索・帳票出力等の中心機能で、**詳細より頻繁に開かれる**。タブ化しないと毎回 HeaderMenu から辿り直しで UX 劣化する。VS Code も Welcome / Settings / Source Control などシングルトンをタブで開く。
-
-**旧ポリシー（#98）は撤回**: 「一覧は通過点だから route only」という判断は、実際の使用頻度と衝突するため破棄。
-
-### Key Directories
-
-- `designer/src/components/flow/` — Flow diagram editor (ReactFlow-based)
-- `designer/src/grapes/blocks.ts` — 60+ pre-built block definitions
-- `designer/src/store/` — Persistence layer (flowStore, customBlockStore)
-- `designer/src/mcp/mcpBridge.ts` — Browser-side WebSocket client
-- `designer-mcp/src/tools.ts` — 20 MCP tool definitions
-- `designer-mcp/src/wsBridge.ts` — WebSocket server + broadcast
-
-### Data Flow
-
-- **Save:** GrapesJS autosave → remoteStorage → mcpBridge (WS) → wsBridge → `data/screens/{id}.json`
-- **Fallback:** If WS disconnected → localStorage (`gjs-screen-{id}`)
-- **Sync:** wsBridge broadcasts changes to all connected browser tabs
-
-## Environment Notes
-
-- **Windows:** `npx` may fail in Git Bash. Ensure Node.js is in PATH.
-- **gh CLI:** Added to PATH via `~/.bashrc`. No prefix needed — `gh` commands work directly.
-- **Ports:** Vite on 5173 (strictPort), WebSocket on 5179. Both listen on 0.0.0.0.
-- **HTTP access:** `crypto.randomUUID()` is unavailable in non-secure contexts. Use `generateUUID()` from `src/utils/uuid.ts` instead.
-- **Playwright MCP:** Do not use `--headless=false` flag on Windows.
-
-## Testing Strategy
-
-詳細は `/test-strategy` スキル参照（テスト実装・修正時に自動起動）。
-
-- Vitest: `designer/src/**/*.test.ts` — ストアロジック・ユーティリティ
-- Playwright: `designer/e2e/**/*.spec.ts` — UI・ナビゲーション操作
-- MCP E2E: `designer/e2e/mcp/**/*.spec.ts` — wsBridge ファイル操作（要 designer-mcp 起動）
-
-## Process Flow (処理フロー) — 一次成果物は JSON Schema
-
-処理フロー定義はこのプロジェクトの主出力 (AI が読んで実装する前提)。TypeScript 型は派生物、UI は最後尾の表示層。変更時の順序:
-
-1. 仕様書 [`docs/spec/process-flow-*.md`](docs/spec/README.md)
-2. JSON Schema [`schemas/process-flow.schema.json`](schemas/process-flow.schema.json)
-3. TypeScript 型 `designer/src/types/action.ts`
-4. UI / 実装
-
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/actions/*.json` の全件をスキーマで検証する。
-
-**ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
-
-## UI Conventions
-
-詳細仕様は [docs/spec/](docs/spec/README.md) に集約。一覧系 UI を触る前に必ず読む:
-
-- **一覧系 UI** (選択・キーボード・D&D・コピペ・ソート・フィルタ・Read-only モード・No 列永続フィールド): [docs/spec/list-common.md](docs/spec/list-common.md)
-  - `DataList` / `useListSelection` / `useListKeyboard` / `useListClipboard` / `useListFilter` / `useListSort` / `<FilterBar>` / `<SortBar>` / `<ViewModeToggle>`
-  - 対象画面: 画面一覧・テーブル一覧・処理フロー一覧・テーブル定義 > カラム一覧
-
-## Conventions
-
-- All UI text is in Japanese
-- Commit messages use conventional commits in Japanese (e.g., `feat(flow):`, `fix(designer):`, `improve:`)
-- **Workflow: デフォルトは 1 ISSUE = 1 ブランチ = 1 PR**。ただし以下は複数 ISSUE を 1 PR に束ねる (ISSUE = 作業指示単位 / PR = 1 論理的変更単位、両者は 1:1 とは限らない):
-  - UX / 機能として一体 (単独で動かない・ユーザー体験が完結しない)
-  - 調査の結果、関連バグ・関連修正と判明した
-  - シリーズ起票された ISSUE 群で、起票時点で PR グルーピングが宣言されている
-  - 同じ画面に対する複数 ISSUE の同時修正
-
-  束ねる場合: PR description に **各 ISSUE の前に `Closes` キーワードを必ず書く** (GitHub 仕様 "Use full syntax for each issue")。改行区切り推奨:
-  ```
-  Closes #A
-  Closes #B
-  Closes #C
-  ```
-  **NG**: `Closes #A, #B, #C` は**先頭しか自動 close されない** (PR #340 で実例あり)。コミットは ISSUE 単位で分ける。UI 目視確認 / `/review-pr` は**統合 PR 単位で 1 回**。Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
-- PRs are squash-merged into `main`. The PR title should include the issue number (e.g., `feat(ui): ... (#83)`) so the merge commit references it.
-- `data/` directory is gitignored — runtime data only
-- Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
-- Custom blocks persist to `data/custom-blocks.json` via customBlockStore
-
-## PR 作成・レビューの規約
-
-運用手引き (人間向け): [docs/pr-review-workflow.md](docs/pr-review-workflow.md)
-
-- PR 作成時は [`.github/pull_request_template.md`](.github/pull_request_template.md) を**全項目埋める**。不要な項目は削除せず「N/A」と明記 (レビュアーが見落としと区別するため)
-- 「仕様逐条突合 (自己申告)」節は各条項を `file:line` で**個別に列挙**。「全条項 ✓」の一括表記は不可。大規模実装の完了報告前に仕様を逐条突合すること
-- 大規模実装 / spec 絡み / UI 影響のある PR は、別の Claude Code セッション (新しいウィンドウで `/clear` 後) で [`/review-pr <N>`](.claude/skills/review-pr/SKILL.md) を実行し、独立レビュー結果を PR コメントに投稿してからマージ判断する
-- **1 ISSUE を複数 PR に分割したケース**は、全 PR マージ後に [`/review-issue <N>`](.claude/skills/review-issue/SKILL.md) で ISSUE 単位の実装網羅性を監査する。PR 単位レビューでは検出できない実装漏れ (ISSUE 計画と全 PR 実装の突合) を拾う
-- レビュー結果が Must-fix を含む場合はマージしない。Should-fix は対応可否をユーザーに確認
-- UI 影響のある PR は auto テスト pass ≠ マージ可。**ユーザーの目視確認必須**
-
-## シリーズ PR (統合 PR) 運用
-
-ISSUE 本文の冒頭に `## 🔗 統合 PR 情報` セクションがある ISSUE は、**単独 PR ではなく統合 PR の一部** として実装する。実装者 (Sonnet 等) は ISSUE 本文を読んだ時点で以下を自動実行する:
-
-1. セクションに記載された **統合ブランチ** を `origin/main` (または指定 base) から切る (既に存在すれば checkout して継続)
-2. 自分の担当 ISSUE 分のコミットをそのブランチに積む (ISSUE 単位で commit メッセージを分ける)
-3. **他の統合対象 ISSUE が全て完了するまで PR を作らない** (draft も不可)
-4. 最後の ISSUE 完了時に PR を作成、description に **各 ISSUE の前に `Closes` を必ず書いて** 全 ISSUE を列挙 (GitHub 仕様: 改行区切り推奨):
-   ```
-   Closes #A
-   Closes #B
-   Closes #C
-   ```
-   **NG**: `Closes #A, #B, #C` は先頭しか自動 close されない
-5. UI 目視確認 / `/review-pr` は統合 PR 単位で 1 回のみ (個別 ISSUE で実行しない)
-
-ユーザーからの指示が `#<N> やって` のように単一 ISSUE 番号でも、本文に本セクションがあれば上記に従う。セクションが無い場合は通常の 1 ISSUE = 1 PR 運用。
-
-**壁打ち担当 (Opus 等) は ISSUE 起票時**、UI 一体性 / 関連修正 / 同一画面 / 依存関係のある ISSUE 群は必ず統合 PR 化し、各 ISSUE 本文冒頭に本セクションを挿入する。
-
-### 後付けで関連性が判明した場合 (起票時には無関係に見えた ISSUE)
-
-テスター起票のバグや、他担当者が先行起票した ISSUE など、起票時点では関連性が不明なことは珍しくない。調査・実装の過程で他 ISSUE との共通点が判明した場合、以下で統合 PR 化する。
-
-**実装者 (Sonnet 等) の着手前ルーチン (必須)**:
-
-1. ユーザーから `#<N> やって` を受けた時点でまず `gh issue view <N>` で本文を読む
-2. 本文に `## 🔗 統合 PR 情報` があればそれに従う (以上)
-3. なければ、**着手前に必ず関連検索** する:
-   - `gh issue list --state open --search "<キーワード>"` で同一機能領域の open ISSUE を洗う
-   - 本 ISSUE が触りそうなファイル・モジュール・UI 画面名をキーワードに使う
-   - 親 spec / 同一ディレクトリが対象の ISSUE も確認
-4. 関連を発見した場合は **着手する前に** ユーザーに統合提案 (例: `「#<N> を調査したところ #<M> と同じ X を触ります。統合 PR にまとめていいですか?」`)
-5. 承認後、全関連 ISSUE の本文冒頭に `## 🔗 統合 PR 情報` セクションを prepend (`gh issue edit --body-file`)。以後は通常の統合 PR 運用
-
-**実装中に関連が判明した場合**:
-
-- 作業を一時停止 (コミットは保持、push しない)
-- 同じく統合提案 → 承認 → 本文更新
-- 既に作業ブランチを切っていた場合は、ブランチ名を統合ブランチ名にリネーム (`git branch -m`) or checkout し直す
-
-**壁打ち担当 (Opus 等) の新規起票時**:
-
-- 起票前に `gh issue list --state open` で既存 open ISSUE を検索
-- 関連があれば「新規起票 + 既存 ISSUE を統合 PR でまとめる」提案をユーザーに先に出す
-- 承認後、新規 + 既存の全 ISSUE 本文に統合 PR 情報を追加
-
-**統合 PR 化の判断基準 (いずれか該当で検討)**:
-
-- 同じファイル / モジュール / UI 画面を触る
-- 根本原因が共通 (1 fix で複数 ISSUE が解消する)
-- 変更内容に依存関係がある (A が無いと B が動かない等)
-- UX として一体で単独では動作評価できない
-
-関連性が微妙な場合はユーザーに判断を委ねる。勝手に統合 / 単独を決めない。
+- 実装委譲: `/codex:rescue <task description>`
+- 一次レビュー: `/codex:review`
+- 挑発的レビュー: `/codex:adversarial-review`
+- プロジェクト固有設定: `.codex/config.toml` を配置可能 (推奨モデル / reasoning effort 等)
