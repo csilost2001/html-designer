@@ -108,7 +108,7 @@
 ActionGroup.outputs[invoiceNumber].format = "@conv.numbering.invoiceNumber"
   → catalog.numbering.invoiceNumber.format = "INV-YYYY-NNNN"
   → catalog.numbering.invoiceNumber.implementation = "PG sequence + trigger"
-  → SequenceDefinition.conventionRef = "@conv.numbering.invoiceNumber"
+  → SequenceDefinition.id = "seq_invoice_number" / conventionRef = "@conv.numbering.invoiceNumber"
   → SequenceDefinition.usedBy[].tableId = "invoices" / columnName = "invoice_number"
   → TableDefinition.defaults[].kind = "conventionRef" / value = "@conv.numbering.invoiceNumber"
   → TableDefinition.triggers[].body = "NEW.invoice_number := 'INV-' || ... || nextval('seq_invoice_number')"

@@ -1,5 +1,5 @@
 {
-  "id": "dddddddd-0001-4000-8000-dddddddddddd",
+  "id": "seq_invoice_number",
   "startValue": 1,
   "increment": 1,
   "minValue": 1,
