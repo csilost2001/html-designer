@@ -1,0 +1,200 @@
+{
+  "id": "cccccccc-0008-4000-8000-cccccccccccc",
+  "name": "パスワード変更フロー",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa",
+  "description": "LogStep / AuditStep の実証サンプル。ログイン済みユーザーのパスワード変更で、アプリケーションログと監査ログを分離して記録する。",
+  "mode": "downstream",
+  "maturity": "committed",
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "リクエスト毎一意 ID。ログ相関に使用"
+    },
+    {
+      "name": "sessionUserId",
+      "type": "number",
+      "required": true,
+      "description": "認証ミドルウェアがセッションから注入する現在ユーザー ID"
+    },
+    {
+      "name": "fieldErrors",
+      "type": { "kind": "object", "fields": [] },
+      "required": false,
+      "description": "ValidationStep.rules[] 評価結果。fieldErrorsVar で宣言"
+    }
+  ],
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値エラー",
+      "responseRef": "400-validation"
+    },
+    "USER_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "ユーザーが存在しません",
+      "description": "パスワード更新対象のユーザーが見つからない"
+    }
+  },
+  "typeCatalog": {
+    "ApiError": {
+      "description": "共通エラーレスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    },
+    "PasswordChangeResponse": {
+      "description": "パスワード変更成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["changed"],
+        "properties": {
+          "changed": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "パスワード変更ボタン押下",
+      "trigger": "submit",
+      "description": "新パスワードを検証し、ハッシュ化して保存し、監査ログを記録する。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/users/me/password",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "currentPassword",
+          "label": "現在のパスワード",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "newPassword",
+          "label": "新しいパスワード",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "outputs": [
+        { "name": "changed", "label": "変更完了", "type": "boolean" }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": { "typeRef": "PasswordChangeResponse" },
+          "when": "パスワード変更完了"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "@fieldErrors が空でない"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "type": "validation",
+          "description": "現在のパスワードと新パスワードの入力チェック",
+          "maturity": "committed",
+          "conditions": "currentPassword 必須、newPassword 必須かつ 12 文字以上",
+          "rules": [
+            {
+              "field": "currentPassword",
+              "type": "required",
+              "message": "@conv.msg.required"
+            },
+            {
+              "field": "newPassword",
+              "type": "minLength",
+              "length": 12,
+              "message": "パスワードは 12 文字以上で入力してください"
+            }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "次のステップへ継続",
+            "ng": "400 バリデーションエラー返却",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-02",
+          "type": "compute",
+          "description": "新パスワードのハッシュ値を生成する。平文は保存しない。",
+          "maturity": "committed",
+          "expression": "passwordHasher.hash(@inputs.newPassword)",
+          "outputBinding": "newPasswordHash"
+        },
+        {
+          "id": "step-03",
+          "type": "dbAccess",
+          "description": "ユーザーのパスワードハッシュを更新",
+          "maturity": "committed",
+          "tableName": "users",
+          "operation": "UPDATE",
+          "sql": "UPDATE users SET password_hash = @newPasswordHash, updated_at = CURRENT_TIMESTAMP WHERE id = @sessionUserId",
+          "affectedRowsCheck": {
+            "operator": "=",
+            "expected": 1,
+            "onViolation": "throw",
+            "errorCode": "USER_NOT_FOUND"
+          },
+          "outputBinding": "passwordUpdateResult"
+        },
+        {
+          "id": "step-04",
+          "type": "log",
+          "description": "運用観測用ログを出力",
+          "maturity": "committed",
+          "level": "info",
+          "message": "パスワード変更が完了しました userId=@sessionUserId",
+          "category": "security.password",
+          "structuredData": {
+            "requestId": "@requestId",
+            "userId": "@sessionUserId"
+          }
+        },
+        {
+          "id": "step-05",
+          "type": "audit",
+          "description": "パスワード変更の監査ログを記録。actor と timestamp は実装側で自動付与する。",
+          "maturity": "committed",
+          "action": "user.passwordChange",
+          "resource": {
+            "type": "User",
+            "id": "@sessionUserId"
+          },
+          "result": "success",
+          "reason": "self-service password change",
+          "sensitive": true
+        },
+        {
+          "id": "step-06",
+          "type": "return",
+          "description": "200 OK を返却",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ changed: true }"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-25T00:00:00.000Z",
+  "updatedAt": "2026-04-25T00:00:00.000Z"
+}

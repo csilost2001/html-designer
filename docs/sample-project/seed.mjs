@@ -26,6 +26,9 @@ const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SEED_CONVENTIONS_DIR = path.join(__dirname, "conventions");
 const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
 const SEED_SCREEN_ITEMS_DIR = path.join(__dirname, "screen-items");
+const REQUIRED_PROCESS_FLOW_FILES = [
+  "cccccccc-0008-4000-8000-cccccccccccc.json",
+];
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });
 fs.mkdirSync(TABLES_DIR, { recursive: true });
@@ -1122,6 +1125,11 @@ if (fs.existsSync(SEED_TABLES_DIR)) {
 let actionCount = 0;
 if (fs.existsSync(SEED_PROCESS_FLOWS_DIR)) {
   const actionFiles = fs.readdirSync(SEED_PROCESS_FLOWS_DIR).filter((f) => f.endsWith(".json"));
+  for (const file of REQUIRED_PROCESS_FLOW_FILES) {
+    if (!actionFiles.includes(file)) {
+      throw new Error(`Required process-flow sample is missing: ${file}`);
+    }
+  }
   for (const file of actionFiles) {
     fs.copyFileSync(
       path.join(SEED_PROCESS_FLOWS_DIR, file),
