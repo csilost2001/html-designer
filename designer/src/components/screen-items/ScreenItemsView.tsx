@@ -30,6 +30,8 @@ import type { ActionGroupMeta } from "../../types/action";
 import type { TableMeta } from "../../types/table";
 import { listActionGroups } from "../../store/actionStore";
 import { listTables } from "../../store/tableStore";
+import { listViews } from "../../store/viewStore";
+import type { ViewMeta } from "../../types/view";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
@@ -175,11 +177,10 @@ function OutputFields({ item, idx, onUpdate, onCommit }: OutputFieldsProps) {
           {kind === "viewColumn" && (
             <>
               <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">
-                  ビュー名
-                  <span className="screen-items-todo-note" title="ビュー一覧は #376 で実装予定">※手動入力</span>
-                </span>
+                <span className="screen-items-detail-label">ビュー名</span>
                 <input
+                  type="text"
+                  list="screen-items-view-list"
                   className="form-control form-control-sm"
                   value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).viewName}
                   onChange={(e) => handleValueFromPatch({ viewName: e.target.value } as Partial<ValueSource>)}
@@ -242,6 +243,7 @@ export function ScreenItemsView() {
   const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
   const [actionGroups, setActionGroups] = useState<ActionGroupMeta[]>([]);
   const [tables, setTables] = useState<TableMeta[]>([]);
+  const [views, setViews] = useState<ViewMeta[]>([]);
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -270,10 +272,11 @@ export function ScreenItemsView() {
     loadConventions().then(setConventions).catch(console.error);
   }, []);
 
-  // 処理フロー・テーブル一覧をロード (valueFrom datalist 用)
+  // 処理フロー・テーブル・ビュー一覧をロード (valueFrom datalist 用)
   useEffect(() => {
     listActionGroups().then(setActionGroups).catch(console.error);
     listTables().then(setTables).catch(console.error);
+    listViews().then(setViews).catch(console.error);
   }, []);
 
   // 画面一覧をロード (初回 + MCP 接続復帰時)
@@ -1136,6 +1139,9 @@ export function ScreenItemsView() {
             </datalist>
             <datalist id="screen-items-table-list">
               {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
+            </datalist>
+            <datalist id="screen-items-view-list">
+              {views.map((v) => <option key={v.id} value={v.id}>{v.description}</option>)}
             </datalist>
           </div>
           </>
