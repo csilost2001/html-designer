@@ -135,6 +135,11 @@
       "format": "ORD-YYYY-NNNN",
       "implementation": "PG sequence + trigger",
       "description": "注文番号 年+4 桁ゼロパディング (例: ORD-2026-0001)"
+    },
+    "invoiceNumber": {
+      "format": "INV-YYYY-NNNN",
+      "implementation": "PG sequence + trigger",
+      "description": "請求書番号 年+4 桁ゼロパディング (例: INV-2026-0001). seq_invoice_number を BEFORE INSERT トリガーで適用"
     }
   },
 
