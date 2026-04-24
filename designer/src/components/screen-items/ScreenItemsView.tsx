@@ -1141,7 +1141,7 @@ export function ScreenItemsView() {
               {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
             </datalist>
             <datalist id="screen-items-view-list">
-              {views.map((v) => <option key={v.id} value={v.id} />)}
+              {views.map((v) => <option key={v.id} value={v.id}>{v.description}</option>)}
             </datalist>
           </div>
           </>
