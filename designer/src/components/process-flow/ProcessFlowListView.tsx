@@ -493,12 +493,12 @@ export function ProcessFlowListView() {
       .map((b) => `${b.label}: ${m[b.kind]}`)
       .join(" / ");
     return (
-      <span className="action-marker-badges" title={`AI 依頼マーカー ${m.total} 件 (${tooltip})`}>
+      <span className="process-flow-marker-badges" title={`AI 依頼マーカー ${m.total} 件 (${tooltip})`}>
         {MARKER_BADGE_META.map((b) => {
           const count = m[b.kind];
           if (count === 0) return null;
           return (
-            <span key={b.kind} className={`action-marker-badge kind-${b.kind}`}>
+            <span key={b.kind} className={`process-flow-marker-badge kind-${b.kind}`}>
               <i className={`bi ${b.icon}`} />
               {count}
             </span>
@@ -514,7 +514,7 @@ export function ProcessFlowListView() {
       header: "名前",
       sortable: true,
       sortAccessor: (g) => g.name,
-      render: (g) => <span className="action-list-name">{g.name}</span>,
+      render: (g) => <span className="process-flow-list-name">{g.name}</span>,
     },
     {
       key: "type",
@@ -589,7 +589,7 @@ export function ProcessFlowListView() {
         if (!v) return null;
         if (v.errors > 0) return <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{v.errors}</span>;
         if (v.warnings > 0) return <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{v.warnings}</span>;
-        return <i className="bi bi-check-lg action-validation-ok" title="問題なし" />;
+        return <i className="bi bi-check-lg process-flow-validation-ok" title="問題なし" />;
       },
     },
   ], [validationMap, getErrorPriority, markerMap]);
@@ -599,22 +599,22 @@ export function ProcessFlowListView() {
     const hasError = (v?.errors ?? 0) > 0;
     const hasWarning = (v?.warnings ?? 0) > 0;
     return (
-      <div className={`action-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
-        <div className="action-card-head">
+      <div className={`process-flow-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
+        <div className="process-flow-card-head">
           <span className={`process-flow-type-badge ${g.type}`}>
             <i className={`${PROCESS_FLOW_TYPE_ICONS[g.type as ProcessFlowType] ?? "bi-three-dots"} me-1`} />
             {PROCESS_FLOW_TYPE_LABELS[g.type as ProcessFlowType] ?? g.type}
           </span>
           <MaturityBadge maturity={g.maturity} />
-          <span className="action-card-name">{g.name}</span>
+          <span className="process-flow-card-name">{g.name}</span>
           {v && (hasError || hasWarning) && (
-            <span className="action-validation-badges">
+            <span className="process-flow-validation-badges">
               {hasError && <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{v.errors}</span>}
               {hasWarning && <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{v.warnings}</span>}
             </span>
           )}
         </div>
-        <div className="action-card-meta">
+        <div className="process-flow-card-meta">
           <span><i className="bi bi-lightning me-1" />アクション: {g.actionCount}件</span>
           {g.screenId && <span><i className="bi bi-display me-1" />画面紐付き</span>}
           {(g.notesCount ?? 0) > 0 && (
@@ -637,14 +637,14 @@ export function ProcessFlowListView() {
   const deletedCount = editor.deletedIds.size;
 
   return (
-    <div className="action-page">
+    <div className="process-flow-page">
       <TableSubToolbar />
 
-      <div className="action-content">
-        <div className="action-list-header">
+      <div className="process-flow-content">
+        <div className="process-flow-list-header">
           <h5>
             <i className="bi bi-diagram-3 me-2" />処理フロー定義
-            {deletedCount > 0 && <span className="action-list-deleted-count"> (削除予定 {deletedCount})</span>}
+            {deletedCount > 0 && <span className="process-flow-list-deleted-count"> (削除予定 {deletedCount})</span>}
           </h5>
           {(() => {
             const summary = { draft: 0, provisional: 0, committed: 0, notes: 0 };
@@ -693,7 +693,7 @@ export function ProcessFlowListView() {
               </div>
             );
           })()}
-          <div className="action-list-header-right">
+          <div className="process-flow-list-header-right">
             <ViewModeToggle mode={viewMode} onChange={setViewMode} storageKey={STORAGE_KEY} />
             <button
               className="btn btn-primary btn-sm"
@@ -711,7 +711,7 @@ export function ProcessFlowListView() {
             >
               <i className="bi bi-trash" /> 削除{selection.selectedIds.size > 0 ? ` (${selection.selectedIds.size})` : ""}
             </button>
-            <span className="action-saveline-sep" />
+            <span className="process-flow-saveline-sep" />
             <button
               className="btn btn-outline-secondary btn-sm"
               data-testid="list-reset-btn"
@@ -734,7 +734,7 @@ export function ProcessFlowListView() {
         </div>
 
         {/* フィルタバー */}
-        <div className="action-list-filters">
+        <div className="process-flow-list-filters">
           <button
             className={`btn btn-sm ${filterType === "all" ? "btn-primary" : "btn-outline-secondary"}`}
             onClick={() => setFilterType("all")}
@@ -755,9 +755,9 @@ export function ProcessFlowListView() {
             );
           })}
 
-          <div className="action-list-filter-sep" />
+          <div className="process-flow-list-filter-sep" />
 
-          <label className="action-list-check-label">
+          <label className="process-flow-list-check-label">
             <input
               type="checkbox"
               checked={filterErrorsOnly}
@@ -766,7 +766,7 @@ export function ProcessFlowListView() {
             エラーありのみ
           </label>
 
-          <label className="action-list-check-label">
+          <label className="process-flow-list-check-label">
             <input
               type="checkbox"
               checked={filterMarkersOnly}
@@ -775,9 +775,9 @@ export function ProcessFlowListView() {
             <i className="bi bi-robot" /> マーカーありのみ
           </label>
 
-          <div className="action-list-filter-sep" />
+          <div className="process-flow-list-filter-sep" />
 
-          <label className="action-list-check-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <label className="process-flow-list-check-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>
             成熟度:
             <select
               className="form-select form-select-sm"
@@ -825,7 +825,7 @@ export function ProcessFlowListView() {
           layout={viewMode === "card" ? "grid" : "list"}
           renderCard={renderCard}
           showNumColumn={viewMode === "table"}
-          className="action-data-list"
+          className="process-flow-data-list"
           isItemGhost={(id) => editor.isDeleted(id)}
           emptyMessage={
             groups.length === 0
@@ -837,8 +837,8 @@ export function ProcessFlowListView() {
 
       {/* 新規作成モーダル */}
       {showAdd && (
-        <div className="action-modal-overlay" onClick={() => setShowAdd(false)}>
-          <div className="action-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="process-flow-modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="process-flow-modal" onClick={(e) => e.stopPropagation()}>
             <h6>処理フロー定義の新規作成</h6>
             <div className="form-group">
               <label className="form-label">名前 *</label>
@@ -887,7 +887,7 @@ export function ProcessFlowListView() {
                 placeholder="処理フローの概要"
               />
             </div>
-            <div className="action-modal-footer">
+            <div className="process-flow-modal-footer">
               <button className="btn btn-outline-secondary btn-sm" onClick={() => setShowAdd(false)}>
                 キャンセル
               </button>

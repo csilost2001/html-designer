@@ -568,7 +568,7 @@ export function ProcessFlowEditor() {
   };
 
   return (
-    <div className="action-page" onClick={() => closeContextMenu()} style={{ position: "relative" }}>
+    <div className="process-flow-page" onClick={() => closeContextMenu()} style={{ position: "relative" }}>
       <TableSubToolbar />
 
       {serverChanged && (
@@ -577,7 +577,7 @@ export function ProcessFlowEditor() {
 
       <EditorHeader
         title={
-          <div className="action-editor-breadcrumb">
+          <div className="process-flow-editor-breadcrumb">
             <Link to="/process-flow/list">処理フロー一覧</Link>
             <span className="mx-2">/</span>
             <span className="fw-semibold text-dark">{group.name}</span>
@@ -631,11 +631,11 @@ export function ProcessFlowEditor() {
 
       {/* 警告詳細パネル (#261 UI 統合) */}
       {showWarningsPanel && validationErrors.filter((e) => e.severity === "warning").length > 0 && (
-        <div className="action-validation-panel">
-          <div className="action-validation-panel-header">
+        <div className="process-flow-validation-panel">
+          <div className="process-flow-validation-panel-header">
             <i className="bi bi-exclamation-triangle-fill" /> 警告 ({validationErrors.filter((e) => e.severity === "warning").length} 件)
             <button
-              className="btn btn-sm btn-link action-validation-panel-bulk-ai"
+              className="btn btn-sm btn-link process-flow-validation-panel-bulk-ai"
               onClick={() => {
                 // 全警告をまとめて marker 化 (既に起票済のものは skip)
                 if (!group) return;
@@ -676,7 +676,7 @@ export function ProcessFlowEditor() {
               <i className="bi bi-x-lg" />
             </button>
           </div>
-          <ul className="action-validation-panel-list">
+          <ul className="process-flow-validation-panel-list">
             {validationErrors
               .filter((e) => e.severity === "warning")
               .map((e, i) => {
@@ -727,11 +727,11 @@ export function ProcessFlowEditor() {
       />
 
       {/* アクションタブ */}
-      <div className="action-tabs">
+      <div className="process-flow-tabs">
         {group.actions.map((act) => (
           <div key={act.id} className="d-flex align-items-center">
             <button
-              className={`action-tab ${activeActionId === act.id ? "active" : ""}`}
+              className={`process-flow-tab ${activeActionId === act.id ? "active" : ""}`}
               onClick={() => setActiveActionId(act.id)}
             >
               <MaturityBadge
@@ -757,7 +757,7 @@ export function ProcessFlowEditor() {
           </div>
         ))}
         <button
-          className="action-tab-add"
+          className="process-flow-tab-add"
           onClick={() => setShowAddAction(true)}
           title="アクション追加"
         >
@@ -766,7 +766,7 @@ export function ProcessFlowEditor() {
       </div>
 
       {/* ステップエディタ */}
-      <div className="action-content">
+      <div className="process-flow-content">
         {activeAction ? (
           <div className="step-editor">
             {/* HTTP 契約 */}
@@ -781,8 +781,8 @@ export function ProcessFlowEditor() {
               }}
             />
             {/* I/O パネル */}
-            <div className="action-io-panel">
-              <div className="action-io-field">
+            <div className="process-flow-io-panel">
+              <div className="process-flow-io-field">
                 <StructuredFieldsEditor
                   label="入力データ"
                   fields={activeAction.inputs}
@@ -797,7 +797,7 @@ export function ProcessFlowEditor() {
                   onPickScreenItem={handlePickScreenItem}
                 />
               </div>
-              <div className="action-io-field">
+              <div className="process-flow-io-field">
                 <StructuredFieldsEditor
                   label="出力データ"
                   fields={activeAction.outputs}
@@ -998,8 +998,8 @@ export function ProcessFlowEditor() {
 
       {/* アクション追加モーダル */}
       {showAddAction && (
-        <div className="action-modal-overlay" onClick={() => setShowAddAction(false)}>
-          <div className="action-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="process-flow-modal-overlay" onClick={() => setShowAddAction(false)}>
+          <div className="process-flow-modal" onClick={(e) => e.stopPropagation()}>
             <h6>アクション追加</h6>
             <div className="form-group">
               <label className="form-label">アクション名 *</label>
@@ -1023,7 +1023,7 @@ export function ProcessFlowEditor() {
                 ))}
               </select>
             </div>
-            <div className="action-modal-footer">
+            <div className="process-flow-modal-footer">
               <button className="btn btn-outline-secondary btn-sm" onClick={() => setShowAddAction(false)}>
                 キャンセル
               </button>
