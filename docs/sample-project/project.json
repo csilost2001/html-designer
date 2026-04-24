@@ -396,6 +396,16 @@
       "maturity": "committed"
     },
     {
+      "id": "cccccccc-0008-4000-8000-cccccccccccc",
+      "no": 8,
+      "name": "パスワード変更フロー",
+      "type": "screen",
+      "screenId": "aaaaaaaa-0001-4000-8000-aaaaaaaaaaaa",
+      "actionCount": 1,
+      "updatedAt": "2026-04-25T00:00:00.000Z",
+      "maturity": "committed"
+    },
+    {
       "id": "cccccccc-0099-4000-8000-cccccccccccc",
       "no": 99,
       "name": "注文登録 (詳細化途中・マーカー入りドッグフード)",

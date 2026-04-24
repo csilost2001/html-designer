@@ -250,6 +250,10 @@ export function createDefaultStep(type: StepType): Step {
       return { ...base, type: "compute", expression: "" };
     case "return":
       return { ...base, type: "return" };
+    case "log":
+      return { ...base, type: "log", level: "info", message: "" };
+    case "audit":
+      return { ...base, type: "audit", action: "" };
     case "other":
       return { ...base, type: "other" };
   }

@@ -15,6 +15,7 @@ export type StepType =
   | "jump"             // 別大分類へのジャンプ
   | "compute"          // 計算式 / 変数代入 (#174)
   | "return"           // HTTP レスポンス返却 (#178)
+  | "log" | "audit"    // アプリケーションログ / 監査ログ
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -32,6 +33,8 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   jump: "ジャンプ",
   compute: "計算/代入",
   return: "レスポンス返却",
+  log: "ログ出力",
+  audit: "監査ログ",
   other: "その他",
 };
 
@@ -50,6 +53,8 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   jump: "bi-arrow-return-right",
   compute: "bi-calculator",
   return: "bi-reply",
+  log: "bi-journal-text",
+  audit: "bi-shield-check",
   other: "bi-three-dots",
 };
 
@@ -68,6 +73,8 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   jump: "#94a3b8",
   compute: "#0ea5e9",
   return: "#22c55e",
+  log: "#64748b",
+  audit: "#a855f7",
   other: "#9ca3af",
 };
 
@@ -698,6 +705,35 @@ export interface ReturnStep extends StepBase {
   bodyExpression?: string;
 }
 
+export interface LogStep extends StepBase {
+  type: "log";
+  level: "trace" | "debug" | "info" | "warn" | "error";
+  /** 式可。例: "注文 @orderId 受付完了" */
+  message: string;
+  /** ログカテゴリ。ログルーティング用 */
+  category?: string;
+  /** 値は式。例: { orderId: "@orderId", total: "@subtotal + @tax" } */
+  structuredData?: Record<string, string>;
+}
+
+export interface AuditStep extends StepBase {
+  type: "audit";
+  /** 業務アクション名。例: "order.create" / "user.passwordChange" */
+  action: string;
+  resource?: {
+    /** 例: "Order" / "User" */
+    type: string;
+    /** 式可。例: "@orderId" */
+    id: string;
+  };
+  /** 未指定なら実装側で自動判定 (例外発生 → failure) */
+  result?: "success" | "failure";
+  /** 式可。例: "@rejectionReason" */
+  reason?: string;
+  /** true なら値本体をマスクして keys だけ記録 */
+  sensitive?: boolean;
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -712,6 +748,8 @@ export type Step =
   | JumpStep
   | ComputeStep
   | ReturnStep
+  | LogStep
+  | AuditStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────

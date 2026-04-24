@@ -8,6 +8,7 @@ export type TabType =
   | "design"          // 画面デザイナー
   | "table"           // テーブル編集
   | "action"          // 処理フロー編集
+  | "process-flow"    // 処理フロー編集
   | "sequence"        // シーケンス編集 (#374)
   | "view"            // ビュー編集 (#376)
   // シングルトン（1 インスタンス固定。resourceId は "main" で統一）
