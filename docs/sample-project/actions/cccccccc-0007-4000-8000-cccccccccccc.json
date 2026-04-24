@@ -1,0 +1,490 @@
+{
+  "id": "cccccccc-0007-4000-8000-cccccccccccc",
+  "name": "請求書発行画面",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+  "description": "2026-04-24 5/5 再ドッグフード: 顧客向け売上請求書を発行し PDF 生成 + メール通知を行う。前回 0006 サンプルの残ギャップ (@conv.numbering.* / @conv.currency.jpy subunit / @conv.scope.timezone ambient) を構造化フィールドで完全解消する実証サンプル。",
+  "mode": "downstream",
+  "maturity": "committed",
+
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "リクエスト毎一意 ID。冪等性キーとログ相関に使用"
+    },
+    {
+      "name": "sessionUserId",
+      "type": "number",
+      "required": true,
+      "description": "ミドルウェアがセッション Cookie から注入。@conv.auth.default (scheme: session-cookie) 準拠"
+    },
+    {
+      "name": "fieldErrors",
+      "type": { "kind": "custom", "label": "Record<string, string>" },
+      "required": false,
+      "description": "ValidationStep.rules[] 評価結果。fieldErrorsVar で宣言"
+    }
+  ],
+
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値エラー",
+      "responseRef": "400-validation"
+    },
+    "CUSTOMER_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "顧客が存在しません",
+      "responseRef": "404-not-found"
+    },
+    "PRODUCT_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "商品が存在しません",
+      "responseRef": "404-not-found"
+    },
+    "AMOUNT_EXCEEDED": {
+      "httpStatus": 422,
+      "defaultMessage": "請求金額が上限を超えています",
+      "responseRef": "422-amount-exceeded"
+    }
+  },
+
+  "typeCatalog": {
+    "ApiError": {
+      "description": "共通エラーレスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    },
+    "InvoiceResponse": {
+      "description": "請求書発行成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["invoiceId", "invoiceNumber", "subtotal", "taxAmount", "totalAmount"],
+        "properties": {
+          "invoiceId": { "type": "integer" },
+          "invoiceNumber": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}-\\d{4}$",
+            "description": "@conv.numbering.invoiceNumber 準拠 INV-YYYY-NNNN 形式"
+          },
+          "subtotal": { "type": "integer" },
+          "taxAmount": { "type": "integer" },
+          "totalAmount": { "type": "integer" }
+        }
+      }
+    }
+  },
+
+  "externalSystemCatalog": {
+    "pdfService": {
+      "name": "PDF Generation Service",
+      "baseUrl": "http://pdf-service.internal",
+      "auth": { "kind": "bearer", "tokenRef": "@secret.pdfServiceToken" },
+      "timeoutMs": 30000,
+      "description": "請求書 PDF の生成・S3 保存。失敗時は発行失敗扱い (@conv.externalOutcomeDefaults.failure = abort の既定を継承)"
+    },
+    "sendgrid": {
+      "name": "SendGrid Mail API",
+      "baseUrl": "https://api.sendgrid.com",
+      "auth": { "kind": "bearer", "tokenRef": "@secret.sendgridApiKey" },
+      "timeoutMs": 5000,
+      "headers": { "Content-Type": "application/json" },
+      "description": "顧客への請求書メール送信。fireAndForget: true で非同期送信。@conv.tx.externalApi: TX 外呼出"
+    }
+  },
+
+  "secretsCatalog": {
+    "pdfServiceToken": {
+      "source": "env",
+      "name": "PDF_SERVICE_TOKEN",
+      "rotationDays": 90
+    },
+    "sendgridApiKey": {
+      "source": "env",
+      "name": "SENDGRID_API_KEY",
+      "rotationDays": 180
+    }
+  },
+
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "請求書発行ボタン押下",
+      "trigger": "submit",
+      "description": "請求書発行フォームを送信し、顧客確認 → 明細積算 → 税計算 → DB 登録 → PDF 生成 → メール通知を行う",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/invoices",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "customerId",
+          "label": "顧客ID",
+          "type": "number",
+          "required": true,
+          "screenItemRef": {
+            "screenId": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+            "itemId": "customer-select"
+          }
+        },
+        {
+          "name": "items",
+          "label": "請求明細",
+          "type": {
+            "kind": "array",
+            "itemType": {
+              "kind": "object",
+              "fields": [
+                { "name": "productId", "type": "number", "required": true, "label": "商品ID" },
+                { "name": "quantity", "type": "number", "required": true, "label": "数量" }
+              ]
+            }
+          },
+          "required": true,
+          "screenItemRef": {
+            "screenId": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+            "itemId": "invoice-items-table"
+          }
+        },
+        {
+          "name": "paymentTermDays",
+          "label": "支払期限日数",
+          "type": "number",
+          "required": true,
+          "defaultValue": "30",
+          "screenItemRef": {
+            "screenId": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
+            "itemId": "payment-term-days"
+          }
+        }
+      ],
+      "outputs": [
+        { "name": "invoiceId", "label": "請求書ID", "type": "number" },
+        {
+          "name": "invoiceNumber",
+          "label": "請求書番号",
+          "type": "string",
+          "format": "@conv.numbering.invoiceNumber"
+        },
+        {
+          "name": "subtotal",
+          "label": "小計",
+          "type": "number",
+          "format": "@conv.currency.jpy"
+        },
+        {
+          "name": "taxAmount",
+          "label": "消費税額",
+          "type": "number",
+          "format": "@conv.currency.jpy"
+        },
+        {
+          "name": "totalAmount",
+          "label": "合計金額 (税込)",
+          "type": "number",
+          "format": "@conv.currency.jpy"
+        }
+      ],
+      "responses": [
+        {
+          "id": "201-created",
+          "status": 201,
+          "bodySchema": { "typeRef": "InvoiceResponse" },
+          "when": "正常発行完了"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "@fieldErrors が空でない"
+        },
+        {
+          "id": "404-not-found",
+          "status": 404,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "customerId または items[*].productId が存在しない"
+        },
+        {
+          "id": "422-amount-exceeded",
+          "status": 422,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "@subtotal > @conv.limit.amountMax.value"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "type": "validation",
+          "description": "入力バリデーション: 顧客ID必須、明細最低1件、各数量は @conv.limit.quantityMin 以上 @conv.limit.quantityMax 以下",
+          "maturity": "committed",
+          "conditions": "customerId 必須、items 必須・最低1件、各 quantity は @conv.limit.quantityMin 以上 @conv.limit.quantityMax 以下、paymentTermDays は 1 以上 365 以下",
+          "rules": [
+            {
+              "field": "customerId",
+              "type": "required",
+              "message": "@conv.msg.required"
+            },
+            {
+              "field": "items",
+              "type": "required",
+              "message": "@conv.msg.required"
+            },
+            {
+              "field": "items[*].quantity",
+              "type": "range",
+              "minRef": "@conv.limit.quantityMin",
+              "maxRef": "@conv.limit.quantityMax",
+              "message": "@conv.msg.outOfRange"
+            },
+            {
+              "field": "paymentTermDays",
+              "type": "range",
+              "min": 1,
+              "max": 365,
+              "message": "@conv.msg.outOfRange"
+            }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "次のステップへ続行",
+            "ng": "400 バリデーションエラー返却",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
+        },
+
+        {
+          "id": "step-02",
+          "type": "dbAccess",
+          "description": "顧客存在確認 (@conv.db.default: PostgreSQL, snake_case, is_deleted 論理削除)",
+          "maturity": "committed",
+          "tableName": "customers",
+          "operation": "SELECT",
+          "sql": "SELECT id, name, email FROM customers WHERE id = @inputs.customerId AND is_deleted = false",
+          "outputBinding": "customer"
+        },
+
+        {
+          "id": "step-03",
+          "type": "branch",
+          "description": "顧客不存在分岐",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-03-a",
+              "code": "A",
+              "label": "顧客なし → 404",
+              "condition": "@customer == null",
+              "steps": [
+                {
+                  "id": "step-03-a-01",
+                  "type": "return",
+                  "description": "404 顧客不存在",
+                  "responseRef": "404-not-found",
+                  "bodyExpression": "{ code: 'CUSTOMER_NOT_FOUND', message: '顧客が存在しません' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-03-else",
+            "code": "B",
+            "label": "顧客あり → 続行",
+            "steps": []
+          }
+        },
+
+        {
+          "id": "step-04",
+          "type": "loop",
+          "description": "各請求明細の商品確認と行金額計算",
+          "maturity": "committed",
+          "loopKind": "collection",
+          "collectionSource": "@inputs.items",
+          "collectionItemName": "item",
+          "steps": [
+            {
+              "id": "step-04-01",
+              "type": "dbAccess",
+              "description": "商品マスタ確認 (@conv.db.default: snake_case, is_deleted 論理削除)",
+              "maturity": "committed",
+              "tableName": "products",
+              "operation": "SELECT",
+              "sql": "SELECT id, name, unit_price FROM products WHERE id = @item.productId AND is_deleted = false",
+              "outputBinding": "product"
+            },
+            {
+              "id": "step-04-02",
+              "type": "branch",
+              "description": "商品不存在分岐",
+              "maturity": "committed",
+              "branches": [
+                {
+                  "id": "br-04-02-a",
+                  "code": "A",
+                  "label": "商品なし → 404",
+                  "condition": "@product == null",
+                  "steps": [
+                    {
+                      "id": "step-04-02-a-01",
+                      "type": "return",
+                      "description": "404 商品不存在",
+                      "responseRef": "404-not-found",
+                      "bodyExpression": "{ code: 'PRODUCT_NOT_FOUND', message: '商品が存在しません', detail: { productId: @item.productId } }"
+                    }
+                  ]
+                }
+              ],
+              "elseBranch": {
+                "id": "br-04-02-else",
+                "code": "B",
+                "label": "商品あり → 行金額計算",
+                "steps": [
+                  {
+                    "id": "step-04-03",
+                    "type": "compute",
+                    "description": "明細オブジェクト生成 (lineAmount = 単価 × 数量、@conv.currency.jpy subunit=0 で整数演算) → lineItems に追加",
+                    "maturity": "committed",
+                    "expression": "{ productId: @item.productId, quantity: @item.quantity, unitPrice: @product.unit_price, lineAmount: @product.unit_price * @item.quantity }",
+                    "outputBinding": { "name": "lineItems", "operation": "push", "initialValue": [] }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+
+        {
+          "id": "step-05",
+          "type": "compute",
+          "description": "小計 = Σ 行金額",
+          "maturity": "committed",
+          "expression": "@lineItems.reduce((acc, line) => acc + line.lineAmount, 0)",
+          "outputBinding": "subtotal"
+        },
+
+        {
+          "id": "step-06",
+          "type": "branch",
+          "description": "請求金額上限チェック",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-06-a",
+              "code": "A",
+              "label": "上限超過 → 422",
+              "condition": "@subtotal > @conv.limit.amountMax.value",
+              "steps": [
+                {
+                  "id": "step-06-a-01",
+                  "type": "return",
+                  "description": "422 金額上限超過",
+                  "responseRef": "422-amount-exceeded",
+                  "bodyExpression": "{ code: 'AMOUNT_EXCEEDED', message: '請求金額が上限を超えています' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-06-else",
+            "code": "B",
+            "label": "上限以内 → 請求書登録",
+            "steps": []
+          }
+        },
+
+        {
+          "id": "step-07",
+          "type": "compute",
+          "description": "消費税計算: @conv.tax.standard (外税 10%、切り捨て)",
+          "maturity": "committed",
+          "expression": "Math.floor(@subtotal * @conv.tax.standard.rate)",
+          "outputBinding": "taxAmount"
+        },
+
+        {
+          "id": "step-08",
+          "type": "dbAccess",
+          "description": "請求書ヘッダ登録 (@conv.db.default: PostgreSQL + snake_case + created_at/updated_at 自動管理; @conv.numbering.invoiceNumber: invoice_number は INV-YYYY-NNNN 形式 PG sequence + BEFORE INSERT trigger で自動採番)",
+          "maturity": "committed",
+          "tableName": "invoices",
+          "operation": "INSERT",
+          "sql": "INSERT INTO invoices (customer_id, subtotal, tax_amount, total_amount, payment_term_days, issued_by, created_at, updated_at) VALUES (@inputs.customerId, @subtotal, @taxAmount, @subtotal + @taxAmount, @inputs.paymentTermDays, @sessionUserId, NOW(), NOW()) RETURNING id, invoice_number",
+          "txBoundary": { "role": "begin", "txId": "tx-invoice-register" },
+          "outputBinding": "newInvoice"
+        },
+
+        {
+          "id": "step-09",
+          "type": "dbAccess",
+          "description": "請求明細一括登録 (@conv.tx.singleOperation: 請求書ヘッダと同一 TX)",
+          "maturity": "committed",
+          "tableName": "invoice_items",
+          "operation": "INSERT",
+          "bulkValues": "@lineItems",
+          "sql": "INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, line_amount, created_at) SELECT @newInvoice.id, v.product_id, v.quantity, v.unit_price, v.line_amount, NOW() FROM (VALUES @lineItems) AS v(product_id, quantity, unit_price, line_amount)",
+          "txBoundary": { "role": "end", "txId": "tx-invoice-register" }
+        },
+
+        {
+          "id": "step-10",
+          "type": "externalSystem",
+          "description": "PDF 生成サービスへの請求書 PDF 生成依頼。失敗は発行失敗扱い。outcomes 未指定 = @conv.externalOutcomeDefaults を全 outcome で継承 (failure = abort, timeout = abort)",
+          "maturity": "committed",
+          "systemName": "PDF Generation Service",
+          "systemRef": "pdfService",
+          "httpCall": {
+            "method": "POST",
+            "path": "/generate/invoice",
+            "body": "{ invoiceId: @newInvoice.id, invoiceNumber: @newInvoice.invoice_number, customerId: @inputs.customerId, subtotal: @subtotal, taxAmount: @taxAmount, totalAmount: @subtotal + @taxAmount }"
+          },
+          "idempotencyKey": "pdf-@newInvoice.id-@requestId",
+          "outputBinding": "pdfResult"
+        },
+
+        {
+          "id": "step-11",
+          "type": "externalSystem",
+          "description": "顧客へのメール送信 (fireAndForget: true で非同期。@conv.tx.externalApi: TX 外呼出原則。outcomes.failure=continue: メール失敗で請求書発行はロールバックしない — @conv.externalOutcomeDefaults.failure (abort 既定) から意図的に逸脱)",
+          "maturity": "committed",
+          "systemName": "SendGrid Mail API",
+          "systemRef": "sendgrid",
+          "httpCall": {
+            "method": "POST",
+            "path": "/v3/mail/send",
+            "body": "{ to: @customer.email, subject: '請求書 ' + @newInvoice.invoice_number + ' のご案内', content: '請求金額: ' + (@subtotal + @taxAmount) + '円 (税込)' }"
+          },
+          "fireAndForget": true,
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": { "action": "continue" },
+            "timeout": { "action": "continue", "sameAs": "failure" }
+          }
+        },
+
+        {
+          "id": "step-12",
+          "type": "return",
+          "description": "201 Created — 請求書発行完了",
+          "maturity": "committed",
+          "responseRef": "201-created",
+          "bodyExpression": "{ invoiceId: @newInvoice.id, invoiceNumber: @newInvoice.invoice_number, subtotal: @subtotal, taxAmount: @taxAmount, totalAmount: @subtotal + @taxAmount }"
+        }
+      ]
+    }
+  ],
+
+  "createdAt": "2026-04-24T00:00:00.000Z",
+  "updatedAt": "2026-04-24T00:00:00.000Z"
+}

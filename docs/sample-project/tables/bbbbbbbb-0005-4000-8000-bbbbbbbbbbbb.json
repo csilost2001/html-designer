@@ -1,0 +1,51 @@
+{
+  "id": "bbbbbbbb-0005-4000-8000-bbbbbbbbbbbb",
+  "name": "invoices",
+  "logicalName": "請求書テーブル",
+  "description": "顧客向け売上請求書のヘッダー情報を管理する。請求書発行画面のフィールドに対応。invoice_number は seq_invoice_number シーケンス + BEFORE INSERT トリガーで INV-YYYY-NNNN 形式に自動採番 (@conv.numbering.invoiceNumber)。subtotal/tax_amount/total_amount は JPY (@conv.currency.jpy: subunit=0) のため INTEGER 型で管理。",
+  "category": "トランザクション",
+  "columns": [
+    { "id": "col-inv01", "name": "id", "logicalName": "請求書ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-inv02", "name": "invoice_number", "logicalName": "請求書番号", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": true, "comment": "INV-YYYY-NNNN 形式。@conv.numbering.invoiceNumber 準拠 (PG sequence + trigger)" },
+    { "id": "col-inv03", "name": "customer_id", "logicalName": "顧客ID", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "foreignKey": { "tableId": "customers", "columnName": "id" } },
+    { "id": "col-inv04", "name": "subtotal", "logicalName": "小計", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0", "comment": "@conv.currency.jpy: subunit=0 のため INTEGER" },
+    { "id": "col-inv05", "name": "tax_amount", "logicalName": "消費税額", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0", "comment": "Math.floor(subtotal * @conv.tax.standard.rate)" },
+    { "id": "col-inv06", "name": "total_amount", "logicalName": "合計金額", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0" },
+    { "id": "col-inv07", "name": "payment_term_days", "logicalName": "支払期限日数", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "30" },
+    { "id": "col-inv08", "name": "status", "logicalName": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'issued'", "comment": "issued / paid / cancelled / overdue" },
+    { "id": "col-inv09", "name": "issued_by", "logicalName": "発行者ID", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false, "foreignKey": { "tableId": "users", "columnName": "id" } },
+    { "id": "col-inv10", "name": "is_deleted", "logicalName": "削除フラグ", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "false" },
+    { "id": "col-inv11", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-inv12", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-inv01", "columns": [{ "name": "invoice_number" }], "unique": true },
+    { "id": "idx-inv02", "columns": [{ "name": "customer_id" }], "unique": false },
+    { "id": "idx-inv03", "columns": [{ "name": "status" }], "unique": false },
+    { "id": "idx-inv04", "columns": [{ "name": "created_at", "order": "desc" }], "unique": false }
+  ],
+  "defaults": [
+    {
+      "column": "invoice_number",
+      "kind": "conventionRef",
+      "value": "@conv.numbering.invoiceNumber",
+      "description": "INV-YYYY-NNNN 形式。seq_invoice_number シーケンスを BEFORE INSERT トリガーで適用。conventionRef が structurally @conv.numbering.invoiceNumber に紐付ける"
+    },
+    {
+      "column": "status",
+      "kind": "literal",
+      "value": "'issued'"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg-inv-number-gen",
+      "timing": "BEFORE",
+      "events": ["INSERT"],
+      "body": "NEW.invoice_number := 'INV-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('seq_invoice_number')::text, 4, '0');",
+      "description": "INV-YYYY-NNNN 形式の請求書番号を自動生成。seq_invoice_number (dddddddd-0001) シーケンスを使用"
+    }
+  ],
+  "createdAt": "2026-04-24T00:00:00.000Z",
+  "updatedAt": "2026-04-24T00:00:00.000Z"
+}
