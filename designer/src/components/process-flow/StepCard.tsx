@@ -32,6 +32,7 @@ const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
+  "log", "audit",
 ];
 
 // ─── ヘルパーコンポーネント ──────────────────────────────────────────────────

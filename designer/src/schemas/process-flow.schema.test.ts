@@ -17,6 +17,90 @@ beforeAll(() => {
   validate = ajv.compile(schema);
 });
 
+describe("process-flow.schema.json - LogStep / AuditStep (#397)", () => {
+  const makeFlow = (step: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [{
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [step],
+    }],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  it("LogStep validates", () => {
+    const ok = validate(makeFlow({
+      id: "log-1", type: "log", description: "", level: "info", message: "ok",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("LogStep missing level fails", () => {
+    expect(validate(makeFlow({
+      id: "log-1", type: "log", description: "", message: "ok",
+    }))).toBe(false);
+  });
+
+  it("LogStep missing message fails", () => {
+    expect(validate(makeFlow({
+      id: "log-1", type: "log", description: "", level: "info",
+    }))).toBe(false);
+  });
+
+  it("LogStep invalid level fails", () => {
+    expect(validate(makeFlow({
+      id: "log-1", type: "log", description: "", level: "critical", message: "ok",
+    }))).toBe(false);
+  });
+
+  it("AuditStep validates", () => {
+    const ok = validate(makeFlow({
+      id: "audit-1", type: "audit", description: "", action: "order.create",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("AuditStep missing action fails", () => {
+    expect(validate(makeFlow({
+      id: "audit-1", type: "audit", description: "",
+    }))).toBe(false);
+  });
+
+  it("AuditStep invalid result fails", () => {
+    expect(validate(makeFlow({
+      id: "audit-1", type: "audit", description: "", action: "order.create", result: "partial",
+    }))).toBe(false);
+  });
+
+  it("AuditStep sensitive non-boolean fails", () => {
+    expect(validate(makeFlow({
+      id: "audit-1", type: "audit", description: "", action: "order.create", sensitive: "true",
+    }))).toBe(false);
+  });
+
+  it("AuditStep with resource validates", () => {
+    const ok = validate(makeFlow({
+      id: "audit-1", type: "audit", description: "", action: "order.create",
+      resource: { type: "Order", id: "@orderId" },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("AuditStep resource missing type or id fails", () => {
+    expect(validate(makeFlow({
+      id: "audit-1", type: "audit", description: "", action: "order.create",
+      resource: { id: "@orderId" },
+    }))).toBe(false);
+    expect(validate(makeFlow({
+      id: "audit-1", type: "audit", description: "", action: "order.create",
+      resource: { type: "Order" },
+    }))).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — docs/sample-project/process-flows/*.json", () => {
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
 
