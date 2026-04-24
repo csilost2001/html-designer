@@ -116,6 +116,7 @@
       "name": "注文確定ボタン",
       "trigger": "submit",
       "maturity": "committed",
+      "requiredPermissions": ["order.create"],
       "httpRoute": { "method": "POST", "path": "/api/orders", "auth": "required" },
       "responses": [
         { "id": "201-success", "status": 201, "bodySchema": { "typeRef": "OrderRegisterResponse" }, "description": "登録成功" },

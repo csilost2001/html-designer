@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
-import { checkConventionReferences, checkScreenItemConventionReferences, type ConventionsCatalog } from "./conventionsValidator";
+import {
+  checkConventionReferences,
+  checkConventionsCatalogIntegrity,
+  checkScreenItemConventionReferences,
+  type ConventionsCatalog,
+} from "./conventionsValidator";
 import type { ProcessFlow } from "../types/action";
 import type { ScreenItemsFile } from "../types/screenItem";
 import { readFileSync, readdirSync } from "node:fs";
@@ -328,6 +333,62 @@ describe("checkConventionReferences", () => {
       null,
     );
     expect(issues).toHaveLength(0);
+  });
+});
+
+describe("checkConventionsCatalogIntegrity - RBAC", () => {
+  it("有効な role / permission カタログは検証を通過する", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      permission: {
+        "order.create": { resource: "Order", action: "create" },
+        "order.read": { resource: "Order", action: "read", scope: "own" },
+        "order.approve": { resource: "Order", action: "approve", scope: "department" },
+      },
+      role: {
+        orderOperator: {
+          name: "受注担当",
+          permissions: ["order.create", "order.read"],
+        },
+        orderApprover: {
+          name: "承認者",
+          permissions: ["order.approve"],
+          inherits: ["orderOperator"],
+        },
+      },
+    };
+
+    expect(checkConventionsCatalogIntegrity(catalog)).toHaveLength(0);
+  });
+
+  it("role.inherits の循環参照をエラーとして検出する", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      role: {
+        roleA: { permissions: [], inherits: ["roleB"] },
+        roleB: { permissions: [], inherits: ["roleA"] },
+      },
+    };
+
+    const issues = checkConventionsCatalogIntegrity(catalog);
+    expect(issues.some((issue) => issue.code === "ROLE_INHERITS_CYCLE")).toBe(true);
+  });
+
+  it("role.permissions の存在しない permission 参照をエラーとして検出する", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      permission: {
+        "order.read": { resource: "Order", action: "read" },
+      },
+      role: {
+        orderOperator: { permissions: ["order.read", "order.delete"] },
+      },
+    };
+
+    const issues = checkConventionsCatalogIntegrity(catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_ROLE_PERMISSION");
+    expect(issues[0].path).toBe("role.orderOperator.permissions[1]");
   });
 });
 

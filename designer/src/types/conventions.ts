@@ -24,6 +24,20 @@ export interface AuthEntry {
   description?: string;
 }
 
+export interface RoleEntry {
+  name?: string;
+  description?: string;
+  permissions: string[];
+  inherits?: string[];
+}
+
+export interface PermissionEntry {
+  resource: string;
+  action: string;
+  scope?: "all" | "own" | "department";
+  description?: string;
+}
+
 export interface DbEntry {
   engine?: string;
   namingConvention?: string;
