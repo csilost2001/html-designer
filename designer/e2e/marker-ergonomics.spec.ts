@@ -25,14 +25,14 @@ const dummyGroup = {
 };
 const dummyProject = {
   version: 1, name: "erg", screens: [], groups: [], edges: [], tables: [],
-  actionGroups: [{ id: groupId, no: 1, name: dummyGroup.name, type: dummyGroup.type, actionCount: 1, updatedAt: dummyGroup.updatedAt, maturity: "draft" }],
+  processFlows: [{ id: groupId, no: 1, name: dummyGroup.name, type: dummyGroup.type, actionCount: 1, updatedAt: dummyGroup.updatedAt, maturity: "draft" }],
   updatedAt: new Date().toISOString(),
 };
 
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
@@ -43,7 +43,7 @@ async function setupEditor(page: Page) {
 async function setupDashboard(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     const tabs = [{ id: "dashboard", type: "dashboard", pinned: true }];
     localStorage.setItem("designer-open-tabs", JSON.stringify(tabs));
     localStorage.setItem("designer-active-tab", "dashboard");
@@ -107,7 +107,7 @@ test.describe("Dashboard marker summary (#261)", () => {
     await expect(recent).toContainText("erg test"); // AG name
   });
 
-  test("最新マーカーアイテムクリックで ActionEditor へ遷移", async ({ page }) => {
+  test("最新マーカーアイテムクリックで ProcessFlowEditor へ遷移", async ({ page }) => {
     await setupDashboard(page);
     const firstRecent = page.locator(".markers-summary-panel .markers-recent-list .markers-recent-btn").first();
     await firstRecent.click();
@@ -122,7 +122,7 @@ test.describe("Dashboard marker summary (#261)", () => {
     };
     await page.addInitScript(({ project, group }) => {
       localStorage.setItem("flow-project", JSON.stringify(project));
-      localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+      localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
       const tabs = [{ id: "dashboard", type: "dashboard", pinned: true }];
       localStorage.setItem("designer-open-tabs", JSON.stringify(tabs));
       localStorage.setItem("designer-active-tab", "dashboard");

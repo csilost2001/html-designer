@@ -261,10 +261,10 @@ test.describe("wsBridge ファイル操作", () => {
     });
   });
 
-  // ─── ActionGroup 操作 ─────────────────────────────────────────────────────
+  // ─── ProcessFlow 操作 ─────────────────────────────────────────────────────
 
-  test.describe("actionGroup ファイル操作", () => {
-    test("saveActionGroup / loadActionGroup でデータが往復する", async () => {
+  test.describe("processFlow ファイル操作", () => {
+    test("saveProcessFlow / loadProcessFlow でデータが往復する", async () => {
       const id = "e2e-test-ag-001";
       const testData = {
         id,
@@ -276,33 +276,33 @@ test.describe("wsBridge ファイル操作", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      const saveResult = await sendBrowserRequest("saveActionGroup", { id, data: testData });
+      const saveResult = await sendBrowserRequest("saveProcessFlow", { id, data: testData });
       expect((saveResult as { success: boolean }).success).toBe(true);
 
-      const loadResult = await sendBrowserRequest("loadActionGroup", { id });
+      const loadResult = await sendBrowserRequest("loadProcessFlow", { id });
       expect(loadResult).toMatchObject(testData);
 
       // 後片付け
-      const filePath = path.resolve("../data/actions", `${id}.json`);
+      const filePath = path.resolve("../data/process-flows", `${id}.json`);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     });
 
-    test("deleteActionGroup でファイルが削除される", async () => {
+    test("deleteProcessFlow でファイルが削除される", async () => {
       const id = "e2e-test-ag-del-001";
-      await sendBrowserRequest("saveActionGroup", {
+      await sendBrowserRequest("saveProcessFlow", {
         id,
         data: { id, name: "tmp", type: "screen", description: "", actions: [] },
       });
 
-      const deleteResult = await sendBrowserRequest("deleteActionGroup", { id });
+      const deleteResult = await sendBrowserRequest("deleteProcessFlow", { id });
       expect((deleteResult as { success: boolean }).success).toBe(true);
 
-      const loadResult = await sendBrowserRequest("loadActionGroup", { id });
+      const loadResult = await sendBrowserRequest("loadProcessFlow", { id });
       expect(loadResult).toBeNull();
     });
 
-    test("存在しない id の loadActionGroup は null", async () => {
-      const loadResult = await sendBrowserRequest("loadActionGroup", { id: "nonexistent-ag-xyz" });
+    test("存在しない id の loadProcessFlow は null", async () => {
+      const loadResult = await sendBrowserRequest("loadProcessFlow", { id: "nonexistent-ag-xyz" });
       expect(loadResult).toBeNull();
     });
   });

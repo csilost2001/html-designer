@@ -1,12 +1,12 @@
 /**
- * ActionGroup.secretsCatalog 編集パネル (#278)
+ * ProcessFlow.secretsCatalog 編集パネル (#278)
  */
 import { useState } from "react";
-import type { ActionGroup, SecretRef } from "../../types/action";
+import type { ProcessFlow, SecretRef } from "../../types/action";
 
 interface Props {
-  group: ActionGroup;
-  onChange: (group: ActionGroup) => void;
+  group: ProcessFlow;
+  onChange: (group: ProcessFlow) => void;
   expanded?: boolean;
   onExpandedChange?: (next: boolean) => void;
   render?: "full" | "toggleOnly" | "bodyOnly";

@@ -3,16 +3,16 @@
  *
  * - screen-items JSON の `id` フィールドを更新
  * - 画面 HTML (GrapesJS JSON 内の name/id 属性) を更新
- * - 全アクショングループの `screenItemRef.itemId` を更新
+ * - 全処理フローの `screenItemRef.itemId` を更新
  */
 import {
   readScreenItems,
   writeScreenItems,
   readScreen,
   writeScreen,
-  listActionGroups,
-  readActionGroup,
-  writeActionGroup,
+  listProcessFlows,
+  readProcessFlow,
+  writeProcessFlow,
 } from "./projectStorage.js";
 
 // JS 識別子として有効かチェック
@@ -28,14 +28,14 @@ const JS_RESERVED = new Set([
 ]);
 
 export interface CheckRefsResult {
-  affectedActionGroups: Array<{ id: string; name: string; refCount: number }>;
+  affectedProcessFlows: Array<{ id: string; name: string; refCount: number }>;
   totalRefs: number;
 }
 
 export interface RenameResult {
   screenItemsUpdated: boolean;
   screenHtmlUpdated: boolean;
-  actionGroupsUpdated: string[];
+  processFlowsUpdated: string[];
   refsRenamed: number;
   warnings: string[];
 }
@@ -56,11 +56,11 @@ function countRefsInValue(val: unknown, screenId: string, itemId: string): numbe
 }
 
 export async function checkScreenItemRefs(screenId: string, itemId: string): Promise<CheckRefsResult> {
-  const ags = (await listActionGroups()) as Array<{ id: string; name: string }>;
+  const ags = (await listProcessFlows()) as Array<{ id: string; name: string }>;
   const affected: Array<{ id: string; name: string; refCount: number }> = [];
   let totalRefs = 0;
   for (const agMeta of ags) {
-    const ag = await readActionGroup(agMeta.id);
+    const ag = await readProcessFlow(agMeta.id);
     if (!ag) continue;
     const count = countRefsInValue(ag, screenId, itemId);
     if (count > 0) {
@@ -68,10 +68,10 @@ export async function checkScreenItemRefs(screenId: string, itemId: string): Pro
       totalRefs += count;
     }
   }
-  return { affectedActionGroups: affected, totalRefs };
+  return { affectedProcessFlows: affected, totalRefs };
 }
 
-// ── アクショングループ内の参照リネーム ──────────────────────────────────
+// ── 処理フロー内の参照リネーム ──────────────────────────────────
 
 function renameRefsInValue(
   val: unknown,
@@ -175,19 +175,19 @@ function renameInScreenValue(val: unknown, oldId: string, newId: string): { upda
 // ── 複数 ID の一括 AG 参照更新 ──────────────────────────────────────────
 
 /**
- * mapping の全エントリに対してアクショングループ内の screenItemRef.itemId を更新する。
+ * mapping の全エントリに対して処理フロー内の screenItemRef.itemId を更新する。
  * screen-items ファイルや画面 HTML は触らない (browser-first パスで使用)。
  */
-export async function updateActionGroupRefs(
+export async function updateProcessFlowRefs(
   screenId: string,
   mapping: Record<string, string>,
-): Promise<{ actionGroupsUpdated: string[]; refsRenamed: number }> {
-  const ags = (await listActionGroups()) as Array<{ id: string; name: string }>;
+): Promise<{ processFlowsUpdated: string[]; refsRenamed: number }> {
+  const ags = (await listProcessFlows()) as Array<{ id: string; name: string }>;
   const updatedAgs: string[] = [];
   let refsRenamed = 0;
 
   for (const agMeta of ags) {
-    const ag = await readActionGroup(agMeta.id);
+    const ag = await readProcessFlow(agMeta.id);
     if (!ag) continue;
 
     let current = ag as unknown;
@@ -201,13 +201,13 @@ export async function updateActionGroupRefs(
 
     if (count > 0) {
       (current as Record<string, unknown>).updatedAt = new Date().toISOString();
-      await writeActionGroup(agMeta.id, current);
+      await writeProcessFlow(agMeta.id, current);
       updatedAgs.push(agMeta.id);
       refsRenamed += count;
     }
   }
 
-  return { actionGroupsUpdated: updatedAgs, refsRenamed };
+  return { processFlowsUpdated: updatedAgs, refsRenamed };
 }
 
 // ── 公開 API ────────────────────────────────────────────────────────────
@@ -263,17 +263,17 @@ export async function renameScreenItemId(
     }
   }
 
-  // 3. 全アクショングループの screenItemRef を更新
-  const ags = (await listActionGroups()) as Array<{ id: string; name: string }>;
+  // 3. 全処理フローの screenItemRef を更新
+  const ags = (await listProcessFlows()) as Array<{ id: string; name: string }>;
   const updatedAgs: string[] = [];
   let refsRenamed = 0;
   for (const agMeta of ags) {
-    const ag = await readActionGroup(agMeta.id);
+    const ag = await readProcessFlow(agMeta.id);
     if (!ag) continue;
     const { updated, count } = renameRefsInValue(ag, screenId, oldId, newId);
     if (count > 0) {
       (updated as Record<string, unknown>).updatedAt = new Date().toISOString();
-      await writeActionGroup(agMeta.id, updated);
+      await writeProcessFlow(agMeta.id, updated);
       updatedAgs.push(agMeta.id);
       refsRenamed += count;
     }
@@ -282,7 +282,7 @@ export async function renameScreenItemId(
   return {
     screenItemsUpdated: true,
     screenHtmlUpdated,
-    actionGroupsUpdated: updatedAgs,
+    processFlowsUpdated: updatedAgs,
     refsRenamed,
     warnings,
   };

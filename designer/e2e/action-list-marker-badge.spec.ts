@@ -1,7 +1,7 @@
 /**
  * 処理フロー一覧 マーカー件数バッジ (#261)
  *
- * カード / 表の両ビューで、各 ActionGroup の未解決マーカー数が kind 別に表示されることを検証。
+ * カード / 表の両ビューで、各 ProcessFlow の未解決マーカー数が kind 別に表示されることを検証。
  */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -64,15 +64,15 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: dummyGroups,
+  processFlows: dummyGroups,
   updatedAt: new Date().toISOString(),
 };
 
 async function setup(page: Page) {
   await page.addInitScript((data) => {
     localStorage.setItem("flow-project", JSON.stringify(data.project));
-    localStorage.setItem(`action-group-${data.fullMarkers.id}`, JSON.stringify(data.fullMarkers));
-    localStorage.setItem(`action-group-${data.fullClean.id}`, JSON.stringify(data.fullClean));
+    localStorage.setItem(`process-flow-${data.fullMarkers.id}`, JSON.stringify(data.fullMarkers));
+    localStorage.setItem(`process-flow-${data.fullClean.id}`, JSON.stringify(data.fullClean));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
     localStorage.removeItem("list-view-mode:process-flow-list");

@@ -81,8 +81,8 @@ export const DB_OPERATION_LABELS: Record<DbOperation, string> = {
   DELETE: "削除",
 };
 
-/** ActionGroupの種別 */
-export type ActionGroupType =
+/** ProcessFlowの種別 */
+export type ProcessFlowType =
   | "screen"     // 画面のアクション
   | "batch"      // バッチ処理
   | "scheduled"  // スケジュール処理
@@ -90,7 +90,7 @@ export type ActionGroupType =
   | "common"     // 共通処理
   | "other";
 
-export const ACTION_GROUP_TYPE_LABELS: Record<ActionGroupType, string> = {
+export const PROCESS_FLOW_TYPE_LABELS: Record<ProcessFlowType, string> = {
   screen: "画面",
   batch: "バッチ",
   scheduled: "スケジュール",
@@ -99,7 +99,7 @@ export const ACTION_GROUP_TYPE_LABELS: Record<ActionGroupType, string> = {
   other: "その他",
 };
 
-export const ACTION_GROUP_TYPE_ICONS: Record<ActionGroupType, string> = {
+export const PROCESS_FLOW_TYPE_ICONS: Record<ProcessFlowType, string> = {
   screen: "bi-display",
   batch: "bi-gear",
   scheduled: "bi-clock",
@@ -157,8 +157,8 @@ export interface StepNote {
   createdAt: string;
 }
 
-/** アクショングループのモード (docs/spec/process-flow-maturity.md §5) */
-export type ActionGroupMode = "upstream" | "downstream";
+/** 処理フローのモード (docs/spec/process-flow-maturity.md §5) */
+export type ProcessFlowMode = "upstream" | "downstream";
 
 // ── outputBinding の構造化 (docs/spec, #151 (B)) ──────────────────────────
 
@@ -455,7 +455,7 @@ export interface ExternalHttpCall {
 }
 
 /**
- * ActionGroup.externalSystemCatalog エントリ (#261 v1.3)。
+ * ProcessFlow.externalSystemCatalog エントリ (#261 v1.3)。
  * 同一外部システム (Stripe, SendGrid 等) を使う複数ステップで auth/baseUrl/timeoutMs/retryPolicy を集約し、
  * step 側は systemRef で参照する。DRY 化と drift 防止。
  */
@@ -484,7 +484,7 @@ export interface ExternalSystemStep extends StepBase {
    */
   systemName: string;
   /**
-   * ActionGroup.externalSystemCatalog のキー参照 (#261 v1.3)。
+   * ProcessFlow.externalSystemCatalog のキー参照 (#261 v1.3)。
    * 指定時はカタログの baseUrl/auth/timeoutMs/retryPolicy/headers を既定値とし、
    * この step の同名フィールドで override 可能。
    */
@@ -840,12 +840,12 @@ export interface ActionDefinition {
   steps: Step[];
 }
 
-// ── アクショングループ ───────────────────────────────────────────────────
+// ── 処理フロー ───────────────────────────────────────────────────
 
 /**
  * エラーコードカタログの 1 エントリ (#253)。
  * 同一 errorCode が affectedRowsCheck.errorCode / BranchConditionVariant.errorCode / responses[].description の
- * 複数箇所に散在する問題を解決するため、ActionGroup 単位で 1 箇所に集約する。
+ * 複数箇所に散在する問題を解決するため、ProcessFlow 単位で 1 箇所に集約する。
  */
 /**
  * マーカーの種別 (#261)。
@@ -904,7 +904,7 @@ export interface MarkerShape {
   /**
    * SVG path の `d` 属性値。座標は 0-100 の % 表記、viewBox="0 0 100 100"。
    * `anchorStepId` 指定時はその DOM 要素 (step card / field) の bbox に対する %、
-   * 未指定時は画面全体 (ActionEditor コンテンツ領域) に対する %。
+   * 未指定時は画面全体 (ProcessFlowEditor コンテンツ領域) に対する %。
    */
   d: string;
   /** 描画色 (省略時は #ef4444 赤) */
@@ -973,17 +973,17 @@ export interface ErrorCatalogEntry {
   description?: string;
 }
 
-export interface ActionGroup {
+export interface ProcessFlow {
   id: string;
   name: string;
-  type: ActionGroupType;
+  type: ProcessFlowType;
   screenId?: string;
   description: string;
   actions: ActionDefinition[];
   /** 成熟度。未指定は "draft" として解釈 (docs/spec/process-flow-maturity.md §3) */
   maturity?: Maturity;
   /** 上流/下流モード。未指定は "upstream" として解釈 (docs/spec/process-flow-maturity.md §5) */
-  mode?: ActionGroupMode;
+  mode?: ProcessFlowMode;
   /**
    * エラーコードカタログ (#253)。キー: errorCode (例: "STOCK_SHORTAGE")、値: HTTP ステータス / 既定メッセージ / 対応する responseRef。
    * affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される。
@@ -1034,12 +1034,12 @@ export interface ActionGroup {
 }
 
 /** project.json用メタデータ */
-export interface ActionGroupMeta {
+export interface ProcessFlowMeta {
   id: string;
   /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
   no: number;
   name: string;
-  type: ActionGroupType;
+  type: ProcessFlowType;
   screenId?: string;
   actionCount: number;
   updatedAt: string;

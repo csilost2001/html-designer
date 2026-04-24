@@ -1,12 +1,12 @@
 /**
  * 処理フロー成熟度パネル (#234)
  *
- * 全処理フロー (ActionGroupMeta) の成熟度 (draft/provisional/committed) と付箋合計を集計。
+ * 全処理フロー (ProcessFlowMeta) の成熟度 (draft/provisional/committed) と付箋合計を集計。
  * クリックで処理フロー一覧画面へ遷移 (maturity フィルタ適用済み状態を想定、現状は単純遷移)。
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ActionGroupMeta } from "../../../types/action";
+import type { ProcessFlowMeta } from "../../../types/action";
 import { loadProject } from "../../../store/flowStore";
 import { mcpBridge } from "../../../mcp/mcpBridge";
 
@@ -22,7 +22,7 @@ const INITIAL: Summary = { draft: 0, provisional: 0, committed: 0, total: 0, not
 
 async function fetchSummary(): Promise<Summary> {
   const project = await loadProject();
-  const groups = (project.actionGroups ?? []) as ActionGroupMeta[];
+  const groups = (project.processFlows ?? []) as ProcessFlowMeta[];
   const s: Summary = { ...INITIAL };
   for (const g of groups) {
     const m = g.maturity ?? "draft";
@@ -55,7 +55,7 @@ export function ProcessFlowMaturityPanel() {
     };
     reload();
     const unsubProject = mcpBridge.onBroadcast("projectChanged", reload);
-    const unsubAction = mcpBridge.onBroadcast("actionGroupChanged", reload);
+    const unsubAction = mcpBridge.onBroadcast("processFlowChanged", reload);
     const unsubStatus = mcpBridge.onStatusChange((s) => { if (s === "connected") reload(); });
     return () => { cancelled = true; unsubProject(); unsubAction(); unsubStatus(); };
   }, []);

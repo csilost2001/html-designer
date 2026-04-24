@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionDefinition, ActionGroup, HttpRoute, HttpResponseSpec } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import type { ActionDefinition, ProcessFlow, HttpRoute, HttpResponseSpec } from "./action";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("ActionDefinition の httpRoute / responses (#160)", () => {
   it("httpRoute を保持できる", () => {
@@ -53,7 +53,7 @@ describe("ActionDefinition の httpRoute / responses (#160)", () => {
   });
 });
 
-describe("migrateActionGroup — httpRoute / responses 透過保持 (#160)", () => {
+describe("migrateProcessFlow — httpRoute / responses 透過保持 (#160)", () => {
   it("新フィールドを持つ action を冪等にマイグレーションできる", () => {
     const raw = {
       id: "g",
@@ -76,8 +76,8 @@ describe("migrateActionGroup — httpRoute / responses 透過保持 (#160)", () 
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
 
     const action = once.actions[0];
@@ -96,7 +96,7 @@ describe("migrateActionGroup — httpRoute / responses 透過保持 (#160)", () 
       createdAt: "",
       updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     expect(migrated.actions[0].httpRoute).toBeUndefined();
     expect(migrated.actions[0].responses).toBeUndefined();
   });

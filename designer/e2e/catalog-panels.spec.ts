@@ -1,5 +1,5 @@
 /**
- * ActionGroup レベルカタログ編集 UI の統合 E2E (#278)
+ * ProcessFlow レベルカタログ編集 UI の統合 E2E (#278)
  * ambientVariables / secretsCatalog / externalSystemCatalog / typeCatalog の
  * 4 パネルが正しく展開・追加・編集・削除できることを検証。
  */
@@ -18,14 +18,14 @@ const dummyGroup = {
 };
 const dummyProject = {
   version: 1, name: "catalog-ui", screens: [], groups: [], edges: [], tables: [],
-  actionGroups: [{ id: groupId, no: 1, name: dummyGroup.name, type: dummyGroup.type, actionCount: 1, updatedAt: dummyGroup.updatedAt, maturity: "draft" }],
+  processFlows: [{ id: groupId, no: 1, name: dummyGroup.name, type: dummyGroup.type, actionCount: 1, updatedAt: dummyGroup.updatedAt, maturity: "draft" }],
   updatedAt: new Date().toISOString(),
 };
 
 async function setup(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
@@ -33,7 +33,7 @@ async function setup(page: Page) {
   await expect(page.locator(".step-editor, .action-content").first()).toBeVisible({ timeout: 10000 });
 }
 
-test.describe("ActionGroup カタログ編集パネル (#278)", () => {
+test.describe("ProcessFlow カタログ編集パネル (#278)", () => {
   test("4 つのカタログパネルが全て表示される", async ({ page }) => {
     await setup(page);
     await expect(page.locator(".ambient-variables-panel")).toBeVisible();

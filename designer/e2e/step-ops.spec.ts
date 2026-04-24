@@ -55,7 +55,7 @@ const dummyProject = {
   groups: [],
   edges: [],
   tables: [],
-  actionGroups: [
+  processFlows: [
     {
       id: groupId,
       no: 1,
@@ -72,7 +72,7 @@ const dummyProject = {
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
@@ -150,7 +150,7 @@ test.describe("メタバッジクリックで展開 (#236)", () => {
     };
     await page.addInitScript(({ project, group }) => {
       localStorage.setItem("flow-project", JSON.stringify(project));
-      localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+      localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
       localStorage.removeItem("designer-open-tabs");
       localStorage.removeItem("designer-active-tab");
     }, { project: dummyProject, group: withRunIfGroup });

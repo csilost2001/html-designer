@@ -1,19 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { checkIdentifierScopes } from "./identifierScope";
-import type { ActionGroup } from "../types/action";
+import type { ProcessFlow } from "../types/action";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
-const samplesDir = resolve(__dirname, "../../../docs/sample-project/actions");
+const samplesDir = resolve(__dirname, "../../../docs/sample-project/process-flows");
 
-function makeGroup(partial: Partial<ActionGroup>): ActionGroup {
+function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
     id: "a", name: "x", type: "screen", description: "",
     actions: [],
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
-  } as ActionGroup;
+  } as ProcessFlow;
 }
 
 describe("checkIdentifierScopes — inputs / outputs", () => {
@@ -225,11 +225,11 @@ describe("checkIdentifierScopes — SQL 内の @identifier", () => {
   });
 });
 
-describe("checkIdentifierScopes — サンプル (docs/sample-project/actions/*.json)", () => {
+describe("checkIdentifierScopes — サンプル (docs/sample-project/process-flows/*.json)", () => {
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
   for (const f of files) {
     it(`${f} の @ 参照が全て解決`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ActionGroup;
+      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
       const issues = checkIdentifierScopes(group);
       if (issues.length > 0) {
         throw new Error(

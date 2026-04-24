@@ -1,19 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/process-flow.schema.json",
-  "title": "ActionGroup (処理フロー定義)",
-  "description": "html-designer の処理フロー (ActionGroup) の正規スキーマ。data/actions/*.json の各ファイル・docs/sample-project/actions/*.json の各ファイルに一致する。TypeScript 型は designer/src/types/action.ts の ActionGroup と等価。",
+  "title": "ProcessFlow (処理フロー定義)",
+  "description": "html-designer の処理フロー (ProcessFlow) の正規スキーマ。data/process-flows/*.json の各ファイル・docs/sample-project/process-flows/*.json の各ファイルに一致する。TypeScript 型は designer/src/types/action.ts の ProcessFlow と等価。",
   "type": "object",
   "required": ["id", "name", "type", "description", "actions", "createdAt", "updatedAt"],
   "additionalProperties": false,
   "properties": {
     "id": { "type": "string" },
     "name": { "type": "string" },
-    "type": { "$ref": "#/$defs/ActionGroupType" },
+    "type": { "$ref": "#/$defs/ProcessFlowType" },
     "screenId": { "type": "string" },
     "description": { "type": "string" },
     "maturity": { "$ref": "#/$defs/Maturity" },
-    "mode": { "$ref": "#/$defs/ActionGroupMode" },
+    "mode": { "$ref": "#/$defs/ProcessFlowMode" },
     "errorCatalog": {
       "description": "エラーコードカタログ (#253)。キーは errorCode (例: STOCK_SHORTAGE)。affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される",
       "type": "object",
@@ -58,11 +58,11 @@
   },
 
   "$defs": {
-    "ActionGroupType": {
+    "ProcessFlowType": {
       "type": "string",
       "enum": ["screen", "batch", "scheduled", "system", "common", "other"]
     },
-    "ActionGroupMode": {
+    "ProcessFlowMode": {
       "type": "string",
       "enum": ["upstream", "downstream"],
       "description": "上流/下流モード。未指定は upstream 相当"
@@ -662,7 +662,7 @@
             "systemName": { "type": "string" },
             "systemRef": {
               "type": "string",
-              "description": "ActionGroup.externalSystemCatalog のキー参照 (#261 v1.3)"
+              "description": "ProcessFlow.externalSystemCatalog のキー参照 (#261 v1.3)"
             },
             "protocol": {
               "type": "string",

@@ -13,7 +13,7 @@ import type { FieldType } from "./action";
  * 処理フロー変数 / テーブル列 / ビュー列 / 計算式 の 4 種別。
  */
 export type ValueSource =
-  | { kind: "flowVariable"; actionGroupId?: string; variableName: string }
+  | { kind: "flowVariable"; processFlowId?: string; variableName: string }
   | { kind: "tableColumn"; tableName: string; columnName: string }
   | { kind: "viewColumn"; viewName: string; columnName: string }
   | { kind: "expression"; expression: string };

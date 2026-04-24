@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, BranchStep, OtherStep, JumpStep, LoopStep } from "../types/action";
-import { migrateActionGroup, migrateStep } from "./actionMigration";
+import type { ProcessFlow, BranchStep, OtherStep, JumpStep, LoopStep } from "../types/action";
+import { migrateProcessFlow, migrateStep } from "./actionMigration";
 
 describe("migrateStep — BranchStep legacy → new", () => {
   it("旧 branchA/branchB/condition を branches[] に変換する", () => {
@@ -195,9 +195,9 @@ describe("migrateStep — BranchStep legacy → new", () => {
   });
 });
 
-describe("migrateActionGroup — ActionGroup 全体", () => {
-  it("既存サンプルの認証チェック ActionGroup を正しく変換する", () => {
-    // docs/sample-project/actions/cccccccc-0003 相当のデータ
+describe("migrateProcessFlow — ProcessFlow 全体", () => {
+  it("既存サンプルの認証チェック ProcessFlow を正しく変換する", () => {
+    // docs/sample-project/process-flows/cccccccc-0003 相当のデータ
     const sample = {
       id: "cccccccc-0003-4000-8000-cccccccccccc",
       name: "認証チェック",
@@ -231,7 +231,7 @@ describe("migrateActionGroup — ActionGroup 全体", () => {
       updatedAt: "2026-04-14T00:00:00.000Z",
     };
 
-    const migrated = migrateActionGroup(sample) as ActionGroup;
+    const migrated = migrateProcessFlow(sample) as ProcessFlow;
 
     expect(migrated.id).toBe(sample.id);
     expect(migrated.actions).toHaveLength(1);
@@ -279,8 +279,8 @@ describe("migrateActionGroup — ActionGroup 全体", () => {
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(sample);
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(sample);
+    const twice = migrateProcessFlow(once);
     // IDs in once/twice should match (twice doesn't regenerate since already new)
     const onceJson = JSON.stringify(once);
     const twiceJson = JSON.stringify(twice);
@@ -408,7 +408,7 @@ describe("migrateStep — 旧 note → notes[] / maturity 既定付与 (#154)", 
   });
 });
 
-describe("migrateActionGroup — action/group レベルの maturity / mode 既定付与 (#154)", () => {
+describe("migrateProcessFlow — action/group レベルの maturity / mode 既定付与 (#154)", () => {
   it("group.maturity 未設定なら 'draft'、group.mode 未設定なら 'upstream' を付与する", () => {
     const raw = {
       id: "g1",
@@ -419,7 +419,7 @@ describe("migrateActionGroup — action/group レベルの maturity / mode 既�
       createdAt: "",
       updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw);
+    const migrated = migrateProcessFlow(raw);
     expect(migrated.maturity).toBe("draft");
     expect(migrated.mode).toBe("upstream");
   });
@@ -436,7 +436,7 @@ describe("migrateActionGroup — action/group レベルの maturity / mode 既�
       maturity: "committed",
       mode: "downstream",
     };
-    const migrated = migrateActionGroup(raw);
+    const migrated = migrateProcessFlow(raw);
     expect(migrated.maturity).toBe("committed");
     expect(migrated.mode).toBe("downstream");
   });
@@ -458,7 +458,7 @@ describe("migrateActionGroup — action/group レベルの maturity / mode 既�
       createdAt: "",
       updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw);
+    const migrated = migrateProcessFlow(raw);
     expect(migrated.actions[0].maturity).toBe("draft");
   });
 
@@ -486,8 +486,8 @@ describe("migrateActionGroup — action/group レベルの maturity / mode 既�
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw);
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw);
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     // 1 回目で note は消えて notes[] になっている
     const step = once.actions[0].steps[0] as unknown as { note?: string; notes?: Array<{ body: string }> };

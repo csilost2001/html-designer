@@ -5,14 +5,14 @@
  * 同じロジックを呼べるよう、クロスカッティングな補助関数をここに集約。
  */
 import { wsBridge } from "./wsBridge.js";
-import { writeActionGroup } from "./projectStorage.js";
-import type { ActionGroupDoc } from "./actionGroupEdits.js";
+import { writeProcessFlow } from "./projectStorage.js";
+import type { ProcessFlowDoc } from "./processFlowEdits.js";
 
-/** ActionGroup を保存してブラウザに変更通知 */
-export async function saveAndBroadcast(agId: string, ag: ActionGroupDoc): Promise<void> {
+/** ProcessFlow を保存してブラウザに変更通知 */
+export async function saveAndBroadcast(agId: string, ag: ProcessFlowDoc): Promise<void> {
   ag.updatedAt = new Date().toISOString();
-  await writeActionGroup(agId, ag);
-  wsBridge.broadcast("actionGroupChanged", { id: agId });
+  await writeProcessFlow(agId, ag);
+  wsBridge.broadcast("processFlowChanged", { id: agId });
 }
 
 /**

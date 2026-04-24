@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, HttpResponseSpec, ReturnStep, Step } from "./action";
+import type { ProcessFlow, HttpResponseSpec, ReturnStep, Step } from "./action";
 import { STEP_TYPE_LABELS, STEP_TYPE_ICONS, STEP_TYPE_COLORS } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("StepBase.runIf (#178)", () => {
   it("ステップに runIf を付与できる", () => {
@@ -86,7 +86,7 @@ describe("ReturnStep (#178)", () => {
   });
 });
 
-describe("migrateActionGroup — runIf / ReturnStep / responses[].id 透過保持 (#178)", () => {
+describe("migrateProcessFlow — runIf / ReturnStep / responses[].id 透過保持 (#178)", () => {
   it("runIf を持つステップを冪等にマイグレーションできる", () => {
     const raw = {
       id: "g",
@@ -112,8 +112,8 @@ describe("migrateActionGroup — runIf / ReturnStep / responses[].id 透過保�
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     expect(once.actions[0].steps[0].runIf).toBe("@paymentMethod == 'credit_card'");
   });
@@ -146,8 +146,8 @@ describe("migrateActionGroup — runIf / ReturnStep / responses[].id 透過保�
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
 
     const step = once.actions[0].steps[0] as ReturnStep;

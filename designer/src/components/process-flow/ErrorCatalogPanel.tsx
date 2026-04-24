@@ -1,15 +1,15 @@
 /**
- * ActionGroup.errorCatalog 編集パネル (#278)
+ * ProcessFlow.errorCatalog 編集パネル (#278)
  *
  * errorCode → { httpStatus, defaultMessage, responseRef, description } のマップ編集。
  * キー追加・削除、各フィールドの行編集。
  */
 import { useState } from "react";
-import type { ActionGroup, ErrorCatalogEntry } from "../../types/action";
+import type { ProcessFlow, ErrorCatalogEntry } from "../../types/action";
 
 interface Props {
-  group: ActionGroup;
-  onChange: (group: ActionGroup) => void;
+  group: ProcessFlow;
+  onChange: (group: ProcessFlow) => void;
   expanded?: boolean;
   onExpandedChange?: (next: boolean) => void;
   render?: "full" | "toggleOnly" | "bodyOnly";
@@ -27,7 +27,7 @@ export function ErrorCatalogPanel({ group, onChange, expanded: expandedProp, onE
   const catalog = group.errorCatalog ?? {};
   const keys = Object.keys(catalog);
 
-  // ActionGroup 内の全 response ID を収集 (responseRef ドロップダウン用)
+  // ProcessFlow 内の全 response ID を収集 (responseRef ドロップダウン用)
   const responseIds = Array.from(new Set(
     group.actions.flatMap((a) => (a.responses ?? []).map((r) => r.id).filter((x): x is string => !!x)),
   ));

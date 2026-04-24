@@ -1,13 +1,13 @@
 /**
  * 未解決マーカー集計パネル (#261)
  *
- * 全 ActionGroup を走査して、未解決 marker の件数を kind 別に集計。
+ * 全 ProcessFlow を走査して、未解決 marker の件数を kind 別に集計。
  * クリックで処理フロー一覧 (未解決 marker 有りでフィルタする想定、現状は単純遷移)。
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ActionGroup, MarkerKind } from "../../../types/action";
-import { listActionGroups, loadActionGroup } from "../../../store/actionStore";
+import type { ProcessFlow, MarkerKind } from "../../../types/action";
+import { listProcessFlows, loadProcessFlow } from "../../../store/processFlowStore";
 import { mcpBridge } from "../../../mcp/mcpBridge";
 
 interface RecentMarker {
@@ -15,8 +15,8 @@ interface RecentMarker {
   kind: MarkerKind;
   body: string;
   createdAt: string;
-  actionGroupId: string;
-  actionGroupName: string;
+  processFlowId: string;
+  processFlowName: string;
 }
 
 interface Summary {
@@ -34,10 +34,10 @@ const INITIAL: Summary = {
 };
 
 async function fetchSummary(): Promise<Summary> {
-  const metas = await listActionGroups();
+  const metas = await listProcessFlows();
   const s: Summary = { total: 0, byKind: { chat: 0, attention: 0, todo: 0, question: 0 }, perGroup: [], recent: [] };
   for (const meta of metas) {
-    const g: ActionGroup | null = await loadActionGroup(meta.id);
+    const g: ProcessFlow | null = await loadProcessFlow(meta.id);
     if (!g) continue;
     const unresolved = (g.markers ?? []).filter((m) => !m.resolvedAt);
     if (unresolved.length === 0) continue;
@@ -49,8 +49,8 @@ async function fetchSummary(): Promise<Summary> {
         kind: m.kind,
         body: m.body,
         createdAt: m.createdAt,
-        actionGroupId: g.id,
-        actionGroupName: g.name,
+        processFlowId: g.id,
+        processFlowName: g.name,
       });
     }
     s.perGroup.push({ id: g.id, name: g.name, count: unresolved.length });
@@ -95,7 +95,7 @@ export function MarkersSummaryPanel() {
     };
     reload();
     const unsubProject = mcpBridge.onBroadcast("projectChanged", reload);
-    const unsubAction = mcpBridge.onBroadcast("actionGroupChanged", reload);
+    const unsubAction = mcpBridge.onBroadcast("processFlowChanged", reload);
     const unsubStatus = mcpBridge.onStatusChange((s) => { if (s === "connected") reload(); });
     return () => { cancelled = true; unsubProject(); unsubAction(); unsubStatus(); };
   }, []);
@@ -157,9 +157,9 @@ export function MarkersSummaryPanel() {
                 <button
                   type="button"
                   className="btn btn-sm btn-link p-0 markers-recent-btn"
-                  onClick={() => navigate(`/process-flow/edit/${m.actionGroupId}`)}
+                  onClick={() => navigate(`/process-flow/edit/${m.processFlowId}`)}
                   style={{ textAlign: "left", width: "100%", textDecoration: "none" }}
-                  title={`${m.actionGroupName} — ${new Date(m.createdAt).toLocaleString("ja-JP")}`}
+                  title={`${m.processFlowName} — ${new Date(m.createdAt).toLocaleString("ja-JP")}`}
                 >
                   <span style={{ color: KIND_COLOR[m.kind], fontWeight: 600, marginRight: 4 }}>
                     <i className="bi bi-circle-fill" style={{ fontSize: "0.5rem", marginRight: 3 }} />
@@ -169,7 +169,7 @@ export function MarkersSummaryPanel() {
                     {m.body.length > 50 ? `${m.body.slice(0, 50)}…` : m.body}
                   </span>
                   <div style={{ color: "#94a3b8", fontSize: "0.7rem" }}>
-                    <i className="bi bi-diagram-3 me-1" />{m.actionGroupName}
+                    <i className="bi bi-diagram-3 me-1" />{m.processFlowName}
                   </div>
                 </button>
               </li>

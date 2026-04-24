@@ -3,17 +3,17 @@
  *
  * 視点: ユーザーが処理フローエディタ (/process-flow/edit/:id) で編集・保存・リセットを行う
  * 前提: dev サーバーが起動済み (playwright.config.ts の webServer で自動起動)
- *       MCP サーバーは不要 — localStorage でアクショングループを直接セットアップ
+ *       MCP サーバーは不要 — localStorage で処理フローを直接セットアップ
  */
 
 import { test, expect, type Page } from "@playwright/test";
 
 // ─── テスト用ダミーデータ ───────────────────────────────────────────────────
 
-const ACTION_GROUP_ID = "test-ag-0001-4000-8000-000000000001";
+const PROCESS_FLOW_ID = "test-ag-0001-4000-8000-000000000001";
 
-const dummyActionGroup = {
-  id: ACTION_GROUP_ID,
+const dummyProcessFlow = {
+  id: PROCESS_FLOW_ID,
   name: "テスト処理フロー",
   type: "screen",
   description: "",
@@ -28,23 +28,23 @@ const dummyProject = {
   screens: [],
   groups: [],
   edges: [],
-  actionGroups: [
+  processFlows: [
     {
-      id: ACTION_GROUP_ID,
-      name: dummyActionGroup.name,
-      type: dummyActionGroup.type,
+      id: PROCESS_FLOW_ID,
+      name: dummyProcessFlow.name,
+      type: dummyProcessFlow.type,
       actionCount: 0,
-      updatedAt: dummyActionGroup.updatedAt,
+      updatedAt: dummyProcessFlow.updatedAt,
     },
   ],
   updatedAt: new Date().toISOString(),
 };
 
 const dummyTab = {
-  id: `action:${ACTION_GROUP_ID}`,
+  id: `action:${PROCESS_FLOW_ID}`,
   type: "action",
-  resourceId: ACTION_GROUP_ID,
-  label: dummyActionGroup.name,
+  resourceId: PROCESS_FLOW_ID,
+  label: dummyProcessFlow.name,
   isDirty: false,
   isPinned: false,
 };
@@ -53,11 +53,11 @@ const dummyTab = {
 const toolbarSave = ".save-reset-buttons button.srb-btn-save";
 const toolbarReset = ".save-reset-buttons button.srb-btn-reset";
 
-async function setupActionEditor(page: Page, draft: object | null = null) {
+async function setupProcessFlowEditor(page: Page, draft: object | null = null) {
   await page.addInitScript(
     ({ project, group, groupId, tab, draft }) => {
       localStorage.setItem("flow-project", JSON.stringify(project));
-      localStorage.setItem(`action-group-${groupId}`, JSON.stringify(group));
+      localStorage.setItem(`process-flow-${groupId}`, JSON.stringify(group));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));
       localStorage.setItem("designer-active-tab", tab.id);
       if (draft) {
@@ -68,13 +68,13 @@ async function setupActionEditor(page: Page, draft: object | null = null) {
     },
     {
       project: dummyProject,
-      group: dummyActionGroup,
-      groupId: ACTION_GROUP_ID,
+      group: dummyProcessFlow,
+      groupId: PROCESS_FLOW_ID,
       tab: dummyTab,
       draft,
     },
   );
-  await page.goto(`/process-flow/edit/${ACTION_GROUP_ID}`);
+  await page.goto(`/process-flow/edit/${PROCESS_FLOW_ID}`);
   await expect(page.locator(".action-page")).toBeVisible();
 }
 
@@ -92,14 +92,14 @@ async function addAction(page: Page, name: string) {
 
 test.describe("処理フローエディタ：保存/リセットボタン", () => {
   test("初期状態では保存・リセットボタンが無効", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
 
     await expect(page.locator(toolbarSave)).toBeDisabled();
     await expect(page.locator(toolbarReset)).toBeDisabled();
   });
 
   test("アクション追加後に保存・リセットボタンが有効になる", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
     await addAction(page, "登録ボタン");
 
     await expect(page.locator(toolbarSave)).toBeEnabled();
@@ -107,15 +107,15 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
   });
 
   test("変更後にタブの dirty インジケーターが表示される", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
     await addAction(page, "登録ボタン");
 
-    const tabLocator = page.locator(".tabbar-tab").filter({ hasText: dummyActionGroup.name });
+    const tabLocator = page.locator(".tabbar-tab").filter({ hasText: dummyProcessFlow.name });
     await expect(tabLocator).toHaveClass(/\bdirty\b/);
   });
 
   test("リセット確認をキャンセルすると編集状態が保持される", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
     page.on("dialog", (d) => d.dismiss());
 
     await addAction(page, "登録ボタン");
@@ -126,7 +126,7 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
   });
 
   test("リセット確認を承認するとボタンが無効に戻る", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
     page.on("dialog", (d) => d.accept());
 
     await addAction(page, "登録ボタン");
@@ -137,11 +137,11 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
   });
 
   test("リセット後にタブの dirty インジケーターが消える", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
     page.on("dialog", (d) => d.accept());
 
     await addAction(page, "登録ボタン");
-    const tabLocator = page.locator(".tabbar-tab").filter({ hasText: dummyActionGroup.name });
+    const tabLocator = page.locator(".tabbar-tab").filter({ hasText: dummyProcessFlow.name });
     await expect(tabLocator).toHaveClass(/\bdirty\b/);
 
     await page.locator(toolbarReset).click();
@@ -149,7 +149,7 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
   });
 
   test("Ctrl+S で保存が実行されて保存ボタンが無効に戻る", async ({ page }) => {
-    await setupActionEditor(page);
+    await setupProcessFlowEditor(page);
     await addAction(page, "登録ボタン");
 
     await expect(page.locator(toolbarSave)).toBeEnabled();
@@ -160,7 +160,7 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
 
   test("ドラフトが事前に存在するとリロード後も isDirty 状態で復元される", async ({ page }) => {
     const drafted = {
-      ...dummyActionGroup,
+      ...dummyProcessFlow,
       actions: [
         {
           id: "act-0001",
@@ -172,7 +172,7 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
         },
       ],
     };
-    await setupActionEditor(page, drafted);
+    await setupProcessFlowEditor(page, drafted);
 
     await expect(page.locator(toolbarSave)).toBeEnabled();
     await expect(page.locator(toolbarReset)).toBeEnabled();

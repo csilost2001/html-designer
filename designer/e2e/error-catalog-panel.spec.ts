@@ -30,14 +30,14 @@ const dummyGroup = {
 
 const dummyProject = {
   version: 1, name: "ec-test", screens: [], groups: [], edges: [], tables: [],
-  actionGroups: [{ id: groupId, no: 1, name: dummyGroup.name, type: dummyGroup.type, actionCount: 1, updatedAt: dummyGroup.updatedAt, maturity: "draft" }],
+  processFlows: [{ id: groupId, no: 1, name: dummyGroup.name, type: dummyGroup.type, actionCount: 1, updatedAt: dummyGroup.updatedAt, maturity: "draft" }],
   updatedAt: new Date().toISOString(),
 };
 
 async function setup(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`action-group-${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project: dummyProject, group: dummyGroup });
@@ -79,7 +79,7 @@ test.describe("errorCatalog 編集パネル (#278)", () => {
 
     // 状態が group に反映されているか確認 (localStorage)
     const group = await page.evaluate((id) => {
-      const s = localStorage.getItem(`action-group-${id}`);
+      const s = localStorage.getItem(`process-flow-${id}`);
       return s ? JSON.parse(s) : null;
     }, groupId);
     // 保存はされないが autosave で draft か、少なくとも UI state は反映されている

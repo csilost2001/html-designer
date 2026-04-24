@@ -18,10 +18,10 @@ import {
   deleteTable as deleteTableFile,
   readErLayout,
   writeErLayout,
-  readActionGroup,
-  writeActionGroup,
-  deleteActionGroup as deleteActionGroupFile,
-  listActionGroups as listActionGroupFiles,
+  readProcessFlow,
+  writeProcessFlow,
+  deleteProcessFlow as deleteProcessFlowFile,
+  listProcessFlows as listProcessFlowFiles,
   readConventions,
   writeConventions,
   readScreenItems,
@@ -418,28 +418,28 @@ class WsBridge extends EventEmitter {
           this.broadcast("erLayoutChanged", {}, clientId);
           break;
         }
-        case "loadActionGroup": {
+        case "loadProcessFlow": {
           const { id: agId } = (params ?? {}) as { id: string };
-          const agData = await readActionGroup(agId);
+          const agData = await readProcessFlow(agId);
           respond(agData);
           break;
         }
-        case "saveActionGroup": {
+        case "saveProcessFlow": {
           const { id: agId, data: agData } = (params ?? {}) as { id: string; data: unknown };
-          await writeActionGroup(agId, agData);
+          await writeProcessFlow(agId, agData);
           respond({ success: true });
-          this.broadcast("actionGroupChanged", { id: agId }, clientId);
+          this.broadcast("processFlowChanged", { id: agId }, clientId);
           break;
         }
-        case "deleteActionGroup": {
+        case "deleteProcessFlow": {
           const { id: agId } = (params ?? {}) as { id: string };
-          await deleteActionGroupFile(agId);
+          await deleteProcessFlowFile(agId);
           respond({ success: true });
-          this.broadcast("actionGroupChanged", { id: agId, deleted: true }, clientId);
+          this.broadcast("processFlowChanged", { id: agId, deleted: true }, clientId);
           break;
         }
-        case "listActionGroups": {
-          const agList = await listActionGroupFiles();
+        case "listProcessFlows": {
+          const agList = await listProcessFlowFiles();
           const metas = (agList as Array<{ id: string; name: string; type: string; screenId?: string; actions?: unknown[]; updatedAt: string }>).map((ag) => ({
             id: ag.id,
             name: ag.name,
@@ -564,8 +564,8 @@ class WsBridge extends EventEmitter {
           const result = await renameScreenItemId(screenId, oldId, newId);
           respond(result);
           this.broadcast("screenItemsChanged", { screenId }, clientId);
-          for (const agId of result.actionGroupsUpdated) {
-            this.broadcast("actionGroupChanged", { id: agId }, clientId);
+          for (const agId of result.processFlowsUpdated) {
+            this.broadcast("processFlowChanged", { id: agId }, clientId);
           }
           if (result.screenHtmlUpdated) {
             this.broadcast("screenChanged", { screenId }, clientId);

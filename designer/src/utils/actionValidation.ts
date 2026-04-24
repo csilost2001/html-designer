@@ -1,4 +1,4 @@
-import type { ActionGroup, Step } from "../types/action";
+import type { ProcessFlow, Step } from "../types/action";
 
 export type ValidationSeverity = "error" | "warning";
 
@@ -74,7 +74,7 @@ function validateSteps(
   }
 }
 
-export function validateActionGroup(group: ActionGroup): ValidationError[] {
+export function validateProcessFlow(group: ProcessFlow): ValidationError[] {
   const allIds = new Set<string>();
   for (const action of group.actions) collectAllIds(action.steps, allIds);
 

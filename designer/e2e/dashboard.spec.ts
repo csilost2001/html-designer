@@ -26,7 +26,7 @@ const dummyProject = {
   tables: [
     { id: TABLE_ID, name: "users", logicalName: "ユーザー", description: "", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   ],
-  actionGroups: [
+  processFlows: [
     { id: ACTION_ID, name: "ログイン処理", type: "screen", actionCount: 0, updatedAt: new Date().toISOString() },
   ],
   updatedAt: new Date().toISOString(),

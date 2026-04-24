@@ -117,8 +117,8 @@ export interface TableMeta {
   updatedAt: string;
 }
 
-/** アクショングループメタ情報（project.json 管理用） */
-export interface ActionGroupMeta {
+/** 処理フローメタ情報（project.json 管理用） */
+export interface ProcessFlowMeta {
   id: string;
   /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
   no: number;
@@ -141,7 +141,7 @@ export interface FlowProject {
   groups: ScreenGroup[];
   edges: ScreenEdge[];
   tables?: TableMeta[];
-  actionGroups?: ActionGroupMeta[];
+  processFlows?: ProcessFlowMeta[];
   sequences?: import("./sequence").SequenceMeta[];
   updatedAt: string;
 }

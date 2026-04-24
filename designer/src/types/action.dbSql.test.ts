@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ActionGroup, DbAccessStep } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import type { ProcessFlow, DbAccessStep } from "./action";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("DbAccessStep の sql フィールド (#170)", () => {
   it("sql に完全な SELECT 文を保持できる", () => {
@@ -55,7 +55,7 @@ describe("DbAccessStep の sql フィールド (#170)", () => {
   });
 });
 
-describe("migrateActionGroup — dbAccess.sql 透過保持 (#170)", () => {
+describe("migrateProcessFlow — dbAccess.sql 透過保持 (#170)", () => {
   it("sql を持つ DbAccessStep を冪等マイグレーションできる", () => {
     const raw = {
       id: "g", name: "x", type: "screen", description: "",
@@ -69,8 +69,8 @@ describe("migrateActionGroup — dbAccess.sql 透過保持 (#170)", () => {
       }],
       createdAt: "", updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     const step = once.actions[0].steps[0] as DbAccessStep;
     expect(step.sql).toContain("RETURNING id");
@@ -85,7 +85,7 @@ describe("migrateActionGroup — dbAccess.sql 透過保持 (#170)", () => {
       }],
       createdAt: "", updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const step = migrated.actions[0].steps[0] as DbAccessStep;
     expect(step.sql).toBeUndefined();
     expect(step.fields).toBe("col1, col2");

@@ -39,9 +39,9 @@ paths:
   - project: `loadProject` / `saveProject`
   - screen: `loadScreen` / `saveScreen` / `deleteScreen`
   - table: `loadTable` / `saveTable` / `deleteTable`
-  - actionGroup: `loadActionGroup` / `saveActionGroup` / `deleteActionGroup`
+  - processFlow: `loadProcessFlow` / `saveProcessFlow` / `deleteProcessFlow`
   - mtime: `getFileMtime`
-- payload の id フィールド名は kind によって異なる: `screen` は `screenId`、`table` は `tableId`、`actionGroup` は `id`
+- payload の id フィールド名は kind によって異なる: `screen` は `screenId`、`table` は `tableId`、`processFlow` は `id`
 - テスト不可（stdio 経由のみ）: `designer__open_tab` 等のタブ操作コマンド → Issue #67 参照
 - designer-mcp が ws://localhost:5179 で起動していない場合は自動スキップ
 

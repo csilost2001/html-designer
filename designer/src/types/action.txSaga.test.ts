@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type {
-  ActionGroup,
+  ProcessFlow,
   DbAccessStep,
   ExternalSystemStep,
   TxBoundary,
   ExternalChain,
 } from "./action";
-import { migrateActionGroup } from "../utils/actionMigration";
+import { migrateProcessFlow } from "../utils/actionMigration";
 
 describe("StepBase の txBoundary / transactional / compensatesFor / externalChain (#162)", () => {
   it("txBoundary を保持できる", () => {
@@ -93,7 +93,7 @@ describe("StepBase の txBoundary / transactional / compensatesFor / externalCha
   });
 });
 
-describe("migrateActionGroup — TX/Saga/externalChain 透過保持 (#162)", () => {
+describe("migrateProcessFlow — TX/Saga/externalChain 透過保持 (#162)", () => {
   it("新フィールドを持つ複数ステップの冪等マイグレーション (TX chain + Saga)", () => {
     const raw = {
       id: "g",
@@ -159,8 +159,8 @@ describe("migrateActionGroup — TX/Saga/externalChain 透過保持 (#162)", () 
       createdAt: "",
       updatedAt: "",
     };
-    const once = migrateActionGroup(raw) as ActionGroup;
-    const twice = migrateActionGroup(once);
+    const once = migrateProcessFlow(raw) as ProcessFlow;
+    const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
 
     const steps = once.actions[0].steps;
@@ -189,7 +189,7 @@ describe("migrateActionGroup — TX/Saga/externalChain 透過保持 (#162)", () 
       createdAt: "",
       updatedAt: "",
     };
-    const migrated = migrateActionGroup(raw) as ActionGroup;
+    const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const step = migrated.actions[0].steps[0] as DbAccessStep;
     expect(step.txBoundary).toBeUndefined();
     expect(step.externalChain).toBeUndefined();

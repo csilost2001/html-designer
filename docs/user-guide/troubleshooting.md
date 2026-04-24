@@ -6,7 +6,7 @@
 
 ### ブラウザで処理フローが見えない (一覧が空)
 
-- `data/project.json` に `actionGroups[]` があるか確認
+- `data/project.json` に `processFlows[]` があるか確認
 - designer-mcp (ws://localhost:5179) が起動しているか: `netstat -ano | grep :5179`
 - ブラウザ DevTools Console で `[mcpBridge] connected` ログがあるか
 - localStorage が古い可能性: Application タブから `flow-project` を削除して reload
@@ -31,7 +31,7 @@ taskkill /F /PID <PID>     # Windows
 
 ### MarkerPanel に保存した marker が消える
 
-- ActionGroup の保存 (Ctrl+S / 保存ボタン) を実行したか
+- ProcessFlow の保存 (Ctrl+S / 保存ボタン) を実行したか
 - wsBridge 接続が切れていると localStorage にしか残らない
 - 保存したのに次回表示で消える → data/ フォルダの書込み権限を確認
 
@@ -66,7 +66,7 @@ taskkill /F /PID <PID>     # Windows
 ### 警告が消えない
 
 - ブラウザが localStorage の古いデータを見ている可能性 → reload
-- ActionEditor が再計算していない → 保存して reload
+- ProcessFlowEditor が再計算していない → 保存して reload
 
 ## データ周り
 
@@ -76,12 +76,12 @@ taskkill /F /PID <PID>     # Windows
 - 実データは wsBridge 経由で保存されるため、別の場所に data/ 全体をコピーすればバックアップ
 - designer-mcp を停止してから data/ をコピー推奨
 
-### project.json と action-group ファイルが整合しない
+### project.json と process-flow ファイルが整合しない
 
 - project.json: 一覧表示用の軽量メタ
-- data/actions/*.json: 実体
+- data/process-flows/*.json: 実体
 - どちらかだけ編集した場合、不整合で「処理フローが見つかりません」等のエラーに
-- 復旧: project.json に該当 ID があるか、data/actions/<ID>.json が存在するか、両方確認
+- 復旧: project.json に該当 ID があるか、data/process-flows/<ID>.json が存在するか、両方確認
 
 ## Playwright E2E
 

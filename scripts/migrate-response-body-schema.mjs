@@ -14,7 +14,7 @@
  *   node scripts/migrate-response-body-schema.mjs [--apply] [dir...]
  *
  *   --apply  : ファイルを上書き (省略時は dry-run)
- *   dir...   : 対象ディレクトリ (省略時は docs/sample-project/actions data/actions)
+ *   dir...   : 対象ディレクトリ (省略時は docs/sample-project/process-flows data/process-flows)
  */
 
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
@@ -27,8 +27,8 @@ const dirs = process.argv
 
 if (dirs.length === 0) {
   dirs.push(
-    resolve("docs/sample-project/actions"),
-    resolve("data/actions"),
+    resolve("docs/sample-project/process-flows"),
+    resolve("data/process-flows"),
   );
 }
 
@@ -41,7 +41,7 @@ function isSimpleIdentifier(s) {
   return /^[A-Za-z][A-Za-z0-9]*$/.test(s);
 }
 
-/** ActionGroup JSON を再帰的に走査し bodySchema を変換する */
+/** ProcessFlow JSON を再帰的に走査し bodySchema を変換する */
 function migrateBodySchemas(obj, path, warnings) {
   if (Array.isArray(obj)) {
     obj.forEach((item, i) => migrateBodySchemas(item, `${path}[${i}]`, warnings));

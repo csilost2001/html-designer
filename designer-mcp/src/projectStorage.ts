@@ -81,7 +81,7 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "conventions": return CONVENTIONS_FILE;
     case "screen": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
     case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
-    case "actionGroup": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
+    case "processFlow": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
     case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
     case "sequence": return id ? path.join(SEQUENCES_DIR, `${id}.json`) : null;
     case "view": return VIEWS_FILE;
@@ -147,21 +147,21 @@ export async function deleteTable(tableId: string): Promise<void> {
   } catch { /* file not found is OK */ }
 }
 
-/** actions/{actionGroupId}.json を読み込み */
-export async function readActionGroup(actionGroupId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(ACTIONS_DIR, `${actionGroupId}.json`));
+/** actions/{processFlowId}.json を読み込み */
+export async function readProcessFlow(processFlowId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(ACTIONS_DIR, `${processFlowId}.json`));
 }
 
-/** actions/{actionGroupId}.json を書き込み */
-export async function writeActionGroup(actionGroupId: string, data: unknown): Promise<void> {
+/** actions/{processFlowId}.json を書き込み */
+export async function writeProcessFlow(processFlowId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(ACTIONS_DIR, `${actionGroupId}.json`), data);
+  await writeJSON(path.join(ACTIONS_DIR, `${processFlowId}.json`), data);
 }
 
-/** actions/{actionGroupId}.json を削除（存在しない場合は無視） */
-export async function deleteActionGroup(actionGroupId: string): Promise<void> {
+/** actions/{processFlowId}.json を削除（存在しない場合は無視） */
+export async function deleteProcessFlow(processFlowId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(ACTIONS_DIR, `${actionGroupId}.json`));
+    await fs.unlink(path.join(ACTIONS_DIR, `${processFlowId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -223,8 +223,8 @@ export async function writeViewsFile(data: unknown): Promise<void> {
   await writeJSON(VIEWS_FILE, data);
 }
 
-/** actions/ ディレクトリ内の全アクショングループを読み込み */
-export async function listActionGroups(): Promise<unknown[]> {
+/** actions/ ディレクトリ内の全処理フローを読み込み */
+export async function listProcessFlows(): Promise<unknown[]> {
   try {
     await ensureDataDir();
     const files = await fs.readdir(ACTIONS_DIR);

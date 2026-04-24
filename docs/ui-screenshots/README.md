@@ -3,7 +3,7 @@
 Phase B 拡張後の処理フロー機能 UI を記録したもの。`docs/spec/process-flow-extensions.md` 等の仕様書から参照される。
 
 **撮影時点**: 2026-04-20 (Phase B スキーマ凍結・5.0/5 ドッグフード到達後)
-**対象データ**: `data/actions/cccccccc-0002/0005-*.json` (顧客一覧画面 / 顧客登録画面)
+**対象データ**: `data/process-flows/cccccccc-0002/0005-*.json` (顧客一覧画面 / 顧客登録画面)
 
 ## 索引
 
@@ -11,7 +11,7 @@ Phase B 拡張後の処理フロー機能 UI を記録したもの。`docs/spec/
 |---|---------|------|-----------|
 | 01 | [process-flow-list](01-process-flow-list.png) | 処理フロー一覧 — maturity サマリバー + maturity フィルタ | [maturity.md](../spec/process-flow-maturity.md) |
 | 02 | [dashboard](02-dashboard.png) | ダッシュボード全景 | — |
-| 03 | [action-editor](03-action-editor.png) | ActionEditor 全景 — maturity/モード/進捗/アクションタブ/HTTP 契約/structured fields/ツールバー | [extensions.md §1](../spec/process-flow-extensions.md) |
+| 03 | [action-editor](03-action-editor.png) | ProcessFlowEditor 全景 — maturity/モード/進捗/アクションタブ/HTTP 契約/structured fields/ツールバー | [extensions.md §1](../spec/process-flow-extensions.md) |
 | 04 | [step-expanded](04-step-expanded.png) | ステップ展開状態 — runIf / outputBinding / 代入方式 | [extensions.md §2](../spec/process-flow-extensions.md) |
 | 05 | [step-card-detail](05-step-card-detail.png) | DB操作 ステップ詳細 — テーブル / 操作 / 完全 SQL | [variables.md](../spec/process-flow-variables.md) |
 | 06 | [dashboard-maturity-panel](06-dashboard-maturity-panel.png) | ダッシュボード処理フロー成熟度パネル (拡大) — 確定率 + 内訳バッジ + 未確定警告 | [maturity.md](../spec/process-flow-maturity.md) |

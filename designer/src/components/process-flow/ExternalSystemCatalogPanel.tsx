@@ -1,12 +1,12 @@
 /**
- * ActionGroup.externalSystemCatalog 編集パネル (#278)
+ * ProcessFlow.externalSystemCatalog 編集パネル (#278)
  */
 import { useState } from "react";
-import type { ActionGroup, ExternalSystemCatalogEntry, ExternalAuthKind } from "../../types/action";
+import type { ProcessFlow, ExternalSystemCatalogEntry, ExternalAuthKind } from "../../types/action";
 
 interface Props {
-  group: ActionGroup;
-  onChange: (group: ActionGroup) => void;
+  group: ProcessFlow;
+  onChange: (group: ProcessFlow) => void;
   expanded?: boolean;
   onExpandedChange?: (next: boolean) => void;
   render?: "full" | "toggleOnly" | "bodyOnly";

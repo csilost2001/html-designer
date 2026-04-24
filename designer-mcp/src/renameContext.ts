@@ -163,7 +163,7 @@ export interface ApplyRenameMappingEntry {
   oldId: string;
   newId: string;
   screenHtmlUpdated: boolean;
-  actionGroupsUpdated: string[];
+  processFlowsUpdated: string[];
   refsRenamed: number;
   warnings: string[];
 }
@@ -248,7 +248,7 @@ export async function applyRenameMapping(
         oldId,
         newId,
         screenHtmlUpdated: res.screenHtmlUpdated,
-        actionGroupsUpdated: res.actionGroupsUpdated,
+        processFlowsUpdated: res.processFlowsUpdated,
         refsRenamed: res.refsRenamed,
         warnings: res.warnings,
       });

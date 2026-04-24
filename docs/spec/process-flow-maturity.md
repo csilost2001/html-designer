@@ -47,7 +47,7 @@ UI サンプル:
 
 - **ステップ単位** (`step.maturity`): ステップ全体の成熟度
 - **アクション単位** (`action.maturity`): アクションのまとまりとしての成熟度
-- **アクショングループ単位** (`group.maturity`): フロー全体の成熟度
+- **処理フロー単位** (`group.maturity`): フロー全体の成熟度
 
 v1 はアクション単位まで。フィールド粒度 (例: `step.inputs` だけ draft) は Phase 3。
 
@@ -89,10 +89,10 @@ interface StepBase {
 
 ## 5. モード (上流 / 下流)
 
-アクショングループに `mode` を追加:
+処理フローに `mode` を追加:
 
 ```ts
-interface ActionGroup {
+interface ProcessFlow {
   // 既存
   mode?: "upstream" | "downstream";  // 既定 "upstream"
 }
@@ -151,8 +151,8 @@ interface ActionGroup {
 | `StepBase` | `maturity?: Maturity` | `"draft"` | 無しなら draft |
 | `StepBase` | `notes?: StepNote[]` | — | 旧 `note` を自動変換 |
 | `ActionDefinition` | `maturity?` | `"draft"` | 同上 |
-| `ActionGroup` | `maturity?` | `"draft"` | 同上 |
-| `ActionGroup` | `mode?: "upstream"\|"downstream"` | `"upstream"` | 同上 |
+| `ProcessFlow` | `maturity?` | `"draft"` | 同上 |
+| `ProcessFlow` | `mode?: "upstream"\|"downstream"` | `"upstream"` | 同上 |
 
 ### マイグレーション
 
@@ -170,7 +170,7 @@ interface ActionGroup {
 
 > これらは実装フェーズの追跡チェックリストです。凍結は設計確定を意味し、実装完了を意味しません。
 
-- [ ] ステップ・アクション・アクショングループに `maturity` フィールドが追加され、JSON に永続化される
+- [ ] ステップ・アクション・処理フローに `maturity` フィールドが追加され、JSON に永続化される
 - [ ] 既存 JSON (maturity 欄なし) は `draft` として読み込まれ、初回保存で付与される
 - [ ] 既存 `note: string` は `notes: [{type: "assumption"}]` に自動変換される
 - [ ] 付箋の 5 種別が UI から追加・編集・削除できる

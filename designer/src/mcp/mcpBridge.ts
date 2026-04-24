@@ -42,9 +42,9 @@ import {
   type ErLayoutStorageBackend,
 } from "../store/erLayoutStore";
 import {
-  setActionStorageBackend,
-  type ActionStorageBackend,
-} from "../store/actionStore";
+  setProcessFlowStorageBackend,
+  type ProcessFlowStorageBackend,
+} from "../store/processFlowStore";
 import {
   setConventionsStorageBackend,
   type ConventionsStorageBackend,
@@ -77,7 +77,7 @@ type BroadcastHandler = (data: unknown) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
 
-type ActionGroupHandler = {
+type ProcessFlowHandler = {
   get: () => unknown;
   mutate: (type: string, params: unknown) => void;
 };
@@ -97,7 +97,7 @@ class McpBridgeImpl {
   private ws: WebSocket | null = null;
   private editor: GEditor | null = null;
   private currentScreenId: string | null = null;
-  private actionGroupHandlers = new Map<string, ActionGroupHandler>();
+  private processFlowHandlers = new Map<string, ProcessFlowHandler>();
   private status: McpStatus = "disconnected";
   private statusCallbacks: Set<StatusCallback> = new Set();
   private themeHandler: ThemeHandler | null = null;
@@ -126,11 +126,11 @@ class McpBridgeImpl {
     this.currentScreenId = screenId;
   }
 
-  setActionGroupHandler(id: string, handler: ActionGroupHandler | null): void {
+  setProcessFlowHandler(id: string, handler: ProcessFlowHandler | null): void {
     if (handler) {
-      this.actionGroupHandlers.set(id, handler);
+      this.processFlowHandlers.set(id, handler);
     } else {
-      this.actionGroupHandlers.delete(id);
+      this.processFlowHandlers.delete(id);
     }
   }
 
@@ -309,13 +309,13 @@ class McpBridgeImpl {
     };
     setErLayoutStorageBackend(erLayoutBackend);
 
-    const actionBackend: ActionStorageBackend = {
-      loadActionGroup: (id) => this.request("loadActionGroup", { id }),
-      saveActionGroup: (id, data) => this.request("saveActionGroup", { id, data }).then(() => undefined),
-      deleteActionGroup: (id) => this.request("deleteActionGroup", { id }).then(() => undefined),
-      listActionGroups: () => this.request("listActionGroups"),
+    const actionBackend: ProcessFlowStorageBackend = {
+      loadProcessFlow: (id) => this.request("loadProcessFlow", { id }),
+      saveProcessFlow: (id, data) => this.request("saveProcessFlow", { id, data }).then(() => undefined),
+      deleteProcessFlow: (id) => this.request("deleteProcessFlow", { id }).then(() => undefined),
+      listProcessFlows: () => this.request("listProcessFlows"),
     };
-    setActionStorageBackend(actionBackend);
+    setProcessFlowStorageBackend(actionBackend);
 
     const conventionsBackend: ConventionsStorageBackend = {
       loadConventions: () => this.request("loadConventions"),
@@ -353,7 +353,7 @@ class McpBridgeImpl {
     setCustomBlocksBackend(null);
     setTableStorageBackend(null);
     setErLayoutStorageBackend(null);
-    setActionStorageBackend(null);
+    setProcessFlowStorageBackend(null);
     setConventionsStorageBackend(null);
     setScreenItemsStorageBackend(null);
     setSequenceStorageBackend(null);
@@ -427,13 +427,13 @@ class McpBridgeImpl {
     };
 
     // GrapesJS editor インスタンスが不要なメソッド一覧
-    // (フロー操作 / タブ操作 / ActionGroupHandler 操作)
+    // (フロー操作 / タブ操作 / ProcessFlowHandler 操作)
     const editorFreeMethods = [
       "listScreens", "addScreen", "updateScreenMeta", "removeScreenNode",
       "addFlowEdge", "removeFlowEdge", "getFlow", "navigateScreen",
       "listCustomBlocks",
       "openTab", "closeTab", "switchTab", "listTabs", "saveScreen", "saveAll",
-      "getActionGroup", "applyActionGroupMutation",
+      "getProcessFlow", "applyProcessFlowMutation",
     ];
 
     if (!this.editor && !editorFreeMethods.includes(method)) {
@@ -872,7 +872,7 @@ class McpBridgeImpl {
             const path =
               tab.type === "design" ? `/screen/design/${tab.resourceId}`
               : tab.type === "table" ? `/table/edit/${tab.resourceId}`
-              : tab.type === "action" ? `/process-flow/edit/${tab.resourceId}`
+              : tab.type === "process-flow" ? `/process-flow/edit/${tab.resourceId}`
               : `/screen/flow`;
             this.navigateHandler(path);
           }
@@ -921,26 +921,26 @@ class McpBridgeImpl {
 
         // ── browser-first 処理フロー操作 ──────────────────────────────
 
-        case "getActionGroup": {
+        case "getProcessFlow": {
           const { id: agId } = (params ?? {}) as { id: string };
-          const handler = this.actionGroupHandlers.get(agId);
+          const handler = this.processFlowHandlers.get(agId);
           if (!handler) {
-            respondError(`ActionEditor が開かれていません: ${agId}`);
+            respondError(`ProcessFlowEditor が開かれていません: ${agId}`);
             break;
           }
           respond(handler.get());
           break;
         }
 
-        case "applyActionGroupMutation": {
+        case "applyProcessFlowMutation": {
           const { id: agId, type: mutType, params: mutParams } = (params ?? {}) as {
             id: string;
             type: string;
             params: unknown;
           };
-          const handler = this.actionGroupHandlers.get(agId);
+          const handler = this.processFlowHandlers.get(agId);
           if (!handler) {
-            respondError(`ActionEditor が開かれていません: ${agId}`);
+            respondError(`ProcessFlowEditor が開かれていません: ${agId}`);
             break;
           }
           try {
