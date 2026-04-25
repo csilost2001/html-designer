@@ -1148,7 +1148,7 @@
         },
         "context": {
           "type": "string",
-          "description": "jsonpath / xpath の評価対象。Arazzo Runtime Expression ($記法) 推奨: \"$response.body\", \"$response.body#/id\", \"$statusCode\". 旧 @記法 (@responseBody 等) は後方互換として引き続き有効"
+          "description": "jsonpath / xpath の評価対象 (JSON / XML オブジェクト)。Arazzo Runtime Expression ($記法) 推奨: \"$response.body\", \"$response.body#/id\". 旧 @記法 (@responseBody 等) は後方互換として引き続き有効"
         }
       }
     },
