@@ -19,11 +19,22 @@ const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
 const SEQUENCES_DIR = path.join(DATA_DIR, "sequences");
+export const EXTENSIONS_DIR = path.join(DATA_DIR, "extensions");
 export const VIEWS_FILE = path.join(DATA_DIR, "views.json");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
 export const CONVENTIONS_FILE = path.join(CONVENTIONS_DIR, "catalog.json");
+
+const EXTENSION_FILE_NAMES = {
+  steps: "steps.json",
+  fieldTypes: "field-types.json",
+  triggers: "triggers.json",
+  dbOperations: "db-operations.json",
+  responseTypes: "response-types.json",
+} as const;
+
+export type ExtensionFileKind = keyof typeof EXTENSION_FILE_NAMES;
 
 /** data/ ディレクトリ群を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
@@ -34,6 +45,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
   await fs.mkdir(SCREEN_ITEMS_DIR, { recursive: true });
   await fs.mkdir(SEQUENCES_DIR, { recursive: true });
+  await fs.mkdir(EXTENSIONS_DIR, { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -87,6 +99,24 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "view": return VIEWS_FILE;
     default: return null;
   }
+}
+
+/** data/extensions/*.json を生 JSON バンドルとして読み込み (#444) */
+export async function readExtensionsBundle(): Promise<Record<ExtensionFileKind, unknown | null>> {
+  await ensureDataDir();
+  const entries = await Promise.all(
+    Object.entries(EXTENSION_FILE_NAMES).map(async ([kind, fileName]) => {
+      const data = await readJSON<unknown>(path.join(EXTENSIONS_DIR, fileName));
+      return [kind, data] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as Record<ExtensionFileKind, unknown | null>;
+}
+
+/** data/extensions/{type}.json を単体書き込み (#447 で利用予定) */
+export async function writeExtensionsFile(type: ExtensionFileKind, content: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(path.join(EXTENSIONS_DIR, EXTENSION_FILE_NAMES[type]), content);
 }
 
 /** screens/{screenId}.json を読み込み */

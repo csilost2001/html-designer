@@ -65,6 +65,7 @@ import {
   setViewStorageBackend,
   type ViewStorageBackend,
 } from "../store/viewStore";
+import type { RawExtensionsBundle } from "../schemas/loadExtensions";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
 export type ThemeIdLike = "standard" | "card" | "compact" | "dark";
@@ -73,6 +74,7 @@ type StatusCallback = (s: McpStatus) => void;
 type ThemeHandler = (theme: ThemeIdLike) => void;
 type NavigateHandler = (path: string) => void;
 type FlowChangeHandler = () => void;
+type ExtensionsChangedHandler = () => void;
 type BroadcastHandler = (data: unknown) => void;
 type Command = { id: string; method: string; params?: unknown };
 type Response = { id: string; result?: unknown; error?: string };
@@ -103,6 +105,8 @@ class McpBridgeImpl {
   private themeHandler: ThemeHandler | null = null;
   private navigateHandler: NavigateHandler | null = null;
   private flowChangeHandler: FlowChangeHandler | null = null;
+  private extensionsCache: Promise<RawExtensionsBundle> | null = null;
+  private extensionsChangedHandlers: Set<ExtensionsChangedHandler> = new Set();
   private broadcastHandlers = new Map<string, Set<BroadcastHandler>>();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
@@ -163,6 +167,30 @@ class McpBridgeImpl {
     }
     this.broadcastHandlers.get(event)!.add(handler);
     return () => this.broadcastHandlers.get(event)?.delete(handler);
+  }
+
+  async getExtensions(forceReload = false): Promise<RawExtensionsBundle> {
+    if (forceReload) {
+      this.extensionsCache = null;
+    }
+    if (this.extensionsCache) {
+      return this.extensionsCache;
+    }
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return {};
+    }
+    this.extensionsCache = this.request("getExtensions")
+      .then((result) => (isExtensionsBundle(result) ? result : {}))
+      .catch(() => {
+        this.extensionsCache = null;
+        return {};
+      });
+    return this.extensionsCache;
+  }
+
+  onExtensionsChanged(handler: ExtensionsChangedHandler): () => void {
+    this.extensionsChangedHandlers.add(handler);
+    return () => this.extensionsChangedHandlers.delete(handler);
   }
 
   // ── 起動 / 停止 ───────────────────────────────────────────────────────
@@ -392,6 +420,10 @@ class McpBridgeImpl {
       const event = msg.event as string;
       const broadcastData = msg.data;
       console.log("[mcpBridge] broadcast:", event, broadcastData);
+      if (event === "extensionsChanged") {
+        this.extensionsCache = null;
+        this.extensionsChangedHandlers.forEach((handler) => handler());
+      }
       const handlers = this.broadcastHandlers.get(event);
       if (handlers) {
         handlers.forEach((h) => h(broadcastData));
@@ -1090,6 +1122,10 @@ function categoryLabel(cat: unknown): string {
     return obj.label ?? obj.id ?? "";
   }
   return String(cat);
+}
+
+function isExtensionsBundle(value: unknown): value is RawExtensionsBundle {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function captureScreenshot(editor: GEditor): Promise<string> {

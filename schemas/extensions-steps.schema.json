@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/extensions-steps.schema.json",
+  "title": "ProcessFlow Steps Extensions",
+  "type": "object",
+  "required": ["namespace", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]*$"
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/StepDef" }
+    }
+  },
+  "$defs": {
+    "StepDef": {
+      "type": "object",
+      "required": ["label", "icon", "description", "schema"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "icon": { "type": "string" },
+        "description": { "type": "string" },
+        "schema": { "$ref": "#/$defs/DynamicFormSchema" }
+      }
+    },
+    "DynamicFormSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "oneOf": [
+            { "enum": ["string", "number", "integer", "boolean", "object", "array"] },
+            {
+              "type": "array",
+              "items": { "enum": ["string", "number", "integer", "boolean", "object", "array"] }
+            }
+          ]
+        },
+        "enum": { "type": "array" },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/DynamicFormSchema" }
+        },
+        "items": { "$ref": "#/$defs/DynamicFormSchema" },
+        "required": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "description": { "type": "string" },
+        "default": true,
+        "additionalProperties": { "type": "boolean" }
+      }
+    }
+  }
+}
