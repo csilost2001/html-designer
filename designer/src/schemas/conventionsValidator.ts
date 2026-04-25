@@ -67,6 +67,7 @@ export interface ConventionIssue {
     | "UNKNOWN_CONV_CATEGORY"
     | "ROLE_INHERITS_CYCLE"
     | "UNKNOWN_CONV_ROLE_PERMISSION"
+    | "UNKNOWN_CONV_ROLE_INHERITS"
     | "INVALID_DEFAULT_LOCALE"
     | "UNKNOWN_MSG_LOCALE";
   value: string;
@@ -142,6 +143,7 @@ export function checkConventionsCatalogIntegrity(catalog: ConventionsCatalog | n
 
   const issues: ConventionIssue[] = [];
   checkRolePermissionReferences(catalog, issues);
+  checkRoleInheritsReferences(catalog, issues);
   checkRoleInheritanceCycles(catalog, issues);
   checkI18nCatalog(catalog, issues);
   return issues;
@@ -186,6 +188,23 @@ function checkRolePermissionReferences(catalog: ConventionsCatalog, issues: Conv
           code: "UNKNOWN_CONV_ROLE_PERMISSION",
           value: permissionKey,
           message: `role.${roleKey} が存在しない permission.${permissionKey} を参照しています`,
+        });
+      }
+    });
+  });
+}
+
+function checkRoleInheritsReferences(catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
+  const roles = catalog.role ?? {};
+
+  Object.entries(roles).forEach(([roleKey, role]) => {
+    (role.inherits ?? []).forEach((parentKey, i) => {
+      if (!(parentKey in roles)) {
+        issues.push({
+          path: `role.${roleKey}.inherits[${i}]`,
+          code: "UNKNOWN_CONV_ROLE_INHERITS",
+          value: parentKey,
+          message: `role.${roleKey} が存在しない role.${parentKey} を参照しています`,
         });
       }
     });

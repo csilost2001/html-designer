@@ -390,6 +390,21 @@ describe("checkConventionsCatalogIntegrity - RBAC", () => {
     expect(issues[0].code).toBe("UNKNOWN_CONV_ROLE_PERMISSION");
     expect(issues[0].path).toBe("role.orderOperator.permissions[1]");
   });
+
+  it("role.inherits の存在しない親 role 参照をエラーとして検出する", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      role: {
+        orderApprover: { permissions: [], inherits: ["orderOperator"] },
+      },
+    };
+
+    const issues = checkConventionsCatalogIntegrity(catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_ROLE_INHERITS");
+    expect(issues[0].path).toBe("role.orderApprover.inherits[0]");
+    expect(issues[0].value).toBe("orderOperator");
+  });
 });
 
 // ── checkScreenItemConventionReferences (#351) ────────────────────────────
