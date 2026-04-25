@@ -92,6 +92,7 @@
     "stripe": {
       "name": "Stripe Japan",
       "baseUrl": "https://api.stripe.com",
+      "openApiSpec": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
       "auth": { "kind": "bearer", "tokenRef": "@secret.stripeApiKey" },
       "timeoutMs": 10000,
       "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
@@ -260,6 +261,10 @@
           "runIf": "@paymentMethod == 'credit_card'",
           "systemName": "Stripe Japan",
           "systemRef": "stripe",
+          "operationRef": "/v1/payment_intents POST",
+          "operationId": "PostPaymentIntents",
+          "requestBodyRef": "#/components/schemas/PaymentIntentCreateParams",
+          "responseRef": "#/components/schemas/payment_intent",
           "httpCall": {
             "method": "POST",
             "path": "/v1/payment_intents",
@@ -367,6 +372,8 @@
                   "runIf": "@paymentAuth != null",
                   "systemName": "Stripe Japan",
                   "systemRef": "stripe",
+                  "operationRef": "/v1/payment_intents/{intent}/cancel POST",
+                  "operationId": "PostPaymentIntentsIntentCancel",
                   "httpCall": {
                     "method": "POST",
                     "path": "/v1/payment_intents/@paymentAuth.id/cancel"
@@ -410,6 +417,8 @@
                 "runIf": "@paymentMethod == 'credit_card'",
                 "systemName": "Stripe Japan",
                 "systemRef": "stripe",
+                "operationRef": "/v1/payment_intents/{intent}/capture POST",
+                "operationId": "PostPaymentIntentsIntentCapture",
                 "httpCall": {
                   "method": "POST",
                   "path": "/v1/payment_intents/@paymentAuth.id/capture"

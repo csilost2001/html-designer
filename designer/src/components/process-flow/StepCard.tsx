@@ -227,6 +227,10 @@ interface StepCardProps {
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+const trimToUndefined = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+};
 
 export function StepCard({
   step,
@@ -1040,6 +1044,58 @@ export function StepCard({
                       onChange={(e) => onChange({ protocol: e.target.value } as Partial<Step>)}
                       onBlur={onCommit}
                       placeholder="REST / SOAP / gRPC"
+                    />
+                  </div>
+                </div>
+                <div className="row g-2 mb-2">
+                  <div className="col-6" data-field-path="operationRef">
+                    <label className="form-label">operationRef</label>
+                    <input
+                      className="form-control form-control-sm"
+                      data-field-path="operationRef"
+                      value={step.operationRef ?? ""}
+                      onChange={(e) => onChange({ operationRef: trimToUndefined(e.target.value) } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="/v1/payment_intents POST"
+                      style={{ fontFamily: "monospace" }}
+                    />
+                  </div>
+                  <div className="col-6" data-field-path="operationId">
+                    <label className="form-label">operationId</label>
+                    <input
+                      className="form-control form-control-sm"
+                      data-field-path="operationId"
+                      value={step.operationId ?? ""}
+                      onChange={(e) => onChange({ operationId: trimToUndefined(e.target.value) } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="PostPaymentIntents"
+                      style={{ fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+                <div className="row g-2 mb-2">
+                  <div className="col-6" data-field-path="requestBodyRef">
+                    <label className="form-label">requestBodyRef</label>
+                    <input
+                      className="form-control form-control-sm"
+                      data-field-path="requestBodyRef"
+                      value={step.requestBodyRef ?? ""}
+                      onChange={(e) => onChange({ requestBodyRef: trimToUndefined(e.target.value) } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="#/components/schemas/PaymentIntentCreateParams"
+                      style={{ fontFamily: "monospace" }}
+                    />
+                  </div>
+                  <div className="col-6" data-field-path="responseRef">
+                    <label className="form-label">responseRef</label>
+                    <input
+                      className="form-control form-control-sm"
+                      data-field-path="responseRef"
+                      value={step.responseRef ?? ""}
+                      onChange={(e) => onChange({ responseRef: trimToUndefined(e.target.value) } as Partial<Step>)}
+                      onBlur={onCommit}
+                      placeholder="#/components/responses/200/content/application~1json/schema"
+                      style={{ fontFamily: "monospace" }}
                     />
                   </div>
                 </div>

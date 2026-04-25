@@ -846,6 +846,10 @@
       "properties": {
         "name": { "type": "string" },
         "baseUrl": { "type": "string" },
+        "openApiSpec": {
+          "type": "string",
+          "description": "OpenAPI specification URL or relative path (#413)"
+        },
         "auth": { "$ref": "#/$defs/ExternalAuth" },
         "timeoutMs": { "type": "integer", "minimum": 0 },
         "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
@@ -880,6 +884,22 @@
               "description": "DEPRECATED (#261): httpCall への移行推奨"
             },
             "httpCall": { "$ref": "#/$defs/ExternalHttpCall" },
+            "operationRef": {
+              "type": "string",
+              "description": "OpenAPI operation reference. When httpCall is also present, operationRef takes precedence (#413)."
+            },
+            "operationId": {
+              "type": "string",
+              "description": "OpenAPI operationId (#413)"
+            },
+            "requestBodyRef": {
+              "type": "string",
+              "description": "JSON Pointer / $ref to request body schema (#413)"
+            },
+            "responseRef": {
+              "type": "string",
+              "description": "JSON Pointer / $ref to response schema (#413)"
+            },
             "outcomes": {
               "type": "object",
               "additionalProperties": false,
