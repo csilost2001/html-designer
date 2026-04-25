@@ -1640,6 +1640,21 @@ export function StepCard({
                 conventions={conventions ?? null}
                 onChange={(patch) => onChange(patch as Partial<Step>)}
                 onCommit={onCommit}
+                renderInlineStepList={({ steps, parentLabel, onChange: onStepsChange }) => (
+                  <InlineStepList
+                    steps={steps}
+                    parentLabel={parentLabel}
+                    allSteps={allSteps}
+                    tables={tables}
+                    screens={screens}
+                    commonGroups={commonGroups}
+                    onChange={onStepsChange}
+                    onCommit={onCommit}
+                    onNavigateCommon={onNavigateCommon}
+                    validationErrors={validationErrors}
+                    conventions={conventions}
+                  />
+                )}
               />
             )}
 

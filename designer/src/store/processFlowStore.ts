@@ -258,9 +258,9 @@ export function createDefaultStep(type: StepType): Step {
       return {
         ...base,
         type: "workflow",
-        pattern: "sequential",
+        pattern: "approval-sequential",
         approvers: [],
-        quorum: 1,
+        quorum: { type: "any" },
       };
     case "other":
       return { ...base, type: "other" };

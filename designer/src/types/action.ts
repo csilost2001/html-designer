@@ -57,7 +57,7 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   return: "bi-reply",
   log: "bi-journal-text",
   audit: "bi-shield-check",
-  workflow: "bi-git",
+  workflow: "bi-people-fill",
   other: "bi-three-dots",
 };
 
@@ -741,46 +741,45 @@ export interface AuditStep extends StepBase {
 }
 
 export type WorkflowPattern =
-  | "sequential"
-  | "parallel"
-  | "threshold"
-  | "delegated"
-  | "auto-approve"
-  | "skip"
-  | "request-changes"
-  | "conditional"
-  | "custom-form"
-  | "timed-auto-approve"
-  | "escalation";
+  | "approval-sequential"
+  | "approval-parallel"
+  | "approval-veto"
+  | "approval-quorum"
+  | "approval-escalation"
+  | "review"
+  | "sign-off"
+  | "acknowledge"
+  | "branch-merge"
+  | "discussion"
+  | "ad-hoc";
 
 export const WORKFLOW_PATTERN_LABELS: Record<WorkflowPattern, string> = {
-  sequential: "順次承認",
-  parallel: "並列承認",
-  threshold: "定足数承認",
-  delegated: "代理承認",
-  "auto-approve": "自動承認",
-  skip: "承認スキップ",
-  "request-changes": "差戻し",
-  conditional: "条件分岐承認",
-  "custom-form": "カスタムフォーム承認",
-  "timed-auto-approve": "期限後自動承認",
-  escalation: "エスカレーション承認",
+  "approval-sequential": "順次承認",
+  "approval-parallel": "並列承認",
+  "approval-veto": "拒否権付き承認",
+  "approval-quorum": "定足数承認",
+  "approval-escalation": "エスカレーション承認",
+  review: "レビュー",
+  "sign-off": "サインオフ",
+  acknowledge: "確認",
+  "branch-merge": "分岐マージ",
+  discussion: "協議",
+  "ad-hoc": "アドホック",
 };
 
 export const WORKFLOW_PATTERN_VALUES: readonly WorkflowPattern[] = [
-  "sequential",
-  "parallel",
-  "threshold",
-  "delegated",
-  "auto-approve",
-  "skip",
-  "request-changes",
-  "conditional",
-  "custom-form",
-  "timed-auto-approve",
-  "escalation",
+  "approval-sequential",
+  "approval-parallel",
+  "approval-veto",
+  "approval-quorum",
+  "approval-escalation",
+  "review",
+  "sign-off",
+  "acknowledge",
+  "branch-merge",
+  "discussion",
+  "ad-hoc",
 ] as const;
-
 export interface WorkflowApprover {
   /** RBAC catalog role key */
   role: string;
@@ -788,18 +787,28 @@ export interface WorkflowApprover {
   order?: number;
 }
 
+export type WorkflowQuorum =
+  | { type: "all" | "any" | "majority" }
+  | { type: "n-of-m"; n: number };
+
+export interface WorkflowEscalateTo {
+  /** RBAC catalog role key */
+  role?: string;
+  /** ConvCompletion expression for dynamic assignee */
+  userExpression?: string;
+}
+
 export interface WorkflowStep extends StepBase {
   type: "workflow";
   pattern: WorkflowPattern;
   approvers: WorkflowApprover[];
-  quorum?: number;
-  onApproved?: string;
-  onRejected?: string;
-  onTimeout?: string;
+  quorum?: WorkflowQuorum;
+  onApproved?: Step[];
+  onRejected?: Step[];
+  onTimeout?: Step[];
   deadlineExpression?: string;
   escalateAfter?: string;
-  /** RBAC catalog role key */
-  escalateTo?: string;
+  escalateTo?: WorkflowEscalateTo;
 }
 
 export type Step =

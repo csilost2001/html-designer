@@ -1,11 +1,17 @@
-import type { Step, WorkflowApprover, WorkflowPattern, WorkflowStep } from "../../types/action";
+import type { ReactNode } from "react";
+import type {
+  Step,
+  WorkflowApprover,
+  WorkflowPattern,
+  WorkflowQuorum,
+  WorkflowStep,
+} from "../../types/action";
 import {
   WORKFLOW_PATTERN_LABELS,
   WORKFLOW_PATTERN_VALUES,
 } from "../../types/action";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
-import { JumpTargetSelector } from "./JumpTargetSelector";
 
 interface Props {
   step: WorkflowStep;
@@ -13,6 +19,11 @@ interface Props {
   conventions?: ConventionsCatalog | null;
   onChange: (patch: Partial<WorkflowStep>) => void;
   onCommit?: () => void;
+  renderInlineStepList?: (props: {
+    steps: Step[];
+    parentLabel: string;
+    onChange: (steps: Step[]) => void;
+  }) => ReactNode;
 }
 
 function normalizePositiveInteger(value: string): number | undefined {
@@ -23,10 +34,10 @@ function normalizePositiveInteger(value: string): number | undefined {
 
 export function WorkflowStepPanel({
   step,
-  allSteps,
   conventions,
   onChange,
   onCommit,
+  renderInlineStepList,
 }: Props) {
   const approvers = step.approvers ?? [];
   const roleOptions = Object.entries(conventions?.role ?? {});
@@ -77,18 +88,92 @@ export function WorkflowStepPanel({
     </select>
   );
 
-  const targetSelector = (
-    value: string | undefined,
-    onTargetChange: (value: string | undefined) => void,
+  const updateQuorum = (patch: { type?: WorkflowQuorum["type"]; n?: number }) => {
+    const type = patch.type ?? step.quorum?.type ?? "any";
+    if (type === "n-of-m") {
+      const currentN = step.quorum?.type === "n-of-m" ? step.quorum.n : undefined;
+      onChange({ quorum: { type, n: patch.n ?? currentN ?? 1 } });
+    } else {
+      onChange({ quorum: { type } });
+    }
+  };
+
+  const updateEscalateTo = (patch: Partial<NonNullable<WorkflowStep["escalateTo"]>>) => {
+    const role = (patch.role ?? step.escalateTo?.role ?? "").trim();
+    const userExpression = (patch.userExpression ?? step.escalateTo?.userExpression ?? "").trim();
+    onChange({
+      escalateTo: role || userExpression
+        ? {
+            ...(role ? { role } : {}),
+            ...(userExpression ? { userExpression } : {}),
+          }
+        : undefined,
+    });
+  };
+
+  const fallbackStepList = (
+    steps: Step[],
+    parentLabel: string,
+    onStepsChange: (steps: Step[]) => void,
   ) => (
-    <JumpTargetSelector
-      value={value ?? ""}
-      allSteps={allSteps}
-      excludeStepId={step.id}
-      onChange={(next) => onTargetChange(next || undefined)}
-      onBlur={onCommit}
-    />
+    <div className="inline-step-list">
+      {steps.map((child, index) => (
+        <div key={child.id} className="d-flex align-items-center gap-2 mb-1">
+          <span className="badge text-bg-light">{parentLabel}-{index + 1}</span>
+          <span>{child.description || child.id}</span>
+          <button
+            type="button"
+            className="btn btn-sm btn-link text-danger p-0"
+            onClick={() => {
+              onStepsChange(steps.filter((_, i) => i !== index));
+              onCommit?.();
+            }}
+            title="削除"
+          >
+            <i className="bi bi-x" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-sm btn-outline-secondary py-0"
+        onClick={() => {
+          onStepsChange([
+            ...steps,
+            {
+              id: `workflow-${parentLabel.toLowerCase()}-${steps.length + 1}`,
+              type: "other",
+              description: "",
+              maturity: "draft",
+            },
+          ]);
+          onCommit?.();
+        }}
+        style={{ fontSize: "0.75rem" }}
+      >
+        <i className="bi bi-plus-lg" /> ステップ追加
+      </button>
+    </div>
   );
+
+  const stepListSection = (
+    field: "onApproved" | "onRejected" | "onTimeout",
+    label: string,
+    parentLabel: string,
+  ) => {
+    const steps = step[field] ?? [];
+    const setSteps = (next: Step[]) => {
+      onChange({ [field]: next.length > 0 ? next : undefined } as Partial<WorkflowStep>);
+    };
+    return (
+      <div className="mb-2" data-field-path={field}>
+        <label className="form-label">{label}</label>
+        {renderInlineStepList
+          ? renderInlineStepList({ steps, parentLabel, onChange: setSteps })
+          : fallbackStepList(steps, parentLabel, setSteps)}
+      </div>
+    );
+  };
 
   return (
     <div className="workflow-step-panel" style={{ marginTop: 8 }}>
@@ -109,18 +194,35 @@ export function WorkflowStepPanel({
           </select>
         </div>
 
-        <div className="col-md-3" data-field-path="quorum">
-          <label className="form-label">必要承認数</label>
-          <input
-            type="number"
-            min={1}
-            className="form-control form-control-sm"
-            value={step.quorum ?? ""}
-            onChange={(e) => onChange({ quorum: normalizePositiveInteger(e.target.value) })}
+        <div className="col-md-3" data-field-path="quorum.type">
+          <label className="form-label">定足条件</label>
+          <select
+            className="form-select form-select-sm"
+            value={step.quorum?.type ?? ""}
+            onChange={(e) => updateQuorum({ type: e.target.value as WorkflowQuorum["type"] })}
             onBlur={onCommit}
-            placeholder="例: 1"
-          />
+          >
+            <option value="">未指定</option>
+            <option value="all">all</option>
+            <option value="any">any</option>
+            <option value="majority">majority</option>
+            <option value="n-of-m">n-of-m</option>
+          </select>
         </div>
+        {step.quorum?.type === "n-of-m" && (
+          <div className="col-md-3" data-field-path="quorum.n">
+            <label className="form-label">必要数 n</label>
+            <input
+              type="number"
+              min={1}
+              className="form-control form-control-sm"
+              value={step.quorum.n ?? ""}
+              onChange={(e) => updateQuorum({ n: normalizePositiveInteger(e.target.value) })}
+              onBlur={onCommit}
+              placeholder="例: 2"
+            />
+          </div>
+        )}
       </div>
 
       <div className="mb-2" data-field-path="approvers">
@@ -186,20 +288,9 @@ export function WorkflowStepPanel({
         ))}
       </div>
 
-      <div className="row g-2 mb-2">
-        <div className="col-md-4" data-field-path="onApproved">
-          <label className="form-label">承認時</label>
-          {targetSelector(step.onApproved, (value) => onChange({ onApproved: value }))}
-        </div>
-        <div className="col-md-4" data-field-path="onRejected">
-          <label className="form-label">却下・差戻し時</label>
-          {targetSelector(step.onRejected, (value) => onChange({ onRejected: value }))}
-        </div>
-        <div className="col-md-4" data-field-path="onTimeout">
-          <label className="form-label">期限切れ時</label>
-          {targetSelector(step.onTimeout, (value) => onChange({ onTimeout: value }))}
-        </div>
-      </div>
+      {stepListSection("onApproved", "承認成立時ステップ", "OK")}
+      {stepListSection("onRejected", "却下時ステップ", "NG")}
+      {stepListSection("onTimeout", "期限切れ時ステップ", "TO")}
 
       <div className="row g-2 mb-2">
         <div className="col-md-6" data-field-path="deadlineExpression">
@@ -229,13 +320,25 @@ export function WorkflowStepPanel({
       </div>
 
       <div className="row g-2 mb-2">
-        <div className="col-md-6" data-field-path="escalateTo">
+        <div className="col-md-6" data-field-path="escalateTo.role">
           <label className="form-label">エスカレーション先ロール</label>
           {roleSelect(
-            step.escalateTo ?? "",
-            (value) => onChange({ escalateTo: value || undefined }),
-            "escalateTo",
+            step.escalateTo?.role ?? "",
+            (value) => updateEscalateTo({ role: value }),
+            "escalateTo.role",
           )}
+        </div>
+        <div className="col-md-6" data-field-path="escalateTo.userExpression">
+          <label className="form-label">エスカレーション先ユーザー式</label>
+          <ConvCompletionInput
+            className="form-control form-control-sm"
+            value={step.escalateTo?.userExpression ?? ""}
+            onValueChange={(value) => updateEscalateTo({ userExpression: value })}
+            onCommit={onCommit}
+            conventions={conventions ?? null}
+            placeholder="例: @managerOf(@employeeId)"
+            style={{ fontFamily: "monospace" }}
+          />
         </div>
       </div>
     </div>
