@@ -14,12 +14,14 @@ import { checkReferentialIntegrity } from "../schemas/referentialIntegrity";
 import { checkIdentifierScopes } from "../schemas/identifierScope";
 import { checkSqlColumns, type TableDefinition } from "../schemas/sqlColumnValidator";
 import { checkConventionReferences, type ConventionsCatalog } from "../schemas/conventionsValidator";
+import type { LoadedExtensions } from "../schemas/loadExtensions";
 
 export interface AggregatedValidationOptions {
   /** テーブル定義。渡された場合は DbAccessStep.sql の列参照を検査 */
   tables?: TableDefinition[];
   /** 規約カタログ。渡された場合は @conv.* 参照を検査 */
   conventions?: ConventionsCatalog | null;
+  extensions?: LoadedExtensions;
 }
 
 /**
@@ -37,7 +39,7 @@ export function aggregateValidation(
   errors.push(...validateProcessFlow(group));
 
   // 2. 参照整合性 (responseRef / errorCode / systemRef / typeRef / secretRef)
-  for (const issue of checkReferentialIntegrity(group)) {
+  for (const issue of checkReferentialIntegrity(group, options.extensions)) {
     errors.push({
       stepId: stepIdFromPath(issue.path, group) ?? "",
       severity: "warning",

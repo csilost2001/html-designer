@@ -52,37 +52,6 @@
     }
   },
 
-  "typeCatalog": {
-    "ApiError": {
-      "description": "共通エラーレスポンス (product-scope §7)",
-      "schema": {
-        "type": "object",
-        "required": ["code", "message"],
-        "properties": {
-          "code": { "type": "string" },
-          "message": { "type": "string" },
-          "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
-        }
-      }
-    },
-    "PurchaseOrderResponse": {
-      "description": "発注登録成功レスポンス",
-      "schema": {
-        "type": "object",
-        "required": ["poId", "poNumber", "subtotal", "taxAmount", "totalAmount"],
-        "properties": {
-          "poId": { "type": "integer" },
-          "poNumber": {
-            "type": "string",
-            "description": "@conv.numbering.orderNumber 準拠 ORD-YYYY-NNNN 形式 (PG sequence + trigger)"
-          },
-          "subtotal": { "type": "integer" },
-          "taxAmount": { "type": "integer" },
-          "totalAmount": { "type": "integer" }
-        }
-      }
-    }
-  },
 
   "externalSystemCatalog": {
     "sendgrid": {

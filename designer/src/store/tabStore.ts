@@ -17,6 +17,7 @@ export type TabType =
   | "table-list"         // テーブル一覧
   | "er"                 // ER 図
   | "process-flow-list"  // 処理フロー一覧
+  | "extensions"         // 拡張管理 (#447)
   | "conventions-catalog" // 規約カタログ (#317)
   | "screen-items"       // 画面項目定義 (#318 プロトタイプ)
   | "sequence-list"      // シーケンス一覧 (#374)
@@ -26,7 +27,7 @@ export type TabType =
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
   "design", "table", "process-flow", "sequence", "view",
   "screen-flow", "screen-list", "table-list", "er", "process-flow-list",
-  "conventions-catalog", "screen-items", "sequence-list", "view-list", "dashboard",
+  "extensions", "conventions-catalog", "screen-items", "sequence-list", "view-list", "dashboard",
 ]);
 
 export interface TabItem {

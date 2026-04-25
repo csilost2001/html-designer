@@ -32,11 +32,6 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/ExternalSystemCatalogEntry" }
     },
-    "typeCatalog": {
-      "description": "型カタログ (#261 v1.3)。キー: 型名 (例: \"ApiError\")。BodySchemaRef.typeRef から参照",
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/TypeCatalogEntry" }
-    },
     "ambientVariables": {
       "description": "Ambient 変数カタログ (#261 v1.4)。ミドルウェア由来 (@requestId, @traceId, @fieldErrors 等) を宣言",
       "type": "array",
@@ -629,17 +624,6 @@
         "default": {
           "description": "values で当該環境キーが未指定時に使う既定値。type と整合した primitive を入れる"
         }
-      }
-    },
-
-    "TypeCatalogEntry": {
-      "description": "型カタログの 1 エントリ (#261 v1.3)。schema は JSON Schema draft 2020-12",
-      "type": "object",
-      "required": ["schema"],
-      "additionalProperties": false,
-      "properties": {
-        "description": { "type": "string" },
-        "schema": { "type": "object" }
       }
     },
 

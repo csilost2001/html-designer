@@ -37,6 +37,10 @@ const MENU_ITEMS: MenuItem[] = [
     activePaths: ["/process-flow/list"], activePrefixes: ["/process-flow/edit/"],
   },
   {
+    id: "extensions", label: "拡張管理", icon: "bi-puzzle", route: "/extensions",
+    activePaths: ["/extensions"],
+  },
+  {
     id: "conventions-catalog", label: "規約カタログ", icon: "bi-file-text", route: "/conventions/catalog",
     activePaths: ["/conventions/catalog"],
   },

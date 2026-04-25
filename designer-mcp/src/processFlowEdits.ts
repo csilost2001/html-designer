@@ -44,7 +44,6 @@ export type ProcessFlowDoc = {
   actions: Action[];
   errorCatalog?: Record<string, unknown>;
   secretsCatalog?: Record<string, unknown>;
-  typeCatalog?: Record<string, unknown>;
   externalSystemCatalog?: Record<string, unknown>;
   markers?: Marker[];
   updatedAt?: string;
@@ -176,7 +175,7 @@ export function addStepNote(
   return { id: note.id };
 }
 
-export type CatalogName = "errorCatalog" | "secretsCatalog" | "typeCatalog" | "externalSystemCatalog";
+export type CatalogName = "errorCatalog" | "secretsCatalog" | "externalSystemCatalog";
 
 export function addCatalogEntry(
   ag: ProcessFlowDoc,

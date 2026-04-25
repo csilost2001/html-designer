@@ -3,13 +3,14 @@
  *
  * 以前は名前/種別/説明/成熟度/モードに加え、6 つのカタログパネル (MarkerPanel /
  * ErrorCatalogPanel / AmbientVariablesPanel / SecretsCatalogPanel /
- * ExternalSystemCatalogPanel / TypeCatalogPanel) が action-editor-info に縦積みされ、
+ * ExternalSystemCatalogPanel) が action-editor-info に縦積みされ、
  * 全閉じ状態でもステップ本体までスクロールが必要だった。
  *
  * ここでは各カタログパネルを「タブボタン + body」に分離し、排他的に 1 つだけ
  * body を展開する。成熟度バッジ・進捗・下流モード警告はタブバーに常時表示。
  */
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import type { ProcessFlow, ProcessFlowType, Step } from "../../types/action";
 import { PROCESS_FLOW_TYPE_LABELS } from "../../types/action";
 import { MaturityBadge } from "./MaturityBadge";
@@ -19,10 +20,9 @@ import { AmbientVariablesPanel } from "./AmbientVariablesPanel";
 import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
 import { EnvVarsCatalogPanel } from "./EnvVarsCatalogPanel";
 import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
-import { TypeCatalogPanel } from "./TypeCatalogPanel";
 import { SlaPanel } from "./SlaPanel";
 
-type TabKey = "info" | "marker" | "error" | "ambient" | "secrets" | "envVars" | "external" | "type";
+type TabKey = "info" | "marker" | "error" | "ambient" | "secrets" | "envVars" | "external";
 
 /** グループ内の全ステップを再帰的に走査して maturity 別カウント + 付箋合計を集計 (#196 / #200) */
 function countMaturity(group: ProcessFlow): {
@@ -101,9 +101,6 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
   const onExternalChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.externalSystemCatalog = next.externalSystemCatalog; });
   };
-  const onTypeChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.typeCatalog = next.typeCatalog; });
-  };
 
   return (
     <div className="action-meta-tabbar">
@@ -163,13 +160,10 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
           expanded={active === "external"}
           onExpandedChange={(v) => setActiveFrom("external", v)}
         />
-        <TypeCatalogPanel
-          group={group}
-          onChange={onTypeChange}
-          render="toggleOnly"
-          expanded={active === "type"}
-          onExpandedChange={(v) => setActiveFrom("type", v)}
-        />
+        <Link className="btn btn-link btn-sm text-decoration-none" to="/extensions?tab=responseTypes" title="レスポンス型は拡張管理で編集します">
+          <i className="bi bi-box-arrow-up-right me-1" />
+          レスポンス型
+        </Link>
 
         <div className="action-meta-tabbar-spacer" />
 
@@ -303,11 +297,6 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
       {active === "external" && (
         <div className="action-meta-body" data-step-id="__meta-tab-external">
           <ExternalSystemCatalogPanel group={group} onChange={onExternalChange} render="bodyOnly" />
-        </div>
-      )}
-      {active === "type" && (
-        <div className="action-meta-body" data-step-id="__meta-tab-type">
-          <TypeCatalogPanel group={group} onChange={onTypeChange} render="bodyOnly" />
         </div>
       )}
     </div>
