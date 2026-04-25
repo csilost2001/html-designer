@@ -20,6 +20,7 @@ Claude Code 向けの補足ガイダンス。
 
 本プロジェクトで利用する Claude Code 固有スキル (`.claude/skills/`):
 
+- **`/issues <N>`** — ISSUE を 12 ルール Opus オーケストレーターワークフローで完遂 (`.claude/skills/issues/SKILL.md`)
 - **`/review-pr <N>`** — PR 独立レビュー (`.claude/skills/review-pr/SKILL.md`)
 - **`/review-issue <N>`** — ISSUE 単位の実装網羅性監査 (`.claude/skills/review-issue/SKILL.md`)
 - **`/test-strategy`** — テスト実装時の自動起動スキル (`.claude/skills/test-strategy/SKILL.md`)
