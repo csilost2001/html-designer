@@ -17,11 +17,12 @@ import { MarkerPanel } from "./MarkerPanel";
 import { ErrorCatalogPanel } from "./ErrorCatalogPanel";
 import { AmbientVariablesPanel } from "./AmbientVariablesPanel";
 import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
+import { EnvVarsCatalogPanel } from "./EnvVarsCatalogPanel";
 import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
 import { TypeCatalogPanel } from "./TypeCatalogPanel";
 import { SlaPanel } from "./SlaPanel";
 
-type TabKey = "info" | "marker" | "error" | "ambient" | "secrets" | "external" | "type";
+type TabKey = "info" | "marker" | "error" | "ambient" | "secrets" | "envVars" | "external" | "type";
 
 /** グループ内の全ステップを再帰的に走査して maturity 別カウント + 付箋合計を集計 (#196 / #200) */
 function countMaturity(group: ProcessFlow): {
@@ -89,6 +90,9 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
   const onSecretsChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.secretsCatalog = next.secretsCatalog; });
   };
+  const onEnvVarsChange = (next: ProcessFlow) => {
+    updateGroup((g) => { g.envVarsCatalog = next.envVarsCatalog; });
+  };
   const onExternalChange = (next: ProcessFlow) => {
     updateGroup((g) => { g.externalSystemCatalog = next.externalSystemCatalog; });
   };
@@ -139,6 +143,13 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
           render="toggleOnly"
           expanded={active === "secrets"}
           onExpandedChange={(v) => setActiveFrom("secrets", v)}
+        />
+        <EnvVarsCatalogPanel
+          group={group}
+          onChange={onEnvVarsChange}
+          render="toggleOnly"
+          expanded={active === "envVars"}
+          onExpandedChange={(v) => setActiveFrom("envVars", v)}
         />
         <ExternalSystemCatalogPanel
           group={group}
@@ -277,6 +288,11 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
       {active === "secrets" && (
         <div className="action-meta-body" data-step-id="__meta-tab-secrets">
           <SecretsCatalogPanel group={group} onChange={onSecretsChange} render="bodyOnly" />
+        </div>
+      )}
+      {active === "envVars" && (
+        <div className="action-meta-body" data-step-id="__meta-tab-envVars">
+          <EnvVarsCatalogPanel group={group} onChange={onEnvVarsChange} render="bodyOnly" />
         </div>
       )}
       {active === "external" && (

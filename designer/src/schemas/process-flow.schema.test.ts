@@ -1204,6 +1204,158 @@ describe("process-flow.schema.json — Sla 3 レベル + p95LatencyMs + 条件�
   });
 });
 
+describe("process-flow.schema.json — envVarsCatalog (#414)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("envVarsCatalog 全 type (string/number/boolean) accept", () => {
+    const ok = validate({
+      ...base,
+      envVarsCatalog: {
+        STRIPE_API_BASE: {
+          type: "string",
+          description: "Stripe API base",
+          values: { dev: "https://api.stripe.com/v1", prod: "https://api.stripe.com/v1" },
+          default: "https://api.stripe.com/v1",
+        },
+        MAX_RETRY_ATTEMPTS: {
+          type: "number",
+          values: { dev: 1, staging: 3, prod: 5 },
+          default: 3,
+        },
+        FEATURE_FLAG_NEW_PRICING: {
+          type: "boolean",
+          values: { dev: true, staging: true, prod: false },
+          default: false,
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("envVarsCatalog 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("envVarsCatalog エントリの type 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      envVarsCatalog: { FOO: { description: "no type" } },
+    })).toBe(false);
+  });
+
+  it("envVarsCatalog エントリの type が enum 外なら reject", () => {
+    expect(validate({
+      ...base,
+      envVarsCatalog: { FOO: { type: "json" } },
+    })).toBe(false);
+  });
+
+  it("envVarsCatalog エントリの未知フィールドは reject (additionalProperties: false)", () => {
+    expect(validate({
+      ...base,
+      envVarsCatalog: { FOO: { type: "string", unknownField: "x" } },
+    })).toBe(false);
+  });
+
+  it("envVarsCatalog values は値型自由 (式文字列も許容)", () => {
+    expect(validate({
+      ...base,
+      envVarsCatalog: {
+        STRIPE_API_BASE: {
+          type: "string",
+          values: { dev: "@env.OTHER_VAR" },
+        },
+      },
+    })).toBe(true);
+  });
+
+  it("envVarsCatalog values / default 省略 accept", () => {
+    expect(validate({
+      ...base,
+      envVarsCatalog: { FOO: { type: "string" } },
+    })).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — secretsCatalog.values (#414)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("secretsCatalog.values (環境別参照式) accept", () => {
+    const ok = validate({
+      ...base,
+      secretsCatalog: {
+        stripeApiKey: {
+          source: "env",
+          name: "STRIPE_SECRET_KEY",
+          rotationDays: 90,
+          values: {
+            dev: "vault://stripe/dev/secret_key",
+            staging: "vault://stripe/staging/secret_key",
+            prod: "vault://stripe/prod/secret_key",
+          },
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("旧フォーマット (values 無し) も引き続き accept (後方互換)", () => {
+    expect(validate({
+      ...base,
+      secretsCatalog: {
+        stripeApiKey: { source: "env", name: "STRIPE_SECRET_KEY", rotationDays: 90 },
+      },
+    })).toBe(true);
+  });
+
+  it("secretsCatalog.values の値が string 以外 (number) なら reject", () => {
+    expect(validate({
+      ...base,
+      secretsCatalog: {
+        stripeApiKey: {
+          source: "env",
+          name: "STRIPE_SECRET_KEY",
+          values: { dev: 123 },
+        },
+      },
+    })).toBe(false);
+  });
+
+  it("source / name は values 設定時も依然として required", () => {
+    expect(validate({
+      ...base,
+      secretsCatalog: {
+        stripeApiKey: { values: { dev: "vault://x" } },
+      },
+    })).toBe(false);
+  });
+
+  it("secretsCatalog.values 任意の env キー (推奨外) も accept", () => {
+    expect(validate({
+      ...base,
+      secretsCatalog: {
+        stripeApiKey: {
+          source: "env",
+          name: "STRIPE_SECRET_KEY",
+          values: { "prod-jp": "vault://stripe/prod-jp/key", "prod-us": "vault://stripe/prod-us/key" },
+        },
+      },
+    })).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — ambientOverrides (#369)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

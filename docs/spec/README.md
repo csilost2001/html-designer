@@ -16,6 +16,8 @@
 | [process-flow-external-system.md](process-flow-external-system.md) | ExternalSystemStep の OpenAPI operation 参照 (`openApiSpec` / `operationRef`) | #413 |
 | [process-flow-testing.md](process-flow-testing.md) | 処理フローの Given-When-Then テストシナリオ (`testScenarios`) | #400 |
 | [process-flow-workflow.md](process-flow-workflow.md) | WorkflowStep / WorkflowPattern (承認ワークフロー標準 11 パターン) | #411 |
+| [process-flow-env-vars.md](process-flow-env-vars.md) | 環境変数カタログ (`envVarsCatalog`) — 環境別 (dev/staging/prod) の型付き設定値 | #414 |
+| [process-flow-secrets.md](process-flow-secrets.md) | Secrets カタログ (`secretsCatalog`) — 秘匿値メタデータ + 環境別参照式 | #261 / #414 |
 | [screen-items.md](screen-items.md) | 画面項目定義 (フォーム系バリデーション 3 層のうち「画面」層) — **ドラフト v0.1** | #318 |
 
 **一次成果物**: JSON スキーマ [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) ([README](../../schemas/README.md))。仕様書と突合する機械可読版。
