@@ -3,7 +3,7 @@
   "name": "決済処理",
   "type": "screen",
   "screenId": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
-  "description": "#427 P3-2 実証サンプル: StructuredCriterion (jsonpath / simple / regex) を使う外部 API 呼び出しと Arazzo 互換 successCriteria を示す。Stripe 決済 API との連携フロー。",
+  "description": "#427 P3-2 実証サンプル: StructuredCriterion (jsonpath / simple / regex) を使う外部 API 呼び出しと Arazzo 互換 successCriteria を示す。Stripe 決済 API との連携フロー。successCriteria は #431 P3-1 で $ 記法 (Arazzo Runtime Expression) に更新済み。",
   "maturity": "draft",
 
   "externalSystemCatalog": {
@@ -60,18 +60,17 @@
           "successCriteria": [
             {
               "type": "simple",
-              "expression": "@statusCode == 200",
-              "context": "@statusCode"
+              "expression": "$statusCode == 200"
             },
             {
               "type": "jsonpath",
               "expression": "$.status",
-              "context": "@responseBody"
+              "context": "$response.body"
             },
             {
               "type": "regex",
               "expression": "^pi_",
-              "context": "@responseBody.id"
+              "context": "$response.body#/id"
             }
           ],
           "outcomes": {
@@ -96,13 +95,12 @@
           "successCriteria": [
             {
               "type": "simple",
-              "expression": "@statusCode == 200",
-              "context": "@statusCode"
+              "expression": "$statusCode == 200"
             },
             {
               "type": "jsonpath",
               "expression": "$.status == 'succeeded'",
-              "context": "@responseBody"
+              "context": "$response.body"
             }
           ],
           "outcomes": {

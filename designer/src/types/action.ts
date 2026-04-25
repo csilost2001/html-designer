@@ -559,12 +559,13 @@ export type CriterionType = "simple" | "regex" | "jsonpath" | "xpath";
 
 /**
  * 型付き条件式 (#427 P3-2)。Arazzo 1.0 の successCriteria 互換。
- * simple: "@status == 200", regex: "^[0-9]+$", jsonpath: "$.items[0].id", xpath: "//result/text()"
+ * $ 記法推奨: simple: "$statusCode == 200", regex: "^pi_", jsonpath: "$.status" (context: "$response.body")
+ * 旧 @記法 (@statusCode 等) は後方互換として引き続き有効
  */
 export interface StructuredCriterion {
   type: CriterionType;
   expression: string;
-  /** jsonpath / xpath の評価対象 (例: "@responseBody") */
+  /** jsonpath / xpath の評価対象。$ 記法推奨: "$response.body", "$response.body#/id" */
   context?: string;
 }
 

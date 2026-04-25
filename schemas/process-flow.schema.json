@@ -1144,11 +1144,11 @@
         "type": { "$ref": "#/$defs/CriterionType" },
         "expression": {
           "type": "string",
-          "description": "評価式。simple: \"@status == 200\", regex: \"^[0-9]+$\", jsonpath: \"$.items[0].id\", xpath: \"//result/text()\""
+          "description": "評価式。Arazzo Runtime Expression ($記法) 推奨。simple: \"$statusCode == 200\", regex: \"^pi_\", jsonpath: \"$.status\", xpath: \"//result/text()\". 旧 @記法 (@statusCode 等) は後方互換として引き続き有効"
         },
         "context": {
           "type": "string",
-          "description": "jsonpath / xpath の評価対象 (例: \"@responseBody\", \"@statusCode\")"
+          "description": "jsonpath / xpath の評価対象 (JSON / XML オブジェクト)。Arazzo Runtime Expression ($記法) 推奨: \"$response.body\", \"$response.body#/id\". 旧 @記法 (@responseBody 等) は後方互換として引き続き有効"
         }
       }
     },
