@@ -1,3 +1,19 @@
+export interface I18nConfig {
+  supportedLocales: string[];
+  defaultLocale: string;
+  dateFormat?: Record<string, string>;
+  timeFormat?: Record<string, string>;
+  currencyDisplay?: Record<string, "symbol" | "code" | "name">;
+  numberGrouping?: Record<string, boolean>;
+}
+
+export interface MessageTemplate {
+  template: string;
+  params?: string[];
+  locales?: Record<string, string>;
+  description?: string;
+}
+
 export interface ScopeEntry {
   value: string;
   description?: string;

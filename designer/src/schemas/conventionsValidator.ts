@@ -14,6 +14,8 @@ import type {
   LoopStep,
 } from "../types/action";
 import type {
+  I18nConfig,
+  MessageTemplate,
   ScopeEntry,
   CurrencyEntry,
   TaxEntry,
@@ -30,7 +32,8 @@ export interface ConventionsCatalog {
   version: string;
   description?: string;
   updatedAt?: string;
-  msg?: Record<string, { template: string; params?: string[]; description?: string }>;
+  i18n?: I18nConfig;
+  msg?: Record<string, MessageTemplate>;
   regex?: Record<string, { pattern: string; flags?: string; description?: string; exampleValid?: string[]; exampleInvalid?: string[] }>;
   limit?: Record<string, { value: number; unit?: string; description?: string }>;
   scope?: Record<string, ScopeEntry>;
@@ -63,7 +66,9 @@ export interface ConventionIssue {
     | "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS"
     | "UNKNOWN_CONV_CATEGORY"
     | "ROLE_INHERITS_CYCLE"
-    | "UNKNOWN_CONV_ROLE_PERMISSION";
+    | "UNKNOWN_CONV_ROLE_PERMISSION"
+    | "INVALID_DEFAULT_LOCALE"
+    | "UNKNOWN_MSG_LOCALE";
   value: string;
   message: string;
 }
@@ -138,7 +143,35 @@ export function checkConventionsCatalogIntegrity(catalog: ConventionsCatalog | n
   const issues: ConventionIssue[] = [];
   checkRolePermissionReferences(catalog, issues);
   checkRoleInheritanceCycles(catalog, issues);
+  checkI18nCatalog(catalog, issues);
   return issues;
+}
+
+function checkI18nCatalog(catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
+  if (!catalog.i18n) return;
+
+  const supportedLocales = new Set(catalog.i18n.supportedLocales);
+  if (!supportedLocales.has(catalog.i18n.defaultLocale)) {
+    issues.push({
+      path: "i18n.defaultLocale",
+      code: "INVALID_DEFAULT_LOCALE",
+      value: catalog.i18n.defaultLocale,
+      message: `i18n.defaultLocale ${catalog.i18n.defaultLocale} is not included in i18n.supportedLocales`,
+    });
+  }
+
+  Object.entries(catalog.msg ?? {}).forEach(([msgKey, template]) => {
+    Object.keys(template.locales ?? {}).forEach((locale) => {
+      if (!supportedLocales.has(locale)) {
+        issues.push({
+          path: `msg.${msgKey}.locales.${locale}`,
+          code: "UNKNOWN_MSG_LOCALE",
+          value: locale,
+          message: `msg.${msgKey}.locales.${locale} is not included in i18n.supportedLocales`,
+        });
+      }
+    });
+  });
 }
 
 function checkRolePermissionReferences(catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
