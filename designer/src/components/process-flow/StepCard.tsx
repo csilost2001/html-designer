@@ -821,27 +821,39 @@ export function StepCard({
                   <div className="step-inline-branch">
                     <div className="step-branch-box ok">
                       <div className="step-branch-label">A: OK</div>
-                      <input
-                        className="form-control form-control-sm"
-                        value={step.inlineBranch.ok}
-                        onChange={(e) =>
-                          onChange({ inlineBranch: { ...step.inlineBranch!, ok: e.target.value } } as Partial<Step>)
-                        }
-                        placeholder="OK時の処理"
-                        onBlur={onCommit}
-                      />
+                      {typeof step.inlineBranch.ok === "string" ? (
+                        <input
+                          className="form-control form-control-sm"
+                          value={step.inlineBranch.ok}
+                          onChange={(e) =>
+                            onChange({ inlineBranch: { ...step.inlineBranch!, ok: e.target.value } } as Partial<Step>)
+                          }
+                          placeholder="OK時の処理"
+                          onBlur={onCommit}
+                        />
+                      ) : (
+                        <span className="form-control form-control-sm text-muted" style={{ cursor: "default" }}>
+                          ステップ {step.inlineBranch.ok.length} 件 (JSON編集)
+                        </span>
+                      )}
                     </div>
                     <div className="step-branch-box ng">
                       <div className="step-branch-label">B: NG</div>
-                      <input
-                        className="form-control form-control-sm"
-                        value={step.inlineBranch.ng}
-                        onChange={(e) =>
-                          onChange({ inlineBranch: { ...step.inlineBranch!, ng: e.target.value } } as Partial<Step>)
-                        }
-                        placeholder="NG時の処理"
-                        onBlur={onCommit}
-                      />
+                      {typeof step.inlineBranch.ng === "string" ? (
+                        <input
+                          className="form-control form-control-sm"
+                          value={step.inlineBranch.ng}
+                          onChange={(e) =>
+                            onChange({ inlineBranch: { ...step.inlineBranch!, ng: e.target.value } } as Partial<Step>)
+                          }
+                          placeholder="NG時の処理"
+                          onBlur={onCommit}
+                        />
+                      ) : (
+                        <span className="form-control form-control-sm text-muted" style={{ cursor: "default" }}>
+                          ステップ {step.inlineBranch.ng.length} 件 (JSON編集)
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}

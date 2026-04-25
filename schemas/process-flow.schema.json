@@ -297,7 +297,7 @@
     },
     "ActionTrigger": {
       "type": "string",
-      "enum": ["click", "submit", "select", "change", "load", "timer", "other"]
+      "enum": ["click", "submit", "select", "change", "load", "timer", "auto", "other"]
     },
     "StepType": {
       "type": "string",
@@ -787,6 +787,16 @@
           }
         },
         {
+          "description": "ファイル型。バッチ処理の入出力ファイル等。format で CSV/ZIP 等の形式を表現。",
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "file" },
+            "format": { "type": "string", "description": "ファイル形式 (例: csv, tsv, zip, pdf)" }
+          }
+        },
+        {
           "description": "DEPRECATED (#261 v1.3): 新規データは array / object / primitive を優先。label 文字列に型情報を自由記述するパターンは AI 実装者が構造パースを強いられるため非推奨。",
           "deprecated": true,
           "type": "object",
@@ -1013,8 +1023,18 @@
       "required": ["ok", "ng"],
       "additionalProperties": false,
       "properties": {
-        "ok": { "type": "string" },
-        "ng": { "type": "string" },
+        "ok": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "$ref": "#/$defs/Step" } }
+          ]
+        },
+        "ng": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "$ref": "#/$defs/Step" } }
+          ]
+        },
         "ngJumpTo": { "type": "string" },
         "ngResponseRef": { "type": "string" },
         "ngBodyExpression": { "type": "string" }
@@ -1050,7 +1070,7 @@
 
     "DbOperation": {
       "type": "string",
-      "enum": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+      "enum": ["SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "LOCK"]
     },
     "AffectedRowsOperator": {
       "type": "string",
@@ -1366,6 +1386,11 @@
             "refId": { "type": "string" },
             "refName": { "type": "string" },
             "argumentMapping": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "returnMapping": {
+              "description": "呼び先フローの戻り値名 → 説明のマッピング (例: {\"処理結果\": \"0:正常終了, 1:異常終了\"})",
               "type": "object",
               "additionalProperties": { "type": "string" }
             }
