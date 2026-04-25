@@ -47,7 +47,6 @@ export function SchemaForm({
           id={fieldId}
           className={`form-select form-select-sm${invalid ? " is-invalid" : ""}`}
           value={valueToInputValue(value)}
-          defaultValue=""
           onChange={(e) => {
             const next = schema.enum?.find((item) => valueToInputValue(item) === e.target.value);
             if (next !== undefined) onChange(next);
