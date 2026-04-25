@@ -33,6 +33,7 @@ import {
   readViewsFile,
   writeViewsFile,
   getFileMtime,
+  readExtensionsBundle,
 } from "./projectStorage.js";
 
 type Command = { id: string; method: string; params?: unknown };
@@ -555,6 +556,11 @@ class WsBridge extends EventEmitter {
           const { kind, id: fid } = (params ?? {}) as { kind: string; id?: string };
           const mtime = await getFileMtime(kind, fid);
           respond({ mtime });
+          break;
+        }
+        case "getExtensions": {
+          const bundle = await readExtensionsBundle();
+          respond(bundle);
           break;
         }
         case "renameScreenItem": {

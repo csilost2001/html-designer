@@ -18,6 +18,11 @@
 |----------|------|-------|
 | `process-flow.schema.json` | ProcessFlow (処理フロー定義) | `ProcessFlow` @ `designer/src/types/action.ts` |
 | `conventions.schema.json` | 横断規約カタログ (msg / regex / limit) | 対応 TS 型は `designer/src/schemas/conventionsValidator.ts` の `ConventionsCatalog` |
+| `extensions-steps.schema.json` | `data/extensions/steps.json` (カスタムステップ型) | `designer/src/schemas/loadExtensions.ts` の `StepDef` |
+| `extensions-field-types.schema.json` | `data/extensions/field-types.json` (FieldType 拡張) | `designer/src/schemas/loadExtensions.ts` の `FieldTypeDef` |
+| `extensions-triggers.schema.json` | `data/extensions/triggers.json` (ActionTrigger 拡張) | `designer/src/schemas/loadExtensions.ts` の `TriggerDef` |
+| `extensions-db-operations.schema.json` | `data/extensions/db-operations.json` (DbOperation 拡張) | `designer/src/schemas/loadExtensions.ts` の `DbOperationDef` |
+| `extensions-response-types.schema.json` | `data/extensions/response-types.json` (レスポンス型定義) | `designer/src/schemas/loadExtensions.ts` の `ResponseTypeDef` |
 
 スキーマドラフト: **JSON Schema 2020-12**
 
@@ -48,6 +53,7 @@ if (!ok) {
 cd designer
 npx vitest run src/schemas/                  # スキーマ検証 + 参照整合性の両方
 npx vitest run src/schemas/process-flow.schema.test.ts       # スキーマ準拠だけ
+npx vitest run src/schemas/loadExtensions.test.ts            # extensions ローダー + 合成スキーマ
 npx vitest run src/schemas/referentialIntegrity.test.ts      # 参照整合性だけ
 ```
 

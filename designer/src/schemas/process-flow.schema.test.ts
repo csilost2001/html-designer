@@ -3,6 +3,7 @@ import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { buildExtendedSchema, loadExtensionsFromBundle } from "./loadExtensions";
 
 const repoRoot = resolve(__dirname, "../../../");
 const schemaPath = resolve(repoRoot, "schemas/process-flow.schema.json");
@@ -2276,6 +2277,57 @@ describe("process-flow.schema.json — グローバルスキーマ先行追加 (
       }],
     }));
     if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — extensions 合成 (#444)", () => {
+  it("拡張ありスキーマで有効な process-flow が通る", () => {
+    const schema = JSON.parse(readFileSync(schemaPath, "utf-8")) as object;
+    const loaded = loadExtensionsFromBundle({
+      triggers: {
+        namespace: "",
+        triggers: [{ value: "webhook", label: "Webhook" }],
+      },
+      dbOperations: {
+        namespace: "",
+        dbOperations: [{ value: "TRUNCATE", label: "TRUNCATE" }],
+      },
+      fieldTypes: {
+        namespace: "",
+        fieldTypes: [{ kind: "view", label: "ビュー" }],
+      },
+    });
+    const extended = buildExtendedSchema(schema, loaded.extensions);
+    expect(loaded.errors).toEqual([]);
+    expect(extended.errors).toEqual([]);
+
+    const localAjv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(localAjv);
+    const localValidate = localAjv.compile(extended.schema);
+    const ok = localValidate({
+      id: "a",
+      name: "x",
+      type: "screen",
+      description: "",
+      actions: [{
+        id: "act-1",
+        name: "webhook import",
+        trigger: "webhook",
+        inputs: [{ name: "sourceView", type: { kind: "view" } }],
+        steps: [{
+          id: "db-1",
+          type: "dbAccess",
+          description: "",
+          tableName: "work",
+          operation: "TRUNCATE",
+        }],
+      }],
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+
+    if (!ok) throw new Error(JSON.stringify(localValidate.errors));
     expect(ok).toBe(true);
   });
 });

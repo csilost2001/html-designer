@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/extensions-field-types.schema.json",
+  "title": "ProcessFlow FieldType Extensions",
+  "type": "object",
+  "required": ["namespace", "fieldTypes"],
+  "additionalProperties": false,
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]*$"
+    },
+    "fieldTypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

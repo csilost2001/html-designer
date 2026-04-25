@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/extensions-response-types.schema.json",
+  "title": "ProcessFlow Response Type Extensions",
+  "type": "object",
+  "required": ["namespace", "responseTypes"],
+  "additionalProperties": false,
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]*$"
+    },
+    "responseTypes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/ResponseTypeDef" }
+    }
+  },
+  "$defs": {
+    "ResponseTypeDef": {
+      "type": "object",
+      "required": ["schema"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "schema": { "type": "object" }
+      }
+    }
+  }
+}
