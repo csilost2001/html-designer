@@ -6,7 +6,7 @@
  */
 import fs from "fs/promises";
 import path from "path";
-import Ajv from "ajv";
+import Ajv, { type ValidateFunction } from "ajv";
 
 // DATA_DIR: 環境変数で上書き可能
 // デフォルト: designer-mcp/src/ から 2 段上がって data/
@@ -51,16 +51,26 @@ function kindToSchemaSlug(kind: ExtensionFileKind): string {
   }
 }
 
+/** Ajv インスタンスとバリデーター関数のモジュールレベルキャッシュ (#455) */
+const _ajv = new Ajv({ allErrors: true });
+const _validatorCache = new Map<ExtensionFileKind, ValidateFunction>();
+
+async function getExtensionValidator(kind: ExtensionFileKind): Promise<ValidateFunction> {
+  if (!_validatorCache.has(kind)) {
+    const schemaPath = path.join(SCHEMAS_DIR, `extensions-${kindToSchemaSlug(kind)}.schema.json`);
+    const schemaText = await fs.readFile(schemaPath, "utf-8");
+    const schema = JSON.parse(schemaText) as object;
+    _validatorCache.set(kind, _ajv.compile(schema));
+  }
+  return _validatorCache.get(kind)!;
+}
+
 /** extensions/*.json の JSON Schema 検証 (#455) */
 async function validateExtensionFile(kind: ExtensionFileKind, data: unknown): Promise<void> {
-  const schemaPath = path.join(SCHEMAS_DIR, `extensions-${kindToSchemaSlug(kind)}.schema.json`);
-  const schemaText = await fs.readFile(schemaPath, "utf-8");
-  const schema = JSON.parse(schemaText) as object;
-  const ajv = new Ajv({ allErrors: true });
-  const validate = ajv.compile(schema);
+  const validate = await getExtensionValidator(kind);
   if (!validate(data)) {
     throw new Error(
-      `extensions/${kind}.json schema 違反: ${ajv.errorsText(validate.errors)}`
+      `extensions/${kind}.json schema 違反: ${_ajv.errorsText(validate.errors)}`
     );
   }
 }

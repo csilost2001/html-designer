@@ -570,9 +570,16 @@ class WsBridge extends EventEmitter {
             respondError(`不明な拡張種別です: ${type}`);
             break;
           }
-          await writeExtensionsFile(type as "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes", content);
-          respond({ success: true });
-          this.broadcast("extensionsChanged", { type }, clientId);
+          try {
+            await writeExtensionsFile(
+              type as "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes",
+              content,
+              { onAfterWrite: () => this.broadcast("extensionsChanged", { type }, clientId) }
+            );
+            respond({ success: true });
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
         case "renameScreenItem": {

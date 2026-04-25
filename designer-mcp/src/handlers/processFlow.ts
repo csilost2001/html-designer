@@ -93,7 +93,11 @@ async function handleAddResponseTypeExtension(params: {
     schema: params.schema as Record<string, unknown>,
     ...(typeof params.description === "string" ? { description: params.description } : {}),
   };
-  await writeResponseTypesFile(file);
+  try {
+    await writeResponseTypesFile(file);
+  } catch (e) {
+    throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+  }
   return { content: [{ type: "text", text: `responseTypes.${key} を追加/更新しました。` }] };
 }
 
@@ -344,7 +348,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         ...(typeof a.schema === "object" && a.schema !== null && !Array.isArray(a.schema) ? { schema: a.schema as Record<string, unknown> } : {}),
         ...(typeof a.description === "string" ? { description: a.description } : {}),
       };
-      await writeResponseTypesFile(file);
+      try {
+        await writeResponseTypesFile(file);
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
       return { content: [{ type: "text", text: `responseTypes.${a.key} を更新しました。` }] };
     }
 
@@ -352,7 +360,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
       const file = await readResponseTypesFile();
       delete file.responseTypes[a.key];
-      await writeResponseTypesFile(file);
+      try {
+        await writeResponseTypesFile(file);
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
       return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
     }
 
@@ -407,7 +419,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         console.warn("[deprecation] remove_catalog_entry catalogName=typeCatalog is forwarded to delete_response_type_extension");
         const file = await readResponseTypesFile();
         delete file.responseTypes[a.key];
-        await writeResponseTypesFile(file);
+        try {
+          await writeResponseTypesFile(file);
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
       }
       const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;

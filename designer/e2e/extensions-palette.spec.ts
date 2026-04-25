@@ -28,8 +28,8 @@ const dummyProject = {
 };
 
 // E2E テスト用ステップ拡張 fixture (#455)
-// process.cwd() は designer/ ディレクトリ。../data が worktree ルート直下の data/
-const STEPS_FILE = path.resolve(process.cwd(), "../data/extensions/steps.json");
+// __dirname は e2e/ ディレクトリ。../../data が worktree ルート直下の data/
+const STEPS_FILE = path.resolve(__dirname, "../../data/extensions/steps.json");
 const E2E_FIXTURE = {
   namespace: "e2e",
   steps: {
@@ -42,8 +42,6 @@ const E2E_FIXTURE = {
   },
 };
 
-let originalStepsContent: string | null = null;
-
 async function setup(page: Page) {
   await page.addInitScript(({ project, group }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
@@ -53,38 +51,41 @@ async function setup(page: Page) {
   }, { project: dummyProject, group: dummyGroup });
 }
 
-test.beforeEach(async () => {
-  // 既存ファイルを退避し、テスト用 fixture を注入
-  try {
-    originalStepsContent = await fs.readFile(STEPS_FILE, "utf-8");
-  } catch {
-    originalStepsContent = null;
-  }
-  await fs.mkdir(path.dirname(STEPS_FILE), { recursive: true });
-  await fs.writeFile(STEPS_FILE, JSON.stringify(E2E_FIXTURE, null, 2), "utf-8");
-});
-
-test.afterEach(async () => {
-  // テスト後にファイルを元に戻す
-  if (originalStepsContent !== null) {
-    await fs.writeFile(STEPS_FILE, originalStepsContent, "utf-8");
-  } else {
-    await fs.writeFile(
-      STEPS_FILE,
-      JSON.stringify({ namespace: "", steps: {} }, null, 2),
-      "utf-8"
-    );
-  }
-});
-
 test.describe("カスタムステップカードパレット (#447)", () => {
+  // describe スコープの局所変数 — モジュールスコープに漏らさない
+  let originalStepsContent: string | null = null;
+
+  test.beforeEach(async () => {
+    // 既存ファイルを退避し、テスト用 fixture を注入
+    try {
+      originalStepsContent = await fs.readFile(STEPS_FILE, "utf-8");
+    } catch {
+      originalStepsContent = null;
+    }
+    await fs.mkdir(path.dirname(STEPS_FILE), { recursive: true });
+    await fs.writeFile(STEPS_FILE, JSON.stringify(E2E_FIXTURE, null, 2), "utf-8");
+  });
+
+  test.afterEach(async () => {
+    // テスト後にファイルを元に戻す
+    if (originalStepsContent !== null) {
+      await fs.writeFile(STEPS_FILE, originalStepsContent, "utf-8");
+    } else {
+      await fs.writeFile(
+        STEPS_FILE,
+        JSON.stringify({ namespace: "", steps: {} }, null, 2),
+        "utf-8"
+      );
+    }
+  });
+
   test("カスタムセクションに表示され、配置ボタンは disabled", async ({ page }) => {
     await setup(page);
     await page.goto(`/process-flow/edit/${groupId}`);
     await expect(page.locator(".step-editor")).toBeVisible({ timeout: 10000 });
 
     await expect(page.getByText("カスタム")).toBeVisible();
-    const card = page.getByRole("button", { name: /テストカスタム|バッチ|Batch|gm50/ }).first();
+    const card = page.getByRole("button", { name: /テストカスタム/ }).first();
     await expect(card).toBeDisabled();
   });
 });
