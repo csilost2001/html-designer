@@ -1520,3 +1520,278 @@ describe("process-flow.schema.json — ambientOverrides (#369)", () => {
     })).toBe(false);
   });
 });
+
+describe("process-flow.schema.json — domainsCatalog (#422 P2-1)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("domainsCatalog 全フィールド accept", () => {
+    const ok = validate({
+      ...base,
+      domainsCatalog: {
+        EmailAddress: {
+          type: "string",
+          constraints: [
+            { field: "email", type: "regex", pattern: "^[^@]+@[^@]+$", message: "@conv.msg.invalidFormat" },
+          ],
+          uiHint: "email",
+          description: "メールアドレスドメイン",
+        },
+        Quantity: {
+          type: "number",
+          constraints: [
+            { field: "qty", type: "range", min: 1, max: 9999 },
+          ],
+          uiHint: "number",
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("domainsCatalog 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("domainsCatalog の type 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      domainsCatalog: {
+        Bad: { description: "no type" },
+      },
+    })).toBe(false);
+  });
+
+  it("domainsCatalog の未知フィールドは reject (additionalProperties: false)", () => {
+    expect(validate({
+      ...base,
+      domainsCatalog: {
+        Bad: { type: "string", unknownField: "x" },
+      },
+    })).toBe(false);
+  });
+});
+
+describe("process-flow.schema.json — functionsCatalog (#422 P2-5)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("functionsCatalog 全フィールド accept", () => {
+    const ok = validate({
+      ...base,
+      functionsCatalog: {
+        formatCurrency: {
+          signature: "formatCurrency(amount: number, currency: string): string",
+          returnType: "string",
+          description: "金額を通貨フォーマット文字列に変換する",
+          examples: ["@fn.formatCurrency(@subtotal, 'JPY') // => \"¥150,000\""],
+        },
+        calcTax: {
+          signature: "calcTax(amount: number, rate: number): number",
+          returnType: "number",
+          description: "税額を計算する (切り捨て整数)",
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("functionsCatalog 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("functionsCatalog の signature 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      functionsCatalog: {
+        bad: { returnType: "string", description: "no signature" },
+      },
+    })).toBe(false);
+  });
+
+  it("functionsCatalog の returnType 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      functionsCatalog: {
+        bad: { signature: "bad(): void", description: "no returnType" },
+      },
+    })).toBe(false);
+  });
+
+  it("functionsCatalog の description 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      functionsCatalog: {
+        bad: { signature: "bad(): void", returnType: "void" },
+      },
+    })).toBe(false);
+  });
+
+  it("functionsCatalog examples 省略 accept (optional)", () => {
+    expect(validate({
+      ...base,
+      functionsCatalog: {
+        fn: { signature: "fn(): string", returnType: "string", description: "ok" },
+      },
+    })).toBe(true);
+  });
+
+  it("functionsCatalog の未知フィールドは reject (additionalProperties: false)", () => {
+    expect(validate({
+      ...base,
+      functionsCatalog: {
+        bad: { signature: "bad(): void", returnType: "void", description: "x", unknownField: "y" },
+      },
+    })).toBe(false);
+  });
+});
+
+describe("process-flow.schema.json — StructuredField.domainRef (#422 P2-1)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("StructuredField.domainRef accept", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [
+          { name: "email", type: "string", domainRef: "EmailAddress" },
+        ],
+        steps: [],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("domainRef 省略 accept (optional)", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [{ name: "email", type: "string" }],
+        steps: [],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("domainRef が string 以外なら reject", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [{ name: "email", type: "string", domainRef: 123 }],
+        steps: [],
+      }],
+    })).toBe(false);
+  });
+});
+
+describe("process-flow.schema.json — StructuredField.formula (#422 P2-2)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("StructuredField.formula accept", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        outputs: [
+          { name: "lineAmount", type: "number", formula: "= @quantity * @unitPrice" },
+        ],
+        steps: [],
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("formula 省略 accept (optional)", () => {
+    const ok = validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        outputs: [{ name: "total", type: "number" }],
+        steps: [],
+      }],
+    });
+    expect(ok).toBe(true);
+  });
+
+  it("formula が string 以外なら reject", () => {
+    expect(validate({
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        outputs: [{ name: "total", type: "number", formula: 42 }],
+        steps: [],
+      }],
+    })).toBe(false);
+  });
+});
+
+describe("process-flow.schema.json — ValidationRule.kind (#422 P2-3)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  function makeValidation(rule: object) {
+    return {
+      ...base,
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", type: "validation", description: "", conditions: "",
+          rules: [rule],
+        }],
+      }],
+    };
+  }
+
+  it("kind=Error accept", () => {
+    const ok = validate(makeValidation({ field: "qty", type: "required", kind: "Error" }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("kind=Msg accept", () => {
+    expect(validate(makeValidation({ field: "qty", type: "required", kind: "Msg" }))).toBe(true);
+  });
+
+  it("kind=Noaccept accept", () => {
+    expect(validate(makeValidation({ field: "qty", type: "required", kind: "Noaccept" }))).toBe(true);
+  });
+
+  it("kind=Default accept", () => {
+    expect(validate(makeValidation({ field: "qty", type: "required", kind: "Default" }))).toBe(true);
+  });
+
+  it("kind enum 外は reject", () => {
+    expect(validate(makeValidation({ field: "qty", type: "required", kind: "Warning" }))).toBe(false);
+  });
+
+  it("kind 省略 accept (optional)", () => {
+    expect(validate(makeValidation({ field: "qty", type: "required" }))).toBe(true);
+  });
+});

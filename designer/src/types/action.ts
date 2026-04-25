@@ -298,6 +298,16 @@ export type ValidationRuleType =
   | "custom";     // 自由記述
 
 /**
+ * GeneXus 由来の ValidationRule 動作種別 (#422 P2-3)。
+ * `type` (required/regex/etc.) とは別の orthogonal な分類。
+ * - "Error": エラー表示してブロック
+ * - "Msg": メッセージのみ表示 (続行可)
+ * - "Noaccept": 値を受け付けない
+ * - "Default": 既定値を設定
+ */
+export type ValidationRuleKind = "Error" | "Msg" | "Noaccept" | "Default";
+
+/**
  * 1 件のバリデーションルール。同一 field に複数ルールを付けられる (配列の順で適用)。
  * message は直接文字列か @conv.msg.* 参照を想定。
  */
@@ -305,6 +315,11 @@ export interface ValidationRule {
   /** 検証対象フィールド名 (inputs[].name を参照) */
   field: string;
   type: ValidationRuleType;
+  /**
+   * GeneXus 由来の動作種別 (#422 P2-3)。type とは別概念。
+   * 省略時はランタイム既定 (通常 "Error" 相当)。
+   */
+  kind?: ValidationRuleKind;
   /** type="regex" 時のパターン (生 regex or @conv.regex.* 参照) */
   pattern?: string;
   /** type="maxLength" / "minLength" 時の文字数 */
@@ -948,6 +963,18 @@ export interface StructuredField {
    * 参照先が存在しない場合は UNKNOWN_SCREEN_ITEM 警告 (参照整合性バリデータ)。
    */
   screenItemRef?: { screenId: string; itemId: string };
+  /**
+   * Domain カタログへの参照 (#422 P2-1 / D-2)。
+   * ProcessFlow.domainsCatalog のキー (例: "EmailAddress")。
+   * 型・制約・uiHint を domainsCatalog 側から継承する。
+   */
+  domainRef?: string;
+  /**
+   * 属性レベル計算式 (#422 P2-2 / GeneXus 由来)。
+   * "= " で始まる式文字列 (例: "= a + b", "= @quantity * @unitPrice")。
+   * ScreenItem.computed と対になる概念。
+   */
+  formula?: string;
 }
 
 /** inputs / outputs の値型: 旧形式 (改行区切り文字列) と新形式 (StructuredField[]) の union */
@@ -1194,6 +1221,37 @@ export interface ErrorCatalogEntry {
   description?: string;
 }
 
+/**
+ * Domain カタログの 1 エントリ (#422 P2-1 / GeneXus 由来)。
+ * 型・制約・UI ヒントを宣言し、StructuredField.domainRef から参照される。
+ * DRY 化: 複数フィールドで同じバリデーション / UI ヒントを使い回す際に使う。
+ */
+export interface DomainDef {
+  /** このドメインの型。FieldType と同じ union */
+  type: FieldType;
+  /** このドメインに適用する ValidationRule 一覧 */
+  constraints?: ValidationRule[];
+  /** UI 表示ヒント (例: "email", "tel", "textarea"). HTML input type 相当 */
+  uiHint?: string;
+  /** 説明 */
+  description?: string;
+}
+
+/**
+ * 組み込み関数カタログの 1 エントリ (#422 P2-5 / Wagby 由来)。
+ * @fn.<name> 参照形式で式から呼び出される。
+ */
+export interface FunctionDef {
+  /** 関数シグネチャ (例: "formatCurrency(amount: number, currency: string): string") */
+  signature: string;
+  /** 戻り値の型 (例: "string", "number", "boolean") */
+  returnType: string;
+  /** 説明 */
+  description: string;
+  /** 使用例 (例: ["@fn.formatCurrency(@subtotal, 'JPY') // => \"¥1,000\""]) */
+  examples?: string[];
+}
+
 export interface ProcessFlow {
   id: string;
   name: string;
@@ -1249,6 +1307,18 @@ export interface ProcessFlow {
    * `@env.<KEY>` で式から参照される。秘匿値は secretsCatalog 側で扱う。
    */
   envVarsCatalog?: Record<string, EnvVarEntry>;
+  /**
+   * Domain 概念カタログ (#422 P2-1 / GeneXus 由来)。
+   * キー: ドメイン名 (例: "EmailAddress", "Quantity")。
+   * StructuredField.domainRef から参照される。型・制約・uiHint を 1 箇所に集約し DRY 化する。
+   */
+  domainsCatalog?: Record<string, DomainDef>;
+  /**
+   * 組み込み関数カタログ (#422 P2-5 / Wagby 由来)。
+   * キー: 関数名 (例: "formatCurrency", "calcAge")。
+   * `@fn.<name>` 参照形式で式から呼び出される。
+   */
+  functionsCatalog?: Record<string, FunctionDef>;
   /**
    * マーカー (#261 リアルタイム編集ワークフロー)。
    * 人間が designer 画面で付けたコメント・質問・TODO・チャットメッセージを保持。

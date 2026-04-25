@@ -82,6 +82,14 @@ export interface ScreenItem {
   /** バインド元 — どのデータを表示するか (#377) */
   valueFrom?: ValueSource;
 
+  // ─── 派生値 (D-1 / #422) ────────────────────────────────────────
+  /**
+   * 派生値の計算式 (#422 D-1)。StructuredField.formula と対になる概念。
+   * "= " で始まる式文字列 (例: "= @quantity * @unitPrice")。
+   * direction="output" のフィールドで計算結果をバインドする際に使う。
+   */
+  computed?: string;
+
   // ─── 備考 ──────────────────────────────────────────────────────
   description?: string;
 }
