@@ -12,6 +12,11 @@
     "description": { "type": "string" },
     "updatedAt": { "type": "string", "format": "date-time" },
 
+    "i18n": {
+      "description": "国際化設定 (locale / フォーマット)。@conv.i18n.<key> で参照",
+      "$ref": "#/$defs/I18nConfig"
+    },
+
     "msg": {
       "type": "object",
       "description": "エラーメッセージテンプレート。@conv.msg.<key> で参照",
@@ -95,7 +100,39 @@
           "items": { "type": "string" },
           "description": "template 内に現れる placeholder 名"
         },
+        "locales": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
         "description": { "type": "string" }
+      }
+    },
+    "I18nConfig": {
+      "type": "object",
+      "required": ["supportedLocales", "defaultLocale"],
+      "additionalProperties": false,
+      "properties": {
+        "supportedLocales": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "defaultLocale": { "type": "string" },
+        "dateFormat": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "timeFormat": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "currencyDisplay": {
+          "type": "object",
+          "additionalProperties": { "enum": ["symbol", "code", "name"] }
+        },
+        "numberGrouping": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" }
+        }
       }
     },
     "RegexEntry": {

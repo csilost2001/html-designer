@@ -4,10 +4,19 @@
   "description": "処理フロー仕様書 / ProcessFlow から @conv.* で参照される横断規約カタログ。docs/conventions/validation-rules.md の構造化版",
   "updatedAt": "2026-04-24T00:00:00.000Z",
 
+  "i18n": {
+    "supportedLocales": ["ja-JP", "en-US"],
+    "defaultLocale": "ja-JP",
+    "dateFormat": { "ja-JP": "YYYY年MM月DD日", "en-US": "MMM D, YYYY" },
+    "currencyDisplay": { "ja-JP": "symbol", "en-US": "code" },
+    "numberGrouping": { "ja-JP": true, "en-US": true }
+  },
+
   "msg": {
     "required": {
       "template": "{label}は必須入力です",
       "params": ["label"],
+      "locales": { "en-US": "{label} is required" },
       "description": "非空必須エラーの既定メッセージ"
     },
     "maxLength": {
@@ -24,7 +33,8 @@
     },
     "outOfRange": {
       "template": "{label}は{min}〜{max}の範囲で入力してください",
-      "params": ["label", "min", "max"]
+      "params": ["label", "min", "max"],
+      "locales": { "en-US": "{label} must be between {min} and {max}" }
     },
     "mustBePositive": {
       "template": "{label}は1以上の数値を入力してください",
@@ -81,7 +91,7 @@
   "scope": {
     "customerRegion": { "value": "domestic", "description": "国内顧客のみ (日本国内在住/在所)" },
     "timezone": { "value": "Asia/Tokyo", "default": true, "description": "JST 固定。海外顧客はスコープ外" },
-    "language": { "value": "ja", "description": "日本語のみ。多言語化 (i18n) はスコープ外" }
+    "language": { "value": "ja", "description": "既定言語は日本語。利用可能 locale は i18n.supportedLocales で管理" }
   },
 
   "currency": {

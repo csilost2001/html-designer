@@ -394,6 +394,91 @@ describe("checkConventionsCatalogIntegrity - RBAC", () => {
 
 // ── checkScreenItemConventionReferences (#351) ────────────────────────────
 
+describe("checkConventionsCatalogIntegrity - i18n", () => {
+  it("valid i18n and msg.locales pass", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      i18n: {
+        supportedLocales: ["ja-JP", "en-US"],
+        defaultLocale: "ja-JP",
+      },
+      msg: {
+        required: {
+          template: "{label}は必須入力です",
+          params: ["label"],
+          locales: { "en-US": "{label} is required" },
+        },
+      },
+    };
+
+    expect(checkConventionsCatalogIntegrity(catalog)).toHaveLength(0);
+  });
+
+  it("defaultLocale outside supportedLocales is INVALID_DEFAULT_LOCALE", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      i18n: {
+        supportedLocales: ["ja-JP"],
+        defaultLocale: "en-US",
+      },
+    };
+
+    const issues = checkConventionsCatalogIntegrity(catalog);
+    expect(issues.some((issue) => issue.code === "INVALID_DEFAULT_LOCALE")).toBe(true);
+  });
+
+  it("msg.locales outside supportedLocales is UNKNOWN_MSG_LOCALE", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      i18n: {
+        supportedLocales: ["ja-JP", "en-US"],
+        defaultLocale: "ja-JP",
+      },
+      msg: {
+        required: {
+          template: "{label}は必須入力です",
+          locales: { "fr-FR": "{label} est obligatoire" },
+        },
+      },
+    };
+
+    const issues = checkConventionsCatalogIntegrity(catalog);
+    expect(issues.some((issue) => issue.code === "UNKNOWN_MSG_LOCALE")).toBe(true);
+  });
+
+  it("catalog without i18n block remains valid", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      msg: {
+        required: {
+          template: "{label}は必須入力です",
+          locales: { "en-US": "{label} is required" },
+        },
+      },
+    };
+
+    expect(checkConventionsCatalogIntegrity(catalog)).toHaveLength(0);
+  });
+
+  it("msg entry without locales remains valid (downward compatibility)", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      i18n: {
+        supportedLocales: ["ja-JP", "en-US"],
+        defaultLocale: "ja-JP",
+      },
+      msg: {
+        required: {
+          template: "{label}は必須入力です",
+          params: ["label"],
+        },
+      },
+    };
+
+    expect(checkConventionsCatalogIntegrity(catalog)).toHaveLength(0);
+  });
+});
+
 function makeScreenItemsFile(partial: Partial<ScreenItemsFile>): ScreenItemsFile {
   return {
     screenId: "scr1",
