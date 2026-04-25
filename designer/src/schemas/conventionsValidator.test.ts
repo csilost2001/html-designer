@@ -459,6 +459,24 @@ describe("checkConventionsCatalogIntegrity - i18n", () => {
 
     expect(checkConventionsCatalogIntegrity(catalog)).toHaveLength(0);
   });
+
+  it("msg entry without locales remains valid (downward compatibility)", () => {
+    const catalog: ConventionsCatalog = {
+      version: "1.0.0",
+      i18n: {
+        supportedLocales: ["ja-JP", "en-US"],
+        defaultLocale: "ja-JP",
+      },
+      msg: {
+        required: {
+          template: "{label}は必須入力です",
+          params: ["label"],
+        },
+      },
+    };
+
+    expect(checkConventionsCatalogIntegrity(catalog)).toHaveLength(0);
+  });
 });
 
 function makeScreenItemsFile(partial: Partial<ScreenItemsFile>): ScreenItemsFile {
