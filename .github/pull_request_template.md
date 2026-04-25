@@ -55,16 +55,16 @@
 - Playwright: <N 件> (新規 <M 件>) — <対象画面/フロー>
 - MCP E2E: <N 件> — <対象 API> (該当する場合)
 
-## UI 影響 / マージ保留フラグ
+## UI 影響 / AI smoke test
 
-- [ ] UI 影響あり (マージ前にユーザー目視確認必須)
-- [ ] UI 影響なし (auto テスト pass でマージ可)
+- [ ] UI 影響あり (AI が chrome-devtools MCP / Playwright で smoke test 実施済み)
+- [ ] UI 影響なし (auto テスト pass のみ)
 
-### UI 影響ありの場合、確認項目
+### UI 影響ありの場合、AI smoke test で確認した項目
 
-<!-- ユーザーが何をどう見れば OK と判断できるかを具体的に。例: -->
+<!-- AI が何をどう確認したかを具体的に。例: -->
 
-- [ ] <画面名>: <期待挙動>
+- [ ] <画面名>: <期待挙動> — chrome-devtools MCP で確認
 - [ ] 保存直後の JSON が Git 差分で揺れない
 - [ ] 既存機能のリグレッションなし
 
