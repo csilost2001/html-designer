@@ -2281,6 +2281,84 @@ describe("process-flow.schema.json — グローバルスキーマ先行追加 (
   });
 });
 
+describe("process-flow.schema.json — #443 negative cases (reject 検証)", () => {
+  const makeFlow = (action: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [action],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+  const baseStep = { id: "s1", type: "other", description: "" };
+
+  it("FieldType {kind: invalid} reject", () => {
+    const flow = makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      inputs: [{ name: "invalidField", type: { kind: "invalid" } }],
+      steps: [baseStep],
+    });
+
+    const valid = validate(flow);
+    expect(valid).toBe(false);
+    expect(validate.errors).toBeTruthy();
+  });
+
+  it("ActionTrigger invalid_trigger reject", () => {
+    const flow = makeFlow({
+      id: "act-1", name: "test", trigger: "invalid_trigger",
+      steps: [baseStep],
+    });
+
+    const valid = validate(flow);
+    expect(valid).toBe(false);
+    expect(validate.errors).toBeTruthy();
+  });
+
+  it("DbOperation TRUNCATE reject", () => {
+    const flow = makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "dbAccess", description: "",
+        operation: "TRUNCATE",
+        tableName: "orders",
+      }],
+    });
+
+    const valid = validate(flow);
+    expect(valid).toBe(false);
+    expect(validate.errors).toBeTruthy();
+  });
+
+  it("ValidationInlineBranch ok number reject", () => {
+    const flow = makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        inlineBranch: { ok: 123, ng: "エラー表示" },
+      }],
+    });
+
+    const valid = validate(flow);
+    expect(valid).toBe(false);
+    expect(validate.errors).toBeTruthy();
+  });
+
+  it("CommonProcessStep returnMapping non-string value reject", () => {
+    const flow = makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "commonProcess", description: "",
+        refId: "common-batch-check",
+        returnMapping: { key: 123 },
+      }],
+    });
+
+    const valid = validate(flow);
+    expect(valid).toBe(false);
+    expect(validate.errors).toBeTruthy();
+  });
+});
+
 describe("process-flow.schema.json — extensions 合成 (#444)", () => {
   it("拡張ありスキーマで有効な process-flow が通る", () => {
     const schema = JSON.parse(readFileSync(schemaPath, "utf-8")) as object;
