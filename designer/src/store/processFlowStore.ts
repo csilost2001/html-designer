@@ -254,6 +254,14 @@ export function createDefaultStep(type: StepType): Step {
       return { ...base, type: "log", level: "info", message: "" };
     case "audit":
       return { ...base, type: "audit", action: "" };
+    case "workflow":
+      return {
+        ...base,
+        type: "workflow",
+        pattern: "sequential",
+        approvers: [],
+        quorum: 1,
+      };
     case "other":
       return { ...base, type: "other" };
   }

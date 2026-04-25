@@ -1,0 +1,111 @@
+{
+  "id": "cccccccc-0411-4000-8000-cccccccccccc",
+  "name": "経費申請承認フロー",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0010-4000-8000-aaaaaaaaaaaa",
+  "description": "経費申請を保存し、直属上長から経理責任者へ順次承認する。期限超過時は上位ロールへエスカレーションする。",
+  "mode": "downstream",
+  "maturity": "committed",
+  "actions": [
+    {
+      "id": "act-expense-submit",
+      "name": "経費申請を送信",
+      "trigger": "submit",
+      "maturity": "committed",
+      "requiredPermissions": ["expense.create"],
+      "inputs": [
+        { "name": "employeeId", "label": "社員ID", "type": "string", "required": true },
+        { "name": "amount", "label": "申請金額", "type": "number", "required": true },
+        { "name": "purpose", "label": "利用目的", "type": "string", "required": true }
+      ],
+      "outputs": [
+        { "name": "expenseId", "label": "経費申請ID", "type": "string" },
+        { "name": "approvalStatus", "label": "承認状態", "type": "string" }
+      ],
+      "steps": [
+        {
+          "id": "step-expense-validate",
+          "type": "validation",
+          "maturity": "committed",
+          "description": "申請内容の必須チェック",
+          "conditions": "",
+          "rules": [
+            { "field": "employeeId", "type": "required" },
+            { "field": "amount", "type": "range", "min": 1 },
+            { "field": "purpose", "type": "required" }
+          ],
+          "inlineBranch": {
+            "ok": "申請登録へ進む",
+            "ng": "入力エラーを表示"
+          }
+        },
+        {
+          "id": "step-expense-save",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "経費申請を下書き登録",
+          "tableName": "expense_requests",
+          "operation": "INSERT",
+          "sql": "INSERT INTO expense_requests (employee_id, amount, purpose, status) VALUES (@employeeId, @amount, @purpose, 'pending') RETURNING id",
+          "outputBinding": "expenseRequest"
+        },
+        {
+          "id": "step-expense-manager-approval",
+          "type": "workflow",
+          "maturity": "committed",
+          "description": "直属上長と部門長による順次承認",
+          "pattern": "sequential",
+          "approvers": [
+            { "role": "manager", "label": "直属上長", "order": 1 },
+            { "role": "departmentHead", "label": "部門長", "order": 2 }
+          ],
+          "quorum": 2,
+          "deadlineExpression": "@submittedAt + duration('P2D')",
+          "escalateAfter": "duration('P2D')",
+          "escalateTo": "financeManager",
+          "onApproved": "step-expense-approved",
+          "onRejected": "step-expense-rejected",
+          "onTimeout": "step-expense-escalation"
+        },
+        {
+          "id": "step-expense-escalation",
+          "type": "workflow",
+          "maturity": "committed",
+          "description": "期限切れ時に経理責任者へエスカレーション承認",
+          "pattern": "escalation",
+          "approvers": [
+            { "role": "financeManager", "label": "経理責任者", "order": 1 }
+          ],
+          "quorum": 1,
+          "deadlineExpression": "@submittedAt + duration('P3D')",
+          "escalateAfter": "duration('P1D')",
+          "escalateTo": "cfo",
+          "onApproved": "step-expense-approved",
+          "onRejected": "step-expense-rejected",
+          "onTimeout": "step-expense-rejected"
+        },
+        {
+          "id": "step-expense-approved",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "承認済みとして更新",
+          "tableName": "expense_requests",
+          "operation": "UPDATE",
+          "sql": "UPDATE expense_requests SET status = 'approved' WHERE id = @expenseRequest.id",
+          "outputBinding": "approvalStatus"
+        },
+        {
+          "id": "step-expense-rejected",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "却下として更新",
+          "tableName": "expense_requests",
+          "operation": "UPDATE",
+          "sql": "UPDATE expense_requests SET status = 'rejected' WHERE id = @expenseRequest.id"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-25T00:00:00.000Z",
+  "updatedAt": "2026-04-25T00:00:00.000Z"
+}

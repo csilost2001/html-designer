@@ -16,6 +16,7 @@ export type StepType =
   | "compute"          // 計算式 / 変数代入 (#174)
   | "return"           // HTTP レスポンス返却 (#178)
   | "log" | "audit"    // アプリケーションログ / 監査ログ
+  | "workflow"         // 承認ワークフロー
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -35,6 +36,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   return: "レスポンス返却",
   log: "ログ出力",
   audit: "監査ログ",
+  workflow: "承認ワークフロー",
   other: "その他",
 };
 
@@ -55,6 +57,7 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   return: "bi-reply",
   log: "bi-journal-text",
   audit: "bi-shield-check",
+  workflow: "bi-git",
   other: "bi-three-dots",
 };
 
@@ -75,6 +78,7 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   return: "#22c55e",
   log: "#64748b",
   audit: "#a855f7",
+  workflow: "#0d9488",
   other: "#9ca3af",
 };
 
@@ -736,6 +740,68 @@ export interface AuditStep extends StepBase {
   sensitive?: boolean;
 }
 
+export type WorkflowPattern =
+  | "sequential"
+  | "parallel"
+  | "threshold"
+  | "delegated"
+  | "auto-approve"
+  | "skip"
+  | "request-changes"
+  | "conditional"
+  | "custom-form"
+  | "timed-auto-approve"
+  | "escalation";
+
+export const WORKFLOW_PATTERN_LABELS: Record<WorkflowPattern, string> = {
+  sequential: "順次承認",
+  parallel: "並列承認",
+  threshold: "定足数承認",
+  delegated: "代理承認",
+  "auto-approve": "自動承認",
+  skip: "承認スキップ",
+  "request-changes": "差戻し",
+  conditional: "条件分岐承認",
+  "custom-form": "カスタムフォーム承認",
+  "timed-auto-approve": "期限後自動承認",
+  escalation: "エスカレーション承認",
+};
+
+export const WORKFLOW_PATTERN_VALUES: readonly WorkflowPattern[] = [
+  "sequential",
+  "parallel",
+  "threshold",
+  "delegated",
+  "auto-approve",
+  "skip",
+  "request-changes",
+  "conditional",
+  "custom-form",
+  "timed-auto-approve",
+  "escalation",
+] as const;
+
+export interface WorkflowApprover {
+  /** RBAC catalog role key */
+  role: string;
+  label?: string;
+  order?: number;
+}
+
+export interface WorkflowStep extends StepBase {
+  type: "workflow";
+  pattern: WorkflowPattern;
+  approvers: WorkflowApprover[];
+  quorum?: number;
+  onApproved?: string;
+  onRejected?: string;
+  onTimeout?: string;
+  deadlineExpression?: string;
+  escalateAfter?: string;
+  /** RBAC catalog role key */
+  escalateTo?: string;
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -752,6 +818,7 @@ export type Step =
   | ReturnStep
   | LogStep
   | AuditStep
+  | WorkflowStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────

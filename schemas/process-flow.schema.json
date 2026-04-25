@@ -255,7 +255,24 @@
         "return",
         "log",
         "audit",
+        "workflow",
         "other"
+      ]
+    },
+    "WorkflowPattern": {
+      "type": "string",
+      "enum": [
+        "sequential",
+        "parallel",
+        "threshold",
+        "delegated",
+        "auto-approve",
+        "skip",
+        "request-changes",
+        "conditional",
+        "custom-form",
+        "timed-auto-approve",
+        "escalation"
       ]
     },
     "HttpMethod": {
@@ -772,6 +789,7 @@
         { "$ref": "#/$defs/ComputeStep" },
         { "$ref": "#/$defs/LogStep" },
         { "$ref": "#/$defs/AuditStep" },
+        { "$ref": "#/$defs/WorkflowStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     },
@@ -1237,6 +1255,62 @@
       ]
     },
 
+    "WorkflowApprover": {
+      "type": "object",
+      "required": ["role"],
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "RBAC catalog role key reference"
+        },
+        "label": { "type": "string" },
+        "order": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "WorkflowStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "pattern", "approvers"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "type": { "const": "workflow" },
+            "pattern": { "$ref": "#/$defs/WorkflowPattern" },
+            "approvers": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/WorkflowApprover" }
+            },
+            "quorum": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum approvals needed"
+            },
+            "onApproved": { "type": "string" },
+            "onRejected": { "type": "string" },
+            "onTimeout": { "type": "string" },
+            "deadlineExpression": {
+              "type": "string",
+              "description": "ConvCompletion expression for approval deadline"
+            },
+            "escalateAfter": {
+              "type": "string",
+              "description": "Duration expression before escalation"
+            },
+            "escalateTo": {
+              "type": "string",
+              "description": "RBAC catalog role key reference"
+            }
+          }
+        }
+      ]
+    },
+
     "OtherStep": {
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
@@ -1273,6 +1347,7 @@
         { "$ref": "#/$defs/ReturnStep" },
         { "$ref": "#/$defs/LogStep" },
         { "$ref": "#/$defs/AuditStep" },
+        { "$ref": "#/$defs/WorkflowStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     }
