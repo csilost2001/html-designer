@@ -115,6 +115,57 @@
     }
   },
 
+  "domainsCatalog": {
+    "CustomerId": {
+      "type": "number",
+      "constraints": [
+        { "field": "customerId", "type": "required", "message": "@conv.msg.required" }
+      ],
+      "uiHint": "number",
+      "description": "顧客 ID ドメイン。正の整数。@conv.domain.CustomerId 参照形式で StructuredField から利用"
+    },
+    "Quantity": {
+      "type": "number",
+      "constraints": [
+        {
+          "field": "quantity",
+          "type": "range",
+          "minRef": "@conv.limit.quantityMin",
+          "maxRef": "@conv.limit.quantityMax",
+          "kind": "Error",
+          "message": "@conv.msg.outOfRange"
+        }
+      ],
+      "uiHint": "number",
+      "description": "数量ドメイン。@conv.limit.quantityMin〜quantityMax の範囲制約付き"
+    },
+    "MoneyAmount": {
+      "type": "number",
+      "uiHint": "number",
+      "description": "金額ドメイン。@conv.currency.jpy subunit=0 (整数 JPY 円)。負値不可の制約は実装側で適用"
+    }
+  },
+
+  "functionsCatalog": {
+    "formatCurrency": {
+      "signature": "formatCurrency(amount: number, currency: string): string",
+      "returnType": "string",
+      "description": "金額を通貨フォーマット文字列に変換する。@conv.currency.* の表示規約に準拠",
+      "examples": [
+        "@fn.formatCurrency(@subtotal, 'JPY') // => \"¥150,000\"",
+        "@fn.formatCurrency(@totalAmount, 'USD') // => \"$1,500.00\""
+      ]
+    },
+    "calcTax": {
+      "signature": "calcTax(amount: number, rate: number): number",
+      "returnType": "number",
+      "description": "税額を計算する (切り捨て整数)。@conv.tax.standard.rate を rate に渡す",
+      "examples": [
+        "@fn.calcTax(@subtotal, @conv.tax.standard.rate) // => Math.floor(@subtotal * @conv.tax.standard.rate)"
+      ]
+    }
+  },
+
   "actions": [
     {
       "id": "act-001",

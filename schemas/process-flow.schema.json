@@ -50,6 +50,16 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/EnvVarEntry" }
     },
+    "domainsCatalog": {
+      "description": "Domain 概念カタログ (#422 P2-1 / GeneXus 由来)。キー: ドメイン名 (例: \"EmailAddress\", \"Quantity\")。StructuredField.domainRef から参照される。型・制約・UI ヒントを 1 箇所に集約し DRY 化する",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/DomainDef" }
+    },
+    "functionsCatalog": {
+      "description": "組み込み関数カタログ (#422 P2-5 / Wagby 由来)。キー: 関数名 (例: \"formatCurrency\", \"calcAge\")。@fn.* 参照形式で式から呼び出される",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/FunctionDef" }
+    },
     "markers": {
       "description": "マーカー (#261)。人間が designer で付けた指示・質問・TODO・チャット。AI が読み取り resolvedAt で解決",
       "type": "array",
@@ -425,6 +435,49 @@
       }
     },
 
+    "DomainDef": {
+      "description": "Domain カタログの 1 エントリ (#422 P2-1 / GeneXus 由来)。型・制約・UI ヒントを宣言し、StructuredField.domainRef から参照される",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/$defs/FieldType" },
+        "constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ValidationRule" },
+          "description": "このドメインに適用する ValidationRule 一覧"
+        },
+        "uiHint": {
+          "type": "string",
+          "description": "UI 表示ヒント (例: \"email\", \"tel\", \"textarea\"). HTML input type 相当"
+        },
+        "description": { "type": "string" }
+      }
+    },
+
+    "FunctionDef": {
+      "description": "組み込み関数カタログの 1 エントリ (#422 P2-5 / Wagby 由来)。@fn.<name> 参照形式で式から呼び出される",
+      "type": "object",
+      "required": ["signature", "returnType", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "signature": {
+          "type": "string",
+          "description": "関数シグネチャ (例: \"formatCurrency(amount: number, currency: string): string\")"
+        },
+        "returnType": {
+          "type": "string",
+          "description": "戻り値の型 (例: \"string\", \"number\", \"boolean\")"
+        },
+        "description": { "type": "string" },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "使用例 (例: [\"@fn.formatCurrency(@subtotal, 'JPY') // => \\\"¥1,000\\\"\"])"
+        }
+      }
+    },
+
     "BodySchemaRef": {
       "description": "旧 string (自由記述) と新 {typeRef} / {schema} の union (#253)",
       "oneOf": [
@@ -551,6 +604,14 @@
             "screenId": { "type": "string" },
             "itemId": { "type": "string" }
           }
+        },
+        "domainRef": {
+          "type": "string",
+          "description": "Domain カタログへの参照 (#422 P2-1 / D-2)。ProcessFlow.domainsCatalog のキー (例: \"EmailAddress\")。型・制約・uiHint を domainsCatalog 側から継承する"
+        },
+        "formula": {
+          "type": "string",
+          "description": "属性レベル計算式 (#422 P2-2 / GeneXus 由来)。= で始まる式文字列 (例: \"= a + b\")。ScreenItem の computed と対になる概念"
         }
       }
     },
@@ -692,6 +753,11 @@
       "type": "string",
       "enum": ["required", "regex", "maxLength", "minLength", "range", "enum", "custom"]
     },
+    "ValidationRuleKind": {
+      "type": "string",
+      "enum": ["Error", "Msg", "Noaccept", "Default"],
+      "description": "GeneXus 由来の ValidationRule 動作種別 (#422 P2-3)。type (required/regex/etc.) とは別の orthogonal な分類。Error: エラー表示してブロック / Msg: メッセージのみ / Noaccept: 値を受け付けない / Default: 既定値を設定"
+    },
     "ValidationRule": {
       "type": "object",
       "required": ["field", "type"],
@@ -699,6 +765,10 @@
       "properties": {
         "field": { "type": "string" },
         "type": { "$ref": "#/$defs/ValidationRuleType" },
+        "kind": {
+          "$ref": "#/$defs/ValidationRuleKind",
+          "description": "GeneXus 由来の動作種別 (#422 P2-3)。type とは別概念。省略時はランタイム既定 (通常 Error 相当)"
+        },
         "pattern": { "type": "string" },
         "length": { "type": "integer", "minimum": 0 },
         "min": { "type": "number" },

@@ -678,7 +678,142 @@ ambientOverrides?: Record<string, string>;
 
 PR: #369
 
-## 9. 後方互換性
+## 9. P2 拡張 — Domain / Formula / Rules DSL / 関数カタログ (#422)
+
+### 9.1 Domain 概念 (P2-1 / GeneXus 由来)
+
+型・バリデーション制約・UI ヒントをドメイン名単位で一元定義する。複数フィールドで同じ制約を使い回す DRY 化が目的。
+
+```ts
+interface DomainDef {
+  type: FieldType;                 // このドメインの型
+  constraints?: ValidationRule[]; // ドメインに適用するバリデーション一覧
+  uiHint?: string;                 // UI 表示ヒント (例: "email", "tel", "textarea")
+  description?: string;
+}
+
+// ProcessFlow に追加
+domainsCatalog?: Record<string, DomainDef>;
+
+// StructuredField に追加
+domainRef?: string;   // domainsCatalog のキー参照 (例: "@conv.domain.EmailAddress")
+```
+
+**参照形式**: `@conv.domain.<name>` (Convention 規約経由) または `domainsCatalog` キー直接。
+
+```json
+"domainsCatalog": {
+  "Quantity": {
+    "type": "number",
+    "constraints": [
+      { "field": "quantity", "type": "range", "minRef": "@conv.limit.quantityMin", "maxRef": "@conv.limit.quantityMax", "kind": "Error" }
+    ],
+    "uiHint": "number"
+  }
+}
+```
+
+```json
+{ "name": "qty", "type": "number", "domainRef": "Quantity" }
+```
+
+PR: #422
+
+### 9.2 Formula — 属性レベル計算式 (P2-2 / GeneXus 由来)
+
+フィールドが計算式で導出される場合、式文字列を宣言的に保持する。`ComputeStep.expression` が「ステップ単位の命令型代入」であるのに対し、`formula` は「フィールド定義に付随する宣言型の導出式」。
+
+```ts
+// StructuredField に追加
+formula?: string;   // "= " で始まる式文字列 (例: "= @quantity * @unitPrice")
+
+// ScreenItem (designer/src/types/screenItem.ts) に追加
+computed?: string;  // direction="output" フィールドの計算式 (D-1)
+```
+
+**用例**:
+
+```json
+{ "name": "lineAmount", "type": "number", "formula": "= @quantity * @unitPrice" }
+```
+
+PR: #422
+
+### 9.3 Rules DSL 統一化 — ValidationRule.kind (P2-3 / GeneXus 由来)
+
+既存の `type` (required/regex/range 等、**検証ルールの種類**) とは別に、**動作種別**を表す `kind` フィールドを追加。GeneXus の Rules DSL 由来の orthogonal な分類。
+
+```ts
+type ValidationRuleKind = "Error" | "Msg" | "Noaccept" | "Default";
+
+interface ValidationRule {
+  // ... 既存フィールド ...
+  kind?: ValidationRuleKind;   // 動作種別 (省略時: ランタイム既定 = "Error" 相当)
+}
+```
+
+| kind | 意味 |
+|---|---|
+| `Error` | エラー表示してブロック (既定) |
+| `Msg` | メッセージのみ表示、続行可 |
+| `Noaccept` | 値を受け付けない |
+| `Default` | 既定値を設定 |
+
+**`type` との関係**: `type` = **何を検証するか** (`required`, `range` 等)、`kind` = **違反時にどう振る舞うか**。両者を組み合わせて表現する。
+
+```json
+{ "field": "quantity", "type": "range", "min": 1, "kind": "Error", "message": "1 以上を入力してください" }
+```
+
+PR: #422
+
+### 9.4 組み込み関数カタログ (P2-5 / Wagby 由来)
+
+フロー内で共通利用する関数をカタログ化し、式の中で `@fn.<name>(...)` 形式で呼び出せるようにする。
+
+```ts
+interface FunctionDef {
+  signature: string;     // 関数シグネチャ (例: "formatCurrency(amount: number, currency: string): string")
+  returnType: string;    // 戻り値の型
+  description: string;
+  examples?: string[];   // 使用例
+}
+
+// ProcessFlow に追加
+functionsCatalog?: Record<string, FunctionDef>;
+```
+
+**参照形式**: `@fn.<name>(<args>)` — 式の中で直接呼び出す。
+
+```json
+"functionsCatalog": {
+  "formatCurrency": {
+    "signature": "formatCurrency(amount: number, currency: string): string",
+    "returnType": "string",
+    "description": "金額を通貨フォーマット文字列に変換する",
+    "examples": ["@fn.formatCurrency(@subtotal, 'JPY') // => \"¥150,000\""]
+  }
+}
+```
+
+```json
+{ "type": "compute", "expression": "@fn.formatCurrency(@subtotal, 'JPY')", "outputBinding": "displayAmount" }
+```
+
+PR: #422
+
+### 9.5 ScreenItem.computed (D-1)
+
+`designer/src/types/screenItem.ts` の `ScreenItem` に `computed?: string` を追加。`direction="output"` のフィールドが計算式で導出される場合に宣言する。
+
+```ts
+interface ScreenItem {
+  // ... 既存フィールド ...
+  computed?: string;   // 派生値の計算式 (例: "= @quantity * @unitPrice")
+}
+```
+
+PR: #422
 
 すべての拡張は **Optional** かつ **Union 型** (string | structured) のいずれかで、既存データは破壊されない。`migrateProcessFlow` が読み込み時に:
 
@@ -691,23 +826,24 @@ PR: #369
 
 テスト: 既存 347 ユニットテストはすべてパス (破壊的変更なし)。
 
-## 10. ドッグフード検証の根拠
+## 11. ドッグフード検証の根拠
 
 本スキーマは以下のドッグフード履歴で**説明文ゼロ依存・自信度 5.0/5・スキーマ確定可能 (YES)** を達成:
 
 - `data/process-flows/cccccccc-0019-*.json` で別 AI セッションに実装依頼 → 地の文を無視して機能的に完全な実装生成可能と判定
 - 詳細履歴: #151 最終コメント
 
-## 11. 関連
+## 12. 関連
 
 - `docs/spec/process-flow-maturity.md` — Phase 1 (成熟度・付箋・モード)
 - `docs/spec/process-flow-variables.md` — Phase 1 (入出力・変数基盤)
 - `docs/conventions/validation-rules.md` / `product-scope.md` — 横断規約 (placeholder)
 - `designer/src/types/action.ts` — 型定義の正 (実装とドキュメントの整合性はこちらが優先)
 
-## 12. 変更履歴
+## 13. 変更履歴
 
 - 2026-04-20: 初版。#155〜#181 の全 PR をカバー。
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
 - 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
 - 2026-04-24: `ProcessFlow.ambientOverrides` 追加 (#369)。§8.7 を新設。
+- 2026-04-25: P2+D 拡張 (#422)。§9 を新設。domainsCatalog / functionsCatalog / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
