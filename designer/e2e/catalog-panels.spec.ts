@@ -1,7 +1,7 @@
 /**
  * ProcessFlow レベルカタログ編集 UI の統合 E2E (#278)
- * ambientVariables / secretsCatalog / externalSystemCatalog / typeCatalog の
- * 4 パネルが正しく展開・追加・編集・削除できることを検証。
+ * ambientVariables / secretsCatalog / externalSystemCatalog の
+ * 3 パネルが正しく展開・追加・編集・削除できることを検証。
  */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -39,7 +39,6 @@ test.describe("ProcessFlow カタログ編集パネル (#278)", () => {
     await expect(page.locator(".ambient-variables-panel")).toBeVisible();
     await expect(page.locator(".secrets-catalog-panel")).toBeVisible();
     await expect(page.locator(".external-system-catalog-panel")).toBeVisible();
-    await expect(page.locator(".type-catalog-panel")).toBeVisible();
   });
 
   test("ambientVariables: 追加・name/type/required 編集", async ({ page }) => {
@@ -72,22 +71,6 @@ test.describe("ProcessFlow カタログ編集パネル (#278)", () => {
     // auth.kind を bearer に
     await page.locator(".external-system-catalog-panel select").first().selectOption("bearer");
     await expect(page.locator(".external-system-catalog-panel .catalog-key-badge")).toContainText("stripe");
-  });
-
-  test("typeCatalog: 追加 + schema JSON 編集", async ({ page }) => {
-    await setup(page);
-    await page.locator(".type-catalog-panel .catalog-panel-toggle").click();
-    await page.fill(".type-catalog-panel .catalog-new-key", "ApiError");
-    await page.locator(".type-catalog-panel button:has-text('追加')").click();
-    // 既定 schema は {type:object, properties:{}}
-    const ta = page.locator(".type-catalog-schema");
-    await expect(ta).toContainText("\"type\"");
-    // 不正 JSON でエラー表示
-    await ta.fill("{ invalid");
-    await expect(page.locator(".type-catalog-panel").getByText(/JSON パース失敗/)).toBeVisible();
-    // 正しい JSON に戻す
-    await ta.fill('{"type":"object","required":["code"]}');
-    await expect(page.locator(".type-catalog-panel").getByText(/JSON パース失敗/)).toHaveCount(0);
   });
 
   test("各パネルの削除ボタン", async ({ page }) => {

@@ -34,6 +34,7 @@ import {
   writeViewsFile,
   getFileMtime,
   readExtensionsBundle,
+  writeExtensionsFile,
 } from "./projectStorage.js";
 
 type Command = { id: string; method: string; params?: unknown };
@@ -561,6 +562,17 @@ class WsBridge extends EventEmitter {
         case "getExtensions": {
           const bundle = await readExtensionsBundle();
           respond(bundle);
+          break;
+        }
+        case "saveExtensionPackage": {
+          const { type, content } = (params ?? {}) as { type: string; content: unknown };
+          if (!["steps", "fieldTypes", "triggers", "dbOperations", "responseTypes"].includes(type)) {
+            respondError(`不明な拡張種別です: ${type}`);
+            break;
+          }
+          await writeExtensionsFile(type as "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes", content);
+          respond({ success: true });
+          this.broadcast("extensionsChanged", { type }, clientId);
           break;
         }
         case "renameScreenItem": {

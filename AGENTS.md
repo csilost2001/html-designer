@@ -81,6 +81,7 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 | `/table/edit/:tableId` | TableEditor | テーブル編集 | ✅ per-resource |
 | `/table/er` | ErDiagram | ER 図 | ✅ singleton |
 | `/process-flow/list` | ProcessFlowListView | 処理フロー一覧 | ✅ singleton |
+| `/extensions` | ExtensionsPanel | 拡張管理 | ✅ singleton |
 | `/process-flow/edit/:processFlowId` | ProcessFlowEditor | 処理フロー編集 | ✅ per-resource |
 
 ### Tab policy
@@ -89,7 +90,7 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 | 種別 | 対象 | 性質 |
 |------|------|------|
-| シングルトンタブ | Dashboard / 画面フロー / 画面一覧 / テーブル一覧 / ER 図 / 処理フロー一覧 | 1 インスタンス固定、再オープン時は既存を再利用 |
+| シングルトンタブ | Dashboard / 画面フロー / 画面一覧 / テーブル一覧 / ER 図 / 処理フロー一覧 / 拡張管理 | 1 インスタンス固定、再オープン時は既存を再利用 |
 | マルチインスタンスタブ | Designer / TableEditor / ProcessFlowEditor | リソース ID 毎に独立タブ |
 | route only | なし | — |
 

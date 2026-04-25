@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import type {
   ProcessFlow,
@@ -29,8 +29,8 @@ import { hasBlockingErrors } from "../../utils/actionValidation";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+import { loadExtensionsFromBundle, type LoadedExtensions } from "../../schemas/loadExtensions";
 import { loadConventions } from "../../store/conventionsStore";
-import type { ValidationError } from "../../utils/actionValidation";
 import { generateUUID } from "../../utils/uuid";
 import {
   DndContext,
@@ -125,6 +125,22 @@ const ALL_SUB_STEP_TYPES: StepType[] = [
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];
 
+function CustomStepButton({ id, label, icon, description }: { id: string; label: string; icon: string; description: string }) {
+  return (
+    <button
+      type="button"
+      className="step-toolbar-btn"
+      disabled
+      title={`D&D 配置は別 ISSUE で対応予定: ${id}`}
+      aria-disabled="true"
+    >
+      <i className={icon || "bi bi-puzzle"} />
+      {label || id}
+      {description ? <span className="visually-hidden">{description}</span> : null}
+    </button>
+  );
+}
+
 export function ProcessFlowEditor() {
   const { processFlowId } = useParams<{ processFlowId: string }>();
   const navigate = useNavigate();
@@ -143,11 +159,11 @@ export function ProcessFlowEditor() {
   const [drawingMode, setDrawingMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   // SQL 列検査 / 規約参照検査のため (#261)
   const [tableDefs, setTableDefs] = useState<ValidatorTableDef[]>([]);
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
-  const newStepIdsRef = useRef<Set<string>>(new Set());
+  const [extensions, setExtensions] = useState<LoadedExtensions | undefined>(undefined);
+  const [newStepIds, setNewStepIds] = useState<Set<string>>(new Set());
 
   // 選択・クリップボード state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -187,6 +203,9 @@ export function ProcessFlowEditor() {
     loadConventions()
       .then((c) => setConventions(c as ConventionsCatalog | null))
       .catch(() => setConventions(null));
+    mcpBridge.getExtensions()
+      .then((bundle) => setExtensions(loadExtensionsFromBundle(bundle).extensions))
+      .catch(() => setExtensions(undefined));
   }, []);
 
   const {
@@ -213,7 +232,10 @@ export function ProcessFlowEditor() {
 
   // ProcessFlowEditor の live 状態を mcpBridge に公開 (#361 browser-first)
   const groupRef = useRef<ProcessFlow | null>(null);
-  groupRef.current = group ?? null;
+
+  useEffect(() => {
+    groupRef.current = group ?? null;
+  }, [group]);
 
   useEffect(() => {
     if (!processFlowId) return;
@@ -228,9 +250,9 @@ export function ProcessFlowEditor() {
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
-    if (!group || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions }))) return;
+    if (!group || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions }))) return;
     await hookHandleSave();
-  }, [group, hookHandleSave, tableDefs, conventions]);
+  }, [group, hookHandleSave, tableDefs, conventions, extensions]);
 
   // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
   const sensors = useSensors(
@@ -254,9 +276,20 @@ export function ProcessFlowEditor() {
     if (isDirty && !isSaving) handleSave();
   });
 
+  const validationErrors = useMemo(
+    () => group ? aggregateValidation(group, { tables: tableDefs, conventions, extensions }) : [],
+    [group, tableDefs, conventions, extensions],
+  );
+
   useEffect(() => {
-    setValidationErrors(group ? aggregateValidation(group, { tables: tableDefs, conventions }) : []);
-  }, [group, tableDefs, conventions]);
+    return mcpBridge.onExtensionsChanged(() => {
+      mcpBridge.getExtensions(true)
+        .then((bundle) => setExtensions(loadExtensionsFromBundle(bundle).extensions))
+        .catch(() => setExtensions(undefined));
+    });
+  }, []);
+
+  const customStepCards = Object.entries(extensions?.steps ?? {});
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
 
@@ -288,7 +321,7 @@ export function ProcessFlowEditor() {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (act) {
         const step = addStep(act, type, insertIndex);
-        newStepIdsRef.current.add(step.id);
+        setNewStepIds((prev) => new Set(prev).add(step.id));
       }
     });
   };
@@ -445,7 +478,7 @@ export function ProcessFlowEditor() {
   };
 
   // ── クリップボード操作 ────────────────────────────────────────
-  const handleCut = useCallback(() => {
+  const handleCut = () => {
     if (selectedIds.size === 0 || !activeAction) return;
     const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
     setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "cut" });
@@ -458,15 +491,15 @@ export function ProcessFlowEditor() {
       }
     });
     setSelectedIds(new Set());
-  }, [selectedIds, activeAction, activeActionId, updateGroup]);
+  };
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = () => {
     if (selectedIds.size === 0 || !activeAction) return;
     const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
     setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "copy" });
-  }, [selectedIds, activeAction]);
+  };
 
-  const handlePaste = useCallback((insertIndex?: number) => {
+  const handlePaste = (insertIndex?: number) => {
     if (!clipboard || !activeAction) return;
     const targetIndex = insertIndex ?? (() => {
       // 選択中のステップがある場合: 最後の選択ステップの直後
@@ -492,7 +525,7 @@ export function ProcessFlowEditor() {
     });
     if (clipboard.mode === "cut") setClipboard(null);
     setSelectedIds(new Set());
-  }, [clipboard, activeAction, activeActionId, selectedIds, updateGroup]);
+  };
 
   const handleEscapeSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -836,6 +869,21 @@ export function ProcessFlowEditor() {
                 {ALL_STEP_TYPES.map((type) => (
                   <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} />
                 ))}
+                {customStepCards.length > 0 && (
+                  <>
+                    <div className="step-toolbar-sep" />
+                    <div className="small text-muted d-flex align-items-center px-1">カスタム</div>
+                    {customStepCards.map(([id, step]) => (
+                      <CustomStepButton
+                        key={id}
+                        id={id}
+                        label={step.label}
+                        icon={step.icon}
+                        description={step.description}
+                      />
+                    ))}
+                  </>
+                )}
                 <div className="step-toolbar-sep" />
                 <div style={{ position: "relative" }}>
                   <button
@@ -913,7 +961,7 @@ export function ProcessFlowEditor() {
                             setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
                           }}
                           onNavigateCommon={(refId) => navigate(`/process-flow/edit/${refId}`)}
-                          defaultExpanded={newStepIdsRef.current.has(step.id)}
+                          defaultExpanded={newStepIds.has(step.id)}
                           selected={selectedIds.has(step.id)}
                           onHeaderClick={(e) => handleStepClick(step.id, e)}
                           onIndent={index > 0 ? () => handleIndentStep(step.id) : undefined}

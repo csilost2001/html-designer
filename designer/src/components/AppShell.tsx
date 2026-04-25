@@ -7,6 +7,7 @@ import { TableEditor } from "./table/TableEditor";
 import { ErDiagram } from "./table/ErDiagram";
 import { ProcessFlowListView } from "./process-flow/ProcessFlowListView";
 import { ProcessFlowEditor } from "./process-flow/ProcessFlowEditor";
+import { ExtensionsPanel } from "./extensions/ExtensionsPanel";
 import { ConventionsCatalogView } from "./conventions/ConventionsCatalogView";
 import { ScreenItemsView } from "./screen-items/ScreenItemsView";
 import { SequenceListView } from "./sequence/SequenceListView";
@@ -209,6 +210,7 @@ export function AppShell() {
       { path: "/table/list",         type: "table-list",         label: "テーブル一覧" },
       { path: "/table/er",           type: "er",                 label: "ER図" },
       { path: "/process-flow/list",  type: "process-flow-list",  label: "処理フロー一覧" },
+      { path: "/extensions",         type: "extensions",         label: "拡張管理" },
       { path: "/conventions/catalog", type: "conventions-catalog", label: "規約カタログ" },
       { path: "/screen-items",       type: "screen-items",       label: "画面項目定義" },
       { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
@@ -240,6 +242,7 @@ export function AppShell() {
       : activeTab.type === "table-list"       ? "/table/list"
       : activeTab.type === "er"               ? "/table/er"
       : activeTab.type === "process-flow-list" ? "/process-flow/list"
+      : activeTab.type === "extensions"       ? "/extensions"
       : activeTab.type === "conventions-catalog" ? "/conventions/catalog"
       : activeTab.type === "screen-items"     ? "/screen-items"
       : activeTab.type === "sequence-list"    ? "/sequence/list"
@@ -318,6 +321,7 @@ export function AppShell() {
             <Route path="/table/er" element={<ErDiagram />} />
             <Route path="/process-flow/list" element={<ProcessFlowListView />} />
             <Route path="/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
+            <Route path="/extensions" element={<ExtensionsPanel />} />
             <Route path="/conventions/catalog" element={<ConventionsCatalogView />} />
             <Route path="/screen-items" element={<ScreenItemsView />} />
             <Route path="/sequence/list" element={<SequenceListView />} />
