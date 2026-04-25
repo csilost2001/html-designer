@@ -145,7 +145,7 @@
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "clock" },
-            "now": { "type": "string" }
+            "now": { "type": "string", "format": "date-time" }
           }
         }
       ]
@@ -184,7 +184,7 @@
               "type": "object",
               "additionalProperties": true
             },
-            "count": { "type": "number" }
+            "count": { "type": "integer", "minimum": 0 }
           }
         },
         {
@@ -195,7 +195,7 @@
             "kind": { "const": "output" },
             "path": { "type": "string" },
             "equals": true,
-            "matches": { "type": "string" }
+            "matches": { "type": "string", "format": "regex" }
           }
         },
         {
