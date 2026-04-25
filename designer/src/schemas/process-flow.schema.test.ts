@@ -2326,6 +2326,7 @@ describe("process-flow.schema.json — #443 negative cases (reject 検証)", () 
     const valid = validate(flow);
     expect(valid).toBe(false);
     expect(validate.errors).toBeTruthy();
+    expect(validate.errors?.some(e => e.keyword === "enum")).toBe(true);
   });
 
   it("ValidationInlineBranch ok number reject", () => {
@@ -2341,6 +2342,7 @@ describe("process-flow.schema.json — #443 negative cases (reject 検証)", () 
     const valid = validate(flow);
     expect(valid).toBe(false);
     expect(validate.errors).toBeTruthy();
+    expect(validate.errors?.some(e => e.keyword === "type" || e.keyword === "oneOf" || e.keyword === "anyOf")).toBe(true);
   });
 
   it("CommonProcessStep returnMapping non-string value reject", () => {
