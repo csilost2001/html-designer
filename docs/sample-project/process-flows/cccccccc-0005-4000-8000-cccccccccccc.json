@@ -556,7 +556,8 @@
         { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" }, "description": "バリデーション違反" },
         { "id": "404-not-found", "status": 404, "bodySchema": { "typeRef": "ApiError" }, "description": "顧客/商品が存在しない" },
         { "id": "402-payment-failed", "status": 402, "bodySchema": { "typeRef": "ApiError" }, "description": "決済拒否" },
-        { "id": "409-stock-shortage", "status": 409, "bodySchema": { "typeRef": "ApiError" }, "description": "在庫不足 (TX rollback 起因)" }
+        { "id": "409-stock-shortage", "status": 409, "bodySchema": { "typeRef": "ApiError" }, "description": "在庫不足 (TX rollback 起因)" },
+        { "id": "504-timeout", "status": 504, "bodySchema": { "typeRef": "ApiError" }, "description": "SLA タイムアウト" }
       ],
       "inputs": [
         { "name": "customerId", "label": "顧客ID", "type": "number", "required": true },

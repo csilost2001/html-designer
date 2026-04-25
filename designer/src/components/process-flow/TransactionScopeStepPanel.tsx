@@ -68,6 +68,8 @@ interface InlineStepListProps {
   onNavigateCommon: (refId: string) => void;
   validationErrors?: ValidationError[];
   conventions?: ConventionsCatalog | null;
+  /** ネストした transactionScope 等で errorCatalog を参照するために必要 (#415) */
+  group?: ProcessFlow | null;
 }
 
 function InlineStepList({
@@ -82,6 +84,7 @@ function InlineStepList({
   onNavigateCommon,
   validationErrors,
   conventions,
+  group,
 }: InlineStepListProps) {
   const [showTypePicker, setShowTypePicker] = useState(false);
 
@@ -146,6 +149,7 @@ function InlineStepList({
             depth={1}
             validationErrors={validationErrors}
             conventions={conventions}
+            group={group}
           />
         </div>
       ))}
@@ -335,6 +339,7 @@ export function TransactionScopeStepPanel({
             onNavigateCommon={onNavigateCommon}
             validationErrors={validationErrors}
             conventions={conventions}
+            group={group}
           />
         </div>
       </div>
@@ -372,6 +377,7 @@ export function TransactionScopeStepPanel({
               onNavigateCommon={onNavigateCommon}
               validationErrors={validationErrors}
               conventions={conventions}
+              group={group}
             />
           </div>
         )}
@@ -410,6 +416,7 @@ export function TransactionScopeStepPanel({
               onNavigateCommon={onNavigateCommon}
               validationErrors={validationErrors}
               conventions={conventions}
+              group={group}
             />
           </div>
         )}

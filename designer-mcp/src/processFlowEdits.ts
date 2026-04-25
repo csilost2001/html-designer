@@ -12,7 +12,9 @@ type Step = {
   subSteps?: Step[];
   branches?: Array<{ id: string; steps: Step[] }>;
   elseBranch?: { id: string; steps: Step[] };
-  steps?: Step[]; // loop body
+  steps?: Step[]; // loop body / transactionScope.steps
+  onCommit?: Step[]; // transactionScope: commit 成功後の追加処理
+  onRollback?: Step[]; // transactionScope: rollback 後の補償処理
   outcomes?: Record<string, { sideEffects?: Step[] } | undefined>;
   notes?: Array<{ id: string; type: string; body: string; createdAt: string }>;
   [k: string]: unknown;
@@ -65,6 +67,11 @@ function walkSteps(
     }
     if (s.elseBranch && walkSteps(s.elseBranch.steps, visit)) return true;
     if (s.type === "loop" && s.steps && walkSteps(s.steps, visit)) return true;
+    if (s.type === "transactionScope") {
+      if (s.steps && walkSteps(s.steps, visit)) return true;
+      if (s.onCommit && walkSteps(s.onCommit, visit)) return true;
+      if (s.onRollback && walkSteps(s.onRollback, visit)) return true;
+    }
     if (s.outcomes) {
       for (const oc of Object.values(s.outcomes)) {
         if (oc?.sideEffects && walkSteps(oc.sideEffects, visit)) return true;
