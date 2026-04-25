@@ -15,6 +15,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "adm-zip": "^0.5.17",
+    "ajv": "^8.20.0",
     "htmlparser2": "^12.0.0",
     "ws": "^8.20.0",
     "zod": "^3.23.8"

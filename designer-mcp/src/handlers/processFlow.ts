@@ -72,8 +72,9 @@ async function readResponseTypesFile(): Promise<ResponseTypesFile> {
 }
 
 async function writeResponseTypesFile(file: ResponseTypesFile): Promise<void> {
-  await writeExtensionsFile("responseTypes", file);
-  wsBridge.broadcast("extensionsChanged", { type: "responseTypes" });
+  await writeExtensionsFile("responseTypes", file, {
+    onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "responseTypes" }),
+  });
 }
 
 async function handleAddResponseTypeExtension(params: {
@@ -92,7 +93,11 @@ async function handleAddResponseTypeExtension(params: {
     schema: params.schema as Record<string, unknown>,
     ...(typeof params.description === "string" ? { description: params.description } : {}),
   };
-  await writeResponseTypesFile(file);
+  try {
+    await writeResponseTypesFile(file);
+  } catch (e) {
+    throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+  }
   return { content: [{ type: "text", text: `responseTypes.${key} を追加/更新しました。` }] };
 }
 
@@ -343,7 +348,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         ...(typeof a.schema === "object" && a.schema !== null && !Array.isArray(a.schema) ? { schema: a.schema as Record<string, unknown> } : {}),
         ...(typeof a.description === "string" ? { description: a.description } : {}),
       };
-      await writeResponseTypesFile(file);
+      try {
+        await writeResponseTypesFile(file);
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
       return { content: [{ type: "text", text: `responseTypes.${a.key} を更新しました。` }] };
     }
 
@@ -351,7 +360,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
       const file = await readResponseTypesFile();
       delete file.responseTypes[a.key];
-      await writeResponseTypesFile(file);
+      try {
+        await writeResponseTypesFile(file);
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
       return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
     }
 
@@ -406,7 +419,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         console.warn("[deprecation] remove_catalog_entry catalogName=typeCatalog is forwarded to delete_response_type_extension");
         const file = await readResponseTypesFile();
         delete file.responseTypes[a.key];
-        await writeResponseTypesFile(file);
+        try {
+          await writeResponseTypesFile(file);
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
       }
       const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
@@ -539,8 +556,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         schema: a.schema as Record<string, unknown>,
       };
       const newStepsFile = { namespace: typeof stepsFile.namespace === "string" ? stepsFile.namespace : (a.namespace as string), steps: stepsMap };
-      await writeExtensionsFile("steps", newStepsFile);
-      wsBridge.broadcast("extensionsChanged", { type: "steps" });
+      try {
+        await writeExtensionsFile("steps", newStepsFile, {
+          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "steps" }),
+        });
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
       return { content: [{ type: "text", text: `steps.${stepKey} を追加/更新しました。` }] };
     }
 
@@ -562,8 +584,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         ftArray.push({ kind: a.kind as string, label: a.label as string });
       }
       const newFtFile = { namespace: typeof ftFile.namespace === "string" ? ftFile.namespace : (a.namespace as string), fieldTypes: ftArray };
-      await writeExtensionsFile("fieldTypes", newFtFile);
-      wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" });
+      try {
+        await writeExtensionsFile("fieldTypes", newFtFile, {
+          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" }),
+        });
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
       return { content: [{ type: "text", text: `fieldTypes.${a.kind} を追加/更新しました。` }] };
     }
 
@@ -577,13 +604,22 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         ? rawTr as { namespace?: string; triggers?: Array<{ value: string; label: string }> }
         : { namespace: a.namespace as string, triggers: [] };
       const trArray: Array<{ value: string; label: string }> = Array.isArray(trFile.triggers) ? trFile.triggers as Array<{ value: string; label: string }> : [];
-      if (!trArray.some((t) => t.value === a.value)) {
+      const existingTr = trArray.findIndex((t) => t.value === a.value);
+      if (existingTr >= 0) {
+        console.warn(`[extensions] triggers.${a.value} already exists — overwriting`);
+        trArray[existingTr] = { value: a.value as string, label: a.label as string };
+      } else {
         trArray.push({ value: a.value as string, label: a.label as string });
       }
       const newTrFile = { namespace: typeof trFile.namespace === "string" ? trFile.namespace : (a.namespace as string), triggers: trArray };
-      await writeExtensionsFile("triggers", newTrFile);
-      wsBridge.broadcast("extensionsChanged", { type: "triggers" });
-      return { content: [{ type: "text", text: `triggers.${a.value} を追加しました。` }] };
+      try {
+        await writeExtensionsFile("triggers", newTrFile, {
+          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "triggers" }),
+        });
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
+      return { content: [{ type: "text", text: `triggers.${a.value} を追加/更新しました。` }] };
     }
 
     case "designer__add_db_operation_extension": {
@@ -596,13 +632,22 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         ? rawDb as { namespace?: string; dbOperations?: Array<{ value: string; label: string }> }
         : { namespace: a.namespace as string, dbOperations: [] };
       const dbArray: Array<{ value: string; label: string }> = Array.isArray(dbFile.dbOperations) ? dbFile.dbOperations as Array<{ value: string; label: string }> : [];
-      if (!dbArray.some((d) => d.value === a.value)) {
+      const existingDb = dbArray.findIndex((d) => d.value === a.value);
+      if (existingDb >= 0) {
+        console.warn(`[extensions] dbOperations.${a.value} already exists — overwriting`);
+        dbArray[existingDb] = { value: a.value as string, label: a.label as string };
+      } else {
         dbArray.push({ value: a.value as string, label: a.label as string });
       }
       const newDbFile = { namespace: typeof dbFile.namespace === "string" ? dbFile.namespace : (a.namespace as string), dbOperations: dbArray };
-      await writeExtensionsFile("dbOperations", newDbFile);
-      wsBridge.broadcast("extensionsChanged", { type: "dbOperations" });
-      return { content: [{ type: "text", text: `dbOperations.${a.value} を追加しました。` }] };
+      try {
+        await writeExtensionsFile("dbOperations", newDbFile, {
+          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "dbOperations" }),
+        });
+      } catch (e) {
+        throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+      }
+      return { content: [{ type: "text", text: `dbOperations.${a.value} を追加/更新しました。` }] };
     }
 
     case "designer__remove_extension": {
@@ -624,8 +669,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
           : {};
         const rmKey = namespacedKey(typeof a.namespace === "string" ? a.namespace : "", a.key as string);
         delete stepsMap[rmKey];
-        await writeExtensionsFile("steps", { ...removeFile, steps: stepsMap });
-        wsBridge.broadcast("extensionsChanged", { type: "steps" });
+        try {
+          await writeExtensionsFile("steps", { ...removeFile, steps: stepsMap }, {
+            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "steps" }),
+          });
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `steps.${rmKey} を削除しました。` }] };
       } else if (extType === "responseTypes") {
         if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "responseTypes の remove には key が必要です");
@@ -634,26 +684,46 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
           : {};
         const rmRtKey = namespacedKey(typeof a.namespace === "string" ? a.namespace : "", a.key as string);
         delete rtMap[rmRtKey];
-        await writeExtensionsFile("responseTypes", { ...removeFile, responseTypes: rtMap });
-        wsBridge.broadcast("extensionsChanged", { type: "responseTypes" });
+        try {
+          await writeExtensionsFile("responseTypes", { ...removeFile, responseTypes: rtMap }, {
+            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "responseTypes" }),
+          });
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `responseTypes.${rmRtKey} を削除しました。` }] };
       } else if (extType === "fieldTypes") {
         if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "fieldTypes の remove には value (kind) が必要です");
         const ftArr = Array.isArray(removeFile.fieldTypes) ? (removeFile.fieldTypes as Array<{ kind: string; label: string }>).filter((ft) => ft.kind !== a.value) : [];
-        await writeExtensionsFile("fieldTypes", { ...removeFile, fieldTypes: ftArr });
-        wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" });
+        try {
+          await writeExtensionsFile("fieldTypes", { ...removeFile, fieldTypes: ftArr }, {
+            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" }),
+          });
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `fieldTypes kind=${a.value} を削除しました。` }] };
       } else if (extType === "triggers") {
         if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "triggers の remove には value が必要です");
         const trArr = Array.isArray(removeFile.triggers) ? (removeFile.triggers as Array<{ value: string; label: string }>).filter((t) => t.value !== a.value) : [];
-        await writeExtensionsFile("triggers", { ...removeFile, triggers: trArr });
-        wsBridge.broadcast("extensionsChanged", { type: "triggers" });
+        try {
+          await writeExtensionsFile("triggers", { ...removeFile, triggers: trArr }, {
+            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "triggers" }),
+          });
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `triggers.${a.value} を削除しました。` }] };
       } else if (extType === "dbOperations") {
         if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "dbOperations の remove には value が必要です");
         const dbArr = Array.isArray(removeFile.dbOperations) ? (removeFile.dbOperations as Array<{ value: string; label: string }>).filter((d) => d.value !== a.value) : [];
-        await writeExtensionsFile("dbOperations", { ...removeFile, dbOperations: dbArr });
-        wsBridge.broadcast("extensionsChanged", { type: "dbOperations" });
+        try {
+          await writeExtensionsFile("dbOperations", { ...removeFile, dbOperations: dbArr }, {
+            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "dbOperations" }),
+          });
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
         return { content: [{ type: "text", text: `dbOperations.${a.value} を削除しました。` }] };
       }
       return { content: [{ type: "text", text: "削除完了。" }] };

@@ -1183,9 +1183,9 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        namespace: { type: "string" },
-        value: { type: "string" },
-        label: { type: "string" },
+        namespace: { type: "string", description: "名前空間" },
+        value: { type: "string", description: "ActionTrigger の enum 値 (例: webhook, mq)" },
+        label: { type: "string", description: "UI 表示ラベル (日本語可)" },
       },
       required: ["namespace", "value", "label"],
     },
@@ -1197,9 +1197,9 @@ export const tools = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        namespace: { type: "string" },
-        value: { type: "string" },
-        label: { type: "string" },
+        namespace: { type: "string", description: "名前空間" },
+        value: { type: "string", description: "DbOperation の enum 値 (例: TRUNCATE, MERGE)" },
+        label: { type: "string", description: "UI 表示ラベル (日本語可)" },
       },
       required: ["namespace", "value", "label"],
     },
