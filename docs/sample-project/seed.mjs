@@ -29,6 +29,7 @@ const SEED_SCREEN_ITEMS_DIR = path.join(__dirname, "screen-items");
 // 新規追加した process flow は必須ファイルとして明示して seed 対象にする。古いファイルは省略可
 const REQUIRED_PROCESS_FLOW_FILES = [
   "cccccccc-0008-4000-8000-cccccccccccc.json",
+  "cccccccc-0009-4000-8000-cccccccccccc.json",
 ];
 
 fs.mkdirSync(SCREENS_DIR, { recursive: true });

@@ -274,6 +274,16 @@ export function createDefaultStep(type: StepType): Step {
       return { ...base, type: "eventPublish", topic: "" };
     case "eventSubscribe":
       return { ...base, type: "eventSubscribe", topic: "" };
+    case "closing":
+      return { ...base, type: "closing", period: "monthly" };
+    case "cdc":
+      return {
+        ...base,
+        type: "cdc",
+        tables: [],
+        captureMode: "incremental",
+        destination: { type: "auditLog" },
+      };
     case "other":
       return { ...base, type: "other" };
   }

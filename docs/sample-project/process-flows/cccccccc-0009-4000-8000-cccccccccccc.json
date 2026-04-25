@@ -1,0 +1,181 @@
+{
+  "id": "cccccccc-0009-4000-8000-cccccccccccc",
+  "name": "月次在庫締め処理",
+  "type": "scheduled",
+  "description": "倉庫別の当月在庫を確定し、外部倉庫 API と照合して、締め結果を監査ログへ連携する月次バッチフロー。",
+  "mode": "downstream",
+  "maturity": "committed",
+  "health": {
+    "checks": [
+      {
+        "name": "inventory-db",
+        "type": "db",
+        "target": "inventory",
+        "timeout": 3000
+      },
+      {
+        "name": "warehouse-api",
+        "type": "http",
+        "target": "https://warehouse.example.com/health",
+        "timeout": 5000
+      }
+    ]
+  },
+  "readiness": {
+    "checks": [
+      {
+        "name": "inventory-db-ready",
+        "type": "db",
+        "target": "inventory",
+        "timeout": 3000
+      },
+      {
+        "name": "warehouse-api-ready",
+        "type": "http",
+        "target": "https://warehouse.example.com/ready",
+        "timeout": 5000
+      }
+    ],
+    "minimumPassCount": 2
+  },
+  "resources": {
+    "cpu": {
+      "request": "500m",
+      "limit": "1"
+    },
+    "memory": {
+      "request": "512Mi",
+      "limit": "1Gi"
+    },
+    "dbConnections": 8,
+    "timeout": 900000
+  },
+  "actions": [
+    {
+      "id": "act-monthly-inventory-close",
+      "name": "月次在庫締め",
+      "trigger": "timer",
+      "description": "前月末時点の在庫を集計し、外部倉庫 API と照合したうえで締め結果を確定する。",
+      "maturity": "committed",
+      "inputs": [
+        {
+          "name": "targetMonth",
+          "label": "対象月",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "targetMonthEnd",
+          "label": "対象月末日時",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "closedCount",
+          "label": "締め対象件数",
+          "type": "number"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01-aggregate-inventory",
+          "type": "dbAccess",
+          "description": "対象月の倉庫別・商品別在庫残高を集計する。",
+          "maturity": "committed",
+          "tableName": "inventory_transactions",
+          "operation": "SELECT",
+          "sql": "SELECT warehouse_id, item_id, SUM(quantity) AS closing_quantity FROM inventory_transactions WHERE occurred_at < @targetMonthEnd GROUP BY warehouse_id, item_id",
+          "outputBinding": "inventorySummary"
+        },
+        {
+          "id": "step-02-sync-warehouse-api",
+          "type": "externalSystem",
+          "description": "外部倉庫システムへ月次締め前の在庫照合を依頼する。",
+          "maturity": "committed",
+          "systemName": "Warehouse API",
+          "httpCall": {
+            "method": "POST",
+            "path": "/api/monthly-inventory/reconcile",
+            "body": "{ month: @targetMonth, summary: @inventorySummary }"
+          },
+          "timeoutMs": 30000,
+          "retryPolicy": {
+            "maxAttempts": 3,
+            "backoff": "exponential",
+            "initialDelayMs": 1000
+          },
+          "circuitBreaker": {
+            "failureThreshold": 5,
+            "timeout": 60000,
+            "halfOpenMaxCalls": 2
+          },
+          "bulkhead": {
+            "maxConcurrent": 4,
+            "maxWait": 3000
+          },
+          "outcomes": {
+            "success": {
+              "action": "continue",
+              "description": "倉庫 API の照合が成功した場合は締め処理へ進む。"
+            },
+            "failure": {
+              "action": "abort",
+              "description": "照合に失敗した場合は締め確定を中止する。"
+            },
+            "timeout": {
+              "action": "abort",
+              "description": "タイムアウト時は翌営業日の再実行対象とする。"
+            }
+          },
+          "outputBinding": "warehouseReconcileResult"
+        },
+        {
+          "id": "step-03-closing",
+          "type": "closing",
+          "description": "対象月の在庫締めを確定し、二重実行を防止する。",
+          "maturity": "committed",
+          "period": "monthly",
+          "cutoffAt": "23:59:59",
+          "idempotencyKey": "inventory-close-@targetMonth",
+          "rollbackOnFailure": true,
+          "outputBinding": "closingResult"
+        },
+        {
+          "id": "step-04-save-closing-results",
+          "type": "dbAccess",
+          "description": "確定した月次在庫締め結果を保存する。",
+          "maturity": "committed",
+          "tableName": "inventory_closing_results",
+          "operation": "INSERT",
+          "sql": "INSERT INTO inventory_closing_results (closing_month, warehouse_id, item_id, closing_quantity) SELECT @targetMonth, warehouse_id, item_id, closing_quantity FROM @inventorySummary",
+          "outputBinding": "closedCount"
+        },
+        {
+          "id": "step-05-cdc",
+          "type": "cdc",
+          "description": "月次在庫締め結果の変更履歴を監査ログへ連携する。",
+          "maturity": "committed",
+          "tables": ["inventory_closing_results"],
+          "captureMode": "incremental",
+          "destination": {
+            "type": "auditLog",
+            "target": "inventory.monthlyClose"
+          },
+          "includeColumns": ["closing_month", "warehouse_id", "item_id", "closing_quantity"],
+          "excludeColumns": ["internal_note"]
+        },
+        {
+          "id": "step-06-return",
+          "type": "return",
+          "description": "月次在庫締めの完了結果を返却する。",
+          "maturity": "committed",
+          "bodyExpression": "{ closedCount: @closedCount }"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-25T00:00:00.000Z",
+  "updatedAt": "2026-04-25T00:00:00.000Z"
+}

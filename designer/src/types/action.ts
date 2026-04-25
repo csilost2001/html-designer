@@ -20,6 +20,8 @@ export type StepType =
   | "transactionScope" // 複数 DB 操作を 1 TX でまとめる meta-step (#415)
   | "eventPublish"     // イベント発行 (#423 B-1)
   | "eventSubscribe"   // イベント購読 (#423 B-1)
+  | "closing"          // 締め処理
+  | "cdc"              // CDC
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -43,6 +45,8 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   transactionScope: "TX スコープ",
   eventPublish: "イベント発行",
   eventSubscribe: "イベント購読",
+  closing: "締め処理",
+  cdc: "CDC",
   other: "その他",
 };
 
@@ -67,6 +71,8 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   transactionScope: "bi-shield-fill",
   eventPublish: "bi-broadcast",
   eventSubscribe: "bi-broadcast-pin",
+  closing: "bi-calendar-check",
+  cdc: "bi-clock-history",
   other: "bi-three-dots",
 };
 
@@ -91,6 +97,8 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   transactionScope: "#dc2626",
   eventPublish: "#7c3aed",
   eventSubscribe: "#5b21b6",
+  closing: "#be185d",
+  cdc: "#0891b2",
   other: "#9ca3af",
 };
 
@@ -502,6 +510,17 @@ export interface RetryPolicy {
   initialDelayMs?: number;
 }
 
+export interface CircuitBreakerConfig {
+  failureThreshold: number;
+  timeout: number;
+  halfOpenMaxCalls?: number;
+}
+
+export interface BulkheadConfig {
+  maxConcurrent: number;
+  maxWait?: number;
+}
+
 /** 外部システムの認証方式 (#253 v1.2) */
 export type ExternalAuthKind = "bearer" | "basic" | "apiKey" | "oauth2" | "none";
 
@@ -602,6 +621,10 @@ export interface ExternalSystemStep extends StepBase {
   timeoutMs?: number;
   /** リトライ方針。未指定は「リトライなし」 */
   retryPolicy?: RetryPolicy;
+  /** Circuit breaker settings for this external call. */
+  circuitBreaker?: CircuitBreakerConfig;
+  /** Bulkhead settings for this external call. */
+  bulkhead?: BulkheadConfig;
   /** true なら TX 後・非同期 fire-and-forget。同期レスポンスを待たない */
   fireAndForget?: boolean;
   /**
@@ -900,6 +923,33 @@ export interface WorkflowStep extends StepBase {
   escalateTo?: WorkflowEscalateTo;
 }
 
+export type ClosingPeriod = "daily" | "monthly" | "quarterly" | "yearly" | "custom";
+
+export interface ClosingStep extends StepBase {
+  type: "closing";
+  period: ClosingPeriod;
+  customCron?: string;
+  cutoffAt?: string;
+  idempotencyKey?: string;
+  rollbackOnFailure?: boolean;
+}
+
+export type CdcCaptureMode = "full" | "incremental";
+
+export interface CdcDestination {
+  type: "auditLog" | "eventStream" | "table";
+  target?: string;
+}
+
+export interface CdcStep extends StepBase {
+  type: "cdc";
+  tables: string[];
+  captureMode: CdcCaptureMode;
+  destination: CdcDestination;
+  includeColumns?: string[];
+  excludeColumns?: string[];
+}
+
 /** TX 分離レベル (#415) */
 export type TransactionIsolationLevel =
   | "READ_COMMITTED"
@@ -1036,6 +1086,8 @@ export type Step =
   | TransactionScopeStep
   | EventPublishStep
   | EventSubscribeStep
+  | ClosingStep
+  | CdcStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────
@@ -1369,6 +1421,26 @@ export interface FunctionDef {
   examples?: string[];
 }
 
+export interface HealthCheck {
+  name: string;
+  type: "db" | "http" | "custom";
+  target?: string;
+  timeout?: number;
+}
+
+export interface ResourceRequirements {
+  cpu?: {
+    request?: string;
+    limit?: string;
+  };
+  memory?: {
+    request?: string;
+    limit?: string;
+  };
+  dbConnections?: number;
+  timeout?: number;
+}
+
 export interface ProcessFlow {
   id: string;
   name: string;
@@ -1385,6 +1457,9 @@ export interface ProcessFlow {
   maturity?: Maturity;
   /** SLA / Timeout declaration for this flow. */
   sla?: Sla;
+  health?: { checks: HealthCheck[] };
+  readiness?: { checks: HealthCheck[]; minimumPassCount?: number };
+  resources?: ResourceRequirements;
   /** 上流/下流モード。未指定は "upstream" として解釈 (docs/spec/process-flow-maturity.md §5) */
   mode?: ProcessFlowMode;
   /**
