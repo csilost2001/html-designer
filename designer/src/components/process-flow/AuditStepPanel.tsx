@@ -11,11 +11,14 @@ interface Props {
 
 export function AuditStepPanel({ step, onChange, onCommit, conventions }: Props) {
   const setResource = (patch: Partial<NonNullable<AuditStep["resource"]>>) => {
-    const next = { type: step.resource?.type ?? "", id: step.resource?.id ?? "", ...patch };
-    if (!next.type && !next.id) {
+    const type = (patch.type ?? step.resource?.type ?? "").trim();
+    const id = (patch.id ?? step.resource?.id ?? "").trim();
+    // 片方だけ入力された中間状態は schema 上 type=""/id="" の片側空 object となり
+    // AI 読み取り時に誤判定を招くため、両方揃うまで undefined とする
+    if (!type || !id) {
       onChange({ resource: undefined });
     } else {
-      onChange({ resource: next });
+      onChange({ resource: { type, id } });
     }
   };
 
@@ -117,6 +120,7 @@ export function AuditStepPanel({ step, onChange, onCommit, conventions }: Props)
               className="form-check-input"
               checked={!!step.sensitive}
               onChange={(e) => {
+                // false (default) は出力しない: JSON ノイズを減らすため省略形を採用
                 onChange({ sensitive: e.target.checked || undefined });
                 onCommit?.();
               }}
