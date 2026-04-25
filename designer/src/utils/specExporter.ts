@@ -336,6 +336,16 @@ function toSpecStep(s: Step, index: number): SpecStep {
       if (s.includeColumns && s.includeColumns.length > 0) detail.includeColumns = s.includeColumns;
       if (s.excludeColumns && s.excludeColumns.length > 0) detail.excludeColumns = s.excludeColumns;
       break;
+    case "eventPublish":
+      detail.topic = s.topic;
+      if (s.eventRef) detail.eventRef = s.eventRef;
+      if (s.payload) detail.payload = s.payload;
+      break;
+    case "eventSubscribe":
+      detail.topic = s.topic;
+      if (s.eventRef) detail.eventRef = s.eventRef;
+      if (s.filter) detail.filter = s.filter;
+      break;
   }
   return {
     number: getStepLabel(index),
