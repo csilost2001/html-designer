@@ -1,12 +1,14 @@
 /// <reference types="node" />
 
+import type { DynamicFormSchema } from "../components/common/SchemaForm";
+
 export type ExtensionFileType = "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes";
 
 export interface StepDef {
   label: string;
   icon: string;
   description: string;
-  schema: Record<string, unknown>;
+  schema: DynamicFormSchema;
 }
 
 export interface FieldTypeDef {
@@ -383,7 +385,7 @@ function validateStepDef(key: string, raw: unknown, errors: ExtensionLoadIssue[]
     label: raw.label,
     icon: raw.icon,
     description: raw.description,
-    schema: raw.schema,
+    schema: raw.schema as DynamicFormSchema,
   };
 }
 
