@@ -255,7 +255,24 @@
         "return",
         "log",
         "audit",
+        "workflow",
         "other"
+      ]
+    },
+    "WorkflowPattern": {
+      "type": "string",
+      "enum": [
+        "approval-sequential",
+        "approval-parallel",
+        "approval-veto",
+        "approval-quorum",
+        "approval-escalation",
+        "review",
+        "sign-off",
+        "acknowledge",
+        "branch-merge",
+        "discussion",
+        "ad-hoc"
       ]
     },
     "HttpMethod": {
@@ -772,6 +789,7 @@
         { "$ref": "#/$defs/ComputeStep" },
         { "$ref": "#/$defs/LogStep" },
         { "$ref": "#/$defs/AuditStep" },
+        { "$ref": "#/$defs/WorkflowStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     },
@@ -1237,6 +1255,117 @@
       ]
     },
 
+    "WorkflowApprover": {
+      "type": "object",
+      "required": ["role"],
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "RBAC catalog role key reference"
+        },
+        "label": { "type": "string" },
+        "order": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "WorkflowQuorum": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["all", "any", "majority", "n-of-m"] },
+        "n": { "type": "integer", "minimum": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "n-of-m" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["n"] }
+        }
+      ]
+    },
+    "WorkflowEscalateTo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "type": "string",
+          "description": "RBAC catalog role key reference"
+        },
+        "userExpression": {
+          "type": "string",
+          "description": "ConvCompletion expression for dynamic escalation assignee"
+        }
+      }
+    },
+    "WorkflowStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "pattern", "approvers"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "type": { "const": "workflow" },
+            "pattern": { "$ref": "#/$defs/WorkflowPattern" },
+            "approvers": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/WorkflowApprover" }
+            },
+            "quorum": { "$ref": "#/$defs/WorkflowQuorum" },
+            "onApproved": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            },
+            "onRejected": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            },
+            "onTimeout": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            },
+            "deadlineExpression": {
+              "type": "string",
+              "description": "ConvCompletion expression for approval deadline"
+            },
+            "escalateAfter": {
+              "type": "string",
+              "description": "Duration expression before escalation"
+            },
+            "escalateTo": { "$ref": "#/$defs/WorkflowEscalateTo" }
+          }
+        },
+        {
+          "if": {
+            "properties": { "pattern": { "const": "approval-escalation" } },
+            "required": ["pattern"]
+          },
+          "then": { "required": ["escalateAfter", "escalateTo"] }
+        },
+        {
+          "if": {
+            "properties": { "pattern": { "const": "approval-quorum" } },
+            "required": ["pattern"]
+          },
+          "then": { "required": ["quorum"] }
+        },
+        {
+          "if": {
+            "properties": { "pattern": { "const": "ad-hoc" } },
+            "required": ["pattern"]
+          },
+          "then": { "required": ["description"] }
+        }
+      ]
+    },
+
     "OtherStep": {
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
@@ -1273,6 +1402,7 @@
         { "$ref": "#/$defs/ReturnStep" },
         { "$ref": "#/$defs/LogStep" },
         { "$ref": "#/$defs/AuditStep" },
+        { "$ref": "#/$defs/WorkflowStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     }

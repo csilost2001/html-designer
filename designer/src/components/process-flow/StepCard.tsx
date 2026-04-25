@@ -13,6 +13,7 @@ import {
   STEP_TYPE_ICONS,
   STEP_TYPE_COLORS,
   DB_OPERATION_LABELS,
+  WORKFLOW_PATTERN_LABELS,
 } from "../../types/action";
 import { resolveJumpLabel } from "../../utils/actionUtils";
 import type { ValidationError } from "../../utils/actionValidation";
@@ -27,6 +28,7 @@ import { ValidationRulesPanel } from "./ValidationRulesPanel";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ExternalOutcomesPanel } from "./ExternalOutcomesPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
+import { WorkflowStepPanel } from "./WorkflowStepPanel";
 import { LogStepPanel } from "./LogStepPanel";
 import { AuditStepPanel } from "./AuditStepPanel";
 
@@ -34,7 +36,7 @@ const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
-  "log", "audit",
+  "log", "audit", "workflow",
 ];
 
 // ─── ヘルパーコンポーネント ──────────────────────────────────────────────────
@@ -299,6 +301,8 @@ export function StepCard({
         const jumpLabel = resolveJumpLabel(step.jumpTo, allSteps);
         return `[${jumpLabel}] へ${step.description ? ` - ${step.description}` : ""}`;
       }
+      case "workflow":
+        return `${WORKFLOW_PATTERN_LABELS[step.pattern]} / 承認者 ${step.approvers.length}件${step.description ? ` - ${step.description}` : ""}`;
       default:
         return step.description || "その他";
     }
@@ -565,6 +569,20 @@ export function StepCard({
           {step.type === "externalSystem" && step.fireAndForget && (
             <span title="fire-and-forget" style={{ color: "#eab308", fontSize: 11, flexShrink: 0 }}>
               <i className="bi bi-fire" />
+            </span>
+          )}
+          {step.type === "workflow" && (
+            <span
+              className="badge"
+              title={step.pattern}
+              style={{
+                background: "#ccfbf1",
+                color: "#0f766e",
+                fontSize: 11,
+                flexShrink: 0,
+              }}
+            >
+              {WORKFLOW_PATTERN_LABELS[step.pattern]} / {step.approvers.length}件
             </span>
           )}
           <span className="step-card-description">{summaryText()}</span>
@@ -1613,6 +1631,31 @@ export function StepCard({
                   />
                 </div>
               </div>
+            )}
+
+            {step.type === "workflow" && (
+              <WorkflowStepPanel
+                step={step}
+                allSteps={allSteps}
+                conventions={conventions ?? null}
+                onChange={(patch) => onChange(patch as Partial<Step>)}
+                onCommit={onCommit}
+                renderInlineStepList={({ steps, parentLabel, onChange: onStepsChange }) => (
+                  <InlineStepList
+                    steps={steps}
+                    parentLabel={parentLabel}
+                    allSteps={allSteps}
+                    tables={tables}
+                    screens={screens}
+                    commonGroups={commonGroups}
+                    onChange={onStepsChange}
+                    onCommit={onCommit}
+                    onNavigateCommon={onNavigateCommon}
+                    validationErrors={validationErrors}
+                    conventions={conventions}
+                  />
+                )}
+              />
             )}
 
             <div className="row g-2">

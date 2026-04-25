@@ -16,6 +16,7 @@ export type StepType =
   | "compute"          // 計算式 / 変数代入 (#174)
   | "return"           // HTTP レスポンス返却 (#178)
   | "log" | "audit"    // アプリケーションログ / 監査ログ
+  | "workflow"         // 承認ワークフロー
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -35,6 +36,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   return: "レスポンス返却",
   log: "ログ出力",
   audit: "監査ログ",
+  workflow: "承認ワークフロー",
   other: "その他",
 };
 
@@ -55,6 +57,7 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   return: "bi-reply",
   log: "bi-journal-text",
   audit: "bi-shield-check",
+  workflow: "bi-people-fill",
   other: "bi-three-dots",
 };
 
@@ -75,6 +78,7 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   return: "#22c55e",
   log: "#64748b",
   audit: "#a855f7",
+  workflow: "#0d9488",
   other: "#9ca3af",
 };
 
@@ -736,6 +740,77 @@ export interface AuditStep extends StepBase {
   sensitive?: boolean;
 }
 
+export type WorkflowPattern =
+  | "approval-sequential"
+  | "approval-parallel"
+  | "approval-veto"
+  | "approval-quorum"
+  | "approval-escalation"
+  | "review"
+  | "sign-off"
+  | "acknowledge"
+  | "branch-merge"
+  | "discussion"
+  | "ad-hoc";
+
+export const WORKFLOW_PATTERN_LABELS: Record<WorkflowPattern, string> = {
+  "approval-sequential": "順次承認",
+  "approval-parallel": "並列承認",
+  "approval-veto": "拒否権付き承認",
+  "approval-quorum": "定足数承認",
+  "approval-escalation": "エスカレーション承認",
+  review: "レビュー",
+  "sign-off": "サインオフ",
+  acknowledge: "確認",
+  "branch-merge": "分岐マージ",
+  discussion: "協議",
+  "ad-hoc": "アドホック",
+};
+
+export const WORKFLOW_PATTERN_VALUES: readonly WorkflowPattern[] = [
+  "approval-sequential",
+  "approval-parallel",
+  "approval-veto",
+  "approval-quorum",
+  "approval-escalation",
+  "review",
+  "sign-off",
+  "acknowledge",
+  "branch-merge",
+  "discussion",
+  "ad-hoc",
+] as const;
+export interface WorkflowApprover {
+  /** RBAC catalog role key */
+  role: string;
+  label?: string;
+  order?: number;
+}
+
+export type WorkflowQuorum =
+  | { type: "all" | "any" | "majority" }
+  | { type: "n-of-m"; n: number };
+
+export interface WorkflowEscalateTo {
+  /** RBAC catalog role key */
+  role?: string;
+  /** ConvCompletion expression for dynamic assignee */
+  userExpression?: string;
+}
+
+export interface WorkflowStep extends StepBase {
+  type: "workflow";
+  pattern: WorkflowPattern;
+  approvers: WorkflowApprover[];
+  quorum?: WorkflowQuorum;
+  onApproved?: Step[];
+  onRejected?: Step[];
+  onTimeout?: Step[];
+  deadlineExpression?: string;
+  escalateAfter?: string;
+  escalateTo?: WorkflowEscalateTo;
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -752,6 +827,7 @@ export type Step =
   | ReturnStep
   | LogStep
   | AuditStep
+  | WorkflowStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────
