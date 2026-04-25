@@ -444,6 +444,7 @@
           "maturity": "committed",
           "systemName": "PDF Generation Service",
           "systemRef": "pdfService",
+          "timeoutMs": 30000,
           "httpCall": {
             "method": "POST",
             "path": "/generate/invoice",

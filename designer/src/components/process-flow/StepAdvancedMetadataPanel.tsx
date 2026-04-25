@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Step, TxBoundary, TxBoundaryRole, ExternalChain, ExternalChainPhase } from "../../types/action";
+import { SlaPanel } from "./SlaPanel";
 
 interface Props {
   step: Step;
@@ -15,7 +16,7 @@ const CHAIN_PHASES: ExternalChainPhase[] = ["authorize", "capture", "cancel", "o
  * 折りたたみ可能。未設定のステップでは「詳細メタ情報を追加」のボタンのみ表示。
  */
 export function StepAdvancedMetadataPanel({ step, onChange, onCommit }: Props) {
-  const hasAny = !!(step.txBoundary || step.compensatesFor || step.externalChain || step.transactional);
+  const hasAny = !!(step.txBoundary || step.compensatesFor || step.externalChain || step.transactional || step.sla);
   const [expanded, setExpanded] = useState(hasAny);
 
   const txB = step.txBoundary;
@@ -151,6 +152,19 @@ export function StepAdvancedMetadataPanel({ step, onChange, onCommit }: Props) {
           )}
         </div>
       </div>
+      <SlaPanel
+        label="ステップ SLA / Timeout"
+        sla={step.sla}
+        onChange={(sla) => {
+          onChange({ sla } as Partial<Step>);
+          onCommit?.();
+        }}
+      />
+      {step.type === "externalSystem" && (
+        <div className="text-muted small" style={{ marginTop: 4 }}>
+          ExternalSystemStep の旧 timeoutMs は後方互換用です。sla.timeoutMs が指定されている場合はそちらを優先します。
+        </div>
+      )}
     </div>
   );
 }

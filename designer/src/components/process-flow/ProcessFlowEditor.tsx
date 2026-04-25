@@ -57,6 +57,7 @@ import { SortableStepCard } from "./SortableStepCard";
 import { MaturityBadge } from "./MaturityBadge";
 import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
 import { ActionMetaTabBar } from "./ActionMetaTabBar";
+import { SlaPanel } from "./SlaPanel";
 import { DrawingOverlay } from "./DrawingOverlay";
 import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredFieldsEditor";
 import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
@@ -778,6 +779,17 @@ export function ProcessFlowEditor() {
                 updateGroupSilent((g) => {
                   const act = g.actions.find((a) => a.id === activeActionId);
                   if (act) Object.assign(act, patch);
+                });
+                commitGroup();
+              }}
+            />
+            <SlaPanel
+              label="アクション SLA / Timeout"
+              sla={activeAction.sla}
+              onChange={(sla) => {
+                updateGroupSilent((g) => {
+                  const act = g.actions.find((a) => a.id === activeActionId);
+                  if (act) act.sla = sla;
                 });
                 commitGroup();
               }}

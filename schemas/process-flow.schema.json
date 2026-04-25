@@ -14,6 +14,7 @@
     "description": { "type": "string" },
     "maturity": { "$ref": "#/$defs/Maturity" },
     "mode": { "$ref": "#/$defs/ProcessFlowMode" },
+    "sla": { "$ref": "#/$defs/Sla" },
     "errorCatalog": {
       "description": "エラーコードカタログ (#253)。キーは errorCode (例: STOCK_SHORTAGE)。affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される",
       "type": "object",
@@ -70,6 +71,30 @@
       "type": "string",
       "enum": ["upstream", "downstream"],
       "description": "上流/下流モード。未指定は upstream 相当"
+    },
+    "OnTimeout": {
+      "type": "string",
+      "enum": ["throw", "continue", "compensate", "log"]
+    },
+    "Sla": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeoutMs": { "type": "number", "minimum": 0 },
+        "onTimeout": { "$ref": "#/$defs/OnTimeout" },
+        "errorCode": { "type": "string" },
+        "warningThresholdMs": { "type": "number", "minimum": 0 },
+        "p95LatencyMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "P95 レイテンシ目標 (ms)。超過時は監視 alert 対象"
+        }
+      },
+      "if": {
+        "properties": { "onTimeout": { "enum": ["throw", "compensate"] } },
+        "required": ["onTimeout"]
+      },
+      "then": { "required": ["errorCode"] }
     },
     "Maturity": {
       "type": "string",
@@ -519,6 +544,7 @@
         "inputs": { "$ref": "#/$defs/ActionFields" },
         "outputs": { "$ref": "#/$defs/ActionFields" },
         "maturity": { "$ref": "#/$defs/Maturity" },
+        "sla": { "$ref": "#/$defs/Sla" },
         "requiredPermissions": {
           "type": "array",
           "items": { "type": "string" }
@@ -610,6 +636,7 @@
           "items": { "$ref": "#/$defs/StepNote" }
         },
         "maturity": { "$ref": "#/$defs/Maturity" },
+        "sla": { "$ref": "#/$defs/Sla" },
         "runIf": { "type": "string" },
         "requiredPermissions": {
           "type": "array",
@@ -681,7 +708,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "validation" },
             "conditions": { "type": "string" },
             "rules": {
@@ -732,7 +759,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "dbAccess" },
             "tableName": { "type": "string" },
             "tableId": { "type": "string" },
@@ -871,7 +898,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "externalSystem" },
             "systemName": { "type": "string" },
             "systemRef": {
@@ -934,7 +961,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "commonProcess" },
             "refId": { "type": "string" },
             "refName": { "type": "string" },
@@ -958,7 +985,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "screenTransition" },
             "targetScreenId": { "type": "string" },
             "targetScreenName": { "type": "string" }
@@ -978,7 +1005,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "displayUpdate" },
             "target": { "type": "string" }
           }
@@ -1073,7 +1100,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "branch" },
             "branches": {
               "type": "array",
@@ -1105,7 +1132,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "loop" },
             "loopKind": { "$ref": "#/$defs/LoopKind" },
             "countExpression": { "type": "string" },
@@ -1133,7 +1160,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "loopBreak" }
           }
         }
@@ -1150,7 +1177,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "loopContinue" }
           }
         }
@@ -1168,7 +1195,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "jump" },
             "jumpTo": { "type": "string" }
           }
@@ -1187,7 +1214,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "compute" },
             "expression": { "type": "string" }
           }
@@ -1206,7 +1233,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "return" },
             "responseRef": { "type": "string" },
             "bodyExpression": { "type": "string" }
@@ -1226,7 +1253,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "log" },
             "level": {
               "type": "string",
@@ -1263,7 +1290,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "audit" },
             "action": { "type": "string" },
             "resource": { "$ref": "#/$defs/AuditResource" },
@@ -1397,7 +1424,7 @@
             "id": true, "description": true, "note": true, "notes": true,
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
-            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
             "type": { "const": "other" }
           }
         }

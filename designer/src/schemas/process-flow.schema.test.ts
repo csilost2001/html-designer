@@ -1131,6 +1131,79 @@ describe("process-flow.schema.json — DbAccessStep.bulkValues + BranchStep.tryS
   });
 });
 
+describe("process-flow.schema.json — Sla 3 レベル + p95LatencyMs + 条件付き errorCode (#412)", () => {
+  const ts = {
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("3 レベル (Flow / Action / Step) すべてに sla を含む process-flow が valid", () => {
+    const ok = validate({
+      id: "a", name: "x", type: "screen", description: "",
+      sla: { timeoutMs: 30000, p95LatencyMs: 5000, warningThresholdMs: 20000, onTimeout: "log" },
+      actions: [{
+        id: "act-1", name: "submit", trigger: "submit",
+        sla: { timeoutMs: 5000, p95LatencyMs: 500, onTimeout: "throw", errorCode: "ACTION_TIMEOUT" },
+        steps: [{
+          id: "s1", type: "dbAccess", description: "",
+          tableName: "orders", operation: "SELECT",
+          sla: { timeoutMs: 1000, p95LatencyMs: 100, onTimeout: "compensate", errorCode: "DB_TIMEOUT" },
+        }],
+      }],
+      ...ts,
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("onTimeout: \"abort\" (enum 外) は reject", () => {
+    expect(validate({
+      id: "a", name: "x", type: "screen", description: "",
+      sla: { timeoutMs: 1000, onTimeout: "abort", errorCode: "X" },
+      actions: [],
+      ...ts,
+    })).toBe(false);
+  });
+
+  it("timeoutMs: -1 (minimum 違反) は reject", () => {
+    expect(validate({
+      id: "a", name: "x", type: "screen", description: "",
+      sla: { timeoutMs: -1 },
+      actions: [],
+      ...ts,
+    })).toBe(false);
+  });
+
+  it("onTimeout: \"throw\" で errorCode 無しは reject (条件付き必須)", () => {
+    expect(validate({
+      id: "a", name: "x", type: "screen", description: "",
+      sla: { timeoutMs: 1000, onTimeout: "throw" },
+      actions: [],
+      ...ts,
+    })).toBe(false);
+  });
+
+  it("onTimeout: \"compensate\" で errorCode 無しは reject (条件付き必須)", () => {
+    expect(validate({
+      id: "a", name: "x", type: "screen", description: "",
+      sla: { timeoutMs: 1000, onTimeout: "compensate" },
+      actions: [],
+      ...ts,
+    })).toBe(false);
+  });
+
+  it("onTimeout: \"log\" で errorCode 無しは accept (errorCode 不要)", () => {
+    const ok = validate({
+      id: "a", name: "x", type: "screen", description: "",
+      sla: { timeoutMs: 1000, onTimeout: "log" },
+      actions: [],
+      ...ts,
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — ambientOverrides (#369)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

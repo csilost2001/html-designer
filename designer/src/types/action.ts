@@ -171,6 +171,17 @@ export interface StepNote {
 /** 処理フローのモード (docs/spec/process-flow-maturity.md §5) */
 export type ProcessFlowMode = "upstream" | "downstream";
 
+export type OnTimeout = "throw" | "continue" | "compensate" | "log";
+
+export interface Sla {
+  timeoutMs?: number;
+  onTimeout?: OnTimeout;
+  errorCode?: string;
+  warningThresholdMs?: number;
+  /** P95 レイテンシ目標 (ms)。超過時は監視 alert 対象 (#412) */
+  p95LatencyMs?: number;
+}
+
 // ── outputBinding の構造化 (docs/spec, #151 (B)) ──────────────────────────
 
 /**
@@ -235,6 +246,8 @@ export interface StepBase {
   notes?: StepNote[];
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
+  /** SLA / Timeout declaration for this step. */
+  sla?: Sla;
   /**
    * ステップの条件実行ガード (#178)。
    * 真偽式 (自由記述、例: "@paymentMethod == 'credit_card'") または @conv.* 参照。
@@ -527,7 +540,10 @@ export interface ExternalSystemStep extends StepBase {
    * 省略時は product-scope §11 の既定 (failure/timeout=abort、success=continue) を適用。
    */
   outcomes?: Partial<Record<ExternalCallOutcome, ExternalCallOutcomeSpec>>;
-  /** タイムアウト (ミリ秒)。未指定は product-scope §11 の既定 10000 */
+  /**
+   * タイムアウト (ミリ秒)。未指定は product-scope §11 の既定 10000
+   * @deprecated Use sla.timeoutMs instead
+   */
   timeoutMs?: number;
   /** リトライ方針。未指定は「リトライなし」 */
   retryPolicy?: RetryPolicy;
@@ -953,6 +969,8 @@ export interface ActionDefinition {
   outputs?: ActionFields;
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
+  /** SLA / Timeout declaration for this action. */
+  sla?: Sla;
   /** アクション起動に必要な permission key。@conv.permission.<key> と対応する。 */
   requiredPermissions?: string[];
   /**
@@ -1110,6 +1128,8 @@ export interface ProcessFlow {
   actions: ActionDefinition[];
   /** 成熟度。未指定は "draft" として解釈 (docs/spec/process-flow-maturity.md §3) */
   maturity?: Maturity;
+  /** SLA / Timeout declaration for this flow. */
+  sla?: Sla;
   /** 上流/下流モード。未指定は "upstream" として解釈 (docs/spec/process-flow-maturity.md §5) */
   mode?: ProcessFlowMode;
   /**
