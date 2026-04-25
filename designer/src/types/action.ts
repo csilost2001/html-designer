@@ -103,13 +103,15 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
 };
 
 /** DB操作種別 */
-export type DbOperation = "SELECT" | "INSERT" | "UPDATE" | "DELETE";
+export type DbOperation = "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "LOCK";
 
 export const DB_OPERATION_LABELS: Record<DbOperation, string> = {
   SELECT: "検索",
   INSERT: "登録",
   UPDATE: "更新",
   DELETE: "削除",
+  MERGE: "MERGE",
+  LOCK: "ロック",
 };
 
 /** ProcessFlowの種別 */
@@ -147,6 +149,7 @@ export type ActionTrigger =
   | "change"  // 値変更
   | "load"    // 画面読み込み
   | "timer"   // タイマー
+  | "auto"    // バッチ自動起動
   | "other";  // その他
 
 export const ACTION_TRIGGER_LABELS: Record<ActionTrigger, string> = {
@@ -156,6 +159,7 @@ export const ACTION_TRIGGER_LABELS: Record<ActionTrigger, string> = {
   change: "値変更",
   load: "画面読み込み",
   timer: "タイマー",
+  auto: "自動起動",
   other: "その他",
 };
 
@@ -375,8 +379,8 @@ export interface ValidationStep extends StepBase {
    */
   fieldErrorsVar?: string;
   inlineBranch?: {
-    ok: string;
-    ng: string;
+    ok: string | Step[];
+    ng: string | Step[];
     ngJumpTo?: string;
     /**
      * バリデーション NG 時に返却する HTTP レスポンス参照 (#180)。
@@ -680,6 +684,8 @@ export interface CommonProcessStep extends StepBase {
    * docs/spec/process-flow-variables.md §3.4
    */
   argumentMapping?: Record<string, string>;
+  /** 呼び先フローの戻り値名 → 説明のマッピング (例: {"処理結果": "0:正常終了, 1:異常終了"}) */
+  returnMapping?: Record<string, string>;
 }
 
 export interface ScreenTransitionStep extends StepBase {

@@ -2151,3 +2151,115 @@ describe("process-flow.schema.json — Tier-B eventsCatalog (#423)", () => {
     expect(validate({ ...base })).toBe(true);
   });
 });
+
+describe("process-flow.schema.json — グローバルスキーマ先行追加 (#443)", () => {
+  const makeFlow = (action: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [action],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+  const baseStep = { id: "s1", type: "other", description: "" };
+
+  // 1. FieldType {kind: "file"}
+  it("FieldType {kind: file} accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      inputs: [{ name: "uploadFile", type: { kind: "file" } }],
+      steps: [baseStep],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("FieldType {kind: file, format: csv} accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      inputs: [{ name: "csvFile", type: { kind: "file", format: "csv" } }],
+      steps: [baseStep],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  // 2. ActionTrigger "auto"
+  it("ActionTrigger auto accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "batch", trigger: "auto",
+      steps: [baseStep],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  // 3. DbOperation MERGE / LOCK
+  it("DbOperation MERGE accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "dbAccess", description: "",
+        operation: "MERGE",
+        tableName: "orders",
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("DbOperation LOCK accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "dbAccess", description: "",
+        operation: "LOCK",
+        tableName: "orders",
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  // 4. ValidationInlineBranch ok/ng as Step[]
+  it("ValidationInlineBranch ng as Step[] accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        inlineBranch: {
+          ok: "続行",
+          ng: [{ id: "s-ng", type: "return", description: "NG return" }],
+        },
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ValidationInlineBranch ok/ng as string (後方互換) accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        inlineBranch: { ok: "続行", ng: "エラー表示" },
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  // 5. CommonProcessStep returnMapping
+  it("CommonProcessStep returnMapping accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "commonProcess", description: "",
+        refId: "common-batch-check",
+        returnMapping: { "処理結果": "0:正常終了, 1:異常終了" },
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
