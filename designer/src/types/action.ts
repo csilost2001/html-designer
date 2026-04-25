@@ -237,6 +237,8 @@ export interface StepBase {
    * 偽または未評価の場合、ステップを skip する。未指定は常に実行。
    */
   runIf?: string;
+  /** ステップ実行に追加で必要な permission key。Action 側の requiredPermissions と AND 条件。 */
+  requiredPermissions?: string[];
   /**
    * ステップの結果を保持する変数。後続ステップは @変数名 で参照する。
    * 旧形式 (string) は assign 相当、新形式 (object) は operation で代入方式を指定可能。
@@ -865,6 +867,8 @@ export interface ActionDefinition {
   outputs?: ActionFields;
   /** 成熟度。未指定は "draft" として解釈 */
   maturity?: Maturity;
+  /** アクション起動に必要な permission key。@conv.permission.<key> と対応する。 */
+  requiredPermissions?: string[];
   /**
    * HTTP ルート定義 (アクションが HTTP ハンドラの場合)。未指定は「非 HTTP」として解釈。
    * docs/spec #151 (B)

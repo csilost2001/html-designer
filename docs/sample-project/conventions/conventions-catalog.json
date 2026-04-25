@@ -114,6 +114,47 @@
     }
   },
 
+  "permission": {
+    "order.create": {
+      "resource": "Order",
+      "action": "create",
+      "scope": "department",
+      "description": "受注を新規登録できる"
+    },
+    "order.read": {
+      "resource": "Order",
+      "action": "read",
+      "scope": "department",
+      "description": "所属部門の受注を参照できる"
+    },
+    "order.update": {
+      "resource": "Order",
+      "action": "update",
+      "scope": "department",
+      "description": "所属部門の受注を更新できる"
+    },
+    "order.approve": {
+      "resource": "Order",
+      "action": "approve",
+      "scope": "department",
+      "description": "所属部門の受注を承認できる"
+    }
+  },
+
+  "role": {
+    "orderOperator": {
+      "name": "受注担当",
+      "description": "受注の登録・参照・更新を担当する業務ロール",
+      "permissions": ["order.create", "order.read", "order.update"]
+    },
+    "orderApprover": {
+      "name": "受注承認者",
+      "description": "受注担当権限に加えて承認を実行できる業務ロール",
+      "permissions": ["order.read", "order.approve"],
+      "inherits": ["orderOperator"]
+    }
+  },
+
   "db": {
     "default": {
       "engine": "postgresql@14",

@@ -18,6 +18,8 @@ import type {
   CurrencyEntry,
   TaxEntry,
   AuthEntry,
+  RoleEntry,
+  PermissionEntry,
   DbEntry,
   NumberingEntry,
   TxEntry,
@@ -35,6 +37,8 @@ export interface ConventionsCatalog {
   currency?: Record<string, CurrencyEntry>;
   tax?: Record<string, TaxEntry>;
   auth?: Record<string, AuthEntry>;
+  role?: Record<string, RoleEntry>;
+  permission?: Record<string, PermissionEntry>;
   db?: Record<string, DbEntry>;
   numbering?: Record<string, NumberingEntry>;
   tx?: Record<string, TxEntry>;
@@ -51,17 +55,21 @@ export interface ConventionIssue {
     | "UNKNOWN_CONV_CURRENCY"
     | "UNKNOWN_CONV_TAX"
     | "UNKNOWN_CONV_AUTH"
+    | "UNKNOWN_CONV_ROLE"
+    | "UNKNOWN_CONV_PERMISSION"
     | "UNKNOWN_CONV_DB"
     | "UNKNOWN_CONV_NUMBERING"
     | "UNKNOWN_CONV_TX"
     | "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS"
-    | "UNKNOWN_CONV_CATEGORY";
+    | "UNKNOWN_CONV_CATEGORY"
+    | "ROLE_INHERITS_CYCLE"
+    | "UNKNOWN_CONV_ROLE_PERMISSION";
   value: string;
   message: string;
 }
 
-/** @conv.CAT.KEY / @conv.CAT.KEY.subpath にマッチ */
-const CONV_RE = /@conv\.([a-zA-Z_][\w-]*)\.([a-zA-Z_][\w-]*)/g;
+/** @conv.CAT.KEY にマッチ。KEY は order.approve のような dot 含みも許可する。 */
+const CONV_RE = /@conv\.([a-zA-Z_][\w-]*)\.([a-zA-Z_][\w-]*(?:\.[a-zA-Z_][\w-]*)*)/g;
 
 /** 1 文字列から @conv 参照を抽出 */
 function extractConvRefs(src: string): Array<{ category: string; key: string }> {
@@ -82,6 +90,8 @@ function codeFor(category: string): ConventionIssue["code"] {
     case "currency": return "UNKNOWN_CONV_CURRENCY";
     case "tax": return "UNKNOWN_CONV_TAX";
     case "auth": return "UNKNOWN_CONV_AUTH";
+    case "role": return "UNKNOWN_CONV_ROLE";
+    case "permission": return "UNKNOWN_CONV_PERMISSION";
     case "db": return "UNKNOWN_CONV_DB";
     case "numbering": return "UNKNOWN_CONV_NUMBERING";
     case "tx": return "UNKNOWN_CONV_TX";
@@ -99,12 +109,93 @@ function resolveCategory(catalog: ConventionsCatalog, category: string): Record<
     case "currency": return catalog.currency ?? null;
     case "tax": return catalog.tax ?? null;
     case "auth": return catalog.auth ?? null;
+    case "role": return catalog.role ?? null;
+    case "permission": return catalog.permission ?? null;
     case "db": return catalog.db ?? null;
     case "numbering": return catalog.numbering ?? null;
     case "tx": return catalog.tx ?? null;
     case "externalOutcomeDefaults": return catalog.externalOutcomeDefaults ?? null;
     default: return null;
   }
+}
+
+/** @conv.category.key.subpath 形式では、catalog key 部分だけを既存カテゴリから解決する。 */
+function hasConventionKey(category: string, cat: Record<string, unknown>, key: string): boolean {
+  if (key in cat) return true;
+  if (category === "permission" || category === "role") return false;
+
+  const parts = key.split(".");
+  while (parts.length > 1) {
+    parts.pop();
+    if (parts.join(".") in cat) return true;
+  }
+  return false;
+}
+
+export function checkConventionsCatalogIntegrity(catalog: ConventionsCatalog | null): ConventionIssue[] {
+  if (!catalog) return [];
+
+  const issues: ConventionIssue[] = [];
+  checkRolePermissionReferences(catalog, issues);
+  checkRoleInheritanceCycles(catalog, issues);
+  return issues;
+}
+
+function checkRolePermissionReferences(catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
+  const roles = catalog.role ?? {};
+  const permissions = catalog.permission ?? {};
+
+  Object.entries(roles).forEach(([roleKey, role]) => {
+    (role.permissions ?? []).forEach((permissionKey, i) => {
+      if (!(permissionKey in permissions)) {
+        issues.push({
+          path: `role.${roleKey}.permissions[${i}]`,
+          code: "UNKNOWN_CONV_ROLE_PERMISSION",
+          value: permissionKey,
+          message: `role.${roleKey} が存在しない permission.${permissionKey} を参照しています`,
+        });
+      }
+    });
+  });
+}
+
+function checkRoleInheritanceCycles(catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
+  const roles = catalog.role ?? {};
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const reported = new Set<string>();
+  const stack: string[] = [];
+
+  const visit = (roleKey: string): void => {
+    if (!(roleKey in roles)) return;
+    if (visiting.has(roleKey)) {
+      const start = stack.indexOf(roleKey);
+      const cycle = [...stack.slice(start), roleKey];
+      const signature = cycle.join(">");
+      if (!reported.has(signature)) {
+        reported.add(signature);
+        issues.push({
+          path: `role.${roleKey}.inherits`,
+          code: "ROLE_INHERITS_CYCLE",
+          value: cycle.join(" -> "),
+          message: `role.inherits に循環参照があります: ${cycle.join(" -> ")}`,
+        });
+      }
+      return;
+    }
+    if (visited.has(roleKey)) return;
+
+    visiting.add(roleKey);
+    stack.push(roleKey);
+    for (const parentKey of roles[roleKey].inherits ?? []) {
+      visit(parentKey);
+    }
+    stack.pop();
+    visiting.delete(roleKey);
+    visited.add(roleKey);
+  };
+
+  Object.keys(roles).forEach(visit);
 }
 
 /** ProcessFlow 全体で @conv.* 参照を検査。catalog が null なら検査 skip */
@@ -166,7 +257,7 @@ function checkValue(src: string, path: string, catalog: ConventionsCatalog, issu
         value: `@conv.${category}.${key}`,
         message: `@conv.${category}.* カテゴリは規約カタログに存在しません`,
       });
-    } else if (!(key in cat)) {
+    } else if (!hasConventionKey(category, cat, key)) {
       issues.push({
         path,
         code: codeFor(category),

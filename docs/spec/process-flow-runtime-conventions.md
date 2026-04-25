@@ -368,6 +368,16 @@ httpRoute.auth == "required" ?
 
 マスキングは監査ログ出力直前の最後の防御線として行う。上流の `LogStep.structuredData` や例外メッセージにも機微値が混入しないよう、実装は同じマスキングルールを共有することが望ましい。
 
+## RBAC (役割・権限)
+
+`role` と `permission` は横断規約カタログの第一級カテゴリとして扱う。参照は `@conv.role.<key>` / `@conv.permission.<key>` の形式で書く。権限キーは `order.approve` のようにドメインと操作を dot でつないだ名前を推奨する。
+
+Runtime は Action 起動前に actor が持つ role から permission を展開し、`ActionDefinition.requiredPermissions` の全要素を actor の permission 集合が包含するか検証する。欠けている permission があれば処理本体へ入らず、403 相当の outcome を返す。
+
+role の `inherits` は depth-first で展開する。親 role の `inherits` を先にたどり、得られた permission は重複を除去して集合として扱う。循環参照は conventions validator のエラーであり、runtime は循環した catalog を前提にしない。
+
+Step-level の `requiredPermissions` は Action-level と AND 条件で評価する。つまり Action 起動時に Action-level 権限を満たしたうえで、該当 step の実行直前に Step-level 権限もすべて満たしている必要がある。Step-level 権限が欠ける場合も 403 相当の outcome とし、当該 step 以降の副作用を実行しない。
+
 ## 12. 適用チェックリスト (実装者向け)
 
 処理フロー JSON から Node.js/Express 実装を起こすとき、以下を本仕様に沿って決定する:

@@ -48,6 +48,16 @@
       "description": "認証・セッション定義。@conv.auth.<key> で参照",
       "additionalProperties": { "$ref": "#/$defs/AuthEntry" }
     },
+    "role": {
+      "type": "object",
+      "description": "役割定義。@conv.role.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/RoleEntry" }
+    },
+    "permission": {
+      "type": "object",
+      "description": "権限定義。@conv.permission.<key> で参照",
+      "additionalProperties": { "$ref": "#/$defs/PermissionEntry" }
+    },
     "db": {
       "type": "object",
       "description": "DB 規約定義。@conv.db.<key> で参照",
@@ -167,6 +177,30 @@
         "sessionStorage": { "type": "string", "description": "httpOnly-cookie / redis / memory" },
         "passwordHash": { "type": "string", "description": "bcrypt(cost=12) / argon2id" },
         "default": { "type": "boolean", "description": "true = このエントリが project-wide ambient default (#369)" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "RoleEntry": {
+      "type": "object",
+      "required": ["permissions"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "inherits": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "PermissionEntry": {
+      "type": "object",
+      "required": ["resource", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "resource": { "type": "string" },
+        "action": { "type": "string" },
+        "scope": { "type": "string", "enum": ["all", "own", "department"] },
         "description": { "type": "string" }
       }
     },
