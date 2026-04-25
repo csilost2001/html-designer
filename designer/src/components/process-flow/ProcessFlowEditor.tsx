@@ -112,6 +112,7 @@ const ALL_STEP_TYPES: StepType[] = [
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
   "log", "audit", "workflow", "transactionScope",
+  "eventPublish", "eventSubscribe", "closing", "cdc",
 ];
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
@@ -119,6 +120,7 @@ const ALL_SUB_STEP_TYPES: StepType[] = [
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
   "log", "audit", "workflow", "transactionScope",
+  "eventPublish", "eventSubscribe", "closing", "cdc",
 ];
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];

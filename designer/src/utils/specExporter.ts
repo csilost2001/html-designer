@@ -322,6 +322,20 @@ function toSpecStep(s: Step, index: number): SpecStep {
       if (s.onCommit) detail.onCommit = s.onCommit;
       if (s.onRollback) detail.onRollback = s.onRollback;
       break;
+    case "closing":
+      detail.period = s.period;
+      if (s.customCron) detail.customCron = s.customCron;
+      if (s.cutoffAt) detail.cutoffAt = s.cutoffAt;
+      if (s.idempotencyKey) detail.idempotencyKey = s.idempotencyKey;
+      if (s.rollbackOnFailure !== undefined) detail.rollbackOnFailure = s.rollbackOnFailure;
+      break;
+    case "cdc":
+      detail.tables = s.tables;
+      detail.captureMode = s.captureMode;
+      detail.destination = s.destination;
+      if (s.includeColumns && s.includeColumns.length > 0) detail.includeColumns = s.includeColumns;
+      if (s.excludeColumns && s.excludeColumns.length > 0) detail.excludeColumns = s.excludeColumns;
+      break;
   }
   return {
     number: getStepLabel(index),
