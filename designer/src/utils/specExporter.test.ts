@@ -220,6 +220,7 @@ describe("toSpecStep — step detail", () => {
     } as Step);
 
     expect(step.detail.refName).toBe("在庫引当");
+    expect(step.detail.refId).toBe("common-1");
   });
 
   it("screenTransition: targetScreenName", () => {
@@ -307,6 +308,7 @@ describe("toSpecStep — step detail", () => {
     } as Step);
 
     expect(step.detail.steps).toHaveLength(1);
+    expect((step.detail.steps as Array<{ type: string }>)[0].type).toBe("dbAccess");
   });
 
   it("closing: period and rollbackOnFailure false", () => {
