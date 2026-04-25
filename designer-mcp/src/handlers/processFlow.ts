@@ -517,6 +517,153 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       return { content: [{ type: "text", text: `展開完了 (${results.length} 件):\n${results.join("\n")}` }] };
     }
 
+    // ── 拡張ポイント 専用ツール (#445) ──
+
+    case "designer__add_step_extension": {
+      if (typeof a.namespace !== "string" || typeof a.key !== "string" || typeof a.schema !== "object" || a.schema === null || Array.isArray(a.schema)) {
+        throw new McpError(ErrorCode.InvalidParams, "namespace, key, schema は必須です");
+      }
+      const stepsBundle = await readExtensionsBundle();
+      const rawSteps = stepsBundle.steps;
+      const stepsFile = rawSteps && typeof rawSteps === "object" && !Array.isArray(rawSteps)
+        ? rawSteps as { namespace?: string; steps?: Record<string, unknown> }
+        : { namespace: a.namespace as string, steps: {} };
+      const stepsMap: Record<string, unknown> = (stepsFile.steps && typeof stepsFile.steps === "object" && !Array.isArray(stepsFile.steps))
+        ? stepsFile.steps as Record<string, unknown>
+        : {};
+      const stepKey = namespacedKey(a.namespace as string, a.key as string);
+      stepsMap[stepKey] = {
+        label: typeof a.label === "string" ? a.label : a.key,
+        icon: typeof a.icon === "string" ? a.icon : "",
+        description: typeof a.description === "string" ? a.description : "",
+        schema: a.schema as Record<string, unknown>,
+      };
+      const newStepsFile = { namespace: typeof stepsFile.namespace === "string" ? stepsFile.namespace : (a.namespace as string), steps: stepsMap };
+      await writeExtensionsFile("steps", newStepsFile);
+      wsBridge.broadcast("extensionsChanged", { type: "steps" });
+      return { content: [{ type: "text", text: `steps.${stepKey} を追加/更新しました。` }] };
+    }
+
+    case "designer__add_field_type_extension": {
+      if (typeof a.namespace !== "string" || typeof a.kind !== "string" || typeof a.label !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "namespace, kind, label は必須です");
+      }
+      const ftBundle = await readExtensionsBundle();
+      const rawFt = ftBundle.fieldTypes;
+      const ftFile = rawFt && typeof rawFt === "object" && !Array.isArray(rawFt)
+        ? rawFt as { namespace?: string; fieldTypes?: Array<{ kind: string; label: string }> }
+        : { namespace: a.namespace as string, fieldTypes: [] };
+      const ftArray: Array<{ kind: string; label: string }> = Array.isArray(ftFile.fieldTypes) ? ftFile.fieldTypes as Array<{ kind: string; label: string }> : [];
+      const existing = ftArray.findIndex((ft) => ft.kind === a.kind);
+      if (existing >= 0) {
+        console.warn(`[extensions] fieldTypes.${a.kind} already exists — overwriting`);
+        ftArray[existing] = { kind: a.kind as string, label: a.label as string };
+      } else {
+        ftArray.push({ kind: a.kind as string, label: a.label as string });
+      }
+      const newFtFile = { namespace: typeof ftFile.namespace === "string" ? ftFile.namespace : (a.namespace as string), fieldTypes: ftArray };
+      await writeExtensionsFile("fieldTypes", newFtFile);
+      wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" });
+      return { content: [{ type: "text", text: `fieldTypes.${a.kind} を追加/更新しました。` }] };
+    }
+
+    case "designer__add_trigger_extension": {
+      if (typeof a.namespace !== "string" || typeof a.value !== "string" || typeof a.label !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "namespace, value, label は必須です");
+      }
+      const trBundle = await readExtensionsBundle();
+      const rawTr = trBundle.triggers;
+      const trFile = rawTr && typeof rawTr === "object" && !Array.isArray(rawTr)
+        ? rawTr as { namespace?: string; triggers?: Array<{ value: string; label: string }> }
+        : { namespace: a.namespace as string, triggers: [] };
+      const trArray: Array<{ value: string; label: string }> = Array.isArray(trFile.triggers) ? trFile.triggers as Array<{ value: string; label: string }> : [];
+      if (!trArray.some((t) => t.value === a.value)) {
+        trArray.push({ value: a.value as string, label: a.label as string });
+      }
+      const newTrFile = { namespace: typeof trFile.namespace === "string" ? trFile.namespace : (a.namespace as string), triggers: trArray };
+      await writeExtensionsFile("triggers", newTrFile);
+      wsBridge.broadcast("extensionsChanged", { type: "triggers" });
+      return { content: [{ type: "text", text: `triggers.${a.value} を追加しました。` }] };
+    }
+
+    case "designer__add_db_operation_extension": {
+      if (typeof a.namespace !== "string" || typeof a.value !== "string" || typeof a.label !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "namespace, value, label は必須です");
+      }
+      const dbBundle = await readExtensionsBundle();
+      const rawDb = dbBundle.dbOperations;
+      const dbFile = rawDb && typeof rawDb === "object" && !Array.isArray(rawDb)
+        ? rawDb as { namespace?: string; dbOperations?: Array<{ value: string; label: string }> }
+        : { namespace: a.namespace as string, dbOperations: [] };
+      const dbArray: Array<{ value: string; label: string }> = Array.isArray(dbFile.dbOperations) ? dbFile.dbOperations as Array<{ value: string; label: string }> : [];
+      if (!dbArray.some((d) => d.value === a.value)) {
+        dbArray.push({ value: a.value as string, label: a.label as string });
+      }
+      const newDbFile = { namespace: typeof dbFile.namespace === "string" ? dbFile.namespace : (a.namespace as string), dbOperations: dbArray };
+      await writeExtensionsFile("dbOperations", newDbFile);
+      wsBridge.broadcast("extensionsChanged", { type: "dbOperations" });
+      return { content: [{ type: "text", text: `dbOperations.${a.value} を追加しました。` }] };
+    }
+
+    case "designer__remove_extension": {
+      const extType = a.type as string | undefined;
+      if (!extType || !["steps", "fieldTypes", "triggers", "dbOperations", "responseTypes"].includes(extType)) {
+        throw new McpError(ErrorCode.InvalidParams, "type は必須です (steps/fieldTypes/triggers/dbOperations/responseTypes)");
+      }
+      const removeBundle = await readExtensionsBundle();
+      const rawRemove = removeBundle[extType as ExtensionFileKind];
+      if (!rawRemove || typeof rawRemove !== "object" || Array.isArray(rawRemove)) {
+        throw new McpError(ErrorCode.InvalidParams, `extensions/${extType} が見つかりません`);
+      }
+      const removeFile = rawRemove as Record<string, unknown>;
+
+      if (extType === "steps") {
+        if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "steps の remove には key が必要です");
+        const stepsMap = (removeFile.steps && typeof removeFile.steps === "object" && !Array.isArray(removeFile.steps))
+          ? { ...(removeFile.steps as Record<string, unknown>) }
+          : {};
+        const rmKey = namespacedKey(typeof a.namespace === "string" ? a.namespace : "", a.key as string);
+        delete stepsMap[rmKey];
+        await writeExtensionsFile("steps", { ...removeFile, steps: stepsMap });
+        wsBridge.broadcast("extensionsChanged", { type: "steps" });
+        return { content: [{ type: "text", text: `steps.${rmKey} を削除しました。` }] };
+      } else if (extType === "responseTypes") {
+        if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "responseTypes の remove には key が必要です");
+        const rtMap = (removeFile.responseTypes && typeof removeFile.responseTypes === "object" && !Array.isArray(removeFile.responseTypes))
+          ? { ...(removeFile.responseTypes as Record<string, unknown>) }
+          : {};
+        const rmRtKey = namespacedKey(typeof a.namespace === "string" ? a.namespace : "", a.key as string);
+        delete rtMap[rmRtKey];
+        await writeExtensionsFile("responseTypes", { ...removeFile, responseTypes: rtMap });
+        wsBridge.broadcast("extensionsChanged", { type: "responseTypes" });
+        return { content: [{ type: "text", text: `responseTypes.${rmRtKey} を削除しました。` }] };
+      } else if (extType === "fieldTypes") {
+        if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "fieldTypes の remove には value (kind) が必要です");
+        const ftArr = Array.isArray(removeFile.fieldTypes) ? (removeFile.fieldTypes as Array<{ kind: string; label: string }>).filter((ft) => ft.kind !== a.value) : [];
+        await writeExtensionsFile("fieldTypes", { ...removeFile, fieldTypes: ftArr });
+        wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" });
+        return { content: [{ type: "text", text: `fieldTypes kind=${a.value} を削除しました。` }] };
+      } else if (extType === "triggers") {
+        if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "triggers の remove には value が必要です");
+        const trArr = Array.isArray(removeFile.triggers) ? (removeFile.triggers as Array<{ value: string; label: string }>).filter((t) => t.value !== a.value) : [];
+        await writeExtensionsFile("triggers", { ...removeFile, triggers: trArr });
+        wsBridge.broadcast("extensionsChanged", { type: "triggers" });
+        return { content: [{ type: "text", text: `triggers.${a.value} を削除しました。` }] };
+      } else if (extType === "dbOperations") {
+        if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "dbOperations の remove には value が必要です");
+        const dbArr = Array.isArray(removeFile.dbOperations) ? (removeFile.dbOperations as Array<{ value: string; label: string }>).filter((d) => d.value !== a.value) : [];
+        await writeExtensionsFile("dbOperations", { ...removeFile, dbOperations: dbArr });
+        wsBridge.broadcast("extensionsChanged", { type: "dbOperations" });
+        return { content: [{ type: "text", text: `dbOperations.${a.value} を削除しました。` }] };
+      }
+      return { content: [{ type: "text", text: "削除完了。" }] };
+    }
+
+    case "designer__list_extensions": {
+      const allBundle = await readExtensionsBundle();
+      return { content: [{ type: "text", text: JSON.stringify(allBundle, null, 2) }] };
+    }
+
     default:
       return null;
   }
