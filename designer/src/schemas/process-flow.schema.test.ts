@@ -1521,6 +1521,213 @@ describe("process-flow.schema.json — ambientOverrides (#369)", () => {
   });
 });
 
+// ── Tier-B (#423) ────────────────────────────────────────────────────────────
+
+describe("process-flow.schema.json — Tier-B B-1 EventPublishStep / EventSubscribeStep (#423)", () => {
+  const makeFlow = (step: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [{
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [step],
+    }],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  it("EventPublishStep 最小構成 (id/type/description/topic) accept", () => {
+    const ok = validate(makeFlow({
+      id: "ep-1", type: "eventPublish", description: "イベント発行",
+      topic: "order.created",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("EventPublishStep フル構成 (topic/eventRef/payload) accept", () => {
+    const ok = validate(makeFlow({
+      id: "ep-1", type: "eventPublish", description: "イベント発行",
+      topic: "order.created",
+      eventRef: "order.created",
+      payload: "{ orderId: @orderId, total: @totalAmount }",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("EventPublishStep topic 欠落は reject", () => {
+    expect(validate(makeFlow({
+      id: "ep-1", type: "eventPublish", description: "イベント発行",
+    }))).toBe(false);
+  });
+
+  it("EventSubscribeStep 最小構成 (id/type/description/topic) accept", () => {
+    const ok = validate(makeFlow({
+      id: "es-1", type: "eventSubscribe", description: "イベント購読",
+      topic: "payment.confirmed",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("EventSubscribeStep フル構成 (topic/eventRef/filter) accept", () => {
+    const ok = validate(makeFlow({
+      id: "es-1", type: "eventSubscribe", description: "イベント購読",
+      topic: "payment.confirmed",
+      eventRef: "payment.confirmed",
+      filter: "@event.orderId == @orderId",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("EventSubscribeStep topic 欠落は reject", () => {
+    expect(validate(makeFlow({
+      id: "es-1", type: "eventSubscribe", description: "イベント購読",
+    }))).toBe(false);
+  });
+
+  it("EventPublishStep / EventSubscribeStep の未知フィールドは reject (additionalProperties: false)", () => {
+    expect(validate(makeFlow({
+      id: "ep-1", type: "eventPublish", description: "", topic: "t",
+      unknownField: "x",
+    }))).toBe(false);
+  });
+});
+
+describe("process-flow.schema.json — Tier-B B-2 DbAccessStep.lineage (#423)", () => {
+  const makeFlow = (step: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [{ id: "act-1", name: "test", trigger: "submit", steps: [step] }],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  it("DbAccessStep.lineage (reads + writes) accept", () => {
+    const ok = validate(makeFlow({
+      id: "db-1", type: "dbAccess", description: "",
+      tableName: "orders", operation: "INSERT",
+      lineage: { reads: ["customers", "products"], writes: ["orders", "order_items"] },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("DbAccessStep.lineage reads のみ accept", () => {
+    const ok = validate(makeFlow({
+      id: "db-1", type: "dbAccess", description: "",
+      tableName: "customers", operation: "SELECT",
+      lineage: { reads: ["customers"] },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("DbAccessStep.lineage 省略 accept (optional)", () => {
+    const ok = validate(makeFlow({
+      id: "db-1", type: "dbAccess", description: "",
+      tableName: "x", operation: "SELECT",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — Tier-B B-4 CacheHint (#423)", () => {
+  const makeFlow = (step: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [{ id: "act-1", name: "test", trigger: "submit", steps: [step] }],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  it("DbAccessStep.cache (ttlSeconds + key + invalidateOn) accept", () => {
+    const ok = validate(makeFlow({
+      id: "db-1", type: "dbAccess", description: "",
+      tableName: "customers", operation: "SELECT",
+      cache: { ttlSeconds: 300, key: "customer-@id", invalidateOn: ["customer.updated"] },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("DbAccessStep.cache 最小構成 (ttlSeconds のみ) accept", () => {
+    const ok = validate(makeFlow({
+      id: "db-1", type: "dbAccess", description: "",
+      tableName: "x", operation: "SELECT",
+      cache: { ttlSeconds: 60 },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("DbAccessStep.cache ttlSeconds 欠落は reject", () => {
+    expect(validate(makeFlow({
+      id: "db-1", type: "dbAccess", description: "",
+      tableName: "x", operation: "SELECT",
+      cache: { key: "x" },
+    }))).toBe(false);
+  });
+
+  it("ExternalSystemStep.cache accept", () => {
+    const ok = validate(makeFlow({
+      id: "ext-1", type: "externalSystem", description: "",
+      systemName: "PriceAPI",
+      cache: { ttlSeconds: 600, key: "price-@productId" },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ExternalSystemStep.cache 省略 accept (optional)", () => {
+    const ok = validate(makeFlow({
+      id: "ext-1", type: "externalSystem", description: "",
+      systemName: "PriceAPI",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — Tier-B B-6 apiVersion (#423)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+  const makeFlow = (step: object) => ({
+    ...base,
+    actions: [{ id: "act-1", name: "test", trigger: "submit", steps: [step] }],
+  });
+
+  it("ProcessFlow.apiVersion accept", () => {
+    const ok = validate({ ...base, apiVersion: "v1" });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ProcessFlow.apiVersion 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("ExternalSystemStep.apiVersion accept", () => {
+    const ok = validate(makeFlow({
+      id: "ext-1", type: "externalSystem", description: "",
+      systemName: "NewAPI", apiVersion: "v2",
+      httpCall: { method: "GET", path: "/v2/resource" },
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ExternalSystemStep.apiVersion 省略 accept (optional)", () => {
+    expect(validate(makeFlow({
+      id: "ext-1", type: "externalSystem", description: "",
+      systemName: "API",
+    }))).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — domainsCatalog (#422 P2-1)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",
@@ -1793,5 +2000,154 @@ describe("process-flow.schema.json — ValidationRule.kind (#422 P2-3)", () => {
 
   it("kind 省略 accept (optional)", () => {
     expect(validate(makeValidation({ field: "qty", type: "required" }))).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — Tier-B B-3 glossary (#423)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("glossary フル構成 (definition + aliases + domainRef) accept", () => {
+    const ok = validate({
+      ...base,
+      glossary: {
+        "小計": {
+          definition: "税抜きの請求合計金額",
+          aliases: ["subtotal"],
+          domainRef: "invoices.subtotal",
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("glossary definition のみ accept (aliases/domainRef は optional)", () => {
+    const ok = validate({
+      ...base,
+      glossary: { "請求書": { definition: "顧客への代金請求書類" } },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("glossary definition 欠落は reject", () => {
+    expect(validate({
+      ...base,
+      glossary: { "用語": { aliases: ["alias"] } },
+    })).toBe(false);
+  });
+
+  it("glossary 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — Tier-B B-5 decisions / DecisionRecord (#423)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  const minimalDecision = {
+    id: "ADR-001",
+    title: "採番は DB トリガーで行う",
+    status: "accepted",
+    context: "アプリ層での並行採番は衝突リスクあり",
+    decision: "PostgreSQL BEFORE INSERT トリガー + sequence を使用",
+  };
+
+  it("decisions 最小構成 accept", () => {
+    const ok = validate({ ...base, decisions: [minimalDecision] });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("decisions フル構成 (consequences + date) accept", () => {
+    const ok = validate({
+      ...base,
+      decisions: [{
+        ...minimalDecision,
+        consequences: "DDL にトリガー定義が必要",
+        date: "2026-04-25",
+      }],
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("decisions status enum 全値 accept", () => {
+    for (const status of ["proposed", "accepted", "deprecated", "superseded"] as const) {
+      const ok = validate({ ...base, decisions: [{ ...minimalDecision, status }] });
+      if (!ok) throw new Error(`status=${status}: ${JSON.stringify(validate.errors)}`);
+      expect(ok).toBe(true);
+    }
+  });
+
+  it("decisions status enum 外は reject", () => {
+    expect(validate({
+      ...base,
+      decisions: [{ ...minimalDecision, status: "approved" }],
+    })).toBe(false);
+  });
+
+  it("decisions 必須フィールド (id) 欠落は reject", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, ...noId } = minimalDecision;
+    expect(validate({ ...base, decisions: [noId] })).toBe(false);
+  });
+
+  it("decisions 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
+  });
+
+  it("decisions 空配列 accept", () => {
+    expect(validate({ ...base, decisions: [] })).toBe(true);
+  });
+});
+
+describe("process-flow.schema.json — Tier-B eventsCatalog (#423)", () => {
+  const base = {
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("eventsCatalog フル構成 (description + payload) accept", () => {
+    const ok = validate({
+      ...base,
+      eventsCatalog: {
+        "order.created": {
+          description: "注文作成完了イベント",
+          payload: {
+            type: "object",
+            required: ["orderId"],
+            properties: { orderId: { type: "integer" } },
+          },
+        },
+      },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("eventsCatalog 空エントリ (全フィールド省略) accept", () => {
+    const ok = validate({
+      ...base,
+      eventsCatalog: { "order.created": {} },
+    });
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("eventsCatalog 省略 accept (optional)", () => {
+    expect(validate({ ...base })).toBe(true);
   });
 });

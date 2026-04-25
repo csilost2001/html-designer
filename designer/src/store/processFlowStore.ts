@@ -270,6 +270,10 @@ export function createDefaultStep(type: StepType): Step {
         propagation: "REQUIRED",
         steps: [],
       };
+    case "eventPublish":
+      return { ...base, type: "eventPublish", topic: "" };
+    case "eventSubscribe":
+      return { ...base, type: "eventSubscribe", topic: "" };
     case "other":
       return { ...base, type: "other" };
   }
