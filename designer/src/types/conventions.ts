@@ -17,6 +17,8 @@ export interface MessageTemplate {
 export interface ScopeEntry {
   value: string;
   description?: string;
+  /** true = このエントリが project-wide ambient default (#369) */
+  default?: boolean;
 }
 
 export interface CurrencyEntry {
@@ -24,6 +26,8 @@ export interface CurrencyEntry {
   subunit?: number;
   roundingMode?: "floor" | "ceil" | "round";
   description?: string;
+  /** true = このエントリが project-wide ambient default (#369) */
+  default?: boolean;
 }
 
 export interface TaxEntry {
@@ -31,6 +35,8 @@ export interface TaxEntry {
   rate: number;
   roundingMode?: "floor" | "ceil" | "round";
   description?: string;
+  /** true = このエントリが project-wide ambient default (#369) */
+  default?: boolean;
 }
 
 export interface AuthEntry {
@@ -38,6 +44,8 @@ export interface AuthEntry {
   sessionStorage?: string;
   passwordHash?: string;
   description?: string;
+  /** true = このエントリが project-wide ambient default (#369) */
+  default?: boolean;
 }
 
 export interface RoleEntry {
@@ -60,6 +68,8 @@ export interface DbEntry {
   timestampColumns?: string[];
   logicalDeleteColumn?: string;
   description?: string;
+  /** true = このエントリが project-wide ambient default (#369) */
+  default?: boolean;
 }
 
 export interface NumberingEntry {
