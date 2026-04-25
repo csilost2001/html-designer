@@ -387,7 +387,7 @@ describe("checkConventionsCatalogIntegrity - RBAC", () => {
 
     const issues = checkConventionsCatalogIntegrity(catalog);
     expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe("UNKNOWN_ROLE_PERMISSION");
+    expect(issues[0].code).toBe("UNKNOWN_CONV_ROLE_PERMISSION");
     expect(issues[0].path).toBe("role.orderOperator.permissions[1]");
   });
 });

@@ -63,7 +63,7 @@ export interface ConventionIssue {
     | "UNKNOWN_CONV_EXTERNAL_OUTCOME_DEFAULTS"
     | "UNKNOWN_CONV_CATEGORY"
     | "ROLE_INHERITS_CYCLE"
-    | "UNKNOWN_ROLE_PERMISSION";
+    | "UNKNOWN_CONV_ROLE_PERMISSION";
   value: string;
   message: string;
 }
@@ -150,7 +150,7 @@ function checkRolePermissionReferences(catalog: ConventionsCatalog, issues: Conv
       if (!(permissionKey in permissions)) {
         issues.push({
           path: `role.${roleKey}.permissions[${i}]`,
-          code: "UNKNOWN_ROLE_PERMISSION",
+          code: "UNKNOWN_CONV_ROLE_PERMISSION",
           value: permissionKey,
           message: `role.${roleKey} が存在しない permission.${permissionKey} を参照しています`,
         });

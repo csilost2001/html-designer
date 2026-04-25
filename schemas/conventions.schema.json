@@ -183,7 +183,7 @@
 
     "RoleEntry": {
       "type": "object",
-      "required": [],
+      "required": ["permissions"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
