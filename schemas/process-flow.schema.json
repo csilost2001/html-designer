@@ -19,6 +19,9 @@
     "maturity": { "$ref": "#/$defs/Maturity" },
     "mode": { "$ref": "#/$defs/ProcessFlowMode" },
     "sla": { "$ref": "#/$defs/Sla" },
+    "health": { "$ref": "#/$defs/HealthCheckGroup" },
+    "readiness": { "$ref": "#/$defs/ReadinessCheckGroup" },
+    "resources": { "$ref": "#/$defs/ResourceRequirements" },
     "errorCatalog": {
       "description": "エラーコードカタログ (#253)。キーは errorCode (例: STOCK_SHORTAGE)。affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される",
       "type": "object",
@@ -318,6 +321,8 @@
         "transactionScope",
         "eventPublish",
         "eventSubscribe",
+        "closing",
+        "cdc",
         "other"
       ]
     },
@@ -460,6 +465,60 @@
         }
       ]
     },
+
+    "HealthCheck": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["db", "http", "custom"] },
+        "target": { "type": "string" },
+        "timeout": { "type": "number", "minimum": 0 }
+      }
+    },
+    "HealthCheckGroup": {
+      "type": "object",
+      "required": ["checks"],
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/HealthCheck" }
+        }
+      }
+    },
+    "ReadinessCheckGroup": {
+      "type": "object",
+      "required": ["checks"],
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/HealthCheck" }
+        },
+        "minimumPassCount": { "type": "number", "minimum": 0 }
+      }
+    },
+    "ResourceQuota": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request": { "type": "string" },
+        "limit": { "type": "string" }
+      }
+    },
+    "ResourceRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "$ref": "#/$defs/ResourceQuota" },
+        "memory": { "$ref": "#/$defs/ResourceQuota" },
+        "dbConnections": { "type": "number", "minimum": 0 },
+        "timeout": { "type": "number", "minimum": 0 }
+      }
+    },
+
     "WorkflowPattern": {
       "type": "string",
       "enum": [
@@ -1092,6 +1151,8 @@
         { "$ref": "#/$defs/TransactionScopeStep" },
         { "$ref": "#/$defs/EventPublishStep" },
         { "$ref": "#/$defs/EventSubscribeStep" },
+        { "$ref": "#/$defs/ClosingStep" },
+        { "$ref": "#/$defs/CdcStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     },
@@ -1106,6 +1167,25 @@
           "enum": ["fixed", "exponential"]
         },
         "initialDelayMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CircuitBreakerConfig": {
+      "type": "object",
+      "required": ["failureThreshold", "timeout"],
+      "additionalProperties": false,
+      "properties": {
+        "failureThreshold": { "type": "number", "minimum": 0 },
+        "timeout": { "type": "number", "minimum": 0 },
+        "halfOpenMaxCalls": { "type": "number", "minimum": 0 }
+      }
+    },
+    "BulkheadConfig": {
+      "type": "object",
+      "required": ["maxConcurrent"],
+      "additionalProperties": false,
+      "properties": {
+        "maxConcurrent": { "type": "number", "minimum": 0 },
+        "maxWait": { "type": "number", "minimum": 0 }
       }
     },
     "ExternalAuthKind": {
@@ -1213,6 +1293,8 @@
             },
             "timeoutMs": { "type": "integer", "minimum": 0 },
             "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
+            "circuitBreaker": { "$ref": "#/$defs/CircuitBreakerConfig" },
+            "bulkhead": { "$ref": "#/$defs/BulkheadConfig" },
             "fireAndForget": { "type": "boolean" },
             "auth": { "$ref": "#/$defs/ExternalAuth" },
             "idempotencyKey": { "type": "string" },
@@ -1714,6 +1796,78 @@
       ]
     },
 
+    "ClosingPeriod": {
+      "type": "string",
+      "enum": ["daily", "monthly", "quarterly", "yearly", "custom"]
+    },
+    "ClosingStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "period"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
+            "type": { "const": "closing" },
+            "period": { "$ref": "#/$defs/ClosingPeriod" },
+            "customCron": { "type": "string" },
+            "cutoffAt": { "type": "string" },
+            "idempotencyKey": { "type": "string" },
+            "rollbackOnFailure": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+
+    "CdcCaptureMode": {
+      "type": "string",
+      "enum": ["full", "incremental"]
+    },
+    "CdcDestination": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["auditLog", "eventStream", "table"] },
+        "target": { "type": "string" }
+      }
+    },
+    "CdcStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "tables", "captureMode", "destination"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
+            "type": { "const": "cdc" },
+            "tables": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "captureMode": { "$ref": "#/$defs/CdcCaptureMode" },
+            "destination": { "$ref": "#/$defs/CdcDestination" },
+            "includeColumns": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "excludeColumns": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+
     "TransactionIsolationLevel": {
       "type": "string",
       "enum": ["READ_COMMITTED", "REPEATABLE_READ", "SERIALIZABLE"]
@@ -1786,6 +1940,8 @@
         { "$ref": "#/$defs/TransactionScopeStep" },
         { "$ref": "#/$defs/EventPublishStep" },
         { "$ref": "#/$defs/EventSubscribeStep" },
+        { "$ref": "#/$defs/ClosingStep" },
+        { "$ref": "#/$defs/CdcStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     }
