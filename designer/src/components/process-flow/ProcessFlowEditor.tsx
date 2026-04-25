@@ -111,14 +111,14 @@ const ALL_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
-  "log", "audit", "workflow",
+  "log", "audit", "workflow", "transactionScope",
 ];
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
-  "log", "audit", "workflow",
+  "log", "audit", "workflow", "transactionScope",
 ];
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];
@@ -934,6 +934,7 @@ export function ProcessFlowEditor() {
                           markerTooltip={markerTooltip}
                           markerKinds={markerKinds}
                           conventions={conventions}
+                          group={group}
                         />
                       </div>
                       );

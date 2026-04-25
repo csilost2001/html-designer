@@ -1356,6 +1356,139 @@ describe("process-flow.schema.json — secretsCatalog.values (#414)", () => {
   });
 });
 
+describe("process-flow.schema.json — TransactionScopeStep (#415)", () => {
+  const makeFlow = (step: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [{
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [step],
+    }],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  const minimalTx = {
+    id: "tx-1",
+    type: "transactionScope",
+    description: "TX",
+    steps: [
+      { id: "s1", type: "dbAccess", description: "", tableName: "orders", operation: "INSERT" },
+    ],
+  };
+
+  it("最小構成 (id/type/description/steps) accept", () => {
+    const ok = validate(makeFlow(minimalTx));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("isolationLevel + propagation + timeoutMs + rollbackOn accept", () => {
+    const ok = validate(makeFlow({
+      ...minimalTx,
+      isolationLevel: "REPEATABLE_READ",
+      propagation: "REQUIRES_NEW",
+      timeoutMs: 5000,
+      rollbackOn: ["STOCK_SHORTAGE", "VALIDATION"],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("isolationLevel enum 外は reject", () => {
+    expect(validate(makeFlow({
+      ...minimalTx,
+      isolationLevel: "READ_UNCOMMITTED",
+    }))).toBe(false);
+  });
+
+  it("propagation enum 外は reject", () => {
+    expect(validate(makeFlow({
+      ...minimalTx,
+      propagation: "MANDATORY",
+    }))).toBe(false);
+  });
+
+  it("timeoutMs 負数は reject", () => {
+    expect(validate(makeFlow({
+      ...minimalTx,
+      timeoutMs: -1,
+    }))).toBe(false);
+  });
+
+  it("steps 欠落は reject", () => {
+    expect(validate(makeFlow({
+      id: "tx-1", type: "transactionScope", description: "",
+    }))).toBe(false);
+  });
+
+  it("description 欠落は reject", () => {
+    expect(validate(makeFlow({
+      id: "tx-1", type: "transactionScope", steps: [],
+    }))).toBe(false);
+  });
+
+  it("onCommit / onRollback に Step を入れて accept", () => {
+    const ok = validate(makeFlow({
+      ...minimalTx,
+      onCommit: [
+        { id: "c1", type: "log", description: "", level: "info", message: "committed" },
+      ],
+      onRollback: [
+        { id: "r1", type: "log", description: "", level: "warn", message: "rolled back" },
+      ],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ネストした TransactionScopeStep accept", () => {
+    const ok = validate(makeFlow({
+      ...minimalTx,
+      steps: [
+        {
+          id: "tx-inner", type: "transactionScope", description: "ネスト",
+          propagation: "NESTED",
+          steps: [
+            { id: "s2", type: "dbAccess", description: "", tableName: "x", operation: "UPDATE" },
+          ],
+        },
+      ],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("空 steps[] は schema 上 accept (UI 側の warning で対応)", () => {
+    expect(validate(makeFlow({
+      id: "tx-1", type: "transactionScope", description: "", steps: [],
+    }))).toBe(true);
+  });
+
+  it("rollbackOn の要素が string 以外なら reject", () => {
+    expect(validate(makeFlow({
+      ...minimalTx,
+      rollbackOn: [123],
+    }))).toBe(false);
+  });
+
+  it("未知フィールドは reject (additionalProperties: false)", () => {
+    expect(validate(makeFlow({
+      ...minimalTx,
+      unknownField: "x",
+    }))).toBe(false);
+  });
+
+  it("StepType enum に transactionScope が含まれる (StepBase + 親 step として使える)", () => {
+    // 親 step の subSteps に置けることの確認
+    const ok = validate(makeFlow({
+      id: "parent", type: "other", description: "",
+      subSteps: [{ ...minimalTx, id: "child-tx" }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+});
+
 describe("process-flow.schema.json — ambientOverrides (#369)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

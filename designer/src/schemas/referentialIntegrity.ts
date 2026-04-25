@@ -125,6 +125,11 @@ function walkSteps(
     if (step.type === "loop") {
       walkSteps(step.steps, `${path}.steps`, visit);
     }
+    if (step.type === "transactionScope") {
+      walkSteps(step.steps, `${path}.steps`, visit);
+      if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, visit);
+      if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, visit);
+    }
     if (step.type === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {
@@ -213,6 +218,18 @@ function checkStep(
             message: `BranchConditionVariant.errorCode "${c.errorCode}" が ProcessFlow.errorCatalog に存在しません`,
           });
         }
+      }
+    });
+  }
+  if (step.type === "transactionScope" && step.rollbackOn && hasErrorCatalog) {
+    step.rollbackOn.forEach((code, ci) => {
+      if (!errorCodes.has(code)) {
+        issues.push({
+          path: `${path}.rollbackOn[${ci}]`,
+          code: "UNKNOWN_ERROR_CODE",
+          value: code,
+          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" が ProcessFlow.errorCatalog に存在しません`,
+        });
       }
     });
   }

@@ -18,6 +18,7 @@
 | [process-flow-workflow.md](process-flow-workflow.md) | WorkflowStep / WorkflowPattern (承認ワークフロー標準 11 パターン) | #411 |
 | [process-flow-env-vars.md](process-flow-env-vars.md) | 環境変数カタログ (`envVarsCatalog`) — 環境別 (dev/staging/prod) の型付き設定値 | #414 |
 | [process-flow-secrets.md](process-flow-secrets.md) | Secrets カタログ (`secretsCatalog`) — 秘匿値メタデータ + 環境別参照式 | #261 / #414 |
+| [process-flow-transaction.md](process-flow-transaction.md) | `TransactionScopeStep` (複数 DB 操作を 1 TX でまとめる meta-step) と既存 `txBoundary` の関係 | #415 |
 | [screen-items.md](screen-items.md) | 画面項目定義 (フォーム系バリデーション 3 層のうち「画面」層) — **ドラフト v0.1** | #318 |
 
 **一次成果物**: JSON スキーマ [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) ([README](../../schemas/README.md))。仕様書と突合する機械可読版。

@@ -132,6 +132,11 @@ function walkSteps(
         : loopItems;
       walkSteps(loopStep.steps, `${path}.steps`, known, childLoopItems, issues);
     }
+    if (step.type === "transactionScope") {
+      walkSteps(step.steps, `${path}.steps`, known, loopItems, issues);
+      if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, known, loopItems, issues);
+      if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, known, loopItems, issues);
+    }
     if (step.type === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import type {
   Branch,
+  ProcessFlow,
   Step,
   StepType,
   DbOperation,
@@ -31,12 +32,13 @@ import { JumpTargetSelector } from "./JumpTargetSelector";
 import { WorkflowStepPanel } from "./WorkflowStepPanel";
 import { LogStepPanel } from "./LogStepPanel";
 import { AuditStepPanel } from "./AuditStepPanel";
+import { TransactionScopeStepPanel } from "./TransactionScopeStepPanel";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
   "screenTransition", "displayUpdate", "branch", "loop",
   "loopBreak", "loopContinue", "jump", "compute", "return", "other",
-  "log", "audit", "workflow",
+  "log", "audit", "workflow", "transactionScope",
 ];
 
 // ─── ヘルパーコンポーネント ──────────────────────────────────────────────────
@@ -86,6 +88,7 @@ interface InlineStepListProps {
   onNavigateCommon: (refId: string) => void;
   validationErrors?: ValidationError[];
   conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
+  group?: ProcessFlow | null;
 }
 
 function InlineStepList({
@@ -100,6 +103,7 @@ function InlineStepList({
   onNavigateCommon,
   validationErrors,
   conventions,
+  group,
 }: InlineStepListProps) {
   const [showTypePicker, setShowTypePicker] = useState(false);
 
@@ -164,6 +168,7 @@ function InlineStepList({
             depth={1}
             validationErrors={validationErrors}
             conventions={conventions}
+            group={group}
           />
         </div>
       ))}
@@ -197,6 +202,8 @@ interface StepCardProps {
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
   conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
+  /** TX スコープ等で errorCatalog を参照するために必要 (#415) */
+  group?: ProcessFlow | null;
   onChange: (changes: Partial<Step>) => void;
   onCommit?: () => void;
   onMoveUp?: () => void;
@@ -241,6 +248,7 @@ export function StepCard({
   screens,
   commonGroups,
   conventions,
+  group,
   onChange,
   onCommit,
   onMoveUp,
@@ -307,6 +315,11 @@ export function StepCard({
       }
       case "workflow":
         return `${WORKFLOW_PATTERN_LABELS[step.pattern]} / 承認者 ${step.approvers.length}件${step.description ? ` - ${step.description}` : ""}`;
+      case "transactionScope": {
+        const n = step.steps.length;
+        const iso = step.isolationLevel ?? "READ_COMMITTED";
+        return `TX (${iso}, ${n} ステップ)${step.description ? ` - ${step.description}` : ""}`;
+      }
       default:
         return step.description || "その他";
     }
@@ -1459,6 +1472,7 @@ export function StepCard({
                             onNavigateCommon={onNavigateCommon}
                             validationErrors={validationErrors}
                             conventions={conventions}
+                            group={group}
                           />
                         </div>
                       )}
@@ -1512,6 +1526,7 @@ export function StepCard({
                             onNavigateCommon={onNavigateCommon}
                             validationErrors={validationErrors}
                             conventions={conventions}
+                            group={group}
                           />
                         </div>
                       )}
@@ -1646,6 +1661,7 @@ export function StepCard({
                         onNavigateCommon={onNavigateCommon}
                         validationErrors={validationErrors}
                         conventions={conventions}
+                        group={group}
                       />
                     </div>
                   )}
@@ -1670,6 +1686,23 @@ export function StepCard({
                 onChange={(patch) => onChange(patch as Partial<Step>)}
                 onCommit={onCommit}
                 conventions={conventions ?? null}
+              />
+            )}
+
+            {/* ── TX スコープ (#415) ────────────────────────────── */}
+            {step.type === "transactionScope" && (
+              <TransactionScopeStepPanel
+                step={step}
+                onChange={(patch) => onChange(patch as Partial<Step>)}
+                onCommit={onCommit}
+                group={group}
+                allSteps={allSteps}
+                tables={tables}
+                screens={screens}
+                commonGroups={commonGroups}
+                validationErrors={validationErrors}
+                conventions={conventions ?? null}
+                onNavigateCommon={onNavigateCommon}
               />
             )}
 
@@ -1782,6 +1815,8 @@ export function StepCard({
                 onOutdent={onOutdentSubStep ? () => onOutdentSubStep(sub.id) : undefined}
                 onOutdentSubStep={(subSubId) => handleOutdentFromSubSteps(sub.id, subSubId)}
                 validationErrors={validationErrors}
+                conventions={conventions}
+                group={group}
               />
             </div>
           ))}

@@ -53,6 +53,11 @@ function walkSteps(steps: Step[], visit: (step: Step) => void): void {
       if (step.elseBranch) walkSteps(step.elseBranch.steps, visit);
     }
     if (step.type === "loop") walkSteps(step.steps, visit);
+    if (step.type === "transactionScope") {
+      walkSteps(step.steps, visit);
+      if (step.onCommit) walkSteps(step.onCommit, visit);
+      if (step.onRollback) walkSteps(step.onRollback, visit);
+    }
   }
 }
 

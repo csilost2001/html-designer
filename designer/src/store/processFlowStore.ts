@@ -262,6 +262,14 @@ export function createDefaultStep(type: StepType): Step {
         approvers: [],
         quorum: { type: "any" },
       };
+    case "transactionScope":
+      return {
+        ...base,
+        type: "transactionScope",
+        isolationLevel: "READ_COMMITTED",
+        propagation: "REQUIRED",
+        steps: [],
+      };
     case "other":
       return { ...base, type: "other" };
   }
@@ -279,6 +287,11 @@ function countGroupNotes(group: ProcessFlow): number {
         if (s.elseBranch) visit(s.elseBranch.steps);
       }
       if (s.type === "loop") visit(s.steps);
+      if (s.type === "transactionScope") {
+        visit(s.steps);
+        if (s.onCommit) visit(s.onCommit);
+        if (s.onRollback) visit(s.onRollback);
+      }
     }
   };
   for (const a of group.actions) visit(a.steps);

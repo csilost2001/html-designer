@@ -228,6 +228,11 @@ function walkSteps(steps: Step[], basePath: string, visit: (s: Step, p: string) 
       if (step.elseBranch) walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, visit);
     }
     if (step.type === "loop") walkSteps(step.steps, `${path}.steps`, visit);
+    if (step.type === "transactionScope") {
+      walkSteps(step.steps, `${path}.steps`, visit);
+      if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, visit);
+      if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, visit);
+    }
     if (step.type === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, visit);

@@ -24,6 +24,11 @@ function collectStepIds(group: ProcessFlow): Set<string> {
         if (s.elseBranch) visit(s.elseBranch.steps);
       }
       if (s.type === "loop") visit(s.steps);
+      if (s.type === "transactionScope") {
+        visit(s.steps);
+        if (s.onCommit) visit(s.onCommit);
+        if (s.onRollback) visit(s.onRollback);
+      }
       if (s.type === "externalSystem" && s.outcomes) {
         for (const oc of Object.values(s.outcomes)) {
           if (oc?.sideEffects) visit(oc.sideEffects);
