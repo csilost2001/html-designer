@@ -515,13 +515,10 @@ function toYaml(obj: unknown, indent = 0): string {
   return entries
     .map(([k, v]) => {
       const valStr = toYaml(v, indent + 1);
-      if (typeof v === "object" && v !== null && !Array.isArray(v)) {
-        return `\n${pad}${k}:${valStr}`;
-      }
-      if (Array.isArray(v)) {
-        return `\n${pad}${k}:${valStr}`;
-      }
-      return `\n${pad}${k}: ${valStr}`;
+      // non-empty objects/arrays: valStr starts with \n — omit space (key:\n  ...)
+      // empty or scalar: valStr does not start with \n — add space (key: value)
+      const sep = valStr.startsWith("\n") ? "" : " ";
+      return `\n${pad}${k}:${sep}${valStr}`;
     })
     .join("");
 }
