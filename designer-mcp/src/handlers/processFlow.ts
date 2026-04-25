@@ -12,6 +12,7 @@
  */
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import path from "node:path";
+import fs from "node:fs";
 import AdmZip from "adm-zip";
 import {
   readProcessFlow,
@@ -294,7 +295,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (fmt === "json") {
         text = JSON.stringify(arazzo, null, 2);
       } else {
-        text = toYaml(arazzo);
+        text = toYaml(arazzo).trimStart();
       }
       return { content: [{ type: "text", text }] };
     }
@@ -327,6 +328,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         if (!doc) { missing.push(id); continue; }
         zip.addFile(`process-flows/${id}.json`, Buffer.from(JSON.stringify(doc, null, 2), "utf8"));
       }
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
       zip.writeZip(outPath);
 
       const msg = missing.length > 0
@@ -359,8 +361,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         if (!id) { results.push(`SKIP (no id): ${entry.entryName}`); continue; }
 
         const destPath = path.join(actionsDir, `${id}.json`);
-        const { existsSync } = await import("node:fs");
-        const exists = existsSync(destPath);
+        const exists = fs.existsSync(destPath);
 
         if (exists && conflict === "skip") {
           results.push(`SKIP (exists): ${id}`);
@@ -402,21 +403,39 @@ interface ArazzoDoc {
   workflows: Array<{ workflowId: string; steps: ArazzoStep[] }>;
 }
 
+function collectNestedStepLists(s: Record<string, unknown>): Array<unknown[]> {
+  const lists: Array<unknown[]> = [];
+  const push = (v: unknown) => { if (Array.isArray(v)) lists.push(v as unknown[]); };
+  // branch / loop / transactionScope / workflow inner steps
+  push(s.steps);
+  push(s.subSteps);
+  push(s.onCommit);    // TransactionScopeStep
+  push(s.onRollback);  // TransactionScopeStep
+  push(s.onApproved);  // WorkflowStep
+  push(s.onRejected);  // WorkflowStep
+  push(s.onTimeout);   // WorkflowStep
+  // branches
+  if (Array.isArray(s.branches)) {
+    for (const b of s.branches as Array<{ steps?: unknown[] }>) push(b.steps);
+  }
+  if (s.elseBranch) push((s.elseBranch as { steps?: unknown[] }).steps);
+  // ExternalCallOutcomeSpec sideEffects
+  if (s.outcomes && typeof s.outcomes === "object") {
+    for (const oc of Object.values(s.outcomes as Record<string, { sideEffects?: unknown[] }>)) {
+      if (oc && Array.isArray(oc.sideEffects)) lists.push(oc.sideEffects);
+    }
+  }
+  return lists;
+}
+
 function collectExternalSteps(steps: unknown[]): Array<Record<string, unknown>> {
   const result: Array<Record<string, unknown>> = [];
   for (const step of steps) {
     const s = step as Record<string, unknown>;
     if (s.type === "externalSystem") result.push(s);
-    if (Array.isArray(s.steps)) result.push(...collectExternalSteps(s.steps as unknown[]));
-    if (Array.isArray(s.branches)) {
-      for (const b of s.branches as Array<{ steps?: unknown[] }>) {
-        if (Array.isArray(b.steps)) result.push(...collectExternalSteps(b.steps));
-      }
+    for (const nested of collectNestedStepLists(s)) {
+      result.push(...collectExternalSteps(nested));
     }
-    if (s.elseBranch && Array.isArray((s.elseBranch as { steps?: unknown[] }).steps)) {
-      result.push(...collectExternalSteps((s.elseBranch as { steps: unknown[] }).steps));
-    }
-    if (Array.isArray(s.subSteps)) result.push(...collectExternalSteps(s.subSteps as unknown[]));
   }
   return result;
 }
@@ -477,7 +496,12 @@ function toYaml(obj: unknown, indent = 0): string {
   if (typeof obj === "boolean") return obj ? "true" : "false";
   if (typeof obj === "number") return String(obj);
   if (typeof obj === "string") {
-    if (/[\n:#{}\[\],&*?|<>=!%@`]/.test(obj) || obj.trim() !== obj) {
+    const needsQuote =
+      /[\n:#{}\[\],&*?|<>=!%@`]/.test(obj) ||
+      obj.trim() !== obj ||
+      /^(true|false|null|~|yes|no|on|off)$/i.test(obj) ||
+      /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(obj);
+    if (needsQuote) {
       return `"${obj.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     }
     return obj;

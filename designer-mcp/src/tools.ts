@@ -1066,6 +1066,10 @@ export const tools = [
           enum: ["skip", "overwrite", "rename"],
           description: "ID 衝突時の解決方針。skip: 既存を維持 / overwrite: 上書き / rename: プレフィックス付きで保存。デフォルト: skip",
         },
+        publisherPrefix: {
+          type: "string",
+          description: "conflictResolution=rename 時に ID の先頭に付与するプレフィックス (例: myapp)。省略時は \"imported\"",
+        },
       },
       required: ["inputPath"],
     },
