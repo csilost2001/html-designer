@@ -18,6 +18,8 @@ export type StepType =
   | "log" | "audit"    // アプリケーションログ / 監査ログ
   | "workflow"         // 承認ワークフロー (#411)
   | "transactionScope" // 複数 DB 操作を 1 TX でまとめる meta-step (#415)
+  | "eventPublish"     // イベント発行 (#423 B-1)
+  | "eventSubscribe"   // イベント購読 (#423 B-1)
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -39,6 +41,8 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   audit: "監査ログ",
   workflow: "承認ワークフロー",
   transactionScope: "TX スコープ",
+  eventPublish: "イベント発行",
+  eventSubscribe: "イベント購読",
   other: "その他",
 };
 
@@ -61,6 +65,8 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   audit: "bi-shield-check",
   workflow: "bi-people-fill",
   transactionScope: "bi-shield-fill",
+  eventPublish: "bi-broadcast",
+  eventSubscribe: "bi-broadcast-pin",
   other: "bi-three-dots",
 };
 
@@ -83,6 +89,8 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   audit: "#a855f7",
   workflow: "#0d9488",
   transactionScope: "#dc2626",
+  eventPublish: "#7c3aed",
+  eventSubscribe: "#5b21b6",
   other: "#9ca3af",
 };
 
@@ -397,6 +405,30 @@ export interface AffectedRowsCheck {
   description?: string;
 }
 
+/**
+ * キャッシュヒント (#423 B-4)。
+ * GET 系クエリ / API レスポンスのキャッシュ可否・TTL・無効化条件を宣言する。
+ */
+export interface CacheHint {
+  /** キャッシュ有効期間 (秒) */
+  ttlSeconds: number;
+  /** キャッシュキー式。省略時はランタイムが自動生成 */
+  key?: string;
+  /** このキャッシュを無効化するイベント名またはトピック名のリスト */
+  invalidateOn?: string[];
+}
+
+/**
+ * データ系譜 (#423 B-2)。
+ * DbAccessStep がどのテーブルを読み書きするかを宣言的に記述する。
+ */
+export interface DataLineage {
+  /** 読み取るテーブル名の一覧 */
+  reads?: string[];
+  /** 書き込むテーブル名の一覧 */
+  writes?: string[];
+}
+
 export interface DbAccessStep extends StepBase {
   type: "dbAccess";
   tableName: string;
@@ -423,6 +455,10 @@ export interface DbAccessStep extends StepBase {
    * SELECT / INSERT では通常不要。
    */
   affectedRowsCheck?: AffectedRowsCheck;
+  /** データ系譜 (#423 B-2)。このステップが読み書きするテーブルを宣言する */
+  lineage?: DataLineage;
+  /** キャッシュヒント (#423 B-4)。SELECT 系クエリのキャッシュ設定 */
+  cache?: CacheHint;
 }
 
 // ── 外部システム呼出の outcome / タイムアウト / リトライ (docs/spec, #151 (B)) ──
@@ -583,6 +619,13 @@ export interface ExternalSystemStep extends StepBase {
    * auth / idempotencyKey で表現できない任意ヘッダを設定する場合に使用。
    */
   headers?: Record<string, string>;
+  /**
+   * API バージョン override (#423 B-6)。
+   * ProcessFlow.apiVersion より優先。外部 API のバージョンを step 単位で指定する場合に使用。
+   */
+  apiVersion?: string;
+  /** キャッシュヒント (#423 B-4)。GET 系 API レスポンスのキャッシュ設定 */
+  cache?: CacheHint;
 }
 
 export interface CommonProcessStep extends StepBase {
@@ -901,6 +944,78 @@ export interface TransactionScopeStep extends StepBase {
   onRollback?: Step[];
 }
 
+/**
+ * イベント定義 (#423 B-1)。ProcessFlow.eventsCatalog の 1 エントリ。
+ */
+export interface EventDef {
+  /** 補足説明 */
+  description?: string;
+  /** ペイロードの JSON Schema (draft 2020-12) */
+  payload?: Record<string, unknown>;
+}
+
+/**
+ * イベント発行ステップ (#423 B-1)。
+ * 指定トピックにイベントをパブリッシュする。
+ */
+export interface EventPublishStep extends StepBase {
+  type: "eventPublish";
+  /** パブリッシュ先のトピック名 */
+  topic: string;
+  /** ProcessFlow.eventsCatalog のキー参照 */
+  eventRef?: string;
+  /** 送信ペイロードの式 (例: "{ orderId: @orderId }") */
+  payload?: string;
+}
+
+/**
+ * イベント購読ステップ (#423 B-1)。
+ * 指定トピックのイベントをサブスクライブし待機する。
+ */
+export interface EventSubscribeStep extends StepBase {
+  type: "eventSubscribe";
+  /** サブスクライブするトピック名 */
+  topic: string;
+  /** ProcessFlow.eventsCatalog のキー参照 */
+  eventRef?: string;
+  /** 受信フィルター条件の式 (例: "@event.type == \"OrderPlaced\"") */
+  filter?: string;
+}
+
+/**
+ * ビジネス用語集の 1 エントリ (#423 B-3)。
+ */
+export interface GlossaryEntry {
+  /** 用語の定義 */
+  definition: string;
+  /** 別名・略語のリスト */
+  aliases?: string[];
+  /** ドメインモデルやテーブル等への参照文字列 */
+  domainRef?: string;
+}
+
+/** ADR ステータス (#423 B-5) */
+export type DecisionStatus = "proposed" | "accepted" | "deprecated" | "superseded";
+
+/**
+ * ADR / 設計判断ログの 1 エントリ (#423 B-5)。
+ * MADR 形式を参考にした軽量 ADR。
+ */
+export interface DecisionRecord {
+  /** 例: "ADR-001" */
+  id: string;
+  title: string;
+  status: DecisionStatus;
+  /** 決定の背景・問題の説明 */
+  context: string;
+  /** 採択した決定内容 */
+  decision: string;
+  /** 結果・影響・トレードオフ (任意) */
+  consequences?: string;
+  /** ISO date (例: "2026-04-25") */
+  date?: string;
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -919,6 +1034,8 @@ export type Step =
   | AuditStep
   | WorkflowStep
   | TransactionScopeStep
+  | EventPublishStep
+  | EventSubscribeStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────
@@ -1258,6 +1375,11 @@ export interface ProcessFlow {
   type: ProcessFlowType;
   screenId?: string;
   description: string;
+  /**
+   * API バージョン識別子 (#423 B-6)。
+   * 例: "v1", "2026-04-25"。ExternalSystemStep.apiVersion で step 単位の override が可能。
+   */
+  apiVersion?: string;
   actions: ActionDefinition[];
   /** 成熟度。未指定は "draft" として解釈 (docs/spec/process-flow-maturity.md §3) */
   maturity?: Maturity;
@@ -1319,6 +1441,21 @@ export interface ProcessFlow {
    * `@fn.<name>` 参照形式で式から呼び出される。
    */
   functionsCatalog?: Record<string, FunctionDef>;
+  /**
+   * イベント pub/sub カタログ (#423 B-1)。キー: トピック名。
+   * EventPublishStep / EventSubscribeStep の eventRef から参照される。
+   */
+  eventsCatalog?: Record<string, EventDef>;
+  /**
+   * ビジネス用語集 (#423 B-3)。キー: 用語名。
+   * ドメイン固有語・略語の定義と別名を集約する。AI 実装者がドメイン語義を解釈するための参照情報。
+   */
+  glossary?: Record<string, GlossaryEntry>;
+  /**
+   * ADR / 設計判断ログ (#423 B-5)。
+   * アーキテクチャ上の決定とその根拠・影響を記録する。
+   */
+  decisions?: DecisionRecord[];
   /**
    * マーカー (#261 リアルタイム編集ワークフロー)。
    * 人間が designer 画面で付けたコメント・質問・TODO・チャットメッセージを保持。

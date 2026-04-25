@@ -12,6 +12,10 @@
     "type": { "$ref": "#/$defs/ProcessFlowType" },
     "screenId": { "type": "string" },
     "description": { "type": "string" },
+    "apiVersion": {
+      "description": "API バージョン識別子 (#423 B-6)。例: \"v1\", \"2026-04-25\"",
+      "type": "string"
+    },
     "maturity": { "$ref": "#/$defs/Maturity" },
     "mode": { "$ref": "#/$defs/ProcessFlowMode" },
     "sla": { "$ref": "#/$defs/Sla" },
@@ -59,6 +63,21 @@
       "description": "組み込み関数カタログ (#422 P2-5 / Wagby 由来)。キー: 関数名 (例: \"formatCurrency\", \"calcAge\")。@fn.* 参照形式で式から呼び出される",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/FunctionDef" }
+    },
+    "eventsCatalog": {
+      "description": "イベント pub/sub カタログ (#423 B-1)。キー: トピック名。EventPublishStep / EventSubscribeStep から参照される",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/EventDef" }
+    },
+    "glossary": {
+      "description": "ビジネス用語集 (#423 B-3)。キー: 用語名。ドメイン固有語・略語の定義と別名を集約する",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/GlossaryEntry" }
+    },
+    "decisions": {
+      "description": "ADR / 設計判断ログ (#423 B-5)。アーキテクチャ上の決定とその根拠・影響を記録する",
+      "type": "array",
+      "items": { "$ref": "#/$defs/DecisionRecord" }
     },
     "markers": {
       "description": "マーカー (#261)。人間が designer で付けた指示・質問・TODO・チャット。AI が読み取り resolvedAt で解決",
@@ -297,7 +316,148 @@
         "audit",
         "workflow",
         "transactionScope",
+        "eventPublish",
+        "eventSubscribe",
         "other"
+      ]
+    },
+
+    "CacheHint": {
+      "description": "キャッシュヒント (#423 B-4)。GET 系クエリのキャッシュ可否・TTL・無効化条件を宣言する",
+      "type": "object",
+      "required": ["ttlSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "ttlSeconds": { "type": "number", "minimum": 0, "description": "キャッシュ有効期間 (秒)" },
+        "key": { "type": "string", "description": "キャッシュキー式。省略時はランタイムが自動生成" },
+        "invalidateOn": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "このキャッシュを無効化するイベント名またはトピック名のリスト"
+        }
+      }
+    },
+
+    "DataLineage": {
+      "description": "データ系譜 (#423 B-2)。DbAccessStep がどのテーブルを読み書きするかを宣言的に記述する",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reads": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "読み取るテーブル名の一覧"
+        },
+        "writes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "書き込むテーブル名の一覧"
+        }
+      }
+    },
+
+    "EventDef": {
+      "description": "イベント定義 (#423 B-1)。ProcessFlow.eventsCatalog の 1 エントリ",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "payload": {
+          "type": "object",
+          "description": "ペイロードの JSON Schema (draft 2020-12)"
+        }
+      }
+    },
+
+    "GlossaryEntry": {
+      "description": "ビジネス用語集の 1 エントリ (#423 B-3)",
+      "type": "object",
+      "required": ["definition"],
+      "additionalProperties": false,
+      "properties": {
+        "definition": { "type": "string", "description": "用語の定義" },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "別名・略語のリスト"
+        },
+        "domainRef": {
+          "type": "string",
+          "description": "ドメインモデルやテーブル等への参照文字列"
+        }
+      }
+    },
+
+    "DecisionRecord": {
+      "description": "ADR / 設計判断ログの 1 エントリ (#423 B-5)。MADR 形式を参考にした軽量 ADR",
+      "type": "object",
+      "required": ["id", "title", "status", "context", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "例: ADR-001" },
+        "title": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["proposed", "accepted", "deprecated", "superseded"]
+        },
+        "context": { "type": "string", "description": "決定の背景・問題の説明" },
+        "decision": { "type": "string", "description": "採択した決定内容" },
+        "consequences": { "type": "string", "description": "結果・影響・トレードオフ" },
+        "date": { "type": "string", "description": "ISO date (例: 2026-04-25)" }
+      }
+    },
+
+    "EventPublishStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "topic"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
+            "type": { "const": "eventPublish" },
+            "topic": { "type": "string", "description": "パブリッシュ先のトピック名" },
+            "eventRef": {
+              "type": "string",
+              "description": "ProcessFlow.eventsCatalog のキー参照"
+            },
+            "payload": {
+              "type": "string",
+              "description": "送信ペイロードの式 (例: '{ orderId: @orderId }')"
+            }
+          }
+        }
+      ]
+    },
+
+    "EventSubscribeStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "topic"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
+            "type": { "const": "eventSubscribe" },
+            "topic": { "type": "string", "description": "サブスクライブするトピック名" },
+            "eventRef": {
+              "type": "string",
+              "description": "ProcessFlow.eventsCatalog のキー参照"
+            },
+            "filter": {
+              "type": "string",
+              "description": "受信フィルター条件の式 (例: '@event.type == \"OrderPlaced\"')"
+            }
+          }
+        }
       ]
     },
     "WorkflowPattern": {
@@ -874,7 +1034,15 @@
               "type": "string",
               "description": "一括 INSERT 時に VALUES 句へ展開する配列変数の参照 (例: \"@poItemValues\")。配列の各要素がレコードとして INSERT される (#253)"
             },
-            "affectedRowsCheck": { "$ref": "#/$defs/AffectedRowsCheck" }
+            "affectedRowsCheck": { "$ref": "#/$defs/AffectedRowsCheck" },
+            "lineage": {
+              "$ref": "#/$defs/DataLineage",
+              "description": "データ系譜 (#423 B-2)。このステップが読み書きするテーブルを宣言する"
+            },
+            "cache": {
+              "$ref": "#/$defs/CacheHint",
+              "description": "キャッシュヒント (#423 B-4)。SELECT 系クエリのキャッシュ設定"
+            }
           }
         }
       ]
@@ -922,6 +1090,8 @@
         { "$ref": "#/$defs/AuditStep" },
         { "$ref": "#/$defs/WorkflowStep" },
         { "$ref": "#/$defs/TransactionScopeStep" },
+        { "$ref": "#/$defs/EventPublishStep" },
+        { "$ref": "#/$defs/EventSubscribeStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     },
@@ -1049,6 +1219,14 @@
             "headers": {
               "type": "object",
               "additionalProperties": { "type": "string" }
+            },
+            "apiVersion": {
+              "type": "string",
+              "description": "API バージョン override (#423 B-6)。ProcessFlow.apiVersion より優先"
+            },
+            "cache": {
+              "$ref": "#/$defs/CacheHint",
+              "description": "キャッシュヒント (#423 B-4)。GET 系 API レスポンスのキャッシュ設定"
             }
           }
         }
@@ -1606,6 +1784,8 @@
         { "$ref": "#/$defs/AuditStep" },
         { "$ref": "#/$defs/WorkflowStep" },
         { "$ref": "#/$defs/TransactionScopeStep" },
+        { "$ref": "#/$defs/EventPublishStep" },
+        { "$ref": "#/$defs/EventSubscribeStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     }

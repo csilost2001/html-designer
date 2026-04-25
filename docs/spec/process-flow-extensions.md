@@ -840,10 +840,232 @@ PR: #422
 - `docs/conventions/validation-rules.md` / `product-scope.md` — 横断規約 (placeholder)
 - `designer/src/types/action.ts` — 型定義の正 (実装とドキュメントの整合性はこちらが優先)
 
-## 13. 変更履歴
+## 13. Tier-B 拡張 (#423)
+
+Issue: #396 (Tier B) / #423 (実装)  
+策定日: 2026-04-25
+
+### 13.1 イベント pub/sub (B-1)
+
+非同期メッセージング・イベント駆動アーキテクチャのための宣言サポート。
+
+#### ProcessFlow.eventsCatalog
+
+```ts
+interface EventDef {
+  description?: string;
+  payload?: object;  // JSON Schema draft 2020-12
+}
+
+// ProcessFlow に追加
+eventsCatalog?: Record<string, EventDef>;  // キー: トピック名
+```
+
+#### EventPublishStep (type: "eventPublish")
+
+```ts
+interface EventPublishStep extends StepBase {
+  type: "eventPublish";
+  topic: string;                  // パブリッシュ先トピック名 (required)
+  eventRef?: string;              // eventsCatalog のキー参照
+  payload?: string;               // 送信ペイロードの式
+}
+```
+
+#### EventSubscribeStep (type: "eventSubscribe")
+
+```ts
+interface EventSubscribeStep extends StepBase {
+  type: "eventSubscribe";
+  topic: string;                  // サブスクライブするトピック名 (required)
+  eventRef?: string;              // eventsCatalog のキー参照
+  filter?: string;                // 受信フィルター条件の式
+}
+```
+
+用例:
+
+```json
+"eventsCatalog": {
+  "invoice.issued": {
+    "description": "請求書発行完了イベント",
+    "payload": {
+      "type": "object",
+      "required": ["invoiceId", "invoiceNumber"],
+      "properties": {
+        "invoiceId": { "type": "integer" },
+        "invoiceNumber": { "type": "string" }
+      }
+    }
+  }
+},
+"steps": [
+  {
+    "id": "step-evt",
+    "type": "eventPublish",
+    "description": "請求書発行完了イベントを発行",
+    "topic": "invoice.issued",
+    "eventRef": "invoice.issued",
+    "payload": "{ invoiceId: @newInvoice.id, invoiceNumber: @newInvoice.invoice_number }"
+  }
+]
+```
+
+### 13.2 データ系譜 (B-2)
+
+`DbAccessStep` がどのテーブルを読み書きするかを宣言的に記述する。データリネージ分析・影響範囲特定に使用。
+
+```ts
+interface DataLineage {
+  reads?: string[];    // 読み取るテーブル名一覧
+  writes?: string[];   // 書き込むテーブル名一覧
+}
+
+// DbAccessStep に追加
+lineage?: DataLineage;
+```
+
+用例:
+
+```json
+{
+  "type": "dbAccess",
+  "tableName": "invoices",
+  "operation": "INSERT",
+  "lineage": { "writes": ["invoices"] }
+}
+```
+
+### 13.3 ビジネス用語集 (B-3)
+
+ドメイン固有語・略語を 1 箇所に集約し、AI 実装者がドメイン語義を誤解なく解釈できるよう支援する。
+
+```ts
+interface GlossaryEntry {
+  definition: string;        // 用語の定義 (required)
+  aliases?: string[];        // 別名・略語のリスト
+  domainRef?: string;        // テーブル名等への参照文字列
+}
+
+// ProcessFlow に追加
+glossary?: Record<string, GlossaryEntry>;  // キー: 用語名
+```
+
+用例:
+
+```json
+"glossary": {
+  "小計": {
+    "definition": "税抜きの請求合計金額。Σ(単価 × 数量)",
+    "aliases": ["subtotal"],
+    "domainRef": "invoices.subtotal"
+  }
+}
+```
+
+### 13.4 キャッシュヒント (B-4)
+
+GET 系クエリ / API レスポンスのキャッシュ設定を宣言。`DbAccessStep` (SELECT) と `ExternalSystemStep` (GET 系) に付与可能。
+
+```ts
+interface CacheHint {
+  ttlSeconds: number;           // キャッシュ有効期間 (秒, required)
+  key?: string;                 // キャッシュキー式 (省略時はランタイム自動生成)
+  invalidateOn?: string[];      // 無効化トリガーのイベント名/トピック名
+}
+
+// DbAccessStep に追加
+cache?: CacheHint;
+
+// ExternalSystemStep に追加
+cache?: CacheHint;
+```
+
+用例:
+
+```json
+{
+  "type": "dbAccess",
+  "tableName": "customers",
+  "operation": "SELECT",
+  "cache": {
+    "ttlSeconds": 300,
+    "key": "customer-@inputs.customerId",
+    "invalidateOn": ["customer.updated"]
+  }
+}
+```
+
+### 13.5 ADR / 設計判断ログ (B-5)
+
+アーキテクチャ上の決定とその根拠・影響を MADR 形式で記録する。AI 実装者が設計意図を理解するための参照情報。
+
+```ts
+type DecisionStatus = "proposed" | "accepted" | "deprecated" | "superseded";
+
+interface DecisionRecord {
+  id: string;                    // 例: "ADR-001" (required)
+  title: string;                 // (required)
+  status: DecisionStatus;        // (required)
+  context: string;               // 決定の背景・問題の説明 (required)
+  decision: string;              // 採択した決定内容 (required)
+  consequences?: string;         // 結果・影響・トレードオフ
+  date?: string;                 // ISO date (例: "2026-04-25")
+}
+
+// ProcessFlow に追加
+decisions?: DecisionRecord[];
+```
+
+用例:
+
+```json
+"decisions": [
+  {
+    "id": "ADR-001",
+    "title": "請求書番号の採番は DB トリガーで行う",
+    "status": "accepted",
+    "context": "アプリ層での採番は並行アクセス時に衝突リスクがある",
+    "decision": "PostgreSQL BEFORE INSERT トリガー + sequence で自動採番する",
+    "consequences": "DDL にトリガー定義が必要",
+    "date": "2026-04-25"
+  }
+]
+```
+
+### 13.6 API バージョニング (B-6)
+
+ProcessFlow レベルと ExternalSystemStep レベルの 2 層で API バージョンを宣言できる。step 単位の `apiVersion` が優先 (override)。
+
+```ts
+// ProcessFlow に追加
+apiVersion?: string;                  // フロー全体のデフォルト API バージョン
+
+// ExternalSystemStep に追加
+apiVersion?: string;                  // step 単位の override
+```
+
+用例:
+
+```json
+{
+  "apiVersion": "v1",
+  "actions": [{
+    "steps": [{
+      "type": "externalSystem",
+      "systemName": "新規 API",
+      "apiVersion": "v2",
+      "httpCall": { "method": "POST", "path": "/v2/resource" }
+    }]
+  }]
+}
+```
+
+## 14. 変更履歴
 
 - 2026-04-20: 初版。#155〜#181 の全 PR をカバー。
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
 - 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
 - 2026-04-24: `ProcessFlow.ambientOverrides` 追加 (#369)。§8.7 を新設。
 - 2026-04-25: P2+D 拡張 (#422)。§9 を新設。domainsCatalog / functionsCatalog / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
+- 2026-04-25: Tier-B (#423) 全 6 項目追加。§13 を新設 (B-1〜B-6)。

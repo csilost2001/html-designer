@@ -3,9 +3,65 @@
   "name": "請求書発行画面",
   "type": "screen",
   "screenId": "aaaaaaaa-0007-4000-8000-aaaaaaaaaaaa",
-  "description": "2026-04-24 5/5 再ドッグフード: 顧客向け売上請求書を発行し PDF 生成 + メール通知を行う。前回 0006 サンプルの残ギャップ (@conv.numbering.* / @conv.currency.jpy subunit / @conv.scope.timezone ambient) を構造化フィールドで完全解消する実証サンプル。",
+  "description": "2026-04-24 5/5 再ドッグフード: 顧客向け売上請求書を発行し PDF 生成 + メール通知を行う。前回 0006 サンプルの残ギャップ (@conv.numbering.* / @conv.currency.jpy subunit / @conv.scope.timezone ambient) を構造化フィールドで完全解消する実証サンプル。Tier-B (#423) 追加: eventsCatalog / glossary / decisions / apiVersion を実証。",
+  "apiVersion": "v2",
   "mode": "downstream",
   "maturity": "committed",
+
+  "eventsCatalog": {
+    "invoice.issued": {
+      "description": "請求書発行完了イベント。PDF 生成・メール送信完了後に発行される",
+      "payload": {
+        "type": "object",
+        "required": ["invoiceId", "invoiceNumber", "customerId", "totalAmount"],
+        "properties": {
+          "invoiceId": { "type": "integer" },
+          "invoiceNumber": { "type": "string" },
+          "customerId": { "type": "integer" },
+          "totalAmount": { "type": "integer" }
+        }
+      }
+    }
+  },
+
+  "glossary": {
+    "請求書": {
+      "definition": "顧客に対して発行する代金請求のための書類。invoice_number (INV-YYYY-NNNN 形式) で識別される",
+      "aliases": ["インボイス", "Invoice"],
+      "domainRef": "invoices"
+    },
+    "明細": {
+      "definition": "請求書に含まれる商品・サービスの行単位の詳細。単価 × 数量 = 行金額",
+      "aliases": ["請求明細", "invoice line item"],
+      "domainRef": "invoice_items"
+    },
+    "小計": {
+      "definition": "税抜きの請求合計金額。Σ(単価 × 数量)",
+      "aliases": ["subtotal"],
+      "domainRef": "invoices.subtotal"
+    }
+  },
+
+  "decisions": [
+    {
+      "id": "ADR-001",
+      "title": "請求書番号の採番は DB トリガーで行う",
+      "status": "accepted",
+      "context": "請求書番号 (INV-YYYY-NNNN) は採番の一意性・欠番防止が必要。アプリ層での採番は並行アクセス時に衝突リスクがある",
+      "decision": "PostgreSQL の BEFORE INSERT トリガー + sequence で自動採番する。アプリ層は INSERT 後 RETURNING invoice_number で取得する",
+      "consequences": "DB トリガーへの依存が生じるが、一意性・欠番防止は DB 層で保証できる。マイグレーション時はトリガー定義も DDL に含める必要がある",
+      "date": "2026-04-25"
+    },
+    {
+      "id": "ADR-002",
+      "title": "メール送信は fireAndForget で非同期化する",
+      "status": "accepted",
+      "context": "メール送信失敗で請求書発行がロールバックされると UX が悪化する。メール再送は別の運用フローで対応可能",
+      "decision": "SendGrid 呼出を fireAndForget: true にし、failure/timeout を continue にする。請求書 DB 登録・PDF 生成が成功した時点でユーザーに完了を伝える",
+      "consequences": "メール未着ケースは SendGrid ダッシュボードで検知・再送が必要。請求書発行の信頼性は向上する",
+      "date": "2026-04-25"
+    }
+  ],
 
   "ambientVariables": [
     {
@@ -323,7 +379,9 @@
           "tableName": "customers",
           "operation": "SELECT",
           "sql": "SELECT id, name, email FROM customers WHERE id = @inputs.customerId AND is_deleted = false",
-          "outputBinding": "customer"
+          "outputBinding": "customer",
+          "lineage": { "reads": ["customers"] },
+          "cache": { "ttlSeconds": 300, "key": "customer-@inputs.customerId", "invalidateOn": ["customer.updated"] }
         },
 
         {
@@ -473,7 +531,8 @@
           "operation": "INSERT",
           "sql": "INSERT INTO invoices (customer_id, subtotal, tax_amount, total_amount, payment_term_days, issued_by, created_at, updated_at) VALUES (@inputs.customerId, @subtotal, @taxAmount, @subtotal + @taxAmount, @inputs.paymentTermDays, @sessionUserId, NOW(), NOW()) RETURNING id, invoice_number",
           "txBoundary": { "role": "begin", "txId": "tx-invoice-register" },
-          "outputBinding": "newInvoice"
+          "outputBinding": "newInvoice",
+          "lineage": { "writes": ["invoices"] }
         },
 
         {
@@ -496,6 +555,7 @@
           "systemName": "PDF Generation Service",
           "systemRef": "pdfService",
           "timeoutMs": 30000,
+          "apiVersion": "v2",
           "httpCall": {
             "method": "POST",
             "path": "/generate/invoice",
@@ -527,6 +587,16 @@
 
         {
           "id": "step-12",
+          "type": "eventPublish",
+          "description": "請求書発行完了イベントを発行 (他サービスへの通知用)",
+          "maturity": "committed",
+          "topic": "invoice.issued",
+          "eventRef": "invoice.issued",
+          "payload": "{ invoiceId: @newInvoice.id, invoiceNumber: @newInvoice.invoice_number, customerId: @inputs.customerId, totalAmount: @subtotal + @taxAmount }"
+        },
+
+        {
+          "id": "step-13",
           "type": "return",
           "description": "201 Created — 請求書発行完了",
           "maturity": "committed",
