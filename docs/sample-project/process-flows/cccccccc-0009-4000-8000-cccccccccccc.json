@@ -63,6 +63,12 @@
           "label": "対象月",
           "type": "string",
           "required": true
+        },
+        {
+          "name": "targetMonthEnd",
+          "label": "対象月末日時",
+          "type": "string",
+          "required": true
         }
       ],
       "outputs": [
