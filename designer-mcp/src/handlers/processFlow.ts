@@ -1,14 +1,18 @@
 /**
  * ProcessFlow / step / catalog 関連 MCP tool handler (#261)
  *
- * 対象 (14 ツール):
+ * 対象 (17 ツール):
  * - designer__list_process_flows / get_process_flow
  * - designer__add_process_flow / update_process_flow / delete_process_flow
  * - designer__add_action / add_step / update_step / remove_step / move_step
  * - designer__set_maturity / add_step_note
  * - designer__add_catalog_entry / remove_catalog_entry
+ * - designer__export_arazzo (#427 P3-3)
+ * - designer__solution_pack / solution_unpack (#427 P3-4)
  */
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import path from "node:path";
+import AdmZip from "adm-zip";
 import {
   readProcessFlow,
   writeProcessFlow,
@@ -16,6 +20,7 @@ import {
   listProcessFlows as listProcessFlowFiles,
   readProject,
   writeProject,
+  DATA_DIR,
 } from "../projectStorage.js";
 import {
   updateStep as editUpdateStep,
@@ -275,7 +280,224 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       return { content: [{ type: "text", text: `${a.catalog}.${a.key} を削除しました。` }] };
     }
 
+    case "designer__export_arazzo": {
+      if (typeof a.processFlowId !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowId は必須です");
+      }
+      const flow = await readProcessFlow(a.processFlowId) as Record<string, unknown> | null;
+      if (!flow) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+
+      const fmt = (a.outputFormat as string | undefined) ?? "yaml";
+      const arazzo = buildArazzoDoc(flow);
+
+      let text: string;
+      if (fmt === "json") {
+        text = JSON.stringify(arazzo, null, 2);
+      } else {
+        text = toYaml(arazzo);
+      }
+      return { content: [{ type: "text", text }] };
+    }
+
+    case "designer__solution_pack": {
+      const ids = a.processFlowIds as string[] | undefined;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowIds は 1 件以上の配列が必要です");
+      }
+      if (typeof a.publisherPrefix !== "string" || typeof a.version !== "string" || typeof a.outputPath !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "publisherPrefix, version, outputPath は必須です");
+      }
+
+      const outPath = path.isAbsolute(a.outputPath as string)
+        ? (a.outputPath as string)
+        : path.join(DATA_DIR, a.outputPath as string);
+
+      const zip = new AdmZip();
+      const manifest = {
+        publisher: a.publisherPrefix,
+        version: a.version,
+        processFlowIds: ids,
+        createdAt: new Date().toISOString(),
+      };
+      zip.addFile("manifest.json", Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
+
+      const missing: string[] = [];
+      for (const id of ids) {
+        const doc = await readProcessFlow(id);
+        if (!doc) { missing.push(id); continue; }
+        zip.addFile(`process-flows/${id}.json`, Buffer.from(JSON.stringify(doc, null, 2), "utf8"));
+      }
+      zip.writeZip(outPath);
+
+      const msg = missing.length > 0
+        ? `${outPath} に ${ids.length - missing.length} 件をパック。見つからない ID: ${missing.join(", ")}`
+        : `${outPath} に ${ids.length} 件をパックしました。`;
+      return { content: [{ type: "text", text: msg }] };
+    }
+
+    case "designer__solution_unpack": {
+      if (typeof a.inputPath !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "inputPath は必須です");
+      }
+      const inPath = path.isAbsolute(a.inputPath as string)
+        ? (a.inputPath as string)
+        : path.join(DATA_DIR, a.inputPath as string);
+      const conflict = (a.conflictResolution as string | undefined) ?? "skip";
+
+      const zip = new AdmZip(inPath);
+      const entries = zip.getEntries().filter(e => e.entryName.startsWith("process-flows/") && e.entryName.endsWith(".json") && !e.isDirectory);
+
+      const actionsDir = path.join(DATA_DIR, "actions");
+      const results: string[] = [];
+
+      for (const entry of entries) {
+        const raw = entry.getData().toString("utf8");
+        let doc: Record<string, unknown>;
+        try { doc = JSON.parse(raw); } catch { results.push(`SKIP (parse error): ${entry.entryName}`); continue; }
+
+        const id = doc.id as string | undefined;
+        if (!id) { results.push(`SKIP (no id): ${entry.entryName}`); continue; }
+
+        const destPath = path.join(actionsDir, `${id}.json`);
+        const { existsSync } = await import("node:fs");
+        const exists = existsSync(destPath);
+
+        if (exists && conflict === "skip") {
+          results.push(`SKIP (exists): ${id}`);
+          continue;
+        }
+
+        let writeId = id;
+        if (exists && conflict === "rename") {
+          const prefix = (a.publisherPrefix as string | undefined) ?? "imported";
+          writeId = `${prefix}_${id}`;
+          doc = { ...doc, id: writeId };
+        }
+
+        await writeProcessFlow(writeId, doc);
+        results.push(`OK: ${writeId}`);
+      }
+
+      return { content: [{ type: "text", text: `展開完了 (${results.length} 件):\n${results.join("\n")}` }] };
+    }
+
     default:
       return null;
   }
 };
+
+// ---- Arazzo export helpers ----
+
+interface ArazzoStep {
+  stepId: string;
+  operationId?: string;
+  operationPath?: string;
+  successCriteria?: unknown[];
+}
+
+interface ArazzoDoc {
+  arazzo: string;
+  info: { title: string; version: string };
+  sourceDescriptions: Array<{ name: string; url: string; type: string }>;
+  workflows: Array<{ workflowId: string; steps: ArazzoStep[] }>;
+}
+
+function collectExternalSteps(steps: unknown[]): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [];
+  for (const step of steps) {
+    const s = step as Record<string, unknown>;
+    if (s.type === "externalSystem") result.push(s);
+    if (Array.isArray(s.steps)) result.push(...collectExternalSteps(s.steps as unknown[]));
+    if (Array.isArray(s.branches)) {
+      for (const b of s.branches as Array<{ steps?: unknown[] }>) {
+        if (Array.isArray(b.steps)) result.push(...collectExternalSteps(b.steps));
+      }
+    }
+    if (s.elseBranch && Array.isArray((s.elseBranch as { steps?: unknown[] }).steps)) {
+      result.push(...collectExternalSteps((s.elseBranch as { steps: unknown[] }).steps));
+    }
+    if (Array.isArray(s.subSteps)) result.push(...collectExternalSteps(s.subSteps as unknown[]));
+  }
+  return result;
+}
+
+function buildArazzoDoc(flow: Record<string, unknown>): ArazzoDoc {
+  const flowId = flow.id as string;
+  const flowName = flow.name as string ?? flowId;
+  const catalog = (flow.externalSystemCatalog ?? {}) as Record<string, Record<string, unknown>>;
+
+  const allSteps: Array<Record<string, unknown>> = [];
+  for (const action of (flow.actions ?? []) as Array<{ steps?: unknown[] }>) {
+    if (Array.isArray(action.steps)) allSteps.push(...collectExternalSteps(action.steps));
+  }
+
+  const seenSystems = new Map<string, string>();
+  for (const step of allSteps) {
+    const sysRef = step.systemRef as string | undefined;
+    const sysName = step.systemName as string | undefined;
+    const key = sysRef ?? sysName ?? "unknown";
+    if (!seenSystems.has(key)) {
+      const entry = sysRef ? catalog[sysRef] : undefined;
+      const url = (entry?.openApiSpec as string | undefined) ?? "#unknown";
+      seenSystems.set(key, url);
+    }
+  }
+
+  const sourceDescriptions = Array.from(seenSystems.entries()).map(([name, url]) => ({
+    name,
+    url,
+    type: "openapi",
+  }));
+
+  const arazzoSteps: ArazzoStep[] = allSteps.map(step => {
+    const s: ArazzoStep = { stepId: step.id as string };
+    if (step.operationId) s.operationId = step.operationId as string;
+    else if (step.operationRef) s.operationPath = step.operationRef as string;
+    else if (step.httpCall) {
+      const hc = step.httpCall as { method?: string; path?: string };
+      s.operationPath = `${hc.method ?? "POST"} ${hc.path ?? "/"}`;
+    }
+    if (Array.isArray(step.successCriteria) && step.successCriteria.length > 0) {
+      s.successCriteria = step.successCriteria;
+    }
+    return s;
+  });
+
+  return {
+    arazzo: "1.0.1",
+    info: { title: flowName, version: "1.0" },
+    sourceDescriptions,
+    workflows: [{ workflowId: flowId, steps: arazzoSteps }],
+  };
+}
+
+function toYaml(obj: unknown, indent = 0): string {
+  const pad = "  ".repeat(indent);
+  if (obj === null || obj === undefined) return "null";
+  if (typeof obj === "boolean") return obj ? "true" : "false";
+  if (typeof obj === "number") return String(obj);
+  if (typeof obj === "string") {
+    if (/[\n:#{}\[\],&*?|<>=!%@`]/.test(obj) || obj.trim() !== obj) {
+      return `"${obj.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return "[]";
+    return obj.map(item => `\n${pad}- ${toYaml(item, indent + 1).trimStart()}`).join("");
+  }
+  const entries = Object.entries(obj as Record<string, unknown>).filter(([, v]) => v !== undefined);
+  if (entries.length === 0) return "{}";
+  return entries
+    .map(([k, v]) => {
+      const valStr = toYaml(v, indent + 1);
+      if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+        return `\n${pad}${k}:${valStr}`;
+      }
+      if (Array.isArray(v)) {
+        return `\n${pad}${k}:${valStr}`;
+      }
+      return `\n${pad}${k}: ${valStr}`;
+    })
+    .join("");
+}
