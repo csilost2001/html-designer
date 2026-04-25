@@ -49,6 +49,10 @@
       "type": "array",
       "items": { "$ref": "#/$defs/Marker" }
     },
+    "testScenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TestScenario" }
+    },
     "actions": {
       "type": "array",
       "items": { "$ref": "#/$defs/ActionDefinition" }
@@ -71,6 +75,163 @@
       "type": "string",
       "enum": ["draft", "provisional", "committed"],
       "description": "成熟度 3 値。未指定は draft 相当"
+    },
+    "TestScenario": {
+      "type": "object",
+      "required": ["id", "name", "given", "when", "then"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestPrecondition" }
+        },
+        "when": { "$ref": "#/$defs/TestInvocation" },
+        "then": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestAssertion" }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "TestPrecondition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "table", "rows"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "dbState" },
+            "table": { "type": "string" },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "context"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "sessionContext" },
+            "context": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "externalRef", "responseMock"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalStub" },
+            "externalRef": { "type": "string" },
+            "responseMock": true
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "now"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "clock" },
+            "now": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "TestInvocation": {
+      "type": "object",
+      "required": ["actionId", "input"],
+      "additionalProperties": false,
+      "properties": {
+        "actionId": { "type": "string" },
+        "input": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "TestAssertion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "expected"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "outcome" },
+            "expected": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "table", "match"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "dbRow" },
+            "table": { "type": "string" },
+            "match": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "count": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "output" },
+            "path": { "type": "string" },
+            "equals": true,
+            "matches": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "externalRef"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalCall" },
+            "externalRef": { "type": "string" },
+            "method": { "type": "string" },
+            "bodyMatch": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "action"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "auditLog" },
+            "action": { "type": "string" },
+            "result": { "type": "string", "enum": ["success", "failure"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "msgKey"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "errorMessage" },
+            "msgKey": { "type": "string" }
+          }
+        }
+      ]
     },
     "ActionTrigger": {
       "type": "string",

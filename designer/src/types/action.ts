@@ -1071,9 +1071,39 @@ export interface ProcessFlow {
    * - Marker: AI への指示・一時的なコミュニケーション (解決後は resolvedAt で非表示)
    */
   markers?: Marker[];
+  testScenarios?: TestScenario[];
   createdAt: string;
   updatedAt: string;
 }
+
+export interface TestScenario {
+  id: string;
+  name: string;
+  description?: string;
+  given: TestPrecondition[];
+  when: TestInvocation;
+  then: TestAssertion[];
+  tags?: string[];
+}
+
+export type TestPrecondition =
+  | { kind: "dbState"; table: string; rows: Record<string, unknown>[] }
+  | { kind: "sessionContext"; context: Record<string, unknown> }
+  | { kind: "externalStub"; externalRef: string; responseMock: unknown }
+  | { kind: "clock"; now: string };
+
+export interface TestInvocation {
+  actionId: string;
+  input: Record<string, unknown>;
+}
+
+export type TestAssertion =
+  | { kind: "outcome"; expected: string }
+  | { kind: "dbRow"; table: string; match: Record<string, unknown>; count?: number }
+  | { kind: "output"; path: string; equals?: unknown; matches?: string }
+  | { kind: "externalCall"; externalRef: string; method?: string; bodyMatch?: Record<string, unknown> }
+  | { kind: "auditLog"; action: string; result?: "success" | "failure" }
+  | { kind: "errorMessage"; msgKey: string };
 
 /** project.json用メタデータ */
 export interface ProcessFlowMeta {

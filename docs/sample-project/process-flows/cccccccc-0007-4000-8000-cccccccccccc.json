@@ -485,6 +485,184 @@
     }
   ],
 
+  "testScenarios": [
+    {
+      "id": "happy-path-regular-invoice",
+      "name": "通常請求書を発行できる",
+      "description": "存在する顧客と商品を指定し、請求書登録、PDF 生成、メール通知まで完了して 201 を返す。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": 9001,
+            "requestId": "req-test-0007-happy"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "customers",
+          "rows": [
+            {
+              "id": 101,
+              "name": "株式会社サンプル",
+              "email": "billing@example.com",
+              "is_deleted": false
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            { "id": 501, "name": "保守サポート", "unit_price": 100000, "is_deleted": false },
+            { "id": 502, "name": "初期設定", "unit_price": 50000, "is_deleted": false }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "pdfService",
+          "responseMock": {
+            "status": 200,
+            "body": { "pdfUrl": "s3://invoices/INV-2026-0001.pdf" }
+          }
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "sendgrid",
+          "responseMock": {
+            "status": 202,
+            "body": { "accepted": true }
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerId": 101,
+          "items": [
+            { "productId": 501, "quantity": 2 },
+            { "productId": 502, "quantity": 1 }
+          ],
+          "paymentTermDays": 30
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "201-created" },
+        { "kind": "output", "path": "$.invoiceNumber", "matches": "^INV-2026-\\d{4}$" }
+      ],
+      "tags": ["happy", "invoice", "external"]
+    },
+    {
+      "id": "validation-error-empty-items",
+      "name": "請求明細なしはバリデーションエラー",
+      "description": "items が空配列の場合、入力バリデーションで 400 を返し、必須エラーメッセージキーを検証する。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": 9001,
+            "requestId": "req-test-0007-validation"
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerId": 101,
+          "items": [],
+          "paymentTermDays": 30
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "400-validation" },
+        { "kind": "errorMessage", "msgKey": "@conv.msg.required" }
+      ],
+      "tags": ["error", "validation"]
+    },
+    {
+      "id": "db-state-invoice-row-created",
+      "name": "DB 状態に基づき請求書行が登録される",
+      "description": "顧客と商品が存在する状態から請求書を発行し、invoices と invoice_items の登録内容を検証する。",
+      "given": [
+        {
+          "kind": "clock",
+          "now": "2026-04-24T09:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": 9002,
+            "requestId": "req-test-0007-db"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "customers",
+          "rows": [
+            {
+              "id": 202,
+              "name": "テスト商事",
+              "email": "accounting@example.com",
+              "is_deleted": false
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            { "id": 601, "name": "月額利用料", "unit_price": 30000, "is_deleted": false }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "pdfService",
+          "responseMock": {
+            "status": 200,
+            "body": { "pdfUrl": "s3://invoices/INV-2026-0002.pdf" }
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerId": 202,
+          "items": [
+            { "productId": 601, "quantity": 3 }
+          ],
+          "paymentTermDays": 45
+        }
+      },
+      "then": [
+        {
+          "kind": "dbRow",
+          "table": "invoices",
+          "match": {
+            "customer_id": 202,
+            "subtotal": 90000,
+            "tax_amount": 9000,
+            "total_amount": 99000,
+            "payment_term_days": 45,
+            "issued_by": 9002
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "invoice_items",
+          "match": {
+            "product_id": 601,
+            "quantity": 3,
+            "unit_price": 30000,
+            "line_amount": 90000
+          },
+          "count": 1
+        }
+      ],
+      "tags": ["db", "edge"]
+    }
+  ],
+
   "createdAt": "2026-04-24T00:00:00.000Z",
   "updatedAt": "2026-04-24T00:00:00.000Z"
 }
