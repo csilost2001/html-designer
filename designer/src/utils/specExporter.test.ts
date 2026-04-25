@@ -1,8 +1,36 @@
 import { describe, it, expect } from "vitest";
-import { generateSpecJson } from "./specExporter";
+import { generateSpecJson, type SpecStep } from "./specExporter";
 import type { TableDefinition } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import type { ErLayout } from "../types/table";
+import type {
+  CdcStep,
+  ClosingStep,
+  DbAccessStep,
+  EventPublishStep,
+  EventSubscribeStep,
+  ProcessFlow,
+  Step,
+  ValidationStep,
+} from "../types/action";
+
+function makeFlow(steps: Step[]): ProcessFlow {
+  return {
+    id: "pf1",
+    name: "テストフロー",
+    type: "screen",
+    description: "テスト用",
+    maturity: "draft",
+    actions: [{ id: "a1", name: "アクション", trigger: "click", steps }],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function getStep(stepDef: Step): SpecStep {
+  const spec = generateSpecJson(emptyProject, [], emptyErLayout, [makeFlow([stepDef])]);
+  return spec.processFlows![0].actions[0].steps[0];
+}
 
 const emptyProject: FlowProject = {
   name: "テストプロジェクト",
@@ -125,5 +153,236 @@ describe("generateSpecJson — SpecTable", () => {
     expect(t.constraints).toHaveLength(1);
     expect(t.defaults).toHaveLength(1);
     expect(t.triggers).toHaveLength(1);
+  });
+});
+
+describe("toSpecStep — step detail", () => {
+  it("validation: conditions and optional inlineBranch", () => {
+    const withInlineBranch = getStep({
+      id: "v1",
+      type: "validation",
+      description: "入力検証",
+      conditions: "@amount > 0",
+      inlineBranch: { ok: "ok", ng: "ng", ngJumpTo: "input-error" },
+    } as ValidationStep);
+
+    expect(withInlineBranch.detail.conditions).toBe("@amount > 0");
+    expect(withInlineBranch.detail.inlineBranch).toEqual({
+      ok: "ok",
+      ng: "ng",
+      ngJumpTo: "input-error",
+    });
+
+    const withoutInlineBranch = getStep({
+      id: "v2",
+      type: "validation",
+      description: "入力検証",
+      conditions: "@name != ''",
+    } as ValidationStep);
+
+    expect(withoutInlineBranch.detail.conditions).toBe("@name != ''");
+    expect(withoutInlineBranch.detail).not.toHaveProperty("inlineBranch");
+  });
+
+  it("dbAccess: tableName and operation", () => {
+    const step = getStep({
+      id: "db1",
+      type: "dbAccess",
+      description: "注文登録",
+      tableName: "orders",
+      operation: "INSERT",
+    } as DbAccessStep);
+
+    expect(step.detail).toMatchObject({
+      tableName: "orders",
+      operation: "INSERT",
+    });
+  });
+
+  it("externalSystem: systemName", () => {
+    const step = getStep({
+      id: "ex1",
+      type: "externalSystem",
+      description: "外部決済",
+      systemName: "Stripe",
+    } as Step);
+
+    expect(step.detail.systemName).toBe("Stripe");
+  });
+
+  it("commonProcess: refName", () => {
+    const step = getStep({
+      id: "cp1",
+      type: "commonProcess",
+      description: "共通処理",
+      refId: "common-1",
+      refName: "在庫引当",
+    } as Step);
+
+    expect(step.detail.refName).toBe("在庫引当");
+    expect(step.detail.refId).toBe("common-1");
+  });
+
+  it("screenTransition: targetScreenName", () => {
+    const step = getStep({
+      id: "st1",
+      type: "screenTransition",
+      description: "完了画面へ遷移",
+      targetScreenName: "注文完了",
+    } as Step);
+
+    expect(step.detail.targetScreenName).toBe("注文完了");
+  });
+
+  it("displayUpdate: target", () => {
+    const step = getStep({
+      id: "du1",
+      type: "displayUpdate",
+      description: "表示更新",
+      target: "明細一覧",
+    } as Step);
+
+    expect(step.detail.target).toBe("明細一覧");
+  });
+
+  it("branch: conditions in branches", () => {
+    const step = getStep({
+      id: "br1",
+      type: "branch",
+      description: "条件分岐",
+      branches: [
+        {
+          id: "b1",
+          code: "A",
+          label: "承認済み",
+          condition: "@status == 'approved'",
+          steps: [],
+        },
+      ],
+    } as Step);
+
+    expect(step.detail.branches).toEqual([
+      expect.objectContaining({ condition: "@status == 'approved'" }),
+    ]);
+  });
+
+  it("loop: count expression and nested steps", () => {
+    const step = getStep({
+      id: "lp1",
+      type: "loop",
+      description: "3回繰り返し",
+      loopKind: "count",
+      countExpression: "3",
+      steps: [],
+    } as Step);
+
+    expect(step.detail.countExpression).toBe("3");
+    expect(step.detail.steps).toHaveLength(0);
+  });
+
+  it("jump: jumpTo label", () => {
+    const step = getStep({
+      id: "jp1",
+      type: "jump",
+      description: "終了へ移動",
+      jumpTo: "done",
+    } as Step);
+
+    expect(step.detail.jumpTo).toBe("done");
+  });
+
+  it("transactionScope: steps sub-array", () => {
+    const step = getStep({
+      id: "tx1",
+      type: "transactionScope",
+      description: "トランザクション",
+      steps: [
+        {
+          id: "db1",
+          type: "dbAccess",
+          description: "注文登録",
+          tableName: "orders",
+          operation: "INSERT",
+        } as DbAccessStep,
+      ],
+    } as Step);
+
+    expect(step.detail.steps).toHaveLength(1);
+    expect((step.detail.steps as Array<{ type: string }>)[0].type).toBe("dbAccess");
+  });
+
+  it("closing: period and rollbackOnFailure false", () => {
+    const step = getStep({
+      id: "cl1",
+      type: "closing",
+      description: "月次締め",
+      period: "monthly",
+      rollbackOnFailure: false,
+    } as ClosingStep);
+
+    expect(step.detail.period).toBe("monthly");
+    expect(step.detail.rollbackOnFailure).toBe(false);
+  });
+
+  it("cdc: tables, captureMode, and destination", () => {
+    const destination = { type: "eventStream", target: "orders-topic" } as const;
+    const step = getStep({
+      id: "cdc1",
+      type: "cdc",
+      description: "注文変更通知",
+      tables: ["orders", "order_items"],
+      captureMode: "incremental",
+      destination,
+    } as CdcStep);
+
+    expect(step.detail.tables).toEqual(["orders", "order_items"]);
+    expect(step.detail.captureMode).toBe("incremental");
+    expect(step.detail.destination).toEqual(destination);
+  });
+
+  it("eventPublish: topic and optional payload", () => {
+    const withPayload = getStep({
+      id: "ep1",
+      type: "eventPublish",
+      description: "イベント発行",
+      topic: "order.created",
+      payload: "{ orderId: @orderId }",
+    } as EventPublishStep);
+
+    expect(withPayload.detail.topic).toBe("order.created");
+    expect(withPayload.detail.payload).toBe("{ orderId: @orderId }");
+
+    const withoutPayload = getStep({
+      id: "ep2",
+      type: "eventPublish",
+      description: "イベント発行",
+      topic: "order.created",
+    } as EventPublishStep);
+
+    expect(withoutPayload.detail.topic).toBe("order.created");
+    expect(withoutPayload.detail).not.toHaveProperty("payload");
+  });
+
+  it("eventSubscribe: topic and optional filter", () => {
+    const withFilter = getStep({
+      id: "es1",
+      type: "eventSubscribe",
+      description: "イベント購読",
+      topic: "order.created",
+      filter: "@event.region == 'jp'",
+    } as EventSubscribeStep);
+
+    expect(withFilter.detail.topic).toBe("order.created");
+    expect(withFilter.detail.filter).toBe("@event.region == 'jp'");
+
+    const withoutFilter = getStep({
+      id: "es2",
+      type: "eventSubscribe",
+      description: "イベント購読",
+      topic: "order.created",
+    } as EventSubscribeStep);
+
+    expect(withoutFilter.detail.topic).toBe("order.created");
+    expect(withoutFilter.detail).not.toHaveProperty("filter");
   });
 });
