@@ -6,6 +6,7 @@
  */
 import fs from "fs/promises";
 import path from "path";
+import Ajv from "ajv";
 
 // DATA_DIR: 環境変数で上書き可能
 // デフォルト: designer-mcp/src/ から 2 段上がって data/
@@ -35,6 +36,34 @@ const EXTENSION_FILE_NAMES = {
 } as const;
 
 export type ExtensionFileKind = keyof typeof EXTENSION_FILE_NAMES;
+
+/** スキーマルートディレクトリ: designer-mcp/src/ から 2 段上がって schemas/ */
+const SCHEMAS_DIR = path.resolve(import.meta.dirname, "../../schemas");
+
+/** ExtensionFileKind → extensions-*.schema.json ファイル名スラグの変換 */
+function kindToSchemaSlug(kind: ExtensionFileKind): string {
+  switch (kind) {
+    case "steps": return "steps";
+    case "fieldTypes": return "field-types";
+    case "triggers": return "triggers";
+    case "dbOperations": return "db-operations";
+    case "responseTypes": return "response-types";
+  }
+}
+
+/** extensions/*.json の JSON Schema 検証 (#455) */
+async function validateExtensionFile(kind: ExtensionFileKind, data: unknown): Promise<void> {
+  const schemaPath = path.join(SCHEMAS_DIR, `extensions-${kindToSchemaSlug(kind)}.schema.json`);
+  const schemaText = await fs.readFile(schemaPath, "utf-8");
+  const schema = JSON.parse(schemaText) as object;
+  const ajv = new Ajv({ allErrors: true });
+  const validate = ajv.compile(schema);
+  if (!validate(data)) {
+    throw new Error(
+      `extensions/${kind}.json schema 違反: ${ajv.errorsText(validate.errors)}`
+    );
+  }
+}
 
 /** data/ ディレクトリ群を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
@@ -113,10 +142,18 @@ export async function readExtensionsBundle(): Promise<Record<ExtensionFileKind, 
   return Object.fromEntries(entries) as Record<ExtensionFileKind, unknown | null>;
 }
 
-/** data/extensions/{type}.json を単体書き込み (#447 で利用予定) */
-export async function writeExtensionsFile(type: ExtensionFileKind, content: unknown): Promise<void> {
+/** data/extensions/{type}.json を単体書き込み (validation 付き、broadcast コールバック対応) (#455) */
+export async function writeExtensionsFile(
+  type: ExtensionFileKind,
+  content: unknown,
+  options?: { onAfterWrite?: () => void; skipValidation?: boolean },
+): Promise<void> {
   await ensureDataDir();
+  if (!options?.skipValidation) {
+    await validateExtensionFile(type, content);
+  }
   await writeJSON(path.join(EXTENSIONS_DIR, EXTENSION_FILE_NAMES[type]), content);
+  options?.onAfterWrite?.();
 }
 
 /** screens/{screenId}.json を読み込み */
