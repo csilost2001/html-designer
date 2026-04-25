@@ -26,7 +26,7 @@ export function CustomStepPanel({ customStepType, value, onChange }: CustomStepP
     try {
       const bundle = await mcpBridge.getExtensions(forceReload);
       const result = loadExtensionsFromBundle(bundle);
-      const schema = result.extensions.steps[customStepType]?.schema as DynamicFormSchema | undefined;
+      const schema = result.extensions.steps[customStepType]?.schema;
 
       if (!schema) {
         setState({

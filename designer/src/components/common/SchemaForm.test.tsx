@@ -72,6 +72,22 @@ describe("SchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ mode: "MANUAL" });
   });
 
+  it("enum placeholder is disabled and selecting a value does not emit undefined", () => {
+    const onChange = renderForm({
+      type: "object",
+      properties: { mode: { enum: ["AUTO", "MANUAL"] } },
+    });
+    const select = screen.getByLabelText("mode");
+    const placeholder = within(select).getByRole("option", { name: "選択してください" }) as HTMLOptionElement;
+
+    expect(placeholder.disabled).toBe(true);
+    expect(placeholder.value).toBe("");
+
+    fireEvent.change(select, { target: { value: "AUTO" } });
+    expect(onChange).toHaveBeenLastCalledWith({ mode: "AUTO" });
+    expect(onChange).not.toHaveBeenCalledWith({ mode: undefined });
+  });
+
   it("object properties render recursively and update parent values", () => {
     const onChange = renderForm(
       {
@@ -89,6 +105,37 @@ describe("SchemaForm", () => {
     fireEvent.change(screen.getByLabelText("path"), { target: { value: "new" } });
 
     expect(onChange).toHaveBeenLastCalledWith({ config: { path: "new" } });
+  });
+
+  it("nested objects with same-named properties do not reuse DOM ids", () => {
+    const { container } = render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            source: {
+              type: "object",
+              properties: { name: { type: "string" } },
+            },
+            target: {
+              type: "object",
+              properties: { name: { type: "string" } },
+            },
+          },
+        }}
+        value={{ source: { name: "from" }, target: { name: "to" } }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const labels = Array.from(container.querySelectorAll("label")).filter((label) => label.textContent === "name");
+    const fieldIds = labels.map((label) => label.htmlFor);
+
+    expect(labels).toHaveLength(2);
+    expect(new Set(fieldIds).size).toBe(2);
+    fieldIds.forEach((fieldId) => {
+      expect(container.ownerDocument.getElementById(fieldId)).toBeInstanceOf(HTMLInputElement);
+    });
   });
 
   it("array items render recursively and can be added and removed", () => {

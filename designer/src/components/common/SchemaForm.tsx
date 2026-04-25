@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react";
+import * as React from "react";
+import { useEffect } from "react";
 
 type SchemaPrimitive = string | number | boolean | null;
 
@@ -28,13 +29,15 @@ export function SchemaForm({
   required = false,
   fieldName,
 }: SchemaFormProps) {
+  const reactId = React.useId();
+
   useEffect(() => {
     if (value === undefined && Object.prototype.hasOwnProperty.call(schema, "default")) {
       onChange(schema.default);
     }
   }, [onChange, schema, value]);
 
-  const fieldId = useMemo(() => `schema-form-${fieldName ?? "root"}-${stableId(fieldName ?? "root")}`, [fieldName]);
+  const fieldId = `${reactId}-${fieldName ?? "root"}`;
   const invalid = required && isEmptyValue(value);
 
   if (schema.enum) {
@@ -44,9 +47,15 @@ export function SchemaForm({
           id={fieldId}
           className={`form-select form-select-sm${invalid ? " is-invalid" : ""}`}
           value={valueToInputValue(value)}
-          onChange={(e) => onChange(schema.enum?.find((item) => valueToInputValue(item) === e.target.value))}
+          defaultValue=""
+          onChange={(e) => {
+            const next = schema.enum?.find((item) => valueToInputValue(item) === e.target.value);
+            if (next !== undefined) onChange(next);
+          }}
         >
-          <option value="">選択してください</option>
+          <option value="" disabled>
+            選択してください
+          </option>
           {schema.enum.map((item) => (
             <option key={valueToInputValue(item)} value={valueToInputValue(item)}>
               {String(item)}
@@ -234,12 +243,4 @@ function isEmptyValue(value: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stableId(value: string): string {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return hash.toString(36);
 }
