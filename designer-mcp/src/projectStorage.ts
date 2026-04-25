@@ -97,7 +97,6 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
     case "sequence": return id ? path.join(SEQUENCES_DIR, `${id}.json`) : null;
     case "view": return VIEWS_FILE;
-    case "extensions": return EXTENSIONS_DIR;
     default: return null;
   }
 }

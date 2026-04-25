@@ -390,6 +390,7 @@ function validateStepDef(key: string, raw: unknown, errors: ExtensionLoadIssue[]
 function findUnsupportedDynamicSchemaKey(schema: Record<string, unknown>): string | null {
   for (const key of Object.keys(schema)) {
     if (!DYNAMIC_FORM_ALLOWED_KEYS.has(key)) return key;
+    if (key === "additionalProperties" && typeof schema[key] !== "boolean") return key;
   }
   if (schema.properties !== undefined) {
     const props = getRecord(schema.properties);
@@ -488,6 +489,8 @@ function collectOverrideWarnings(
   }
 
   const baseResponseTypes = getRecord((schema as { responseTypes?: unknown }).responseTypes);
+  // baseSchema.responseTypes はグローバルスキーマに未追加 (#445 で導入予定)。
+  // それまでは responseTypes 上書き warning は発火しない (intentional)。
   if (!baseResponseTypes) return;
   for (const key of Object.keys(extensions.responseTypes)) {
     if (key in baseResponseTypes) {
