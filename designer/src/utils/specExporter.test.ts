@@ -7,12 +7,14 @@ import type {
   AuditStep,
   CdcStep,
   ClosingStep,
+  ComputeStep,
   DbAccessStep,
   EventPublishStep,
   EventSubscribeStep,
   LogStep,
   LoopBreakStep,
   LoopContinueStep,
+  OtherStep,
   ProcessFlow,
   ReturnStep,
   Step,
@@ -454,6 +456,27 @@ describe("toSpecStep — step detail", () => {
       approvers: [{ role: "manager" }],
     } as WorkflowStep);
     expect(step.type).toBe("workflow");
+    expect(step.detail).toEqual({});
+  });
+
+  it("compute: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "comp1",
+      type: "compute",
+      description: "税額計算",
+      expression: "@subtotal * 0.10",
+    } as ComputeStep);
+    expect(step.type).toBe("compute");
+    expect(step.detail).toEqual({});
+  });
+
+  it("other: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "oth1",
+      type: "other",
+      description: "その他処理",
+    } as OtherStep);
+    expect(step.type).toBe("other");
     expect(step.detail).toEqual({});
   });
 });
