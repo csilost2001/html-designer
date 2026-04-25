@@ -4,14 +4,20 @@ import type { TableDefinition } from "../types/table";
 import type { FlowProject } from "../types/flow";
 import type { ErLayout } from "../types/table";
 import type {
+  AuditStep,
   CdcStep,
   ClosingStep,
   DbAccessStep,
   EventPublishStep,
   EventSubscribeStep,
+  LogStep,
+  LoopBreakStep,
+  LoopContinueStep,
   ProcessFlow,
+  ReturnStep,
   Step,
   ValidationStep,
+  WorkflowStep,
 } from "../types/action";
 
 function makeFlow(steps: Step[]): ProcessFlow {
@@ -384,5 +390,70 @@ describe("toSpecStep — step detail", () => {
 
     expect(withoutFilter.detail.topic).toBe("order.created");
     expect(withoutFilter.detail).not.toHaveProperty("filter");
+  });
+
+  it("loopBreak: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "lb1",
+      type: "loopBreak",
+      description: "ループ脱出",
+    } as LoopBreakStep);
+    expect(step.type).toBe("loopBreak");
+    expect(step.detail).toEqual({});
+  });
+
+  it("loopContinue: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "lc1",
+      type: "loopContinue",
+      description: "ループ継続",
+    } as LoopContinueStep);
+    expect(step.type).toBe("loopContinue");
+    expect(step.detail).toEqual({});
+  });
+
+  it("return: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "r1",
+      type: "return",
+      description: "レスポンス返却",
+    } as ReturnStep);
+    expect(step.type).toBe("return");
+    expect(step.detail).toEqual({});
+  });
+
+  it("log: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "l1",
+      type: "log",
+      description: "ログ記録",
+      level: "info",
+      message: "処理完了",
+    } as LogStep);
+    expect(step.type).toBe("log");
+    expect(step.detail).toEqual({});
+  });
+
+  it("audit: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "au1",
+      type: "audit",
+      description: "監査ログ",
+      action: "order.create",
+    } as AuditStep);
+    expect(step.type).toBe("audit");
+    expect(step.detail).toEqual({});
+  });
+
+  it("workflow: detail は空オブジェクト", () => {
+    const step = getStep({
+      id: "wf1",
+      type: "workflow",
+      description: "承認フロー",
+      pattern: "approval-sequential",
+      approvers: [{ role: "manager" }],
+    } as WorkflowStep);
+    expect(step.type).toBe("workflow");
+    expect(step.detail).toEqual({});
   });
 });
