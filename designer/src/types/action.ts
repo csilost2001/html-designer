@@ -1137,6 +1137,7 @@ export type FieldType =
   | { kind: "tableRow"; tableId: string }
   | { kind: "tableList"; tableId: string }
   | { kind: "screenInput"; screenId: string }
+  | { kind: "file"; format?: string }
   | { kind: "custom"; label: string };
 
 export interface StructuredField {
