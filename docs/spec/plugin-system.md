@@ -129,17 +129,18 @@ data/extensions/
   "namespace": "gm50",
   "fieldTypes": [
     {
-      "kind": "file",
-      "label": "ファイル",
-      "formatOptions": ["csv", "tsv", "zip", "pdf"]
-    },
-    {
       "kind": "view",
       "label": "ビュー"
+    },
+    {
+      "kind": "tbl",
+      "label": "テーブル参照 (旧TBL形式)"
     }
   ]
 }
 ```
+
+> **注意**: `{kind: "file"}` はグローバルスキーマ (#443) で追加済みのため、プラグインで定義する必要はない。
 
 - `kind`: FieldType の `kind` 値として登録される
 - `formatOptions`: 省略可。`format` サブフィールドの選択肢として UI に表示
@@ -151,16 +152,18 @@ data/extensions/
   "namespace": "gm50",
   "triggers": [
     {
-      "value": "auto",
-      "label": "自動起動"
-    },
-    {
       "value": "webhook",
       "label": "Webhook"
+    },
+    {
+      "value": "mq",
+      "label": "メッセージキュー"
     }
   ]
 }
 ```
+
+> **注意**: `"auto"` はグローバルスキーマ (#443) で追加済みのため、プラグインで定義する必要はない。
 
 ### db-operations.json — DbOperation 拡張
 

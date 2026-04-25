@@ -2236,6 +2236,22 @@ describe("process-flow.schema.json — グローバルスキーマ先行追加 (
     expect(ok).toBe(true);
   });
 
+  it("ValidationInlineBranch ok as Step[] accept", () => {
+    const ok = validate(makeFlow({
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [{
+        id: "s1", type: "validation", description: "",
+        conditions: "",
+        inlineBranch: {
+          ok: [{ id: "s-ok", type: "return", description: "OK return" }],
+          ng: "エラー表示",
+        },
+      }],
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
   it("ValidationInlineBranch ok/ng as string (後方互換) accept", () => {
     const ok = validate(makeFlow({
       id: "act-1", name: "test", trigger: "submit",
