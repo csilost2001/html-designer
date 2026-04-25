@@ -189,13 +189,13 @@ export function ensureFormFieldIdentity(cmp: Component): boolean {
 1. **Issue 起票** (3 本 or 1 本にまとめても可): サンプル整備 / マイグレーション / 配置時自動入力
 2. **ブランチ作成** `git checkout -b feat/screen-item-sample-and-autofill`
 3. **Part 3 から着手** (ファイルが小さく影響範囲が限定的) → Vitest 追加 → pass
-4. **Part 1** seed.mjs 改修 → `node docs/sample-project/seed.mjs` 実行 → `data/screens/*.json` と `data/screen-items/*.json` を目視確認
+4. **Part 1** seed.mjs 改修 → `node docs/sample-project/seed.mjs` 実行 → `data/screens/*.json` と `data/screen-items/*.json` を AI が確認
 5. **Part 2** マイグレーションスクリプト作成 → dry-run 確認 → `--apply` 試走
 6. **Part 4** ドキュメント更新
 7. **Part 5** Playwright 追加 → `cd designer && npx playwright test screen-items data-item-id-auto` pass
 8. **vite build + lint** pass 確認
 9. **PR 作成** `.github/pull_request_template.md` 全項目埋め、仕様逐条突合を `file:line` で列挙
-10. **ユーザー目視確認待ち** (UI 影響あり、auto pass != merge 可、[feedback_ui_pr_gating.md](C:\Users\csilo\.claude\projects\c--projects-html-designer\memory\feedback_ui_pr_gating.md) 準拠)
+10. **AI による独立レビュー → Must-fix 解決 → AI がマージ実行** (UI 影響あり時は AI 自身で chrome-devtools MCP / Playwright smoke test 実施。PR 単位ユーザー確認は不要、`feedback_ai_verifies_during_batch_work.md` 準拠)
 
 ## Acceptance Criteria
 

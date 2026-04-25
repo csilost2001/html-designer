@@ -156,7 +156,7 @@ Step 2 と同じ: 新ウィンドウ → `/clear` → `/review-pr <N>`
 
 - 大規模実装 (複数ファイル / 複数機能)
 - spec 絡み (`docs/spec/` を参照する修正)
-- **UI 影響あり** — 特にここは目視確認と併用で二重チェック
+- **UI 影響あり** — AI が chrome-devtools MCP / Playwright で smoke test し、独立レビューも実施
 
 ---
 
@@ -176,7 +176,7 @@ Step 2 と同じ: 新ウィンドウ → `/clear` → `/review-pr <N>`
 - **同一セッションで `/review-pr` を起動しない**。筆者バイアスが残る。必ず新ウィンドウ + `/clear`
 - **PR テンプレの空項目を削除しない**。「N/A」と明記する (レビュアーが「書き忘れ」と「該当なし」を区別できるように)
 - **自己申告の `file:line` を信じ切らない**。レビュアーは実コードに当てて都度検証する
-- **UI 影響あり PR は auto テスト pass ≠ マージ可**。あなたの目視確認は必須
+- **UI 影響あり PR は AI が chrome-devtools MCP / Playwright で smoke test を実施**。auto テスト pass + smoke test pass + 独立レビュー pass で AI がマージ実行 (PR 単位/機能単位のユーザー目視確認は不要、最終リリース時のみ)
 - **レビュー結果の Nit を全部直させない**。scope が膨張して元の issue 解決から逸れる
 
 ---

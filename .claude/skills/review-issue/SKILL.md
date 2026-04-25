@@ -116,7 +116,7 @@ ISSUE が `docs/spec/` の追加・変更を伴う場合:
 
 - ISSUE の完了条件にテストが含まれていれば、該当テストが存在するか確認
 - 可能なら `cd designer && npx vitest run` を実行して pass 確認
-- UI 影響のある ISSUE は「人間目視確認が必要」と明記する (E2E 通過 ≠ 完了)
+- UI 影響のある ISSUE は AI が chrome-devtools MCP / Playwright で smoke test 実施済みかを確認 (E2E 通過 + smoke test pass = 完了)
 
 ## 制約 (必守)
 
@@ -198,7 +198,7 @@ ISSUE が `docs/spec/` の追加・変更を伴う場合:
 - 紐づく PR 一覧: <列挙>
 - 主要ファイル読み込み: <リスト>
 - `cd designer && npx vitest run` → <pass 数> 件 pass / 未実行
-- UI 目視確認: 要 / 不要
+- AI smoke test (UI 影響あり時): 実施済 / 不要
 
 ---
 
