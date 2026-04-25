@@ -21,6 +21,11 @@ function collectAllIds(steps: Step[], ids: Set<string>): void {
       if (step.elseBranch) collectAllIds(step.elseBranch.steps, ids);
     }
     if (step.type === "loop") collectAllIds(step.steps, ids);
+    if (step.type === "transactionScope") {
+      collectAllIds(step.steps, ids);
+      if (step.onCommit) collectAllIds(step.onCommit, ids);
+      if (step.onRollback) collectAllIds(step.onRollback, ids);
+    }
   }
 }
 
@@ -59,6 +64,14 @@ function validateSteps(
           errors.push({ stepId: step.id, severity: "warning", message: "コレクションが未入力です" });
         }
         validateSteps(step.steps, loopDepth + 1, errors, allIds);
+        break;
+      case "transactionScope":
+        if (step.steps.length === 0) {
+          errors.push({ stepId: step.id, severity: "warning", message: "TX スコープに 1 つ以上のステップを配置してください" });
+        }
+        validateSteps(step.steps, loopDepth, errors, allIds);
+        if (step.onCommit) validateSteps(step.onCommit, loopDepth, errors, allIds);
+        if (step.onRollback) validateSteps(step.onRollback, loopDepth, errors, allIds);
         break;
       case "jump":
         if (!step.jumpTo) {

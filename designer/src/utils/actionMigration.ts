@@ -141,6 +141,16 @@ function migrateStepInPlace(raw: unknown): Step {
     }
   } else if (step.type === "loop" && Array.isArray(step.steps)) {
     step.steps = (step.steps as unknown[]).map(migrateStepInPlace);
+  } else if (step.type === "transactionScope") {
+    if (Array.isArray(step.steps)) {
+      step.steps = (step.steps as unknown[]).map(migrateStepInPlace);
+    }
+    if (Array.isArray(step.onCommit)) {
+      step.onCommit = (step.onCommit as unknown[]).map(migrateStepInPlace);
+    }
+    if (Array.isArray(step.onRollback)) {
+      step.onRollback = (step.onRollback as unknown[]).map(migrateStepInPlace);
+    }
   }
 
   // #172: outcome.sideEffects 内のステップも再帰的にマイグレーション

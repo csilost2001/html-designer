@@ -313,6 +313,15 @@ function toSpecStep(s: Step, index: number): SpecStep {
     case "jump":
       detail.jumpTo = s.jumpTo;
       break;
+    case "transactionScope":
+      if (s.isolationLevel) detail.isolationLevel = s.isolationLevel;
+      if (s.propagation) detail.propagation = s.propagation;
+      if (s.timeoutMs !== undefined) detail.timeoutMs = s.timeoutMs;
+      if (s.rollbackOn && s.rollbackOn.length > 0) detail.rollbackOn = s.rollbackOn;
+      detail.steps = s.steps;
+      if (s.onCommit) detail.onCommit = s.onCommit;
+      if (s.onRollback) detail.onRollback = s.onRollback;
+      break;
   }
   return {
     number: getStepLabel(index),

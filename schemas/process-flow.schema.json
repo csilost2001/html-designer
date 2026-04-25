@@ -286,6 +286,7 @@
         "log",
         "audit",
         "workflow",
+        "transactionScope",
         "other"
       ]
     },
@@ -850,6 +851,7 @@
         { "$ref": "#/$defs/LogStep" },
         { "$ref": "#/$defs/AuditStep" },
         { "$ref": "#/$defs/WorkflowStep" },
+        { "$ref": "#/$defs/TransactionScopeStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     },
@@ -1464,6 +1466,56 @@
       ]
     },
 
+    "TransactionIsolationLevel": {
+      "type": "string",
+      "enum": ["READ_COMMITTED", "REPEATABLE_READ", "SERIALIZABLE"]
+    },
+    "TransactionPropagation": {
+      "type": "string",
+      "enum": ["REQUIRED", "REQUIRES_NEW", "NESTED"]
+    },
+    "TransactionScopeStep": {
+      "description": "複数 DB 操作を 1 TX でまとめる meta-step (#415)。Power Platform Changeset / EF Core TransactionScope 由来。steps[] が atomic 単位で実行される",
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "type", "description", "steps"],
+          "additionalProperties": false,
+          "properties": {
+            "id": true, "description": true, "note": true, "notes": true,
+            "maturity": true, "runIf": true, "outputBinding": true,
+            "txBoundary": true, "transactional": true, "compensatesFor": true,
+            "externalChain": true, "subSteps": true, "requiredPermissions": true,
+            "type": { "const": "transactionScope" },
+            "isolationLevel": { "$ref": "#/$defs/TransactionIsolationLevel" },
+            "propagation": { "$ref": "#/$defs/TransactionPropagation" },
+            "timeoutMs": { "type": "number", "minimum": 0 },
+            "rollbackOn": {
+              "description": "rollback を引き起こす errorCode の配列。ProcessFlow.errorCatalog のキー参照",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "steps": {
+              "description": "TX 内で実行する step 列。1 TX に含めたい DB / 外部呼出を順序通りに並べる",
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            },
+            "onCommit": {
+              "description": "TX commit 成功後に実行する step 列 (任意)。例: 通知送信、キャッシュ無効化",
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            },
+            "onRollback": {
+              "description": "TX rollback 後に実行する step 列 (任意・補償処理)。例: Stripe authorize の cancel、Slack 通知",
+              "type": "array",
+              "items": { "$ref": "#/$defs/Step" }
+            }
+          }
+        }
+      ]
+    },
+
     "Step": {
       "description": "discriminator: type プロパティの値で variant を決定",
       "oneOf": [
@@ -1483,6 +1535,7 @@
         { "$ref": "#/$defs/LogStep" },
         { "$ref": "#/$defs/AuditStep" },
         { "$ref": "#/$defs/WorkflowStep" },
+        { "$ref": "#/$defs/TransactionScopeStep" },
         { "$ref": "#/$defs/OtherStep" }
       ]
     }

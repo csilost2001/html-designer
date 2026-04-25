@@ -16,7 +16,8 @@ export type StepType =
   | "compute"          // 計算式 / 変数代入 (#174)
   | "return"           // HTTP レスポンス返却 (#178)
   | "log" | "audit"    // アプリケーションログ / 監査ログ
-  | "workflow"         // 承認ワークフロー
+  | "workflow"         // 承認ワークフロー (#411)
+  | "transactionScope" // 複数 DB 操作を 1 TX でまとめる meta-step (#415)
   | "other";           // その他
 
 /** ステップ種別ラベル */
@@ -37,6 +38,7 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   log: "ログ出力",
   audit: "監査ログ",
   workflow: "承認ワークフロー",
+  transactionScope: "TX スコープ",
   other: "その他",
 };
 
@@ -58,6 +60,7 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
   log: "bi-journal-text",
   audit: "bi-shield-check",
   workflow: "bi-people-fill",
+  transactionScope: "bi-shield-fill",
   other: "bi-three-dots",
 };
 
@@ -79,6 +82,7 @@ export const STEP_TYPE_COLORS: Record<StepType, string> = {
   log: "#64748b",
   audit: "#a855f7",
   workflow: "#0d9488",
+  transactionScope: "#dc2626",
   other: "#9ca3af",
 };
 
@@ -806,6 +810,7 @@ export const WORKFLOW_PATTERN_VALUES: readonly WorkflowPattern[] = [
   "discussion",
   "ad-hoc",
 ] as const;
+
 export interface WorkflowApprover {
   /** RBAC catalog role key */
   role: string;
@@ -837,6 +842,50 @@ export interface WorkflowStep extends StepBase {
   escalateTo?: WorkflowEscalateTo;
 }
 
+/** TX 分離レベル (#415) */
+export type TransactionIsolationLevel =
+  | "READ_COMMITTED"
+  | "REPEATABLE_READ"
+  | "SERIALIZABLE";
+
+/** TX 伝播モード (#415、Spring / EF Core 由来) */
+export type TransactionPropagation =
+  | "REQUIRED"     // 既存 TX に参加、無ければ新規開始 (既定)
+  | "REQUIRES_NEW" // 既存 TX を一時停止して新規 TX を開始
+  | "NESTED";      // 既存 TX 内に savepoint を作る
+
+/**
+ * 複数 DB 操作を 1 TX でまとめる meta-step (#415)。
+ * Power Platform Changeset / EF Core TransactionScope 由来。
+ *
+ * 既存 `StepBase.txBoundary` (begin/member/end) は単独ステップが TX 境界に属することを宣言する平坦
+ * モデルだが、本 step は「TX 範囲を構造的にネストして表現」する。複数 DbAccess を確実に同一 TX に
+ * くくるには TransactionScopeStep を用いる方が誤りが少ない。
+ *
+ * @see docs/spec/process-flow-transaction.md
+ */
+export interface TransactionScopeStep extends StepBase {
+  type: "transactionScope";
+  /** TX 分離レベル。既定 "READ_COMMITTED" */
+  isolationLevel?: TransactionIsolationLevel;
+  /** TX 伝播モード。既定 "REQUIRED" */
+  propagation?: TransactionPropagation;
+  /** TX タイムアウト (ms)。未指定はランタイム既定 */
+  timeoutMs?: number;
+  /**
+   * rollback を引き起こす errorCode の配列。ProcessFlow.errorCatalog のキー参照。
+   * 列挙されたコードが TX 内で throw された場合に rollback される。
+   * 未指定時は「すべての例外で rollback」(ランタイム既定)。
+   */
+  rollbackOn?: string[];
+  /** TX 内で実行する step 列。1 TX に含めたい DB / 外部呼出を順序通りに並べる */
+  steps: Step[];
+  /** TX commit 成功後に実行する step 列 (任意)。例: 通知送信、キャッシュ無効化 */
+  onCommit?: Step[];
+  /** TX rollback 後に実行する step 列 (任意・補償処理)。例: Stripe authorize の cancel、Slack 通知 */
+  onRollback?: Step[];
+}
+
 export type Step =
   | ValidationStep
   | DbAccessStep
@@ -854,6 +903,7 @@ export type Step =
   | LogStep
   | AuditStep
   | WorkflowStep
+  | TransactionScopeStep
   | OtherStep;
 
 // ── アクション定義 ───────────────────────────────────────────────────────

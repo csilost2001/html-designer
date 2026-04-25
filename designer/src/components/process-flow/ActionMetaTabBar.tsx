@@ -47,6 +47,11 @@ function countMaturity(group: ProcessFlow): {
         if (s.elseBranch) visit(s.elseBranch.steps);
       }
       if (s.type === "loop") visit(s.steps);
+      if (s.type === "transactionScope") {
+        visit(s.steps);
+        if (s.onCommit) visit(s.onCommit);
+        if (s.onRollback) visit(s.onRollback);
+      }
     }
   };
   for (const act of group.actions) visit(act.steps);

@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StepCard } from "./StepCard";
-import type { Step, StepType } from "../../types/action";
+import type { ProcessFlow, Step, StepType } from "../../types/action";
 import type { ValidationError } from "../../utils/actionValidation";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 
@@ -33,6 +33,7 @@ interface SortableStepCardProps {
   markerTooltip?: string;
   markerKinds?: { todo: number; question: number; attention: number; chat: number };
   conventions?: ConventionsCatalog | null;
+  group?: ProcessFlow | null;
 }
 
 export function SortableStepCard({ step, ...props }: SortableStepCardProps) {

@@ -290,6 +290,11 @@ function walkSteps(
       if (step.elseBranch) walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, catalog, issues);
     }
     if (step.type === "loop") walkSteps((step as LoopStep).steps, `${path}.steps`, catalog, issues);
+    if (step.type === "transactionScope") {
+      walkSteps(step.steps, `${path}.steps`, catalog, issues);
+      if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, catalog, issues);
+      if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, catalog, issues);
+    }
     if (step.type === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, catalog, issues);

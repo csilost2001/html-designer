@@ -46,6 +46,17 @@ function makeGroup(): ProcessFlowDoc {
             failure: { sideEffects: [{ id: "s5-se-1", type: "other", description: "logger" }] },
           },
         },
+        {
+          id: "s6",
+          type: "transactionScope",
+          description: "tx1",
+          steps: [
+            { id: "s6-tx-1", type: "dbAccess", description: "insert" },
+            { id: "s6-tx-2", type: "dbAccess", description: "update" },
+          ],
+          onCommit: [{ id: "s6-c-1", type: "log", description: "commit log" }],
+          onRollback: [{ id: "s6-r-1", type: "log", description: "rollback log" }],
+        },
       ],
     }],
   };
@@ -58,6 +69,12 @@ describe("findStep — ネスト全対応", () => {
   it("elseBranch 配下", () => expect(findStep(ag, "s3-e-1")?.type).toBe("other"));
   it("loop 配下", () => expect(findStep(ag, "s4-1")?.type).toBe("other"));
   it("sideEffects 配下", () => expect(findStep(ag, "s5-se-1")?.type).toBe("other"));
+  it("transactionScope.steps 配下 (#415)", () =>
+    expect(findStep(ag, "s6-tx-1")?.type).toBe("dbAccess"));
+  it("transactionScope.onCommit 配下 (#415)", () =>
+    expect(findStep(ag, "s6-c-1")?.type).toBe("log"));
+  it("transactionScope.onRollback 配下 (#415)", () =>
+    expect(findStep(ag, "s6-r-1")?.type).toBe("log"));
   it("未知 id は null", () => expect(findStep(ag, "nope")).toBeNull());
 });
 
@@ -72,6 +89,21 @@ describe("updateStep — patch 適用", () => {
     updateStep(ag, "s3-a-1", { description: "branch 内改訂" });
     expect(findStep(ag, "s3-a-1")?.description).toBe("branch 内改訂");
   });
+  it("transactionScope.steps 配下も更新 (#415)", () => {
+    const ag = makeGroup();
+    updateStep(ag, "s6-tx-2", { description: "TX 内改訂" });
+    expect(findStep(ag, "s6-tx-2")?.description).toBe("TX 内改訂");
+  });
+  it("transactionScope.onCommit 配下も更新 (#415)", () => {
+    const ag = makeGroup();
+    updateStep(ag, "s6-c-1", { description: "commit 内改訂" });
+    expect(findStep(ag, "s6-c-1")?.description).toBe("commit 内改訂");
+  });
+  it("transactionScope.onRollback 配下も更新 (#415)", () => {
+    const ag = makeGroup();
+    updateStep(ag, "s6-r-1", { description: "rollback 内改訂" });
+    expect(findStep(ag, "s6-r-1")?.description).toBe("rollback 内改訂");
+  });
   it("未知 id は throw", () => {
     const ag = makeGroup();
     expect(() => updateStep(ag, "nope", {})).toThrow();
@@ -82,7 +114,7 @@ describe("removeStep", () => {
   it("top-level 削除", () => {
     const ag = makeGroup();
     removeStep(ag, "s2");
-    expect(ag.actions[0].steps.length).toBe(4);
+    expect(ag.actions[0].steps.length).toBe(5);
     expect(findStep(ag, "s2")).toBeNull();
   });
   it("branch 配下を削除", () => {
@@ -90,6 +122,25 @@ describe("removeStep", () => {
     removeStep(ag, "s3-a-1");
     const s3 = findStep(ag, "s3");
     expect(s3?.branches?.[0].steps.length).toBe(0);
+  });
+  it("transactionScope.steps 配下を削除 (#415)", () => {
+    const ag = makeGroup();
+    removeStep(ag, "s6-tx-1");
+    const s6 = findStep(ag, "s6");
+    expect(s6?.steps?.length).toBe(1);
+    expect(findStep(ag, "s6-tx-1")).toBeNull();
+  });
+  it("transactionScope.onCommit 配下を削除 (#415)", () => {
+    const ag = makeGroup();
+    removeStep(ag, "s6-c-1");
+    const s6 = findStep(ag, "s6");
+    expect((s6?.onCommit ?? []).length).toBe(0);
+  });
+  it("transactionScope.onRollback 配下を削除 (#415)", () => {
+    const ag = makeGroup();
+    removeStep(ag, "s6-r-1");
+    const s6 = findStep(ag, "s6");
+    expect((s6?.onRollback ?? []).length).toBe(0);
   });
 });
 
@@ -105,6 +156,13 @@ describe("moveStep", () => {
     moveStep(ag, "s1", 999);
     const ids = ag.actions[0].steps.map((s) => s.id);
     expect(ids[ids.length - 1]).toBe("s1");
+  });
+  it("transactionScope.steps 内で並び替え (#415)", () => {
+    const ag = makeGroup();
+    moveStep(ag, "s6-tx-1", 1);
+    const s6 = findStep(ag, "s6");
+    const ids = (s6?.steps ?? []).map((s) => s.id);
+    expect(ids).toEqual(["s6-tx-2", "s6-tx-1"]);
   });
 });
 
