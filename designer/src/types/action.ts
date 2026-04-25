@@ -174,6 +174,8 @@ export interface Sla {
   onTimeout?: OnTimeout;
   errorCode?: string;
   warningThresholdMs?: number;
+  /** P95 レイテンシ目標 (ms)。超過時は監視 alert 対象 (#412) */
+  p95LatencyMs?: number;
 }
 
 // ── outputBinding の構造化 (docs/spec, #151 (B)) ──────────────────────────

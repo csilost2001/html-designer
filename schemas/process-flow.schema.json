@@ -83,8 +83,18 @@
         "timeoutMs": { "type": "number", "minimum": 0 },
         "onTimeout": { "$ref": "#/$defs/OnTimeout" },
         "errorCode": { "type": "string" },
-        "warningThresholdMs": { "type": "number", "minimum": 0 }
-      }
+        "warningThresholdMs": { "type": "number", "minimum": 0 },
+        "p95LatencyMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "P95 レイテンシ目標 (ms)。超過時は監視 alert 対象"
+        }
+      },
+      "if": {
+        "properties": { "onTimeout": { "enum": ["throw", "compensate"] } },
+        "required": ["onTimeout"]
+      },
+      "then": { "required": ["errorCode"] }
     },
     "Maturity": {
       "type": "string",

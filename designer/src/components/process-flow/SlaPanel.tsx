@@ -18,6 +18,7 @@ const compact = (next: Sla): Sla | undefined => {
   if (next.timeoutMs !== undefined) normalized.timeoutMs = next.timeoutMs;
   if (next.onTimeout) normalized.onTimeout = next.onTimeout;
   if (next.warningThresholdMs !== undefined) normalized.warningThresholdMs = next.warningThresholdMs;
+  if (next.p95LatencyMs !== undefined) normalized.p95LatencyMs = next.p95LatencyMs;
   if (next.errorCode?.trim()) normalized.errorCode = next.errorCode.trim();
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 };
@@ -86,6 +87,17 @@ export function SlaPanel({ sla, onChange, label = "SLA / Timeout" }: Props) {
             value={sla?.warningThresholdMs ?? ""}
             onChange={(e) => patch({ warningThresholdMs: toNumber(e.target.value) })}
             placeholder="1500"
+          />
+        </div>
+        <div className="col-sm-3" data-field-path="sla.p95LatencyMs">
+          <label className="form-label small mb-0">P95 レイテンシ ms</label>
+          <input
+            type="number"
+            min={0}
+            className="form-control form-control-sm"
+            value={sla?.p95LatencyMs ?? ""}
+            onChange={(e) => patch({ p95LatencyMs: toNumber(e.target.value) })}
+            placeholder="例: 500"
           />
         </div>
         <div className="col-sm-3" data-field-path="sla.errorCode">
