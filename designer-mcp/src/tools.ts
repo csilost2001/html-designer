@@ -996,4 +996,82 @@ export const tools = [
       required: ["processFlowId", "markerId"],
     },
   },
+
+  {
+    name: "designer__export_arazzo",
+    description:
+      "ProcessFlow 内の ExternalSystemStep を Arazzo 1.0 YAML / JSON として出力します。" +
+      "フロー中の外部 API 呼び出しを Arazzo ワークフロー形式にエクスポートし、OpenAPI ツールとの連携に利用できます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        processFlowId: {
+          type: "string",
+          description: "対象フロー ID",
+        },
+        outputFormat: {
+          type: "string",
+          enum: ["yaml", "json"],
+          description: "出力形式。デフォルト: yaml",
+        },
+      },
+      required: ["processFlowId"],
+    },
+  },
+
+  {
+    name: "designer__solution_pack",
+    description:
+      "指定した処理フロー群を solution ZIP ファイルにパッケージングします。" +
+      "プロジェクト間でフロー定義を配布・共有するための pack 機能 (Power Platform Solution 相当)。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        processFlowIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "ZIP に同梱するフロー ID の配列",
+        },
+        publisherPrefix: {
+          type: "string",
+          description: "プロジェクト識別子 (ID 衝突防止プレフィックス, 例: myapp)",
+        },
+        version: {
+          type: "string",
+          description: "バージョン文字列 (例: 1.0.0)",
+        },
+        outputPath: {
+          type: "string",
+          description: "出力先 .zip パス (絶対パスまたは data/ からの相対パス)",
+        },
+      },
+      required: ["processFlowIds", "publisherPrefix", "version", "outputPath"],
+    },
+  },
+
+  {
+    name: "designer__solution_unpack",
+    description:
+      "solution ZIP ファイルを展開し、フロー定義を data/actions/ に取り込みます。" +
+      "solution_pack で作成した ZIP を別プロジェクトで展開する unpack 機能。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        inputPath: {
+          type: "string",
+          description: "展開する .zip パス (絶対パスまたは data/ からの相対パス)",
+        },
+        conflictResolution: {
+          type: "string",
+          enum: ["skip", "overwrite", "rename"],
+          description: "ID 衝突時の解決方針。skip: 既存を維持 / overwrite: 上書き / rename: プレフィックス付きで保存。デフォルト: skip",
+        },
+        publisherPrefix: {
+          type: "string",
+          description: "conflictResolution=rename 時に ID の先頭に付与するプレフィックス (例: myapp)。省略時は \"imported\"",
+        },
+      },
+      required: ["inputPath"],
+    },
+  },
 ];

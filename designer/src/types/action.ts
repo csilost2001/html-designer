@@ -554,6 +554,23 @@ export interface ExternalHttpCall {
   body?: string;
 }
 
+/** Criterion の評価種別 (#427 P3-2 / Arazzo 由来) */
+export type CriterionType = "simple" | "regex" | "jsonpath" | "xpath";
+
+/**
+ * 型付き条件式 (#427 P3-2)。Arazzo 1.0 の successCriteria 互換。
+ * simple: "@status == 200", regex: "^[0-9]+$", jsonpath: "$.items[0].id", xpath: "//result/text()"
+ */
+export interface StructuredCriterion {
+  type: CriterionType;
+  expression: string;
+  /** jsonpath / xpath の評価対象 (例: "@responseBody") */
+  context?: string;
+}
+
+/** 成功判定条件 (#427 P3-2)。string (旧互換) または StructuredCriterion の union */
+export type Criterion = string | StructuredCriterion;
+
 /**
  * ProcessFlow.externalSystemCatalog エントリ (#261 v1.3)。
  * 同一外部システム (Stripe, SendGrid 等) を使う複数ステップで auth/baseUrl/timeoutMs/retryPolicy を集約し、
@@ -649,6 +666,8 @@ export interface ExternalSystemStep extends StepBase {
   apiVersion?: string;
   /** キャッシュヒント (#423 B-4)。GET 系 API レスポンスのキャッシュ設定 */
   cache?: CacheHint;
+  /** Arazzo 互換の成功判定条件 (#427 P3-2)。Arazzo Export で successCriteria フィールドにマッピングされる */
+  successCriteria?: Criterion[];
 }
 
 export interface CommonProcessStep extends StepBase {

@@ -1130,6 +1130,36 @@
         "sameAs": { "$ref": "#/$defs/ExternalCallOutcome" }
       }
     },
+    "CriterionType": {
+      "description": "Criterion の評価種別 (#427 P3-2 / Arazzo 由来)",
+      "type": "string",
+      "enum": ["simple", "regex", "jsonpath", "xpath"]
+    },
+    "StructuredCriterion": {
+      "description": "型付き条件式 (#427 P3-2)。Arazzo 1.0 の successCriteria 互換",
+      "type": "object",
+      "required": ["type", "expression"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/$defs/CriterionType" },
+        "expression": {
+          "type": "string",
+          "description": "評価式。simple: \"@status == 200\", regex: \"^[0-9]+$\", jsonpath: \"$.items[0].id\", xpath: \"//result/text()\""
+        },
+        "context": {
+          "type": "string",
+          "description": "jsonpath / xpath の評価対象 (例: \"@responseBody\", \"@statusCode\")"
+        }
+      }
+    },
+    "Criterion": {
+      "description": "成功判定条件 (#427 P3-2)。string (旧互換) または StructuredCriterion の union",
+      "oneOf": [
+        { "type": "string" },
+        { "$ref": "#/$defs/StructuredCriterion" }
+      ]
+    },
+
     "NonReturnStep": {
       "description": "sideEffects 配列で使える Step の制限サブセット。ReturnStep を除外 (#261)",
       "oneOf": [
@@ -1309,6 +1339,11 @@
             "cache": {
               "$ref": "#/$defs/CacheHint",
               "description": "キャッシュヒント (#423 B-4)。GET 系 API レスポンスのキャッシュ設定"
+            },
+            "successCriteria": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Criterion" },
+              "description": "Arazzo 互換の成功判定条件 (#427 P3-2)。Arazzo Export で successCriteria フィールドにマッピングされる"
             }
           }
         }
