@@ -5,7 +5,12 @@
  * での編集に留める。JSON パースエラーはローカル state で表示、parseable なら onChange。
  */
 import { useState, useEffect } from "react";
-import type { ProcessFlow, TypeCatalogEntry } from "../../types/action";
+import type { ProcessFlow } from "../../types/action";
+
+interface TypeCatalogEntry {
+  description?: string;
+  schema: Record<string, unknown>;
+}
 
 interface Props {
   group: ProcessFlow;
@@ -87,7 +92,7 @@ export function TypeCatalogPanel({ group, onChange, expanded: expandedProp, onEx
     onExpandedChange?.(next);
   };
   const [newKey, setNewKey] = useState("");
-  const catalog = group.typeCatalog ?? {};
+  const catalog = (group.typeCatalog ?? {}) as Record<string, TypeCatalogEntry>;
   const keys = Object.keys(catalog);
 
   const updateEntry = (key: string, patch: Partial<TypeCatalogEntry>) => {

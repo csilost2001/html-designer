@@ -107,38 +107,6 @@
     }
   },
 
-  "typeCatalog": {
-    "ApiError": {
-      "description": "共通エラーレスポンス",
-      "schema": {
-        "type": "object",
-        "required": ["code", "message"],
-        "properties": {
-          "code": { "type": "string" },
-          "message": { "type": "string" },
-          "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
-        }
-      }
-    },
-    "InvoiceResponse": {
-      "description": "請求書発行成功レスポンス",
-      "schema": {
-        "type": "object",
-        "required": ["invoiceId", "invoiceNumber", "subtotal", "taxAmount", "totalAmount"],
-        "properties": {
-          "invoiceId": { "type": "integer" },
-          "invoiceNumber": {
-            "type": "string",
-            "pattern": "^INV-\\d{4}-\\d{4}$",
-            "description": "@conv.numbering.invoiceNumber 準拠 INV-YYYY-NNNN 形式"
-          },
-          "subtotal": { "type": "integer" },
-          "taxAmount": { "type": "integer" },
-          "totalAmount": { "type": "integer" }
-        }
-      }
-    }
-  },
 
   "externalSystemCatalog": {
     "pdfService": {

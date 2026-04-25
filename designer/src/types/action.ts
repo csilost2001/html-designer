@@ -1394,18 +1394,6 @@ export interface EnvVarEntry {
   default?: string | number | boolean;
 }
 
-/**
- * 型カタログの 1 エントリ (#261 v1.3)。
- * schema プロパティに JSON Schema (draft 2020-12) を持つ。
- * 型名単独での参照 (BodySchemaRef.typeRef) から解決される。
- */
-export interface TypeCatalogEntry {
-  /** 説明 (任意) */
-  description?: string;
-  /** JSON Schema 本体 (draft 2020-12 の object) */
-  schema: Record<string, unknown>;
-}
-
 export interface ErrorCatalogEntry {
   /** 対応する HTTP ステータス (例: 409) */
   httpStatus?: number;
@@ -1469,6 +1457,7 @@ export interface ResourceRequirements {
 }
 
 export interface ProcessFlow {
+  [key: string]: unknown;
   id: string;
   name: string;
   type: ProcessFlowType;
@@ -1499,12 +1488,6 @@ export interface ProcessFlow {
    * ExternalSystemStep.systemRef から参照され、baseUrl/auth/timeoutMs 等の既定値を提供。
    */
   externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
-  /**
-   * 型カタログ (#261 v1.3)。キー: 型名 (例: "ApiError", "CustomerResponse")。
-   * HttpResponseSpec.bodySchema = { typeRef: "ApiError" } から参照される。
-   * 値は JSON Schema (inline) またはその略記形。
-   */
-  typeCatalog?: Record<string, TypeCatalogEntry>;
   /**
    * Ambient 変数カタログ (#261 v1.4)。ミドルウェア・フレームワーク由来の自動注入変数 (例: @requestId, @traceId, @fieldErrors)。
    * @param 記法で参照される際に「inputs にも outputBinding にも無い」と未定義エラー扱いされないよう、

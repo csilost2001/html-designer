@@ -828,15 +828,84 @@ export const tools = [
     },
   },
   {
+    name: "designer__list_response_type_extensions",
+    description: "response-types.json に登録されているレスポンス型拡張を一覧します。",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "designer__get_response_type_extension",
+    description: "response-types.json のレスポンス型拡張を 1 件取得します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: { key: { type: "string" } },
+      required: ["key"],
+    },
+  },
+  {
+    name: "designer__add_response_type_extension",
+    description: "response-types.json にレスポンス型拡張を追加します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        namespace: { type: "string" },
+        key: { type: "string" },
+        schema: { type: "object" },
+        description: { type: "string" },
+      },
+      required: ["key", "schema"],
+    },
+  },
+  {
+    name: "designer__update_response_type_extension",
+    description: "response-types.json のレスポンス型拡張を更新します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        key: { type: "string" },
+        schema: { type: "object" },
+        description: { type: "string" },
+      },
+      required: ["key"],
+    },
+  },
+  {
+    name: "designer__delete_response_type_extension",
+    description: "response-types.json からレスポンス型拡張を削除します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: { key: { type: "string" } },
+      required: ["key"],
+    },
+  },
+  {
+    name: "designer__list_extension_packages",
+    description: "data/extensions/*.json の拡張パッケージ一覧を取得します。",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "designer__get_extension_package",
+    description: "指定した拡張パッケージを取得します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        packageName: {
+          type: "string",
+          enum: ["steps", "fieldTypes", "triggers", "dbOperations", "responseTypes"],
+        },
+      },
+      required: ["packageName"],
+    },
+  },
+  {
     name: "designer__add_catalog_entry",
-    description: "ProcessFlow レベルのカタログ (errorCatalog / secretsCatalog / typeCatalog / externalSystemCatalog) にエントリを追加・更新します。",
+    description: "ProcessFlow レベルのカタログ (errorCatalog / secretsCatalog / externalSystemCatalog) にエントリを追加・更新します。typeCatalog は add_response_type_extension に転送されます。",
     inputSchema: {
       type: "object" as const,
       properties: {
         processFlowId: { type: "string" },
         catalog: {
           type: "string",
-          enum: ["errorCatalog", "secretsCatalog", "typeCatalog", "externalSystemCatalog"],
+          enum: ["errorCatalog", "secretsCatalog", "externalSystemCatalog"],
         },
         key: { type: "string", description: "エントリキー (例: STOCK_SHORTAGE / stripeApiKey / ApiError / stripe)" },
         value: { type: "object", description: "エントリの値。全体置換。" },
@@ -853,7 +922,7 @@ export const tools = [
         processFlowId: { type: "string" },
         catalog: {
           type: "string",
-          enum: ["errorCatalog", "secretsCatalog", "typeCatalog", "externalSystemCatalog"],
+          enum: ["errorCatalog", "secretsCatalog", "externalSystemCatalog"],
         },
         key: { type: "string" },
       },

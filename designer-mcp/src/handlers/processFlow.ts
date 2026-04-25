@@ -22,6 +22,9 @@ import {
   readProject,
   writeProject,
   DATA_DIR,
+  readExtensionsBundle,
+  writeExtensionsFile,
+  type ExtensionFileKind,
 } from "../projectStorage.js";
 import {
   updateStep as editUpdateStep,
@@ -37,6 +40,61 @@ import {
 } from "../processFlowEdits.js";
 import { saveAndBroadcast, type ToolHandler } from "../mcpHelpers.js";
 import { wsBridge } from "../wsBridge.js";
+
+type ResponseTypeEntry = {
+  description?: string;
+  schema: Record<string, unknown>;
+};
+
+type ResponseTypesFile = {
+  namespace: string;
+  responseTypes: Record<string, ResponseTypeEntry>;
+};
+
+const EXTENSION_PACKAGE_TYPES: ExtensionFileKind[] = ["steps", "fieldTypes", "triggers", "dbOperations", "responseTypes"];
+
+function normalizeResponseTypesFile(raw: unknown): ResponseTypesFile {
+  const file = raw && typeof raw === "object" ? raw as Partial<ResponseTypesFile> : {};
+  const namespace = typeof file.namespace === "string" ? file.namespace : "";
+  const responseTypes = file.responseTypes && typeof file.responseTypes === "object" && !Array.isArray(file.responseTypes)
+    ? file.responseTypes as Record<string, ResponseTypeEntry>
+    : {};
+  return { namespace, responseTypes };
+}
+
+function namespacedKey(namespace: string | undefined, key: string): string {
+  return namespace ? `${namespace}:${key}` : key;
+}
+
+async function readResponseTypesFile(): Promise<ResponseTypesFile> {
+  const bundle = await readExtensionsBundle();
+  return normalizeResponseTypesFile(bundle.responseTypes);
+}
+
+async function writeResponseTypesFile(file: ResponseTypesFile): Promise<void> {
+  await writeExtensionsFile("responseTypes", file);
+  wsBridge.broadcast("extensionsChanged", { type: "responseTypes" });
+}
+
+async function handleAddResponseTypeExtension(params: {
+  namespace?: unknown;
+  key?: unknown;
+  schema?: unknown;
+  description?: unknown;
+}): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+  if (typeof params.key !== "string" || typeof params.schema !== "object" || params.schema === null || Array.isArray(params.schema)) {
+    throw new McpError(ErrorCode.InvalidParams, "key, schema は必須です");
+  }
+  const namespace = typeof params.namespace === "string" ? params.namespace : "";
+  const key = namespacedKey(namespace, params.key);
+  const file = await readResponseTypesFile();
+  file.responseTypes[key] = {
+    schema: params.schema as Record<string, unknown>,
+    ...(typeof params.description === "string" ? { description: params.description } : {}),
+  };
+  await writeResponseTypesFile(file);
+  return { content: [{ type: "text", text: `responseTypes.${key} を追加/更新しました。` }] };
+}
 
 export const handleProcessFlowTool: ToolHandler = async (name, args) => {
   const a = args ?? {};
@@ -259,9 +317,79 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
     }
 
+    case "designer__list_response_type_extensions": {
+      const file = await readResponseTypesFile();
+      return { content: [{ type: "text", text: JSON.stringify(file.responseTypes, null, 2) }] };
+    }
+
+    case "designer__get_response_type_extension": {
+      if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
+      const file = await readResponseTypesFile();
+      const entry = file.responseTypes[a.key];
+      if (!entry) throw new McpError(ErrorCode.InvalidParams, `responseTypes.${a.key} が見つかりません`);
+      return { content: [{ type: "text", text: JSON.stringify(entry, null, 2) }] };
+    }
+
+    case "designer__add_response_type_extension":
+      return await handleAddResponseTypeExtension(a);
+
+    case "designer__update_response_type_extension": {
+      if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
+      const file = await readResponseTypesFile();
+      const current = file.responseTypes[a.key];
+      if (!current) throw new McpError(ErrorCode.InvalidParams, `responseTypes.${a.key} が見つかりません`);
+      file.responseTypes[a.key] = {
+        ...current,
+        ...(typeof a.schema === "object" && a.schema !== null && !Array.isArray(a.schema) ? { schema: a.schema as Record<string, unknown> } : {}),
+        ...(typeof a.description === "string" ? { description: a.description } : {}),
+      };
+      await writeResponseTypesFile(file);
+      return { content: [{ type: "text", text: `responseTypes.${a.key} を更新しました。` }] };
+    }
+
+    case "designer__delete_response_type_extension": {
+      if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
+      const file = await readResponseTypesFile();
+      delete file.responseTypes[a.key];
+      await writeResponseTypesFile(file);
+      return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
+    }
+
+    case "designer__list_extension_packages": {
+      const bundle = await readExtensionsBundle();
+      const packages = EXTENSION_PACKAGE_TYPES.map((type) => {
+        const content = bundle[type];
+        const body = content && typeof content === "object" ? (content as Record<string, unknown>)[type] : undefined;
+        const count = Array.isArray(body) ? body.length : body && typeof body === "object" ? Object.keys(body).length : 0;
+        const namespace = content && typeof content === "object" && typeof (content as { namespace?: unknown }).namespace === "string"
+          ? (content as { namespace: string }).namespace
+          : "";
+        return { type, namespace, count, exists: content !== null };
+      });
+      return { content: [{ type: "text", text: JSON.stringify(packages, null, 2) }] };
+    }
+
+    case "designer__get_extension_package": {
+      if (typeof a.packageName !== "string" || !EXTENSION_PACKAGE_TYPES.includes(a.packageName as ExtensionFileKind)) {
+        throw new McpError(ErrorCode.InvalidParams, "packageName が不正です");
+      }
+      const bundle = await readExtensionsBundle();
+      return { content: [{ type: "text", text: JSON.stringify(bundle[a.packageName as ExtensionFileKind], null, 2) }] };
+    }
+
     case "designer__add_catalog_entry": {
       if (typeof a.processFlowId !== "string" || typeof a.catalog !== "string" || typeof a.key !== "string" || typeof a.value !== "object" || a.value === null) {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, catalog, key, value は必須です");
+      }
+      if (a.catalog === "typeCatalog") {
+        console.warn("[deprecation] add_catalog_entry catalogName=typeCatalog is forwarded to add_response_type_extension");
+        const value = a.value as Record<string, unknown>;
+        return await handleAddResponseTypeExtension({
+          namespace: "",
+          key: a.key,
+          schema: value.schema,
+          description: value.description,
+        });
       }
       const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
@@ -273,6 +401,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
     case "designer__remove_catalog_entry": {
       if (typeof a.processFlowId !== "string" || typeof a.catalog !== "string" || typeof a.key !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, catalog, key は必須です");
+      }
+      if (a.catalog === "typeCatalog") {
+        console.warn("[deprecation] remove_catalog_entry catalogName=typeCatalog is forwarded to delete_response_type_extension");
+        const file = await readResponseTypesFile();
+        delete file.responseTypes[a.key];
+        await writeResponseTypesFile(file);
+        return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
       }
       const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);

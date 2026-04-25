@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkReferentialIntegrity } from "./referentialIntegrity";
+import { loadExtensionsFromBundle } from "./loadExtensions";
 import type { ProcessFlow } from "../types/action";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -220,19 +221,27 @@ describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
 });
 
 describe("checkReferentialIntegrity — typeRef (#261)", () => {
-  it("typeCatalog 定義時、未登録 typeRef を検出", () => {
+  const extensionsWithApiError = () => loadExtensionsFromBundle({
+    responseTypes: {
+      namespace: "",
+      responseTypes: {
+        ApiError: { schema: { type: "object" } },
+      },
+    },
+  }).extensions;
+
+  it("extensions responseTypes 定義時、未登録 typeRef を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      typeCatalog: { ApiError: { schema: { type: "object" } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "400", status: 400, bodySchema: { typeRef: "UnknownType" } }],
         steps: [],
       }],
-    }));
+    }), extensionsWithApiError());
     expect(issues.some((i) => i.code === "UNKNOWN_TYPE_REF")).toBe(true);
   });
 
-  it("typeCatalog 未定義時は typeRef 検査をスキップ (後方互換)", () => {
+  it("extensions 未指定時は typeRef 検査をスキップ (後方互換)", () => {
     const issues = checkReferentialIntegrity(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
@@ -245,13 +254,12 @@ describe("checkReferentialIntegrity — typeRef (#261)", () => {
 
   it("bodySchema が string 形式なら typeRef 検査対象外", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      typeCatalog: { ApiError: { schema: {} } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "400", status: 400, bodySchema: "UnknownType" }],
         steps: [],
       }],
-    }));
+    }), extensionsWithApiError());
     expect(issues).toHaveLength(0);
   });
 });

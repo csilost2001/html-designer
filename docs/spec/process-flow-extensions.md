@@ -169,33 +169,38 @@ httpCall?: ExternalHttpCall;         // 旧 protocol の後継
 protocol?: string;                   // DEPRECATED: httpCall への移行推奨
 ```
 
-### 3.0c typeCatalog (ProcessFlow レベル, #261 v1.3)
+### 3.0c response-types 拡張パッケージ (旧 typeCatalog, #445)
 
-`HttpResponseSpec.bodySchema: { typeRef: string }` の解決先カタログ。同じ型 (`ApiError` 等) を複数 response で使い回すための DRY 化。
+`HttpResponseSpec.bodySchema: { typeRef: string }` の解決先は ProcessFlow 内部ではなく、`data/extensions/response-types.json` に置く。同じ型 (`ApiError` 等) を複数 response / 複数 ProcessFlow で使い回すための DRY 化。
 
 ```ts
-interface TypeCatalogEntry {
+interface ResponseTypeDef {
   description?: string;
   schema: object;                    // JSON Schema draft 2020-12
 }
 
-// ProcessFlow に追加
-typeCatalog?: Record<string, TypeCatalogEntry>;
+interface ResponseTypesExtensionFile {
+  namespace: string;                  // 空文字列も明示
+  responseTypes: Record<string, ResponseTypeDef>;
+}
 ```
 
 用例:
 
 ```json
-"typeCatalog": {
-  "ApiError": {
-    "description": "共通エラーレスポンス",
-    "schema": {
-      "type": "object",
-      "required": ["code", "message"],
-      "properties": {
-        "code": { "type": "string" },
-        "message": { "type": "string" },
-        "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
+{
+  "namespace": "",
+  "responseTypes": {
+    "ApiError": {
+      "description": "共通エラーレスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "fieldErrors": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
       }
     }
   }
@@ -210,7 +215,7 @@ response 側:
 ]
 ```
 
-参照整合性バリデータが `typeRef → typeCatalog` 存在検査を行う (typeCatalog 未定義時は後方互換で skip)。
+参照整合性バリデータが `typeRef → extensions.responseTypes` 存在検査を行う。extensions 未指定時は後方互換で skip する。
 
 ### 3.0b externalSystemCatalog (ProcessFlow レベル, #261 v1.3)
 
