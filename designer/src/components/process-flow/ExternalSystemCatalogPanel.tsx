@@ -13,6 +13,10 @@ interface Props {
 }
 
 const AUTH_KINDS: ExternalAuthKind[] = ["bearer", "basic", "apiKey", "oauth2", "none"];
+const trimToUndefined = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+};
 
 export function ExternalSystemCatalogPanel({ group, onChange, expanded: expandedProp, onExpandedChange, render = "full" }: Props) {
   const [expandedState, setExpandedState] = useState(false);
@@ -102,6 +106,16 @@ export function ExternalSystemCatalogPanel({ group, onChange, expanded: expanded
                       value={e.baseUrl ?? ""}
                       onChange={(ev) => updateEntry(k, { baseUrl: ev.target.value || undefined })}
                       placeholder="https://api.stripe.com"
+                    />
+                  </label>
+                  <label className="catalog-wide" data-field-path="openApiSpec">
+                    openApiSpec
+                    <input
+                      className="form-control form-control-sm"
+                      data-field-path="openApiSpec"
+                      value={e.openApiSpec ?? ""}
+                      onChange={(ev) => updateEntry(k, { openApiSpec: trimToUndefined(ev.target.value) })}
+                      placeholder="https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
                     />
                   </label>
                   <label>

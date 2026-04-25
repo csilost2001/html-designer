@@ -473,6 +473,8 @@ export interface ExternalSystemCatalogEntry {
   name: string;
   /** HTTP ベース URL (例: "https://api.stripe.com") */
   baseUrl?: string;
+  /** OpenAPI specification URL or relative path (#413) */
+  openApiSpec?: string;
   /** 既定認証 (step 側の auth が優先) */
   auth?: ExternalAuth;
   /** 既定タイムアウト (ms) */
@@ -508,6 +510,14 @@ export interface ExternalSystemStep extends StepBase {
    * method / path / query / body に分解、path は式補間可。
    */
   httpCall?: ExternalHttpCall;
+  /** OpenAPI operation reference. operationRef takes precedence over httpCall when both are present. */
+  operationRef?: string;
+  /** OpenAPI operationId. */
+  operationId?: string;
+  /** JSON Pointer / $ref to request body schema. */
+  requestBodyRef?: string;
+  /** JSON Pointer / $ref to response schema. */
+  responseRef?: string;
   /**
    * 各 outcome (success / failure / timeout) のハンドリング定義。
    * 省略時は product-scope §11 の既定 (failure/timeout=abort、success=continue) を適用。

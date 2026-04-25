@@ -12,6 +12,7 @@
 | [process-flow-extensions.md](process-flow-extensions.md) | HTTP 契約 / TX / Saga / 外部 outcomes / ValidationRule / compute / return (Phase B) | #151 / #182 |
 | [process-flow-expression-language.md](process-flow-expression-language.md) | runIf / expression / bodyExpression の式言語 BNF (js-subset) | #253 |
 | [process-flow-runtime-conventions.md](process-flow-runtime-conventions.md) | SQL 式補間 / HTTP body シリアライズ / TX×throw×tryCatch / fireAndForget / sideEffects TX 境界等の実行時規約 | #261 |
+| [process-flow-external-system.md](process-flow-external-system.md) | ExternalSystemStep の OpenAPI operation 参照 (`openApiSpec` / `operationRef`) | #413 |
 | [process-flow-testing.md](process-flow-testing.md) | 処理フローの Given-When-Then テストシナリオ (`testScenarios`) | #400 |
 | [screen-items.md](screen-items.md) | 画面項目定義 (フォーム系バリデーション 3 層のうち「画面」層) — **ドラフト v0.1** | #318 |
 
