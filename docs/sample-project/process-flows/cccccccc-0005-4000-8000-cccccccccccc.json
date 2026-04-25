@@ -6,6 +6,12 @@
   "description": "data/actions/cccccccc-0019 を v1.3 全機能 (errorCatalog / typeCatalog / externalSystemCatalog / httpCall / systemRef / FieldType.array+object / BodySchemaRef.typeRef / ExternalAuth / idempotencyKey / initialValue / BranchConditionVariant.affectedRowsZero) で migrate。地の文依存ゼロを目標とする正規サンプル。\n\n【前提スキーマ】items / inventory / orders / order_items / customers テーブル、Stripe Japan 2 段階決済 (authorize → capture)、SendGrid。\n【参照規約】docs/conventions/validation-rules.md / product-scope.md (ambient)。",
   "mode": "downstream",
   "maturity": "committed",
+  "sla": {
+    "timeoutMs": 30000,
+    "warningThresholdMs": 20000,
+    "onTimeout": "throw",
+    "errorCode": "TIMEOUT"
+  },
 
   "ambientVariables": [
     { "name": "requestId", "type": "string", "required": true, "description": "リクエスト毎に一意。冪等性キー生成やログ相関に使う。通常はリバプロ/ミドルウェア (X-Request-Id) から注入" },
@@ -37,6 +43,12 @@
       "defaultMessage": "決済に失敗しました",
       "responseRef": "402-payment-failed",
       "description": "Stripe authorize が failure/timeout"
+    },
+    "TIMEOUT": {
+      "httpStatus": 504,
+      "defaultMessage": "処理がタイムアウトしました",
+      "responseRef": "504-timeout",
+      "description": "SLA / Timeout 宣言から発生するタイムアウト"
     },
     "STOCK_SHORTAGE": {
       "httpStatus": 409,
@@ -116,6 +128,12 @@
       "name": "注文確定ボタン",
       "trigger": "submit",
       "maturity": "committed",
+      "sla": {
+        "timeoutMs": 10000,
+        "warningThresholdMs": 7000,
+        "onTimeout": "throw",
+        "errorCode": "TIMEOUT"
+      },
       "requiredPermissions": ["order.create"],
       "httpRoute": { "method": "POST", "path": "/api/orders", "auth": "required" },
       "responses": [
@@ -123,6 +141,7 @@
         { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" }, "description": "バリデーション違反" },
         { "id": "404-not-found", "status": 404, "bodySchema": { "typeRef": "ApiError" }, "description": "顧客/商品が存在しない" },
         { "id": "402-payment-failed", "status": 402, "bodySchema": { "typeRef": "ApiError" }, "description": "決済拒否", "when": "@paymentAuth.status == 'failed'" },
+        { "id": "504-timeout", "status": 504, "bodySchema": { "typeRef": "ApiError" }, "description": "SLA タイムアウト" },
         { "id": "409-stock-shortage", "status": 409, "bodySchema": { "typeRef": "ApiError" }, "description": "在庫不足" }
       ],
       "inputs": [
@@ -154,6 +173,12 @@
           "id": "step-or2-001",
           "type": "validation",
           "maturity": "committed",
+          "sla": {
+            "timeoutMs": 5000,
+            "warningThresholdMs": 3500,
+            "onTimeout": "compensate",
+            "errorCode": "PAYMENT_FAILED"
+          },
           "description": "入力バリデーション",
           "conditions": "",
           "rules": [

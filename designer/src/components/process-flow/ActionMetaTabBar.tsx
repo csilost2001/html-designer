@@ -19,6 +19,7 @@ import { AmbientVariablesPanel } from "./AmbientVariablesPanel";
 import { SecretsCatalogPanel } from "./SecretsCatalogPanel";
 import { ExternalSystemCatalogPanel } from "./ExternalSystemCatalogPanel";
 import { TypeCatalogPanel } from "./TypeCatalogPanel";
+import { SlaPanel } from "./SlaPanel";
 
 type TabKey = "info" | "marker" | "error" | "ambient" | "secrets" | "external" | "type";
 
@@ -64,6 +65,11 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
   const handleInfoChange = (field: string, value: string) => {
     updateGroupSilent((g) => {
       (g as unknown as Record<string, string>)[field] = value;
+    });
+  };
+  const handleSlaChange = (sla: ProcessFlow["sla"]) => {
+    updateGroupSilent((g) => {
+      g.sla = sla;
     });
   };
 
@@ -246,6 +252,11 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
               </button>
             </div>
           </div>
+          <SlaPanel
+            label="フロー SLA / Timeout"
+            sla={group.sla}
+            onChange={handleSlaChange}
+          />
         </div>
       )}
       {active === "marker" && (
