@@ -27,6 +27,8 @@ import { ValidationRulesPanel } from "./ValidationRulesPanel";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ExternalOutcomesPanel } from "./ExternalOutcomesPanel";
 import { JumpTargetSelector } from "./JumpTargetSelector";
+import { LogStepPanel } from "./LogStepPanel";
+import { AuditStepPanel } from "./AuditStepPanel";
 
 const ALL_SUB_STEP_TYPES: StepType[] = [
   "validation", "dbAccess", "externalSystem", "commonProcess",
@@ -1575,6 +1577,26 @@ export function StepCard({
                   )}
                 </div>
               </div>
+            )}
+
+            {/* ── ログ出力 (#402) ──────────────────────────────── */}
+            {step.type === "log" && (
+              <LogStepPanel
+                step={step}
+                onChange={(patch) => onChange(patch as Partial<Step>)}
+                onCommit={onCommit}
+                conventions={conventions ?? null}
+              />
+            )}
+
+            {/* ── 監査ログ (#402) ──────────────────────────────── */}
+            {step.type === "audit" && (
+              <AuditStepPanel
+                step={step}
+                onChange={(patch) => onChange(patch as Partial<Step>)}
+                onCommit={onCommit}
+                conventions={conventions ?? null}
+              />
             )}
 
             {/* ── ジャンプ (Phase 5) ───────────────────────────── */}
