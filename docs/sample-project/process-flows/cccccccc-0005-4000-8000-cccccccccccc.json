@@ -90,13 +90,48 @@
       "source": "env",
       "name": "STRIPE_SECRET_KEY",
       "description": "Stripe Payment Intents API 認証用 secret key",
-      "rotationDays": 90
+      "rotationDays": 90,
+      "values": {
+        "dev": "vault://stripe/dev/secret_key",
+        "staging": "vault://stripe/staging/secret_key",
+        "prod": "vault://stripe/prod/secret_key"
+      }
     },
     "sendgridApiKey": {
       "source": "env",
       "name": "SENDGRID_API_KEY",
       "description": "SendGrid Mail API 送信用 API key",
-      "rotationDays": 180
+      "rotationDays": 180,
+      "values": {
+        "dev": "env://SENDGRID_API_KEY_DEV",
+        "staging": "env://SENDGRID_API_KEY_STG",
+        "prod": "vault://sendgrid/prod/api_key"
+      }
+    }
+  },
+
+  "envVarsCatalog": {
+    "STRIPE_API_BASE": {
+      "type": "string",
+      "description": "Stripe API のベース URL。テスト環境では sandbox を指す想定だが、実運用上は同一エンドポイント",
+      "values": {
+        "dev": "https://api.stripe.com/v1",
+        "staging": "https://api.stripe.com/v1",
+        "prod": "https://api.stripe.com/v1"
+      },
+      "default": "https://api.stripe.com/v1"
+    },
+    "MAX_RETRY_ATTEMPTS": {
+      "type": "number",
+      "description": "外部呼出の最大リトライ回数。本番ほど多く、開発環境では速いフィードバック優先",
+      "values": { "dev": 1, "staging": 3, "prod": 5 },
+      "default": 3
+    },
+    "FEATURE_FLAG_NEW_PRICING": {
+      "type": "boolean",
+      "description": "新料金体系のフィーチャーフラグ。dev/staging で先行検証、prod は段階的に有効化",
+      "values": { "dev": true, "staging": true, "prod": false },
+      "default": false
     }
   },
 

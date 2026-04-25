@@ -41,9 +41,14 @@
       "additionalProperties": { "type": "string" }
     },
     "secretsCatalog": {
-      "description": "Secrets カタログ (#261 v1.6)。秘匿値のメタデータ (取得元・ローテーション)。値そのものは含まない",
+      "description": "Secrets カタログ (#261 v1.6 / #414 で values 拡張)。秘匿値のメタデータ (取得元・ローテーション・環境別参照式)。値そのものは含まない",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/SecretRef" }
+    },
+    "envVarsCatalog": {
+      "description": "環境変数カタログ (#414)。Power Platform Environment Variables 由来。型 + 環境別 values + default を持ち、@env.<KEY> で式から参照される。dev/staging/prod 等の環境で値を切り替える ALM 対応",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/EnvVarEntry" }
     },
     "markers": {
       "description": "マーカー (#261)。人間が designer で付けた指示・質問・TODO・チャット。AI が読み取り resolvedAt で解決",
@@ -356,7 +361,7 @@
     },
 
     "SecretRef": {
-      "description": "Secrets カタログの 1 エントリ (#261 v1.6)。値は含まない",
+      "description": "Secrets カタログの 1 エントリ (#261 v1.6 / #414 で values 拡張)。値は含まない。values は環境別の参照式 (vault://... / env://... / k8s-secret://...) を入れる規約",
       "type": "object",
       "required": ["source", "name"],
       "additionalProperties": false,
@@ -365,7 +370,35 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "rotationDays": { "type": "integer", "minimum": 1 },
-        "lastRotatedAt": { "type": "string", "format": "date-time" }
+        "lastRotatedAt": { "type": "string", "format": "date-time" },
+        "values": {
+          "type": "object",
+          "description": "環境別の参照式 (#414)。dev / staging / prod 等の任意キー。実値ではなく vault://path / env://NAME / k8s-secret://name 形式の参照を入れる",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+
+    "EnvVarEntry": {
+      "description": "環境変数カタログの 1 エントリ (#414)。Power Platform Environment Variables 由来。型 + 環境別 values + default を宣言する。@env.<KEY> で式から参照される",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean"],
+          "description": "値の型。実装側はこの型に従って parse する"
+        },
+        "description": { "type": "string" },
+        "values": {
+          "type": "object",
+          "description": "環境別の値。dev / staging / prod 等の任意キー。値は type と整合した primitive (string / number / boolean) または式文字列",
+          "additionalProperties": true
+        },
+        "default": {
+          "description": "values で当該環境キーが未指定時に使う既定値。type と整合した primitive を入れる"
+        }
       }
     },
 

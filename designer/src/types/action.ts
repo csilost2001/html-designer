@@ -1070,7 +1070,7 @@ export interface MarkerShape {
 }
 
 /**
- * Secrets カタログの 1 エントリ (#261 v1.6)。
+ * Secrets カタログの 1 エントリ (#261 v1.6 / #414 で values 拡張)。
  * 秘匿値そのものは JSON に含めない。取得方法のメタデータのみ。
  */
 export interface SecretRef {
@@ -1094,6 +1094,31 @@ export interface SecretRef {
   rotationDays?: number;
   /** 最終ローテーション時刻 (ISO timestamp) */
   lastRotatedAt?: string;
+  /**
+   * 環境別の参照式 (#414)。dev / staging / prod 等の任意キー。
+   * 実値ではなく `vault://path` / `env://NAME` / `k8s-secret://name` 形式の参照を入れる規約。
+   * 旧フォーマット (values 無し) は後方互換で source/name から実装が解決する。
+   */
+  values?: Record<string, string>;
+}
+
+/**
+ * 環境変数カタログの 1 エントリ (#414)。Power Platform Environment Variables 由来。
+ * 業務システムの環境別 (dev / staging / prod) 設定値を宣言可能化する。
+ * `@env.<KEY>` で式から参照される。
+ */
+export interface EnvVarEntry {
+  /** 値の型。実装側はこの型に従って parse する */
+  type: "string" | "number" | "boolean";
+  /** 人間向け説明 */
+  description?: string;
+  /**
+   * 環境別の値。dev / staging / prod 等の任意キー。
+   * 値は type と整合した primitive (string / number / boolean) または式文字列。
+   */
+  values?: Record<string, string | number | boolean>;
+  /** values で当該環境キーが未指定時に使う既定値。type と整合した primitive を入れる。 */
+  default?: string | number | boolean;
 }
 
 /**
@@ -1162,11 +1187,18 @@ export interface ProcessFlow {
    */
   ambientOverrides?: Record<string, string>;
   /**
-   * Secrets カタログ (#261 v1.6)。API キー・DB パスワード・署名鍵等の秘匿値の**メタデータ**。
+   * Secrets カタログ (#261 v1.6 / #414 で values 拡張)。API キー・DB パスワード・署名鍵等の秘匿値の**メタデータ**。
    * 値そのものは JSON に保存せず、`source` で実際の取得先を指す (ENV / vault / file 等)。
+   * `values` で環境別 (dev/staging/prod) の参照式 (`vault://...` / `env://...` 等) を宣言できる。
    * ExternalAuth.tokenRef から `@secret.<key>` 記法で参照される。
    */
   secretsCatalog?: Record<string, SecretRef>;
+  /**
+   * 環境変数カタログ (#414)。Power Platform Environment Variables 由来。
+   * 業務システムの環境別 (dev/staging/prod) 設定値 (型 + values + default) を宣言する。
+   * `@env.<KEY>` で式から参照される。秘匿値は secretsCatalog 側で扱う。
+   */
+  envVarsCatalog?: Record<string, EnvVarEntry>;
   /**
    * マーカー (#261 リアルタイム編集ワークフロー)。
    * 人間が designer 画面で付けたコメント・質問・TODO・チャットメッセージを保持。
