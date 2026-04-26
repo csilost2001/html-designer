@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 8 観点を作成前 self-check として組み込み、既知パターンの再発を抑制する
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 14 観点を作成前 self-check として組み込み、既知パターンの再発を抑制する
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -135,6 +135,44 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 - `errorCatalog` に登録されたコードを使用
 - **死コード rollbackOn 禁止** (#458/#478 で頻発): TX 外 step が返すエラーコードを書かない
 
+### Rule 9: SQL SELECT カラム整合 (#486 で発覚)
+
+- 後続 step で `@bind.column` を参照するすべてのカラムが、対応する `dbAccess` step の SELECT 句に含まれているか確認
+- 典型ミス: `SELECT id, status FROM table` で取得後、後続で `@row.quantity` を参照 → 実行時 undefined
+- 対処: SELECT 句に必要カラムを全列挙、または compute step で別途取得
+
+### Rule 10: `@conv.*` 参照の catalog 整合 (#486 で発覚)
+
+- フロー内で参照する全 `@conv.*` キーが `docs/sample-project/conventions/conventions-catalog.json` に存在することを確認
+- 典型ミス: ADR で `@conv.limit.maxDeliveryAttempts` を仕様化したが catalog 追加を忘れる → runtime で undefined 解決、condition が常に false
+- 対処: 新規 `@conv.*` キーを使うときは必ず catalog にも追加 (本 PR で追加するか、別 ISSUE で先行追加)
+
+### Rule 11: TX 内 branch return 後の制御 (#486 で発覚)
+
+- Rule 4 (TX 外の branch fallthrough) の TX 内バージョン
+- TX inner で `branch` step を使い branch 内で return する場合、後続 inner step に fallthrough しないか明示確認
+- **推奨**: TX 内 branch を避け、`affectedRowsCheck.errorCode` で TX rollback を発火させる経路に統一
+- 典型ミス: `step-tx-02` の branch A で `return 422` した後、`step-tx-03` が implicit に実行されて二重処理 / undefined 参照
+
+### Rule 12: `affectedRowsCheck.operator` は `=` のみ受容 (schema 制約、#486 Opus 発見)
+
+- 利用可能な operator: `>` / `>=` / `=` / `<` / `<=`
+- **`==` は不可**、`!=` も不可
+- 典型ミス: `"operator": "==", "expected": 1` を書く → schema 違反
+
+### Rule 13: `affectedRowsCheck.expected` は integer リテラル必須 (schema 制約、#486 Opus 発見)
+
+- 整数リテラル (`1` / `0` 等) のみ受容
+- **式参照不可** (`@var` 不可)
+- 「N 行更新」を式で表現できないため、複数行 affected の検証が必要なら別の方法 (compute step で count → branch 等)
+
+### Rule 14: `OtherStep.outputSchema` 形式制約 (schema 制約、#486 Opus 発見)
+
+- `{field: "string"}` 形式のみ受容 (フィールド名 → 型名の単純マッピング)
+- **複雑な JSON Schema 不可**: nested object / required / additionalProperties / enum 等は使えない
+- 参考: 拡張定義 (`extensions/<namespace>/steps.json`) の `schema` フィールドは別物 (こちらは JSON Schema 完全対応)
+- 典型ミス: `"outputSchema": { "type": "object", "properties": {...}, "required": [...] }` を書く → schema 違反、Sonnet が #486 で実装中に修正
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -201,11 +239,17 @@ npm run build
 | 1. 変数ライフサイクル | ✓ / ❌ (問題があれば詳細) |
 | 2. TransactionScope 内外整合 | ✓ / ❌ |
 | 3. runIf 連鎖の網羅性 | ✓ / ❌ |
-| 4. branch / elseBranch 到達性 | ✓ / ❌ |
+| 4. branch / elseBranch 到達性 (TX 外) | ✓ / ❌ |
 | 5. compensatesFor 参照健全性 | ✓ / 該当なし |
 | 6. eventsCatalog ⇄ eventPublish | ✓ / ❌ |
 | 7. 外部呼び出しと TX 位置関係 | ✓ / ❌ |
 | 8. rollbackOn 発火可能性 | ✓ / 該当なし |
+| 9. SQL SELECT カラム整合 | ✓ / ❌ (参照しているのに SELECT に無いカラム) |
+| 10. `@conv.*` 参照の catalog 整合 | ✓ / ❌ (catalog 未登録キーがあれば list) |
+| 11. TX 内 branch return 後制御 | ✓ / 該当なし (TX 内 branch を使っていない) |
+| 12. `affectedRowsCheck.operator` (`=` のみ) | ✓ / 該当なし |
+| 13. `affectedRowsCheck.expected` (integer リテラル) | ✓ / 該当なし |
+| 14. `OtherStep.outputSchema` 形式 | ✓ / 該当なし |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
@@ -224,11 +268,11 @@ npm run build
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **8 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **14 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
 - スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
 - 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
-- 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
-- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 8 ルールを遵守すること」が含まれているはず
+- 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` / `ffffffff-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 14 ルールを遵守すること」が含まれているはず
