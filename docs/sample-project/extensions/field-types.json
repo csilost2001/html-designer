@@ -1,0 +1,9 @@
+{
+  "namespace": "gm50",
+  "fieldTypes": [
+    { "kind": "csv", "label": "CSV ファイル" },
+    { "kind": "tsv", "label": "TSV ファイル" },
+    { "kind": "zip", "label": "ZIP ファイル" },
+    { "kind": "view", "label": "DB ビュー" }
+  ]
+}
