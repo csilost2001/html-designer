@@ -166,7 +166,7 @@
       "status": "accepted",
       "context": "再配達上限回数は法令・運送会社契約・季節変動 (繁忙期短縮) で運用調整したい。ハードコード (例: max 3) ではキャンペーン対応や規制変更に対応しづらい。",
       "decision": "再配達上限は @conv.limit.maxDeliveryAttempts 規約参照で取得する。delivery_attempts < max なら再配達スケジュール、>= max なら return_required に分岐する。validation rule の maxRef も同参照を使う。",
-      "consequences": "運用調整が data/conventions/catalog.json 編集だけで反映される。フロー JSON とコードは無変更で済む。テストでは clock + ambientContext で上限値を上書きする。",
+      "consequences": "運用調整が data/conventions/catalog.json 編集だけで反映される。フロー JSON とコードは無変更で済む。テストでは clock + ambientContext で上限値を上書きする。conventions-catalog.json で @conv.limit.maxDeliveryAttempts = 3 を定義済 (docs/sample-project/conventions/conventions-catalog.json#limit.maxDeliveryAttempts)。",
       "date": "2026-04-26"
     }
   ],
@@ -477,7 +477,7 @@
         {
           "id": "step-001-05",
           "type": "transactionScope",
-          "description": "在庫排他ロック (LOCK_INVENTORY) → 在庫引当 (UPDATE+affectedRowsCheck で在庫不足を検知し rollback) → shipment_orders INSERT を 1 TX で実行する。inner step は @inputs / @order / @selectedWarehouseId の TX 外変数のみ参照する。WMS 連携は TX 外。",
+          "description": "在庫排他ロック (LOCK_INVENTORY) → 在庫引当 (UPDATE+affectedRowsCheck で在庫不足を検知し rollback) → shipment_orders INSERT を 1 TX で実行する。inner step は @inputs / @order / @selectedWarehouseId の TX 外変数のみ参照する。WMS 連携は TX 外。txResult outputBinding は { committed: boolean, errorCode?: string } 形式で返す前提 (docs/spec/process-flow-transaction.md §8.3 で規定)。後段 step-001-06 の branches は @txResult.committed と @txResult.errorCode を参照して commit/rollback を判別する。",
           "maturity": "committed",
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
@@ -586,7 +586,6 @@
                   "body": "{ shipmentId: @newShipmentId, warehouseId: @selectedWarehouseId, items: @inputs.items }"
                 },
                 "idempotencyKey": "wms-pick-@newShipmentId",
-                "outputBinding": "wmsResult",
                 "outcomes": {
                   "success": { "action": "continue" },
                   "failure": {
@@ -965,19 +964,14 @@
               {
                 "id": "step-003-05-new-01",
                 "type": "other",
-                "description": "logistics:TrackingUpdateStep 拡張定義 (docs/sample-project/extensions/logistics/steps.json) を呼び出す意図。tracking_events 行から shipment_orders.current_status へのマッピング (状態巻き戻し防止) を補助する。",
+                "description": "logistics:TrackingUpdateStep 拡張定義 (docs/sample-project/extensions/logistics/steps.json) を呼び出す意図。tracking_events 行から shipment_orders.current_status へのマッピング (状態巻き戻し防止) を補助する。outputBinding は後段で参照されないため省略 (副作用のみ)。",
                 "maturity": "committed",
-                "note": "extensionStep=logistics:TrackingUpdateStep; trackingNumber=@inputs.trackingNumber; deliveryStatus=@inputs.status; checkpointAt=@inputs.checkpointAt; checkpointLocation=@inputs.checkpointLocation",
-                "outputBinding": "trackUpdate",
-                "outputSchema": {
-                  "appliedStatus": "string",
-                  "stateChanged": "boolean"
-                }
+                "note": "extensionStep=logistics:TrackingUpdateStep; trackingNumber=@inputs.trackingNumber; deliveryStatus=@inputs.status; checkpointAt=@inputs.checkpointAt; checkpointLocation=@inputs.checkpointLocation"
               },
               {
                 "id": "step-003-05-new-02",
                 "type": "branch",
-                "description": "ステータス値で DELIVERED / FAILED / その他に分岐する。DELIVERED は受領確認 + 顧客通知、FAILED は再配達/返送判断、それ以外は単純な状態反映のみ。",
+                "description": "ステータス値で DELIVERED / RETURNED / FAILED / その他に分岐する。DELIVERED は受領確認 + 顧客通知、RETURNED は運送会社直接通知の確定 + audit + 返送イベント、FAILED は再配達/返送判断、それ以外 (IN_TRANSIT / OUT_FOR_DELIVERY) は単純な状態反映のみ。RETURNED を専用 branch として切り出すことで OTHER_STATUS の暗黙キャッチを排し、状態巻き戻し防止と監査要件を明示する。",
                 "maturity": "committed",
                 "branches": [
                   {
@@ -989,7 +983,7 @@
                       {
                         "id": "step-003-05-new-02-delivered-01",
                         "type": "transactionScope",
-                        "description": "DELIVERED 経路: delivery_confirmations INSERT + shipment_orders を DELIVERED に更新を 1 TX で実行する。inner step は @inputs / @shipment / @upsertedTrack の TX 外変数のみ参照する。",
+                        "description": "DELIVERED 経路: delivery_confirmations INSERT + shipment_orders を DELIVERED に更新を 1 TX で実行する。inner step は @inputs / @shipment / @upsertedTrack の TX 外変数のみ参照する。deliveredTxResult outputBinding は { committed: boolean, errorCode?: string } 形式で返す前提 (docs/spec/process-flow-transaction.md §8.3 で規定)。後段 branches は @deliveredTxResult.committed を参照して commit/rollback を判別する。",
                         "maturity": "committed",
                         "isolationLevel": "READ_COMMITTED",
                         "propagation": "REQUIRED",
@@ -1111,6 +1105,62 @@
                             }
                           ]
                         }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "br-003-05-new-02-returned",
+                    "code": "RETURNED",
+                    "label": "返送通知 (運送会社からの直接通知)",
+                    "condition": "@inputs.status == 'RETURNED'",
+                    "steps": [
+                      {
+                        "id": "step-003-05-new-02-returned-01",
+                        "type": "dbAccess",
+                        "description": "shipment_orders を RETURNED に遷移させる。状態巻き戻し (DELIVERED からの戻り) を防ぐため終端状態でない時のみ更新する。",
+                        "maturity": "committed",
+                        "tableName": "shipment_orders",
+                        "operation": "UPDATE",
+                        "sql": "UPDATE shipment_orders SET current_status = 'RETURNED', updated_at = NOW() WHERE id = @inputs.shipmentId AND current_status NOT IN ('DELIVERED', 'RETURNED') RETURNING id, current_status",
+                        "outputBinding": "returnedDirectShipment",
+                        "lineage": { "writes": ["shipment_orders"] }
+                      },
+                      {
+                        "id": "step-003-05-new-02-returned-02",
+                        "type": "audit",
+                        "description": "運送会社からの直接 RETURNED 通知を監査ログに記録する (sensitive: 顧客契約に影響)。",
+                        "maturity": "committed",
+                        "action": "shipment.return",
+                        "resource": { "type": "ShipmentOrder", "id": "@inputs.shipmentId" },
+                        "result": "success",
+                        "reason": "CARRIER_RETURNED_NOTICE",
+                        "sensitive": true
+                      },
+                      {
+                        "id": "step-003-05-new-02-returned-03",
+                        "type": "eventPublish",
+                        "description": "shipment.tracking_updated イベントを発行する。",
+                        "maturity": "committed",
+                        "topic": "shipment.tracking_updated",
+                        "eventRef": "shipment.tracking_updated",
+                        "payload": "{ shipmentId: @inputs.shipmentId, trackingNumber: @inputs.trackingNumber, status: 'RETURNED', checkpointAt: @inputs.checkpointAt }"
+                      },
+                      {
+                        "id": "step-003-05-new-02-returned-04",
+                        "type": "eventPublish",
+                        "description": "shipment.return_required イベントを発行する (再配達上限経由ではなく運送会社直接通知の RETURNED)。",
+                        "maturity": "committed",
+                        "topic": "shipment.return_required",
+                        "eventRef": "shipment.return_required",
+                        "payload": "{ shipmentId: @inputs.shipmentId, attemptCount: @shipment.delivery_attempts, reason: 'CARRIER_RETURNED_NOTICE' }"
+                      },
+                      {
+                        "id": "step-003-05-new-02-returned-05",
+                        "type": "return",
+                        "description": "200 RETURNED 確定を返す。",
+                        "maturity": "committed",
+                        "responseRef": "200-updated",
+                        "bodyExpression": "{ shipmentId: @inputs.shipmentId, status: 'RETURNED' }"
                       }
                     ]
                   },
@@ -1269,12 +1319,12 @@
                 "elseBranch": {
                   "id": "br-003-05-new-02-other",
                   "code": "OTHER_STATUS",
-                  "label": "IN_TRANSIT / OUT_FOR_DELIVERY / RETURNED 等 (単純反映)",
+                  "label": "IN_TRANSIT / OUT_FOR_DELIVERY (単純反映)",
                   "steps": [
                     {
                       "id": "step-003-05-new-02-other-01",
                       "type": "dbAccess",
-                      "description": "shipment_orders.current_status を反映する。状態巻き戻し (DELIVERED → 戻り) を防ぐため終端状態でない時のみ更新する。",
+                      "description": "shipment_orders.current_status を IN_TRANSIT / OUT_FOR_DELIVERY に反映する。状態巻き戻し (DELIVERED / RETURNED → 戻り) を防ぐため終端状態でない時のみ更新する。",
                       "maturity": "committed",
                       "tableName": "shipment_orders",
                       "operation": "UPDATE",
