@@ -1,19 +1,24 @@
 #!/usr/bin/env node
 /**
- * 設計データ投入スクリプト基盤 (#501)
+ * 設計データ投入スクリプト基盤 (#501 / #504)
  *
  * 業務概要から全仕様書 (ProcessFlow / テーブル / 拡張定義 / 規約) を生成するための
- * フレームワーク基盤。本 ISSUE では基盤実装のみで、AI 推論呼び出しは仮実装 (ダミー生成)。
+ * フレームワーク基盤。
  *
  * 使用法:
  *   cd designer && npm run generate:dogfood -- \
  *     --industry <業界名> \
  *     --scenarios <シナリオ概要> \
  *     --output <出力ディレクトリ> \
+ *     [--mode dummy|ai] \
  *     [--dry-run]
  *
+ * モード:
+ *   dummy (デフォルト): 機械的なダミーデータを生成し、validate:dogfood を実行
+ *   ai               : <output>/_briefing.md を生成し、AI Orchestrator への作業依頼を出力
+ *
  * 終了コード:
- *   0: 生成成功 (validate:dogfood も pass)
+ *   0: 生成成功 (dummy モード時は validate:dogfood も pass)
  *   1: エラーあり
  */
 
@@ -24,16 +29,19 @@ import { randomUUID } from "node:crypto";
 
 // ─── CLI 引数解析 ─────────────────────────────────────────────────────────────
 
+type GenerateMode = "dummy" | "ai";
+
 interface CliOptions {
   industry: string;
   scenarios: string;
   output: string;
   dryRun: boolean;
+  mode: GenerateMode;
 }
 
 function parseArgs(argv: string[]): CliOptions {
   const args = argv.slice(2); // skip node + script path
-  const opts: Partial<CliOptions> = { dryRun: false };
+  const opts: Partial<CliOptions> = { dryRun: false, mode: "dummy" };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -50,6 +58,16 @@ function parseArgs(argv: string[]): CliOptions {
       case "--dry-run":
         opts.dryRun = true;
         break;
+      case "--mode":
+        {
+          const modeVal = args[++i];
+          if (modeVal !== "dummy" && modeVal !== "ai") {
+            console.error(`エラー: --mode は dummy または ai を指定してください (指定値: ${modeVal})`);
+            process.exit(1);
+          }
+          opts.mode = modeVal;
+        }
+        break;
       default:
         if (arg.startsWith("--industry=")) {
           opts.industry = arg.slice("--industry=".length);
@@ -57,6 +75,13 @@ function parseArgs(argv: string[]): CliOptions {
           opts.scenarios = arg.slice("--scenarios=".length);
         } else if (arg.startsWith("--output=")) {
           opts.output = arg.slice("--output=".length);
+        } else if (arg.startsWith("--mode=")) {
+          const modeVal = arg.slice("--mode=".length);
+          if (modeVal !== "dummy" && modeVal !== "ai") {
+            console.error(`エラー: --mode は dummy または ai を指定してください (指定値: ${modeVal})`);
+            process.exit(1);
+          }
+          opts.mode = modeVal;
         } else {
           console.warn(`警告: 不明なオプション: ${arg}`);
         }
@@ -369,6 +394,174 @@ function generateDummyConventions(opts: {
   };
 }
 
+// ─── AI モード: briefing.md 生成 ─────────────────────────────────────────────
+
+/**
+ * シナリオ文字列をリストに分解する。
+ * カンマ・読点・改行で分割し、空文字を除去する。
+ */
+function parseScenarios(scenarios: string): string[] {
+  return scenarios
+    .split(/[,、\n]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * AI Orchestrator 向け briefing.md を生成する (#504)。
+ *
+ * briefing には以下を含める:
+ *  - 業界 namespace
+ *  - シナリオ分解結果
+ *  - 4 種仕様書の生成指示
+ *  - /create-flow の 14 ルール全列挙
+ *  - validate:dogfood 検証手順
+ *  - 既知制約 (#499 / #492 由来)
+ */
+function generateBriefingContent(opts: {
+  industry: string;
+  safeId: string;
+  scenarios: string;
+  outputDir: string;
+}): string {
+  const { industry, safeId, scenarios, outputDir } = opts;
+  const scenarioList = parseScenarios(scenarios);
+  const scenarioBullets = scenarioList
+    .map((s, i) => `${i + 1}. ${s}`)
+    .join("\n");
+
+  return `# 設計データ投入 briefing — ${industry}
+
+生成日時: ${new Date().toISOString()}
+生成元スクリプト: \`designer/scripts/generate-dogfood.ts --mode ai\`
+
+---
+
+## 業界 namespace
+
+\`${safeId}\` (業界: \`${industry}\`)
+
+## 業務概要 (シナリオ群)
+
+以下のシナリオから業務フロー・テーブル・拡張定義・規約を生成してください:
+
+${scenarioBullets}
+
+---
+
+## 生成すべき仕様書
+
+作業ディレクトリ: \`${outputDir}/\`
+
+### 1. 拡張定義 (\`extensions/${safeId}/*.json\`)
+
+業界固有の拡張定義を作成:
+- \`field-types.json\`: 業界固有の型 (例: \`${safeId}Id\` / \`${safeId}Name\` など)
+- \`triggers.json\`: 業界固有トリガー (該当あれば)
+- \`db-operations.json\`: 業界固有 DB 操作 (該当あれば)
+- \`steps.json\`: 業界固有メタステップ (該当あれば)
+
+各ファイルの形式: \`{ namespace: "${safeId}", fieldTypes/triggers/dbOperations/steps: [...] }\`
+
+### 2. テーブル定義 (\`tables/<uuid>.json\`) × N テーブル
+
+シナリオ群から推論されるエンティティを正規化したテーブル定義。
+各テーブルに以下を含める:
+- \`id\`, \`name\` (snake_case), \`logicalName\` (日本語), \`description\`, \`category\`
+- \`columns[]\`: id / name / logicalName / dataType / notNull / primaryKey / unique / (autoIncrement)
+- \`indexes[]\`
+
+### 3. conventions 拡張 (\`conventions/conventions-catalog.json\`)
+
+既存 catalog (\`docs/sample-project/conventions/conventions-catalog.json\`) をベースに
+業界固有 \`@conv.limit.*\` / \`@conv.numbering.*\` 等を追加した版を出力。
+
+### 4. 処理フロー (\`process-flows/<uuid>.json\`) × ${scenarioList.length} シナリオ
+
+各シナリオに対して 1 フロー生成:
+
+${scenarioList.map((s, i) => `- シナリオ ${i + 1}: ${s}`).join("\n")}
+
+**\`/create-flow\` の 14 ルール self-check を遵守すること (Rule 1〜14 全列挙)**:
+
+| Rule | 観点 |
+|------|------|
+| 1 | 変数ライフサイクル — 全 \`@varName\` は実行順で先に設定済み。TX 内から TX 外変数の前方参照禁止。\`@input.x\` は誤り (\`@inputs.x\` が正) |
+| 2 | TransactionScope 内外整合 — TX 内 step は TX 開始前変数のみ参照。外部呼び出し step は TX 内に入れない |
+| 3 | runIf 連鎖の網羅性 — 冪等 UPSERT 後の全 step に同条件 runIf。no-op パスに対応する return step |
+| 4 | branch / elseBranch 到達性 — 全 branch/elseBranch が return か後続 step に到達。branch 内 return 後の fallthrough 禁止 |
+| 5 | compensatesFor 参照健全性 — \`compensatesFor: "step-X"\` の step-X が同 action 内に実在 |
+| 6 | eventsCatalog ⇄ eventPublish 双方向整合 — 宣言した全イベントに対応 eventPublish step が存在 |
+| 7 | 外部呼び出しと TX 位置関係 — externalSystem step は TX inner にいない。TX 外なら補償処理を明記 |
+| 8 | rollbackOn 発火可能性 — TX inner step から実際に発生しうるエラーコードのみ列挙。死コード rollbackOn 禁止 |
+| 9 | SQL SELECT カラム整合 — 後続 step で \`@bind.column\` 参照するカラムが SELECT 句に含まれているか |
+| 10 | \`@conv.*\` 参照の catalog 整合 — 参照する全 \`@conv.*\` キーが catalog に存在するか |
+| 11 | TX 内 branch return 後の制御 — TX inner で branch を使い return する場合、後続 inner step に fallthrough しないか |
+| 12 | \`affectedRowsCheck.operator\` は \`=\` のみ (\`==\` / \`!=\` は schema 違反) |
+| 13 | \`affectedRowsCheck.expected\` は integer リテラル必須 (\`@var\` 参照不可) |
+| 14 | \`OtherStep.outputSchema\` 形式 — \`{field: "string"}\` 形式のみ受容 (複雑 JSON Schema 不可) |
+
+各フローは \`docs/sample-project/process-flows/cccccccc-0007-*.json\` (5/5 達成サンプル) の構造を参考に生成。
+
+---
+
+## AI Orchestrator への作業依頼
+
+このディレクトリ (\`${outputDir}/\`) を作業対象として、上記 4 種類の仕様書を生成してください。
+
+### 推奨手順
+
+1. まず \`docs/sample-project/extensions/${safeId}/\` が存在しない場合は新規 namespace として \`${outputDir}/extensions/${safeId}/\` に作成
+2. Sonnet/Opus サブエージェントを Spawn し、1 シナリオずつ並列実装可能
+3. 各サブエージェントは \`/create-flow\` SKILL の 14 ルールを遵守
+4. 生成物を \`docs/sample-project/\` に移動してから \`validate:dogfood\` で検証
+5. 検出された問題を 3 分類別 (フレームワーク / 拡張定義 / サンプル設計) に集計
+
+### 検証コマンド
+
+\`\`\`bash
+cd designer
+npm run validate:dogfood
+\`\`\`
+
+> 注意: 現状 validate:dogfood は \`docs/sample-project/\` を対象とするため、
+> 生成先が異なる場合は生成物を \`docs/sample-project/\` に移動してから実行してください。
+> 生成先を直接検証する対応は別 ISSUE で追跡中。
+
+---
+
+## 既知制約 (#499 / #492 由来)
+
+### SQL 制約 (#499 / Phase 2-1c で実証済)
+
+- SQL は \`node-sql-parser\` 互換 (PostgreSQL 拡張は使えない):
+  - \`||\` 文字列結合 → \`CONCAT(...)\` に置換
+  - \`MERGE INTO\` → \`INSERT ... ON CONFLICT DO UPDATE\` に置換
+  - \`FOR UPDATE\` 句は使わない
+  - \`VALUES @paramArray\` のパラメータ化 VALUES は使わない
+
+### 拡張 step 参照形式 (#492 / PR #494 で schema 改修済)
+
+- 拡張 step の \`type\` は \`<namespace>:<StepName>\` 形式が schema valid
+  - 例: \`"type": "${safeId}:SomeStep"\`
+  - 後方互換: \`"type": "other"\` + \`outputSchema\` 形式も引き続き valid
+
+### typeRef 制約
+
+- 全 \`typeRef\` は \`extensions/response-types.json\` に定義必須
+
+---
+
+## 参考資料
+
+- 既存 5/5 達成サンプル: \`docs/sample-project/process-flows/cccccccc-0007-*.json\`
+- /create-flow SKILL: \`.claude/skills/create-flow/SKILL.md\`
+- spec: \`docs/spec/process-flow-*.md\`
+- 既存 conventions: \`docs/sample-project/conventions/conventions-catalog.json\`
+- 既存拡張サンプル: \`docs/sample-project/extensions/\`
+`;
+}
+
 // ─── ファイル書き込み ─────────────────────────────────────────────────────────
 
 function writeJson(filePath: string, data: unknown, dryRun: boolean): void {
@@ -408,7 +601,7 @@ function runValidateDogfood(designerDir: string): void {
   }
 }
 
-// ─── エントリーポイント ───────────────────────────────────────────────────────
+// ─── エントリーポイント (dummy モード) ───────────────────────────────────────
 
 export function generate(opts: CliOptions): {
   flowId: string;
@@ -422,7 +615,7 @@ export function generate(opts: CliOptions): {
   const safeId = toSafeId(industry);
   const outputDir = resolve(output);
 
-  console.log("🚀 generate-dogfood 開始");
+  console.log("🚀 generate-dogfood 開始 (dummy モード)");
   console.log(`  industry : ${industry}`);
   console.log(`  scenarios: ${scenarios}`);
   console.log(`  output   : ${outputDir}`);
@@ -499,23 +692,104 @@ export function generate(opts: CliOptions): {
   return { flowId, tableId, flowPath, tablePath, extensionPath, conventionsPath };
 }
 
+// ─── エントリーポイント (AI モード) ──────────────────────────────────────────
+
+export interface GenerateAiResult {
+  briefingPath: string;
+  outputDir: string;
+}
+
+/**
+ * AI モード: ディレクトリ骨格 + _briefing.md を生成し、
+ * AI Orchestrator (Claude Code) が後続の仕様書生成を継続できる briefing を出力する。
+ *
+ * 実際の AI 委譲は本スクリプト外で行う設計 (Claude Code Sonnet/Opus サブエージェント spawn 想定)。
+ * Anthropic API 直接呼び出しは Phase 4-1c 別 ISSUE で対応。
+ */
+export function generateAi(opts: CliOptions): GenerateAiResult {
+  const { industry, scenarios, output, dryRun } = opts;
+  const safeId = toSafeId(industry);
+  const outputDir = resolve(output);
+
+  console.log("🚀 generate-dogfood 開始 (AI モード)");
+  console.log(`  industry : ${industry}`);
+  console.log(`  scenarios: ${scenarios}`);
+  console.log(`  output   : ${outputDir}`);
+  console.log(`  dry-run  : ${dryRun}`);
+  console.log();
+
+  const briefingPath = join(outputDir, "_briefing.md");
+
+  if (dryRun) {
+    console.log("[dry-run] ディレクトリ作成をスキップ");
+    console.log(`[dry-run] 書き込みスキップ: ${briefingPath}`);
+    console.log();
+    console.log("ℹ️  --dry-run モード: 実際の生成はスキップしました");
+    console.log("   生成予定ファイル:");
+    console.log(`     ${briefingPath}`);
+    console.log("   生成予定ディレクトリ:");
+    console.log(`     ${join(outputDir, "process-flows")}/`);
+    console.log(`     ${join(outputDir, "tables")}/`);
+    console.log(`     ${join(outputDir, "extensions", safeId)}/`);
+    console.log(`     ${join(outputDir, "conventions")}/`);
+    return { briefingPath, outputDir };
+  }
+
+  // 1. ディレクトリ骨格作成
+  prepareOutputDirs(outputDir, safeId);
+  console.log("📁 出力ディレクトリを作成しました");
+  console.log();
+
+  // 2. briefing.md 生成
+  const content = generateBriefingContent({ industry, safeId, scenarios, outputDir });
+  writeFileSync(briefingPath, content, "utf-8");
+  console.log(`📝 briefing を生成: ${briefingPath}`);
+  console.log();
+
+  // 3. 次の手順をターミナルに表示
+  console.log("✅ generate-dogfood 完了 (AI モード)");
+  console.log();
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🤖 次の手順: AI Orchestrator (Claude Code) で仕様書生成を継続してください");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log();
+  console.log(`  briefing ファイル: ${briefingPath}`);
+  console.log();
+  console.log("  💡 推奨手順:");
+  console.log("     1. 別セッションで Claude Code を起動 (claude コマンド)");
+  console.log(`     2. _briefing.md を読み込む: Read ${briefingPath}`);
+  console.log("     3. briefing の指示に従って ProcessFlow / テーブル / 拡張定義 / 規約を生成");
+  console.log("     4. 生成物を docs/sample-project/ に移動後 validate:dogfood で検証");
+  console.log();
+  console.log("  ℹ️  AI モードでは validate:dogfood は実行しません (生成物がまだないため)");
+
+  return { briefingPath, outputDir };
+}
+
 // ─── CLI モード ───────────────────────────────────────────────────────────────
 
 const opts = parseArgs(process.argv);
-const result = generate(opts);
 
-// dry-run でなければ validate:dogfood を実行
-if (!opts.dryRun) {
-  // validate:dogfood は docs/sample-project/ を見る。
-  // --output docs/sample-project/ 専用 (本格対応は別 ISSUE)
-  const designerDir = resolve(__dirname, "..");
-  runValidateDogfood(designerDir);
+if (opts.mode === "ai") {
+  // AI モード: briefing 生成のみ、validate:dogfood は実行しない
+  generateAi(opts);
 } else {
-  console.log();
-  console.log("ℹ️  --dry-run モード: validate:dogfood はスキップしました");
-  console.log("   生成予定ファイル:");
-  console.log(`     ${result.flowPath}`);
-  console.log(`     ${result.tablePath}`);
-  console.log(`     ${result.extensionPath}`);
-  console.log(`     ${result.conventionsPath}`);
+  // dummy モード (#501 既存ロジック)
+  const result = generate(opts);
+
+  // dry-run でなければ validate:dogfood を実行
+  if (!opts.dryRun) {
+    // validate:dogfood は docs/sample-project/ を見る。
+    // --output docs/sample-project/ 専用 (本格対応は別 ISSUE)
+    const designerDir = resolve(__dirname, "..");
+    runValidateDogfood(designerDir);
+  } else {
+    console.log();
+    console.log("ℹ️  --dry-run モード: validate:dogfood はスキップしました");
+    console.log("   生成予定ファイル:");
+    console.log(`     ${result.flowPath}`);
+    console.log(`     ${result.tablePath}`);
+    console.log(`     ${result.extensionPath}`);
+    console.log(`     ${result.conventionsPath}`);
+  }
 }
