@@ -27,6 +27,7 @@
 | [dogfood-2026-04-27-phase4-retail-validation.md](dogfood-2026-04-27-phase4-retail-validation.md) | Phase 4 全仕様書統合検証レポート — retail (既存退避→AI 生成→改善ループで Must-fix ゼロ達成) | #500 / #506 |
 | **[schema-governance.md](schema-governance.md)** | **最重要**: グローバル定義スキーマ変更ガバナンス (AI による勝手拡張を構造的に禁止) | #511 |
 | [schema-audit-2026-04-27.md](schema-audit-2026-04-27.md) | Schema 変更履歴監査レポート — 過去 102 コミット精査、(A) 正当 88% / (B) 不規則 2-3% / (C) 不適切 0% | #511 (Phase B-1) |
+| **[schema-design-principles.md](schema-design-principles.md)** | **Schema 設計思想ドキュメント**: 命名規約・構造ルール・oneOf 使い分け・後方互換性・拡張判断フローチャート・テスト規約・各設計画面のコード補完設計 | #514 (Phase B-2) |
 
 **一次成果物**: JSON スキーマ [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) ([README](../../schemas/README.md))。仕様書と突合する機械可読版。
 
