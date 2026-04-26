@@ -1,0 +1,1135 @@
+{
+  "id": "eeeeeeee-0001-4000-8000-eeeeeeeeeeee",
+  "name": "受注 → 生産計画 → 部材引当 → 製造指示 (製造業)",
+  "type": "system",
+  "screenId": "ffffffff-0001-4000-8000-eeeeeeeeeeee",
+  "description": "製造業の受注処理から、完成品在庫確認、BOM 展開による部材確認、生産計画立案、部材引当、製造指示書発行までを表現する製造ドッグフードシナリオ。在庫充足時は直接出荷、不足時は生産計画を立案して部材を引当し MES へ製造指示を送信する。",
+  "apiVersion": "v2",
+  "mode": "downstream",
+  "maturity": "committed",
+  "eventsCatalog": {
+    "order.received": {
+      "description": "受注を受け付け、在庫確認フローを開始した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["orderId", "customerId", "productCode", "quantity"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "customerId": { "type": "string" },
+          "productCode": { "type": "string" },
+          "quantity": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "production.planned": {
+      "description": "生産計画が立案され、部材引当と製造指示の準備ができた時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["orderId", "productionPlanId", "requiredBy"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "productionPlanId": { "type": "string" },
+          "requiredBy": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inventory.reserved": {
+      "description": "必要部材の在庫引当が完了した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["orderId", "productionPlanId", "reservedParts"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "productionPlanId": { "type": "string" },
+          "reservedParts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["partNumber", "quantity"],
+              "properties": {
+                "partNumber": { "type": "string" },
+                "quantity": { "type": "number" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "workorder.issued": {
+      "description": "MES に製造指示書を送信し、製造ラインへの指示が完了した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["workOrderId", "orderId", "productCode", "quantity"],
+        "properties": {
+          "workOrderId": { "type": "string" },
+          "orderId": { "type": "string" },
+          "productCode": { "type": "string" },
+          "quantity": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "production.shortage": {
+      "description": "部材不足で調達依頼を送信し、生産計画を SHORTAGE_PENDING に設定した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["orderId", "shortPartNumbers"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "shortPartNumbers": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "glossary": {
+    "受注": {
+      "definition": "顧客から製品の購入依頼を受け付ける業務。製品コード・数量・納期希望日を含む。",
+      "aliases": ["Order", "Sales Order"],
+      "domainRef": "orders"
+    },
+    "生産計画": {
+      "definition": "受注を満たすために、いつ、何を、どの数量製造するかを計画する業務。リードタイムと部材在庫から計算する。",
+      "aliases": ["Production Plan"],
+      "domainRef": "production_plans"
+    },
+    "BOM (Bill of Materials)": {
+      "definition": "製品を製造するために必要な部品・原材料とその数量の構造的な一覧。多階層構造を持つ場合がある。",
+      "aliases": ["部品表", "材料表"],
+      "domainRef": "bom"
+    },
+    "部材引当": {
+      "definition": "生産計画に対して必要な部品の在庫を予約・確保する処理。排他ロック付き UPDATE で在庫を減らす。",
+      "aliases": ["Inventory Reservation", "資材引当"],
+      "domainRef": "parts_inventory"
+    },
+    "製造指示書 (WorkOrder)": {
+      "definition": "製造ラインに対して製品の製造を指示する文書。製品コード・数量・対象ロット・計画開始日を含む。",
+      "aliases": ["Work Order", "製造オーダー", "WorkOrder"],
+      "domainRef": "work_orders"
+    },
+    "リードタイム": {
+      "definition": "製造指示から完成品出荷までにかかる標準所要日数。製品マスタに定義される。",
+      "aliases": ["Lead Time"],
+      "domainRef": "products.lead_time_days"
+    },
+    "在庫引当": {
+      "definition": "部材引当と同義。parts_inventory の available_qty から必要数量を減算し、reserved_qty に加算する。",
+      "aliases": ["在庫確保", "Stock Reservation"],
+      "domainRef": "parts_inventory.reserved_qty"
+    },
+    "ロット": {
+      "definition": "製造時に同一条件でまとめて生産される単位。ロット ID でトレーサビリティを管理する。",
+      "aliases": ["Lot", "バッチ"],
+      "domainRef": "lots"
+    },
+    "MES (Manufacturing Execution System)": {
+      "definition": "製造現場の実行管理システム。製造指示書を受け取り、作業指示・工程管理・品質記録を行う。",
+      "aliases": ["製造実行システム", "MES"],
+      "domainRef": "mes_work_orders"
+    },
+    "ERP": {
+      "definition": "Enterprise Resource Planning。調達・在庫・会計を統合管理する基幹システム。部材不足時の発注依頼先。",
+      "aliases": ["基幹システム"],
+      "domainRef": "erp_purchase_orders"
+    }
+  },
+  "decisions": [
+    {
+      "id": "ADR-001",
+      "title": "完成品在庫充足時はトランザクションを経由せず直接出荷ステータスで返す",
+      "status": "accepted",
+      "context": "在庫充足のシンプルパスでは生産計画や部材引当が不要。トランザクション不要のため軽量に処理したい。",
+      "decision": "完成品在庫の SELECT 後に branch で充足判定し、充足時は orders を FULFILLED_FROM_STOCK で INSERT して即 201 を返す。transactionScope は使わない。",
+      "consequences": "充足パスのレイテンシが短縮される。在庫 UPDATE と orders INSERT は同一 TX にならないが、在庫サービスと注文サービスが分離されている前提では許容する。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-002",
+      "title": "MES への製造指示はトランザクション外で送信する",
+      "status": "accepted",
+      "context": "MES は外部システムであり、DB トランザクションに組み込むと長時間 TX 占有と MES 障害時のタイムアウトリスクがある。",
+      "decision": "orders INSERT / inventory RESERVE / production_plans INSERT を transactionScope でくくり、commit 後に externalSystem step で MES へ送信する。TX 外なので MES 送信失敗は TX をロールバックしない。",
+      "consequences": "MES 送信失敗時は work_orders が PENDING のまま残り、運用再送が必要になる。ただし DB 整合性は保たれる。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-003",
+      "title": "部材不足時は ERP に発注依頼を送り SHORTAGE_PENDING で返す",
+      "status": "accepted",
+      "context": "部材が在庫不足の場合、即時製造は不可能。ERP 経由で調達依頼を出し、入荷後に別フローで生産再開する。",
+      "decision": "BOM 展開後の部材在庫確認で不足が判明したら externalSystem で ERP に発注依頼を送り、orders を SHORTAGE_PENDING で INSERT して 503 を返す。transactionScope は使用しない (TX の中に外部呼び出しを入れない原則を遵守)。",
+      "consequences": "部材不足パスは 503 返却となるが、業務的には ERP 発注依頼が完了しており処理は継続している。クライアントはポーリングまたは webhook で後続ステータスを取得する。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-004",
+      "title": "TX inner outputBinding は TX 外から参照しない — commit 後に SELECT で再取得する",
+      "status": "accepted",
+      "context": "transactionScope 内の step outputBinding (@newOrder, @productionPlan, @reservationResult 等) は TX スコープに閉じた変数であり、TX commit 後の外側のステップから参照するとフレームワーク依存の前方参照バグになる。",
+      "decision": "TX commit 後に orders / production_plans / parts_inventory を SELECT し直して @persistedOrder / @persistedPlan / @persistedReservation に束ねる。以降の step は全てこれらを参照する。",
+      "consequences": "SELECT が 2 回発生するが、TX 後の読み取りは常に committed data であり整合性は保証される。",
+      "date": "2026-04-26"
+    }
+  ],
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "リクエスト単位の追跡 ID。冪等キーにも利用する。"
+    },
+    {
+      "name": "sessionUserId",
+      "type": "string",
+      "required": true,
+      "description": "受注を入力したオペレーターのユーザー ID。"
+    },
+    {
+      "name": "planningHorizonDays",
+      "type": "number",
+      "required": false,
+      "description": "生産計画の計画期間 (日数)。未指定時はシステム既定 (30 日) を適用。"
+    }
+  ],
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値が不正です",
+      "responseRef": "400-validation"
+    },
+    "PRODUCT_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "製品マスタが見つかりません",
+      "responseRef": "404-product-not-found"
+    },
+    "INSUFFICIENT_INVENTORY": {
+      "httpStatus": 422,
+      "defaultMessage": "完成品在庫が不足しています",
+      "responseRef": "422-insufficient-inventory"
+    },
+    "SUPPLIER_API_ERROR": {
+      "httpStatus": 502,
+      "defaultMessage": "ERP 発注依頼に失敗しました",
+      "responseRef": "502-supplier-api-error"
+    },
+    "PRODUCTION_SHORTAGE": {
+      "httpStatus": 503,
+      "defaultMessage": "部材不足のため ERP に発注依頼を送信しました。入荷後に生産を再開します。",
+      "responseRef": "503-production-shortage"
+    },
+    "INVALID_STATE_TRANSITION": {
+      "httpStatus": 409,
+      "defaultMessage": "状態遷移が不正です (在庫引当競合またはデータ整合性エラー)",
+      "responseRef": "409-invalid-state-transition"
+    }
+  },
+  "externalSystemCatalog": {
+    "erpSystem": {
+      "name": "ERP 発注連携システム",
+      "baseUrl": "https://erp.example.internal",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.erpApiToken"
+      },
+      "timeoutMs": 10000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "backoff": "exponential",
+        "initialDelayMs": 500
+      },
+      "description": "調達部門への発注依頼・在庫補充指示を行う基幹 ERP システム。部材不足時に購買オーダーを起票する。"
+    },
+    "mesSystem": {
+      "name": "MES (Manufacturing Execution System)",
+      "baseUrl": "https://mes.example.internal",
+      "auth": {
+        "kind": "apiKey",
+        "tokenRef": "@secret.mesApiKey",
+        "headerName": "X-MES-API-Key"
+      },
+      "timeoutMs": 8000,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "backoff": "fixed",
+        "initialDelayMs": 1000
+      },
+      "description": "製造現場の実行管理システム。製造指示書 (WorkOrder) を受け取り、作業者への指示と工程管理を行う。"
+    }
+  },
+  "secretsCatalog": {
+    "erpApiToken": {
+      "source": "env",
+      "name": "ERP_API_TOKEN",
+      "rotationDays": 90,
+      "description": "ERP 発注連携 API の Bearer トークン"
+    },
+    "mesApiKey": {
+      "source": "env",
+      "name": "MES_API_KEY",
+      "rotationDays": 180,
+      "description": "MES 連携 API キー"
+    }
+  },
+  "domainsCatalog": {
+    "ProductCode": {
+      "type": "string",
+      "constraints": [
+        {
+          "field": "productCode",
+          "type": "regex",
+          "pattern": "^[A-Z]{2,4}-\\d{4,8}$",
+          "message": "製品コードは英字2〜4文字 + ハイフン + 数字4〜8桁の形式です"
+        }
+      ],
+      "uiHint": "text",
+      "description": "製品を一意に識別するコード。例: PROD-12345678"
+    },
+    "Quantity": {
+      "type": "number",
+      "constraints": [
+        {
+          "field": "quantity",
+          "type": "range",
+          "min": 1,
+          "message": "数量は 1 以上で入力してください"
+        }
+      ],
+      "uiHint": "number",
+      "description": "製品または部材の数量。1 以上の整数。"
+    },
+    "LotId": {
+      "type": { "kind": "lotId" },
+      "uiHint": "text",
+      "description": "製造ロット ID。例: LOT-20260426-001"
+    },
+    "WorkOrderId": {
+      "type": { "kind": "workOrderId" },
+      "uiHint": "text",
+      "description": "製造指示書 ID。例: WO-20260426-001"
+    },
+    "PartNumber": {
+      "type": { "kind": "partNumber" },
+      "constraints": [
+        {
+          "field": "partNumber",
+          "type": "regex",
+          "pattern": "^PART-[A-Z0-9]{4,12}$",
+          "message": "部品番号は PART- で始まる英数字の形式です"
+        }
+      ],
+      "uiHint": "text",
+      "description": "部品を一意に識別する番号。例: PART-ABC123"
+    }
+  },
+  "functionsCatalog": {
+    "calcProductionLeadTime": {
+      "signature": "calcProductionLeadTime(productCode: string, quantity: number): number",
+      "returnType": "number",
+      "description": "製品コードと数量から標準リードタイム (日数) を算出する。製品マスタの lead_time_days × lot_multiplier で計算。",
+      "examples": [
+        "@fn.calcProductionLeadTime(@inputs.productCode, @inputs.quantity) // => 14 (日)"
+      ]
+    }
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "受注処理 + 生産計画立案",
+      "trigger": "submit",
+      "description": "受注を受け付け、完成品在庫を確認する。在庫充足時は直接出荷、不足時は BOM 展開→部材確認→生産計画→部材引当→製造指示を実行する。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/orders/with-production-plan",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "customerId",
+          "label": "顧客 ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "productCode",
+          "label": "製品コード",
+          "type": "string",
+          "required": true,
+          "domainRef": "ProductCode"
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "required": true,
+          "domainRef": "Quantity"
+        },
+        {
+          "name": "requestedDeliveryDate",
+          "label": "希望納期",
+          "type": "string",
+          "required": true,
+          "format": "YYYY-MM-DD"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "orderId",
+          "label": "受注 ID",
+          "type": "string"
+        },
+        {
+          "name": "workOrderId",
+          "label": "製造指示書 ID",
+          "type": "string",
+          "domainRef": "WorkOrderId"
+        },
+        {
+          "name": "status",
+          "label": "処理ステータス",
+          "type": "string",
+          "description": "FULFILLED_FROM_STOCK / PRODUCTION_PLANNED / SHORTAGE_PENDING"
+        }
+      ],
+      "responses": [
+        {
+          "id": "201-success",
+          "status": 201,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": ["orderId", "status"],
+              "properties": {
+                "orderId": { "type": "string" },
+                "workOrderId": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": ["FULFILLED_FROM_STOCK", "PRODUCTION_PLANNED"]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "受注が正常に処理された (在庫充足または生産計画立案)"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "入力値が不正 (quantity <= 0 等)"
+        },
+        {
+          "id": "404-product-not-found",
+          "status": 404,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "製品マスタが存在しない"
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "在庫引当の排他ロック競合またはデータ整合性エラー"
+        },
+        {
+          "id": "502-supplier-api-error",
+          "status": 502,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "ERP 発注依頼 API 自体の呼び出しに失敗 (接続エラー・認証エラー等)"
+        },
+        {
+          "id": "503-production-shortage",
+          "status": 503,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "部材不足のため ERP に発注依頼を送信済み。入荷後に生産を再開する (SHORTAGE_PENDING)"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-001",
+          "type": "validation",
+          "description": "必須チェック。quantity > 0、requestedDeliveryDate は ISO8601 日付形式。",
+          "maturity": "committed",
+          "conditions": "customerId/productCode/quantity/requestedDeliveryDate は必須。quantity > 0。",
+          "rules": [
+            {
+              "field": "customerId",
+              "type": "required",
+              "message": "顧客 ID は必須です"
+            },
+            {
+              "field": "productCode",
+              "type": "required",
+              "message": "製品コードは必須です"
+            },
+            {
+              "field": "quantity",
+              "type": "range",
+              "min": 1,
+              "message": "数量は 1 以上で入力してください"
+            },
+            {
+              "field": "requestedDeliveryDate",
+              "type": "required",
+              "message": "希望納期は必須です"
+            }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "次のステップへ進む",
+            "ng": "400 入力値エラーを返す",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-002",
+          "type": "dbAccess",
+          "description": "products テーブルから製品マスタを取得する。製品コードで検索し、リードタイムと BOM リンクを得る。",
+          "maturity": "committed",
+          "tableName": "products",
+          "operation": "SELECT",
+          "sql": "SELECT id, product_code, name, lead_time_days, standard_lot_size FROM products WHERE product_code = @inputs.productCode AND is_active = true",
+          "outputBinding": "product",
+          "lineage": {
+            "reads": ["products"]
+          }
+        },
+        {
+          "id": "step-003",
+          "type": "branch",
+          "description": "製品マスタが存在しない場合は 404 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-003-a",
+              "code": "A",
+              "label": "製品なし",
+              "condition": "@product == null",
+              "steps": [
+                {
+                  "id": "step-003-a-01",
+                  "type": "return",
+                  "description": "404 製品マスタが見つかりません",
+                  "responseRef": "404-product-not-found",
+                  "bodyExpression": "{ code: 'PRODUCT_NOT_FOUND', message: '製品マスタが見つかりません' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-003-else",
+            "code": "B",
+            "label": "製品あり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-004",
+          "type": "dbAccess",
+          "description": "stock テーブルから完成品在庫を取得する。",
+          "maturity": "committed",
+          "tableName": "stock",
+          "operation": "SELECT",
+          "sql": "SELECT product_code, available_qty FROM stock WHERE product_code = @inputs.productCode",
+          "outputBinding": "stock",
+          "lineage": {
+            "reads": ["stock"]
+          }
+        },
+        {
+          "id": "step-005",
+          "type": "branch",
+          "description": "完成品在庫が充足している場合は直接出荷パスへ。不足時は生産計画立案パスへ。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-005-a",
+              "code": "A",
+              "label": "在庫充足 (直接出荷パス)",
+              "condition": "@stock != null && @stock.available_qty >= @inputs.quantity",
+              "steps": [
+                {
+                  "id": "step-005-a-01",
+                  "type": "dbAccess",
+                  "description": "orders テーブルに FULFILLED_FROM_STOCK で受注を登録する。",
+                  "maturity": "committed",
+                  "tableName": "orders",
+                  "operation": "INSERT",
+                  "sql": "INSERT INTO orders (customer_id, product_code, quantity, requested_delivery_date, status, created_by, created_at) VALUES (@inputs.customerId, @inputs.productCode, @inputs.quantity, @inputs.requestedDeliveryDate, 'FULFILLED_FROM_STOCK', @sessionUserId, NOW()) RETURNING id",
+                  "outputBinding": "fulfilledOrder",
+                  "lineage": {
+                    "writes": ["orders"]
+                  }
+                },
+                {
+                  "id": "step-005-a-02",
+                  "type": "dbAccess",
+                  "description": "完成品在庫を減算する。",
+                  "maturity": "committed",
+                  "tableName": "stock",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE stock SET available_qty = available_qty - @inputs.quantity, updated_at = NOW() WHERE product_code = @inputs.productCode AND available_qty >= @inputs.quantity",
+                  "lineage": {
+                    "writes": ["stock"]
+                  },
+                  "affectedRowsCheck": {
+                    "operator": ">",
+                    "expected": 0,
+                    "onViolation": "log",
+                    "description": "在庫が充足していたはずなので通常は 1 行更新される"
+                  }
+                },
+                {
+                  "id": "step-005-a-03",
+                  "type": "eventPublish",
+                  "description": "order.received イベントを発行する。",
+                  "maturity": "committed",
+                  "topic": "order.received",
+                  "eventRef": "order.received",
+                  "payload": "{ orderId: @fulfilledOrder.id, customerId: @inputs.customerId, productCode: @inputs.productCode, quantity: @inputs.quantity }"
+                },
+                {
+                  "id": "step-005-a-04",
+                  "type": "return",
+                  "description": "201 受注完了 (在庫充足による直接出荷)。",
+                  "responseRef": "201-success",
+                  "bodyExpression": "{ orderId: @fulfilledOrder.id, status: 'FULFILLED_FROM_STOCK' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-005-else",
+            "code": "B",
+            "label": "在庫不足 (生産計画立案パス)",
+            "steps": [
+              {
+                "id": "step-005-b-01",
+                "type": "eventPublish",
+                "description": "order.received イベントを発行する (生産計画パス)。この時点では orders INSERT 前のため、requestId を仮 orderId として使用する設計。TX commit 後の production.planned イベントで確定 orderId が発行される (S-2: 設計上の意図的な選択)。",
+                "maturity": "committed",
+                "topic": "order.received",
+                "eventRef": "order.received",
+                "payload": "{ orderId: @requestId, customerId: @inputs.customerId, productCode: @inputs.productCode, quantity: @inputs.quantity }"
+              },
+              {
+                "id": "step-005-b-02",
+                "type": "other",
+                "description": "manufacturing:BomExplodeStep — 製品コードから BOM を展開し、必要部材リストを取得する。productCode: @inputs.productCode, quantity: @inputs.quantity",
+                "maturity": "committed",
+                "outputBinding": "bomParts"
+              },
+              {
+                "id": "step-005-b-03",
+                "type": "dbAccess",
+                "description": "parts_inventory から各部材の在庫を一括確認する。BOM 展開結果の部品番号リストで検索。",
+                "maturity": "committed",
+                "tableName": "parts_inventory",
+                "operation": "SELECT",
+                "sql": "SELECT part_number, available_qty FROM parts_inventory WHERE part_number IN (@bomParts.partNumbers)",
+                "outputBinding": "partsStock",
+                "lineage": {
+                  "reads": ["parts_inventory"]
+                }
+              },
+              {
+                "id": "step-005-b-04",
+                "type": "compute",
+                "description": "BOM 必要数量と実在庫を比較し、不足部材のリストを算出する。",
+                "maturity": "committed",
+                "expression": "@bomParts.items.filter(p => { const s = @partsStock.find(s => s.part_number == p.partNumber); return !s || s.available_qty < p.requiredQty; }).map(p => p.partNumber)",
+                "outputBinding": "shortPartNumbers"
+              },
+              {
+                "id": "step-005-b-05",
+                "type": "branch",
+                "description": "部材不足がある場合は ERP に発注依頼を送り、SHORTAGE_PENDING で終了する。",
+                "maturity": "committed",
+                "branches": [
+                  {
+                    "id": "br-005-b-05-a",
+                    "code": "A",
+                    "label": "部材不足あり",
+                    "condition": "@shortPartNumbers.length > 0",
+                    "steps": [
+                      {
+                        "id": "step-005-b-05-a-01",
+                        "type": "externalSystem",
+                        "description": "ERP に部材発注依頼を送信する。TX 外で実行する (§8.2 準拠)。",
+                        "maturity": "committed",
+                        "systemName": "ERP 発注連携システム",
+                        "systemRef": "erpSystem",
+                        "httpCall": {
+                          "method": "POST",
+                          "path": "/api/purchase-orders/request",
+                          "body": "{ orderId: @requestId, productCode: @inputs.productCode, shortParts: @shortPartNumbers, requestedBy: @sessionUserId }"
+                        },
+                        "idempotencyKey": "erp-req-@requestId",
+                        "outputBinding": "erpResult",
+                        "outcomes": {
+                          "success": { "action": "continue" },
+                          "failure": { "action": "abort" },
+                          "timeout": { "action": "abort", "sameAs": "failure" }
+                        }
+                      },
+                      {
+                        "id": "step-005-b-05-a-02",
+                        "type": "branch",
+                        "description": "ERP 発注失敗時は 502 を返す。このブランチで return した場合、後続の step-005-b-05-a-03/04 は実行されない。",
+                        "maturity": "committed",
+                        "branches": [
+                          {
+                            "id": "br-erp-fail-a",
+                            "code": "A",
+                            "label": "ERP 失敗",
+                            "condition": "@erpResult.success == false",
+                            "steps": [
+                              {
+                                "id": "step-erp-fail-return",
+                                "type": "return",
+                                "description": "502 ERP 発注依頼失敗",
+                                "responseRef": "502-supplier-api-error",
+                                "bodyExpression": "{ code: 'SUPPLIER_API_ERROR', message: 'ERP 発注依頼に失敗しました' }"
+                              }
+                            ]
+                          }
+                        ],
+                        "elseBranch": {
+                          "id": "br-erp-fail-else",
+                          "code": "B",
+                          "label": "ERP 成功",
+                          "steps": []
+                        }
+                      },
+                      {
+                        "id": "step-005-b-05-a-03",
+                        "type": "eventPublish",
+                        "description": "production.shortage イベントを発行する。ERP 発注成功時のみ実行する。",
+                        "maturity": "committed",
+                        "runIf": "@erpResult.success == true",
+                        "topic": "production.shortage",
+                        "eventRef": "production.shortage",
+                        "payload": "{ orderId: @requestId, shortPartNumbers: @shortPartNumbers }"
+                      },
+                      {
+                        "id": "step-005-b-05-a-04",
+                        "type": "return",
+                        "description": "503 部材不足 (ERP 発注依頼済み)。ERP 発注成功時のみ実行する。業務的には処理は継続しており、クライアントは webhook またはポーリングで入荷後の生産再開通知を受け取る。",
+                        "maturity": "committed",
+                        "runIf": "@erpResult.success == true",
+                        "responseRef": "503-production-shortage",
+                        "bodyExpression": "{ code: 'PRODUCTION_SHORTAGE', message: '部材不足のため ERP に発注依頼を送信しました', shortPartNumbers: @shortPartNumbers }"
+                      }
+                    ]
+                  }
+                ],
+                "elseBranch": {
+                  "id": "br-005-b-05-else",
+                  "code": "B",
+                  "label": "部材充足 (生産計画立案へ)",
+                  "steps": []
+                }
+              },
+              {
+                "id": "step-005-b-06",
+                "type": "compute",
+                "description": "@fn.calcProductionLeadTime で製造リードタイムを算出する。",
+                "maturity": "committed",
+                "expression": "@fn.calcProductionLeadTime(@inputs.productCode, @inputs.quantity)",
+                "outputBinding": "leadTimeDays"
+              },
+              {
+                "id": "step-005-b-07",
+                "type": "transactionScope",
+                "description": "orders INSERT / parts_inventory 引当 UPDATE / production_plans INSERT を 1 トランザクションで実行する。外部システム (MES) 呼び出しは TX 外で行う (§8.2 準拠)。TX 内の step outputBinding (@newOrder, @reservationResult, @productionPlan) は TX スコープに閉じており、commit 後は参照しない (ADR-004)。TX commit 状態は productionTxResult.committed で判定する。",
+                "maturity": "committed",
+                "isolationLevel": "REPEATABLE_READ",
+                "propagation": "REQUIRED",
+                "timeoutMs": 10000,
+                "rollbackOn": ["INVALID_STATE_TRANSITION"],
+                "outputBinding": "productionTxResult",
+                "steps": [
+                  {
+                    "id": "step-005-b-07-01",
+                    "type": "dbAccess",
+                    "description": "orders テーブルに PRODUCTION_PLANNED で受注を登録する。",
+                    "maturity": "committed",
+                    "tableName": "orders",
+                    "operation": "INSERT",
+                    "sql": "INSERT INTO orders (customer_id, product_code, quantity, requested_delivery_date, status, created_by, created_at) VALUES (@inputs.customerId, @inputs.productCode, @inputs.quantity, @inputs.requestedDeliveryDate, 'PRODUCTION_PLANNED', @sessionUserId, NOW()) RETURNING id",
+                    "outputBinding": "newOrder",
+                    "lineage": {
+                      "writes": ["orders"]
+                    }
+                  },
+                  {
+                    "id": "step-005-b-07-02",
+                    "type": "other",
+                    "description": "manufacturing:InventoryReserveStep — BOM 展開結果に基づき、各部材の在庫を排他ロック付きで引当する (RESERVE_INVENTORY 操作)。partNumbers: @bomParts.partNumbers。排他ロック競合や在庫不足が発生した場合は INVALID_STATE_TRANSITION を throw し、TX rollback を発火させる (S-1: rollbackOn の発火源)。",
+                    "maturity": "committed",
+                    "outputBinding": "reservationResult"
+                  },
+                  {
+                    "id": "step-005-b-07-03",
+                    "type": "dbAccess",
+                    "description": "production_plans テーブルに生産計画行を INSERT する。",
+                    "maturity": "committed",
+                    "tableName": "production_plans",
+                    "operation": "INSERT",
+                    "sql": "INSERT INTO production_plans (order_id, product_code, quantity, lead_time_days, planned_start_date, status, created_at) VALUES (@newOrder.id, @inputs.productCode, @inputs.quantity, @leadTimeDays, NOW(), 'ACTIVE', NOW()) RETURNING id",
+                    "outputBinding": "productionPlan",
+                    "lineage": {
+                      "writes": ["production_plans"]
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "step-005-b-08",
+                "type": "return",
+                "description": "TX rollback 経路: 409 INVALID_STATE_TRANSITION を返す。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == false",
+                "responseRef": "409-invalid-state-transition",
+                "bodyExpression": "{ code: 'INVALID_STATE_TRANSITION', message: '在庫引当の競合が発生しました。再度お試しください。' }"
+              },
+              {
+                "id": "step-005-b-07b",
+                "type": "dbAccess",
+                "description": "TX commit 後、orders テーブルから確定受注レコードを再取得する。TX inner binding (@newOrder) は TX スコープ外から参照しないため、commit データを SELECT し直す (ADR-004)。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "tableName": "orders",
+                "operation": "SELECT",
+                "sql": "SELECT id, product_code, quantity, status FROM orders WHERE customer_id = @inputs.customerId AND product_code = @inputs.productCode AND status = 'PRODUCTION_PLANNED' AND created_by = @sessionUserId ORDER BY created_at DESC LIMIT 1",
+                "outputBinding": "persistedOrder",
+                "lineage": {
+                  "reads": ["orders"]
+                }
+              },
+              {
+                "id": "step-005-b-07c",
+                "type": "dbAccess",
+                "description": "TX commit 後、production_plans テーブルから確定生産計画レコードを再取得する。TX inner binding (@productionPlan) は TX スコープ外から参照しないため、commit データを SELECT し直す (ADR-004)。また、parts_inventory から引当済み部材リストも再取得して @persistedReservation に格納する。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "tableName": "production_plans",
+                "operation": "SELECT",
+                "sql": "SELECT pp.id AS plan_id, pi.part_number, pi.reserved_qty FROM production_plans pp JOIN parts_inventory pi ON pi.part_number IN (@bomParts.partNumbers) WHERE pp.order_id = @persistedOrder.id AND pp.status = 'ACTIVE' ORDER BY pp.created_at DESC LIMIT 1",
+                "outputBinding": "persistedPlan",
+                "lineage": {
+                  "reads": ["production_plans", "parts_inventory"]
+                }
+              },
+              {
+                "id": "step-005-b-09",
+                "type": "eventPublish",
+                "description": "production.planned イベントを発行する。TX commit 後のみ実行する (§8.3 準拠)。確定受注 ID は TX 後再取得した @persistedOrder.id を使用する。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "topic": "production.planned",
+                "eventRef": "production.planned",
+                "payload": "{ orderId: @persistedOrder.id, productionPlanId: @persistedPlan.plan_id, requiredBy: @inputs.requestedDeliveryDate }"
+              },
+              {
+                "id": "step-005-b-10",
+                "type": "eventPublish",
+                "description": "inventory.reserved イベントを発行する。TX commit 後のみ実行する (§8.3 準拠)。確定 ID は TX 後再取得した @persistedOrder.id / @persistedPlan.plan_id を使用する。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "topic": "inventory.reserved",
+                "eventRef": "inventory.reserved",
+                "payload": "{ orderId: @persistedOrder.id, productionPlanId: @persistedPlan.plan_id, reservedParts: @persistedPlan.reservedParts }"
+              },
+              {
+                "id": "step-005-b-11",
+                "type": "dbAccess",
+                "description": "work_orders テーブルに製造指示書を発行する。TX commit 後のみ実行する (§8.3 準拠)。確定 ID は TX 後再取得した @persistedOrder.id / @persistedPlan.plan_id を使用する。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "tableName": "work_orders",
+                "operation": "INSERT",
+                "sql": "INSERT INTO work_orders (order_id, production_plan_id, product_code, quantity, lot_id, status, issued_by, issued_at) VALUES (@persistedOrder.id, @persistedPlan.plan_id, @inputs.productCode, @inputs.quantity, 'LOT-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || @persistedOrder.id, 'PENDING', @sessionUserId, NOW()) RETURNING id, lot_id",
+                "outputBinding": "workOrder",
+                "lineage": {
+                  "writes": ["work_orders"]
+                }
+              },
+              {
+                "id": "step-005-b-12",
+                "type": "externalSystem",
+                "description": "MES に製造指示書を送信する。TX 外で実行する (§8.2 準拠)。失敗しても TX をロールバックしない。フレームワークは runIf を式評価 (idempotencyKey の @workOrder.id 参照等) より前に評価することが保証されており、TX rollback 時はこの step が実行されない (S-3: runIf ガード前提)。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "systemName": "MES (Manufacturing Execution System)",
+                "systemRef": "mesSystem",
+                "httpCall": {
+                  "method": "POST",
+                  "path": "/api/work-orders",
+                  "body": "{ workOrderId: @workOrder.id, orderId: @persistedOrder.id, productCode: @inputs.productCode, quantity: @inputs.quantity, lotId: @workOrder.lot_id, productionPlanId: @persistedPlan.plan_id }"
+                },
+                "idempotencyKey": "mes-wo-@workOrder.id",
+                "outputBinding": "mesResult",
+                "outcomes": {
+                  "success": { "action": "continue" },
+                  "failure": { "action": "continue", "description": "MES 送信失敗は work_orders を PENDING のまま残して運用再送する" },
+                  "timeout": { "action": "continue", "sameAs": "failure" }
+                }
+              },
+              {
+                "id": "step-005-b-13",
+                "type": "eventPublish",
+                "description": "workorder.issued イベントを発行する。TX commit + MES 送信後のみ実行する。MES stub の responseMock body は { accepted: true } であるため、@mesResult.accepted で判定する。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true && @mesResult.accepted == true",
+                "topic": "workorder.issued",
+                "eventRef": "workorder.issued",
+                "payload": "{ workOrderId: @workOrder.id, orderId: @persistedOrder.id, productCode: @inputs.productCode, quantity: @inputs.quantity }"
+              },
+              {
+                "id": "step-005-b-14",
+                "type": "return",
+                "description": "201 受注完了 (生産計画立案 + 部材引当 + 製造指示)。TX commit 後のみ実行する (§8.3 準拠)。フレームワークは runIf を式評価より前に評価することが保証されており、TX rollback 時はこの step が実行されない (S-3: runIf ガード前提)。",
+                "maturity": "committed",
+                "runIf": "@productionTxResult.committed == true",
+                "responseRef": "201-success",
+                "bodyExpression": "{ orderId: @persistedOrder.id, workOrderId: @workOrder.id, status: 'PRODUCTION_PLANNED' }"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "testScenarios": [
+    {
+      "id": "happy-fulfilled-from-stock",
+      "name": "完成品在庫充足で即出荷される",
+      "description": "在庫が充足している場合、BOM 展開や生産計画立案を行わず、orders を FULFILLED_FROM_STOCK で登録して 201 を返す正常系。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "operator-001",
+            "requestId": "req-mfg-happy-stock-001"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            {
+              "id": "PRD-001",
+              "product_code": "PROD-12345678",
+              "name": "組立製品 A",
+              "lead_time_days": 14,
+              "standard_lot_size": 10,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "stock",
+          "rows": [
+            {
+              "product_code": "PROD-12345678",
+              "available_qty": 100
+            }
+          ]
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerId": "CUST-001",
+          "productCode": "PROD-12345678",
+          "quantity": 50,
+          "requestedDeliveryDate": "2026-05-10"
+        }
+      },
+      "then": [
+        {
+          "kind": "outcome",
+          "expected": "201-success"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "FULFILLED_FROM_STOCK"
+        },
+        {
+          "kind": "dbRow",
+          "table": "orders",
+          "match": {
+            "product_code": "PROD-12345678",
+            "status": "FULFILLED_FROM_STOCK"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "stock",
+          "match": {
+            "product_code": "PROD-12345678",
+            "available_qty": 50
+          },
+          "count": 1
+        }
+      ],
+      "tags": ["happy", "stock-fulfillment"]
+    },
+    {
+      "id": "happy-production-planned",
+      "name": "在庫不足で生産計画立案・部材引当・製造指示が完了する",
+      "description": "完成品在庫が不足しているが部材在庫は充足している場合、BOM 展開→部材引当→生産計画 INSERT→MES 送信まで全て成功して 201 を返す正常系。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "operator-002",
+            "requestId": "req-mfg-happy-plan-001"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            {
+              "id": "PRD-001",
+              "product_code": "PROD-12345678",
+              "name": "組立製品 A",
+              "lead_time_days": 14,
+              "standard_lot_size": 10,
+              "is_active": true
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "stock",
+          "rows": [
+            {
+              "product_code": "PROD-12345678",
+              "available_qty": 0
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "parts_inventory",
+          "rows": [
+            {
+              "part_number": "PART-AAAA1234",
+              "available_qty": 500
+            },
+            {
+              "part_number": "PART-BBBB5678",
+              "available_qty": 300
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "mesSystem",
+          "responseMock": {
+            "status": 201,
+            "body": { "accepted": true, "mesWorkOrderId": "MES-WO-001" }
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerId": "CUST-002",
+          "productCode": "PROD-12345678",
+          "quantity": 10,
+          "requestedDeliveryDate": "2026-05-24"
+        }
+      },
+      "then": [
+        {
+          "kind": "outcome",
+          "expected": "201-success"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "PRODUCTION_PLANNED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "orders",
+          "match": {
+            "product_code": "PROD-12345678",
+            "status": "PRODUCTION_PLANNED"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "production_plans",
+          "match": {
+            "product_code": "PROD-12345678",
+            "status": "ACTIVE"
+          },
+          "count": 1
+        },
+        {
+          "kind": "externalCall",
+          "externalRef": "mesSystem",
+          "method": "POST",
+          "bodyMatch": {
+            "productCode": "PROD-12345678",
+            "quantity": 10
+          }
+        }
+      ],
+      "tags": ["happy", "production-planned", "mes"]
+    },
+    {
+      "id": "validation-error-invalid-quantity",
+      "name": "quantity <= 0 は 400 になる",
+      "description": "数量 0 以下の受注は入力検証で拒否され、製品マスタ検索や在庫確認へ進まない。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "operator-001",
+            "requestId": "req-mfg-validation-001"
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerId": "CUST-001",
+          "productCode": "PROD-12345678",
+          "quantity": 0,
+          "requestedDeliveryDate": "2026-05-10"
+        }
+      },
+      "then": [
+        {
+          "kind": "outcome",
+          "expected": "400-validation"
+        },
+        {
+          "kind": "errorMessage",
+          "msgKey": "数量は 1 以上で入力してください"
+        }
+      ],
+      "tags": ["error", "validation"]
+    }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

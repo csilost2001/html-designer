@@ -1,0 +1,34 @@
+{
+  "namespace": "manufacturing",
+  "steps": {
+    "BomExplodeStep": {
+      "label": "BOM 展開",
+      "icon": "GitBranch",
+      "description": "製品コードから必要部品リストを階層展開",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["productCode", "quantity"],
+        "properties": {
+          "productCode": { "type": "string" },
+          "quantity": { "type": "number" }
+        }
+      }
+    },
+    "InventoryReserveStep": {
+      "label": "在庫引当",
+      "icon": "Lock",
+      "description": "指定部材の在庫を排他ロック付きで引当",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["partNumber", "quantity"],
+        "properties": {
+          "partNumber": { "type": "string" },
+          "quantity": { "type": "number" },
+          "lotId": { "type": "string" }
+        }
+      }
+    }
+  }
+}
