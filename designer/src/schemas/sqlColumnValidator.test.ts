@@ -90,18 +90,13 @@ describe("checkSqlColumns — サンプル (docs/sample-project) 横断", () => 
   const tables = loadTables();
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
 
-  // 旧サンプルのアクション/テーブル間 drift は別 issue で追跡 (本 PR のスコープ外)。
-  // cccccccc-0005 は items/inventory/orders 旧スキーマ参照のため retail テーブルと不整合。
-  const LEGACY_DRIFT_FILES = new Set<string>(["cccccccc-0005-4000-8000-cccccccccccc.json"]);
-
   it("テーブル定義ロード (防御)", () => {
     expect(tables.length).toBeGreaterThan(0);
     expect(tables.every((t) => Array.isArray(t.columns))).toBe(true);
   });
 
   for (const f of files) {
-    const tester = LEGACY_DRIFT_FILES.has(f) ? it.skip : it;
-    tester(`${f} の全 SQL 列参照が整合`, () => {
+    it(`${f} の全 SQL 列参照が整合`, () => {
       const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
       const issues = checkSqlColumns(group, tables);
       const columnIssues = issues.filter((i) => i.code === "UNKNOWN_COLUMN");
