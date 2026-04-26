@@ -21,7 +21,8 @@ Claude Code 向けの補足ガイダンス。
 本プロジェクトで利用する Claude Code 固有スキル (`.claude/skills/`):
 
 - **`/issues <N>`** — ISSUE を 12 ルール Opus オーケストレーターワークフローで完遂 (`.claude/skills/issues/SKILL.md`)
-- **`/review-pr <N>`** — PR 独立レビュー (`.claude/skills/review-pr/SKILL.md`)
+- **`/review-pr <N>`** — PR 独立レビュー (一般品質: spec / 命名 / テスト) (`.claude/skills/review-pr/SKILL.md`)
+- **`/review-flow <flowId>`** — ProcessFlow JSON 実行セマンティクス専門レビュー (変数ライフサイクル / TX / runIf / 補償 / event 双方向)。設計フェーズから使える (`.claude/skills/review-flow/SKILL.md`)
 - **`/review-issue <N>`** — ISSUE 単位の実装網羅性監査 (`.claude/skills/review-issue/SKILL.md`)
 - **`/test-strategy`** — テスト実装時の自動起動スキル (`.claude/skills/test-strategy/SKILL.md`)
 - **`/rename-screen-ids`** — AI 推論による画面項目 ID 再命名 (`.claude/skills/rename-screen-ids/SKILL.md`)
