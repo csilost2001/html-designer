@@ -773,14 +773,10 @@
         {
           "id": "step-10",
           "type": "transactionScope",
-          "description": "orders INSERT と ROUTED 更新を 1 トランザクションで実行する。外部取引所連携は TX 外で行う。",
+          "description": "orders INSERT のみを 1 トランザクションで実行する。外部取引所連携と ROUTED 更新は TX 外で行う。",
           "maturity": "committed",
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
-          "rollbackOn": [
-            "EXCHANGE_REJECTED",
-            "EXCHANGE_TIMEOUT"
-          ],
           "steps": [
             {
               "id": "step-10",
@@ -796,37 +792,6 @@
                   "orders"
                 ]
               }
-            },
-            {
-              "id": "step-13",
-              "type": "dbAccess",
-              "description": "orders を ROUTED に更新し、取引所 OrderID を保存する。",
-              "maturity": "committed",
-              "tableName": "orders",
-              "operation": "UPDATE",
-              "sql": "UPDATE orders SET status = 'ROUTED', exchange_code = @exchangeRoute, exchange_order_id = @exchangeResult.exchangeOrderId, updated_at = NOW() WHERE id = @newOrder.id",
-              "lineage": {
-                "writes": [
-                  "orders"
-                ]
-              }
-            }
-          ],
-          "onRollback": [
-            {
-              "id": "step-12-comp",
-              "type": "dbAccess",
-              "description": "補償処理: orders を REJECTED に更新する。",
-              "maturity": "committed",
-              "tableName": "orders",
-              "operation": "UPDATE",
-              "sql": "UPDATE orders SET status = 'REJECTED', reject_reason = 'EXCHANGE_REJECTED', updated_at = NOW() WHERE id = @newOrder.id",
-              "lineage": {
-                "writes": [
-                  "orders"
-                ]
-              },
-              "compensatesFor": "step-10"
             }
           ]
         },
@@ -859,8 +824,7 @@
               "action": "continue"
             },
             "failure": {
-              "action": "compensate",
-              "jumpTo": "step-12"
+              "action": "continue"
             },
             "timeout": {
               "action": "abort",
@@ -879,13 +843,22 @@
               "id": "br-12-a",
               "code": "A",
               "label": "送信失敗",
-              "condition": {
-                "kind": "externalOutcome",
-                "stepRef": "step-11",
-                "outcome": "failure",
-                "description": "取引所 NewOrderSingle が failure"
-              },
+              "condition": "@exchangeResult.success == false",
               "steps": [
+                {
+                  "id": "step-12-comp",
+                  "type": "dbAccess",
+                  "description": "補償処理: orders を REJECTED に更新する。",
+                  "maturity": "committed",
+                  "tableName": "orders",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE orders SET status = 'REJECTED', reject_reason = 'EXCHANGE_REJECTED', updated_at = NOW() WHERE id = @newOrder.id",
+                  "lineage": {
+                    "writes": [
+                      "orders"
+                    ]
+                  }
+                },
                 {
                   "id": "step-12-a-02",
                   "type": "return",
@@ -901,6 +874,20 @@
             "code": "B",
             "label": "送信成功",
             "steps": []
+          }
+        },
+        {
+          "id": "step-13",
+          "type": "dbAccess",
+          "description": "orders を ROUTED に更新し、取引所 OrderID を保存する。",
+          "maturity": "committed",
+          "tableName": "orders",
+          "operation": "UPDATE",
+          "sql": "UPDATE orders SET status = 'ROUTED', exchange_code = @exchangeRoute, exchange_order_id = @exchangeResult.exchangeOrderId, updated_at = NOW() WHERE id = @newOrder.id",
+          "lineage": {
+            "writes": [
+              "orders"
+            ]
           }
         },
         {
