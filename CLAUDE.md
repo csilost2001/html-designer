@@ -30,6 +30,21 @@ Claude Code 向けの補足ガイダンス。
 
 Codex CLI 利用時はこれらのスキルは直接呼び出せません。等価機能は Codex plugin の `/codex:review` 等で代替するか、Opus が briefing で代替指示を出します。
 
+### Schema ガバナンス (最重要、#511)
+
+`schemas/process-flow.schema.json` / `schemas/extensions-*.schema.json` / `schemas/conventions.schema.json` 等の **グローバル定義スキーマは、フレームワーク製作者 (設計者) の専権事項**。
+
+- AI (Sonnet/Codex/Opus 含む) が**勝手に変更するのは禁止** (権限外行為)
+- 業務記述で表現できない場合は:
+  1. 拡張機構 (`extensions/<namespace>/*.json`) で代替できないか確認
+  2. 既存 schema フィールドで代替表現できないか確認 (`type: "other"` + outputSchema パターン等)
+  3. それでも無理なら **ISSUE 起票して作業停止**、設計者承認待ち
+- テスト pass を理由に schema を勝手に拡張するのは**絶対禁止**
+
+詳細: memory `feedback_schema_governance_strict.md` / `docs/spec/schema-governance.md`
+
+`/issues` オーケストレーターは PR 作成後に `gh pr diff <PR> -- schemas/` で必ずチェックし、紐付かない変更を検出した場合は revert もしくは別 ISSUE 起票で隔離する。
+
 ### Memory システム
 
 - 自動メモリの保存先: `C:\Users\csilo\.claude\projects\C--projects-html-designer\memory\`

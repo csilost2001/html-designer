@@ -11,6 +11,21 @@ Claude Code 固有の補足は `CLAUDE.md`、Codex 固有の設定は `.codex/co
 - **designer/** — Frontend (React + Vite + GrapesJS + ReactFlow)
 - **designer-mcp/** — MCP server + WebSocket bridge for file persistence
 
+## Schema ガバナンス (最重要、#511 — 全 AI が遵守)
+
+`schemas/process-flow.schema.json` / `schemas/extensions-*.schema.json` / `schemas/conventions.schema.json` 等の **グローバル定義スキーマは、フレームワーク製作者 (設計者) の専権事項**。
+
+- **AI (Claude/Codex/その他) が勝手に変更するのは禁止** — 権限外行為、フレームワークの統一性を損なう
+- 業務記述で表現できない場合の対処順序:
+  1. 拡張機構 (`docs/sample-project/extensions/<namespace>/*.json`) で代替できないか確認
+  2. 既存 schema フィールドで代替表現できないか確認 (`type: "other"` + outputSchema パターン等)
+  3. それでも無理なら **ISSUE 起票して作業停止**、設計者承認待ち
+- **テスト pass を理由に schema を勝手に拡張するのは絶対禁止**
+
+詳細仕様: [`docs/spec/schema-governance.md`](docs/spec/schema-governance.md)
+
+PR 作成後 / マージ前に `git diff origin/main..HEAD -- schemas/` を必ず確認すること。
+
 ## Commands
 
 ### Designer (Frontend)
