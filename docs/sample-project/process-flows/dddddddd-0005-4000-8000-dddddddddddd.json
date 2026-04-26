@@ -186,7 +186,7 @@
     "regulatoryAuthority": {
       "name": "金融庁EDINET",
       "baseUrl": "https://edinet.example.go.jp",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.auditLogSigningKey" },
+      "auth": { "kind": "bearer", "tokenRef": "@secret.regulatoryApiToken" },
       "timeoutMs": 10000,
       "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 1000 },
       "description": "規制報告提出先。サンプルでは金融庁 EDINET を想定する。"
@@ -212,6 +212,11 @@
       "name": "REGULATORY_PUBLIC_KEY",
       "rotationDays": 365,
       "description": "規制当局指定の提出データ暗号化用公開鍵。"
+    },
+    "regulatoryApiToken": {
+      "source": "env",
+      "name": "REGULATORY_API_TOKEN",
+      "rotationDays": 90
     },
     "kycVendorToken": {
       "source": "env",
@@ -373,6 +378,35 @@
           }
         },
         {
+          "id": "step-02b-empty-check",
+          "type": "branch",
+          "description": "報告対象取引が 0 件の場合は提出処理を行わず 200 OK を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-empty",
+              "code": "EMPTY",
+              "label": "報告対象なし",
+              "condition": "@reportableTrades.length == 0",
+              "steps": [
+                {
+                  "id": "step-02b-empty-return",
+                  "type": "return",
+                  "description": "報告対象 0 件として 200 OK を返す。",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ submittedCount: 0 }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-non-empty",
+            "code": "NON_EMPTY",
+            "label": "報告対象あり",
+            "steps": []
+          }
+        },
+        {
           "id": "step-03",
           "type": "compute",
           "description": "監査ログ署名を生成する。",
@@ -452,7 +486,7 @@
           "maturity": "committed",
           "tableName": "regulatory_submissions",
           "operation": "INSERT",
-          "sql": "INSERT INTO regulatory_submissions (submission_id, reporting_period, submitted_count, audit_signature, created_at) VALUES (@regulatorySubmission.body.submissionId, @inputs.reportingPeriod, @reportableTrades.length, @auditSignature, NOW()) RETURNING submission_id AS submissionId, submitted_count AS submittedCount",
+          "sql": "INSERT INTO regulatory_submissions (submission_id, reporting_period, submitted_count, audit_signature, idempotency_key, created_at) VALUES (@regulatorySubmission.body.submissionId, @inputs.reportingPeriod, @reportableTrades.length, @auditSignature, @requestId, NOW()) ON CONFLICT (idempotency_key) DO NOTHING RETURNING submission_id AS submissionId, submitted_count AS submittedCount",
           "outputBinding": "submissionRecord",
           "lineage": {
             "writes": ["regulatory_submissions"]
@@ -639,7 +673,7 @@
           },
           "outcomes": {
             "success": { "action": "continue" },
-            "failure": { "action": "continue", "description": "照合失敗時は内部異常検知スコアのみで評価を継続する" },
+            "failure": { "action": "abort", "description": "照合失敗時は内部異常検知スコアのみで評価を継続する" },
             "timeout": { "action": "continue", "sameAs": "failure" }
           },
           "outputBinding": "sanctionsResult"
@@ -671,6 +705,7 @@
                   "tableName": "trades",
                   "operation": "UPDATE",
                   "sql": "UPDATE trades SET aml_status = 'HOLD', updated_at = NOW() WHERE trade_id = @inputs.tradeId AND account_id = @inputs.accountId",
+                  "outputBinding": "holdResult",
                   "lineage": {
                     "writes": ["trades"]
                   }
@@ -682,6 +717,7 @@
                   "tableName": "suspicious_transaction_reports",
                   "operation": "INSERT",
                   "sql": "INSERT INTO suspicious_transaction_reports (trade_id, account_id, risk_rating, reason, created_at) VALUES (@inputs.tradeId, @inputs.accountId, 'HIGH', 'AML_HIGH_RISK', NOW())",
+                  "outputBinding": "strRecord",
                   "lineage": {
                     "writes": ["suspicious_transaction_reports"]
                   }
@@ -693,6 +729,34 @@
                   "topic": "suspicious.transaction.reported",
                   "eventRef": "suspicious.transaction.reported",
                   "payload": "{ tradeId: @inputs.tradeId, accountId: @inputs.accountId, riskRating: 'HIGH' }"
+                },
+                {
+                  "id": "step-06-a-aml-log",
+                  "type": "audit",
+                  "description": "HIGH リスク検知を AML 監査ログに記録する。",
+                  "action": "aml.high_risk_detected",
+                  "resource": { "type": "Trade", "id": "@inputs.tradeId" },
+                  "result": "success",
+                  "sensitive": true
+                },
+                {
+                  "id": "step-06-a-aml-screening-log-insert",
+                  "type": "dbAccess",
+                  "description": "HIGH リスクの AML 評価履歴を登録する。",
+                  "tableName": "aml_screening_log",
+                  "operation": "INSERT",
+                  "sql": "INSERT INTO aml_screening_log (trade_id, account_id, amount, risk_rating, action_taken, created_at) VALUES (@inputs.tradeId, @inputs.accountId, @inputs.amount, 'HIGH', 'HOLD', NOW())",
+                  "lineage": {
+                    "writes": ["aml_screening_log"]
+                  }
+                },
+                {
+                  "id": "step-06-a-aml-event",
+                  "type": "eventPublish",
+                  "description": "HIGH リスクの AML alert イベントを発行する。",
+                  "topic": "aml.alert.raised",
+                  "eventRef": "aml.alert.raised",
+                  "payload": "{ tradeId: @inputs.tradeId, accountId: @inputs.accountId, riskRating: 'HIGH', actionTaken: 'HOLD' }"
                 },
                 {
                   "id": "step-06-a-04",
@@ -754,7 +818,8 @@
             "id": "@inputs.tradeId"
           },
           "result": "success",
-          "sensitive": true
+          "sensitive": true,
+          "runIf": "@amlDecision != null"
         },
         {
           "id": "step-08",
@@ -763,6 +828,7 @@
           "maturity": "committed",
           "tableName": "aml_screening_log",
           "operation": "INSERT",
+          "runIf": "@amlDecision != null",
           "sql": "INSERT INTO aml_screening_log (trade_id, account_id, amount, risk_rating, action_taken, created_at) VALUES (@inputs.tradeId, @inputs.accountId, @inputs.amount, @amlDecision.riskRating, @amlDecision.actionTaken, NOW())",
           "lineage": {
             "writes": ["aml_screening_log"]
@@ -776,7 +842,7 @@
           "topic": "aml.alert.raised",
           "eventRef": "aml.alert.raised",
           "payload": "{ tradeId: @inputs.tradeId, accountId: @inputs.accountId, riskRating: @amlDecision.riskRating, actionTaken: @amlDecision.actionTaken }",
-          "runIf": "@amlDecision.riskRating == 'HIGH' || @amlDecision.riskRating == 'MEDIUM'"
+          "runIf": "@amlDecision != null"
         },
         {
           "id": "step-10",
@@ -828,7 +894,8 @@
           "responseMock": {
             "status": 200,
             "body": {
-              "submissionId": "SUB-466-001"
+              "submissionId": "SUB-466-001",
+              "submittedCount": 1
             }
           }
         }
@@ -843,6 +910,11 @@
         {
           "kind": "outcome",
           "expected": "200-ok"
+        },
+        {
+          "kind": "output",
+          "path": "body.submittedCount",
+          "equals": 1
         },
         {
           "kind": "externalCall",
