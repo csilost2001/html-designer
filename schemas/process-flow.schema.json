@@ -1834,7 +1834,11 @@
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
             "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
-            "type": { "const": "other" }
+            "type": { "const": "other" },
+            "outputSchema": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
           }
         }
       ]
@@ -1956,6 +1960,15 @@
               "description": "TX rollback 後に実行する step 列 (任意・補償処理)。例: Stripe authorize の cancel、Slack 通知",
               "type": "array",
               "items": { "$ref": "#/$defs/Step" }
+            },
+            "outcomes": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "success": { "$ref": "#/$defs/ExternalCallOutcomeSpec" },
+                "failure": { "$ref": "#/$defs/ExternalCallOutcomeSpec" },
+                "timeout": { "$ref": "#/$defs/ExternalCallOutcomeSpec" }
+              }
             }
           }
         }

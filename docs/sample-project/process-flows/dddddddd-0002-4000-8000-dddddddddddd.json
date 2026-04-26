@@ -23,7 +23,7 @@
       }
     },
     "risk.threshold.breached": {
-      "description": "与信使用率、VaR、または集中リスクの閾値を超過した時点で発行されるイベント。",
+      "description": "BLOCK 判定時のみ発行。与信使用率、VaR、または集中リスクの閾値を超過した時点で発行されるイベント。",
       "payload": {
         "type": "object",
         "required": ["riskCheckId", "accountId", "threshold", "actual"],
@@ -145,7 +145,7 @@
     {
       "name": "riskCheckId",
       "type": "string",
-      "required": false,
+      "required": true,
       "description": "取引前リスクチェック単位の識別子。未指定時はミドルウェアで採番する。"
     }
   ],
@@ -261,9 +261,9 @@
       "examples": ["@fn.calcVaR(@projectedPositions, 0.99)"]
     },
     "checkCircuitBreaker": {
-      "signature": "checkCircuitBreaker(account: Account, lossThreshold: number): boolean",
+      "signature": "checkCircuitBreaker(account: Account, recentLoss: number): boolean",
       "returnType": "boolean",
-      "description": "口座別の損失閾値に対して CircuitBreaker 発動要否を判定する。",
+      "description": "口座別の損失閾値に対して CircuitBreaker 発動要否を判定する。内部で account.loss_threshold と比較。",
       "examples": ["@fn.checkCircuitBreaker(@account, @recentLoss)"]
     }
   },
@@ -346,7 +346,10 @@
           "maturity": "committed",
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
-          "rollbackOn": ["VALIDATION", "SLA_EXCEEDED"],
+          "rollbackOn": ["VALIDATION"],
+          "outcomes": {
+            "failure": { "action": "abort" }
+          },
           "steps": [
             {
               "id": "step-002-01",
@@ -354,7 +357,13 @@
               "description": "PositionUpdateStep: positions を accountId × securityCode の一意キーで UPSERT する。inputs の値だけを参照する。",
               "maturity": "committed",
               "note": "extensionStep=securities:PositionUpdateStep; accountId=@inputs.accountId; securityCode=@inputs.securityCode; executedQty=@inputs.executedQty; executedPrice=@inputs.executedPrice; side=@inputs.side",
-              "outputBinding": "position"
+              "outputBinding": "position",
+              "outputSchema": {
+                "position_id": "string",
+                "security_code": "string",
+                "current_qty": "number",
+                "average_cost": "number"
+              }
             },
             {
               "id": "step-002-02",
@@ -677,6 +686,7 @@
           "type": "dbAccess",
           "description": "リスクチェック結果を risk_check_log に監査登録する。",
           "maturity": "committed",
+          "runIf": "@riskVerdict != null",
           "tableName": "risk_check_log",
           "operation": "INSERT",
           "sql": "INSERT INTO risk_check_log (risk_check_id, account_id, security_code, verdict, usage_ratio, created_at) VALUES (@riskCheckId, @inputs.accountId, @inputs.securityCode, @riskVerdict.verdict, @usage, NOW())",
@@ -687,6 +697,7 @@
           "type": "eventPublish",
           "description": "risk.check.completed イベントを発行する。",
           "maturity": "committed",
+          "runIf": "@riskVerdict != null",
           "topic": "risk.check.completed",
           "eventRef": "risk.check.completed",
           "payload": "{ riskCheckId: @riskCheckId, accountId: @inputs.accountId, verdict: @riskVerdict.verdict }"
@@ -696,6 +707,7 @@
           "type": "return",
           "description": "200 OK と判定結果を返す。",
           "maturity": "committed",
+          "runIf": "@riskVerdict != null",
           "responseRef": "200-ok",
           "bodyExpression": "{ riskCheckId: @riskCheckId, verdict: @riskVerdict.verdict, message: @riskVerdict.message }"
         }
@@ -738,6 +750,7 @@
       "given": [
         { "kind": "clock", "now": "2026-04-26T09:05:00.000Z" },
         { "kind": "sessionContext", "context": { "requestId": "req-463-circuit", "marketDate": "2026-04-26" } },
+        { "kind": "dbState", "table": "accounts", "rows": [{ "id": "ACC-002", "loss_threshold": 1000000, "circuit_breaker_enabled": true }] },
         { "kind": "dbState", "table": "pnl_snapshots", "rows": [{ "account_id": "ACC-002", "loss_amount": 1500000, "created_at": "2026-04-26T09:04:00.000Z" }] }
       ],
       "when": {
