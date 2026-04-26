@@ -1,0 +1,9 @@
+{
+  "namespace": "logistics",
+  "fieldTypes": [
+    { "kind": "shipmentId", "label": "配送指示 ID" },
+    { "kind": "trackingNumber", "label": "配送追跡番号" },
+    { "kind": "warehouseLocation", "label": "倉庫ロケーション" },
+    { "kind": "deliveryStatus", "label": "配送ステータス" }
+  ]
+}
