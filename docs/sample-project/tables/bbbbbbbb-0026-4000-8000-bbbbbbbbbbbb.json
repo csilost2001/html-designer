@@ -1,0 +1,22 @@
+{
+  "id": "bbbbbbbb-0026-4000-8000-bbbbbbbbbbbb",
+  "name": "position_valuations",
+  "logicalName": "ポジション評価テーブル",
+  "description": "日次クロージング時のポジション時価評価結果を管理する。",
+  "category": "ポジション管理",
+  "columns": [
+    { "id": "col-pv01", "name": "id", "logicalName": "ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-pv02", "name": "position_id", "logicalName": "ポジションID", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pv03", "name": "market_date", "logicalName": "市場日付", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pv04", "name": "mark_price", "logicalName": "マーク価格", "dataType": "DECIMAL", "length": 18, "scale": 4, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pv05", "name": "unrealized_pnl", "logicalName": "未実現損益", "dataType": "DECIMAL", "length": 18, "scale": 2, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pv06", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-pv07", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-pv01", "name": "idx_position_valuations_date", "columns": ["col-pv03"], "unique": false },
+    { "id": "idx-pv02", "name": "idx_position_valuations_position_date", "columns": ["col-pv02", "col-pv03"], "unique": true }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "bbbbbbbb-0025-4000-8000-bbbbbbbbbbbb",
+  "name": "mark_prices",
+  "logicalName": "マーク価格テーブル",
+  "description": "時価評価に使用するマーク価格 (終値) を管理する。",
+  "category": "市場データ",
+  "columns": [
+    { "id": "col-mp01", "name": "id", "logicalName": "ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-mp02", "name": "security_code", "logicalName": "銘柄コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-mp03", "name": "market_date", "logicalName": "市場日付", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-mp04", "name": "close_price", "logicalName": "終値", "dataType": "DECIMAL", "length": 18, "scale": 4, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-mp05", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-mp01", "name": "idx_mark_prices_date_security", "columns": ["col-mp03", "col-mp02"], "unique": true }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

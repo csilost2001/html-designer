@@ -1,0 +1,25 @@
+{
+  "id": "bbbbbbbb-0017-4000-8000-bbbbbbbbbbbb",
+  "name": "production_plans",
+  "logicalName": "生産計画テーブル",
+  "description": "製造受注に基づく生産計画を管理する。",
+  "category": "製造",
+  "columns": [
+    { "id": "col-pp01", "name": "id", "logicalName": "生産計画ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-pp02", "name": "order_id", "logicalName": "注文ID", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "foreignKey": { "tableId": "orders", "columnName": "id" } },
+    { "id": "col-pp03", "name": "product_code", "logicalName": "製品コード", "dataType": "VARCHAR", "length": 50, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pp04", "name": "quantity", "logicalName": "生産数量", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pp05", "name": "lead_time_days", "logicalName": "リードタイム(日)", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-pp06", "name": "planned_start_date", "logicalName": "計画開始日", "dataType": "DATE", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-pp07", "name": "part_number", "logicalName": "部品番号 (JOIN用)", "dataType": "VARCHAR", "length": 50, "notNull": false, "primaryKey": false, "unique": false, "comment": "parts_inventory JOIN キー (production_plans pp JOIN parts_inventory pi ON ...)" },
+    { "id": "col-pp08", "name": "reserved_qty", "logicalName": "部品引当数量 (JOIN用)", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-pp09", "name": "status", "logicalName": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'ACTIVE'", "comment": "ACTIVE / COMPLETED / CANCELLED" },
+    { "id": "col-pp10", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-pp01", "name": "idx_production_plans_order", "columns": ["col-pp02"], "unique": false },
+    { "id": "idx-pp02", "name": "idx_production_plans_product", "columns": ["col-pp03"], "unique": false }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

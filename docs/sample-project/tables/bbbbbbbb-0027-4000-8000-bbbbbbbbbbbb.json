@@ -1,0 +1,20 @@
+{
+  "id": "bbbbbbbb-0027-4000-8000-bbbbbbbbbbbb",
+  "name": "accounting_periods",
+  "logicalName": "会計期間テーブル",
+  "description": "会計期間 (営業日ベース) のクローズ状態を管理する。",
+  "category": "会計",
+  "columns": [
+    { "id": "col-ap01", "name": "id", "logicalName": "ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-ap02", "name": "closing_date", "logicalName": "クロージング日", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": true },
+    { "id": "col-ap03", "name": "status", "logicalName": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'OPEN'", "comment": "OPEN / CLOSED" },
+    { "id": "col-ap04", "name": "locked_at", "logicalName": "ロック日時", "dataType": "TIMESTAMP", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-ap05", "name": "locked_by_batch_id", "logicalName": "ロックバッチID", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-ap06", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-ap01", "name": "idx_accounting_periods_date", "columns": ["col-ap02"], "unique": true }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}
