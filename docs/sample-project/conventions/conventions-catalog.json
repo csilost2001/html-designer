@@ -85,7 +85,8 @@
     "companyNameMax": { "value": 200, "unit": "char" },
     "quantityMax": { "value": 9999, "unit": "integer", "description": "発注可能数量の上限" },
     "quantityMin": { "value": 1, "unit": "integer" },
-    "amountMax": { "value": 999999999999, "unit": "yen", "description": "DECIMAL(12,0) の上限、JPY" }
+    "amountMax": { "value": 999999999999, "unit": "yen", "description": "DECIMAL(12,0) の上限、JPY" },
+    "maxDeliveryAttempts": { "value": 3, "unit": "integer", "description": "再配達上限回数 (ADR-003 参照)" }
   },
 
   "scope": {
