@@ -1,0 +1,26 @@
+{
+  "id": "bbbbbbbb-0008-4000-8000-bbbbbbbbbbbb",
+  "name": "accounts",
+  "logicalName": "証券口座テーブル",
+  "description": "顧客の証券取引口座情報を管理する。信用取引レバレッジ率・与信枠等を含む。",
+  "category": "マスタ",
+  "columns": [
+    { "id": "col-acc01", "name": "id", "logicalName": "口座ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-acc02", "name": "customer_id", "logicalName": "顧客ID", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "foreignKey": { "tableId": "customers", "columnName": "id" } },
+    { "id": "col-acc03", "name": "leverage_rate", "logicalName": "レバレッジ率", "dataType": "DECIMAL", "length": 5, "scale": 2, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "1.00" },
+    { "id": "col-acc04", "name": "status", "logicalName": "口座ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'ACTIVE'", "comment": "ACTIVE / SUSPENDED / CLOSED" },
+    { "id": "col-acc05", "name": "account_status", "logicalName": "詳細ステータス", "dataType": "VARCHAR", "length": 20, "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-acc06", "name": "credit_limit", "logicalName": "与信限度額", "dataType": "DECIMAL", "length": 18, "scale": 2, "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-acc07", "name": "available_amount", "logicalName": "利用可能額", "dataType": "DECIMAL", "length": 18, "scale": 2, "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-acc08", "name": "loss_threshold", "logicalName": "損失閾値", "dataType": "DECIMAL", "length": 18, "scale": 2, "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-acc09", "name": "circuit_breaker_enabled", "logicalName": "サーキットブレーカー有効", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "true" },
+    { "id": "col-acc10", "name": "opened_at", "logicalName": "口座開設日時", "dataType": "TIMESTAMP", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-acc11", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-acc12", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-acc01", "name": "idx_accounts_customer", "columns": ["col-acc02"], "unique": false }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

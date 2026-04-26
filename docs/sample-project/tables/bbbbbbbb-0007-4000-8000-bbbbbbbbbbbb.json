@@ -1,19 +1,22 @@
 {
   "id": "bbbbbbbb-0007-4000-8000-bbbbbbbbbbbb",
-  "name": "trading_calendar",
-  "logicalName": "取引カレンダー",
-  "description": "市場ごとの取引日・取引時間帯を管理する。",
-  "category": "マスタ",
+  "name": "order_items",
+  "logicalName": "注文明細",
+  "description": "注文ごとの商品明細。注文確定時にカート明細からコピーされる。数量・単価スナップショットを保持する。",
+  "category": "トランザクション",
   "columns": [
-    { "id": "col-tc01", "name": "id", "logicalName": "ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
-    { "id": "col-tc02", "name": "market_code", "logicalName": "市場コード", "dataType": "VARCHAR", "length": 10, "notNull": true, "primaryKey": false, "unique": false },
-    { "id": "col-tc03", "name": "market_date", "logicalName": "取引日", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
-    { "id": "col-tc04", "name": "is_open", "logicalName": "取引日フラグ", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "true" },
-    { "id": "col-tc05", "name": "open_at", "logicalName": "取引開始時刻", "dataType": "TIME", "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-tc06", "name": "close_at", "logicalName": "取引終了時刻", "dataType": "TIME", "notNull": false, "primaryKey": false, "unique": false }
+    { "id": "col-oi01", "name": "id", "logicalName": "明細ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-oi02", "name": "order_id", "logicalName": "注文ID", "dataType": "VARCHAR", "length": 64, "notNull": true, "primaryKey": false, "unique": false, "comment": "orders.id FK" },
+    { "id": "col-oi03", "name": "product_code", "logicalName": "商品コード", "dataType": "VARCHAR", "length": 50, "notNull": true, "primaryKey": false, "unique": false, "comment": "products.product_code FK" },
+    { "id": "col-oi04", "name": "product_name", "logicalName": "商品名スナップショット", "dataType": "VARCHAR", "length": 200, "notNull": true, "primaryKey": false, "unique": false, "comment": "注文時点の商品名" },
+    { "id": "col-oi05", "name": "quantity", "logicalName": "数量", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-oi06", "name": "unit_price", "logicalName": "単価(税抜)", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-oi07", "name": "subtotal", "logicalName": "小計(税抜)", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-oi08", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
   ],
   "indexes": [
-    { "id": "idx-tc01", "name": "idx_trading_calendar_market_date", "columns": ["col-tc02", "col-tc03"], "unique": true }
+    { "id": "idx-oi01", "name": "idx_order_items_order_id", "columns": ["col-oi02"], "unique": false },
+    { "id": "idx-oi02", "name": "idx_order_items_product_code", "columns": ["col-oi03"], "unique": false }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",
   "updatedAt": "2026-04-26T00:00:00.000Z"

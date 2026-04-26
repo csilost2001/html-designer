@@ -1,36 +1,22 @@
 {
   "id": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
-  "name": "customers",
-  "logicalName": "顧客マスタ",
-  "description": "顧客の基本情報を管理する。顧客一覧・詳細・登録・編集画面のフィールドに対応。",
-  "category": "マスタ",
+  "name": "inventory",
+  "logicalName": "在庫管理",
+  "description": "店舗ごとの商品在庫数量を管理する。available_quantity と reserved_quantity で実在庫と引当済みを分離する。",
+  "category": "在庫",
   "columns": [
-    { "id": "col-c01", "name": "id", "logicalName": "顧客ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
-    { "id": "col-c02", "name": "customer_code", "logicalName": "顧客コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": true, "comment": "C-0001 形式" },
-    { "id": "col-c03", "name": "name", "logicalName": "氏名", "dataType": "VARCHAR", "length": 100, "notNull": true, "primaryKey": false, "unique": false },
-    { "id": "col-c04", "name": "name_kana", "logicalName": "氏名（カナ）", "dataType": "VARCHAR", "length": 100, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c05", "name": "email", "logicalName": "メールアドレス", "dataType": "VARCHAR", "length": 255, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c06", "name": "phone", "logicalName": "電話番号", "dataType": "VARCHAR", "length": 20, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c07", "name": "company_name", "logicalName": "会社名", "dataType": "VARCHAR", "length": 200, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c08", "name": "department", "logicalName": "部署", "dataType": "VARCHAR", "length": 100, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c09", "name": "postal_code", "logicalName": "郵便番号", "dataType": "VARCHAR", "length": 10, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c10", "name": "address", "logicalName": "住所", "dataType": "VARCHAR", "length": 500, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c11", "name": "rank", "logicalName": "顧客ランク", "dataType": "VARCHAR", "length": 10, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'regular'", "comment": "vip / premium / regular" },
-    { "id": "col-c12", "name": "notes", "logicalName": "備考", "dataType": "TEXT", "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-c13", "name": "is_deleted", "logicalName": "削除フラグ", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "false" },
-    { "id": "col-c14", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
-    { "id": "col-c15", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
-    { "id": "col-c16", "name": "account_id", "logicalName": "口座ID", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false, "comment": "証券取引口座 (accounts.id)" },
-    { "id": "col-c20", "name": "customer_id", "logicalName": "顧客ID (外部参照用)", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false, "comment": "外部システムの顧客ID参照" },
-    { "id": "col-c17", "name": "kyc_level", "logicalName": "KYC レベル", "dataType": "VARCHAR", "length": 10, "notNull": false, "primaryKey": false, "unique": false, "comment": "BASIC / ENHANCED / FULL" },
-    { "id": "col-c18", "name": "pep_status", "logicalName": "PEP フラグ", "dataType": "VARCHAR", "length": 10, "notNull": false, "primaryKey": false, "unique": false, "comment": "NONE / PEP / RCA" },
-    { "id": "col-c19", "name": "country_code", "logicalName": "国コード", "dataType": "VARCHAR", "length": 3, "notNull": false, "primaryKey": false, "unique": false, "comment": "ISO 3166-1 alpha-3" }
+    { "id": "col-i01", "name": "id", "logicalName": "在庫ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-i02", "name": "product_code", "logicalName": "商品コード", "dataType": "VARCHAR", "length": 50, "notNull": true, "primaryKey": false, "unique": false, "comment": "products.product_code FK" },
+    { "id": "col-i03", "name": "store_code", "logicalName": "店舗コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-i04", "name": "available_quantity", "logicalName": "在庫可能数量", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0", "comment": "引当後でも出庫可能な数量" },
+    { "id": "col-i05", "name": "reserved_quantity", "logicalName": "引当済数量", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "0", "comment": "注文確定で引当された数量" },
+    { "id": "col-i06", "name": "reorder_point", "logicalName": "発注点", "dataType": "INTEGER", "notNull": false, "primaryKey": false, "unique": false, "comment": "この数量を下回ると補充アラート" },
+    { "id": "col-i07", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
   ],
   "indexes": [
-    { "id": "idx-c01", "name": "idx_customers_code", "columns": ["col-c02"], "unique": true },
-    { "id": "idx-c02", "name": "idx_customers_name", "columns": ["col-c03"], "unique": false },
-    { "id": "idx-c03", "name": "idx_customers_company", "columns": ["col-c07"], "unique": false }
+    { "id": "idx-i01", "name": "idx_inventory_product_store", "columns": ["col-i02", "col-i03"], "unique": true },
+    { "id": "idx-i02", "name": "idx_inventory_store_code", "columns": ["col-i03"], "unique": false }
   ],
-  "createdAt": "2026-04-13T00:00:00.000Z",
+  "createdAt": "2026-04-26T00:00:00.000Z",
   "updatedAt": "2026-04-26T00:00:00.000Z"
 }

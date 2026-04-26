@@ -1,0 +1,694 @@
+{
+  "id": "cccccccc-0005-4000-8000-cccccccccccc",
+  "name": "注文登録画面 (v1.3 全機能実証版)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0009-4000-8000-aaaaaaaaaaaa",
+  "description": "data/actions/cccccccc-0019 を v1.3 全機能 (errorCatalog / response-types 拡張パッケージ / externalSystemCatalog / httpCall / systemRef / FieldType.array+object / BodySchemaRef.typeRef / ExternalAuth / idempotencyKey / initialValue / BranchConditionVariant.affectedRowsZero) で migrate。地の文依存ゼロを目標とする正規サンプル。\n\n【前提スキーマ】items / inventory / orders / order_items / customers テーブル、Stripe Japan 2 段階決済 (authorize → capture)、SendGrid。\n【参照規約】docs/conventions/validation-rules.md / product-scope.md (ambient)。",
+  "mode": "downstream",
+  "maturity": "committed",
+  "sla": {
+    "timeoutMs": 30000,
+    "warningThresholdMs": 20000,
+    "onTimeout": "throw",
+    "errorCode": "TIMEOUT"
+  },
+
+  "ambientVariables": [
+    { "name": "requestId", "type": "string", "required": true, "description": "リクエスト毎に一意。冪等性キー生成やログ相関に使う。通常はリバプロ/ミドルウェア (X-Request-Id) から注入" },
+    { "name": "traceId", "type": "string", "required": false, "description": "分散トレース用。OpenTelemetry 等から注入" },
+    { "name": "sessionId", "type": "string", "required": false, "description": "セッション識別子。auth 経由" },
+    {
+      "name": "fieldErrors",
+      "type": { "kind": "custom", "label": "Record<string, string>" },
+      "required": false,
+      "description": "ValidationStep.rules[] の評価結果。fieldErrorsVar で宣言"
+    }
+  ],
+
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値エラー",
+      "responseRef": "400-validation",
+      "description": "rules[] の unsatisfied"
+    },
+    "NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "対象が存在しません",
+      "responseRef": "404-not-found",
+      "description": "customers / items の存在確認失敗"
+    },
+    "PAYMENT_FAILED": {
+      "httpStatus": 402,
+      "defaultMessage": "決済に失敗しました",
+      "responseRef": "402-payment-failed",
+      "description": "Stripe authorize が failure/timeout"
+    },
+    "TIMEOUT": {
+      "httpStatus": 504,
+      "defaultMessage": "処理がタイムアウトしました",
+      "responseRef": "504-timeout",
+      "description": "SLA / Timeout 宣言から発生するタイムアウト"
+    },
+    "STOCK_SHORTAGE": {
+      "httpStatus": 409,
+      "defaultMessage": "在庫が不足しています",
+      "responseRef": "409-stock-shortage",
+      "description": "事前確認 or 引当 UPDATE で rowCount=0"
+    }
+  },
+
+
+  "secretsCatalog": {
+    "stripeApiKey": {
+      "source": "env",
+      "name": "STRIPE_SECRET_KEY",
+      "description": "Stripe Payment Intents API 認証用 secret key",
+      "rotationDays": 90,
+      "values": {
+        "dev": "vault://stripe/dev/secret_key",
+        "staging": "vault://stripe/staging/secret_key",
+        "prod": "vault://stripe/prod/secret_key"
+      }
+    },
+    "sendgridApiKey": {
+      "source": "env",
+      "name": "SENDGRID_API_KEY",
+      "description": "SendGrid Mail API 送信用 API key",
+      "rotationDays": 180,
+      "values": {
+        "dev": "env://SENDGRID_API_KEY_DEV",
+        "staging": "env://SENDGRID_API_KEY_STG",
+        "prod": "vault://sendgrid/prod/api_key"
+      }
+    }
+  },
+
+  "envVarsCatalog": {
+    "STRIPE_API_BASE": {
+      "type": "string",
+      "description": "Stripe API のベース URL。テスト環境では sandbox を指す想定だが、実運用上は同一エンドポイント",
+      "values": {
+        "dev": "https://api.stripe.com/v1",
+        "staging": "https://api.stripe.com/v1",
+        "prod": "https://api.stripe.com/v1"
+      },
+      "default": "https://api.stripe.com/v1"
+    },
+    "MAX_RETRY_ATTEMPTS": {
+      "type": "number",
+      "description": "外部呼出の最大リトライ回数。本番ほど多く、開発環境では速いフィードバック優先",
+      "values": { "dev": 1, "staging": 3, "prod": 5 },
+      "default": 3
+    },
+    "FEATURE_FLAG_NEW_PRICING": {
+      "type": "boolean",
+      "description": "新料金体系のフィーチャーフラグ。dev/staging で先行検証、prod は段階的に有効化",
+      "values": { "dev": true, "staging": true, "prod": false },
+      "default": false
+    }
+  },
+
+  "externalSystemCatalog": {
+    "stripe": {
+      "name": "Stripe Japan",
+      "baseUrl": "https://api.stripe.com",
+      "openApiSpec": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+      "auth": { "kind": "bearer", "tokenRef": "@secret.stripeApiKey" },
+      "timeoutMs": 10000,
+      "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
+      "headers": {
+        "Stripe-Version": "2024-06-20",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "description": "Stripe Payment Intents API (2 段階決済)。runtime-conventions §2.2 に従い form-urlencoded で送信"
+    },
+    "sendgrid": {
+      "name": "SendGrid",
+      "baseUrl": "https://api.sendgrid.com",
+      "auth": { "kind": "bearer", "tokenRef": "@secret.sendgridApiKey" },
+      "timeoutMs": 10000,
+      "description": "SendGrid Mail API v3"
+    }
+  },
+
+  "actions": [
+    {
+      "id": "act-orderreg-002",
+      "name": "注文確定ボタン",
+      "trigger": "submit",
+      "maturity": "committed",
+      "sla": {
+        "timeoutMs": 10000,
+        "warningThresholdMs": 7000,
+        "onTimeout": "throw",
+        "errorCode": "TIMEOUT"
+      },
+      "requiredPermissions": ["order.create"],
+      "httpRoute": { "method": "POST", "path": "/api/orders", "auth": "required" },
+      "responses": [
+        { "id": "201-success", "status": 201, "bodySchema": { "typeRef": "OrderRegisterResponse" }, "description": "登録成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" }, "description": "バリデーション違反" },
+        { "id": "404-not-found", "status": 404, "bodySchema": { "typeRef": "ApiError" }, "description": "顧客/商品が存在しない" },
+        { "id": "402-payment-failed", "status": 402, "bodySchema": { "typeRef": "ApiError" }, "description": "決済拒否", "when": "@paymentAuth.status == 'failed'" },
+        { "id": "504-timeout", "status": 504, "bodySchema": { "typeRef": "ApiError" }, "description": "SLA タイムアウト" },
+        { "id": "409-stock-shortage", "status": 409, "bodySchema": { "typeRef": "ApiError" }, "description": "在庫不足" }
+      ],
+      "inputs": [
+        { "name": "customerId", "label": "顧客ID", "type": "number", "required": true },
+        {
+          "name": "items",
+          "label": "明細一覧",
+          "required": true,
+          "type": {
+            "kind": "array",
+            "itemType": {
+              "kind": "object",
+              "fields": [
+                { "name": "itemId", "type": "number", "required": true },
+                { "name": "quantity", "type": "number", "required": true }
+              ]
+            }
+          }
+        },
+        { "name": "paymentMethod", "label": "支払方法", "type": "string", "required": true },
+        { "name": "orderNotes", "label": "備考", "type": "string", "required": false }
+      ],
+      "outputs": [
+        { "name": "orderId", "label": "注文ID", "type": "number" },
+        { "name": "orderNumber", "label": "注文番号", "type": "string" }
+      ],
+      "steps": [
+        {
+          "id": "step-or2-001",
+          "type": "validation",
+          "maturity": "committed",
+          "sla": {
+            "timeoutMs": 5000,
+            "warningThresholdMs": 3500,
+            "onTimeout": "compensate",
+            "errorCode": "PAYMENT_FAILED"
+          },
+          "description": "入力バリデーション",
+          "conditions": "",
+          "rules": [
+            { "field": "customerId", "type": "required" },
+            { "field": "items", "type": "custom", "condition": "@items.length >= 1", "message": "明細は 1 件以上必要です" },
+            { "field": "items", "type": "custom", "condition": "@items.every(i => i.quantity >= 1 && i.quantity <= 9999)", "message": "@conv.msg.outOfRange" },
+            { "field": "paymentMethod", "type": "enum", "values": ["credit_card", "bank_transfer", "cash_on_delivery"] }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "次へ",
+            "ng": "400 VALIDATION で return",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-or2-002",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "顧客存在確認 + メール取得",
+          "tableName": "customers",
+          "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
+          "operation": "SELECT",
+          "sql": "SELECT id, name, email FROM customers WHERE id = @customerId AND is_deleted = false LIMIT 1",
+          "outputBinding": "customer"
+        },
+        {
+          "id": "step-or2-003",
+          "type": "loop",
+          "maturity": "committed",
+          "description": "明細ごとに商品+在庫取得",
+          "loopKind": "collection",
+          "collectionSource": "@items",
+          "collectionItemName": "item",
+          "steps": [
+            {
+              "id": "step-or2-003-1",
+              "type": "dbAccess",
+              "maturity": "committed",
+              "description": "商品+在庫 JOIN",
+              "tableName": "items",
+              "operation": "SELECT",
+              "sql": "SELECT i.id, i.name, i.unit_price, COALESCE(v.stock, 0) AS stock FROM items i LEFT JOIN inventory v ON v.item_id = i.id WHERE i.id = @item.itemId AND i.is_deleted = false LIMIT 1",
+              "outputBinding": "itemDetail"
+            },
+            {
+              "id": "step-or2-003-2",
+              "type": "compute",
+              "maturity": "committed",
+              "description": "在庫不足判定時に shortageList へ push",
+              "runIf": "@item.quantity > @itemDetail.stock",
+              "expression": "{ itemId: @item.itemId, name: @itemDetail.name, required: @item.quantity, stock: @itemDetail.stock }",
+              "outputBinding": { "name": "shortageList", "operation": "push", "initialValue": "[]" }
+            },
+            {
+              "id": "step-or2-003-3",
+              "type": "compute",
+              "maturity": "committed",
+              "description": "小計を累積",
+              "expression": "@itemDetail.unit_price * @item.quantity",
+              "outputBinding": { "name": "subtotal", "operation": "accumulate", "initialValue": "0" }
+            },
+            {
+              "id": "step-or2-003-4",
+              "type": "compute",
+              "maturity": "committed",
+              "description": "enrichedItems 構築",
+              "expression": "{ itemId: @item.itemId, name: @itemDetail.name, quantity: @item.quantity, unit_price: @itemDetail.unit_price, subtotal: @itemDetail.unit_price * @item.quantity }",
+              "outputBinding": { "name": "enrichedItems", "operation": "push", "initialValue": "[]" }
+            }
+          ]
+        },
+        {
+          "id": "step-or2-004",
+          "type": "return",
+          "maturity": "committed",
+          "description": "事前在庫不足なら 409 で return",
+          "runIf": "@shortageList.length > 0",
+          "responseRef": "409-stock-shortage",
+          "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }"
+        },
+        {
+          "id": "step-or2-005",
+          "type": "compute",
+          "maturity": "committed",
+          "description": "税額計算 (外税 10% 切り捨て)",
+          "expression": "Math.floor(@subtotal * 0.10)",
+          "outputBinding": "taxAmount"
+        },
+        {
+          "id": "step-or2-005b",
+          "type": "compute",
+          "maturity": "committed",
+          "description": "合計金額",
+          "expression": "@subtotal + @taxAmount",
+          "outputBinding": "totalAmount"
+        },
+        {
+          "id": "step-or2-006",
+          "type": "externalSystem",
+          "maturity": "committed",
+          "description": "決済 authorize",
+          "runIf": "@paymentMethod == 'credit_card'",
+          "systemName": "Stripe Japan",
+          "systemRef": "stripe",
+          "operationRef": "/v1/payment_intents POST",
+          "operationId": "PostPaymentIntents",
+          "requestBodyRef": "#/components/schemas/PaymentIntentCreateParams",
+          "responseRef": "#/components/schemas/payment_intent",
+          "httpCall": {
+            "method": "POST",
+            "path": "/v1/payment_intents",
+            "body": "{ amount: @totalAmount, currency: 'jpy', payment_method_types: ['card'], capture_method: 'manual', metadata: { customer_id: @customerId } }"
+          },
+          "idempotencyKey": "auth-@customerId-@requestId",
+          "outputBinding": "paymentAuth",
+          "externalChain": { "chainId": "stripe-pi-order", "phase": "authorize" },
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": {
+              "action": "abort",
+              "sideEffects": [
+                {
+                  "id": "se-auth-log",
+                  "type": "other",
+                  "description": "Sentry にエラー記録",
+                  "maturity": "committed"
+                }
+              ]
+            },
+            "timeout": { "action": "abort", "sameAs": "failure" }
+          }
+        },
+        {
+          "id": "step-or2-007",
+          "type": "dbAccess",
+          "maturity": "committed",
+          "description": "注文ヘッダ INSERT",
+          "tableName": "orders",
+          "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+          "operation": "INSERT",
+          "sql": "INSERT INTO orders (customer_id, order_date, subtotal, tax_amount, total_amount, payment_method, payment_id, status, notes) VALUES (@customerId, CURRENT_TIMESTAMP, @subtotal, @taxAmount, @totalAmount, @paymentMethod, @paymentAuth?.id, 'processing', @orderNotes) RETURNING id, order_number",
+          "outputBinding": "registeredOrder",
+          "txBoundary": { "role": "begin", "txId": "tx-order-main" }
+        },
+        {
+          "id": "step-or2-008",
+          "type": "loop",
+          "maturity": "committed",
+          "description": "明細 INSERT",
+          "loopKind": "collection",
+          "collectionSource": "@enrichedItems",
+          "collectionItemName": "eitem",
+          "txBoundary": { "role": "member", "txId": "tx-order-main" },
+          "steps": [
+            {
+              "id": "step-or2-008-1",
+              "type": "dbAccess",
+              "maturity": "committed",
+              "description": "order_items INSERT",
+              "tableName": "order_items",
+              "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+              "operation": "INSERT",
+              "sql": "INSERT INTO order_items (order_id, item_name, quantity, unit_price, subtotal) VALUES (@registeredOrder.id, @eitem.name, @eitem.quantity, @eitem.unit_price, @eitem.subtotal)"
+            }
+          ]
+        },
+        {
+          "id": "step-or2-009",
+          "type": "loop",
+          "maturity": "committed",
+          "description": "在庫引当 (条件付き UPDATE)",
+          "loopKind": "collection",
+          "collectionSource": "@enrichedItems",
+          "collectionItemName": "eitem",
+          "txBoundary": { "role": "end", "txId": "tx-order-main" },
+          "steps": [
+            {
+              "id": "step-or2-009-1",
+              "type": "dbAccess",
+              "maturity": "committed",
+              "description": "stock 減算",
+              "tableName": "inventory",
+              "operation": "UPDATE",
+              "sql": "UPDATE inventory SET stock = stock - @eitem.quantity, reserved = reserved + @eitem.quantity, updated_at = CURRENT_TIMESTAMP WHERE item_id = @eitem.itemId AND stock >= @eitem.quantity",
+              "affectedRowsCheck": {
+                "operator": ">",
+                "expected": 0,
+                "onViolation": "throw",
+                "errorCode": "STOCK_SHORTAGE",
+                "description": "並行引当による在庫切れ → TX ROLLBACK"
+              }
+            }
+          ]
+        },
+        {
+          "id": "step-or2-010",
+          "type": "branch",
+          "maturity": "committed",
+          "description": "TX 結果分岐",
+          "tryScope": ["step-or2-007", "step-or2-008", "step-or2-009"],
+          "branches": [
+            {
+              "id": "br-tx-fail",
+              "code": "A",
+              "label": "Saga 補償",
+              "condition": { "kind": "tryCatch", "errorCode": "STOCK_SHORTAGE", "description": "並行引当で TX ROLLBACK" },
+              "steps": [
+                {
+                  "id": "step-or2-010-a-1",
+                  "type": "externalSystem",
+                  "maturity": "committed",
+                  "description": "Stripe cancel (void_authorization)",
+                  "runIf": "@paymentAuth != null",
+                  "systemName": "Stripe Japan",
+                  "systemRef": "stripe",
+                  "operationRef": "/v1/payment_intents/{intent}/cancel POST",
+                  "operationId": "PostPaymentIntentsIntentCancel",
+                  "httpCall": {
+                    "method": "POST",
+                    "path": "/v1/payment_intents/@paymentAuth.id/cancel"
+                  },
+                  "idempotencyKey": "cancel-@paymentAuth.id",
+                  "externalChain": { "chainId": "stripe-pi-order", "phase": "cancel" },
+                  "compensatesFor": "step-or2-006",
+                  "outcomes": {
+                    "success": { "action": "continue" },
+                    "failure": {
+                      "action": "continue",
+                      "sideEffects": [
+                        { "id": "se-canc-1", "type": "other", "description": "Sentry error 記録", "maturity": "committed" },
+                        { "id": "se-canc-2", "type": "other", "description": "運用通知チャネル (Slack) 送信", "maturity": "committed" }
+                      ]
+                    },
+                    "timeout": { "action": "continue", "sameAs": "failure" }
+                  }
+                },
+                {
+                  "id": "step-or2-010-a-2",
+                  "type": "return",
+                  "maturity": "committed",
+                  "description": "409 STOCK_SHORTAGE で return",
+                  "responseRef": "409-stock-shortage",
+                  "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-tx-ok",
+            "code": "ELSE",
+            "label": "続行",
+            "steps": [
+              {
+                "id": "step-or2-011",
+                "type": "externalSystem",
+                "maturity": "committed",
+                "description": "決済 capture",
+                "runIf": "@paymentMethod == 'credit_card'",
+                "systemName": "Stripe Japan",
+                "systemRef": "stripe",
+                "operationRef": "/v1/payment_intents/{intent}/capture POST",
+                "operationId": "PostPaymentIntentsIntentCapture",
+                "httpCall": {
+                  "method": "POST",
+                  "path": "/v1/payment_intents/@paymentAuth.id/capture"
+                },
+                "idempotencyKey": "capture-@paymentAuth.id",
+                "externalChain": { "chainId": "stripe-pi-order", "phase": "capture" },
+                "outcomes": {
+                  "success": { "action": "continue" },
+                  "failure": {
+                    "action": "continue",
+                    "sideEffects": [
+                      {
+                        "id": "se-cap-1",
+                        "type": "dbAccess",
+                        "description": "orders.status を payment_failed に更新",
+                        "tableName": "orders",
+                        "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+                        "operation": "UPDATE",
+                        "sql": "UPDATE orders SET status='payment_failed', updated_at=CURRENT_TIMESTAMP WHERE id = @registeredOrder.id",
+                        "maturity": "committed"
+                      },
+                      { "id": "se-cap-2", "type": "other", "description": "Sentry error 記録", "maturity": "committed" },
+                      { "id": "se-cap-3", "type": "other", "description": "運用通知チャネル (Slack) 送信", "maturity": "committed" }
+                    ]
+                  },
+                  "timeout": { "action": "continue", "sameAs": "failure" }
+                }
+              },
+              {
+                "id": "step-or2-012",
+                "type": "externalSystem",
+                "maturity": "committed",
+                "description": "注文確認メール",
+                "systemName": "SendGrid",
+                "systemRef": "sendgrid",
+                "httpCall": {
+                  "method": "POST",
+                  "path": "/v3/mail/send",
+                  "body": "{ personalizations: [{ to: [{ email: @customer.email }], dynamic_template_data: { customerName: @customer.name, orderNumber: @registeredOrder.order_number, items: @enrichedItems, totalAmount: @totalAmount } }], template_id: 'order-confirmation' }"
+                },
+                "fireAndForget": true,
+                "outcomes": {
+                  "success": { "action": "continue" },
+                  "failure": {
+                    "action": "continue",
+                    "sideEffects": [
+                      { "id": "se-mail-1", "type": "other", "description": "Sentry error 記録", "maturity": "committed" }
+                    ]
+                  },
+                  "timeout": { "action": "continue", "sameAs": "failure" }
+                }
+              },
+              {
+                "id": "step-or2-013",
+                "type": "return",
+                "maturity": "committed",
+                "description": "201 成功",
+                "responseRef": "201-success",
+                "bodyExpression": "{ orderId: @registeredOrder.id, orderNumber: @registeredOrder.order_number }"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "act-orderreg-003",
+      "name": "注文確定ボタン (TX スコープ版・参考)",
+      "trigger": "submit",
+      "maturity": "draft",
+      "description": "act-orderreg-002 の TX 部分 (orders INSERT + order_items INSERT + inventory UPDATE) を TransactionScopeStep 1 つで宣言する参考実装 (#415)。v1.3 平坦 txBoundary との比較サンプルとして併存させる。",
+      "requiredPermissions": ["order.create"],
+      "responses": [
+        { "id": "201-success", "status": 201, "bodySchema": { "typeRef": "OrderRegisterResponse" }, "description": "登録成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" }, "description": "バリデーション違反" },
+        { "id": "404-not-found", "status": 404, "bodySchema": { "typeRef": "ApiError" }, "description": "顧客/商品が存在しない" },
+        { "id": "402-payment-failed", "status": 402, "bodySchema": { "typeRef": "ApiError" }, "description": "決済拒否" },
+        { "id": "409-stock-shortage", "status": 409, "bodySchema": { "typeRef": "ApiError" }, "description": "在庫不足 (TX rollback 起因)" },
+        { "id": "504-timeout", "status": 504, "bodySchema": { "typeRef": "ApiError" }, "description": "SLA タイムアウト" }
+      ],
+      "inputs": [
+        { "name": "customerId", "label": "顧客ID", "type": "number", "required": true },
+        {
+          "name": "enrichedItems",
+          "label": "明細 (前段で構築済)",
+          "type": {
+            "kind": "array",
+            "itemType": {
+              "kind": "object",
+              "fields": [
+                { "name": "itemId", "type": "number", "required": true },
+                { "name": "name", "type": "string", "required": true },
+                { "name": "quantity", "type": "number", "required": true },
+                { "name": "unit_price", "type": "number", "required": true },
+                { "name": "subtotal", "type": "number", "required": true }
+              ]
+            }
+          }
+        },
+        { "name": "subtotal", "label": "小計", "type": "number", "required": true },
+        { "name": "taxAmount", "label": "税額", "type": "number", "required": true },
+        { "name": "totalAmount", "label": "合計", "type": "number", "required": true },
+        { "name": "paymentMethod", "label": "支払方法", "type": "string", "required": true },
+        { "name": "paymentAuth", "label": "Stripe authorize 結果", "type": { "kind": "object", "fields": [
+          { "name": "id", "type": "string" },
+          { "name": "status", "type": "string" }
+        ]}},
+        { "name": "orderNotes", "label": "備考", "type": "string", "required": false }
+      ],
+      "outputs": [
+        { "name": "orderId", "type": "number" },
+        { "name": "orderNumber", "type": "string" }
+      ],
+      "steps": [
+        {
+          "id": "step-or3-001",
+          "type": "transactionScope",
+          "maturity": "draft",
+          "description": "注文登録 + 在庫減算を 1 TX でまとめる (Power Platform Changeset 由来)",
+          "isolationLevel": "READ_COMMITTED",
+          "propagation": "REQUIRED",
+          "timeoutMs": 5000,
+          "rollbackOn": ["VALIDATION", "STOCK_SHORTAGE"],
+          "steps": [
+            {
+              "id": "step-or3-001-1",
+              "type": "dbAccess",
+              "maturity": "draft",
+              "description": "注文ヘッダ INSERT",
+              "tableName": "orders",
+              "tableId": "bbbbbbbb-0003-4000-8000-bbbbbbbbbbbb",
+              "operation": "INSERT",
+              "sql": "INSERT INTO orders (customer_id, order_date, subtotal, tax_amount, total_amount, payment_method, payment_id, status, notes) VALUES (@customerId, CURRENT_TIMESTAMP, @subtotal, @taxAmount, @totalAmount, @paymentMethod, @paymentAuth?.id, 'processing', @orderNotes) RETURNING id, order_number",
+              "outputBinding": "registeredOrder"
+            },
+            {
+              "id": "step-or3-001-2",
+              "type": "loop",
+              "maturity": "draft",
+              "description": "明細 INSERT",
+              "loopKind": "collection",
+              "collectionSource": "@enrichedItems",
+              "collectionItemName": "eitem",
+              "steps": [
+                {
+                  "id": "step-or3-001-2-1",
+                  "type": "dbAccess",
+                  "maturity": "draft",
+                  "description": "order_items INSERT",
+                  "tableName": "order_items",
+                  "tableId": "bbbbbbbb-0004-4000-8000-bbbbbbbbbbbb",
+                  "operation": "INSERT",
+                  "sql": "INSERT INTO order_items (order_id, item_name, quantity, unit_price, subtotal) VALUES (@registeredOrder.id, @eitem.name, @eitem.quantity, @eitem.unit_price, @eitem.subtotal)"
+                }
+              ]
+            },
+            {
+              "id": "step-or3-001-3",
+              "type": "loop",
+              "maturity": "draft",
+              "description": "在庫引当 (条件付き UPDATE)",
+              "loopKind": "collection",
+              "collectionSource": "@enrichedItems",
+              "collectionItemName": "eitem",
+              "steps": [
+                {
+                  "id": "step-or3-001-3-1",
+                  "type": "dbAccess",
+                  "maturity": "draft",
+                  "description": "stock 減算",
+                  "tableName": "inventory",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE inventory SET stock = stock - @eitem.quantity, reserved = reserved + @eitem.quantity, updated_at = CURRENT_TIMESTAMP WHERE item_id = @eitem.itemId AND stock >= @eitem.quantity",
+                  "affectedRowsCheck": {
+                    "operator": ">",
+                    "expected": 0,
+                    "onViolation": "throw",
+                    "errorCode": "STOCK_SHORTAGE",
+                    "description": "並行引当による在庫切れ → TX ROLLBACK (rollbackOn により本 TX 全体を巻戻す)"
+                  }
+                }
+              ]
+            }
+          ],
+          "onCommit": [
+            {
+              "id": "step-or3-001-c1",
+              "type": "log",
+              "maturity": "draft",
+              "description": "TX commit 成功ログ",
+              "level": "info",
+              "message": "注文 @registeredOrder.order_number を確定 (顧客 @customerId)",
+              "category": "order.lifecycle",
+              "structuredData": {
+                "orderId": "@registeredOrder.id",
+                "totalAmount": "@totalAmount"
+              }
+            }
+          ],
+          "onRollback": [
+            {
+              "id": "step-or3-001-r1",
+              "type": "log",
+              "maturity": "draft",
+              "description": "TX rollback ログ",
+              "level": "warn",
+              "message": "注文 TX rollback (顧客 @customerId)",
+              "category": "order.lifecycle"
+            },
+            {
+              "id": "step-or3-001-r2",
+              "type": "externalSystem",
+              "maturity": "draft",
+              "description": "Stripe authorize cancel (rollback の補償)",
+              "runIf": "@paymentAuth != null",
+              "systemName": "Stripe Japan",
+              "systemRef": "stripe",
+              "httpCall": {
+                "method": "POST",
+                "path": "/v1/payment_intents/@paymentAuth.id/cancel"
+              },
+              "idempotencyKey": "cancel-@paymentAuth.id",
+              "externalChain": { "chainId": "stripe-pi-order-tx", "phase": "cancel" }
+            }
+          ]
+        },
+        {
+          "id": "step-or3-002",
+          "type": "return",
+          "maturity": "draft",
+          "description": "201 成功",
+          "bodyExpression": "{ orderId: @registeredOrder.id, orderNumber: @registeredOrder.order_number }"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-04-20T19:00:00.000Z",
+  "updatedAt": "2026-04-25T12:00:00.000Z"
+}

@@ -1,21 +1,27 @@
 {
   "id": "bbbbbbbb-0006-4000-8000-bbbbbbbbbbbb",
-  "name": "securities",
-  "logicalName": "銘柄マスタ",
-  "description": "取引可能な有価証券の銘柄情報を管理する。証券注文・取引フローで参照される。",
-  "category": "マスタ",
+  "name": "orders",
+  "logicalName": "注文マスタ",
+  "description": "顧客の確定注文を管理する。注文番号・顧客・合計金額・ステータスを保持する。",
+  "category": "トランザクション",
   "columns": [
-    { "id": "col-sec01", "name": "id", "logicalName": "銘柄ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
-    { "id": "col-sec02", "name": "security_code", "logicalName": "銘柄コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": true },
-    { "id": "col-sec03", "name": "code", "logicalName": "コード (短縮)", "dataType": "VARCHAR", "length": 10, "notNull": false, "primaryKey": false, "unique": false },
-    { "id": "col-sec04", "name": "market_code", "logicalName": "市場コード", "dataType": "VARCHAR", "length": 10, "notNull": true, "primaryKey": false, "unique": false, "comment": "TSE / OSE 等" },
-    { "id": "col-sec05", "name": "lot_size", "logicalName": "売買単位", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "100" },
-    { "id": "col-sec06", "name": "is_tradable", "logicalName": "取引可能フラグ", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "true" },
-    { "id": "col-sec07", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
-    { "id": "col-sec08", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+    { "id": "col-o01", "name": "id", "logicalName": "注文ID", "dataType": "VARCHAR", "length": 64, "notNull": true, "primaryKey": true, "unique": false, "comment": "UUID v4" },
+    { "id": "col-o02", "name": "order_number", "logicalName": "注文番号", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": true, "comment": "RO-YYYY-NNNN 形式" },
+    { "id": "col-o03", "name": "customer_id", "logicalName": "顧客ID", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false, "comment": "customers.id FK" },
+    { "id": "col-o04", "name": "cart_id", "logicalName": "元カートID", "dataType": "VARCHAR", "length": 64, "notNull": false, "primaryKey": false, "unique": false, "comment": "carts.id FK" },
+    { "id": "col-o05", "name": "status", "logicalName": "注文ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'CONFIRMED'", "comment": "CONFIRMED / SHIPPED / DELIVERED / CANCELLED" },
+    { "id": "col-o06", "name": "subtotal", "logicalName": "小計(税抜)", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-o07", "name": "tax_amount", "logicalName": "消費税額", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-o08", "name": "total_amount", "logicalName": "合計金額(税込)", "dataType": "INTEGER", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-o09", "name": "shipping_address", "logicalName": "配送先住所", "dataType": "VARCHAR", "length": 500, "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-o10", "name": "notes", "logicalName": "備考", "dataType": "TEXT", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-o11", "name": "created_at", "logicalName": "注文日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-o12", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
   ],
   "indexes": [
-    { "id": "idx-sec01", "name": "idx_securities_code", "columns": ["col-sec02"], "unique": true }
+    { "id": "idx-o01", "name": "idx_orders_order_number", "columns": ["col-o02"], "unique": true },
+    { "id": "idx-o02", "name": "idx_orders_customer_id", "columns": ["col-o03"], "unique": false },
+    { "id": "idx-o03", "name": "idx_orders_status", "columns": ["col-o05"], "unique": false }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",
   "updatedAt": "2026-04-26T00:00:00.000Z"
