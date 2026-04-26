@@ -1,6 +1,6 @@
 {
   "namespace": "logistics",
   "triggers": [
-    { "value": "deliveryAttempted", "label": "運送会社コールバック (配送試行)" }
+    { "value": "deliveryAttempted", "label": "運送会社からの配送試行通知時" }
   ]
 }

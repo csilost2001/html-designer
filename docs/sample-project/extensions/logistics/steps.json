@@ -3,8 +3,8 @@
   "steps": {
     "PickingStep": {
       "label": "倉庫ピッキング",
-      "icon": "Package",
-      "description": "作業者がモバイル端末で倉庫ロケーションを指定し、ピッキング対象品目を確認・完了登録する。",
+      "icon": "PackageCheck",
+      "description": "倉庫作業者が指定された配送指示の対象商品をロケーションからピッキングする工程。複数商品の場合は warehouseLocation の昇順で巡回することを想定。",
       "schema": {
         "type": "object",
         "additionalProperties": false,
@@ -13,40 +13,45 @@
           "shipmentId": { "type": "string" },
           "warehouseLocation": { "type": "string" },
           "operatorId": { "type": "string" },
-          "pickedItems": { "type": "string" }
+          "scannedItems": { "type": "string", "description": "走査済み商品の式参照 (例: @inputs.scannedItems)" }
         }
       }
     },
     "TrackingUpdateStep": {
-      "label": "配送位置更新",
+      "label": "配送追跡更新",
       "icon": "MapPin",
-      "description": "運送会社から受信した位置情報と配送ステータスを shipment_tracking に UPSERT する。",
+      "description": "運送会社からの位置情報更新を tracking_events に冪等記録し、shipment_orders の現在ステータスを反映する。",
       "schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["shipmentId", "trackingNumber", "status"],
+        "required": ["trackingNumber", "deliveryStatus"],
         "properties": {
-          "shipmentId": { "type": "string" },
           "trackingNumber": { "type": "string" },
-          "status": { "type": "string", "enum": ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"] },
-          "location": { "type": "string" },
-          "updatedAt": { "type": "string" }
+          "deliveryStatus": {
+            "type": "string",
+            "enum": ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "RETURNED"]
+          },
+          "checkpointAt": { "type": "string" },
+          "checkpointLocation": { "type": "string" }
         }
       }
     },
     "DeliveryConfirmStep": {
-      "label": "顧客到着確認",
-      "icon": "CheckCircle",
-      "description": "顧客への配送完了を確認し、shipment_orders を DELIVERED に状態遷移させる。",
+      "label": "配送完了確認",
+      "icon": "BadgeCheck",
+      "description": "顧客への到着確認 (受領サイン / 写真 / 不在票) を delivery_confirmations に記録し、shipment_orders を DELIVERED に確定する。",
       "schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["shipmentId", "deliveredAt"],
+        "required": ["shipmentId", "confirmationKind"],
         "properties": {
           "shipmentId": { "type": "string" },
-          "deliveredAt": { "type": "string" },
-          "signatureRef": { "type": "string" },
-          "receiverName": { "type": "string" }
+          "confirmationKind": {
+            "type": "string",
+            "enum": ["SIGNATURE", "PHOTO", "ABSENT_NOTICE"]
+          },
+          "receivedBy": { "type": "string" },
+          "confirmedAt": { "type": "string" }
         }
       }
     }
