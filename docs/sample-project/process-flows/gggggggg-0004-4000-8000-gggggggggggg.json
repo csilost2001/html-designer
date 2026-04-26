@@ -484,7 +484,7 @@
               "id": "br-05-b",
               "code": "B",
               "label": "試行上限超過",
-              "condition": "@existingShipment != null && @existingShipment.delivery_attempt_count > @conv.limit.maxDeliveryAttempts",
+              "condition": "@existingShipment != null && @existingShipment.delivery_attempt_count >= @conv.limit.maxDeliveryAttempts",
               "steps": [
                 {
                   "id": "step-05-b-00",
