@@ -1,0 +1,234 @@
+---
+name: create-flow
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 8 観点を作成前 self-check として組み込み、既知パターンの再発を抑制する
+argument-hint: <flowId> <業務概要> [namespace]
+disable-model-invocation: true
+---
+
+<!--
+  使い方:
+    - `/create-flow ffffffff-0001-4000-8000-ffffffffffff "受注処理 → 在庫引当 → 出荷指示" logistics`
+    - `/create-flow <flowId> <業務概要>` (namespace なしでもよい)
+
+  目的:
+    ProcessFlow JSON の作成時点で `/review-flow` の 8 観点を self-check として遵守させ、
+    既知パターン (TX outputBinding ネスト参照 / branch return 後 fallthrough / 死コード rollbackOn 等)
+    の再発を抑制する。完成後の `/review-flow` 検出件数を削減し、修正サイクル数を減らす。
+
+  /review-flow との関係:
+    - 本スキル = 作成支援 (作成前 self-check)
+    - /review-flow = 最終防衛線 (作成後の独立検証)
+    - **両者は併用前提**。本スキルだけでは Must-fix ゼロ達成は保証されない。
+
+  発動制御:
+    - `disable-model-invocation: true`: ユーザーが明示的に `/create-flow [args]` と打った時のみ起動
+    - `/issues` オーケストレーターから委譲先 AI への briefing 経由でも参照される
+-->
+
+ProcessFlow `$ARGUMENTS` を品質ガード付きで作成します。
+
+## 役割と前提
+
+- **あなたは ProcessFlow 設計者**。`/review-flow` の 8 観点を**作成前** に遵守して JSON を組み立てる
+- 出力: 処理フロー JSON 1 ファイル + (必要なら) 拡張定義の追加 + testScenarios 3 件以上
+- 完成後は **必ず `/review-flow` で自己検証**してから PR / マージに進める
+- 本スキルは spec の**索引 + 既知パターン要約**。詳細は `docs/spec/process-flow-*.md` を `Read` で参照
+
+## Step 0: 引数解析
+
+`$ARGUMENTS` を以下のように解析:
+
+- 第1引数 `flowId` (必須): UUID v4 形式 (例: `ffffffff-0001-4000-8000-ffffffffffff`)
+- 第2引数 `業務概要` (必須): 自然言語 (例: `"受注 → 在庫引当 → 出荷指示の業務フロー"`)
+- 第3引数 `namespace` (任意): 業界拡張定義の namespace (例: `securities`, `manufacturing`, `logistics`)
+
+引数が不足していれば「不足: ...」と報告して中止。
+
+## Step 1: 参考資料の確認
+
+実装前に以下を必ず読む (skim でよい):
+
+1. `docs/spec/process-flow-transaction.md` の §8 (TX 制御フロー)
+2. `docs/spec/process-flow-extensions.md` の §15 (拡張機構)
+3. `docs/spec/process-flow-runtime-conventions.md` の §13 (runtime conventions)
+4. 既存サンプル 1-2 件: `docs/sample-project/process-flows/dddddddd-0001-4000-8000-dddddddddddd.json` (金融 注文受付、5/5 達成) と業務概要に近いシナリオ
+5. namespace 指定があれば `docs/sample-project/extensions/<namespace>/*.json` を Read で確認 (既存拡張定義の把握)
+
+## Step 2: 必須セクション チェックリスト
+
+ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
+
+| セクション | 要件 |
+|---|---|
+| `id` | UUID v4 |
+| `name` | 業務名 (日本語、業界文脈含む) |
+| `type` | `screen` / `system` / `batch` から選択 |
+| `screenId` | UUID (画面実体不要なら任意の UUID で可) |
+| `apiVersion` | `"v2"` 推奨 |
+| `mode` | `"upstream"` (UI 起点) / `"downstream"` (内部呼出) |
+| `maturity` | `"draft"` / `"provisional"` / `"committed"` |
+| `description` | 短い業務説明 (推奨、`/review-flow` 厳格モード評価では無視される) |
+| `eventsCatalog` | 業務イベント 4-6 件、各 description + payload schema (required + properties) |
+| `glossary` | 業界用語 8 件以上、各 definition + aliases + domainRef |
+| `decisions` | ADR 形式 3 件以上 (id / title / status / context / decision / consequences / date) |
+| `ambientVariables` | requestId / sessionUserId 等の暗黙変数定義 |
+| `errorCatalog` | 5 件以上、key + httpStatus + defaultMessage + responseRef |
+| `externalSystemCatalog` | 連携する外部システム (auth / baseUrl / timeoutMs / openApiSpec 任意) |
+| `secretsCatalog` | 各 API トークン (source / name / rotationDays) |
+| `domainsCatalog` | ID 系・金額系等のドメイン型 (constraints 付き) |
+| `functionsCatalog` | 業務固有関数のシグネチャ (signature / returnType / examples) |
+| `actions[]` | 1-3 アクション。各 trigger / inputs / outputs / responses / steps |
+| `testScenarios` | 3 件以上 (happy path / validation error / 業務エッジケース) |
+
+各セクション 0 件は許されない (eventsCatalog と decisions と testScenarios は特に必須)。
+
+## Step 3: 既知パターン回避 self-check (8 ルール、必須遵守)
+
+`/review-flow` で検出される既知パターンを**作成中**に避けること。各 step を書くたびに以下を確認:
+
+### Rule 1: 変数ライフサイクル
+
+- 全 `@varName` 参照は実行順で先に設定済み (`inputs` / `outputBinding` / `ambientVariables` のいずれか)
+- TX 内 step が **TX 外で設定される変数を前方参照しない**
+- typo 注意: `@input.x` は誤り、`@inputs.x` が正しい
+
+### Rule 2: TransactionScope 内外整合
+
+- TX 内 step は TX **開始前**に設定された変数のみ参照
+- TX 外 step が TX inner outputBinding を参照する場合の方針:
+  - **方針 A (推奨)**: TX 後に `dbAccess SELECT` で再取得する step を挟んで `@persistedX` 等にバインド
+  - **方針 B**: TX outputBinding に shape を明示 (現行 schema が許容するか要確認)
+- **外部呼び出し (`externalSystem` step) は TX 内に入れない** (anti-pattern、DB 接続長時間占有)
+
+### Rule 3: runIf 連鎖の網羅性
+
+- 冪等 UPSERT (`UPSERT_IDEMPOTENT` 等) 後に続く step **すべて**に同条件 runIf
+- no-op パスにも対応する return step (典型: `{ status: 'ALREADY_PROCESSED' }`)
+- TX rollback ガード: TX 後の step に `runIf: "@txResult.committed == true"` (もしくは `false` で rollback パス)
+
+### Rule 4: branch / elseBranch 到達性
+
+- 全 branch + elseBranch が return か後続 step に到達 (dead end 禁止)
+- branch 内で return した後の共通 step に **fallthrough しない設計** にする
+- BLOCK/REJECT パスで return した後に共通 step に流れる構造は避ける (#458/#478 で多発)
+
+### Rule 5: compensatesFor 参照健全性
+
+- `compensatesFor: "step-X"` の step-X が同じ action 内に実在
+- 補償処理が補償対象の書き込みを正しく打ち消す内容になっているか
+
+### Rule 6: eventsCatalog ⇄ eventPublish 双方向整合
+
+- `eventsCatalog` で宣言した全イベントに対応する `eventPublish` step が存在
+- `eventPublish.topic` (or `eventRef`) で参照する topic が `eventsCatalog` に登録済み
+- payload が catalog の payload schema と整合 (required フィールド網羅、型整合)
+
+### Rule 7: 外部呼び出しと TX 位置関係
+
+- `type: "externalSystem"` step は `transactionScope` の inner にいないか確認
+- TX 外なら `outcomes.failure: "compensate"` 等の補償処理を明記
+- `fireAndForget: true` の場合は `outcomes.failure: "continue"` で整合
+
+### Rule 8: rollbackOn 発火可能性
+
+- `transactionScope.rollbackOn` には TX inner step から実際に発生しうるエラーコードのみ列挙
+- `errorCatalog` に登録されたコードを使用
+- **死コード rollbackOn 禁止** (#458/#478 で頻発): TX 外 step が返すエラーコードを書かない
+
+## Step 4: 拡張定義の使い方
+
+### 既存 namespace を使う場合
+
+- `docs/sample-project/extensions/<namespace>/*.json` を `Read` で確認
+- 既定義の field-types / triggers / db-operations / steps を流用する
+- 新規追加が必要な場合は同ファイルに追記 (シナリオ #2 以降のパターン参考)
+
+### 新規 namespace を作る場合
+
+- `docs/sample-project/extensions/<新namespace>/` ディレクトリ作成
+- 必要なファイルだけ追加: `field-types.json` / `triggers.json` / `db-operations.json` / `steps.json` / `README.md`
+- 各ファイルは `{namespace, fieldTypes/triggers/dbOperations/steps}` の構造に従う
+
+### 重要原則 (`docs/spec/process-flow-extensions.md` §15)
+
+- **拡張定義の実利用必須** (§15.3): 定義した拡張は**同 PR 内**で実フローから実体使用する。「定義したが未使用」は禁止
+- **拡張 step の参照形式**:
+  - 現行 schema は `type: "other"` + `outputSchema` + description 注記の形式が安全
+  - `namespace:StepName` 形式は schema が未対応で reject される (#480 で実証、Opus が遭遇)
+  - spec §15.2 と schema の乖離は別 ISSUE で解消予定
+- **fieldType vs domainsCatalog 使い分け** (§15.1):
+  - 拡張 fieldType (`{kind: "orderId"}`): 業界固有の**型自体**を追加
+  - domainsCatalog (`OrderId: {type: "string", constraints: ...}`): ドメイン**制約付き**の型エイリアス
+
+## Step 5: 完成後の自己検証 (必須)
+
+```bash
+cd designer
+npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.schema.test.ts
+npm run build
+```
+
+両 pass を確認したら、**強く推奨**:
+
+```
+/review-flow <flowId>
+```
+
+`/review-flow` 検出 Must-fix が 0 件になるまで自己修正してから出力 / PR 作成へ進む。
+
+## Step 6: 出力フォーマット
+
+ユーザーに渡すもの:
+
+```markdown
+## 作成完了: <name>
+
+### 出力ファイル
+- `docs/sample-project/process-flows/<flowId>.json` (新規)
+- (新規拡張がある場合) `docs/sample-project/extensions/<namespace>/*.json`
+
+### 統計
+- アクション数: N
+- step 総数: M
+- testScenarios: K 件
+- decisions (ADR): 件数
+- 拡張利用: 既存 namespace から N 件 / 新規定義 M 件 (実利用済み)
+
+### Step 3 self-check 結果
+
+| Rule | 状態 |
+|---|---|
+| 1. 変数ライフサイクル | ✓ / ❌ (問題があれば詳細) |
+| 2. TransactionScope 内外整合 | ✓ / ❌ |
+| 3. runIf 連鎖の網羅性 | ✓ / ❌ |
+| 4. branch / elseBranch 到達性 | ✓ / ❌ |
+| 5. compensatesFor 参照健全性 | ✓ / 該当なし |
+| 6. eventsCatalog ⇄ eventPublish | ✓ / ❌ |
+| 7. 外部呼び出しと TX 位置関係 | ✓ / ❌ |
+| 8. rollbackOn 発火可能性 | ✓ / 該当なし |
+
+### 検証結果
+- vitest: <pass/fail 件数>
+- npm run build: <成功/失敗>
+- /review-flow 自己実行: <実施済 Must-fix N 件 / 未実施>
+
+### 推奨: 次の手順
+- /review-flow を未実施なら実施
+- PR 作成へ
+```
+
+## 制約 (必守)
+
+- **`/review-flow` を最終防衛線として併用**: 本スキルだけでは Must-fix ゼロ達成は保証されない
+- **spec の正本性**: 本スキルは要約。詳細は `docs/spec/process-flow-*.md` を `Read`
+- **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
+- **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
+- **データファイル (`data/`) は触らない** (gitignore 対象)
+- **8 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+
+## 注意事項
+
+- スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
+- 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
+- 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 8 ルールを遵守すること」が含まれているはず
