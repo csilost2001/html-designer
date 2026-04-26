@@ -12,12 +12,25 @@
       "description": "受注を受け付け、在庫確認フローを開始した時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "customerId", "productCode", "quantity"],
+        "required": [
+          "orderId",
+          "customerId",
+          "productCode",
+          "quantity"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "customerId": { "type": "string" },
-          "productCode": { "type": "string" },
-          "quantity": { "type": "number" }
+          "orderId": {
+            "type": "string"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -26,11 +39,21 @@
       "description": "生産計画が立案され、部材引当と製造指示の準備ができた時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "productionPlanId", "requiredBy"],
+        "required": [
+          "orderId",
+          "productionPlanId",
+          "requiredBy"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "productionPlanId": { "type": "string" },
-          "requiredBy": { "type": "string" }
+          "orderId": {
+            "type": "string"
+          },
+          "productionPlanId": {
+            "type": "string"
+          },
+          "requiredBy": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -39,18 +62,33 @@
       "description": "必要部材の在庫引当が完了した時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "productionPlanId", "reservedParts"],
+        "required": [
+          "orderId",
+          "productionPlanId",
+          "reservedParts"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "productionPlanId": { "type": "string" },
+          "orderId": {
+            "type": "string"
+          },
+          "productionPlanId": {
+            "type": "string"
+          },
           "reservedParts": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["partNumber", "quantity"],
+              "required": [
+                "partNumber",
+                "quantity"
+              ],
               "properties": {
-                "partNumber": { "type": "string" },
-                "quantity": { "type": "number" }
+                "partNumber": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number"
+                }
               },
               "additionalProperties": false
             }
@@ -63,12 +101,25 @@
       "description": "MES に製造指示書を送信し、製造ラインへの指示が完了した時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["workOrderId", "orderId", "productCode", "quantity"],
+        "required": [
+          "workOrderId",
+          "orderId",
+          "productCode",
+          "quantity"
+        ],
         "properties": {
-          "workOrderId": { "type": "string" },
-          "orderId": { "type": "string" },
-          "productCode": { "type": "string" },
-          "quantity": { "type": "number" }
+          "workOrderId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -77,12 +128,19 @@
       "description": "部材不足で調達依頼を送信し、生産計画を SHORTAGE_PENDING に設定した時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "shortPartNumbers"],
+        "required": [
+          "orderId",
+          "shortPartNumbers"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
+          "orderId": {
+            "type": "string"
+          },
           "shortPartNumbers": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -92,52 +150,80 @@
   "glossary": {
     "受注": {
       "definition": "顧客から製品の購入依頼を受け付ける業務。製品コード・数量・納期希望日を含む。",
-      "aliases": ["Order", "Sales Order"],
+      "aliases": [
+        "Order",
+        "Sales Order"
+      ],
       "domainRef": "orders"
     },
     "生産計画": {
       "definition": "受注を満たすために、いつ、何を、どの数量製造するかを計画する業務。リードタイムと部材在庫から計算する。",
-      "aliases": ["Production Plan"],
+      "aliases": [
+        "Production Plan"
+      ],
       "domainRef": "production_plans"
     },
     "BOM (Bill of Materials)": {
       "definition": "製品を製造するために必要な部品・原材料とその数量の構造的な一覧。多階層構造を持つ場合がある。",
-      "aliases": ["部品表", "材料表"],
+      "aliases": [
+        "部品表",
+        "材料表"
+      ],
       "domainRef": "bom"
     },
     "部材引当": {
       "definition": "生産計画に対して必要な部品の在庫を予約・確保する処理。排他ロック付き UPDATE で在庫を減らす。",
-      "aliases": ["Inventory Reservation", "資材引当"],
+      "aliases": [
+        "Inventory Reservation",
+        "資材引当"
+      ],
       "domainRef": "parts_inventory"
     },
     "製造指示書 (WorkOrder)": {
       "definition": "製造ラインに対して製品の製造を指示する文書。製品コード・数量・対象ロット・計画開始日を含む。",
-      "aliases": ["Work Order", "製造オーダー", "WorkOrder"],
+      "aliases": [
+        "Work Order",
+        "製造オーダー",
+        "WorkOrder"
+      ],
       "domainRef": "work_orders"
     },
     "リードタイム": {
       "definition": "製造指示から完成品出荷までにかかる標準所要日数。製品マスタに定義される。",
-      "aliases": ["Lead Time"],
+      "aliases": [
+        "Lead Time"
+      ],
       "domainRef": "products.lead_time_days"
     },
     "在庫引当": {
       "definition": "部材引当と同義。parts_inventory の available_qty から必要数量を減算し、reserved_qty に加算する。",
-      "aliases": ["在庫確保", "Stock Reservation"],
+      "aliases": [
+        "在庫確保",
+        "Stock Reservation"
+      ],
       "domainRef": "parts_inventory.reserved_qty"
     },
     "ロット": {
       "definition": "製造時に同一条件でまとめて生産される単位。ロット ID でトレーサビリティを管理する。",
-      "aliases": ["Lot", "バッチ"],
+      "aliases": [
+        "Lot",
+        "バッチ"
+      ],
       "domainRef": "lots"
     },
     "MES (Manufacturing Execution System)": {
       "definition": "製造現場の実行管理システム。製造指示書を受け取り、作業指示・工程管理・品質記録を行う。",
-      "aliases": ["製造実行システム", "MES"],
+      "aliases": [
+        "製造実行システム",
+        "MES"
+      ],
       "domainRef": "mes_work_orders"
     },
     "ERP": {
       "definition": "Enterprise Resource Planning。調達・在庫・会計を統合管理する基幹システム。部材不足時の発注依頼先。",
-      "aliases": ["基幹システム"],
+      "aliases": [
+        "基幹システム"
+      ],
       "domainRef": "erp_purchase_orders"
     }
   },
@@ -306,17 +392,23 @@
       "description": "製品または部材の数量。1 以上の整数。"
     },
     "LotId": {
-      "type": { "kind": "lotId" },
+      "type": {
+        "kind": "lotId"
+      },
       "uiHint": "text",
       "description": "製造ロット ID。例: LOT-20260426-001"
     },
     "WorkOrderId": {
-      "type": { "kind": "workOrderId" },
+      "type": {
+        "kind": "workOrderId"
+      },
       "uiHint": "text",
       "description": "製造指示書 ID。例: WO-20260426-001"
     },
     "PartNumber": {
-      "type": { "kind": "partNumber" },
+      "type": {
+        "kind": "partNumber"
+      },
       "constraints": [
         {
           "field": "partNumber",
@@ -406,13 +498,23 @@
           "bodySchema": {
             "schema": {
               "type": "object",
-              "required": ["orderId", "status"],
+              "required": [
+                "orderId",
+                "status"
+              ],
               "properties": {
-                "orderId": { "type": "string" },
-                "workOrderId": { "type": "string" },
+                "orderId": {
+                  "type": "string"
+                },
+                "workOrderId": {
+                  "type": "string"
+                },
                 "status": {
                   "type": "string",
-                  "enum": ["FULFILLED_FROM_STOCK", "PRODUCTION_PLANNED"]
+                  "enum": [
+                    "FULFILLED_FROM_STOCK",
+                    "PRODUCTION_PLANNED"
+                  ]
                 }
               },
               "additionalProperties": false
@@ -423,32 +525,49 @@
         {
           "id": "400-validation",
           "status": 400,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "入力値が不正 (quantity <= 0 等)"
         },
         {
           "id": "404-product-not-found",
           "status": 404,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "製品マスタが存在しない"
         },
         {
           "id": "409-invalid-state-transition",
           "status": 409,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "在庫引当の排他ロック競合またはデータ整合性エラー"
         },
         {
           "id": "502-supplier-api-error",
           "status": 502,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "ERP 発注依頼 API 自体の呼び出しに失敗 (接続エラー・認証エラー等)"
         },
         {
           "id": "503-production-shortage",
           "status": 503,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "部材不足のため ERP に発注依頼を送信済み。入荷後に生産を再開する (SHORTAGE_PENDING)"
+        },
+        {
+          "id": "422-insufficient-inventory",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -499,7 +618,9 @@
           "sql": "SELECT id, product_code, name, lead_time_days, standard_lot_size FROM products WHERE product_code = @inputs.productCode AND is_active = true",
           "outputBinding": "product",
           "lineage": {
-            "reads": ["products"]
+            "reads": [
+              "products"
+            ]
           }
         },
         {
@@ -541,7 +662,9 @@
           "sql": "SELECT product_code, available_qty FROM stock WHERE product_code = @inputs.productCode",
           "outputBinding": "stock",
           "lineage": {
-            "reads": ["stock"]
+            "reads": [
+              "stock"
+            ]
           }
         },
         {
@@ -566,7 +689,9 @@
                   "sql": "INSERT INTO orders (customer_id, product_code, quantity, requested_delivery_date, status, created_by, created_at) VALUES (@inputs.customerId, @inputs.productCode, @inputs.quantity, @inputs.requestedDeliveryDate, 'FULFILLED_FROM_STOCK', @sessionUserId, NOW()) RETURNING id",
                   "outputBinding": "fulfilledOrder",
                   "lineage": {
-                    "writes": ["orders"]
+                    "writes": [
+                      "orders"
+                    ]
                   }
                 },
                 {
@@ -578,7 +703,9 @@
                   "operation": "UPDATE",
                   "sql": "UPDATE stock SET available_qty = available_qty - @inputs.quantity, updated_at = NOW() WHERE product_code = @inputs.productCode AND available_qty >= @inputs.quantity",
                   "lineage": {
-                    "writes": ["stock"]
+                    "writes": [
+                      "stock"
+                    ]
                   },
                   "affectedRowsCheck": {
                     "operator": ">",
@@ -637,7 +764,9 @@
                 "sql": "SELECT part_number, available_qty FROM parts_inventory WHERE part_number IN (@bomParts.partNumbers)",
                 "outputBinding": "partsStock",
                 "lineage": {
-                  "reads": ["parts_inventory"]
+                  "reads": [
+                    "parts_inventory"
+                  ]
                 }
               },
               {
@@ -675,9 +804,16 @@
                         "idempotencyKey": "erp-req-@requestId",
                         "outputBinding": "erpResult",
                         "outcomes": {
-                          "success": { "action": "continue" },
-                          "failure": { "action": "abort" },
-                          "timeout": { "action": "abort", "sameAs": "failure" }
+                          "success": {
+                            "action": "continue"
+                          },
+                          "failure": {
+                            "action": "abort"
+                          },
+                          "timeout": {
+                            "action": "abort",
+                            "sameAs": "failure"
+                          }
                         }
                       },
                       {
@@ -754,7 +890,9 @@
                 "isolationLevel": "REPEATABLE_READ",
                 "propagation": "REQUIRED",
                 "timeoutMs": 10000,
-                "rollbackOn": ["INVALID_STATE_TRANSITION"],
+                "rollbackOn": [
+                  "INVALID_STATE_TRANSITION"
+                ],
                 "outputBinding": "productionTxResult",
                 "steps": [
                   {
@@ -767,7 +905,9 @@
                     "sql": "INSERT INTO orders (customer_id, product_code, quantity, requested_delivery_date, status, created_by, created_at) VALUES (@inputs.customerId, @inputs.productCode, @inputs.quantity, @inputs.requestedDeliveryDate, 'PRODUCTION_PLANNED', @sessionUserId, NOW()) RETURNING id",
                     "outputBinding": "newOrder",
                     "lineage": {
-                      "writes": ["orders"]
+                      "writes": [
+                        "orders"
+                      ]
                     }
                   },
                   {
@@ -787,7 +927,9 @@
                     "sql": "INSERT INTO production_plans (order_id, product_code, quantity, lead_time_days, planned_start_date, status, created_at) VALUES (@newOrder.id, @inputs.productCode, @inputs.quantity, @leadTimeDays, NOW(), 'ACTIVE', NOW()) RETURNING id",
                     "outputBinding": "productionPlan",
                     "lineage": {
-                      "writes": ["production_plans"]
+                      "writes": [
+                        "production_plans"
+                      ]
                     }
                   }
                 ]
@@ -812,7 +954,9 @@
                 "sql": "SELECT id, product_code, quantity, status FROM orders WHERE customer_id = @inputs.customerId AND product_code = @inputs.productCode AND status = 'PRODUCTION_PLANNED' AND created_by = @sessionUserId ORDER BY created_at DESC LIMIT 1",
                 "outputBinding": "persistedOrder",
                 "lineage": {
-                  "reads": ["orders"]
+                  "reads": [
+                    "orders"
+                  ]
                 }
               },
               {
@@ -826,7 +970,10 @@
                 "sql": "SELECT pp.id AS plan_id, pi.part_number, pi.reserved_qty FROM production_plans pp JOIN parts_inventory pi ON pi.part_number IN (@bomParts.partNumbers) WHERE pp.order_id = @persistedOrder.id AND pp.status = 'ACTIVE' ORDER BY pp.created_at DESC LIMIT 1",
                 "outputBinding": "persistedPlan",
                 "lineage": {
-                  "reads": ["production_plans", "parts_inventory"]
+                  "reads": [
+                    "production_plans",
+                    "parts_inventory"
+                  ]
                 }
               },
               {
@@ -860,7 +1007,9 @@
                 "sql": "INSERT INTO work_orders (order_id, production_plan_id, product_code, quantity, lot_id, status, issued_by, issued_at) VALUES (@persistedOrder.id, @persistedPlan.plan_id, @inputs.productCode, @inputs.quantity, 'LOT-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || @persistedOrder.id, 'PENDING', @sessionUserId, NOW()) RETURNING id, lot_id",
                 "outputBinding": "workOrder",
                 "lineage": {
-                  "writes": ["work_orders"]
+                  "writes": [
+                    "work_orders"
+                  ]
                 }
               },
               {
@@ -879,9 +1028,17 @@
                 "idempotencyKey": "mes-wo-@workOrder.id",
                 "outputBinding": "mesResult",
                 "outcomes": {
-                  "success": { "action": "continue" },
-                  "failure": { "action": "continue", "description": "MES 送信失敗は work_orders を PENDING のまま残して運用再送する" },
-                  "timeout": { "action": "continue", "sameAs": "failure" }
+                  "success": {
+                    "action": "continue"
+                  },
+                  "failure": {
+                    "action": "continue",
+                    "description": "MES 送信失敗は work_orders を PENDING のまま残して運用再送する"
+                  },
+                  "timeout": {
+                    "action": "continue",
+                    "sameAs": "failure"
+                  }
                 }
               },
               {
@@ -985,7 +1142,10 @@
           "count": 1
         }
       ],
-      "tags": ["happy", "stock-fulfillment"]
+      "tags": [
+        "happy",
+        "stock-fulfillment"
+      ]
     },
     {
       "id": "happy-production-planned",
@@ -1042,7 +1202,10 @@
           "externalRef": "mesSystem",
           "responseMock": {
             "status": 201,
-            "body": { "accepted": true, "mesWorkOrderId": "MES-WO-001" }
+            "body": {
+              "accepted": true,
+              "mesWorkOrderId": "MES-WO-001"
+            }
           }
         }
       ],
@@ -1093,7 +1256,11 @@
           }
         }
       ],
-      "tags": ["happy", "production-planned", "mes"]
+      "tags": [
+        "happy",
+        "production-planned",
+        "mes"
+      ]
     },
     {
       "id": "validation-error-invalid-quantity",
@@ -1127,7 +1294,10 @@
           "msgKey": "数量は 1 以上で入力してください"
         }
       ],
-      "tags": ["error", "validation"]
+      "tags": [
+        "error",
+        "validation"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

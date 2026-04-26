@@ -1,0 +1,22 @@
+{
+  "id": "bbbbbbbb-0020-4000-8000-bbbbbbbbbbbb",
+  "name": "closing_batches",
+  "logicalName": "クロージングバッチテーブル",
+  "description": "市場クロージング時の時価評価・PnL計算バッチ実行記録を管理する。",
+  "category": "バッチ",
+  "columns": [
+    { "id": "col-cb01", "name": "id", "logicalName": "バッチID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-cb02", "name": "market_date", "logicalName": "市場日付", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-cb03", "name": "status", "logicalName": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'PENDING'", "comment": "PENDING / RUNNING / COMPLETED / FAILED" },
+    { "id": "col-cb04", "name": "started_at", "logicalName": "開始日時", "dataType": "TIMESTAMP", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-cb05", "name": "completed_at", "logicalName": "完了日時", "dataType": "TIMESTAMP", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-cb06", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-cb07", "name": "updated_at", "logicalName": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-cb08", "name": "dry_run", "logicalName": "ドライランフラグ", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "false" }
+  ],
+  "indexes": [
+    { "id": "idx-cb01", "name": "idx_closing_batches_date", "columns": ["col-cb02"], "unique": false }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

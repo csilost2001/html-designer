@@ -1,0 +1,26 @@
+{
+  "id": "bbbbbbbb-0021-4000-8000-bbbbbbbbbbbb",
+  "name": "settlements",
+  "logicalName": "決済テーブル",
+  "description": "証券取引の決済指示・実行結果を管理する。",
+  "category": "決済",
+  "columns": [
+    { "id": "col-stl01", "name": "id", "logicalName": "決済ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-stl02", "name": "settlement_batch_id", "logicalName": "決済バッチID", "dataType": "VARCHAR", "length": 50, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-stl03", "name": "settle_date", "logicalName": "決済日", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-stl04", "name": "counterparty", "logicalName": "取引相手", "dataType": "VARCHAR", "length": 100, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-stl05", "name": "security_code", "logicalName": "銘柄コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-stl06", "name": "netted_amount", "logicalName": "ネット金額", "dataType": "DECIMAL", "length": 18, "scale": 2, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-stl07", "name": "status", "logicalName": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'INSTRUCTED'" },
+    { "id": "col-stl11", "name": "market_date", "logicalName": "市場日付", "dataType": "DATE", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-stl08", "name": "clearing_reference", "logicalName": "清算照合参照", "dataType": "VARCHAR", "length": 100, "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-stl09", "name": "completed_at", "logicalName": "完了日時", "dataType": "TIMESTAMP", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-stl10", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-stl01", "name": "idx_settlements_batch", "columns": ["col-stl02"], "unique": false },
+    { "id": "idx-stl02", "name": "idx_settlements_date", "columns": ["col-stl03"], "unique": false }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

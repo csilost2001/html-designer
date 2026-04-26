@@ -225,6 +225,83 @@ describe("checkIdentifierScopes — SQL 内の @identifier", () => {
   });
 });
 
+describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => {
+  it("@fn.calcTax(...) は UNKNOWN_IDENTIFIER を出さない", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [{ name: "amount", type: "number" }],
+        steps: [
+          { id: "s1", type: "compute", description: "", expression: "@fn.calcTax(@amount)", outputBinding: "tax" },
+        ],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "fn")).toHaveLength(0);
+  });
+
+  it("@now は UNKNOWN_IDENTIFIER を出さない", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", type: "compute", description: "", expression: "@now.toISOString()", outputBinding: "ts" },
+        ],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "now")).toHaveLength(0);
+  });
+
+  it("@uuid は UNKNOWN_IDENTIFIER を出さない", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", type: "compute", description: "", expression: "@uuid", outputBinding: "id" },
+        ],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "uuid")).toHaveLength(0);
+  });
+
+  it("@secret.token は UNKNOWN_IDENTIFIER を出さない", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", type: "compute", description: "", expression: "@secret.token", outputBinding: "tok" },
+        ],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "secret")).toHaveLength(0);
+  });
+
+  it("@conv.tax.standard.rate は UNKNOWN_IDENTIFIER を出さない", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        inputs: [{ name: "subtotal", type: "number" }],
+        steps: [
+          { id: "s1", type: "compute", description: "", expression: "@subtotal * @conv.tax.standard.rate", outputBinding: "tax" },
+        ],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "conv")).toHaveLength(0);
+    expect(issues.filter((i) => i.identifier === "subtotal")).toHaveLength(0);
+  });
+
+  it("未知識別子はそのまま検出される (BUILTIN_AMBIENTS による誤 suppress なし)", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", type: "compute", description: "", expression: "@reallyUnknownVar + 1", outputBinding: "r" },
+        ],
+      }],
+    }));
+    expect(issues.some((i) => i.identifier === "reallyUnknownVar")).toBe(true);
+  });
+});
+
 describe("checkIdentifierScopes — サンプル (docs/sample-project/process-flows/*.json)", () => {
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
   for (const f of files) {

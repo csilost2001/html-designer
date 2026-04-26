@@ -1,0 +1,20 @@
+{
+  "id": "bbbbbbbb-0007-4000-8000-bbbbbbbbbbbb",
+  "name": "trading_calendar",
+  "logicalName": "取引カレンダー",
+  "description": "市場ごとの取引日・取引時間帯を管理する。",
+  "category": "マスタ",
+  "columns": [
+    { "id": "col-tc01", "name": "id", "logicalName": "ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-tc02", "name": "market_code", "logicalName": "市場コード", "dataType": "VARCHAR", "length": 10, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-tc03", "name": "market_date", "logicalName": "取引日", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-tc04", "name": "is_open", "logicalName": "取引日フラグ", "dataType": "BOOLEAN", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "true" },
+    { "id": "col-tc05", "name": "open_at", "logicalName": "取引開始時刻", "dataType": "TIME", "notNull": false, "primaryKey": false, "unique": false },
+    { "id": "col-tc06", "name": "close_at", "logicalName": "取引終了時刻", "dataType": "TIME", "notNull": false, "primaryKey": false, "unique": false }
+  ],
+  "indexes": [
+    { "id": "idx-tc01", "name": "idx_trading_calendar_market_date", "columns": ["col-tc02", "col-tc03"], "unique": true }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

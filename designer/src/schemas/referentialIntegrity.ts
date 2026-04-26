@@ -156,13 +156,16 @@ function checkStep(
   secretKeys?: Set<string>,
   hasSecretsCatalog?: boolean,
 ): void {
-  if (step.type === "externalSystem" && step.systemRef && hasSystemCatalog && !systemIds.has(step.systemRef)) {
-    issues.push({
-      path: `${path}.systemRef`,
-      code: "UNKNOWN_SYSTEM_REF",
-      value: step.systemRef,
-      message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・ProcessFlow.externalSystemCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
-    });
+  if (step.type === "externalSystem" && step.systemRef && hasSystemCatalog) {
+    // systemRef に @ を含む場合は動的式 (@identifier による切替) のためスキップ
+    if (!step.systemRef.includes("@") && !systemIds.has(step.systemRef)) {
+      issues.push({
+        path: `${path}.systemRef`,
+        code: "UNKNOWN_SYSTEM_REF",
+        value: step.systemRef,
+        message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・ProcessFlow.externalSystemCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+      });
+    }
   }
   // step 蛛ｴ auth.tokenRef 縺ｮ @secret.* 蜿ら・繧呈､懈渊
   if (step.type === "externalSystem" && step.auth?.tokenRef && hasSecretsCatalog && secretKeys) {

@@ -11,11 +11,21 @@
       "description": "規制当局への取引報告送信が完了した時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["submissionId", "reportingPeriod", "submittedCount"],
+        "required": [
+          "submissionId",
+          "reportingPeriod",
+          "submittedCount"
+        ],
         "properties": {
-          "submissionId": { "type": "string" },
-          "reportingPeriod": { "type": "string" },
-          "submittedCount": { "type": "number" }
+          "submissionId": {
+            "type": "string"
+          },
+          "reportingPeriod": {
+            "type": "string"
+          },
+          "submittedCount": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -24,12 +34,25 @@
       "description": "AML 評価で中リスク以上が検出された時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["tradeId", "accountId", "riskRating", "actionTaken"],
+        "required": [
+          "tradeId",
+          "accountId",
+          "riskRating",
+          "actionTaken"
+        ],
         "properties": {
-          "tradeId": { "type": "string" },
-          "accountId": { "type": "string" },
-          "riskRating": { "type": "string" },
-          "actionTaken": { "type": "string" }
+          "tradeId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "riskRating": {
+            "type": "string"
+          },
+          "actionTaken": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -38,11 +61,21 @@
       "description": "顧客の KYC 確認結果が AML 評価に利用可能になった時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["accountId", "kycLevel", "verifiedAt"],
+        "required": [
+          "accountId",
+          "kycLevel",
+          "verifiedAt"
+        ],
         "properties": {
-          "accountId": { "type": "string" },
-          "kycLevel": { "type": "string" },
-          "verifiedAt": { "type": "string" }
+          "accountId": {
+            "type": "string"
+          },
+          "kycLevel": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -51,11 +84,21 @@
       "description": "疑わしい取引報告 (STR) が起票された時点で発行するイベント。",
       "payload": {
         "type": "object",
-        "required": ["tradeId", "accountId", "riskRating"],
+        "required": [
+          "tradeId",
+          "accountId",
+          "riskRating"
+        ],
         "properties": {
-          "tradeId": { "type": "string" },
-          "accountId": { "type": "string" },
-          "riskRating": { "type": "string" }
+          "tradeId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "riskRating": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -64,42 +107,62 @@
   "glossary": {
     "取引報告": {
       "definition": "報告対象期間内の約定情報を規制当局指定形式に整形して提出する業務。",
-      "aliases": ["Trade Report", "規制報告"],
+      "aliases": [
+        "Trade Report",
+        "規制報告"
+      ],
       "domainRef": "regulatory_submissions"
     },
     "KYC": {
       "definition": "顧客本人確認と属性確認を行い、取引許可や AML 評価の前提情報にする手続き。",
-      "aliases": ["Know Your Customer", "本人確認"],
+      "aliases": [
+        "Know Your Customer",
+        "本人確認"
+      ],
       "domainRef": "customers.kyc_level"
     },
     "AML": {
       "definition": "マネーロンダリングやテロ資金供与につながる取引を検知・抑止する監視業務。",
-      "aliases": ["Anti-Money Laundering", "マネロン対策"],
+      "aliases": [
+        "Anti-Money Laundering",
+        "マネロン対策"
+      ],
       "domainRef": "aml_screening_log"
     },
     "STR": {
       "definition": "疑わしい取引を検出した際に当局または内部コンプライアンス部門へ提出する報告。",
-      "aliases": ["Suspicious Transaction Report", "疑わしい取引報告"],
+      "aliases": [
+        "Suspicious Transaction Report",
+        "疑わしい取引報告"
+      ],
       "domainRef": "suspicious_transaction_reports"
     },
     "PEP": {
       "definition": "政治的に影響力のある人物。通常顧客より高い AML リスクとして評価する。",
-      "aliases": ["Politically Exposed Person"],
+      "aliases": [
+        "Politically Exposed Person"
+      ],
       "domainRef": "customers.pep_status"
     },
     "制裁リスト": {
       "definition": "取引禁止または制限対象の個人・法人・国・地域を示す外部照合リスト。",
-      "aliases": ["Sanctions List"],
+      "aliases": [
+        "Sanctions List"
+      ],
       "domainRef": "sanctions_screening"
     },
     "監査ログ": {
       "definition": "規制報告や AML 評価の証跡として、操作者・入力・結果・署名を改ざん検知可能に記録するログ。",
-      "aliases": ["Audit Log"],
+      "aliases": [
+        "Audit Log"
+      ],
       "domainRef": "audit_logs"
     },
     "暗号化": {
       "definition": "提出データを当局指定の公開鍵で保護し、送信経路や保管先で平文露出を防ぐ処理。",
-      "aliases": ["Encryption"],
+      "aliases": [
+        "Encryption"
+      ],
       "domainRef": "secrets.regulatoryPublicKey"
     }
   },
@@ -186,22 +249,36 @@
     "regulatoryAuthority": {
       "name": "金融庁EDINET",
       "baseUrl": "https://edinet.example.go.jp",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.regulatoryApiToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.regulatoryApiToken"
+      },
       "timeoutMs": 10000,
-      "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 1000 },
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "backoff": "exponential",
+        "initialDelayMs": 1000
+      },
       "description": "規制報告提出先。サンプルでは金融庁 EDINET を想定する。"
     },
     "kycVendor": {
       "name": "eKYC",
       "baseUrl": "https://ekyc.example.internal",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.kycVendorToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.kycVendorToken"
+      },
       "timeoutMs": 3000,
       "description": "顧客本人確認と KYC レベルを提供する外部ベンダー。"
     },
     "sanctionsListService": {
       "name": "Sanctions List Service",
       "baseUrl": "https://sanctions.example.internal",
-      "auth": { "kind": "apiKey", "tokenRef": "@secret.kycVendorToken", "headerName": "X-API-Key" },
+      "auth": {
+        "kind": "apiKey",
+        "tokenRef": "@secret.kycVendorToken",
+        "headerName": "X-API-Key"
+      },
       "timeoutMs": 5000,
       "description": "制裁リストと PEP 照合を提供する外部サービス。"
     }
@@ -268,13 +345,17 @@
       "signature": "encryptForRegulator(payload: object, publicKey: string): string",
       "returnType": "string",
       "description": "規制当局指定公開鍵で提出ペイロードを暗号化し、送信用文字列を返す。",
-      "examples": ["@fn.encryptForRegulator(@reportableTrades, @secret.regulatoryPublicKey)"]
+      "examples": [
+        "@fn.encryptForRegulator(@reportableTrades, @secret.regulatoryPublicKey)"
+      ]
     },
     "screenAgainstSanctions": {
       "signature": "screenAgainstSanctions(customer: Customer): RiskRating",
       "returnType": "RiskRating",
       "description": "顧客情報を制裁リスト・PEP 情報と照合し、AML リスク評価を返す。",
-      "examples": ["@fn.screenAgainstSanctions(@customer)"]
+      "examples": [
+        "@fn.screenAgainstSanctions(@customer)"
+      ]
     }
   },
   "actions": [
@@ -319,10 +400,17 @@
           "bodySchema": {
             "schema": {
               "type": "object",
-              "required": ["submissionId", "submittedCount"],
+              "required": [
+                "submissionId",
+                "submittedCount"
+              ],
               "properties": {
-                "submissionId": { "type": "string" },
-                "submittedCount": { "type": "number" }
+                "submissionId": {
+                  "type": "string"
+                },
+                "submittedCount": {
+                  "type": "number"
+                }
               },
               "additionalProperties": false
             }
@@ -332,14 +420,39 @@
         {
           "id": "500-encryption-failed",
           "status": 500,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "description": "暗号化失敗"
         },
         {
           "id": "502-regulatory-api-error",
           "status": 502,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "description": "規制当局 API エラー"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-kyc-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-aml-high-risk",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -374,7 +487,9 @@
           "sql": "SELECT trade_id AS tradeId, account_id AS accountId, quantity, price, executed_at AS executedAt FROM trades WHERE reporting_period = @inputs.reportingPeriod ORDER BY trade_id",
           "outputBinding": "reportableTrades",
           "lineage": {
-            "reads": ["trades"]
+            "reads": [
+              "trades"
+            ]
           }
         },
         {
@@ -473,9 +588,17 @@
             "body": "{ reportingPeriod: @inputs.reportingPeriod, encryptedPayload: @encryptedPayload, auditSignature: @auditSignature }"
           },
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "abort", "description": "502 REGULATORY_API_ERROR" },
-            "timeout": { "action": "abort", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "abort",
+              "description": "502 REGULATORY_API_ERROR"
+            },
+            "timeout": {
+              "action": "abort",
+              "sameAs": "failure"
+            }
           },
           "outputBinding": "regulatorySubmission"
         },
@@ -489,7 +612,9 @@
           "sql": "INSERT INTO regulatory_submissions (submission_id, reporting_period, submitted_count, audit_signature, idempotency_key, created_at) VALUES (@regulatorySubmission.body.submissionId, @inputs.reportingPeriod, @reportableTrades.length, @auditSignature, @requestId, NOW()) ON CONFLICT (idempotency_key) DO NOTHING RETURNING submission_id AS submissionId, submitted_count AS submittedCount",
           "outputBinding": "submissionRecord",
           "lineage": {
-            "writes": ["regulatory_submissions"]
+            "writes": [
+              "regulatory_submissions"
+            ]
           }
         },
         {
@@ -523,7 +648,10 @@
           "bodyExpression": "{ submissionId: @submissionRecord.submissionId, submittedCount: @submissionRecord.submittedCount ?? @reportableTrades.length }"
         }
       ],
-      "requiredPermissions": ["system", "compliance"]
+      "requiredPermissions": [
+        "system",
+        "compliance"
+      ]
     },
     {
       "id": "act-002",
@@ -581,10 +709,22 @@
           "bodySchema": {
             "schema": {
               "type": "object",
-              "required": ["riskRating", "actionTaken"],
+              "required": [
+                "riskRating",
+                "actionTaken"
+              ],
               "properties": {
-                "riskRating": { "type": "string" },
-                "actionTaken": { "type": "string", "enum": ["NORMAL", "WATCH", "HOLD"] }
+                "riskRating": {
+                  "type": "string"
+                },
+                "actionTaken": {
+                  "type": "string",
+                  "enum": [
+                    "NORMAL",
+                    "WATCH",
+                    "HOLD"
+                  ]
+                }
               },
               "additionalProperties": false
             }
@@ -594,14 +734,39 @@
         {
           "id": "422-kyc-not-found",
           "status": 422,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "description": "KYC レベル不足"
         },
         {
           "id": "422-aml-high-risk",
           "status": 422,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "description": "AML 高リスク検出"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-regulatory-api-error",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "500-encryption-failed",
+          "status": 500,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -612,9 +777,22 @@
           "maturity": "committed",
           "conditions": "tradeId/accountId は必須、amount は 0 より大きい。",
           "rules": [
-            { "field": "tradeId", "type": "required", "message": "取引IDは必須です" },
-            { "field": "accountId", "type": "required", "message": "口座IDは必須です" },
-            { "field": "amount", "type": "range", "min": 1, "message": "取引金額は 1 以上です" }
+            {
+              "field": "tradeId",
+              "type": "required",
+              "message": "取引IDは必須です"
+            },
+            {
+              "field": "accountId",
+              "type": "required",
+              "message": "口座IDは必須です"
+            },
+            {
+              "field": "amount",
+              "type": "range",
+              "min": 1,
+              "message": "取引金額は 1 以上です"
+            }
           ]
         },
         {
@@ -627,7 +805,9 @@
           "sql": "SELECT account_id AS accountId, customer_id, name, kyc_level AS kycLevel, pep_status AS pepStatus, country_code AS countryCode FROM customers WHERE account_id = @inputs.accountId",
           "outputBinding": "customer",
           "lineage": {
-            "reads": ["customers"]
+            "reads": [
+              "customers"
+            ]
           }
         },
         {
@@ -672,9 +852,17 @@
             "body": "{ customer: @customer, tradeId: @inputs.tradeId, accountId: @inputs.accountId }"
           },
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "continue", "description": "照合失敗時は内部異常検知スコアのみで評価を継続する" },
-            "timeout": { "action": "continue", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "continue",
+              "description": "照合失敗時は内部異常検知スコアのみで評価を継続する"
+            },
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
           },
           "outputBinding": "sanctionsResult"
         },
@@ -707,7 +895,9 @@
                   "sql": "UPDATE trades SET aml_status = 'HOLD', updated_at = NOW() WHERE trade_id = @inputs.tradeId AND account_id = @inputs.accountId",
                   "outputBinding": "holdResult",
                   "lineage": {
-                    "writes": ["trades"]
+                    "writes": [
+                      "trades"
+                    ]
                   }
                 },
                 {
@@ -719,7 +909,9 @@
                   "sql": "INSERT INTO suspicious_transaction_reports (trade_id, account_id, risk_rating, reason, created_at) VALUES (@inputs.tradeId, @inputs.accountId, 'HIGH', 'AML_HIGH_RISK', NOW())",
                   "outputBinding": "strRecord",
                   "lineage": {
-                    "writes": ["suspicious_transaction_reports"]
+                    "writes": [
+                      "suspicious_transaction_reports"
+                    ]
                   }
                 },
                 {
@@ -735,7 +927,10 @@
                   "type": "audit",
                   "description": "HIGH リスク検知を AML 監査ログに記録する。",
                   "action": "aml.high_risk_detected",
-                  "resource": { "type": "Trade", "id": "@inputs.tradeId" },
+                  "resource": {
+                    "type": "Trade",
+                    "id": "@inputs.tradeId"
+                  },
                   "result": "success",
                   "sensitive": true
                 },
@@ -747,7 +942,9 @@
                   "operation": "INSERT",
                   "sql": "INSERT INTO aml_screening_log (trade_id, account_id, amount, risk_rating, action_taken, created_at) VALUES (@inputs.tradeId, @inputs.accountId, @inputs.amount, 'HIGH', 'HOLD', NOW())",
                   "lineage": {
-                    "writes": ["aml_screening_log"]
+                    "writes": [
+                      "aml_screening_log"
+                    ]
                   }
                 },
                 {
@@ -778,7 +975,10 @@
                   "type": "audit",
                   "description": "中リスク評価を監査ログに残す。",
                   "action": "aml.screen.watch",
-                  "resource": { "type": "Trade", "id": "@inputs.tradeId" },
+                  "resource": {
+                    "type": "Trade",
+                    "id": "@inputs.tradeId"
+                  },
                   "result": "success",
                   "sensitive": true
                 },
@@ -831,7 +1031,9 @@
           "runIf": "@amlDecision != null",
           "sql": "INSERT INTO aml_screening_log (trade_id, account_id, amount, risk_rating, action_taken, created_at) VALUES (@inputs.tradeId, @inputs.accountId, @inputs.amount, @amlDecision.riskRating, @amlDecision.actionTaken, NOW())",
           "lineage": {
-            "writes": ["aml_screening_log"]
+            "writes": [
+              "aml_screening_log"
+            ]
           }
         },
         {
@@ -853,7 +1055,10 @@
           "bodyExpression": "{ riskRating: @amlDecision.riskRating, actionTaken: @amlDecision.actionTaken }"
         }
       ],
-      "requiredPermissions": ["system", "compliance"]
+      "requiredPermissions": [
+        "system",
+        "compliance"
+      ]
     }
   ],
   "testScenarios": [
@@ -933,7 +1138,11 @@
           "count": 1
         }
       ],
-      "tags": ["happy", "monthly-report", "regulatory"]
+      "tags": [
+        "happy",
+        "monthly-report",
+        "regulatory"
+      ]
     },
     {
       "id": "aml-high-risk-detected",
@@ -1014,7 +1223,12 @@
           "count": 1
         }
       ],
-      "tags": ["aml", "high-risk", "str", "hold"]
+      "tags": [
+        "aml",
+        "high-risk",
+        "str",
+        "hold"
+      ]
     },
     {
       "id": "regulatory-api-error-retryable",
@@ -1074,7 +1288,11 @@
           }
         }
       ],
-      "tags": ["regulatory", "retry", "error"]
+      "tags": [
+        "regulatory",
+        "retry",
+        "error"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

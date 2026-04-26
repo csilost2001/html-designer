@@ -557,6 +557,34 @@
             "typeRef": "ApiError"
           },
           "when": "取引所拒否または送信失敗"
+        },
+        {
+          "id": "504-exchange-timeout",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "404-order-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "503-cache-warmup-failed",
+          "status": 503,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "400-order-cancelled",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -987,6 +1015,55 @@
             "typeRef": "ApiError"
           },
           "when": "対象注文が CANCELLED 状態"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-security-not-tradable",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-market-closed",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-credit-limit-exceeded",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-exchange-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-exchange-timeout",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "503-cache-warmup-failed",
+          "status": 503,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -1230,6 +1307,62 @@
             "typeRef": "ApiError"
           },
           "when": "銘柄マスタの事前ウォームアップに失敗した"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-security-not-tradable",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-market-closed",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-credit-limit-exceeded",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-exchange-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-exchange-timeout",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "404-order-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "400-order-cancelled",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [

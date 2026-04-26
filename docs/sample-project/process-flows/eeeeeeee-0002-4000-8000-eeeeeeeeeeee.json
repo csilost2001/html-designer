@@ -11,13 +11,27 @@
       "description": "製造ラインから製造完了通知を受信し、production_records に新規行として登録された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["workOrderId", "lotId", "serialNumber"],
+        "required": [
+          "workOrderId",
+          "lotId",
+          "serialNumber"
+        ],
         "properties": {
-          "workOrderId": { "type": "string" },
-          "lotId": { "type": "string" },
-          "serialNumber": { "type": "string" },
-          "completedAt": { "type": "string" },
-          "lineId": { "type": "string" }
+          "workOrderId": {
+            "type": "string"
+          },
+          "lotId": {
+            "type": "string"
+          },
+          "serialNumber": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string"
+          },
+          "lineId": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -26,12 +40,26 @@
       "description": "品質検査が完了し、ロットが INSPECTED_PASS に遷移した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["lotId", "verdict"],
+        "required": [
+          "lotId",
+          "verdict"
+        ],
         "properties": {
-          "lotId": { "type": "string" },
-          "verdict": { "type": "string", "enum": ["PASS"] },
-          "inspectorId": { "type": "string" },
-          "inspectedAt": { "type": "string" }
+          "lotId": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "PASS"
+            ]
+          },
+          "inspectorId": {
+            "type": "string"
+          },
+          "inspectedAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -40,12 +68,32 @@
       "description": "品質検査で不合格となり、廃棄/再加工/特別採用のいずれかの処置が決定された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["lotId", "verdict", "disposition"],
+        "required": [
+          "lotId",
+          "verdict",
+          "disposition"
+        ],
         "properties": {
-          "lotId": { "type": "string" },
-          "verdict": { "type": "string", "enum": ["FAIL"] },
-          "disposition": { "type": "string", "enum": ["SCRAP", "REWORK", "SPECIAL_APPROVAL"] },
-          "inspectorId": { "type": "string" }
+          "lotId": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "FAIL"
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "SCRAP",
+              "REWORK",
+              "SPECIAL_APPROVAL"
+            ]
+          },
+          "inspectorId": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -54,11 +102,20 @@
       "description": "出荷条件を満たし、出荷指示 (shipment_orders) が登録された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["lotId", "shipmentOrderId"],
+        "required": [
+          "lotId",
+          "shipmentOrderId"
+        ],
         "properties": {
-          "lotId": { "type": "string" },
-          "shipmentOrderId": { "type": "string" },
-          "approvedAt": { "type": "string" }
+          "lotId": {
+            "type": "string"
+          },
+          "shipmentOrderId": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -67,11 +124,25 @@
       "description": "トレーサビリティ snapshot が traceability_log に記録された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["lotId", "eventType"],
+        "required": [
+          "lotId",
+          "eventType"
+        ],
         "properties": {
-          "lotId": { "type": "string" },
-          "eventType": { "type": "string", "enum": ["PRODUCTION", "INSPECTION", "SHIPMENT"] },
-          "operatorId": { "type": "string" }
+          "lotId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "PRODUCTION",
+              "INSPECTION",
+              "SHIPMENT"
+            ]
+          },
+          "operatorId": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -80,47 +151,73 @@
   "glossary": {
     "製造実績": {
       "definition": "製造ラインで個品 (1 シリアル) が完成した実績。MES から完成都度コールバックされる。",
-      "aliases": ["Production Record", "完成実績"],
+      "aliases": [
+        "Production Record",
+        "完成実績"
+      ],
       "domainRef": "production_records"
     },
     "品質検査": {
       "definition": "ロットに対して仕様適合・寸法・外観等を検査し PASS/FAIL を判定する業務。",
-      "aliases": ["Quality Inspection", "QC"],
+      "aliases": [
+        "Quality Inspection",
+        "QC"
+      ],
       "domainRef": "quality_inspections"
     },
     "トレーサビリティ": {
       "definition": "製品が「いつ・どこで・誰の手で・どの部材ロットから」作られ・検査され・出荷されたかを追跡する性質。",
-      "aliases": ["Traceability"],
+      "aliases": [
+        "Traceability"
+      ],
       "domainRef": "traceability_log"
     },
     "シリアル番号": {
       "definition": "個品単位 (製品 1 個ごと) に一意に付番される識別子。同一ロット内でも個品ごとに異なる。",
-      "aliases": ["Serial Number", "個品 ID"],
+      "aliases": [
+        "Serial Number",
+        "個品 ID"
+      ],
       "domainRef": "production_records.serial_number"
     },
     "ロット": {
       "definition": "同一条件で製造された製品群の単位。品質検査・出荷判定はロット単位で行う。",
-      "aliases": ["Lot", "バッチ"],
+      "aliases": [
+        "Lot",
+        "バッチ"
+      ],
       "domainRef": "lots"
     },
     "WorkOrder": {
       "definition": "製造指示書。何を・いくつ・どのラインで作るかを指示する業務単位。",
-      "aliases": ["製造指示書", "MO", "Manufacturing Order"],
+      "aliases": [
+        "製造指示書",
+        "MO",
+        "Manufacturing Order"
+      ],
       "domainRef": "work_orders"
     },
     "規格外品": {
       "definition": "品質検査で FAIL となった個品/ロット。廃棄・再加工・特別採用のいずれかの処置を行う。",
-      "aliases": ["Non-conforming Product", "NG 品"],
+      "aliases": [
+        "Non-conforming Product",
+        "NG 品"
+      ],
       "domainRef": "lots.status:BLOCKED"
     },
     "特別採用": {
       "definition": "規格外であるが、顧客同意のもと例外的に出荷を認める処置。要 audit 記録。",
-      "aliases": ["Concession", "Special Approval"],
+      "aliases": [
+        "Concession",
+        "Special Approval"
+      ],
       "domainRef": "lots.status:SPECIAL_APPROVED"
     },
     "監査ログ": {
       "definition": "誰が・いつ・どのリソースに・何を・なぜ実行したかを保全する記録。改竄不可・長期保管。",
-      "aliases": ["Audit Log"],
+      "aliases": [
+        "Audit Log"
+      ],
       "domainRef": "audit_logs"
     }
   },
@@ -321,23 +418,156 @@
         "path": "/internal/mes-callback/production-completed",
         "auth": "required"
       },
-      "requiredPermissions": ["system"],
+      "requiredPermissions": [
+        "system"
+      ],
       "inputs": [
-        { "name": "workOrderId", "label": "製造指示書 ID", "type": { "kind": "workOrderId" }, "required": true, "domainRef": "WorkOrderId" },
-        { "name": "lotId", "label": "ロット ID", "type": { "kind": "lotId" }, "required": true, "domainRef": "LotId" },
-        { "name": "serialNumber", "label": "シリアル番号", "type": { "kind": "serialNumber" }, "required": true, "domainRef": "SerialNumber" },
-        { "name": "completedAt", "label": "製造完了日時", "type": "string", "required": true },
-        { "name": "lineId", "label": "ライン ID", "type": "string", "required": true },
-        { "name": "operatorId", "label": "ライン担当者 ID", "type": "string", "required": true }
+        {
+          "name": "workOrderId",
+          "label": "製造指示書 ID",
+          "type": {
+            "kind": "workOrderId"
+          },
+          "required": true,
+          "domainRef": "WorkOrderId"
+        },
+        {
+          "name": "lotId",
+          "label": "ロット ID",
+          "type": {
+            "kind": "lotId"
+          },
+          "required": true,
+          "domainRef": "LotId"
+        },
+        {
+          "name": "serialNumber",
+          "label": "シリアル番号",
+          "type": {
+            "kind": "serialNumber"
+          },
+          "required": true,
+          "domainRef": "SerialNumber"
+        },
+        {
+          "name": "completedAt",
+          "label": "製造完了日時",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "lineId",
+          "label": "ライン ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "operatorId",
+          "label": "ライン担当者 ID",
+          "type": "string",
+          "required": true
+        }
       ],
       "outputs": [
-        { "name": "status", "label": "処理ステータス", "type": "string" }
+        {
+          "name": "status",
+          "label": "処理ステータス",
+          "type": "string"
+        }
       ],
       "responses": [
-        { "id": "200-recorded", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["RECORDED"] } }, "additionalProperties": false } }, "when": "新規製造実績として登録された" },
-        { "id": "200-already-processed", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["ALREADY_PROCESSED"] } }, "additionalProperties": false } }, "when": "同一 (lotId, serialNumber) が既に登録済みで no-op" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
-        { "id": "404-workorder-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "対象 workOrder が存在しない" }
+        {
+          "id": "200-recorded",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "RECORDED"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "新規製造実績として登録された"
+        },
+        {
+          "id": "200-already-processed",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ALREADY_PROCESSED"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "同一 (lotId, serialNumber) が既に登録済みで no-op"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-workorder-not-found",
+          "status": 404,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "対象 workOrder が存在しない"
+        },
+        {
+          "id": "404-lot-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-quality-hold",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-shipment-blocked",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
         {
@@ -347,12 +577,36 @@
           "maturity": "committed",
           "conditions": "workOrderId/lotId/serialNumber/completedAt/lineId/operatorId は必須。",
           "rules": [
-            { "field": "workOrderId", "type": "required", "message": "製造指示書 ID は必須です" },
-            { "field": "lotId", "type": "required", "message": "ロット ID は必須です" },
-            { "field": "serialNumber", "type": "required", "message": "シリアル番号は必須です" },
-            { "field": "completedAt", "type": "required", "message": "製造完了日時は必須です" },
-            { "field": "lineId", "type": "required", "message": "ライン ID は必須です" },
-            { "field": "operatorId", "type": "required", "message": "ライン担当者 ID は必須です" }
+            {
+              "field": "workOrderId",
+              "type": "required",
+              "message": "製造指示書 ID は必須です"
+            },
+            {
+              "field": "lotId",
+              "type": "required",
+              "message": "ロット ID は必須です"
+            },
+            {
+              "field": "serialNumber",
+              "type": "required",
+              "message": "シリアル番号は必須です"
+            },
+            {
+              "field": "completedAt",
+              "type": "required",
+              "message": "製造完了日時は必須です"
+            },
+            {
+              "field": "lineId",
+              "type": "required",
+              "message": "ライン ID は必須です"
+            },
+            {
+              "field": "operatorId",
+              "type": "required",
+              "message": "ライン担当者 ID は必須です"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -371,7 +625,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, status, product_code, planned_qty, completed_qty FROM work_orders WHERE id = @inputs.workOrderId",
           "outputBinding": "workOrder",
-          "lineage": { "reads": ["work_orders"] }
+          "lineage": {
+            "reads": [
+              "work_orders"
+            ]
+          }
         },
         {
           "id": "step-001-03",
@@ -412,7 +670,11 @@
           "operation": "UPSERT_IDEMPOTENT",
           "sql": "INSERT INTO production_records (lot_id, serial_number, work_order_id, line_id, operator_id, completed_at, request_id, created_at) VALUES (@inputs.lotId, @inputs.serialNumber, @inputs.workOrderId, @inputs.lineId, @inputs.operatorId, @inputs.completedAt, @requestId, NOW()) ON CONFLICT (lot_id, serial_number) DO NOTHING RETURNING id",
           "outputBinding": "upsertedRecord",
-          "lineage": { "writes": ["production_records"] }
+          "lineage": {
+            "writes": [
+              "production_records"
+            ]
+          }
         },
         {
           "id": "step-001-05",
@@ -423,7 +685,11 @@
           "tableName": "work_orders",
           "operation": "UPDATE",
           "sql": "UPDATE work_orders SET completed_qty = completed_qty + 1, status = CASE WHEN completed_qty + 1 >= planned_qty THEN 'COMPLETED' ELSE 'IN_PROGRESS' END, updated_at = NOW() WHERE id = @inputs.workOrderId AND status IN ('IN_PROGRESS', 'COMPLETED') RETURNING id, status",
-          "lineage": { "writes": ["work_orders"] }
+          "lineage": {
+            "writes": [
+              "work_orders"
+            ]
+          }
         },
         {
           "id": "step-001-06",
@@ -491,24 +757,174 @@
         "auth": "required"
       },
       "inputs": [
-        { "name": "lotId", "label": "ロット ID", "type": { "kind": "lotId" }, "required": true, "domainRef": "LotId" },
-        { "name": "inspectionItems", "label": "検査項目の結果", "type": { "kind": "array", "itemType": "string" }, "required": true, "description": "各検査項目を JSON 文字列または structured object として配列で受ける (例: [{ item, result, comment }])" },
-        { "name": "overallResult", "label": "総合判定", "type": "string", "required": true },
-        { "name": "disposition", "label": "FAIL 時の処置 (SCRAP/REWORK/SPECIAL_APPROVAL)", "type": "string", "required": false },
-        { "name": "inspectorId", "label": "検査員 ID", "type": "string", "required": true },
-        { "name": "comment", "label": "コメント", "type": "string", "required": false }
+        {
+          "name": "lotId",
+          "label": "ロット ID",
+          "type": {
+            "kind": "lotId"
+          },
+          "required": true,
+          "domainRef": "LotId"
+        },
+        {
+          "name": "inspectionItems",
+          "label": "検査項目の結果",
+          "type": {
+            "kind": "array",
+            "itemType": "string"
+          },
+          "required": true,
+          "description": "各検査項目を JSON 文字列または structured object として配列で受ける (例: [{ item, result, comment }])"
+        },
+        {
+          "name": "overallResult",
+          "label": "総合判定",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "disposition",
+          "label": "FAIL 時の処置 (SCRAP/REWORK/SPECIAL_APPROVAL)",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "inspectorId",
+          "label": "検査員 ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "comment",
+          "label": "コメント",
+          "type": "string",
+          "required": false
+        }
       ],
       "outputs": [
-        { "name": "lotId", "label": "ロット ID", "type": "string", "domainRef": "LotId" },
-        { "name": "verdict", "label": "判定結果", "type": "string", "domainRef": "QualityResult" },
-        { "name": "nextAction", "label": "次アクション", "type": "string" }
+        {
+          "name": "lotId",
+          "label": "ロット ID",
+          "type": "string",
+          "domainRef": "LotId"
+        },
+        {
+          "name": "verdict",
+          "label": "判定結果",
+          "type": "string",
+          "domainRef": "QualityResult"
+        },
+        {
+          "name": "nextAction",
+          "label": "次アクション",
+          "type": "string"
+        }
       ],
       "responses": [
-        { "id": "200-pass", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["lotId", "verdict"], "properties": { "lotId": { "type": "string" }, "verdict": { "type": "string" }, "nextAction": { "type": "string" } }, "additionalProperties": false } }, "when": "品質合格 + lots/work_orders 状態遷移完了" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
-        { "id": "404-lot-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "ロットが存在しない" },
-        { "id": "409-invalid-state-transition", "status": 409, "bodySchema": { "schema": { "type": "object" } }, "when": "TX commit 失敗 (DB 制約違反等)" },
-        { "id": "422-quality-hold", "status": 422, "bodySchema": { "schema": { "type": "object", "required": ["lotId", "verdict", "disposition"], "properties": { "lotId": { "type": "string" }, "verdict": { "type": "string" }, "disposition": { "type": "string" } }, "additionalProperties": false } }, "when": "品質不合格" }
+        {
+          "id": "200-pass",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "lotId",
+                "verdict"
+              ],
+              "properties": {
+                "lotId": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "type": "string"
+                },
+                "nextAction": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "品質合格 + lots/work_orders 状態遷移完了"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-lot-not-found",
+          "status": 404,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "ロットが存在しない"
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "TX commit 失敗 (DB 制約違反等)"
+        },
+        {
+          "id": "422-quality-hold",
+          "status": 422,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "lotId",
+                "verdict",
+                "disposition"
+              ],
+              "properties": {
+                "lotId": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "品質不合格"
+        },
+        {
+          "id": "404-workorder-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "200-already-processed",
+          "status": 200,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-shipment-blocked",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
         {
@@ -518,11 +934,42 @@
           "maturity": "committed",
           "conditions": "lotId/overallResult/inspectorId は必須。overallResult は PASS または FAIL。FAIL の場合は disposition が SCRAP/REWORK/SPECIAL_APPROVAL のいずれか。",
           "rules": [
-            { "field": "lotId", "type": "required", "message": "ロット ID は必須です" },
-            { "field": "overallResult", "type": "enum", "values": ["PASS", "FAIL"], "message": "総合判定は PASS または FAIL です" },
-            { "field": "inspectorId", "type": "required", "message": "検査員 ID は必須です" },
-            { "field": "disposition", "type": "required", "condition": "@inputs.overallResult == 'FAIL'", "message": "FAIL の場合は処置 (disposition) が必須です" },
-            { "field": "disposition", "type": "enum", "condition": "@inputs.overallResult == 'FAIL'", "values": ["SCRAP", "REWORK", "SPECIAL_APPROVAL"], "message": "処置は SCRAP/REWORK/SPECIAL_APPROVAL のいずれかです" }
+            {
+              "field": "lotId",
+              "type": "required",
+              "message": "ロット ID は必須です"
+            },
+            {
+              "field": "overallResult",
+              "type": "enum",
+              "values": [
+                "PASS",
+                "FAIL"
+              ],
+              "message": "総合判定は PASS または FAIL です"
+            },
+            {
+              "field": "inspectorId",
+              "type": "required",
+              "message": "検査員 ID は必須です"
+            },
+            {
+              "field": "disposition",
+              "type": "required",
+              "condition": "@inputs.overallResult == 'FAIL'",
+              "message": "FAIL の場合は処置 (disposition) が必須です"
+            },
+            {
+              "field": "disposition",
+              "type": "enum",
+              "condition": "@inputs.overallResult == 'FAIL'",
+              "values": [
+                "SCRAP",
+                "REWORK",
+                "SPECIAL_APPROVAL"
+              ],
+              "message": "処置は SCRAP/REWORK/SPECIAL_APPROVAL のいずれかです"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -541,7 +988,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, work_order_id, status, product_code FROM lots WHERE id = @inputs.lotId",
           "outputBinding": "lot",
-          "lineage": { "reads": ["lots"] }
+          "lineage": {
+            "reads": [
+              "lots"
+            ]
+          }
         },
         {
           "id": "step-002-03",
@@ -600,7 +1051,9 @@
                   "isolationLevel": "READ_COMMITTED",
                   "propagation": "REQUIRED",
                   "outputBinding": "txResult",
-                  "rollbackOn": ["DB_CONSTRAINT_VIOLATION"],
+                  "rollbackOn": [
+                    "DB_CONSTRAINT_VIOLATION"
+                  ],
                   "steps": [
                     {
                       "id": "step-002-05-a-01-01",
@@ -611,7 +1064,11 @@
                       "operation": "INSERT",
                       "sql": "INSERT INTO quality_inspections (lot_id, inspector_id, overall_result, inspection_items, inspected_at, comment) VALUES (@inputs.lotId, @inputs.inspectorId, 'PASS', @inputs.inspectionItems, NOW(), @inputs.comment) RETURNING id",
                       "outputBinding": "inspection",
-                      "lineage": { "writes": ["quality_inspections"] }
+                      "lineage": {
+                        "writes": [
+                          "quality_inspections"
+                        ]
+                      }
                     },
                     {
                       "id": "step-002-05-a-01-02",
@@ -622,7 +1079,11 @@
                       "operation": "UPDATE",
                       "sql": "UPDATE lots SET status = 'INSPECTED_PASS', inspected_at = NOW(), updated_at = NOW() WHERE id = @inputs.lotId AND status IN ('IN_INSPECTION', 'PRODUCED') RETURNING id, status",
                       "outputBinding": "updatedLot",
-                      "lineage": { "writes": ["lots"] },
+                      "lineage": {
+                        "writes": [
+                          "lots"
+                        ]
+                      },
                       "affectedRowsCheck": {
                         "operator": ">",
                         "expected": 0,
@@ -639,7 +1100,11 @@
                       "tableName": "work_orders",
                       "operation": "UPDATE",
                       "sql": "UPDATE work_orders SET status = 'READY_FOR_SHIPMENT', updated_at = NOW() WHERE id = @lot.work_order_id AND status = 'COMPLETED' RETURNING id, status",
-                      "lineage": { "writes": ["work_orders"] }
+                      "lineage": {
+                        "writes": [
+                          "work_orders"
+                        ]
+                      }
                     }
                   ]
                 },
@@ -677,7 +1142,10 @@
                         "description": "PASS 判定を監査ログに記録する。",
                         "maturity": "committed",
                         "action": "quality.inspection",
-                        "resource": { "type": "Lot", "id": "@inputs.lotId" },
+                        "resource": {
+                          "type": "Lot",
+                          "id": "@inputs.lotId"
+                        },
                         "result": "success",
                         "reason": "PASS",
                         "sensitive": false
@@ -719,7 +1187,11 @@
                   "operation": "INSERT",
                   "sql": "INSERT INTO quality_inspections (lot_id, inspector_id, overall_result, inspection_items, disposition, inspected_at, comment) VALUES (@inputs.lotId, @inputs.inspectorId, 'FAIL', @inputs.inspectionItems, @inputs.disposition, NOW(), @inputs.comment) RETURNING id",
                   "outputBinding": "failInspection",
-                  "lineage": { "writes": ["quality_inspections"] }
+                  "lineage": {
+                    "writes": [
+                      "quality_inspections"
+                    ]
+                  }
                 },
                 {
                   "id": "step-002-05-b-02",
@@ -742,7 +1214,11 @@
                           "operation": "UPDATE",
                           "sql": "UPDATE lots SET status = 'BLOCKED', disposition = 'SCRAP', updated_at = NOW() WHERE id = @inputs.lotId RETURNING id, status",
                           "outputBinding": "scrappedLot",
-                          "lineage": { "writes": ["lots"] }
+                          "lineage": {
+                            "writes": [
+                              "lots"
+                            ]
+                          }
                         }
                       ]
                     },
@@ -761,7 +1237,11 @@
                           "operation": "UPDATE",
                           "sql": "UPDATE lots SET status = 'REWORK_PENDING', disposition = 'REWORK', updated_at = NOW() WHERE id = @inputs.lotId RETURNING id, status",
                           "outputBinding": "reworkLot",
-                          "lineage": { "writes": ["lots"] }
+                          "lineage": {
+                            "writes": [
+                              "lots"
+                            ]
+                          }
                         }
                       ]
                     },
@@ -780,7 +1260,11 @@
                           "operation": "UPDATE",
                           "sql": "UPDATE lots SET status = 'SPECIAL_APPROVED', disposition = 'SPECIAL_APPROVAL', updated_at = NOW() WHERE id = @inputs.lotId RETURNING id, status",
                           "outputBinding": "specialApprovedLot",
-                          "lineage": { "writes": ["lots"] }
+                          "lineage": {
+                            "writes": [
+                              "lots"
+                            ]
+                          }
                         }
                       ]
                     }
@@ -807,7 +1291,10 @@
                   "description": "FAIL 判定と処置を監査ログに記録する。特別採用は要詳細記録 (sensitive)。",
                   "maturity": "committed",
                   "action": "quality.inspection",
-                  "resource": { "type": "Lot", "id": "@inputs.lotId" },
+                  "resource": {
+                    "type": "Lot",
+                    "id": "@inputs.lotId"
+                  },
                   "result": "success",
                   "reason": "FAIL",
                   "sensitive": true
@@ -861,20 +1348,142 @@
         "path": "/internal/shipment/evaluate-readiness",
         "auth": "required"
       },
-      "requiredPermissions": ["system"],
+      "requiredPermissions": [
+        "system"
+      ],
       "inputs": [
-        { "name": "lotId", "label": "ロット ID", "type": { "kind": "lotId" }, "required": true, "domainRef": "LotId" }
+        {
+          "name": "lotId",
+          "label": "ロット ID",
+          "type": {
+            "kind": "lotId"
+          },
+          "required": true,
+          "domainRef": "LotId"
+        }
       ],
       "outputs": [
-        { "name": "lotId", "label": "ロット ID", "type": "string", "domainRef": "LotId" },
-        { "name": "shipmentApproved", "label": "出荷可否", "type": "boolean" },
-        { "name": "blockingReasons", "label": "阻害要因", "type": { "kind": "array", "itemType": "string" } }
+        {
+          "name": "lotId",
+          "label": "ロット ID",
+          "type": "string",
+          "domainRef": "LotId"
+        },
+        {
+          "name": "shipmentApproved",
+          "label": "出荷可否",
+          "type": "boolean"
+        },
+        {
+          "name": "blockingReasons",
+          "label": "阻害要因",
+          "type": {
+            "kind": "array",
+            "itemType": "string"
+          }
+        }
       ],
       "responses": [
-        { "id": "200-approved", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["lotId", "shipmentApproved"], "properties": { "lotId": { "type": "string" }, "shipmentApproved": { "type": "boolean" }, "shipmentOrderId": { "type": "string" } }, "additionalProperties": false } }, "when": "出荷条件を満たし shipment_orders 登録完了" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
-        { "id": "404-lot-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "ロットが存在しない" },
-        { "id": "422-shipment-blocked", "status": 422, "bodySchema": { "schema": { "type": "object", "required": ["lotId", "blockingReasons"], "properties": { "lotId": { "type": "string" }, "blockingReasons": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false } }, "when": "出荷条件不満足" }
+        {
+          "id": "200-approved",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "lotId",
+                "shipmentApproved"
+              ],
+              "properties": {
+                "lotId": {
+                  "type": "string"
+                },
+                "shipmentApproved": {
+                  "type": "boolean"
+                },
+                "shipmentOrderId": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "出荷条件を満たし shipment_orders 登録完了"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-lot-not-found",
+          "status": 404,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "ロットが存在しない"
+        },
+        {
+          "id": "422-shipment-blocked",
+          "status": 422,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "lotId",
+                "blockingReasons"
+              ],
+              "properties": {
+                "lotId": {
+                  "type": "string"
+                },
+                "blockingReasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "出荷条件不満足"
+        },
+        {
+          "id": "404-workorder-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "200-already-processed",
+          "status": 200,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "422-quality-hold",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
         {
@@ -884,7 +1493,11 @@
           "maturity": "committed",
           "conditions": "lotId は必須。",
           "rules": [
-            { "field": "lotId", "type": "required", "message": "ロット ID は必須です" }
+            {
+              "field": "lotId",
+              "type": "required",
+              "message": "ロット ID は必須です"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -903,7 +1516,12 @@
           "operation": "SELECT",
           "sql": "SELECT l.id, l.status, l.product_code, l.work_order_id, l.customer_requirement_code, json_agg(qi.*) AS inspections FROM lots l LEFT JOIN quality_inspections qi ON qi.lot_id = l.id WHERE l.id = @inputs.lotId GROUP BY l.id",
           "outputBinding": "lotWithInspections",
-          "lineage": { "reads": ["lots", "quality_inspections"] }
+          "lineage": {
+            "reads": [
+              "lots",
+              "quality_inspections"
+            ]
+          }
         },
         {
           "id": "step-003-03",
@@ -961,7 +1579,10 @@
                   "description": "出荷ブロックを監査ログに記録する。",
                   "maturity": "committed",
                   "action": "shipment.evaluate",
-                  "resource": { "type": "Lot", "id": "@inputs.lotId" },
+                  "resource": {
+                    "type": "Lot",
+                    "id": "@inputs.lotId"
+                  },
                   "result": "failure",
                   "reason": "SHIPMENT_BLOCKED",
                   "sensitive": false
@@ -993,7 +1614,11 @@
           "operation": "INSERT",
           "sql": "INSERT INTO shipment_orders (lot_id, work_order_id, status, planned_ship_at, requested_by, created_at) VALUES (@inputs.lotId, @lotWithInspections.work_order_id, 'PLANNED', NOW() + INTERVAL '1 day', @sessionUserId, NOW()) RETURNING id, planned_ship_at",
           "outputBinding": "shipmentOrder",
-          "lineage": { "writes": ["shipment_orders"] }
+          "lineage": {
+            "writes": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-003-07",
@@ -1023,7 +1648,9 @@
           "idempotencyKey": "wms-pick-@shipmentOrder.id",
           "outputBinding": "wmsResult",
           "outcomes": {
-            "success": { "action": "continue" },
+            "success": {
+              "action": "continue"
+            },
             "failure": {
               "action": "continue",
               "sideEffects": [
@@ -1033,14 +1660,20 @@
                   "description": "WMS 連携失敗を監査ログに記録する (運用検知用)。",
                   "maturity": "committed",
                   "action": "wms.picking-order",
-                  "resource": { "type": "ShipmentOrder", "id": "@shipmentOrder.id" },
+                  "resource": {
+                    "type": "ShipmentOrder",
+                    "id": "@shipmentOrder.id"
+                  },
                   "result": "failure",
                   "reason": "WMS_UNAVAILABLE",
                   "sensitive": false
                 }
               ]
             },
-            "timeout": { "action": "continue", "sameAs": "failure" }
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
           }
         },
         {
@@ -1057,9 +1690,16 @@
           },
           "fireAndForget": true,
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "continue" },
-            "timeout": { "action": "continue", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "continue"
+            },
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
           }
         },
         {
@@ -1097,12 +1737,64 @@
       "name": "製造実績受信→品質合格→出荷判定の連続通過",
       "description": "MES から製造完了通知を受信し、新規 production_records が登録された後、品質検査 PASS で lots が INSPECTED_PASS、出荷判定で shipment_orders が登録される。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T10:00:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "ship-001", "requestId": "req-480-happy", "inspectorId": "insp-101" } },
-        { "kind": "dbState", "table": "work_orders", "rows": [ { "id": "WO-480-001", "status": "IN_PROGRESS", "product_code": "PRD-A", "planned_qty": 1, "completed_qty": 0 } ] },
-        { "kind": "dbState", "table": "lots", "rows": [ { "id": "LOT-480-001", "work_order_id": "WO-480-001", "status": "PRODUCED", "product_code": "PRD-A", "customer_requirement_code": "CR-A" } ] },
-        { "kind": "externalStub", "externalRef": "wmsSystem", "responseMock": { "status": 202, "body": { "accepted": true } } },
-        { "kind": "externalStub", "externalRef": "customerNotification", "responseMock": { "status": 202, "body": { "accepted": true } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T10:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "ship-001",
+            "requestId": "req-480-happy",
+            "inspectorId": "insp-101"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "work_orders",
+          "rows": [
+            {
+              "id": "WO-480-001",
+              "status": "IN_PROGRESS",
+              "product_code": "PRD-A",
+              "planned_qty": 1,
+              "completed_qty": 0
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "lots",
+          "rows": [
+            {
+              "id": "LOT-480-001",
+              "work_order_id": "WO-480-001",
+              "status": "PRODUCED",
+              "product_code": "PRD-A",
+              "customer_requirement_code": "CR-A"
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "wmsSystem",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "customerNotification",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        }
       ],
       "when": {
         "actionId": "act-001",
@@ -1116,21 +1808,74 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "200-recorded" },
-        { "kind": "output", "path": "$.status", "equals": "RECORDED" },
-        { "kind": "dbRow", "table": "production_records", "match": { "lot_id": "LOT-480-001", "serial_number": "SN-480-001" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-recorded"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "RECORDED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "production_records",
+          "match": {
+            "lot_id": "LOT-480-001",
+            "serial_number": "SN-480-001"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["happy", "production", "callback"]
+      "tags": [
+        "happy",
+        "production",
+        "callback"
+      ]
     },
     {
       "id": "idempotent-mes-callback",
       "name": "同一 (lotId, serialNumber) の MES 再送は no-op になる",
       "description": "既に production_records に登録済みの (lotId, serialNumber) で再受信しても、UPSERT_IDEMPOTENT で no-op になり ALREADY_PROCESSED が返る。production_records は 1 行のままで work_orders.completed_qty は加算されない。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T10:05:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "mes-system", "requestId": "req-480-idempotent" } },
-        { "kind": "dbState", "table": "work_orders", "rows": [ { "id": "WO-480-002", "status": "IN_PROGRESS", "product_code": "PRD-A", "planned_qty": 1, "completed_qty": 1 } ] },
-        { "kind": "dbState", "table": "production_records", "rows": [ { "lot_id": "LOT-480-002", "serial_number": "SN-480-002", "work_order_id": "WO-480-002", "line_id": "LINE-1", "operator_id": "op-202", "completed_at": "2026-04-26T09:30:00.000Z" } ] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T10:05:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "mes-system",
+            "requestId": "req-480-idempotent"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "work_orders",
+          "rows": [
+            {
+              "id": "WO-480-002",
+              "status": "IN_PROGRESS",
+              "product_code": "PRD-A",
+              "planned_qty": 1,
+              "completed_qty": 1
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "production_records",
+          "rows": [
+            {
+              "lot_id": "LOT-480-002",
+              "serial_number": "SN-480-002",
+              "work_order_id": "WO-480-002",
+              "line_id": "LINE-1",
+              "operator_id": "op-202",
+              "completed_at": "2026-04-26T09:30:00.000Z"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-001",
@@ -1144,27 +1889,81 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "200-already-processed" },
-        { "kind": "output", "path": "$.status", "equals": "ALREADY_PROCESSED" },
-        { "kind": "dbRow", "table": "production_records", "match": { "lot_id": "LOT-480-002", "serial_number": "SN-480-002" }, "count": 1 },
-        { "kind": "dbRow", "table": "work_orders", "match": { "id": "WO-480-002", "completed_qty": 1 }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-already-processed"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "ALREADY_PROCESSED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "production_records",
+          "match": {
+            "lot_id": "LOT-480-002",
+            "serial_number": "SN-480-002"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "work_orders",
+          "match": {
+            "id": "WO-480-002",
+            "completed_qty": 1
+          },
+          "count": 1
+        }
       ],
-      "tags": ["idempotency", "callback", "mes"]
+      "tags": [
+        "idempotency",
+        "callback",
+        "mes"
+      ]
     },
     {
       "id": "quality-failed-rework",
       "name": "品質不合格 + 再加工処置で 422 を返す",
       "description": "総合判定 FAIL + disposition=REWORK で品質検査を提出すると、quality_inspections に FAIL 記録、lots を REWORK_PENDING に遷移、422 QUALITY_HOLD を返す。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T11:00:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "insp-101", "requestId": "req-480-fail-rework", "inspectorId": "insp-101" } },
-        { "kind": "dbState", "table": "lots", "rows": [ { "id": "LOT-480-003", "work_order_id": "WO-480-003", "status": "IN_INSPECTION", "product_code": "PRD-B" } ] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T11:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "insp-101",
+            "requestId": "req-480-fail-rework",
+            "inspectorId": "insp-101"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "lots",
+          "rows": [
+            {
+              "id": "LOT-480-003",
+              "work_order_id": "WO-480-003",
+              "status": "IN_INSPECTION",
+              "product_code": "PRD-B"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-002",
         "input": {
           "lotId": "LOT-480-003",
-          "inspectionItems": [ { "item": "外観", "result": "FAIL", "comment": "傷あり" } ],
+          "inspectionItems": [
+            {
+              "item": "外観",
+              "result": "FAIL",
+              "comment": "傷あり"
+            }
+          ],
           "overallResult": "FAIL",
           "disposition": "REWORK",
           "inspectorId": "insp-101",
@@ -1172,35 +1971,96 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "422-quality-hold" },
-        { "kind": "output", "path": "$.disposition", "equals": "REWORK" },
-        { "kind": "dbRow", "table": "lots", "match": { "id": "LOT-480-003", "status": "REWORK_PENDING" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "422-quality-hold"
+        },
+        {
+          "kind": "output",
+          "path": "$.disposition",
+          "equals": "REWORK"
+        },
+        {
+          "kind": "dbRow",
+          "table": "lots",
+          "match": {
+            "id": "LOT-480-003",
+            "status": "REWORK_PENDING"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["error", "quality", "fail", "rework"]
+      "tags": [
+        "error",
+        "quality",
+        "fail",
+        "rework"
+      ]
     },
     {
       "id": "quality-pass-tx-rollback",
       "name": "品質 PASS だが lot 前提状態違反で TX rollback、409 が返る",
       "description": "lots が CLOSED 状態の場合、UPDATE の affectedRowsCheck (operator: '>', expected: 0) が違反し DB_CONSTRAINT_VIOLATION を throw、TX rollback で 409 INVALID_STATE_TRANSITION を返す。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T11:30:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "insp-102", "requestId": "req-480-tx-rollback", "inspectorId": "insp-102" } },
-        { "kind": "dbState", "table": "lots", "rows": [ { "id": "LOT-480-004", "work_order_id": "WO-480-004", "status": "CLOSED", "product_code": "PRD-A" } ] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T11:30:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "insp-102",
+            "requestId": "req-480-tx-rollback",
+            "inspectorId": "insp-102"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "lots",
+          "rows": [
+            {
+              "id": "LOT-480-004",
+              "work_order_id": "WO-480-004",
+              "status": "CLOSED",
+              "product_code": "PRD-A"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-002",
         "input": {
           "lotId": "LOT-480-004",
-          "inspectionItems": [ { "item": "外観", "result": "PASS" } ],
+          "inspectionItems": [
+            {
+              "item": "外観",
+              "result": "PASS"
+            }
+          ],
           "overallResult": "PASS",
           "inspectorId": "insp-102"
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "409-invalid-state-transition" },
-        { "kind": "dbRow", "table": "lots", "match": { "id": "LOT-480-004", "status": "CLOSED" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "409-invalid-state-transition"
+        },
+        {
+          "kind": "dbRow",
+          "table": "lots",
+          "match": {
+            "id": "LOT-480-004",
+            "status": "CLOSED"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["error", "tx", "rollback"]
+      "tags": [
+        "error",
+        "tx",
+        "rollback"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

@@ -11,10 +11,18 @@
       "description": "Closing バッチ開始時のイベント",
       "payload": {
         "type": "object",
-        "required": ["closingBatchId", "marketDate"],
+        "required": [
+          "closingBatchId",
+          "marketDate"
+        ],
         "properties": {
-          "closingBatchId": { "type": "string" },
-          "marketDate": { "type": "string", "format": "date" }
+          "closingBatchId": {
+            "type": "string"
+          },
+          "marketDate": {
+            "type": "string",
+            "format": "date"
+          }
         }
       }
     },
@@ -22,11 +30,21 @@
       "description": "市場データベンダから当日終値、または degraded mode の前日終値を取得した時点で発行する。",
       "payload": {
         "type": "object",
-        "required": ["marketDate", "source", "degraded"],
+        "required": [
+          "marketDate",
+          "source",
+          "degraded"
+        ],
         "properties": {
-          "marketDate": { "type": "string" },
-          "source": { "type": "string" },
-          "degraded": { "type": "boolean" }
+          "marketDate": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "degraded": {
+            "type": "boolean"
+          }
         },
         "additionalProperties": false
       }
@@ -35,11 +53,21 @@
       "description": "全有効ポジションの時価評価と評価損益計算が完了した時点で発行する。",
       "payload": {
         "type": "object",
-        "required": ["closingBatchId", "valuatedCount", "totalUnrealizedPnl"],
+        "required": [
+          "closingBatchId",
+          "valuatedCount",
+          "totalUnrealizedPnl"
+        ],
         "properties": {
-          "closingBatchId": { "type": "string" },
-          "valuatedCount": { "type": "number" },
-          "totalUnrealizedPnl": { "type": "number" }
+          "closingBatchId": {
+            "type": "string"
+          },
+          "valuatedCount": {
+            "type": "number"
+          },
+          "totalUnrealizedPnl": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -48,11 +76,21 @@
       "description": "実現損益と評価損益を集計し、勘定転記の入力値が確定した時点で発行する。",
       "payload": {
         "type": "object",
-        "required": ["closingBatchId", "realizedPnl", "unrealizedPnl"],
+        "required": [
+          "closingBatchId",
+          "realizedPnl",
+          "unrealizedPnl"
+        ],
         "properties": {
-          "closingBatchId": { "type": "string" },
-          "realizedPnl": { "type": "number" },
-          "unrealizedPnl": { "type": "number" }
+          "closingBatchId": {
+            "type": "string"
+          },
+          "realizedPnl": {
+            "type": "number"
+          },
+          "unrealizedPnl": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -61,25 +99,76 @@
       "description": "勘定転記の借方/貸方一致を確認し、当日帳簿を CLOSED に確定した時点で発行する。",
       "payload": {
         "type": "object",
-        "required": ["closingBatchId", "closingStatus", "ledgerEntryCount"],
+        "required": [
+          "closingBatchId",
+          "closingStatus",
+          "ledgerEntryCount"
+        ],
         "properties": {
-          "closingBatchId": { "type": "string" },
-          "closingStatus": { "type": "string" },
-          "ledgerEntryCount": { "type": "number" }
+          "closingBatchId": {
+            "type": "string"
+          },
+          "closingStatus": {
+            "type": "string"
+          },
+          "ledgerEntryCount": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
     }
   },
   "glossary": {
-    "時価評価": { "definition": "保有ポジションを市場終値で評価し、帳簿価額との差額を評価損益として算出する処理。", "aliases": ["Mark-to-Market", "MTM"], "domainRef": "MarkPrice" },
-    "終値": { "definition": "営業日の市場終了時点で確定した銘柄価格。時価評価の基準価格として利用する。", "aliases": ["Close Price"], "domainRef": "MarkPrice" },
-    "実現損益": { "definition": "売買が約定して確定した損益。取引損益勘定へ転記する。", "aliases": ["Realized PnL"], "domainRef": "Pnl" },
-    "評価損益": { "definition": "未決済ポジションの時価と簿価との差額。日次 Closing 時に評価損益仕訳として転記する。", "aliases": ["Unrealized PnL"], "domainRef": "Pnl" },
-    "勘定転記": { "definition": "損益計算結果を general_ledger へ借方/貸方の仕訳として登録する処理。", "aliases": ["Ledger Posting"] },
-    "Closing": { "definition": "営業日の帳簿を確定し、以後の UPDATE を禁止する日次締め処理。", "domainRef": "ClosingDate" },
-    "CDC": { "definition": "Change Data Capture。締め処理で確定した当日変更データを下流システムへ配信する仕組み。", "aliases": ["Change Data Capture"] },
-    "営業日": { "definition": "取引市場と会計カレンダー上、評価と Closing の対象となる業務日。", "domainRef": "ClosingDate" }
+    "時価評価": {
+      "definition": "保有ポジションを市場終値で評価し、帳簿価額との差額を評価損益として算出する処理。",
+      "aliases": [
+        "Mark-to-Market",
+        "MTM"
+      ],
+      "domainRef": "MarkPrice"
+    },
+    "終値": {
+      "definition": "営業日の市場終了時点で確定した銘柄価格。時価評価の基準価格として利用する。",
+      "aliases": [
+        "Close Price"
+      ],
+      "domainRef": "MarkPrice"
+    },
+    "実現損益": {
+      "definition": "売買が約定して確定した損益。取引損益勘定へ転記する。",
+      "aliases": [
+        "Realized PnL"
+      ],
+      "domainRef": "Pnl"
+    },
+    "評価損益": {
+      "definition": "未決済ポジションの時価と簿価との差額。日次 Closing 時に評価損益仕訳として転記する。",
+      "aliases": [
+        "Unrealized PnL"
+      ],
+      "domainRef": "Pnl"
+    },
+    "勘定転記": {
+      "definition": "損益計算結果を general_ledger へ借方/貸方の仕訳として登録する処理。",
+      "aliases": [
+        "Ledger Posting"
+      ]
+    },
+    "Closing": {
+      "definition": "営業日の帳簿を確定し、以後の UPDATE を禁止する日次締め処理。",
+      "domainRef": "ClosingDate"
+    },
+    "CDC": {
+      "definition": "Change Data Capture。締め処理で確定した当日変更データを下流システムへ配信する仕組み。",
+      "aliases": [
+        "Change Data Capture"
+      ]
+    },
+    "営業日": {
+      "definition": "取引市場と会計カレンダー上、評価と Closing の対象となる業務日。",
+      "domainRef": "ClosingDate"
+    }
   },
   "decisions": [
     {
@@ -111,58 +200,143 @@
     }
   ],
   "ambientVariables": [
-    { "name": "marketDate", "label": "市場日付", "type": "date", "required": true, "description": "Closing 対象の市場営業日。" },
-    { "name": "closingBatchId", "label": "Closing バッチ ID", "type": "string", "required": false, "description": "夜間バッチの実行単位 ID。" },
-    { "name": "dryRun", "label": "検証モード", "type": "boolean", "required": false, "description": "true の場合は検証のみを行い、勘定転記と Closing 確定を実更新しない。" }
+    {
+      "name": "marketDate",
+      "label": "市場日付",
+      "type": "date",
+      "required": true,
+      "description": "Closing 対象の市場営業日。"
+    },
+    {
+      "name": "closingBatchId",
+      "label": "Closing バッチ ID",
+      "type": "string",
+      "required": false,
+      "description": "夜間バッチの実行単位 ID。"
+    },
+    {
+      "name": "dryRun",
+      "label": "検証モード",
+      "type": "boolean",
+      "required": false,
+      "description": "true の場合は検証のみを行い、勘定転記と Closing 確定を実更新しない。"
+    }
   ],
   "errorCatalog": {
-    "VALIDATION": { "httpStatus": 400, "defaultMessage": "入力値が不正です", "responseRef": "400-validation" },
-    "MARKET_DATA_UNAVAILABLE": { "httpStatus": 503, "defaultMessage": "市場データを取得できません", "responseRef": "503-market-data-unavailable" },
-    "VALUATION_FAILED": { "httpStatus": 500, "defaultMessage": "時価評価に失敗しました", "responseRef": "500-valuation-failed" },
-    "LEDGER_UNBALANCED": { "httpStatus": 500, "defaultMessage": "借方合計と貸方合計が一致しません", "responseRef": "500-ledger-unbalanced" },
-    "ALREADY_CLOSED": { "httpStatus": 409, "defaultMessage": "対象営業日は既に Closing 済みです", "responseRef": "409-already-closed" }
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値が不正です",
+      "responseRef": "400-validation"
+    },
+    "MARKET_DATA_UNAVAILABLE": {
+      "httpStatus": 503,
+      "defaultMessage": "市場データを取得できません",
+      "responseRef": "503-market-data-unavailable"
+    },
+    "VALUATION_FAILED": {
+      "httpStatus": 500,
+      "defaultMessage": "時価評価に失敗しました",
+      "responseRef": "500-valuation-failed"
+    },
+    "LEDGER_UNBALANCED": {
+      "httpStatus": 500,
+      "defaultMessage": "借方合計と貸方合計が一致しません",
+      "responseRef": "500-ledger-unbalanced"
+    },
+    "ALREADY_CLOSED": {
+      "httpStatus": 409,
+      "defaultMessage": "対象営業日は既に Closing 済みです",
+      "responseRef": "409-already-closed"
+    }
   },
   "externalSystemCatalog": {
     "marketDataVendor": {
       "name": "Bloomberg Market Data API",
       "baseUrl": "https://marketdata.example.internal",
       "openApiSpec": "docs/openapi/bloomberg-market-data.yaml",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.marketDataVendorToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.marketDataVendorToken"
+      },
       "timeoutMs": 5000,
-      "retryPolicy": { "maxAttempts": 3, "backoff": "exponential", "initialDelayMs": 500 },
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "backoff": "exponential",
+        "initialDelayMs": 500
+      },
       "description": "Bloomberg を想定した終値取得 API。Refinitiv へ切替可能な抽象名で扱う。"
     },
     "dataLake": {
       "name": "Enterprise Data Lake CDC Ingest",
       "baseUrl": "https://datalake.example.internal",
-      "auth": { "kind": "apiKey", "tokenRef": "@secret.dataLakeApiToken", "headerName": "X-API-Key" },
+      "auth": {
+        "kind": "apiKey",
+        "tokenRef": "@secret.dataLakeApiToken",
+        "headerName": "X-API-Key"
+      },
       "timeoutMs": 3000,
       "description": "Closing 後の変更データを CDC として配信する下流基盤。"
     }
   },
   "secretsCatalog": {
-    "marketDataVendorToken": { "source": "env", "name": "MARKET_DATA_VENDOR_TOKEN", "rotationDays": 90, "description": "市場データベンダ API トークン。" },
-    "dataLakeApiToken": { "source": "env", "name": "DATA_LAKE_API_TOKEN", "rotationDays": 90, "description": "Data Lake CDC 送信用 API トークン。" }
+    "marketDataVendorToken": {
+      "source": "env",
+      "name": "MARKET_DATA_VENDOR_TOKEN",
+      "rotationDays": 90,
+      "description": "市場データベンダ API トークン。"
+    },
+    "dataLakeApiToken": {
+      "source": "env",
+      "name": "DATA_LAKE_API_TOKEN",
+      "rotationDays": 90,
+      "description": "Data Lake CDC 送信用 API トークン。"
+    }
   },
   "domainsCatalog": {
-    "AccountingPeriod": { "type": "string", "uiHint": "text", "description": "会計期間 ID。" },
-    "ClosingDate": { "type": "date", "uiHint": "date", "description": "Closing 対象営業日。" },
-    "Pnl": { "type": { "kind": "pnl" }, "uiHint": "number", "description": "損益金額。正値は利益、負値は損失を表す。" },
-    "MarkPrice": { "type": "number", "uiHint": "number", "description": "時価評価に利用する終値。" },
-    "PositionId": { "type": "string", "uiHint": "text", "description": "保有ポジション ID。" }
+    "AccountingPeriod": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "会計期間 ID。"
+    },
+    "ClosingDate": {
+      "type": "date",
+      "uiHint": "date",
+      "description": "Closing 対象営業日。"
+    },
+    "Pnl": {
+      "type": {
+        "kind": "pnl"
+      },
+      "uiHint": "number",
+      "description": "損益金額。正値は利益、負値は損失を表す。"
+    },
+    "MarkPrice": {
+      "type": "number",
+      "uiHint": "number",
+      "description": "時価評価に利用する終値。"
+    },
+    "PositionId": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "保有ポジション ID。"
+    }
   },
   "functionsCatalog": {
     "calcMarkToMarket": {
       "signature": "calcMarkToMarket(position: Position, markPrice: number): number",
       "returnType": "number",
       "description": "ポジション数量、簿価、終値から評価損益を算出する。",
-      "examples": ["@fn.calcMarkToMarket(@position, @markPrices[@position.security_code])"]
+      "examples": [
+        "@fn.calcMarkToMarket(@position, @markPrices[@position.security_code])"
+      ]
     },
     "calcRealizedPnl": {
       "signature": "calcRealizedPnl(trades: Trade[]): number",
       "returnType": "number",
       "description": "当日約定一覧から実現損益を算出する。",
-      "examples": ["@fn.calcRealizedPnl(@trades)"]
+      "examples": [
+        "@fn.calcRealizedPnl(@trades)"
+      ]
     }
   },
   "actions": [
@@ -172,29 +346,197 @@
       "trigger": "marketClose",
       "description": "市場閉場トリガーで対象営業日の Closing バッチを開始し、重複実行を防ぐ。",
       "maturity": "committed",
-      "httpRoute": { "method": "POST", "path": "/internal/scheduled/closing/start", "auth": "required" },
-      "inputs": [{ "name": "marketDate", "label": "市場日付", "type": "date", "required": true, "domainRef": "ClosingDate" }],
-      "outputs": [{ "name": "closingBatchId", "label": "Closing バッチ ID", "type": "string" }],
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/scheduled/closing/start",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "marketDate",
+          "label": "市場日付",
+          "type": "date",
+          "required": true,
+          "domainRef": "ClosingDate"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "closingBatchId",
+          "label": "Closing バッチ ID",
+          "type": "string"
+        }
+      ],
       "responses": [
-        { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["closingBatchId"], "properties": { "closingBatchId": { "type": "string" } }, "additionalProperties": false } }, "description": "Closing バッチ開始成功" },
-        { "id": "409-already-closed", "status": 409, "bodySchema": { "schema": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } }, "additionalProperties": false } }, "description": "対象営業日は既に Closing 済み" }
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "closingBatchId"
+              ],
+              "properties": {
+                "closingBatchId": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "Closing バッチ開始成功"
+        },
+        {
+          "id": "409-already-closed",
+          "status": 409,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "対象営業日は既に Closing 済み"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "503-market-data-unavailable",
+          "status": 503,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "500-valuation-failed",
+          "status": 500,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "500-ledger-unbalanced",
+          "status": 500,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
-        { "id": "act-001-step-01", "type": "validation", "description": "marketDate が必須であることを検証する。", "maturity": "committed", "conditions": "marketDate は必須。", "rules": [{ "field": "marketDate", "type": "required", "message": "市場日付は必須です" }] },
-        { "id": "act-001-step-02", "type": "dbAccess", "description": "accounting_periods で当日が CLOSED か確認する。", "maturity": "committed", "tableName": "accounting_periods", "operation": "SELECT", "sql": "SELECT status FROM accounting_periods WHERE closing_date = @inputs.marketDate", "outputBinding": "accountingPeriod", "lineage": { "reads": ["accounting_periods"] } },
+        {
+          "id": "act-001-step-01",
+          "type": "validation",
+          "description": "marketDate が必須であることを検証する。",
+          "maturity": "committed",
+          "conditions": "marketDate は必須。",
+          "rules": [
+            {
+              "field": "marketDate",
+              "type": "required",
+              "message": "市場日付は必須です"
+            }
+          ]
+        },
+        {
+          "id": "act-001-step-02",
+          "type": "dbAccess",
+          "description": "accounting_periods で当日が CLOSED か確認する。",
+          "maturity": "committed",
+          "tableName": "accounting_periods",
+          "operation": "SELECT",
+          "sql": "SELECT status FROM accounting_periods WHERE closing_date = @inputs.marketDate",
+          "outputBinding": "accountingPeriod",
+          "lineage": {
+            "reads": [
+              "accounting_periods"
+            ]
+          }
+        },
         {
           "id": "act-001-step-03",
           "type": "branch",
           "description": "既に CLOSED の場合は 409 を返す。",
           "maturity": "committed",
-          "branches": [{ "id": "act-001-br-closed", "code": "ALREADY_CLOSED", "label": "Closing 済み", "condition": "@accountingPeriod.status == 'CLOSED'", "steps": [{ "id": "act-001-step-03-01", "type": "return", "description": "409 ALREADY_CLOSED を返す。", "maturity": "committed", "responseRef": "409-already-closed", "bodyExpression": "{ code: 'ALREADY_CLOSED', message: '対象営業日は既に Closing 済みです' }" }] }],
-          "elseBranch": { "id": "act-001-br-open", "code": "OPEN", "label": "開始可能", "steps": [] }
+          "branches": [
+            {
+              "id": "act-001-br-closed",
+              "code": "ALREADY_CLOSED",
+              "label": "Closing 済み",
+              "condition": "@accountingPeriod.status == 'CLOSED'",
+              "steps": [
+                {
+                  "id": "act-001-step-03-01",
+                  "type": "return",
+                  "description": "409 ALREADY_CLOSED を返す。",
+                  "maturity": "committed",
+                  "responseRef": "409-already-closed",
+                  "bodyExpression": "{ code: 'ALREADY_CLOSED', message: '対象営業日は既に Closing 済みです' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "act-001-br-open",
+            "code": "OPEN",
+            "label": "開始可能",
+            "steps": []
+          }
         },
-        { "id": "act-001-step-04", "type": "dbAccess", "description": "closing_batches 表に新バッチを登録し closingBatchId を採番する。", "maturity": "committed", "tableName": "closing_batches", "operation": "INSERT", "sql": "INSERT INTO closing_batches (market_date, status, started_at, dry_run) VALUES (@inputs.marketDate, 'STARTED', NOW(), COALESCE(@dryRun, false)) RETURNING id AS closing_batch_id", "outputBinding": "closingBatch", "runIf": "@accountingPeriod.status != 'CLOSED'", "lineage": { "writes": ["closing_batches"] } },
-        { "id": "act-001-step-05", "type": "eventPublish", "description": "closing.started イベントを発行する。", "maturity": "committed", "topic": "closing.started", "payload": "{ closingBatchId: @closingBatch.closing_batch_id, marketDate: @inputs.marketDate }", "runIf": "@accountingPeriod.status != 'CLOSED'" },
-        { "id": "act-001-step-06", "type": "return", "description": "200 OK と closingBatchId を返す。", "maturity": "committed", "responseRef": "200-ok", "bodyExpression": "{ closingBatchId: @closingBatch.closing_batch_id }", "runIf": "@accountingPeriod.status != 'CLOSED'" }
+        {
+          "id": "act-001-step-04",
+          "type": "dbAccess",
+          "description": "closing_batches 表に新バッチを登録し closingBatchId を採番する。",
+          "maturity": "committed",
+          "tableName": "closing_batches",
+          "operation": "INSERT",
+          "sql": "INSERT INTO closing_batches (market_date, status, started_at, dry_run) VALUES (@inputs.marketDate, 'STARTED', NOW(), COALESCE(@dryRun, false)) RETURNING id AS closing_batch_id",
+          "outputBinding": "closingBatch",
+          "runIf": "@accountingPeriod.status != 'CLOSED'",
+          "lineage": {
+            "writes": [
+              "closing_batches"
+            ]
+          }
+        },
+        {
+          "id": "act-001-step-05",
+          "type": "eventPublish",
+          "description": "closing.started イベントを発行する。",
+          "maturity": "committed",
+          "topic": "closing.started",
+          "payload": "{ closingBatchId: @closingBatch.closing_batch_id, marketDate: @inputs.marketDate }",
+          "runIf": "@accountingPeriod.status != 'CLOSED'"
+        },
+        {
+          "id": "act-001-step-06",
+          "type": "return",
+          "description": "200 OK と closingBatchId を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ closingBatchId: @closingBatch.closing_batch_id }",
+          "runIf": "@accountingPeriod.status != 'CLOSED'"
+        }
       ],
-      "requiredPermissions": ["system"]
+      "requiredPermissions": [
+        "system"
+      ]
     },
     {
       "id": "act-002",
@@ -202,44 +544,252 @@
       "trigger": "other",
       "description": "内部呼出で終値を取得し、全有効ポジションを chunk size 1000 件で時価評価して評価損益を集計する。",
       "maturity": "committed",
-      "httpRoute": { "method": "POST", "path": "/internal/closing/valuation/{closingBatchId}", "auth": "required" },
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/closing/valuation/{closingBatchId}",
+        "auth": "required"
+      },
       "inputs": [
-        { "name": "closingBatchId", "label": "Closing バッチ ID", "type": "string", "required": true },
-        { "name": "marketDate", "label": "市場日付", "type": "date", "required": true, "domainRef": "ClosingDate" }
+        {
+          "name": "closingBatchId",
+          "label": "Closing バッチ ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "marketDate",
+          "label": "市場日付",
+          "type": "date",
+          "required": true,
+          "domainRef": "ClosingDate"
+        }
       ],
       "outputs": [
-        { "name": "valuatedCount", "label": "評価件数", "type": "number" },
-        { "name": "totalUnrealizedPnl", "label": "評価損益合計", "type": { "kind": "pnl" }, "domainRef": "Pnl" }
+        {
+          "name": "valuatedCount",
+          "label": "評価件数",
+          "type": "number"
+        },
+        {
+          "name": "totalUnrealizedPnl",
+          "label": "評価損益合計",
+          "type": {
+            "kind": "pnl"
+          },
+          "domainRef": "Pnl"
+        }
       ],
       "responses": [
-        { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["valuatedCount", "totalUnrealizedPnl"], "properties": { "valuatedCount": { "type": "number" }, "totalUnrealizedPnl": { "type": "number" } }, "additionalProperties": false } }, "description": "時価評価成功" },
-        { "id": "503-market-data-unavailable", "status": 503, "description": "当日終値、前日終値とも取得できない" },
-        { "id": "500-valuation-failed", "status": 500, "description": "時価評価失敗" }
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "valuatedCount",
+                "totalUnrealizedPnl"
+              ],
+              "properties": {
+                "valuatedCount": {
+                  "type": "number"
+                },
+                "totalUnrealizedPnl": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "時価評価成功"
+        },
+        {
+          "id": "503-market-data-unavailable",
+          "status": 503,
+          "description": "当日終値、前日終値とも取得できない"
+        },
+        {
+          "id": "500-valuation-failed",
+          "status": 500,
+          "description": "時価評価失敗"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "500-ledger-unbalanced",
+          "status": 500,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-already-closed",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
-        { "id": "act-002-step-01", "type": "validation", "description": "closingBatchId と marketDate が必須であることを検証する。", "maturity": "committed", "conditions": "closingBatchId/marketDate は必須。", "rules": [{ "field": "closingBatchId", "type": "required", "message": "Closing バッチ ID は必須です" }, { "field": "marketDate", "type": "required", "message": "市場日付は必須です" }] },
-        { "id": "act-002-step-02", "type": "externalSystem", "description": "marketDataVendor から当日終値を取得して @markPrices に格納する。", "maturity": "committed", "systemName": "Bloomberg Market Data API", "systemRef": "marketDataVendor", "httpCall": { "method": "GET", "path": "/prices/closing", "query": { "marketDate": "@inputs.marketDate" } }, "outcomes": { "success": { "action": "continue" }, "failure": { "action": "continue", "description": "前日終値フォールバックへ進む" }, "timeout": { "action": "continue", "sameAs": "failure" } }, "outputBinding": "markPrices", "operationId": "FetchClosingPrices", "operationRef": "/openapi/bloomberg-market-data#FetchClosingPrices" },
+        {
+          "id": "act-002-step-01",
+          "type": "validation",
+          "description": "closingBatchId と marketDate が必須であることを検証する。",
+          "maturity": "committed",
+          "conditions": "closingBatchId/marketDate は必須。",
+          "rules": [
+            {
+              "field": "closingBatchId",
+              "type": "required",
+              "message": "Closing バッチ ID は必須です"
+            },
+            {
+              "field": "marketDate",
+              "type": "required",
+              "message": "市場日付は必須です"
+            }
+          ]
+        },
+        {
+          "id": "act-002-step-02",
+          "type": "externalSystem",
+          "description": "marketDataVendor から当日終値を取得して @markPrices に格納する。",
+          "maturity": "committed",
+          "systemName": "Bloomberg Market Data API",
+          "systemRef": "marketDataVendor",
+          "httpCall": {
+            "method": "GET",
+            "path": "/prices/closing",
+            "query": {
+              "marketDate": "@inputs.marketDate"
+            }
+          },
+          "outcomes": {
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "continue",
+              "description": "前日終値フォールバックへ進む"
+            },
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
+          },
+          "outputBinding": "markPrices",
+          "operationId": "FetchClosingPrices",
+          "operationRef": "/openapi/bloomberg-market-data#FetchClosingPrices"
+        },
         {
           "id": "act-002-step-03",
           "type": "branch",
           "description": "取得失敗時は前日終値で代替し、degraded mode として audit log を残す。",
           "maturity": "committed",
-          "branches": [{
-            "id": "act-002-br-marketdata-failure",
-            "code": "DEGRADED",
-            "label": "前日終値で代替",
-            "condition": { "kind": "externalOutcome", "stepRef": "act-002-step-02", "outcome": "failure", "description": "marketDataVendor の当日終値取得が失敗" },
+          "branches": [
+            {
+              "id": "act-002-br-marketdata-failure",
+              "code": "DEGRADED",
+              "label": "前日終値で代替",
+              "condition": {
+                "kind": "externalOutcome",
+                "stepRef": "act-002-step-02",
+                "outcome": "failure",
+                "description": "marketDataVendor の当日終値取得が失敗"
+              },
+              "steps": [
+                {
+                  "id": "act-002-step-03-01",
+                  "type": "dbAccess",
+                  "description": "前日終値を mark_prices から取得する。",
+                  "maturity": "committed",
+                  "tableName": "mark_prices",
+                  "operation": "SELECT",
+                  "sql": "SELECT security_code, close_price FROM mark_prices WHERE market_date = (SELECT MAX(market_date) FROM mark_prices WHERE market_date < @inputs.marketDate)",
+                  "outputBinding": "fallbackMarkPrices",
+                  "lineage": {
+                    "reads": [
+                      "mark_prices"
+                    ]
+                  }
+                },
+                {
+                  "id": "act-002-step-degraded-override",
+                  "type": "compute",
+                  "description": "degraded branch では前日終値を @markPrices として後続評価に渡す。",
+                  "maturity": "committed",
+                  "expression": "@fallbackMarkPrices",
+                  "outputBinding": "markPrices"
+                },
+                {
+                  "id": "act-002-step-03-02",
+                  "type": "audit",
+                  "description": "前日終値代替を監査ログに記録する。",
+                  "maturity": "committed",
+                  "action": "closing.marketdata.degraded",
+                  "resource": {
+                    "type": "ClosingBatch",
+                    "id": "@inputs.closingBatchId"
+                  },
+                  "result": "success"
+                },
+                {
+                  "id": "act-002-step-03-03",
+                  "type": "eventPublish",
+                  "description": "degraded=true の marketdata.fetched を発行する。",
+                  "maturity": "committed",
+                  "topic": "marketdata.fetched",
+                  "eventRef": "marketdata.fetched",
+                  "payload": "{ marketDate: @inputs.marketDate, source: 'previous-close', degraded: true }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "act-002-br-marketdata-success",
+            "code": "SUCCESS",
+            "label": "当日終値取得成功",
             "steps": [
-              { "id": "act-002-step-03-01", "type": "dbAccess", "description": "前日終値を mark_prices から取得する。", "maturity": "committed", "tableName": "mark_prices", "operation": "SELECT", "sql": "SELECT security_code, close_price FROM mark_prices WHERE market_date = (SELECT MAX(market_date) FROM mark_prices WHERE market_date < @inputs.marketDate)", "outputBinding": "fallbackMarkPrices", "lineage": { "reads": ["mark_prices"] } },
-              { "id": "act-002-step-degraded-override", "type": "compute", "description": "degraded branch では前日終値を @markPrices として後続評価に渡す。", "maturity": "committed", "expression": "@fallbackMarkPrices", "outputBinding": "markPrices" },
-              { "id": "act-002-step-03-02", "type": "audit", "description": "前日終値代替を監査ログに記録する。", "maturity": "committed", "action": "closing.marketdata.degraded", "resource": { "type": "ClosingBatch", "id": "@inputs.closingBatchId" }, "result": "success" },
-              { "id": "act-002-step-03-03", "type": "eventPublish", "description": "degraded=true の marketdata.fetched を発行する。", "maturity": "committed", "topic": "marketdata.fetched", "eventRef": "marketdata.fetched", "payload": "{ marketDate: @inputs.marketDate, source: 'previous-close', degraded: true }" }
+              {
+                "id": "act-002-step-03-04",
+                "type": "eventPublish",
+                "description": "degraded=false の marketdata.fetched を発行する。",
+                "maturity": "committed",
+                "topic": "marketdata.fetched",
+                "eventRef": "marketdata.fetched",
+                "payload": "{ marketDate: @inputs.marketDate, source: 'Bloomberg', degraded: false }"
+              }
             ]
-          }],
-          "elseBranch": { "id": "act-002-br-marketdata-success", "code": "SUCCESS", "label": "当日終値取得成功", "steps": [{ "id": "act-002-step-03-04", "type": "eventPublish", "description": "degraded=false の marketdata.fetched を発行する。", "maturity": "committed", "topic": "marketdata.fetched", "eventRef": "marketdata.fetched", "payload": "{ marketDate: @inputs.marketDate, source: 'Bloomberg', degraded: false }" }] }
+          }
         },
-        { "id": "act-002-step-04", "type": "dbAccess", "description": "全有効ポジションを chunk size 1000 件で処理できる単位として取得する。", "maturity": "committed", "tableName": "positions", "operation": "SELECT", "sql": "SELECT * FROM positions WHERE is_active = true ORDER BY id", "outputBinding": "activePositions", "lineage": { "reads": ["positions"] } },
-        { "id": "act-002-step-04b", "type": "compute", "description": "ポジション 0 件でも評価損益合計を参照できるよう初期化する。", "maturity": "committed", "expression": "0", "outputBinding": "totalUnrealizedPnl" },
+        {
+          "id": "act-002-step-04",
+          "type": "dbAccess",
+          "description": "全有効ポジションを chunk size 1000 件で処理できる単位として取得する。",
+          "maturity": "committed",
+          "tableName": "positions",
+          "operation": "SELECT",
+          "sql": "SELECT * FROM positions WHERE is_active = true ORDER BY id",
+          "outputBinding": "activePositions",
+          "lineage": {
+            "reads": [
+              "positions"
+            ]
+          }
+        },
+        {
+          "id": "act-002-step-04b",
+          "type": "compute",
+          "description": "ポジション 0 件でも評価損益合計を参照できるよう初期化する。",
+          "maturity": "committed",
+          "expression": "0",
+          "outputBinding": "totalUnrealizedPnl"
+        },
         {
           "id": "act-002-step-05",
           "type": "loop",
@@ -249,17 +799,71 @@
           "collectionSource": "@activePositions.chunks[1000]",
           "collectionItemName": "position",
           "steps": [
-            { "id": "act-002-step-05-01", "type": "other", "description": "schema 上は type=other とし、拡張 step securities:MarkToMarketStep を明示参照する。positionId=@position.id / markPrice=@markPrices[@position.security_code] / currency=@position.currency でポジションごとの評価額と評価損益を算出する。", "maturity": "committed", "outputBinding": "positionValuation" },
-            { "id": "act-002-step-05-02", "type": "dbAccess", "description": "position_valuations 表へ評価結果を UPSERT する。", "maturity": "committed", "tableName": "position_valuations", "operation": "MERGE", "sql": "MERGE INTO position_valuations pv USING (SELECT @position.id AS position_id, @inputs.marketDate AS market_date) src ON (pv.position_id = src.position_id AND pv.market_date = src.market_date) WHEN MATCHED THEN UPDATE SET mark_price = @positionValuation.mark_price, unrealized_pnl = @positionValuation.unrealized_pnl, updated_at = NOW() WHEN NOT MATCHED THEN INSERT (position_id, market_date, mark_price, unrealized_pnl, created_at) VALUES (@position.id, @inputs.marketDate, @positionValuation.mark_price, @positionValuation.unrealized_pnl, NOW())", "lineage": { "writes": ["position_valuations"] } },
-            { "id": "act-002-step-05-03", "type": "compute", "description": "評価損益を累積する。", "maturity": "committed", "expression": "@positionValuation.unrealized_pnl", "outputBinding": { "name": "totalUnrealizedPnl", "operation": "accumulate", "initialValue": 0 } }
+            {
+              "id": "act-002-step-05-01",
+              "type": "other",
+              "description": "schema 上は type=other とし、拡張 step securities:MarkToMarketStep を明示参照する。positionId=@position.id / markPrice=@markPrices[@position.security_code] / currency=@position.currency でポジションごとの評価額と評価損益を算出する。",
+              "maturity": "committed",
+              "outputBinding": "positionValuation"
+            },
+            {
+              "id": "act-002-step-05-02",
+              "type": "dbAccess",
+              "description": "position_valuations 表へ評価結果を UPSERT する。",
+              "maturity": "committed",
+              "tableName": "position_valuations",
+              "operation": "MERGE",
+              "sql": "MERGE INTO position_valuations pv USING (SELECT @position.id AS position_id, @inputs.marketDate AS market_date) src ON (pv.position_id = src.position_id AND pv.market_date = src.market_date) WHEN MATCHED THEN UPDATE SET mark_price = @positionValuation.mark_price, unrealized_pnl = @positionValuation.unrealized_pnl, updated_at = NOW() WHEN NOT MATCHED THEN INSERT (position_id, market_date, mark_price, unrealized_pnl, created_at) VALUES (@position.id, @inputs.marketDate, @positionValuation.mark_price, @positionValuation.unrealized_pnl, NOW())",
+              "lineage": {
+                "writes": [
+                  "position_valuations"
+                ]
+              }
+            },
+            {
+              "id": "act-002-step-05-03",
+              "type": "compute",
+              "description": "評価損益を累積する。",
+              "maturity": "committed",
+              "expression": "@positionValuation.unrealized_pnl",
+              "outputBinding": {
+                "name": "totalUnrealizedPnl",
+                "operation": "accumulate",
+                "initialValue": 0
+              }
+            }
           ],
           "outputBinding": "valuatedCount"
         },
-        { "id": "act-002-step-06", "type": "compute", "description": "全口座合計 PnL を算出する。", "maturity": "committed", "expression": "@totalUnrealizedPnl", "outputBinding": "portfolioUnrealizedPnl" },
-        { "id": "act-002-step-07", "type": "eventPublish", "description": "valuation.completed イベントを発行する。", "maturity": "committed", "topic": "valuation.completed", "eventRef": "valuation.completed", "payload": "{ closingBatchId: @inputs.closingBatchId, valuatedCount: @valuatedCount, totalUnrealizedPnl: @portfolioUnrealizedPnl }" },
-        { "id": "act-002-step-08", "type": "return", "description": "200 OK と評価結果を返す。", "maturity": "committed", "responseRef": "200-ok", "bodyExpression": "{ valuatedCount: @valuatedCount, totalUnrealizedPnl: @portfolioUnrealizedPnl }" }
+        {
+          "id": "act-002-step-06",
+          "type": "compute",
+          "description": "全口座合計 PnL を算出する。",
+          "maturity": "committed",
+          "expression": "@totalUnrealizedPnl",
+          "outputBinding": "portfolioUnrealizedPnl"
+        },
+        {
+          "id": "act-002-step-07",
+          "type": "eventPublish",
+          "description": "valuation.completed イベントを発行する。",
+          "maturity": "committed",
+          "topic": "valuation.completed",
+          "eventRef": "valuation.completed",
+          "payload": "{ closingBatchId: @inputs.closingBatchId, valuatedCount: @valuatedCount, totalUnrealizedPnl: @portfolioUnrealizedPnl }"
+        },
+        {
+          "id": "act-002-step-08",
+          "type": "return",
+          "description": "200 OK と評価結果を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ valuatedCount: @valuatedCount, totalUnrealizedPnl: @portfolioUnrealizedPnl }"
+        }
       ],
-      "requiredPermissions": ["system"]
+      "requiredPermissions": [
+        "system"
+      ]
     },
     {
       "id": "act-003",
@@ -267,19 +871,153 @@
       "trigger": "other",
       "description": "実現損益と評価損益を general_ledger へ転記し、借方/貸方一致を確認して Closing を確定する。",
       "maturity": "committed",
-      "httpRoute": { "method": "POST", "path": "/internal/closing/finalize/{closingBatchId}", "auth": "required" },
-      "inputs": [{ "name": "closingBatchId", "label": "Closing バッチ ID", "type": "string", "required": true }],
-      "outputs": [{ "name": "ledgerEntryCount", "label": "仕訳件数", "type": "number" }, { "name": "closingStatus", "label": "Closing 状態", "type": "string" }],
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/closing/finalize/{closingBatchId}",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "closingBatchId",
+          "label": "Closing バッチ ID",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ledgerEntryCount",
+          "label": "仕訳件数",
+          "type": "number"
+        },
+        {
+          "name": "closingStatus",
+          "label": "Closing 状態",
+          "type": "string"
+        }
+      ],
       "responses": [
-        { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["ledgerEntryCount", "closingStatus"], "properties": { "ledgerEntryCount": { "type": "number" }, "closingStatus": { "type": "string" } }, "additionalProperties": false } }, "description": "Closing 確定成功" },
-        { "id": "500-ledger-unbalanced", "status": 500, "description": "仕訳バランス不一致" }
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "ledgerEntryCount",
+                "closingStatus"
+              ],
+              "properties": {
+                "ledgerEntryCount": {
+                  "type": "number"
+                },
+                "closingStatus": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "Closing 確定成功"
+        },
+        {
+          "id": "500-ledger-unbalanced",
+          "status": 500,
+          "description": "仕訳バランス不一致"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "503-market-data-unavailable",
+          "status": 503,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "500-valuation-failed",
+          "status": 500,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-already-closed",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
-        { "id": "act-003-step-01", "type": "validation", "description": "closingBatchId が必須であることを検証する。", "maturity": "committed", "conditions": "closingBatchId は必須。", "rules": [{ "field": "closingBatchId", "type": "required", "message": "Closing バッチ ID は必須です" }] },
-        { "id": "act-003-step-02", "type": "dbAccess", "description": "当日 trades を取得し、実現損益計算の入力にする。", "maturity": "committed", "tableName": "trades", "operation": "SELECT", "sql": "SELECT * FROM trades WHERE trade_date = (SELECT market_date FROM closing_batches WHERE id = @inputs.closingBatchId)", "outputBinding": "trades", "lineage": { "reads": ["trades", "closing_batches"] } },
-        { "id": "act-003-step-03", "type": "compute", "description": "@fn.calcRealizedPnl(@trades) で実現損益を算出する。", "maturity": "committed", "expression": "@fn.calcRealizedPnl(@trades)", "outputBinding": "realizedPnl" },
-        { "id": "act-003-step-04", "type": "dbAccess", "description": "当日評価損益合計を取得する。", "maturity": "committed", "tableName": "position_valuations", "operation": "SELECT", "sql": "SELECT SUM(unrealized_pnl) AS unrealized_pnl FROM position_valuations WHERE market_date = (SELECT market_date FROM closing_batches WHERE id = @inputs.closingBatchId)", "outputBinding": "valuationSummary", "lineage": { "reads": ["position_valuations", "closing_batches"] } },
-        { "id": "act-003-step-05", "type": "eventPublish", "description": "pnl.calculated イベントを発行する。", "maturity": "committed", "topic": "pnl.calculated", "eventRef": "pnl.calculated", "payload": "{ closingBatchId: @inputs.closingBatchId, realizedPnl: @realizedPnl, unrealizedPnl: @valuationSummary.unrealized_pnl }" },
+        {
+          "id": "act-003-step-01",
+          "type": "validation",
+          "description": "closingBatchId が必須であることを検証する。",
+          "maturity": "committed",
+          "conditions": "closingBatchId は必須。",
+          "rules": [
+            {
+              "field": "closingBatchId",
+              "type": "required",
+              "message": "Closing バッチ ID は必須です"
+            }
+          ]
+        },
+        {
+          "id": "act-003-step-02",
+          "type": "dbAccess",
+          "description": "当日 trades を取得し、実現損益計算の入力にする。",
+          "maturity": "committed",
+          "tableName": "trades",
+          "operation": "SELECT",
+          "sql": "SELECT * FROM trades WHERE trade_date = (SELECT market_date FROM closing_batches WHERE id = @inputs.closingBatchId)",
+          "outputBinding": "trades",
+          "lineage": {
+            "reads": [
+              "trades",
+              "closing_batches"
+            ]
+          }
+        },
+        {
+          "id": "act-003-step-03",
+          "type": "compute",
+          "description": "@fn.calcRealizedPnl(@trades) で実現損益を算出する。",
+          "maturity": "committed",
+          "expression": "@fn.calcRealizedPnl(@trades)",
+          "outputBinding": "realizedPnl"
+        },
+        {
+          "id": "act-003-step-04",
+          "type": "dbAccess",
+          "description": "当日評価損益合計を取得する。",
+          "maturity": "committed",
+          "tableName": "position_valuations",
+          "operation": "SELECT",
+          "sql": "SELECT SUM(unrealized_pnl) AS unrealized_pnl FROM position_valuations WHERE market_date = (SELECT market_date FROM closing_batches WHERE id = @inputs.closingBatchId)",
+          "outputBinding": "valuationSummary",
+          "lineage": {
+            "reads": [
+              "position_valuations",
+              "closing_batches"
+            ]
+          }
+        },
+        {
+          "id": "act-003-step-05",
+          "type": "eventPublish",
+          "description": "pnl.calculated イベントを発行する。",
+          "maturity": "committed",
+          "topic": "pnl.calculated",
+          "eventRef": "pnl.calculated",
+          "payload": "{ closingBatchId: @inputs.closingBatchId, realizedPnl: @realizedPnl, unrealizedPnl: @valuationSummary.unrealized_pnl }"
+        },
         {
           "id": "act-003-step-06",
           "type": "transactionScope",
@@ -289,31 +1027,220 @@
           "propagation": "REQUIRED",
           "timeoutMs": 10000,
           "outputBinding": "closingTxResult",
-          "rollbackOn": ["LEDGER_UNBALANCED"],
+          "rollbackOn": [
+            "LEDGER_UNBALANCED"
+          ],
           "steps": [
-            { "id": "act-003-step-06-01", "type": "dbAccess", "description": "general_ledger に取引損益勘定の借方/貸方仕訳を INSERT する。", "note": "outputBinding realizedLedgerRows は INSERT 結果の行配列。`.length` で件数を取得する (ledgerEntryCount 算出根拠)。", "maturity": "committed", "tableName": "general_ledger", "operation": "INSERT", "sql": "INSERT INTO general_ledger (closing_batch_id, account_code, debit_amount, credit_amount, description, created_at) VALUES (@inputs.closingBatchId, 'TRADING_PNL', CASE WHEN @realizedPnl < 0 THEN ABS(@realizedPnl) ELSE 0 END, CASE WHEN @realizedPnl >= 0 THEN @realizedPnl ELSE 0 END, '取引損益', NOW()), (@inputs.closingBatchId, 'CASH_ADJUSTMENT', CASE WHEN @realizedPnl >= 0 THEN @realizedPnl ELSE 0 END, CASE WHEN @realizedPnl < 0 THEN ABS(@realizedPnl) ELSE 0 END, '取引損益相手勘定', NOW())", "outputBinding": "realizedLedgerRows", "lineage": { "writes": ["general_ledger"] } },
-            { "id": "act-003-step-06-02", "type": "dbAccess", "description": "general_ledger に評価損益仕訳を INSERT する。", "note": "outputBinding valuationLedgerRows は INSERT 結果の行配列。`.length` で件数を取得する (ledgerEntryCount 算出根拠)。", "maturity": "committed", "tableName": "general_ledger", "operation": "INSERT", "sql": "INSERT INTO general_ledger (closing_batch_id, account_code, debit_amount, credit_amount, description, created_at) VALUES (@inputs.closingBatchId, 'UNREALIZED_PNL', CASE WHEN @valuationSummary.unrealized_pnl < 0 THEN ABS(@valuationSummary.unrealized_pnl) ELSE 0 END, CASE WHEN @valuationSummary.unrealized_pnl >= 0 THEN @valuationSummary.unrealized_pnl ELSE 0 END, '評価損益', NOW()), (@inputs.closingBatchId, 'MARK_TO_MARKET_RESERVE', CASE WHEN @valuationSummary.unrealized_pnl >= 0 THEN @valuationSummary.unrealized_pnl ELSE 0 END, CASE WHEN @valuationSummary.unrealized_pnl < 0 THEN ABS(@valuationSummary.unrealized_pnl) ELSE 0 END, '評価損益相手勘定', NOW())", "outputBinding": "valuationLedgerRows", "lineage": { "writes": ["general_ledger"] } },
-            { "id": "act-003-step-06-02b", "type": "dbAccess", "description": "general_ledger の借方/貸方合計を集計し、仕訳バランス判定に使う。", "maturity": "committed", "tableName": "general_ledger", "operation": "SELECT", "sql": "SELECT SUM(debit_amount) AS debit_total, SUM(credit_amount) AS credit_total FROM general_ledger WHERE closing_batch_id = @inputs.closingBatchId", "outputBinding": "ledger" },
-            { "id": "act-003-step-06-03", "type": "compute", "description": "借方合計と貸方合計が一致するか確認する。", "maturity": "committed", "expression": "{ isBalanced: @ledger.debit_total == @ledger.credit_total, debitTotal: @ledger.debit_total, creditTotal: @ledger.credit_total }", "outputBinding": "ledgerBalanceCheck" },
+            {
+              "id": "act-003-step-06-01",
+              "type": "dbAccess",
+              "description": "general_ledger に取引損益勘定の借方/貸方仕訳を INSERT する。",
+              "note": "outputBinding realizedLedgerRows は INSERT 結果の行配列。`.length` で件数を取得する (ledgerEntryCount 算出根拠)。",
+              "maturity": "committed",
+              "tableName": "general_ledger",
+              "operation": "INSERT",
+              "sql": "INSERT INTO general_ledger (closing_batch_id, account_code, debit_amount, credit_amount, description, created_at) VALUES (@inputs.closingBatchId, 'TRADING_PNL', CASE WHEN @realizedPnl < 0 THEN ABS(@realizedPnl) ELSE 0 END, CASE WHEN @realizedPnl >= 0 THEN @realizedPnl ELSE 0 END, '取引損益', NOW()), (@inputs.closingBatchId, 'CASH_ADJUSTMENT', CASE WHEN @realizedPnl >= 0 THEN @realizedPnl ELSE 0 END, CASE WHEN @realizedPnl < 0 THEN ABS(@realizedPnl) ELSE 0 END, '取引損益相手勘定', NOW())",
+              "outputBinding": "realizedLedgerRows",
+              "lineage": {
+                "writes": [
+                  "general_ledger"
+                ]
+              }
+            },
+            {
+              "id": "act-003-step-06-02",
+              "type": "dbAccess",
+              "description": "general_ledger に評価損益仕訳を INSERT する。",
+              "note": "outputBinding valuationLedgerRows は INSERT 結果の行配列。`.length` で件数を取得する (ledgerEntryCount 算出根拠)。",
+              "maturity": "committed",
+              "tableName": "general_ledger",
+              "operation": "INSERT",
+              "sql": "INSERT INTO general_ledger (closing_batch_id, account_code, debit_amount, credit_amount, description, created_at) VALUES (@inputs.closingBatchId, 'UNREALIZED_PNL', CASE WHEN @valuationSummary.unrealized_pnl < 0 THEN ABS(@valuationSummary.unrealized_pnl) ELSE 0 END, CASE WHEN @valuationSummary.unrealized_pnl >= 0 THEN @valuationSummary.unrealized_pnl ELSE 0 END, '評価損益', NOW()), (@inputs.closingBatchId, 'MARK_TO_MARKET_RESERVE', CASE WHEN @valuationSummary.unrealized_pnl >= 0 THEN @valuationSummary.unrealized_pnl ELSE 0 END, CASE WHEN @valuationSummary.unrealized_pnl < 0 THEN ABS(@valuationSummary.unrealized_pnl) ELSE 0 END, '評価損益相手勘定', NOW())",
+              "outputBinding": "valuationLedgerRows",
+              "lineage": {
+                "writes": [
+                  "general_ledger"
+                ]
+              }
+            },
+            {
+              "id": "act-003-step-06-02b",
+              "type": "dbAccess",
+              "description": "general_ledger の借方/貸方合計を集計し、仕訳バランス判定に使う。",
+              "maturity": "committed",
+              "tableName": "general_ledger",
+              "operation": "SELECT",
+              "sql": "SELECT SUM(debit_amount) AS debit_total, SUM(credit_amount) AS credit_total FROM general_ledger WHERE closing_batch_id = @inputs.closingBatchId",
+              "outputBinding": "ledger"
+            },
+            {
+              "id": "act-003-step-06-03",
+              "type": "compute",
+              "description": "借方合計と貸方合計が一致するか確認する。",
+              "maturity": "committed",
+              "expression": "{ isBalanced: @ledger.debit_total == @ledger.credit_total, debitTotal: @ledger.debit_total, creditTotal: @ledger.credit_total }",
+              "outputBinding": "ledgerBalanceCheck"
+            },
             {
               "id": "act-003-step-06-04",
               "type": "branch",
               "description": "不一致なら rollbackOn 対象の LEDGER_UNBALANCED を発火させる。",
               "maturity": "committed",
-              "branches": [{ "id": "act-003-br-unbalanced", "code": "UNBALANCED", "label": "借方/貸方不一致", "condition": "@ledgerBalanceCheck.isBalanced == false", "steps": [{ "id": "act-003-step-06-04-01", "type": "dbAccess", "description": "不一致時に必ず affectedRowsCheck 違反を起こし、LEDGER_UNBALANCED で TX rollback する。", "maturity": "committed", "tableName": "closing_batches", "operation": "UPDATE", "sql": "UPDATE closing_batches SET status = 'LEDGER_UNBALANCED' WHERE id = @inputs.closingBatchId", "affectedRowsCheck": { "operator": "=", "expected": 0, "onViolation": "throw", "errorCode": "LEDGER_UNBALANCED", "description": "不一致 branch 内では UPDATE が 1 件以上になり、expected=0 違反で rollbackOn が発火する。" }, "lineage": { "writes": ["closing_batches"] } }] }],
-              "elseBranch": { "id": "act-003-br-balanced", "code": "BALANCED", "label": "借方/貸方一致", "steps": [] }
+              "branches": [
+                {
+                  "id": "act-003-br-unbalanced",
+                  "code": "UNBALANCED",
+                  "label": "借方/貸方不一致",
+                  "condition": "@ledgerBalanceCheck.isBalanced == false",
+                  "steps": [
+                    {
+                      "id": "act-003-step-06-04-01",
+                      "type": "dbAccess",
+                      "description": "不一致時に必ず affectedRowsCheck 違反を起こし、LEDGER_UNBALANCED で TX rollback する。",
+                      "maturity": "committed",
+                      "tableName": "closing_batches",
+                      "operation": "UPDATE",
+                      "sql": "UPDATE closing_batches SET status = 'LEDGER_UNBALANCED' WHERE id = @inputs.closingBatchId",
+                      "affectedRowsCheck": {
+                        "operator": "=",
+                        "expected": 0,
+                        "onViolation": "throw",
+                        "errorCode": "LEDGER_UNBALANCED",
+                        "description": "不一致 branch 内では UPDATE が 1 件以上になり、expected=0 違反で rollbackOn が発火する。"
+                      },
+                      "lineage": {
+                        "writes": [
+                          "closing_batches"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "elseBranch": {
+                "id": "act-003-br-balanced",
+                "code": "BALANCED",
+                "label": "借方/貸方一致",
+                "steps": []
+              }
             }
           ],
-          "onRollback": [{ "id": "act-003-step-06-rb-01", "type": "log", "description": "LEDGER_UNBALANCED による rollback を記録する。", "maturity": "committed", "level": "error", "message": "Closing ledger posting rolled back because debit and credit totals are unbalanced.", "category": "closing" }]
+          "onRollback": [
+            {
+              "id": "act-003-step-06-rb-01",
+              "type": "log",
+              "description": "LEDGER_UNBALANCED による rollback を記録する。",
+              "maturity": "committed",
+              "level": "error",
+              "message": "Closing ledger posting rolled back because debit and credit totals are unbalanced.",
+              "category": "closing"
+            }
+          ]
         },
-        { "id": "act-003-step-07", "type": "dbAccess", "description": "closing_batches.status = COMPLETED に更新する。", "maturity": "committed", "tableName": "closing_batches", "operation": "UPDATE", "sql": "UPDATE closing_batches SET status = 'COMPLETED', completed_at = NOW() WHERE id = @inputs.closingBatchId", "outputBinding": "closingBatchCompleted", "runIf": "@ledger.debit_total == @ledger.credit_total", "lineage": { "writes": ["closing_batches"] } },
-        { "id": "act-003-step-08", "type": "dbAccess", "description": "accounting_periods.status = CLOSED に更新し、当日帳簿をロックする。", "maturity": "committed", "tableName": "accounting_periods", "operation": "UPDATE", "sql": "UPDATE accounting_periods SET status = 'CLOSED', locked_at = NOW(), locked_by_batch_id = @inputs.closingBatchId WHERE closing_date = (SELECT market_date FROM closing_batches WHERE id = @inputs.closingBatchId)", "outputBinding": "accountingPeriodClosed", "runIf": "@ledger.debit_total == @ledger.credit_total", "lineage": { "writes": ["accounting_periods"], "reads": ["closing_batches"] } },
-        { "id": "act-003-step-09", "type": "dbAccess", "description": "当日変更データを CDC 配信用に抽出する。", "maturity": "committed", "tableName": "closing_batches", "operation": "SELECT", "sql": "SELECT 'closing_batches' AS table_name, id, updated_at FROM closing_batches WHERE id = @inputs.closingBatchId UNION ALL SELECT 'general_ledger' AS table_name, id, created_at FROM general_ledger WHERE closing_batch_id = @inputs.closingBatchId", "outputBinding": "cdcChanges", "runIf": "@ledger.debit_total == @ledger.credit_total", "lineage": { "reads": ["closing_batches", "general_ledger"] } },
-        { "id": "act-003-step-10", "type": "externalSystem", "description": "CDC 変更データを dataLake へ fireAndForget で送信する。", "maturity": "committed", "systemName": "Enterprise Data Lake CDC Ingest", "systemRef": "dataLake", "httpCall": { "method": "POST", "path": "/cdc/closing", "body": "{ closingBatchId: @inputs.closingBatchId, changes: @cdcChanges }" }, "fireAndForget": true, "outcomes": { "success": { "action": "continue" }, "failure": { "action": "continue" }, "timeout": { "action": "continue", "sameAs": "failure" } }, "operationId": "SendClosingCdc", "operationRef": "/openapi/data-lake#SendClosingCdc", "runIf": "@ledger.debit_total == @ledger.credit_total" },
-        { "id": "act-003-step-11", "type": "eventPublish", "description": "closing.finalized イベントを発行する。TX rollback 時にイベント誤発行を防ぐため借方/貸方一致条件を付与する。", "maturity": "committed", "runIf": "@ledger.debit_total == @ledger.credit_total", "topic": "closing.finalized", "eventRef": "closing.finalized", "payload": "{ closingBatchId: @inputs.closingBatchId, closingStatus: 'CLOSED', ledgerEntryCount: @realizedLedgerRows.length + @valuationLedgerRows.length }" },
-        { "id": "act-003-step-12", "type": "return", "description": "200 OK と Closing 結果を返す。TX rollback 時に 200-ok 誤返却を防ぐため借方/貸方一致条件を付与する。", "maturity": "committed", "runIf": "@ledger.debit_total == @ledger.credit_total", "responseRef": "200-ok", "bodyExpression": "{ ledgerEntryCount: @realizedLedgerRows.length + @valuationLedgerRows.length, closingStatus: 'CLOSED' }" }
+        {
+          "id": "act-003-step-07",
+          "type": "dbAccess",
+          "description": "closing_batches.status = COMPLETED に更新する。",
+          "maturity": "committed",
+          "tableName": "closing_batches",
+          "operation": "UPDATE",
+          "sql": "UPDATE closing_batches SET status = 'COMPLETED', completed_at = NOW() WHERE id = @inputs.closingBatchId",
+          "outputBinding": "closingBatchCompleted",
+          "runIf": "@ledger.debit_total == @ledger.credit_total",
+          "lineage": {
+            "writes": [
+              "closing_batches"
+            ]
+          }
+        },
+        {
+          "id": "act-003-step-08",
+          "type": "dbAccess",
+          "description": "accounting_periods.status = CLOSED に更新し、当日帳簿をロックする。",
+          "maturity": "committed",
+          "tableName": "accounting_periods",
+          "operation": "UPDATE",
+          "sql": "UPDATE accounting_periods SET status = 'CLOSED', locked_at = NOW(), locked_by_batch_id = @inputs.closingBatchId WHERE closing_date = (SELECT market_date FROM closing_batches WHERE id = @inputs.closingBatchId)",
+          "outputBinding": "accountingPeriodClosed",
+          "runIf": "@ledger.debit_total == @ledger.credit_total",
+          "lineage": {
+            "writes": [
+              "accounting_periods"
+            ],
+            "reads": [
+              "closing_batches"
+            ]
+          }
+        },
+        {
+          "id": "act-003-step-09",
+          "type": "dbAccess",
+          "description": "当日変更データを CDC 配信用に抽出する。",
+          "maturity": "committed",
+          "tableName": "closing_batches",
+          "operation": "SELECT",
+          "sql": "SELECT 'closing_batches' AS table_name, id, updated_at FROM closing_batches WHERE id = @inputs.closingBatchId UNION ALL SELECT 'general_ledger' AS table_name, id, created_at FROM general_ledger WHERE closing_batch_id = @inputs.closingBatchId",
+          "outputBinding": "cdcChanges",
+          "runIf": "@ledger.debit_total == @ledger.credit_total",
+          "lineage": {
+            "reads": [
+              "closing_batches",
+              "general_ledger"
+            ]
+          }
+        },
+        {
+          "id": "act-003-step-10",
+          "type": "externalSystem",
+          "description": "CDC 変更データを dataLake へ fireAndForget で送信する。",
+          "maturity": "committed",
+          "systemName": "Enterprise Data Lake CDC Ingest",
+          "systemRef": "dataLake",
+          "httpCall": {
+            "method": "POST",
+            "path": "/cdc/closing",
+            "body": "{ closingBatchId: @inputs.closingBatchId, changes: @cdcChanges }"
+          },
+          "fireAndForget": true,
+          "outcomes": {
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "continue"
+            },
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
+          },
+          "operationId": "SendClosingCdc",
+          "operationRef": "/openapi/data-lake#SendClosingCdc",
+          "runIf": "@ledger.debit_total == @ledger.credit_total"
+        },
+        {
+          "id": "act-003-step-11",
+          "type": "eventPublish",
+          "description": "closing.finalized イベントを発行する。TX rollback 時にイベント誤発行を防ぐため借方/貸方一致条件を付与する。",
+          "maturity": "committed",
+          "runIf": "@ledger.debit_total == @ledger.credit_total",
+          "topic": "closing.finalized",
+          "eventRef": "closing.finalized",
+          "payload": "{ closingBatchId: @inputs.closingBatchId, closingStatus: 'CLOSED', ledgerEntryCount: @realizedLedgerRows.length + @valuationLedgerRows.length }"
+        },
+        {
+          "id": "act-003-step-12",
+          "type": "return",
+          "description": "200 OK と Closing 結果を返す。TX rollback 時に 200-ok 誤返却を防ぐため借方/貸方一致条件を付与する。",
+          "maturity": "committed",
+          "runIf": "@ledger.debit_total == @ledger.credit_total",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ ledgerEntryCount: @realizedLedgerRows.length + @valuationLedgerRows.length, closingStatus: 'CLOSED' }"
+        }
       ],
-      "requiredPermissions": ["system"]
+      "requiredPermissions": [
+        "system"
+      ]
     }
   ],
   "testScenarios": [
@@ -322,55 +1249,219 @@
       "name": "通常終業時の一連処理成功",
       "description": "市場閉場後に Closing バッチを開始し、評価、損益計算、勘定転記、帳簿ロックまで成功する。timestamp 検証を含む。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T15:05:00.000Z" },
-        { "kind": "sessionContext", "context": { "marketDate": "2026-04-26", "dryRun": false } },
-        { "kind": "dbState", "table": "accounting_periods", "rows": [{ "closing_date": "2026-04-26", "status": "OPEN" }] },
-        { "kind": "externalStub", "externalRef": "marketDataVendor", "responseMock": { "status": 200, "body": { "prices": [{ "securityCode": "7203", "closePrice": 3000 }] } } },
-        { "kind": "externalStub", "externalRef": "dataLake", "responseMock": { "status": 202, "body": { "accepted": true } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T15:05:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "marketDate": "2026-04-26",
+            "dryRun": false
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "accounting_periods",
+          "rows": [
+            {
+              "closing_date": "2026-04-26",
+              "status": "OPEN"
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "marketDataVendor",
+          "responseMock": {
+            "status": 200,
+            "body": {
+              "prices": [
+                {
+                  "securityCode": "7203",
+                  "closePrice": 3000
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "dataLake",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        }
       ],
-      "when": { "actionId": "act-001", "input": { "marketDate": "2026-04-26" } },
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "marketDate": "2026-04-26"
+        }
+      },
       "then": [
-        { "kind": "outcome", "expected": "200-ok" },
-        { "kind": "output", "path": "$.closingBatchId", "matches": "^CB-" },
-        { "kind": "dbRow", "table": "closing_batches", "match": { "market_date": "2026-04-26", "started_at": "2026-04-26T15:05:00.000Z" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-ok"
+        },
+        {
+          "kind": "output",
+          "path": "$.closingBatchId",
+          "matches": "^CB-"
+        },
+        {
+          "kind": "dbRow",
+          "table": "closing_batches",
+          "match": {
+            "market_date": "2026-04-26",
+            "started_at": "2026-04-26T15:05:00.000Z"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["happy", "batch", "timestamp"]
+      "tags": [
+        "happy",
+        "batch",
+        "timestamp"
+      ]
     },
     {
       "id": "degraded-mode-fallback",
       "name": "ベンダ API 失敗時に前日終値で代替し処理継続",
       "description": "marketDataVendor が失敗しても前日終値を取得し、audit log と degraded event を残して評価を継続する。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T15:10:00.000Z" },
-        { "kind": "sessionContext", "context": { "marketDate": "2026-04-26", "closingBatchId": "CB-465-001" } },
-        { "kind": "dbState", "table": "mark_prices", "rows": [{ "security_code": "7203", "market_date": "2026-04-25", "close_price": 2950 }] },
-        { "kind": "externalStub", "externalRef": "marketDataVendor", "responseMock": { "status": 503, "body": { "code": "MARKET_DATA_UNAVAILABLE" } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T15:10:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "marketDate": "2026-04-26",
+            "closingBatchId": "CB-465-001"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "mark_prices",
+          "rows": [
+            {
+              "security_code": "7203",
+              "market_date": "2026-04-25",
+              "close_price": 2950
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "marketDataVendor",
+          "responseMock": {
+            "status": 503,
+            "body": {
+              "code": "MARKET_DATA_UNAVAILABLE"
+            }
+          }
+        }
       ],
-      "when": { "actionId": "act-002", "input": { "closingBatchId": "CB-465-001", "marketDate": "2026-04-26" } },
+      "when": {
+        "actionId": "act-002",
+        "input": {
+          "closingBatchId": "CB-465-001",
+          "marketDate": "2026-04-26"
+        }
+      },
       "then": [
-        { "kind": "outcome", "expected": "200-ok" },
-        { "kind": "auditLog", "action": "closing.marketdata.degraded", "result": "success" },
-        { "kind": "output", "path": "$.totalUnrealizedPnl", "matches": "^-?[0-9]+" }
+        {
+          "kind": "outcome",
+          "expected": "200-ok"
+        },
+        {
+          "kind": "auditLog",
+          "action": "closing.marketdata.degraded",
+          "result": "success"
+        },
+        {
+          "kind": "output",
+          "path": "$.totalUnrealizedPnl",
+          "matches": "^-?[0-9]+"
+        }
       ],
-      "tags": ["degraded", "fallback", "marketdata"]
+      "tags": [
+        "degraded",
+        "fallback",
+        "marketdata"
+      ]
     },
     {
       "id": "unbalanced-ledger-rollback",
       "name": "仕訳バランス崩れで TransactionScope rollback 発火",
       "description": "TX 内の ledgerBalanceCheck が false になり、affectedRowsCheck が LEDGER_UNBALANCED を throw して rollbackOn が発火する。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T15:30:00.000Z" },
-        { "kind": "sessionContext", "context": { "closingBatchId": "CB-465-ROLLBACK" } },
-        { "kind": "dbState", "table": "closing_batches", "rows": [{ "id": "CB-465-ROLLBACK", "market_date": "2026-04-26", "status": "VALUATED" }] },
-        { "kind": "dbState", "table": "trades", "rows": [{ "trade_id": "TRD-465-001", "trade_date": "2026-04-26", "realized_pnl": 1000 }] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T15:30:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "closingBatchId": "CB-465-ROLLBACK"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "closing_batches",
+          "rows": [
+            {
+              "id": "CB-465-ROLLBACK",
+              "market_date": "2026-04-26",
+              "status": "VALUATED"
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "trades",
+          "rows": [
+            {
+              "trade_id": "TRD-465-001",
+              "trade_date": "2026-04-26",
+              "realized_pnl": 1000
+            }
+          ]
+        }
       ],
-      "when": { "actionId": "act-003", "input": { "closingBatchId": "CB-465-ROLLBACK" } },
+      "when": {
+        "actionId": "act-003",
+        "input": {
+          "closingBatchId": "CB-465-ROLLBACK"
+        }
+      },
       "then": [
-        { "kind": "outcome", "expected": "500-ledger-unbalanced" },
-        { "kind": "dbRow", "table": "general_ledger", "match": { "closing_batch_id": "CB-465-ROLLBACK" }, "count": 0 },
-        { "kind": "errorMessage", "msgKey": "LEDGER_UNBALANCED" }
+        {
+          "kind": "outcome",
+          "expected": "500-ledger-unbalanced"
+        },
+        {
+          "kind": "dbRow",
+          "table": "general_ledger",
+          "match": {
+            "closing_batch_id": "CB-465-ROLLBACK"
+          },
+          "count": 0
+        },
+        {
+          "kind": "errorMessage",
+          "msgKey": "LEDGER_UNBALANCED"
+        }
       ],
-      "tags": ["rollback", "transactionScope", "ledger"]
+      "tags": [
+        "rollback",
+        "transactionScope",
+        "ledger"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

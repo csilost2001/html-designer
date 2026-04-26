@@ -1,0 +1,21 @@
+{
+  "id": "bbbbbbbb-0019-4000-8000-bbbbbbbbbbbb",
+  "name": "settlement_netting",
+  "logicalName": "ネッティング決済テーブル",
+  "description": "取引の決済ネッティング計算結果を管理する。清算処理フローで使用。",
+  "category": "決済",
+  "columns": [
+    { "id": "col-sn01", "name": "id", "logicalName": "ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "unique": false, "autoIncrement": true },
+    { "id": "col-sn02", "name": "settle_date", "logicalName": "決済日", "dataType": "DATE", "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-sn03", "name": "security_code", "logicalName": "銘柄コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-sn04", "name": "counterparty", "logicalName": "取引相手", "dataType": "VARCHAR", "length": 100, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-sn05", "name": "netted_amount", "logicalName": "ネット金額", "dataType": "DECIMAL", "length": 18, "scale": 2, "notNull": true, "primaryKey": false, "unique": false },
+    { "id": "col-sn06", "name": "status", "logicalName": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "'CALCULATED'" },
+    { "id": "col-sn07", "name": "created_at", "logicalName": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "primaryKey": false, "unique": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-sn01", "name": "idx_settlement_netting_date", "columns": ["col-sn02"], "unique": false }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}
