@@ -465,39 +465,11 @@
               }
             },
             {
-              "id": "step-03-02",
-              "type": "branch",
-              "description": "在庫充足チェック: available_qty < quantity の場合は INVENTORY_SHORTAGE で TX rollback させる。",
-              "maturity": "committed",
-              "branches": [
-                {
-                  "id": "br-03-02-a",
-                  "code": "A",
-                  "label": "在庫不足",
-                  "condition": "@inventoryRow.available_qty < @inputs.quantity",
-                  "steps": [
-                    {
-                      "id": "step-03-02-a-01",
-                      "type": "return",
-                      "description": "422 在庫不足 — TX rollbackOn により TX が rollback される。",
-                      "responseRef": "422-inventory-shortage",
-                      "bodyExpression": "{ code: 'INVENTORY_SHORTAGE', message: '在庫が不足しているため配送指示を作成できません' }"
-                    }
-                  ]
-                }
-              ],
-              "elseBranch": {
-                "id": "br-03-02-else",
-                "code": "B",
-                "label": "在庫充足",
-                "steps": []
-              }
-            },
-            {
               "id": "step-03-03",
               "type": "dbAccess",
-              "description": "inventory.available_qty を減算し reserved_qty を加算する。",
+              "description": "inventory.available_qty を減算し reserved_qty を加算する。在庫不足 (@inventoryRow.available_qty < @inputs.quantity) の場合は skip し、TX rollback を step-03-01 の affectedRowsCheck.errorCode: INVENTORY_SHORTAGE で発火させる。",
               "maturity": "committed",
+              "runIf": "@inventoryRow.available_qty >= @inputs.quantity",
               "tableName": "inventory",
               "operation": "UPDATE",
               "sql": "UPDATE inventory SET available_qty = available_qty - @inputs.quantity, reserved_qty = reserved_qty + @inputs.quantity, updated_at = NOW() WHERE product_code = @inputs.productCode AND warehouse_id = @inputs.warehouseId",
@@ -508,8 +480,9 @@
             {
               "id": "step-03-04",
               "type": "dbAccess",
-              "description": "shipment_orders に PENDING 配送指示を登録する。",
+              "description": "shipment_orders に PENDING 配送指示を登録する。在庫不足の場合は skip する。",
               "maturity": "committed",
+              "runIf": "@inventoryRow.available_qty >= @inputs.quantity",
               "tableName": "shipment_orders",
               "operation": "INSERT",
               "sql": "INSERT INTO shipment_orders (order_id, product_code, quantity, warehouse_id, warehouse_location, delivery_address, requested_delivery_date, status, attempt_count, created_by, created_at) VALUES (@inputs.orderId, @inputs.productCode, @inputs.quantity, @inputs.warehouseId, @warehouseLocation, @inputs.deliveryAddress, @inputs.requestedDeliveryDate, 'PENDING', 0, @sessionUserId, NOW()) RETURNING id",
@@ -778,7 +751,7 @@
           "maturity": "committed",
           "tableName": "shipment_orders",
           "operation": "SELECT",
-          "sql": "SELECT id, tracking_number, status, attempt_count FROM shipment_orders WHERE id = @inputs.shipmentId",
+          "sql": "SELECT id, tracking_number, status, attempt_count, product_code, quantity, warehouse_id FROM shipment_orders WHERE id = @inputs.shipmentId",
           "outputBinding": "shipment",
           "lineage": { "reads": ["shipment_orders"] }
         },
@@ -814,13 +787,9 @@
         {
           "id": "step-04",
           "type": "other",
-          "description": "logistics:TrackingUpdateStep — shipment_tracking を UPSERT_IDEMPOTENT で冪等登録する。(shipment_id, tracking_number, status, updated_at) 一意制約で重複排除。",
+          "description": "logistics:TrackingUpdateStep — shipment_tracking を UPSERT_IDEMPOTENT で冪等登録する。(shipment_id, tracking_number, status, updated_at) 一意制約で重複排除。実体は step-04b で直接 UPSERT_IDEMPOTENT として記述する。",
           "maturity": "committed",
-          "note": "extensionStep=logistics:TrackingUpdateStep; shipmentId=@inputs.shipmentId; trackingNumber=@inputs.trackingNumber; status=@inputs.status; location=@inputs.location; updatedAt=@inputs.updatedAt",
-          "outputSchema": {
-            "upsertedId": "string|null"
-          },
-          "outputBinding": "trackingUpsert"
+          "note": "extensionStep=logistics:TrackingUpdateStep; shipmentId=@inputs.shipmentId; trackingNumber=@inputs.trackingNumber; status=@inputs.status; location=@inputs.location; updatedAt=@inputs.updatedAt"
         },
         {
           "id": "step-04b",
@@ -836,7 +805,7 @@
         {
           "id": "step-05b",
           "type": "return",
-          "description": "冪等 no-op の場合は ALREADY_PROCESSED として 200 OK を返す。",
+          "description": "冪等 no-op の場合は ALREADY_PROCESSED として 200 OK を返す。ここで return することで no-op パスを終了し、step-06/step-07 は runIf (@trackingRow.id != null) で skip される (二重防衛)。",
           "maturity": "committed",
           "runIf": "@trackingRow.id == null",
           "responseRef": "200-ok",
@@ -870,11 +839,7 @@
                   "type": "other",
                   "description": "logistics:DeliveryConfirmStep — shipment_orders を IN_TRANSIT → DELIVERED に遷移させる。",
                   "maturity": "committed",
-                  "note": "extensionStep=logistics:DeliveryConfirmStep; shipmentId=@inputs.shipmentId; deliveredAt=@inputs.updatedAt; signatureRef=@inputs.signatureRef; receiverName=@inputs.receiverName",
-                  "outputSchema": {
-                    "updatedStatus": "string"
-                  },
-                  "outputBinding": "deliveryConfirmResult"
+                  "note": "extensionStep=logistics:DeliveryConfirmStep; shipmentId=@inputs.shipmentId; deliveredAt=@inputs.updatedAt; signatureRef=@inputs.signatureRef; receiverName=@inputs.receiverName"
                 },
                 {
                   "id": "step-07-a-02",
@@ -975,13 +940,12 @@
                         {
                           "id": "step-07-b-03-disp-02",
                           "type": "dbAccess",
-                          "description": "補償処理: inventory の引当を取り消す (廃棄のため在庫は戻さない — available_qty は変更せず reserved_qty のみ減算)。",
+                          "description": "業務補償処理: act-001 で引当した在庫の reserved_qty を取り消す (廃棄のため available_qty は変更せず reserved_qty のみ減算)。技術的な compensatesFor はクロス action 参照となるため使用しない。業務的に act-001 step-03-03 の引当操作を逆転させる意図であることを本 description で明示する。",
                           "maturity": "committed",
                           "tableName": "inventory",
                           "operation": "UPDATE",
                           "sql": "UPDATE inventory SET reserved_qty = reserved_qty - @shipment.quantity, updated_at = NOW() WHERE product_code = @shipment.product_code AND warehouse_id = @shipment.warehouse_id",
-                          "lineage": { "writes": ["inventory"] },
-                          "compensatesFor": "step-03-03"
+                          "lineage": { "writes": ["inventory"] }
                         },
                         {
                           "id": "step-07-b-03-disp-03",
