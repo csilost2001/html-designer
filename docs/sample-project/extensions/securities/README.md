@@ -20,3 +20,8 @@
 ```bash
 cp docs/sample-project/extensions/securities/*.json data/extensions/
 ```
+
+## 将来用候補
+
+- `TradeMatchStep`: 約定照合を専用ステップ化する候補。現行サンプルフロー本体では未使用。
+- 拡張 FieldType (`orderId` / `accountId` / `tradeId` / `securityCode`): ドメイン固有型として利用する候補。現行サンプルフロー本体では未使用。

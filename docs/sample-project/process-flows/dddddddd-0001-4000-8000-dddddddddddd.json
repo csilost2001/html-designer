@@ -7,19 +7,38 @@
   "apiVersion": "v2",
   "mode": "downstream",
   "maturity": "committed",
-
   "eventsCatalog": {
     "order.received": {
       "description": "注文受付 API が入力検証を通過し、業務注文として受け付けられた時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "accountId", "securityCode", "side", "quantity"],
+        "required": [
+          "orderId",
+          "accountId",
+          "securityCode",
+          "side",
+          "quantity"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "accountId": { "type": "string" },
-          "securityCode": { "type": "string" },
-          "side": { "type": "string", "enum": ["BUY", "SELL"] },
-          "quantity": { "type": "number" }
+          "orderId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "securityCode": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "BUY",
+              "SELL"
+            ]
+          },
+          "quantity": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -28,12 +47,30 @@
       "description": "注文が取引所へ送信され、取引所注文 ID とともに回送済みになった時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "exchangeOrderId", "exchangeCode", "status"],
+        "required": [
+          "orderId",
+          "exchangeOrderId",
+          "exchangeCode",
+          "status"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "exchangeOrderId": { "type": "string" },
-          "exchangeCode": { "type": "string", "enum": ["TSE", "OSE"] },
-          "status": { "type": "string", "const": "ROUTED" }
+          "orderId": {
+            "type": "string"
+          },
+          "exchangeOrderId": {
+            "type": "string"
+          },
+          "exchangeCode": {
+            "type": "string",
+            "enum": [
+              "TSE",
+              "OSE"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "const": "ROUTED"
+          }
         },
         "additionalProperties": false
       }
@@ -42,13 +79,33 @@
       "description": "取引所から約定通知を受信し、約定行と注文の約定数量が更新された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "tradeId", "executedQty", "executedPrice", "status"],
+        "required": [
+          "orderId",
+          "tradeId",
+          "executedQty",
+          "executedPrice",
+          "status"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "tradeId": { "type": "string" },
-          "executedQty": { "type": "number" },
-          "executedPrice": { "type": "number" },
-          "status": { "type": "string", "enum": ["FILLED", "PARTIALLY_FILLED"] }
+          "orderId": {
+            "type": "string"
+          },
+          "tradeId": {
+            "type": "string"
+          },
+          "executedQty": {
+            "type": "number"
+          },
+          "executedPrice": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "FILLED",
+              "PARTIALLY_FILLED"
+            ]
+          }
         },
         "additionalProperties": false
       }
@@ -57,60 +114,111 @@
       "description": "約定通知を通知ゲートウェイへ依頼した後に発行されるイベント。通知失敗は注文約定処理をロールバックしない。",
       "payload": {
         "type": "object",
-        "required": ["orderId", "tradeId", "notificationRequested"],
+        "required": [
+          "orderId",
+          "tradeId",
+          "notificationRequested"
+        ],
         "properties": {
-          "orderId": { "type": "string" },
-          "tradeId": { "type": "string" },
-          "notificationRequested": { "type": "boolean" }
+          "orderId": {
+            "type": "string"
+          },
+          "tradeId": {
+            "type": "string"
+          },
+          "notificationRequested": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securities.market_open_warmed": {
+      "description": "市場開場時に当日の取引可能銘柄マスタをキャッシュへ事前ロードした時点で発行されるイベント。",
+      "payload": {
+        "type": "object",
+        "required": [
+          "marketDate",
+          "cachedSecurityCount"
+        ],
+        "properties": {
+          "marketDate": {
+            "type": "string"
+          },
+          "cachedSecurityCount": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
     }
   },
-
   "glossary": {
     "注文": {
       "definition": "顧客が証券会社に対して銘柄、売買区分、数量、価格条件を指定して売買を依頼する業務単位。",
-      "aliases": ["オーダー", "Order"],
+      "aliases": [
+        "オーダー",
+        "Order"
+      ],
       "domainRef": "orders"
     },
     "約定": {
       "definition": "取引所で注文が成立し、約定数量・約定価格・約定時刻が確定した状態。",
-      "aliases": ["Trade", "Execution"],
+      "aliases": [
+        "Trade",
+        "Execution"
+      ],
       "domainRef": "trades"
     },
     "銘柄コード": {
       "definition": "上場商品を識別するコード。取引所ルーティングと取引可否判定に利用する。",
-      "aliases": ["SecurityCode", "証券コード"],
+      "aliases": [
+        "SecurityCode",
+        "証券コード"
+      ],
       "domainRef": "securities.security_code"
     },
     "ロット": {
       "definition": "市場で売買できる最小取引単位。数量はロット単位の倍数である必要がある。",
-      "aliases": ["売買単位", "Lot"],
+      "aliases": [
+        "売買単位",
+        "Lot"
+      ],
       "domainRef": "securities.lot_size"
     },
     "取引所": {
       "definition": "注文を回送し約定通知を受け取る市場システム。TSE と OSE を外部システムとして扱う。",
-      "aliases": ["Exchange", "市場"],
+      "aliases": [
+        "Exchange",
+        "市場"
+      ],
       "domainRef": "exchanges"
     },
     "与信枠": {
       "definition": "口座ごとに許容される注文可能金額の上限。必要証拠金と比較して注文可否を判定する。",
-      "aliases": ["Credit Limit", "信用枠"],
+      "aliases": [
+        "Credit Limit",
+        "信用枠"
+      ],
       "domainRef": "credit_limits"
     },
     "証拠金": {
       "definition": "注文に必要な担保額。数量、価格、レバレッジ率から算出する。",
-      "aliases": ["Margin", "必要証拠金"],
+      "aliases": [
+        "Margin",
+        "必要証拠金"
+      ],
       "domainRef": "orders.required_margin"
     },
     "FIXプロトコル": {
       "definition": "金融取引メッセージ交換の標準プロトコル。本サンプルでは NewOrderSingle の抽象化として扱う。",
-      "aliases": ["FIX", "Financial Information eXchange"],
+      "aliases": [
+        "FIX",
+        "Financial Information eXchange"
+      ],
       "domainRef": "exchange_sessions.fix"
     }
   },
-
   "decisions": [
     {
       "id": "ADR-001",
@@ -140,30 +248,83 @@
       "date": "2026-04-26"
     }
   ],
-
   "ambientVariables": [
-    { "name": "requestId", "type": "string", "required": true, "description": "リクエスト単位の追跡 ID。取引所送信の冪等キーにも利用する。" },
-    { "name": "sessionUserId", "type": "string", "required": true, "description": "注文を入力したログインユーザー ID。" },
-    { "name": "idempotencyKey", "type": "string", "required": false, "description": "クライアントまたはミドルウェアが付与する冪等キー。" },
-    { "name": "marketDate", "type": "date", "required": true, "description": "市場営業日。取引カレンダー照会に利用する。" }
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "リクエスト単位の追跡 ID。取引所送信の冪等キーにも利用する。"
+    },
+    {
+      "name": "sessionUserId",
+      "type": "string",
+      "required": true,
+      "description": "注文を入力したログインユーザー ID。"
+    },
+    {
+      "name": "idempotencyKey",
+      "type": "string",
+      "required": false,
+      "description": "クライアントまたはミドルウェアが付与する冪等キー。"
+    },
+    {
+      "name": "marketDate",
+      "type": "date",
+      "required": true,
+      "description": "市場営業日。取引カレンダー照会に利用する。"
+    }
   ],
-
   "errorCatalog": {
-    "VALIDATION": { "httpStatus": 400, "defaultMessage": "入力値が不正です", "responseRef": "400-validation" },
-    "SECURITY_NOT_TRADABLE": { "httpStatus": 422, "defaultMessage": "指定銘柄は取引できません", "responseRef": "422-security-not-tradable" },
-    "MARKET_CLOSED": { "httpStatus": 422, "defaultMessage": "市場時間外です", "responseRef": "422-market-closed" },
-    "CREDIT_LIMIT_EXCEEDED": { "httpStatus": 422, "defaultMessage": "与信枠を超過しています", "responseRef": "422-credit-limit-exceeded" },
-    "EXCHANGE_REJECTED": { "httpStatus": 502, "defaultMessage": "取引所が注文を拒否しました", "responseRef": "502-exchange-rejected" },
-    "EXCHANGE_TIMEOUT": { "httpStatus": 504, "defaultMessage": "取引所応答がタイムアウトしました", "responseRef": "504-exchange-timeout" },
-    "ORDER_NOT_FOUND": { "httpStatus": 404, "defaultMessage": "注文が見つかりません", "responseRef": "404-order-not-found" }
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値が不正です",
+      "responseRef": "400-validation"
+    },
+    "SECURITY_NOT_TRADABLE": {
+      "httpStatus": 422,
+      "defaultMessage": "指定銘柄は取引できません",
+      "responseRef": "422-security-not-tradable"
+    },
+    "MARKET_CLOSED": {
+      "httpStatus": 422,
+      "defaultMessage": "市場時間外です",
+      "responseRef": "422-market-closed"
+    },
+    "CREDIT_LIMIT_EXCEEDED": {
+      "httpStatus": 422,
+      "defaultMessage": "与信枠を超過しています",
+      "responseRef": "422-credit-limit-exceeded"
+    },
+    "EXCHANGE_REJECTED": {
+      "httpStatus": 502,
+      "defaultMessage": "取引所が注文を拒否しました",
+      "responseRef": "502-exchange-rejected"
+    },
+    "EXCHANGE_TIMEOUT": {
+      "httpStatus": 504,
+      "defaultMessage": "取引所応答がタイムアウトしました",
+      "responseRef": "504-exchange-timeout"
+    },
+    "ORDER_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "注文が見つかりません",
+      "responseRef": "404-order-not-found"
+    },
+    "CACHE_WARMUP_FAILED": {
+      "httpStatus": 503,
+      "defaultMessage": "銘柄マスタのキャッシュ事前ロードに失敗しました",
+      "responseRef": "503-cache-warmup-failed"
+    }
   },
-
   "externalSystemCatalog": {
     "tseExchange": {
       "name": "Tokyo Stock Exchange Order Gateway",
       "baseUrl": "https://tse-gateway.example.internal",
       "openApiSpec": "docs/openapi/tse-order-gateway.yaml",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.tseFixToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.tseFixToken"
+      },
       "timeoutMs": 3000,
       "description": "東証向け注文回送ゲートウェイ。OpenAPI と FIX NewOrderSingle を抽象化して呼び出す。"
     },
@@ -171,49 +332,111 @@
       "name": "Osaka Exchange Order Gateway",
       "baseUrl": "https://ose-gateway.example.internal",
       "openApiSpec": "docs/openapi/ose-order-gateway.yaml",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.oseFixToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.oseFixToken"
+      },
       "timeoutMs": 3000,
       "description": "大阪取引所向け注文回送ゲートウェイ。先物・オプション銘柄を主に扱う。"
     },
     "notificationGateway": {
       "name": "Trade Notification Gateway",
       "baseUrl": "https://notification-gateway.example.internal",
-      "auth": { "kind": "apiKey", "tokenRef": "@secret.notificationApiKey", "headerName": "X-API-Key" },
+      "auth": {
+        "kind": "apiKey",
+        "tokenRef": "@secret.notificationApiKey",
+        "headerName": "X-API-Key"
+      },
       "timeoutMs": 2000,
       "description": "約定確認通知をメール・アプリ通知へ配信する社内ゲートウェイ。"
     }
   },
-
   "secretsCatalog": {
-    "tseFixToken": { "source": "env", "name": "TSE_FIX_TOKEN", "rotationDays": 90, "description": "東証 FIX 接続トークン" },
-    "oseFixToken": { "source": "env", "name": "OSE_FIX_TOKEN", "rotationDays": 90, "description": "大阪取引所 FIX 接続トークン" },
-    "notificationApiKey": { "source": "env", "name": "NOTIFICATION_GATEWAY_API_KEY", "rotationDays": 180, "description": "通知ゲートウェイ API キー" }
+    "tseFixToken": {
+      "source": "env",
+      "name": "TSE_FIX_TOKEN",
+      "rotationDays": 90,
+      "description": "東証 FIX 接続トークン"
+    },
+    "oseFixToken": {
+      "source": "env",
+      "name": "OSE_FIX_TOKEN",
+      "rotationDays": 90,
+      "description": "大阪取引所 FIX 接続トークン"
+    },
+    "notificationApiKey": {
+      "source": "env",
+      "name": "NOTIFICATION_GATEWAY_API_KEY",
+      "rotationDays": 180,
+      "description": "通知ゲートウェイ API キー"
+    }
   },
-
   "domainsCatalog": {
-    "OrderId": { "type": "string", "uiHint": "text", "description": "注文 ID。注文受付時に採番される。" },
-    "AccountId": { "type": "string", "uiHint": "text", "description": "証券口座 ID。" },
-    "TradeId": { "type": "string", "uiHint": "text", "description": "取引所が通知する約定 ID。" },
-    "SecurityCode": { "type": "string", "uiHint": "text", "description": "銘柄コード。" },
-    "Quantity": { "type": "number", "uiHint": "number", "constraints": [{ "field": "quantity", "type": "range", "min": 1, "message": "数量は 1 以上で入力してください" }], "description": "注文数量または約定数量。" },
-    "Price": { "type": "number", "uiHint": "number", "constraints": [{ "field": "price", "type": "range", "min": 0, "message": "価格は 0 以上で入力してください" }], "description": "注文価格または約定価格。" }
+    "OrderId": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "注文 ID。注文受付時に採番される。"
+    },
+    "AccountId": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "証券口座 ID。"
+    },
+    "TradeId": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "取引所が通知する約定 ID。"
+    },
+    "SecurityCode": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "銘柄コード。"
+    },
+    "Quantity": {
+      "type": "number",
+      "uiHint": "number",
+      "constraints": [
+        {
+          "field": "quantity",
+          "type": "range",
+          "min": 1,
+          "message": "数量は 1 以上で入力してください"
+        }
+      ],
+      "description": "注文数量または約定数量。"
+    },
+    "Price": {
+      "type": "number",
+      "uiHint": "number",
+      "constraints": [
+        {
+          "field": "price",
+          "type": "range",
+          "min": 0,
+          "message": "価格は 0 以上で入力してください"
+        }
+      ],
+      "description": "注文価格または約定価格。"
+    }
   },
-
   "functionsCatalog": {
     "calcRequiredMargin": {
       "signature": "calcRequiredMargin(quantity: number, price: number, leverageRate: number): number",
       "returnType": "number",
       "description": "数量、価格、レバレッジ率から必要証拠金を算出する。",
-      "examples": ["@fn.calcRequiredMargin(@inputs.quantity, @inputs.price, @account.leverage_rate)"]
+      "examples": [
+        "@fn.calcRequiredMargin(@inputs.quantity, @inputs.price, @account.leverage_rate)"
+      ]
     },
     "selectExchangeRoute": {
       "signature": "selectExchangeRoute(securityCode: string, marketCode: string): string",
       "returnType": "string",
       "description": "銘柄コードと市場コードから回送先取引所 TSE/OSE を決定する。",
-      "examples": ["@fn.selectExchangeRoute(@inputs.securityCode, @security.market_code) // => \"TSE\""]
+      "examples": [
+        "@fn.selectExchangeRoute(@inputs.securityCode, @security.market_code) // => \"TSE\""
+      ]
     }
   },
-
   "actions": [
     {
       "id": "act-001",
@@ -221,26 +444,115 @@
       "trigger": "submit",
       "description": "画面から受け付けた証券注文を検証し、取引所へ NewOrderSingle として回送する。",
       "maturity": "committed",
-      "httpRoute": { "method": "POST", "path": "/api/orders", "auth": "required" },
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/orders",
+        "auth": "required"
+      },
       "inputs": [
-        { "name": "accountId", "label": "口座 ID", "type": "string", "required": true, "domainRef": "AccountId" },
-        { "name": "securityCode", "label": "銘柄コード", "type": "string", "required": true, "domainRef": "SecurityCode" },
-        { "name": "side", "label": "売買区分", "type": "string", "required": true },
-        { "name": "quantity", "label": "数量", "type": "number", "required": true, "domainRef": "Quantity" },
-        { "name": "price", "label": "価格", "type": "number", "required": false, "domainRef": "Price" },
-        { "name": "orderType", "label": "注文種別", "type": "string", "required": true }
+        {
+          "name": "accountId",
+          "label": "口座 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "AccountId"
+        },
+        {
+          "name": "securityCode",
+          "label": "銘柄コード",
+          "type": "string",
+          "required": true,
+          "domainRef": "SecurityCode"
+        },
+        {
+          "name": "side",
+          "label": "売買区分",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "required": true,
+          "domainRef": "Quantity"
+        },
+        {
+          "name": "price",
+          "label": "価格",
+          "type": "number",
+          "required": false,
+          "domainRef": "Price"
+        },
+        {
+          "name": "orderType",
+          "label": "注文種別",
+          "type": "string",
+          "required": true
+        }
       ],
       "outputs": [
-        { "name": "orderId", "label": "注文 ID", "type": "string", "domainRef": "OrderId" },
-        { "name": "status", "label": "注文ステータス", "type": "string" }
+        {
+          "name": "orderId",
+          "label": "注文 ID",
+          "type": "string",
+          "domainRef": "OrderId"
+        },
+        {
+          "name": "status",
+          "label": "注文ステータス",
+          "type": "string"
+        }
       ],
       "responses": [
-        { "id": "202-accepted", "status": 202, "bodySchema": { "typeRef": "OrderAcceptedResponse" }, "when": "注文が取引所へ回送された" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "ApiError" }, "when": "入力値が不正" },
-        { "id": "422-security-not-tradable", "status": 422, "bodySchema": { "typeRef": "ApiError" }, "when": "銘柄が取引不可" },
-        { "id": "422-market-closed", "status": 422, "bodySchema": { "typeRef": "ApiError" }, "when": "市場時間外" },
-        { "id": "422-credit-limit-exceeded", "status": 422, "bodySchema": { "typeRef": "ApiError" }, "when": "与信枠超過" },
-        { "id": "502-exchange-rejected", "status": 502, "bodySchema": { "typeRef": "ApiError" }, "when": "取引所拒否または送信失敗" }
+        {
+          "id": "202-accepted",
+          "status": 202,
+          "bodySchema": {
+            "typeRef": "OrderAcceptedResponse"
+          },
+          "when": "注文が取引所へ回送された"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "422-security-not-tradable",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "銘柄が取引不可"
+        },
+        {
+          "id": "422-market-closed",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "市場時間外"
+        },
+        {
+          "id": "422-credit-limit-exceeded",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "与信枠超過"
+        },
+        {
+          "id": "502-exchange-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "取引所拒否または送信失敗"
+        }
       ],
       "steps": [
         {
@@ -250,11 +562,37 @@
           "maturity": "committed",
           "conditions": "accountId/securityCode/side/quantity/orderType は必須。quantity > 0。orderType == 'LIMIT' の場合 price は必須。",
           "rules": [
-            { "field": "accountId", "type": "required", "message": "口座 ID は必須です" },
-            { "field": "securityCode", "type": "required", "message": "銘柄コードは必須です" },
-            { "field": "side", "type": "enum", "values": ["BUY", "SELL"], "message": "売買区分が不正です" },
-            { "field": "quantity", "type": "range", "min": 1, "message": "数量は 1 以上で入力してください" },
-            { "field": "price", "type": "required", "condition": "@inputs.orderType == 'LIMIT'", "message": "指値注文では価格が必須です" }
+            {
+              "field": "accountId",
+              "type": "required",
+              "message": "口座 ID は必須です"
+            },
+            {
+              "field": "securityCode",
+              "type": "required",
+              "message": "銘柄コードは必須です"
+            },
+            {
+              "field": "side",
+              "type": "enum",
+              "values": [
+                "BUY",
+                "SELL"
+              ],
+              "message": "売買区分が不正です"
+            },
+            {
+              "field": "quantity",
+              "type": "range",
+              "min": 1,
+              "message": "数量は 1 以上で入力してください"
+            },
+            {
+              "field": "price",
+              "type": "required",
+              "condition": "@inputs.orderType == 'LIMIT'",
+              "message": "指値注文では価格が必須です"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -273,8 +611,18 @@
           "operation": "SELECT",
           "sql": "SELECT security_code, market_code, lot_size, is_tradable FROM securities WHERE security_code = @inputs.securityCode",
           "outputBinding": "security",
-          "lineage": { "reads": ["securities"] },
-          "cache": { "ttlSeconds": 60, "key": "security-@inputs.securityCode", "invalidateOn": ["security.updated"] }
+          "lineage": {
+            "reads": [
+              "securities"
+            ]
+          },
+          "cache": {
+            "ttlSeconds": 60,
+            "key": "security-@inputs.securityCode",
+            "invalidateOn": [
+              "security.updated"
+            ]
+          }
         },
         {
           "id": "step-03",
@@ -288,11 +636,22 @@
               "label": "取引不可",
               "condition": "@security == null || @security.is_tradable == false",
               "steps": [
-                { "id": "step-03-a-01", "type": "return", "description": "422 取引不可", "responseRef": "422-security-not-tradable", "bodyExpression": "{ code: 'SECURITY_NOT_TRADABLE', message: '指定銘柄は取引できません' }" }
+                {
+                  "id": "step-03-a-01",
+                  "type": "return",
+                  "description": "422 取引不可",
+                  "responseRef": "422-security-not-tradable",
+                  "bodyExpression": "{ code: 'SECURITY_NOT_TRADABLE', message: '指定銘柄は取引できません' }"
+                }
               ]
             }
           ],
-          "elseBranch": { "id": "br-03-else", "code": "B", "label": "取引可能", "steps": [] }
+          "elseBranch": {
+            "id": "br-03-else",
+            "code": "B",
+            "label": "取引可能",
+            "steps": []
+          }
         },
         {
           "id": "step-04",
@@ -303,8 +662,18 @@
           "operation": "SELECT",
           "sql": "SELECT market_code, market_date, is_open, open_at, close_at FROM trading_calendar WHERE market_code = @security.market_code AND market_date = @marketDate",
           "outputBinding": "tradingCalendar",
-          "lineage": { "reads": ["trading_calendar"] },
-          "cache": { "ttlSeconds": 300, "key": "calendar-@security.market_code-@marketDate", "invalidateOn": ["trading_calendar.updated"] }
+          "lineage": {
+            "reads": [
+              "trading_calendar"
+            ]
+          },
+          "cache": {
+            "ttlSeconds": 300,
+            "key": "calendar-@security.market_code-@marketDate",
+            "invalidateOn": [
+              "trading_calendar.updated"
+            ]
+          }
         },
         {
           "id": "step-05",
@@ -318,11 +687,22 @@
               "label": "市場時間外",
               "condition": "@tradingCalendar == null || @tradingCalendar.is_open == false",
               "steps": [
-                { "id": "step-05-a-01", "type": "return", "description": "422 市場時間外", "responseRef": "422-market-closed", "bodyExpression": "{ code: 'MARKET_CLOSED', message: '市場時間外です' }" }
+                {
+                  "id": "step-05-a-01",
+                  "type": "return",
+                  "description": "422 市場時間外",
+                  "responseRef": "422-market-closed",
+                  "bodyExpression": "{ code: 'MARKET_CLOSED', message: '市場時間外です' }"
+                }
               ]
             }
           ],
-          "elseBranch": { "id": "br-05-else", "code": "B", "label": "市場時間内", "steps": [] }
+          "elseBranch": {
+            "id": "br-05-else",
+            "code": "B",
+            "label": "市場時間内",
+            "steps": []
+          }
         },
         {
           "id": "step-06",
@@ -333,7 +713,12 @@
           "operation": "SELECT",
           "sql": "SELECT a.id, a.leverage_rate, c.available_amount FROM accounts a JOIN credit_limits c ON c.account_id = a.id WHERE a.id = @inputs.accountId",
           "outputBinding": "account",
-          "lineage": { "reads": ["accounts", "credit_limits"] }
+          "lineage": {
+            "reads": [
+              "accounts",
+              "credit_limits"
+            ]
+          }
         },
         {
           "id": "step-07",
@@ -355,11 +740,22 @@
               "label": "与信枠超過",
               "condition": "@requiredMargin > @account.available_amount",
               "steps": [
-                { "id": "step-08-a-01", "type": "return", "description": "422 与信枠超過", "responseRef": "422-credit-limit-exceeded", "bodyExpression": "{ code: 'CREDIT_LIMIT_EXCEEDED', message: '与信枠を超過しています' }" }
+                {
+                  "id": "step-08-a-01",
+                  "type": "return",
+                  "description": "422 与信枠超過",
+                  "responseRef": "422-credit-limit-exceeded",
+                  "bodyExpression": "{ code: 'CREDIT_LIMIT_EXCEEDED', message: '与信枠を超過しています' }"
+                }
               ]
             }
           ],
-          "elseBranch": { "id": "br-08-else", "code": "B", "label": "与信枠内", "steps": [] }
+          "elseBranch": {
+            "id": "br-08-else",
+            "code": "B",
+            "label": "与信枠内",
+            "steps": []
+          }
         },
         {
           "id": "step-09",
@@ -377,9 +773,16 @@
           "tableName": "orders",
           "operation": "INSERT",
           "sql": "INSERT INTO orders (account_id, security_code, side, quantity, price, order_type, status, required_margin, created_by, created_at) VALUES (@inputs.accountId, @inputs.securityCode, @inputs.side, @inputs.quantity, @inputs.price, @inputs.orderType, 'PENDING', @requiredMargin, @sessionUserId, NOW()) RETURNING id",
-          "txBoundary": { "role": "begin", "txId": "tx-order-register" },
+          "txBoundary": {
+            "role": "begin",
+            "txId": "tx-order-register"
+          },
           "outputBinding": "newOrder",
-          "lineage": { "writes": ["orders"] }
+          "lineage": {
+            "writes": [
+              "orders"
+            ]
+          }
         },
         {
           "id": "step-11",
@@ -397,9 +800,17 @@
           "idempotencyKey": "order-@newOrder.id-@requestId",
           "outputBinding": "exchangeResult",
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "compensate", "jumpTo": "step-12" },
-            "timeout": { "action": "abort", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "compensate",
+              "jumpTo": "step-12"
+            },
+            "timeout": {
+              "action": "abort",
+              "sameAs": "failure"
+            }
           }
         },
         {
@@ -412,7 +823,12 @@
               "id": "br-12-a",
               "code": "A",
               "label": "送信失敗",
-              "condition": { "kind": "externalOutcome", "stepRef": "step-11", "outcome": "failure", "description": "取引所 NewOrderSingle が failure" },
+              "condition": {
+                "kind": "externalOutcome",
+                "stepRef": "step-11",
+                "outcome": "failure",
+                "description": "取引所 NewOrderSingle が failure"
+              },
               "steps": [
                 {
                   "id": "step-12-comp",
@@ -423,13 +839,28 @@
                   "operation": "UPDATE",
                   "sql": "UPDATE orders SET status = 'REJECTED', reject_reason = 'EXCHANGE_REJECTED', updated_at = NOW() WHERE id = @newOrder.id",
                   "compensatesFor": "step-10",
-                  "lineage": { "writes": ["orders"] }
+                  "lineage": {
+                    "writes": [
+                      "orders"
+                    ]
+                  }
                 },
-                { "id": "step-12-a-02", "type": "return", "description": "502 取引所拒否", "responseRef": "502-exchange-rejected", "bodyExpression": "{ code: 'EXCHANGE_REJECTED', message: '取引所が注文を拒否しました' }" }
+                {
+                  "id": "step-12-a-02",
+                  "type": "return",
+                  "description": "502 取引所拒否",
+                  "responseRef": "502-exchange-rejected",
+                  "bodyExpression": "{ code: 'EXCHANGE_REJECTED', message: '取引所が注文を拒否しました' }"
+                }
               ]
             }
           ],
-          "elseBranch": { "id": "br-12-else", "code": "B", "label": "送信成功", "steps": [] }
+          "elseBranch": {
+            "id": "br-12-else",
+            "code": "B",
+            "label": "送信成功",
+            "steps": []
+          }
         },
         {
           "id": "step-13",
@@ -439,8 +870,15 @@
           "tableName": "orders",
           "operation": "UPDATE",
           "sql": "UPDATE orders SET status = 'ROUTED', exchange_code = @exchangeRoute, exchange_order_id = @exchangeResult.exchangeOrderId, updated_at = NOW() WHERE id = @newOrder.id",
-          "txBoundary": { "role": "end", "txId": "tx-order-register" },
-          "lineage": { "writes": ["orders"] }
+          "txBoundary": {
+            "role": "end",
+            "txId": "tx-order-register"
+          },
+          "lineage": {
+            "writes": [
+              "orders"
+            ]
+          }
         },
         {
           "id": "step-14",
@@ -467,20 +905,71 @@
       "trigger": "other",
       "description": "external trigger: 取引所から ExecutionReport を受信し、約定を冪等登録して注文ステータスを更新する。",
       "maturity": "committed",
-      "httpRoute": { "method": "POST", "path": "/internal/exchange-callback/execution-report", "auth": "required" },
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/exchange-callback/execution-report",
+        "auth": "required"
+      },
       "inputs": [
-        { "name": "orderId", "label": "注文 ID", "type": "string", "required": true, "domainRef": "OrderId" },
-        { "name": "tradeId", "label": "約定 ID", "type": "string", "required": true, "domainRef": "TradeId" },
-        { "name": "executedQty", "label": "約定数量", "type": "number", "required": true, "domainRef": "Quantity" },
-        { "name": "executedPrice", "label": "約定価格", "type": "number", "required": true, "domainRef": "Price" },
-        { "name": "executedAt", "label": "約定時刻", "type": "string", "required": true }
+        {
+          "name": "orderId",
+          "label": "注文 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "OrderId"
+        },
+        {
+          "name": "tradeId",
+          "label": "約定 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "TradeId"
+        },
+        {
+          "name": "executedQty",
+          "label": "約定数量",
+          "type": "number",
+          "required": true,
+          "domainRef": "Quantity"
+        },
+        {
+          "name": "executedPrice",
+          "label": "約定価格",
+          "type": "number",
+          "required": true,
+          "domainRef": "Price"
+        },
+        {
+          "name": "executedAt",
+          "label": "約定時刻",
+          "type": "string",
+          "required": true
+        }
       ],
       "outputs": [
-        { "name": "status", "label": "注文ステータス", "type": "string" }
+        {
+          "name": "status",
+          "label": "注文ステータス",
+          "type": "string"
+        }
       ],
       "responses": [
-        { "id": "200-ok", "status": 200, "bodySchema": { "typeRef": "ExecutionReportResponse" }, "when": "約定通知を処理した" },
-        { "id": "404-order-not-found", "status": 404, "bodySchema": { "typeRef": "ApiError" }, "when": "注文が存在しない" }
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "typeRef": "ExecutionReportResponse"
+          },
+          "when": "約定通知を処理した"
+        },
+        {
+          "id": "404-order-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "注文が存在しない"
+        }
       ],
       "steps": [
         {
@@ -490,11 +979,32 @@
           "maturity": "committed",
           "conditions": "orderId/tradeId/executedQty/executedPrice/executedAt は必須。executedQty > 0。",
           "rules": [
-            { "field": "orderId", "type": "required", "message": "注文 ID は必須です" },
-            { "field": "tradeId", "type": "required", "message": "約定 ID は必須です" },
-            { "field": "executedQty", "type": "range", "min": 1, "message": "約定数量は 1 以上です" },
-            { "field": "executedPrice", "type": "required", "message": "約定価格は必須です" },
-            { "field": "executedAt", "type": "required", "message": "約定時刻は必須です" }
+            {
+              "field": "orderId",
+              "type": "required",
+              "message": "注文 ID は必須です"
+            },
+            {
+              "field": "tradeId",
+              "type": "required",
+              "message": "約定 ID は必須です"
+            },
+            {
+              "field": "executedQty",
+              "type": "range",
+              "min": 1,
+              "message": "約定数量は 1 以上です"
+            },
+            {
+              "field": "executedPrice",
+              "type": "required",
+              "message": "約定価格は必須です"
+            },
+            {
+              "field": "executedAt",
+              "type": "required",
+              "message": "約定時刻は必須です"
+            }
           ]
         },
         {
@@ -506,7 +1016,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, quantity, executed_qty, status FROM orders WHERE id = @inputs.orderId",
           "outputBinding": "order",
-          "lineage": { "reads": ["orders"] }
+          "lineage": {
+            "reads": [
+              "orders"
+            ]
+          }
         },
         {
           "id": "step-03",
@@ -520,11 +1034,22 @@
               "label": "注文なし",
               "condition": "@order == null",
               "steps": [
-                { "id": "step-03-a-01", "type": "return", "description": "404 注文なし", "responseRef": "404-order-not-found", "bodyExpression": "{ code: 'ORDER_NOT_FOUND', message: '注文が見つかりません' }" }
+                {
+                  "id": "step-03-a-01",
+                  "type": "return",
+                  "description": "404 注文なし",
+                  "responseRef": "404-order-not-found",
+                  "bodyExpression": "{ code: 'ORDER_NOT_FOUND', message: '注文が見つかりません' }"
+                }
               ]
             }
           ],
-          "elseBranch": { "id": "br-03-else", "code": "B", "label": "注文あり", "steps": [] }
+          "elseBranch": {
+            "id": "br-03-else",
+            "code": "B",
+            "label": "注文あり",
+            "steps": []
+          }
         },
         {
           "id": "step-04",
@@ -532,10 +1057,14 @@
           "description": "UPSERT_IDEMPOTENT: trades を tradeId 一意で冪等登録し、既存なら no-op にする。",
           "maturity": "committed",
           "tableName": "trades",
-          "operation": "MERGE",
+          "operation": "UPSERT_IDEMPOTENT",
           "sql": "INSERT INTO trades (trade_id, order_id, executed_qty, executed_price, executed_at, created_at) VALUES (@inputs.tradeId, @inputs.orderId, @inputs.executedQty, @inputs.executedPrice, @inputs.executedAt, NOW()) ON CONFLICT (trade_id) DO NOTHING RETURNING trade_id",
           "outputBinding": "upsertedTrade",
-          "lineage": { "writes": ["trades"] }
+          "lineage": {
+            "writes": [
+              "trades"
+            ]
+          }
         },
         {
           "id": "step-05",
@@ -546,7 +1075,11 @@
           "operation": "UPDATE",
           "sql": "UPDATE orders SET executed_qty = executed_qty + @inputs.executedQty, status = CASE WHEN executed_qty + @inputs.executedQty >= quantity THEN 'FILLED' ELSE 'PARTIALLY_FILLED' END, updated_at = NOW() WHERE id = @inputs.orderId AND @upsertedTrade.trade_id IS NOT NULL RETURNING status",
           "outputBinding": "updatedOrder",
-          "lineage": { "writes": ["orders"] }
+          "lineage": {
+            "writes": [
+              "orders"
+            ]
+          }
         },
         {
           "id": "step-06",
@@ -571,9 +1104,16 @@
           },
           "fireAndForget": true,
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "continue" },
-            "timeout": { "action": "continue", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "continue"
+            },
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
           }
         },
         {
@@ -594,76 +1134,381 @@
           "bodyExpression": "{ status: @updatedOrder.status }"
         }
       ]
+    },
+    {
+      "id": "act-003",
+      "name": "市場開場時の銘柄マスタ事前ウォームアップ",
+      "trigger": "marketOpen",
+      "description": "市場開場時に当日の取引可能銘柄マスタを事前にキャッシュへロードしておく。注文受付の cache miss を抑制するための事前準備処理。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/scheduled/market-open-warmup",
+        "auth": "required"
+      },
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "cachedSecurityCount",
+          "label": "キャッシュ済み銘柄数",
+          "type": "number"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "cachedSecurityCount"
+              ],
+              "properties": {
+                "cachedSecurityCount": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "銘柄マスタの事前ウォームアップが完了した"
+        },
+        {
+          "id": "503-cache-warmup-failed",
+          "status": 503,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "銘柄マスタの事前ウォームアップに失敗した"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "type": "dbAccess",
+          "description": "当日取引可能銘柄一覧を取得する。",
+          "maturity": "committed",
+          "tableName": "securities",
+          "operation": "SELECT",
+          "sql": "SELECT code FROM securities WHERE is_tradable = true",
+          "outputBinding": "tradableSecurities",
+          "lineage": {
+            "reads": [
+              "securities"
+            ]
+          }
+        },
+        {
+          "id": "step-02",
+          "type": "loop",
+          "description": "各銘柄に対してキャッシュキーを生成し、銘柄詳細をキャッシュへロードする。",
+          "maturity": "committed",
+          "loopKind": "collection",
+          "collectionSource": "@tradableSecurities",
+          "collectionItemName": "item",
+          "steps": [
+            {
+              "id": "step-02-01",
+              "type": "compute",
+              "description": "銘柄キャッシュキーを生成する。",
+              "maturity": "committed",
+              "expression": "'security-' + @item.code",
+              "outputBinding": "cacheKey"
+            },
+            {
+              "id": "step-02-02",
+              "type": "dbAccess",
+              "description": "securities 詳細を取得し、銘柄キャッシュへ書き込む。",
+              "maturity": "committed",
+              "tableName": "securities",
+              "operation": "SELECT",
+              "sql": "SELECT * FROM securities WHERE code = @item.code",
+              "outputBinding": "securityDetail",
+              "lineage": {
+                "reads": [
+                  "securities"
+                ]
+              },
+              "cache": {
+                "ttlSeconds": 86400,
+                "key": "@cacheKey",
+                "invalidateOn": [
+                  "security.updated"
+                ]
+              }
+            }
+          ],
+          "outputBinding": "cacheCount"
+        },
+        {
+          "id": "step-03",
+          "type": "eventPublish",
+          "description": "securities.market_open_warmed イベントを発行する。",
+          "maturity": "committed",
+          "topic": "securities.market_open_warmed",
+          "eventRef": "securities.market_open_warmed",
+          "payload": "{ marketDate: @marketDate, cachedSecurityCount: @cacheCount }"
+        },
+        {
+          "id": "step-04",
+          "type": "return",
+          "description": "200 OK を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ cachedSecurityCount: @cacheCount }"
+        }
+      ],
+      "requiredPermissions": [
+        "system"
+      ]
     }
   ],
-
   "testScenarios": [
     {
       "id": "happy-path-buy-order-tse",
       "name": "BUY 注文が TSE に回送され約定完了する",
       "description": "取引可能銘柄の BUY 注文を受け付け、TSE へ回送した後、約定通知で FILLED になる正常系。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T00:30:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "user-100", "requestId": "req-459-happy", "marketDate": "2026-04-26" } },
-        { "kind": "dbState", "table": "securities", "rows": [{ "security_code": "7203", "market_code": "TSE", "lot_size": 100, "is_tradable": true }] },
-        { "kind": "dbState", "table": "trading_calendar", "rows": [{ "market_code": "TSE", "market_date": "2026-04-26", "is_open": true }] },
-        { "kind": "dbState", "table": "accounts", "rows": [{ "id": "ACC-001", "leverage_rate": 1 }] },
-        { "kind": "dbState", "table": "credit_limits", "rows": [{ "account_id": "ACC-001", "available_amount": 10000000 }] },
-        { "kind": "externalStub", "externalRef": "tseExchange", "responseMock": { "status": 200, "body": { "exchangeOrderId": "TSE-ORD-459-001" } } },
-        { "kind": "externalStub", "externalRef": "notificationGateway", "responseMock": { "status": 202, "body": { "accepted": true } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T00:30:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "user-100",
+            "requestId": "req-459-happy",
+            "marketDate": "2026-04-26"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "securities",
+          "rows": [
+            {
+              "security_code": "7203",
+              "market_code": "TSE",
+              "lot_size": 100,
+              "is_tradable": true
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "trading_calendar",
+          "rows": [
+            {
+              "market_code": "TSE",
+              "market_date": "2026-04-26",
+              "is_open": true
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "accounts",
+          "rows": [
+            {
+              "id": "ACC-001",
+              "leverage_rate": 1
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "credit_limits",
+          "rows": [
+            {
+              "account_id": "ACC-001",
+              "available_amount": 10000000
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "tseExchange",
+          "responseMock": {
+            "status": 200,
+            "body": {
+              "exchangeOrderId": "TSE-ORD-459-001"
+            }
+          }
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "notificationGateway",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        }
       ],
       "when": {
         "actionId": "act-001",
-        "input": { "accountId": "ACC-001", "securityCode": "7203", "side": "BUY", "quantity": 100, "price": 3000, "orderType": "LIMIT" }
+        "input": {
+          "accountId": "ACC-001",
+          "securityCode": "7203",
+          "side": "BUY",
+          "quantity": 100,
+          "price": 3000,
+          "orderType": "LIMIT"
+        }
       },
       "then": [
-        { "kind": "outcome", "expected": "202-accepted" },
-        { "kind": "output", "path": "$.status", "equals": "ROUTED" },
-        { "kind": "externalCall", "externalRef": "tseExchange", "method": "POST", "bodyMatch": { "securityCode": "7203", "side": "BUY" } }
+        {
+          "kind": "outcome",
+          "expected": "202-accepted"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "ROUTED"
+        },
+        {
+          "kind": "externalCall",
+          "externalRef": "tseExchange",
+          "method": "POST",
+          "bodyMatch": {
+            "securityCode": "7203",
+            "side": "BUY"
+          }
+        }
       ],
-      "tags": ["happy", "buy", "tse"]
+      "tags": [
+        "happy",
+        "buy",
+        "tse"
+      ]
     },
     {
       "id": "validation-error-negative-quantity",
       "name": "quantity=0 は 400 になる",
       "description": "数量 0 の注文は入力検証で拒否され、取引所へ送信されない。",
       "given": [
-        { "kind": "sessionContext", "context": { "sessionUserId": "user-101", "requestId": "req-459-validation", "marketDate": "2026-04-26" } }
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "user-101",
+            "requestId": "req-459-validation",
+            "marketDate": "2026-04-26"
+          }
+        }
       ],
       "when": {
         "actionId": "act-001",
-        "input": { "accountId": "ACC-001", "securityCode": "7203", "side": "BUY", "quantity": 0, "price": 3000, "orderType": "LIMIT" }
+        "input": {
+          "accountId": "ACC-001",
+          "securityCode": "7203",
+          "side": "BUY",
+          "quantity": 0,
+          "price": 3000,
+          "orderType": "LIMIT"
+        }
       },
       "then": [
-        { "kind": "outcome", "expected": "400-validation" },
-        { "kind": "errorMessage", "msgKey": "数量は 1 以上で入力してください" }
+        {
+          "kind": "outcome",
+          "expected": "400-validation"
+        },
+        {
+          "kind": "errorMessage",
+          "msgKey": "数量は 1 以上で入力してください"
+        }
       ],
-      "tags": ["error", "validation"]
+      "tags": [
+        "error",
+        "validation"
+      ]
     },
     {
       "id": "idempotent-trade-callback",
       "name": "同一 tradeId の約定通知は 1 行のみ登録される",
       "description": "同じ tradeId のコールバックを 2 回受けても、trades は 1 行のみになり注文数量は二重加算されない。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T00:35:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "exchange-system", "requestId": "req-459-trade", "marketDate": "2026-04-26" } },
-        { "kind": "dbState", "table": "orders", "rows": [{ "id": "ORD-459-001", "quantity": 100, "executed_qty": 0, "status": "ROUTED" }] },
-        { "kind": "dbState", "table": "trades", "rows": [] },
-        { "kind": "externalStub", "externalRef": "notificationGateway", "responseMock": { "status": 202, "body": { "accepted": true } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T00:35:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "exchange-system",
+            "requestId": "req-459-trade",
+            "marketDate": "2026-04-26"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "orders",
+          "rows": [
+            {
+              "id": "ORD-459-001",
+              "quantity": 100,
+              "executed_qty": 0,
+              "status": "ROUTED"
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "trades",
+          "rows": []
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "notificationGateway",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        }
       ],
       "when": {
         "actionId": "act-002",
-        "input": { "orderId": "ORD-459-001", "tradeId": "TRD-459-001", "executedQty": 100, "executedPrice": 3000, "executedAt": "2026-04-26T00:35:00.000Z" }
+        "input": {
+          "orderId": "ORD-459-001",
+          "tradeId": "TRD-459-001",
+          "executedQty": 100,
+          "executedPrice": 3000,
+          "executedAt": "2026-04-26T00:35:00.000Z"
+        }
       },
       "then": [
-        { "kind": "outcome", "expected": "200-ok" },
-        { "kind": "dbRow", "table": "trades", "match": { "trade_id": "TRD-459-001", "order_id": "ORD-459-001" }, "count": 1 },
-        { "kind": "dbRow", "table": "orders", "match": { "id": "ORD-459-001", "executed_qty": 100, "status": "FILLED" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-ok"
+        },
+        {
+          "kind": "dbRow",
+          "table": "trades",
+          "match": {
+            "trade_id": "TRD-459-001",
+            "order_id": "ORD-459-001"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "orders",
+          "match": {
+            "id": "ORD-459-001",
+            "executed_qty": 100,
+            "status": "FILLED"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["idempotency", "callback"]
+      "tags": [
+        "idempotency",
+        "callback"
+      ]
     }
   ],
-
   "createdAt": "2026-04-26T00:00:00.000Z",
   "updatedAt": "2026-04-26T00:00:00.000Z"
 }
