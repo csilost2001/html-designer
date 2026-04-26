@@ -1,0 +1,1223 @@
+{
+  "id": "dddddddd-0006-4000-8000-dddddddddddd",
+  "name": "口座開設承認ワークフロー/与信判定 (証券)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0006-4000-8000-dddddddddddd",
+  "description": "証券口座の開設申込を受け付け、eKYC、AML、担当者承認、与信判定、口座有効化までを状態遷移として表現する金融ドッグフードシナリオ。",
+  "apiVersion": "v2",
+  "mode": "downstream",
+  "maturity": "committed",
+  "eventsCatalog": {
+    "application.received": {
+      "description": "口座開設申込を受け付け、審査ワークフローを開始した時点で発行する。",
+      "payload": {
+        "type": "object",
+        "required": ["applicationId", "accountStatus"],
+        "properties": {
+          "applicationId": { "type": "string" },
+          "accountStatus": { "type": "string", "const": "UNDER_REVIEW" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "kyc.completed": {
+      "description": "eKYC と AML スクリーニングが完了し、担当者承認待ちになった時点で発行する。",
+      "payload": {
+        "type": "object",
+        "required": ["applicationId", "kycLevel", "accountStatus"],
+        "properties": {
+          "applicationId": { "type": "string" },
+          "kycLevel": { "type": "string" },
+          "accountStatus": { "type": "string", "const": "UNDER_REVIEW" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "application.approved": {
+      "description": "与信判定を通過し、申込が承認済みになった時点で発行する。",
+      "payload": {
+        "type": "object",
+        "required": ["applicationId", "accountId", "creditLimit"],
+        "properties": {
+          "applicationId": { "type": "string" },
+          "accountId": { "type": "string" },
+          "creditLimit": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "application.rejected": {
+      "description": "eKYC、AML、担当者判断、または高リスク与信判定により申込を拒否した時点で発行する。",
+      "payload": {
+        "type": "object",
+        "required": ["applicationId", "reason", "accountStatus"],
+        "properties": {
+          "applicationId": { "type": "string" },
+          "reason": { "type": "string" },
+          "accountStatus": { "type": "string", "const": "REJECTED" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "account.activated": {
+      "description": "証券口座を ACTIVE として作成し、取引開始可能になった時点で発行する。",
+      "payload": {
+        "type": "object",
+        "required": ["accountId", "applicationId", "accountStatus"],
+        "properties": {
+          "accountId": { "type": "string" },
+          "applicationId": { "type": "string" },
+          "accountStatus": { "type": "string", "const": "ACTIVE" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "application.statusChanged": {
+      "description": "口座申込のステータス遷移時に発行する。担当者承認で UNDER_REVIEW から CREDIT_PENDING への遷移など。",
+      "payload": {
+        "type": "object",
+        "required": ["applicationId", "fromStatus", "toStatus"],
+        "properties": {
+          "applicationId": { "type": "string" },
+          "fromStatus": { "type": "string" },
+          "toStatus": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "glossary": {
+    "口座開設": {
+      "definition": "顧客が証券取引を開始するために申込情報、本人確認、審査結果を登録し、口座を有効化する業務。",
+      "aliases": ["Account Opening"],
+      "domainRef": "account_applications"
+    },
+    "KYC (本人確認)": {
+      "definition": "Know Your Customer の略。本人情報、住所、生年月日、本人確認書類などを照合して顧客実在性を確認する。",
+      "aliases": ["本人確認", "KYC"],
+      "domainRef": "kyc_checks"
+    },
+    "eKYC": {
+      "definition": "オンライン本人確認。外部ベンダの API により本人確認書類と顔照合などを実施する。",
+      "aliases": ["electronic KYC"],
+      "domainRef": "ekyc_sessions"
+    },
+    "AML (アンチマネロン)": {
+      "definition": "Anti-Money Laundering の略。制裁リスト、反社会的勢力、疑わしい取引リスクを確認する。",
+      "aliases": ["AML", "マネロン対策"],
+      "domainRef": "aml_screenings"
+    },
+    "PEP": {
+      "definition": "Politically Exposed Person の略。重要な公的地位にある人物および関係者で、追加審査対象となる。",
+      "aliases": ["重要な公的地位にある者"],
+      "domainRef": "pep_screenings"
+    },
+    "与信枠": {
+      "definition": "信用情報、本人確認レベル、投資経験、リスク評価に基づき顧客へ許容する取引上限額。",
+      "aliases": ["Credit Limit"],
+      "domainRef": "credit_limits"
+    },
+    "信用情報": {
+      "definition": "信用情報機関から取得する延滞、借入、支払履歴などの与信判断材料。",
+      "aliases": ["Credit Bureau Data"],
+      "domainRef": "credit_reports"
+    },
+    "投資経験": {
+      "definition": "顧客の株式、投信、信用取引などの経験年数と商品理解度。リスク評価に利用する。",
+      "aliases": ["Investment Experience"],
+      "domainRef": "applicants.investment_experience"
+    }
+  },
+  "decisions": [
+    {
+      "id": "ADR-001",
+      "title": "申込から開設までを 5 段階の状態機械で表現する",
+      "status": "accepted",
+      "context": "口座開設は申込、eKYC/AML、担当者承認、与信判定、口座有効化の各段階で中断・差戻しが発生する。",
+      "decision": "accountStatus を PENDING -> UNDER_REVIEW -> CREDIT_PENDING -> APPROVED -> ACTIVE の state machine とし、各 branch 条件で現在状態を明示する。",
+      "consequences": "不正な再 review や高リスク拒否を INVALID_STATE_TRANSITION として扱いやすくなり、サンプルから状態遷移を読み取れる。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-002",
+      "title": "担当者承認は Manual ステップで表現する",
+      "status": "accepted",
+      "context": "eKYC/AML 通過後も、担当者が申込内容とリスク兆候を確認してから与信審査へ進める必要がある。",
+      "decision": "WorkflowStep の review パターンを Manual 承認待ちとして使い、承認で CREDIT_PENDING に再開し、差戻しでは顧客通知と application.rejected を発行する。",
+      "consequences": "人手介入の停止点と、担当者操作で再開される処理の境界が JSON だけで把握できる。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-003",
+      "title": "与信判定を低・中・高リスクの 3 段階に分岐する",
+      "status": "accepted",
+      "context": "信用情報と投資経験により、自動承認できる顧客と上席承認が必要な顧客、拒否すべき顧客が分かれる。",
+      "decision": "evaluateRiskRating の結果を LOW/MEDIUM/HIGH とし、LOW は自動開設、MEDIUM は SUPERVISOR_REVIEW_PENDING、高リスクは REJECTED に遷移する。",
+      "consequences": "自動化できるケースと追加人手承認が必要なケースを分離し、拒否理由もイベントで追跡できる。なお、riskRating が LOW/MEDIUM/HIGH のいずれにも該当しない場合や accountStatus が CREDIT_PENDING 以外の場合は elseBranch (manual-investigation) に落ち、200 応答で nextAction: 'manual-investigation' を返す 4 番目のパスがある。",
+      "date": "2026-04-26"
+    }
+  ],
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "label": "リクエスト ID",
+      "type": "string",
+      "required": true,
+      "description": "API 呼び出し単位の追跡 ID。外部 API の冪等キーにも利用する。"
+    },
+    {
+      "name": "applicationId",
+      "label": "申込 ID",
+      "type": "string",
+      "required": false,
+      "domainRef": "ApplicationId",
+      "description": "処理中の口座開設申込 ID。"
+    },
+    {
+      "name": "reviewerId",
+      "label": "担当者 ID",
+      "type": "string",
+      "required": false,
+      "description": "Manual 承認を行う担当者 ID。"
+    }
+  ],
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値が不正です",
+      "responseRef": "400-validation"
+    },
+    "EKYC_FAILED": {
+      "httpStatus": 422,
+      "defaultMessage": "eKYC に失敗しました",
+      "responseRef": "422-ekyc-failed"
+    },
+    "AML_REJECTED": {
+      "httpStatus": 422,
+      "defaultMessage": "AML スクリーニングで拒否されました",
+      "responseRef": "422-aml-rejected"
+    },
+    "CREDIT_INFO_UNAVAILABLE": {
+      "httpStatus": 502,
+      "defaultMessage": "信用情報を取得できません",
+      "responseRef": "502-credit-info-unavailable"
+    },
+    "APPLICATION_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "口座開設申込が見つかりません",
+      "responseRef": "404-application-not-found"
+    },
+    "INVALID_STATE_TRANSITION": {
+      "httpStatus": 409,
+      "defaultMessage": "現在の口座ステータスでは操作できません",
+      "responseRef": "409-invalid-state-transition"
+    }
+  },
+  "externalSystemCatalog": {
+    "ekycVendor": {
+      "name": "eKYC Vendor API",
+      "baseUrl": "https://ekyc.example.internal",
+      "openApiSpec": "docs/openapi/ekyc-vendor.yaml",
+      "auth": { "kind": "bearer", "tokenRef": "@secret.ekycVendorToken" },
+      "timeoutMs": 5000,
+      "description": "本人確認書類と顔照合を行う外部 eKYC ベンダ。"
+    },
+    "creditBureau": {
+      "name": "Credit Bureau API",
+      "baseUrl": "https://credit-bureau.example.internal",
+      "openApiSpec": "docs/openapi/credit-bureau.yaml",
+      "auth": { "kind": "bearer", "tokenRef": "@secret.creditBureauToken" },
+      "timeoutMs": 3000,
+      "description": "信用情報、信用スコア、延滞情報を照会する外部機関。"
+    },
+    "sanctionsListService": {
+      "name": "Sanctions List Screening Service",
+      "baseUrl": "https://sanctions.example.internal",
+      "auth": { "kind": "none" },
+      "timeoutMs": 3000,
+      "description": "制裁リスト、PEP、AML リスクを照合する社内共通サービス。"
+    }
+  },
+  "secretsCatalog": {
+    "ekycVendorToken": {
+      "source": "env",
+      "name": "EKYC_VENDOR_TOKEN",
+      "rotationDays": 90,
+      "description": "eKYC ベンダ API の Bearer token。"
+    },
+    "creditBureauToken": {
+      "source": "env",
+      "name": "CREDIT_BUREAU_TOKEN",
+      "rotationDays": 90,
+      "description": "信用情報 API の Bearer token。"
+    }
+  },
+  "domainsCatalog": {
+    "ApplicationId": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "口座開設申込を識別する ID。"
+    },
+    "AccountId": {
+      "type": { "kind": "accountId" },
+      "uiHint": "text",
+      "description": "開設済み証券口座を識別する ID。"
+    },
+    "AccountStatus": {
+      "type": { "kind": "accountStatus" },
+      "uiHint": "select",
+      "constraints": [
+        {
+          "field": "accountStatus",
+          "type": "enum",
+          "values": ["PENDING", "UNDER_REVIEW", "CREDIT_PENDING", "APPROVED", "ACTIVE", "REJECTED", "CLOSED"],
+          "message": "口座ステータスは定義済み状態から選択してください"
+        }
+      ],
+      "description": "口座開設申込と口座の状態。PENDING から ACTIVE または REJECTED へ遷移する。"
+    },
+    "KycLevel": {
+      "type": "string",
+      "uiHint": "select",
+      "description": "eKYC の確認強度。BASIC/ENHANCED など。"
+    },
+    "CreditScore": {
+      "type": "number",
+      "uiHint": "number",
+      "description": "信用情報機関から取得した与信スコア。"
+    },
+    "RiskRating": {
+      "type": "string",
+      "uiHint": "select",
+      "description": "与信判定のリスク評価。LOW/MEDIUM/HIGH。"
+    }
+  },
+  "functionsCatalog": {
+    "calcCreditLimit": {
+      "signature": "calcCreditLimit(creditScore: number, kycLevel: string): number",
+      "returnType": "number",
+      "description": "信用スコアと KYC レベルから与信枠を算出する。",
+      "examples": ["@fn.calcCreditLimit(@creditScore, @kycLevel)"]
+    },
+    "evaluateRiskRating": {
+      "signature": "evaluateRiskRating(applicant: Applicant): RiskRating",
+      "returnType": "RiskRating",
+      "description": "申込者属性、投資経験、信用情報、AML 結果から LOW/MEDIUM/HIGH を返す。",
+      "examples": ["@fn.evaluateRiskRating(@applicant)"]
+    }
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "口座開設申込受付",
+      "trigger": "submit",
+      "description": "顧客からの口座開設申込を受け付け、eKYC と AML を実行して担当者承認待ち (UNDER_REVIEW) で終了する。Manual 承認待ちはこの action の終了を意味し、担当者の承認/差戻し操作は act-002 で再開される別 action である。act-001 の最後に workflow ステップは置かない。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/account-applications",
+        "auth": "required"
+      },
+      "inputs": [
+        { "name": "customerName", "label": "顧客名", "type": "string", "required": true },
+        { "name": "dateOfBirth", "label": "生年月日", "type": "date", "required": true },
+        { "name": "address", "label": "住所", "type": "string", "required": true },
+        { "name": "nationality", "label": "国籍", "type": "string", "required": true },
+        { "name": "investmentExperience", "label": "投資経験", "type": "string", "required": true },
+        { "name": "desiredAccountTypes", "label": "希望口座種別", "type": { "kind": "array", "itemType": "string" }, "required": true }
+      ],
+      "outputs": [
+        { "name": "applicationId", "label": "申込 ID", "type": "string", "domainRef": "ApplicationId" },
+        { "name": "accountStatus", "label": "口座ステータス", "type": { "kind": "accountStatus" }, "domainRef": "AccountStatus" }
+      ],
+      "responses": [
+        {
+          "id": "201-created",
+          "status": 201,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": ["applicationId", "accountStatus"],
+              "properties": {
+                "applicationId": { "type": "string" },
+                "accountStatus": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "申込受付、eKYC、AML が完了し UNDER_REVIEW になった"
+        },
+        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
+        { "id": "422-ekyc-failed", "status": 422, "bodySchema": { "schema": { "type": "object" } }, "when": "eKYC 失敗" },
+        { "id": "422-aml-rejected", "status": 422, "bodySchema": { "schema": { "type": "object" } }, "when": "AML 拒否" }
+      ],
+      "steps": [
+        {
+          "id": "step-001-01",
+          "type": "validation",
+          "description": "申込入力の必須項目と希望口座種別を検証する。",
+          "maturity": "committed",
+          "conditions": "customerName/dateOfBirth/address/nationality/investmentExperience/desiredAccountTypes は必須。",
+          "rules": [
+            { "field": "customerName", "type": "required", "message": "顧客名は必須です" },
+            { "field": "dateOfBirth", "type": "required", "message": "生年月日は必須です" },
+            { "field": "address", "type": "required", "message": "住所は必須です" },
+            { "field": "nationality", "type": "required", "message": "国籍は必須です" },
+            { "field": "investmentExperience", "type": "required", "message": "投資経験は必須です" },
+            { "field": "desiredAccountTypes", "type": "required", "message": "希望口座種別は必須です" }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "申込登録へ進む",
+            "ng": "400 バリデーションエラー",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-001-02",
+          "type": "dbAccess",
+          "description": "account_applications に PENDING として登録する。accountStatus fieldType を使う初期状態。",
+          "maturity": "committed",
+          "tableName": "account_applications",
+          "operation": "INSERT",
+          "sql": "INSERT INTO account_applications (customer_name, date_of_birth, address, nationality, investment_experience, desired_account_types, status, account_status, request_id, created_at) VALUES (@inputs.customerName, @inputs.dateOfBirth, @inputs.address, @inputs.nationality, @inputs.investmentExperience, @inputs.desiredAccountTypes, 'PENDING', 'PENDING', @requestId, NOW()) RETURNING id, account_status",
+          "outputBinding": "newApplication",
+          "lineage": { "writes": ["account_applications"] }
+        },
+        {
+          "id": "step-001-03",
+          "type": "externalSystem",
+          "description": "eKYC ベンダへ本人確認を依頼する。",
+          "maturity": "committed",
+          "systemName": "eKYC Vendor API",
+          "systemRef": "ekycVendor",
+          "httpCall": {
+            "method": "POST",
+            "path": "/v2/identity-verifications",
+            "body": "{ applicationId: @newApplication.id, customerName: @inputs.customerName, dateOfBirth: @inputs.dateOfBirth, address: @inputs.address }"
+          },
+          "idempotencyKey": "ekyc-@newApplication.id-@requestId",
+          "outputBinding": "ekycResult"
+        },
+        {
+          "id": "step-001-04",
+          "type": "branch",
+          "description": "eKYC 失敗時は申込を REJECTED に更新し 422 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-001-04-a",
+              "code": "EKYC_FAILED",
+              "label": "eKYC 失敗",
+              "condition": "@ekycResult.status != 'VERIFIED'",
+              "steps": [
+                {
+                  "id": "step-001-04-a-01",
+                  "type": "dbAccess",
+                  "description": "eKYC 失敗により accountStatus を REJECTED に更新する。",
+                  "maturity": "committed",
+                  "tableName": "account_applications",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE account_applications SET status = 'REJECTED', account_status = 'REJECTED', rejected_reason = 'EKYC_FAILED', updated_at = NOW() WHERE id = @newApplication.id AND account_status = 'PENDING'",
+                  "lineage": { "writes": ["account_applications"] }
+                },
+                {
+                  "id": "step-001-04-a-02",
+                  "type": "eventPublish",
+                  "description": "eKYC 失敗の application.rejected を発行する。",
+                  "maturity": "committed",
+                  "topic": "application.rejected",
+                  "eventRef": "application.rejected",
+                  "payload": "{ applicationId: @newApplication.id, reason: 'EKYC_FAILED', accountStatus: 'REJECTED' }"
+                },
+                {
+                  "id": "step-001-04-a-03",
+                  "type": "return",
+                  "description": "422 eKYC 失敗を返す。",
+                  "maturity": "committed",
+                  "responseRef": "422-ekyc-failed",
+                  "bodyExpression": "{ code: 'EKYC_FAILED', applicationId: @newApplication.id, accountStatus: 'REJECTED' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-001-04-else",
+            "code": "EKYC_OK",
+            "label": "eKYC 通過",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-001-05",
+          "type": "externalSystem",
+          "description": "制裁リスト/PEP/AML スクリーニングを実行する。",
+          "maturity": "committed",
+          "systemName": "Sanctions List Screening Service",
+          "systemRef": "sanctionsListService",
+          "httpCall": {
+            "method": "POST",
+            "path": "/screenings/aml",
+            "body": "{ applicationId: @newApplication.id, customerName: @inputs.customerName, nationality: @inputs.nationality }"
+          },
+          "outputBinding": "amlResult"
+        },
+        {
+          "id": "step-001-06",
+          "type": "branch",
+          "description": "AML 拒否時は申込を REJECTED に更新し 422 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-001-06-a",
+              "code": "AML_REJECTED",
+              "label": "AML 拒否",
+              "condition": "@amlResult.decision == 'REJECT'",
+              "steps": [
+                {
+                  "id": "step-001-06-a-01",
+                  "type": "dbAccess",
+                  "description": "AML 拒否により accountStatus を REJECTED に更新する。",
+                  "maturity": "committed",
+                  "tableName": "account_applications",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE account_applications SET status = 'REJECTED', account_status = 'REJECTED', rejected_reason = 'AML_REJECTED', updated_at = NOW() WHERE id = @newApplication.id AND account_status = 'PENDING'",
+                  "lineage": { "writes": ["account_applications"] }
+                },
+                {
+                  "id": "step-001-06-a-02",
+                  "type": "eventPublish",
+                  "description": "AML 拒否の application.rejected を発行する。",
+                  "maturity": "committed",
+                  "topic": "application.rejected",
+                  "eventRef": "application.rejected",
+                  "payload": "{ applicationId: @newApplication.id, reason: 'AML_REJECTED', accountStatus: 'REJECTED' }"
+                },
+                {
+                  "id": "step-001-06-a-03",
+                  "type": "return",
+                  "description": "422 AML 拒否を返す。",
+                  "maturity": "committed",
+                  "responseRef": "422-aml-rejected",
+                  "bodyExpression": "{ code: 'AML_REJECTED', applicationId: @newApplication.id, accountStatus: 'REJECTED' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-001-06-else",
+            "code": "AML_OK",
+            "label": "AML 通過",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-001-07",
+          "type": "dbAccess",
+          "description": "PENDING から UNDER_REVIEW へ状態遷移させ、担当者承認待ちにする。",
+          "maturity": "committed",
+          "tableName": "account_applications",
+          "operation": "UPDATE",
+          "sql": "UPDATE account_applications SET status = 'UNDER_REVIEW', account_status = 'UNDER_REVIEW', kyc_level = @ekycResult.kycLevel, aml_checked_at = NOW(), updated_at = NOW() WHERE id = @newApplication.id AND account_status = 'PENDING' RETURNING id, account_status, kyc_level",
+          "outputBinding": "reviewApplication",
+          "lineage": { "writes": ["account_applications"] }
+        },
+        {
+          "id": "step-001-09",
+          "type": "eventPublish",
+          "description": "kyc.completed を発行する。",
+          "maturity": "committed",
+          "topic": "kyc.completed",
+          "eventRef": "kyc.completed",
+          "payload": "{ applicationId: @reviewApplication.id, kycLevel: @reviewApplication.kyc_level, accountStatus: 'UNDER_REVIEW' }"
+        },
+        {
+          "id": "step-001-10",
+          "type": "eventPublish",
+          "description": "application.received を発行する。",
+          "maturity": "committed",
+          "topic": "application.received",
+          "eventRef": "application.received",
+          "payload": "{ applicationId: @reviewApplication.id, accountStatus: 'UNDER_REVIEW' }"
+        },
+        {
+          "id": "step-001-11",
+          "type": "return",
+          "description": "201 Created を返す。",
+          "maturity": "committed",
+          "responseRef": "201-created",
+          "bodyExpression": "{ applicationId: @reviewApplication.id, accountStatus: @reviewApplication.account_status }"
+        }
+      ]
+    },
+    {
+      "id": "act-002",
+      "name": "担当者承認操作",
+      "trigger": "submit",
+      "description": "担当者が申込を承認または差戻しし、承認時は与信判定待ちへ遷移させる。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/account-applications/{applicationId}/review",
+        "auth": "required"
+      },
+      "inputs": [
+        { "name": "applicationId", "label": "申込 ID", "type": "string", "required": true, "domainRef": "ApplicationId" },
+        { "name": "decision", "label": "承認判断", "type": "string", "required": true },
+        { "name": "reviewerId", "label": "担当者 ID", "type": "string", "required": true },
+        { "name": "comment", "label": "コメント", "type": "string", "required": false },
+        { "name": "accountStatus", "label": "画面保持口座ステータス", "type": { "kind": "accountStatus" }, "required": true, "domainRef": "AccountStatus" }
+      ],
+      "outputs": [
+        { "name": "applicationId", "label": "申込 ID", "type": "string", "domainRef": "ApplicationId" },
+        { "name": "accountStatus", "label": "口座ステータス", "type": { "kind": "accountStatus" }, "domainRef": "AccountStatus" },
+        { "name": "nextAction", "label": "次アクション", "type": "string" }
+      ],
+      "responses": [
+        { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object" } }, "when": "担当者操作が完了" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
+        { "id": "404-application-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "申込が存在しない" },
+        { "id": "409-invalid-state-transition", "status": 409, "bodySchema": { "schema": { "type": "object" } }, "when": "UNDER_REVIEW 以外への review 操作" }
+      ],
+      "steps": [
+        {
+          "id": "step-002-01",
+          "type": "validation",
+          "description": "担当者承認入力を検証する。",
+          "maturity": "committed",
+          "conditions": "applicationId/reviewerId/accountStatus は必須。decision は APPROVE または REJECT。",
+          "rules": [
+            { "field": "applicationId", "type": "required", "message": "申込 ID は必須です" },
+            { "field": "decision", "type": "enum", "values": ["APPROVE", "REJECT"], "message": "decision は APPROVE または REJECT です" },
+            { "field": "reviewerId", "type": "required", "message": "担当者 ID は必須です" },
+            { "field": "accountStatus", "type": "enum", "values": ["UNDER_REVIEW"], "message": "担当者承認は UNDER_REVIEW の申込だけ操作できます" }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "申込取得へ進む",
+            "ng": "400 バリデーションエラー",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-002-02",
+          "type": "dbAccess",
+          "description": "対象の口座開設申込を取得する。",
+          "maturity": "committed",
+          "tableName": "account_applications",
+          "operation": "SELECT",
+          "sql": "SELECT id, account_status, customer_id FROM account_applications WHERE id = @inputs.applicationId",
+          "outputBinding": "application",
+          "lineage": { "reads": ["account_applications"] }
+        },
+        {
+          "id": "step-002-03",
+          "type": "branch",
+          "description": "申込が存在しない場合は 404 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-002-03-a",
+              "code": "NOT_FOUND",
+              "label": "申込なし",
+              "condition": "@application == null",
+              "steps": [
+                {
+                  "id": "step-002-03-a-01",
+                  "type": "return",
+                  "description": "404 申込なし。",
+                  "maturity": "committed",
+                  "responseRef": "404-application-not-found",
+                  "bodyExpression": "{ code: 'APPLICATION_NOT_FOUND', applicationId: @inputs.applicationId }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-002-03-else",
+            "code": "FOUND",
+            "label": "申込あり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-002-04",
+          "type": "branch",
+          "description": "accountStatus が UNDER_REVIEW 以外なら不正遷移として 409 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-002-04-a",
+              "code": "INVALID_STATUS",
+              "label": "UNDER_REVIEW 以外",
+              "condition": "@application.account_status != 'UNDER_REVIEW' || @inputs.accountStatus != 'UNDER_REVIEW'",
+              "steps": [
+                {
+                  "id": "step-002-04-a-01",
+                  "type": "return",
+                  "description": "409 不正状態遷移。",
+                  "maturity": "committed",
+                  "responseRef": "409-invalid-state-transition",
+                  "bodyExpression": "{ code: 'INVALID_STATE_TRANSITION', applicationId: @inputs.applicationId, accountStatus: @application.account_status }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-002-04-else",
+            "code": "REVIEWABLE",
+            "label": "承認操作可能",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-002-05",
+          "type": "branch",
+          "description": "担当者判断により CREDIT_PENDING または REJECTED に遷移する。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-002-05-a",
+              "code": "APPROVE",
+              "label": "承認",
+              "condition": "@inputs.decision == 'APPROVE'",
+              "steps": [
+                {
+                  "id": "step-002-05-a-01",
+                  "type": "dbAccess",
+                  "description": "UNDER_REVIEW から CREDIT_PENDING に更新する。",
+                  "maturity": "committed",
+                  "tableName": "account_applications",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE account_applications SET status = 'CREDIT_PENDING', account_status = 'CREDIT_PENDING', reviewed_by = @inputs.reviewerId, review_comment = @inputs.comment, reviewed_at = NOW(), updated_at = NOW() WHERE id = @inputs.applicationId AND account_status = 'UNDER_REVIEW' RETURNING id, account_status",
+                  "outputBinding": "reviewResult",
+                  "lineage": { "writes": ["account_applications"] }
+                },
+                {
+                  "id": "step-002-05-a-02",
+                  "type": "eventPublish",
+                  "description": "承認後に UNDER_REVIEW から CREDIT_PENDING へのステータス遷移を application.statusChanged として発行する。",
+                  "maturity": "committed",
+                  "topic": "application.statusChanged",
+                  "eventRef": "application.statusChanged",
+                  "payload": "{ applicationId: @reviewResult.id, fromStatus: 'UNDER_REVIEW', toStatus: 'CREDIT_PENDING' }"
+                },
+                {
+                  "id": "step-002-05-a-03",
+                  "type": "audit",
+                  "description": "承認操作を監査ログに記録する。",
+                  "maturity": "committed",
+                  "action": "accountApplication.review",
+                  "resource": { "type": "AccountApplication", "id": "@inputs.applicationId" },
+                  "result": "success",
+                  "reason": "APPROVE",
+                  "sensitive": true
+                },
+                {
+                  "id": "step-002-05-a-04",
+                  "type": "return",
+                  "description": "200 承認済み。",
+                  "maturity": "committed",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ applicationId: @reviewResult.id, accountStatus: @reviewResult.account_status, nextAction: 'credit-check' }"
+                }
+              ]
+            },
+            {
+              "id": "br-002-05-b",
+              "code": "REJECT",
+              "label": "差戻し/拒否",
+              "condition": "@inputs.decision == 'REJECT'",
+              "steps": [
+                {
+                  "id": "step-002-05-b-01",
+                  "type": "dbAccess",
+                  "description": "担当者差戻しにより REJECTED に更新する。",
+                  "maturity": "committed",
+                  "tableName": "account_applications",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE account_applications SET status = 'REJECTED', account_status = 'REJECTED', reviewed_by = @inputs.reviewerId, review_comment = @inputs.comment, rejected_reason = 'MANUAL_REJECT', reviewed_at = NOW(), updated_at = NOW() WHERE id = @inputs.applicationId AND account_status = 'UNDER_REVIEW' RETURNING id, account_status",
+                  "outputBinding": "rejectResult",
+                  "lineage": { "writes": ["account_applications"] }
+                },
+                {
+                  "id": "step-002-05-b-02",
+                  "type": "externalSystem",
+                  "description": "顧客へ差戻し通知を送る。通知先は社内通知基盤の抽象呼び出しとして sanctionsListService の通知エンドポイントを利用する。",
+                  "maturity": "committed",
+                  "systemName": "Sanctions List Screening Service",
+                  "systemRef": "sanctionsListService",
+                  "httpCall": {
+                    "method": "POST",
+                    "path": "/notifications/account-application-rejected",
+                    "body": "{ applicationId: @rejectResult.id, reason: @inputs.comment }"
+                  },
+                  "fireAndForget": true,
+                  "outcomes": {
+                    "success": { "action": "continue" },
+                    "failure": { "action": "continue" },
+                    "timeout": { "action": "continue", "sameAs": "failure" }
+                  }
+                },
+                {
+                  "id": "step-002-05-b-03",
+                  "type": "eventPublish",
+                  "description": "application.rejected を発行する。",
+                  "maturity": "committed",
+                  "topic": "application.rejected",
+                  "eventRef": "application.rejected",
+                  "payload": "{ applicationId: @rejectResult.id, reason: 'MANUAL_REJECT', accountStatus: 'REJECTED' }"
+                },
+                {
+                  "id": "step-002-05-b-04",
+                  "type": "audit",
+                  "description": "差戻し操作を監査ログに記録する。",
+                  "maturity": "committed",
+                  "action": "accountApplication.review",
+                  "resource": { "type": "AccountApplication", "id": "@inputs.applicationId" },
+                  "result": "success",
+                  "reason": "REJECT",
+                  "sensitive": true
+                },
+                {
+                  "id": "step-002-05-b-05",
+                  "type": "return",
+                  "description": "200 拒否済み。",
+                  "maturity": "committed",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ applicationId: @rejectResult.id, accountStatus: @rejectResult.account_status, nextAction: 'customer-notified' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-002-05-else",
+            "code": "C",
+            "label": "decision が APPROVE/REJECT 以外 → 400",
+            "steps": [
+              {
+                "id": "step-002-05-else-01",
+                "type": "return",
+                "description": "decision が APPROVE/REJECT 以外の場合 400 を返す。",
+                "maturity": "committed",
+                "responseRef": "400-validation",
+                "bodyExpression": "{ code: 'VALIDATION', message: 'decision must be APPROVE or REJECT' }"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "act-003",
+      "name": "与信判定+口座開設",
+      "trigger": "other",
+      "description": "担当者承認済みの口座開設申込について信用情報を照会し、低リスクなら口座を ACTIVE として作成する。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/account-applications/{applicationId}/credit-check",
+        "auth": "required"
+      },
+      "inputs": [
+        { "name": "applicationId", "label": "申込 ID", "type": "string", "required": true, "domainRef": "ApplicationId" },
+        { "name": "accountStatus", "label": "口座ステータス", "type": { "kind": "accountStatus" }, "required": false, "domainRef": "AccountStatus" }
+      ],
+      "outputs": [
+        { "name": "applicationId", "label": "申込 ID", "type": "string", "domainRef": "ApplicationId" },
+        { "name": "accountId", "label": "口座 ID", "type": { "kind": "accountId" }, "domainRef": "AccountId" },
+        { "name": "accountStatus", "label": "口座ステータス", "type": { "kind": "accountStatus" }, "domainRef": "AccountStatus" },
+        { "name": "creditLimit", "label": "与信枠", "type": "number" }
+      ],
+      "responses": [
+        { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object" } }, "when": "与信判定が完了" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
+        { "id": "404-application-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "申込が存在しない" },
+        { "id": "502-credit-info-unavailable", "status": 502, "bodySchema": { "schema": { "type": "object" } }, "when": "信用情報 API 失敗" }
+      ],
+      "steps": [
+        {
+          "id": "step-003-01",
+          "type": "validation",
+          "description": "与信判定入力を検証する。",
+          "maturity": "committed",
+          "conditions": "applicationId は必須。accountStatus が指定された場合は CREDIT_PENDING であること。",
+          "rules": [
+            { "field": "applicationId", "type": "required", "message": "申込 ID は必須です" },
+            { "field": "accountStatus", "type": "enum", "values": ["CREDIT_PENDING"], "condition": "@inputs.accountStatus != null", "message": "与信判定は CREDIT_PENDING の申込だけ実行できます" }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "申込取得へ進む",
+            "ng": "400 バリデーションエラー",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-003-02",
+          "type": "dbAccess",
+          "description": "CREDIT_PENDING の口座開設申込を取得する。",
+          "maturity": "committed",
+          "tableName": "account_applications",
+          "operation": "SELECT",
+          "sql": "SELECT id, customer_id, account_status, kyc_level, investment_experience, applicant_payload FROM account_applications WHERE id = @inputs.applicationId",
+          "outputBinding": "creditApplication",
+          "lineage": { "reads": ["account_applications"] }
+        },
+        {
+          "id": "step-003-03",
+          "type": "branch",
+          "description": "申込が存在しない場合は 404 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-003-03-a",
+              "code": "NOT_FOUND",
+              "label": "申込なし",
+              "condition": "@creditApplication == null",
+              "steps": [
+                {
+                  "id": "step-003-03-a-01",
+                  "type": "return",
+                  "description": "404 申込なし。",
+                  "maturity": "committed",
+                  "responseRef": "404-application-not-found",
+                  "bodyExpression": "{ code: 'APPLICATION_NOT_FOUND', applicationId: @inputs.applicationId }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-003-03-else",
+            "code": "FOUND",
+            "label": "申込あり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-003-04",
+          "type": "externalSystem",
+          "description": "信用情報機関から信用スコアと延滞情報を取得する。",
+          "maturity": "committed",
+          "systemName": "Credit Bureau API",
+          "systemRef": "creditBureau",
+          "httpCall": {
+            "method": "POST",
+            "path": "/v1/credit-reports",
+            "body": "{ applicationId: @creditApplication.id, customerId: @creditApplication.customer_id }"
+          },
+          "idempotencyKey": "credit-@creditApplication.id-@requestId",
+          "outputBinding": "creditReport",
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": { "action": "abort" },
+            "timeout": { "action": "abort", "sameAs": "failure" }
+          }
+        },
+        {
+          "id": "step-003-06",
+          "type": "compute",
+          "description": "信用スコアを抽出する。",
+          "maturity": "committed",
+          "expression": "@creditReport.creditScore",
+          "outputBinding": "creditScore"
+        },
+        {
+          "id": "step-003-07",
+          "type": "compute",
+          "description": "KYC レベルを抽出する。",
+          "maturity": "committed",
+          "expression": "@creditApplication.kyc_level",
+          "outputBinding": "kycLevel"
+        },
+        {
+          "id": "step-003-08",
+          "type": "compute",
+          "description": "申込者情報を与信評価用にまとめる。",
+          "maturity": "committed",
+          "expression": "{ application: @creditApplication, creditReport: @creditReport, accountStatus: @creditApplication.account_status }",
+          "outputBinding": "applicant"
+        },
+        {
+          "id": "step-003-09",
+          "type": "compute",
+          "description": "@fn.calcCreditLimit(@creditScore, @kycLevel) により与信枠を算出する。",
+          "maturity": "committed",
+          "expression": "@fn.calcCreditLimit(@creditScore, @kycLevel)",
+          "outputBinding": "creditLimit"
+        },
+        {
+          "id": "step-003-10",
+          "type": "compute",
+          "description": "@fn.evaluateRiskRating(@applicant) によりリスク評価を算出する。",
+          "maturity": "committed",
+          "expression": "@fn.evaluateRiskRating(@applicant)",
+          "outputBinding": "riskRating"
+        },
+        {
+          "id": "step-003-11",
+          "type": "branch",
+          "description": "accountStatus が CREDIT_PENDING であることを確認し、リスク評価を LOW/MEDIUM/HIGH の 3 段階に分岐する。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-003-11-a",
+              "code": "LOW_RISK",
+              "label": "低リスク: 自動承認",
+              "condition": "@creditApplication.account_status == 'CREDIT_PENDING' && @riskRating == 'LOW'",
+              "steps": [
+                {
+                  "id": "step-003-11-a-01",
+                  "type": "dbAccess",
+                  "description": "開設する口座 ID を払い出す。",
+                  "maturity": "committed",
+                  "tableName": "accounts",
+                  "operation": "SELECT",
+                  "sql": "SELECT generate_account_id(@creditApplication.customer_id) AS account_id",
+                  "outputBinding": "newAccountId"
+                },
+                {
+                  "id": "step-003-11-a-02",
+                  "type": "transactionScope",
+                  "description": "accounts INSERT と applications APPROVED を 1 トランザクションで実行する。inner step は先に定義済みの @newAccountId/@creditLimit だけを参照する。コミット結果は creditTxResult に格納し、以降の step は creditTxResult.committed == true の場合のみ実行する。",
+                  "maturity": "committed",
+                  "isolationLevel": "READ_COMMITTED",
+                  "rollbackOn": ["INVALID_STATE_TRANSITION"],
+                  "outputBinding": "creditTxResult",
+                  "steps": [
+                    {
+                      "id": "step-003-11-a-02-01",
+                      "type": "dbAccess",
+                      "description": "accounts に ACTIVE 口座を登録する。accountStatus fieldType を利用する。",
+                      "maturity": "committed",
+                      "tableName": "accounts",
+                      "operation": "INSERT",
+                      "sql": "INSERT INTO accounts (id, customer_id, status, account_status, credit_limit, opened_at, created_at) VALUES (@newAccountId.account_id, @creditApplication.customer_id, 'ACTIVE', 'ACTIVE', @creditLimit, NOW(), NOW()) RETURNING id, account_status",
+                      "outputBinding": "newAccount",
+                      "lineage": { "writes": ["accounts"] }
+                    },
+                    {
+                      "id": "step-003-11-a-02-02",
+                      "type": "dbAccess",
+                      "description": "account_applications を APPROVED に更新する。",
+                      "maturity": "committed",
+                      "tableName": "account_applications",
+                      "operation": "UPDATE",
+                      "sql": "UPDATE account_applications SET status = 'APPROVED', account_status = 'APPROVED', account_id = @newAccountId.account_id, credit_limit = @creditLimit, approved_at = NOW(), updated_at = NOW() WHERE id = @creditApplication.id AND account_status = 'CREDIT_PENDING' RETURNING id, account_status",
+                      "outputBinding": "approvedApplication",
+                      "lineage": { "writes": ["account_applications"] }
+                    }
+                  ]
+                },
+                {
+                  "id": "step-003-11-a-03",
+                  "type": "eventPublish",
+                  "description": "account.activated を発行する。TX コミット成功時のみ実行。",
+                  "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == true",
+                  "topic": "account.activated",
+                  "eventRef": "account.activated",
+                  "payload": "{ accountId: @newAccount.id, applicationId: @approvedApplication.id, accountStatus: 'ACTIVE' }"
+                },
+                {
+                  "id": "step-003-11-a-04",
+                  "type": "eventPublish",
+                  "description": "application.approved を発行する。TX コミット成功時のみ実行。",
+                  "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == true",
+                  "topic": "application.approved",
+                  "eventRef": "application.approved",
+                  "payload": "{ applicationId: @approvedApplication.id, accountId: @newAccount.id, creditLimit: @creditLimit }"
+                },
+                {
+                  "id": "step-003-11-a-05",
+                  "type": "return",
+                  "description": "200 口座開設成功を返す。TX コミット成功時のみ実行。",
+                  "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == true",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ applicationId: @approvedApplication.id, accountId: @newAccount.id, accountStatus: 'ACTIVE', creditLimit: @creditLimit }"
+                }
+              ]
+            },
+            {
+              "id": "br-003-11-b",
+              "code": "MEDIUM_RISK",
+              "label": "中リスク: 上席承認待ち",
+              "condition": "@creditApplication.account_status == 'CREDIT_PENDING' && @riskRating == 'MEDIUM'",
+              "steps": [
+                {
+                  "id": "step-003-11-b-01",
+                  "type": "dbAccess",
+                  "description": "中リスクのため上席承認待ちに更新する。",
+                  "maturity": "committed",
+                  "tableName": "account_applications",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE account_applications SET status = 'SUPERVISOR_REVIEW_PENDING', account_status = 'CREDIT_PENDING', risk_rating = 'MEDIUM', credit_limit = @creditLimit, updated_at = NOW() WHERE id = @creditApplication.id AND account_status = 'CREDIT_PENDING' RETURNING id, account_status",
+                  "outputBinding": "supervisorPendingApplication",
+                  "lineage": { "writes": ["account_applications"] }
+                },
+                {
+                  "id": "step-003-11-b-02",
+                  "type": "workflow",
+                  "description": "上席による追加 Manual 承認を要求する。",
+                  "maturity": "committed",
+                  "pattern": "approval-escalation",
+                  "approvers": [
+                    { "role": "supervisor", "label": "上席承認者", "order": 1 }
+                  ],
+                  "deadlineExpression": "NOW() + duration('P1D')",
+                  "escalateAfter": "duration('P1D')",
+                  "escalateTo": { "role": "riskManager" }
+                },
+                {
+                  "id": "step-003-11-b-03",
+                  "type": "return",
+                  "description": "200 上席承認待ちを返す。",
+                  "maturity": "committed",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ applicationId: @supervisorPendingApplication.id, accountStatus: @supervisorPendingApplication.account_status, nextAction: 'supervisor-review', creditLimit: @creditLimit }"
+                }
+              ]
+            },
+            {
+              "id": "br-003-11-c",
+              "code": "HIGH_RISK",
+              "label": "高リスク: 拒否",
+              "condition": "@creditApplication.account_status == 'CREDIT_PENDING' && @riskRating == 'HIGH'",
+              "steps": [
+                {
+                  "id": "step-003-11-c-01",
+                  "type": "dbAccess",
+                  "description": "高リスクのため REJECTED に更新する。",
+                  "maturity": "committed",
+                  "tableName": "account_applications",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE account_applications SET status = 'REJECTED', account_status = 'REJECTED', risk_rating = 'HIGH', rejected_reason = 'HIGH_CREDIT_RISK', updated_at = NOW() WHERE id = @creditApplication.id AND account_status = 'CREDIT_PENDING' RETURNING id, account_status",
+                  "outputBinding": "creditRejectedApplication",
+                  "lineage": { "writes": ["account_applications"] }
+                },
+                {
+                  "id": "step-003-11-c-02",
+                  "type": "eventPublish",
+                  "description": "高リスク拒否の application.rejected を発行する。",
+                  "maturity": "committed",
+                  "topic": "application.rejected",
+                  "eventRef": "application.rejected",
+                  "payload": "{ applicationId: @creditRejectedApplication.id, reason: 'HIGH_CREDIT_RISK', accountStatus: 'REJECTED' }"
+                },
+                {
+                  "id": "step-003-11-c-03",
+                  "type": "return",
+                  "description": "200 拒否済みを返す。",
+                  "maturity": "committed",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ applicationId: @creditRejectedApplication.id, accountStatus: @creditRejectedApplication.account_status, creditLimit: 0 }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-003-11-else",
+            "code": "INVALID_STATUS_OR_RISK",
+            "label": "不正状態または不明リスク",
+            "steps": [
+              {
+                "id": "step-003-11-else-01",
+                "type": "return",
+                "description": "現在状態が CREDIT_PENDING でない場合は 409 相当の業務エラーとして 200 応答に含める。",
+                "maturity": "committed",
+                "responseRef": "200-ok",
+                "bodyExpression": "{ applicationId: @creditApplication.id, accountStatus: @creditApplication.account_status, nextAction: 'manual-investigation' }"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "testScenarios": [
+    {
+      "id": "happy-account-opening",
+      "name": "申込から eKYC、担当者承認、与信判定を経て口座開設に成功する",
+      "description": "eKYC/AML が通過し、担当者承認後に低リスク与信判定で ACTIVE 口座が作成される。",
+      "given": [
+        { "kind": "clock", "now": "2026-04-26T09:00:00.000Z" },
+        { "kind": "sessionContext", "context": { "requestId": "req-467-happy", "reviewerId": "rv-001" } },
+        { "kind": "externalStub", "externalRef": "ekycVendor", "responseMock": { "status": 200, "body": { "status": "VERIFIED", "kycLevel": "ENHANCED" } } },
+        { "kind": "externalStub", "externalRef": "sanctionsListService", "responseMock": { "status": 200, "body": { "decision": "PASS" } } },
+        { "kind": "externalStub", "externalRef": "creditBureau", "responseMock": { "status": 200, "body": { "status": "OK", "creditScore": 820 } } }
+      ],
+      "when": {
+        "actionId": "act-003",
+        "input": { "applicationId": "APP-467-001", "accountStatus": "CREDIT_PENDING" }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "200-ok" },
+        { "kind": "output", "path": "$.accountStatus", "equals": "ACTIVE" },
+        { "kind": "externalCall", "externalRef": "creditBureau", "method": "POST", "bodyMatch": { "applicationId": "APP-467-001" } }
+      ],
+      "tags": ["happy", "account-opening", "credit"]
+    },
+    {
+      "id": "ekyc-failure-rejection",
+      "name": "eKYC 失敗で REJECTED になる",
+      "description": "eKYC ベンダが VERIFIED 以外を返した場合、申込は REJECTED になり 422 を返す。",
+      "given": [
+        { "kind": "sessionContext", "context": { "requestId": "req-467-ekyc-failure" } },
+        { "kind": "externalStub", "externalRef": "ekycVendor", "responseMock": { "status": 200, "body": { "status": "FAILED", "kycLevel": "NONE" } } }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "customerName": "山田 太郎",
+          "dateOfBirth": "1980-01-01",
+          "address": "東京都千代田区1-1-1",
+          "nationality": "JP",
+          "investmentExperience": "STOCK_3Y",
+          "desiredAccountTypes": ["GENERAL", "MARGIN"]
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "422-ekyc-failed" },
+        { "kind": "output", "path": "$.accountStatus", "equals": "REJECTED" }
+      ],
+      "tags": ["error", "ekyc", "rejected"]
+    },
+    {
+      "id": "state-transition-violation",
+      "name": "APPROVED 状態への再 review は 409 になる",
+      "description": "既に APPROVED の申込に担当者承認操作を再実行した場合、UNDER_REVIEW ではないため 409 を返す。",
+      "given": [
+        { "kind": "sessionContext", "context": { "requestId": "req-467-state-violation", "reviewerId": "rv-002" } },
+        {
+          "kind": "dbState",
+          "table": "account_applications",
+          "rows": [
+            { "id": "APP-467-002", "account_status": "APPROVED", "status": "APPROVED" }
+          ]
+        }
+      ],
+      "when": {
+        "actionId": "act-002",
+        "input": {
+          "applicationId": "APP-467-002",
+          "decision": "APPROVE",
+          "reviewerId": "rv-002",
+          "comment": "再承認テスト",
+          "accountStatus": "APPROVED"
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "409-invalid-state-transition" },
+        { "kind": "output", "path": "$.accountStatus", "equals": "APPROVED" }
+      ],
+      "tags": ["error", "state-machine"]
+    }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}
