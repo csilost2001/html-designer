@@ -4,6 +4,8 @@
     { "kind": "orderId", "label": "注文 ID" },
     { "kind": "accountId", "label": "口座 ID" },
     { "kind": "tradeId", "label": "約定 ID" },
-    { "kind": "securityCode", "label": "銘柄コード" }
+    { "kind": "securityCode", "label": "銘柄コード" },
+    { "kind": "position", "label": "ポジション (BUY/SELL/数量)" },
+    { "kind": "pnl", "label": "損益" }
   ]
 }

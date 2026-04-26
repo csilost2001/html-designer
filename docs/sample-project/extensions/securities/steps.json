@@ -4,7 +4,7 @@
     "TradeMatchStep": {
       "label": "約定照合",
       "icon": "git-compare",
-      "description": "取引所から受信した約定 ID と注文 ID を照合し、約定数量・約定価格を処理します。",
+      "description": "取引所から受信した約定 ID と注文 ID を照合し、約定数量と約定価格を処理します。",
       "schema": {
         "type": "object",
         "properties": {
@@ -15,6 +15,23 @@
         },
         "required": ["tradeId", "orderId", "executedQty"],
         "additionalProperties": false
+      }
+    },
+    "PositionUpdateStep": {
+      "label": "ポジション更新",
+      "icon": "TrendingUp",
+      "description": "口座 × 銘柄単位でポジションを再計算 (UPSERT)",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accountId", "securityCode", "executedQty", "side"],
+        "properties": {
+          "accountId": { "type": "string" },
+          "securityCode": { "type": "string" },
+          "executedQty": { "type": "number" },
+          "executedPrice": { "type": "number" },
+          "side": { "type": "string", "enum": ["BUY", "SELL"] }
+        }
       }
     }
   }
