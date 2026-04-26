@@ -1,102 +1,110 @@
-# JSON Schema (処理フロー一次成果物)
+# JSON Schema (一次成果物) — バージョン管理
 
-このディレクトリは、html-designer の JSON 資産の**正規スキーマ**を保持する。designer フロントエンドの外 (別リポジトリの AI エージェント、CI パイプライン、外部エディタ等) からでも spec に準拠してデータを検証・生成できるようにする。
+このディレクトリは、html-designer の JSON 資産の**正規スキーマ**をバージョン別に保持する。
 
-## 位置づけ
+## ディレクトリ構成
 
-本プロジェクトは **AI が処理フロー JSON を読み取って実装する** ことを主用途とする。したがって:
+```
+schemas/
+├── v1/                                   ← v1 凍結スナップショット (修正不可)
+│   ├── process-flow.schema.json
+│   ├── conventions.schema.json
+│   ├── extensions-*.schema.json (5)
+│   └── README.md
+├── v2/                                   ← v2 (現行、再設計版)
+│   ├── common.v2.schema.json             ← 共通 $defs (全 v2 schema が参照)
+│   ├── process-flow.v2.schema.json
+│   ├── conventions.v2.schema.json
+│   ├── extensions-*.v2.schema.json
+│   ├── screen.v2.schema.json
+│   ├── table.v2.schema.json
+│   ├── screen-item.v2.schema.json
+│   ├── project.v2.schema.json
+│   ├── er-layout.v2.schema.json
+│   ├── custom-block.v2.schema.json
+│   ├── sequence.v2.schema.json
+│   ├── view.v2.schema.json
+│   └── README.md
+└── README.md (本ファイル)
+```
 
-- **JSON スキーマが一次成果物**
-- TypeScript 型 (`designer/src/types/action.ts`) は designer 内部でのみ利用される派生物
-- UI は最後尾の表示層に過ぎない
+## バージョン管理ポリシー
 
-この原則は `docs/spec/process-flow-extensions.md` 等の仕様と本スキーマを突合させることで担保する。
+### 凍結ポリシー
 
-## ファイル
+各バージョンディレクトリ (`v1/`, `v2/` ...) は**マージ後は修正不可**。バグ修正・機能追加は新バージョンを作成する。
 
-| ファイル | 対象 | TS 型 |
-|----------|------|-------|
-| `process-flow.schema.json` | ProcessFlow (処理フロー定義) | `ProcessFlow` @ `designer/src/types/action.ts` |
-| `conventions.schema.json` | 横断規約カタログ (msg / regex / limit) | 対応 TS 型は `designer/src/schemas/conventionsValidator.ts` の `ConventionsCatalog` |
-| `extensions-steps.schema.json` | `data/extensions/steps.json` (カスタムステップ型) | `designer/src/schemas/loadExtensions.ts` の `StepDef` |
-| `extensions-field-types.schema.json` | `data/extensions/field-types.json` (FieldType 拡張) | `designer/src/schemas/loadExtensions.ts` の `FieldTypeDef` |
-| `extensions-triggers.schema.json` | `data/extensions/triggers.json` (ActionTrigger 拡張) | `designer/src/schemas/loadExtensions.ts` の `TriggerDef` |
-| `extensions-db-operations.schema.json` | `data/extensions/db-operations.json` (DbOperation 拡張) | `designer/src/schemas/loadExtensions.ts` の `DbOperationDef` |
-| `extensions-response-types.schema.json` | `data/extensions/response-types.json` (レスポンス型定義) | `designer/src/schemas/loadExtensions.ts` の `ResponseTypeDef` |
+理由:
+- 既存案件が特定バージョンを参照している場合、後から変更すると validation 結果が変わる
+- 業務データの schema 互換性を厳密に追跡する
 
-スキーマドラフト: **JSON Schema 2020-12**
+例外: 起草中 (PR がまだ open) のバージョンは PR 内で改変可。マージ後は凍結。
 
-## 使い方
+### 新バージョンの作成
 
-### 外部プロジェクト (別 AI エージェント / CI) からの検証
+破壊的変更が必要になったら新バージョンディレクトリを作る:
 
-```ts
-import Ajv2020 from "ajv/dist/2020";
-import addFormats from "ajv-formats";
-import schema from "./schemas/process-flow.schema.json" assert { type: "json" };
+```
+schemas/v3/
+├── common.v3.schema.json
+├── process-flow.v3.schema.json
+└── ...
+```
 
-const ajv = new Ajv2020({ allErrors: true, strict: false });
-addFormats(ajv);
-const validate = ajv.compile(schema);
+非破壊的な追加 (optional フィールド追加 / additive enum) は同バージョン内で行う。
 
-const ok = validate(processFlowJson);
-if (!ok) {
-  console.error(validate.errors);
+### バージョン選択 (将来実装、現状はハードコード)
+
+`data/project.json` に `schemaVersion` プロパティを記述することで、その案件が使う schema バージョンを宣言できる:
+
+```json
+{
+  "version": 1,
+  "schemaVersion": "v2",
+  "name": "顧客管理システム",
+  ...
 }
 ```
 
-`$id`: `https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/process-flow.schema.json` — 外部から参照する場合はこの URL を使用。main ブランチの最新版を指す。特定バージョンに固定したい場合はコミット SHA を含む raw URL を使う (例: `.../html-designer/<SHA>/schemas/process-flow.schema.json`)。
+loader (designer / designer-mcp / vitest) は本プロパティを読んで `schemas/v<N>/` を選択する想定。**現状は v2 をハードコードで参照**。複数バージョン切替の実装は将来 ISSUE で対応。
 
-### 本リポジトリ内の検証テスト
+### `$id` 規約
 
-```bash
-cd designer
-npx vitest run src/schemas/                  # スキーマ検証 + 参照整合性の両方
-npx vitest run src/schemas/process-flow.schema.test.ts       # スキーマ準拠だけ
-npx vitest run src/schemas/loadExtensions.test.ts            # extensions ローダー + 合成スキーマ
-npx vitest run src/schemas/referentialIntegrity.test.ts      # 参照整合性だけ
-```
+各 schema の `$id` はバージョン込みで宣言する:
 
-`docs/sample-project/process-flows/*.json` の全ファイルを自動検証する。新しいサンプルを追加する場合も、このテストを通過させる必要がある。
+- v1: `https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v1/<name>.schema.json`
+- v2: `https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/<name>.v2.schema.json`
 
-### 参照整合性 (Schema だけでは検査できない規約)
+外部 AI / CI は特定バージョンに固定して参照する。
 
-JSON Schema 2020-12 では他フィールド値への参照検証 (cross-reference) が表現困難なため、スキーマの外に `designer/src/schemas/referentialIntegrity.ts` を置いて検証する:
+### 案件・業界の併存ポリシー
 
-- `ReturnStep.responseRef` / `ValidationStep.inlineBranch.ngResponseRef` / `ErrorCatalogEntry.responseRef` が `action.responses[].id` に存在すること
-- `DbAccessStep.affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` (tryCatch) が `ProcessFlow.errorCatalog` のキーに存在すること (errorCatalog 定義時のみ)
-- ネスト構造 (`loop.steps` / `branch.branches[].steps` / `externalSystem.outcomes.*.sideEffects` / `subSteps`) も再帰的に検査
+将来、複数の案件 / 業界 (retail / finance / manufacturing 等) が異なる schema バージョンを使うことを許容する:
 
-```ts
-import { checkReferentialIntegrity } from "./schemas/referentialIntegrity";
-const issues = checkReferentialIntegrity(processFlow);
-// issues.length === 0 なら OK
-```
+- 案件 A: `schemaVersion: "v1"` で運用継続
+- 案件 B: `schemaVersion: "v2"` で新規開始
+- 設計者は v3 を起草中 → 既存 v1 / v2 案件には影響しない
 
-## バージョニング方針
+切替の自動化 (案件 root の `schemaVersion` を読む loader) は本仕様の対象外、将来別 ISSUE で実装。
 
-- **Phase B 時点で初版** (2026-04-20)
-- 後方互換を破壊する変更時はスキーマを別ファイル (`process-flow.v2.schema.json` 等) に分けて、旧版を残す
-- フィールド追加は optional で加える (既存データは影響を受けない)
-- TypeScript 型を変更した場合は本スキーマも同時に更新し、テストで突合確認 (`npx vitest` 必須)
+## 一次成果物の原則
 
-## 対応する仕様書
+本プロジェクトは **AI が JSON を読み取って実装する** ことを主用途とする。したがって設計層の優先順位は:
 
-- [`docs/spec/process-flow-extensions.md`](../docs/spec/process-flow-extensions.md) — Phase B スキーマ拡張の網羅リファレンス
-- [`docs/spec/process-flow-maturity.md`](../docs/spec/process-flow-maturity.md) — 成熟度・付箋・モード (Phase 1 基盤)
-- [`docs/spec/process-flow-variables.md`](../docs/spec/process-flow-variables.md) — 変数・入出力・outputBinding (Phase 1 基盤)
-- [`docs/spec/process-flow-expression-language.md`](../docs/spec/process-flow-expression-language.md) — 式言語 (runIf / expression / bodyExpression の BNF)
-- [`docs/spec/process-flow-runtime-conventions.md`](../docs/spec/process-flow-runtime-conventions.md) — 実行時規約 (SQL 式補間 / HTTP serialize / TX / fireAndForget 等)
-- [`docs/spec/process-flow-workflow.md`](../docs/spec/process-flow-workflow.md) — WorkflowStep / WorkflowPattern (承認ワークフロー標準 11 パターン)
+| 順位 | 層 | 役割 |
+|---|---|---|
+| 1 (一次) | JSON Schema (`schemas/v<N>/*.schema.json`) | 機械可読な正規仕様 |
+| 2 (派生) | TypeScript 型 (`designer/src/types/*.ts`) | designer 内部のみ利用 |
+| 3 (表示層) | UI (`designer/src/components/*`) | エディタとしての視覚化 |
 
-## 関連コード
+矛盾が起きたら **schema を正、TS 型と UI を schema に合わせる**。
 
-- `designer/src/types/action.ts` — TypeScript 型定義 (本スキーマと同期保守)
-- `designer/src/utils/actionMigration.ts` — 旧形式からの変換 (新スキーマは旧形式も union 側で受け入れる)
-- `designer/src/schemas/process-flow.schema.test.ts` — サンプル検証 + negative ケース
-- `designer/src/schemas/identifierScope.ts` — `@identifier` 参照の scope 検証 (inputs / outputBinding / ambientVariables / ループ変数 との突合)
-- `designer/src/schemas/identifierScope.test.ts` — scope 検証のユニット + サンプル全件検査
-- `designer/src/schemas/sqlColumnValidator.ts` — DbAccessStep.sql 内列参照をテーブル定義と突合 (node-sql-parser + PostgreSQL dialect)
-- `designer/src/schemas/sqlColumnValidator.test.ts` — SQL 検査のユニット + サンプル横断
-- `designer/src/schemas/conventionsValidator.ts` — `@conv.msg.*` / `@conv.regex.*` / `@conv.limit.*` 参照を conventions-catalog.json と突合
-- `designer/src/schemas/conventionsValidator.test.ts` — 規約 ID 解決のユニット + サンプル横断
+## ガバナンス
+
+schema 変更権限は **フレームワーク製作者 (設計者) の専権**。詳細: [`docs/spec/schema-governance.md`](../docs/spec/schema-governance.md) (#511)。
+
+## 関連
+
+- 設計原則 v2: [`docs/spec/schema-design-principles.md`](../docs/spec/schema-design-principles.md)
+- v2 再設計案: [`docs/spec/schema-v2-design.md`](../docs/spec/schema-v2-design.md) (#519)
+- 過去監査: [`docs/spec/schema-audit-2026-04-27.md`](../docs/spec/schema-audit-2026-04-27.md)

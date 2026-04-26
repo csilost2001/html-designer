@@ -6,7 +6,8 @@ import { basename, resolve, join } from "node:path";
 import { buildExtendedSchema, loadExtensionsFromBundle, type ExtensionsBundle } from "./loadExtensions";
 
 const repoRoot = resolve(__dirname, "../../../");
-const schemaPath = resolve(repoRoot, "schemas/process-flow.schema.json");
+// v1 凍結 (#519): schemas/v1/ に退避済み。v2 移行が完了するまで本テストは v1 を検証する。
+const schemaPath = resolve(repoRoot, "schemas/v1/process-flow.schema.json");
 const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
 const sampleExtensionsDir = resolve(repoRoot, "docs/sample-project/extensions");
 
