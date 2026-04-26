@@ -48,6 +48,21 @@
           "settleDate": { "type": "string" }
         }
       }
+    },
+    "MarkToMarketStep": {
+      "label": "時価評価",
+      "icon": "Activity",
+      "description": "ポジションを終値で評価し、評価損益を算出する",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["positionId", "markPrice"],
+        "properties": {
+          "positionId": { "type": "string" },
+          "markPrice": { "type": "number" },
+          "currency": { "type": "string" }
+        }
+      }
     }
   }
 }
