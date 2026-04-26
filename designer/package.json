@@ -11,7 +11,8 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
-    "validate:dogfood": "tsx scripts/validate-dogfood.ts"
+    "validate:dogfood": "tsx scripts/validate-dogfood.ts",
+    "generate:dogfood": "tsx scripts/generate-dogfood.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
