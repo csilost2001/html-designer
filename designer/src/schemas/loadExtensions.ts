@@ -197,6 +197,7 @@ export function buildExtendedSchema(
   mergeFieldTypes(defs, extensions.fieldTypes, errors);
   mergeEnumDef(defs, "ActionTrigger", extensions.triggers.map((t) => t.value), "triggers", errors);
   mergeEnumDef(defs, "DbOperation", extensions.dbOperations.map((op) => op.value), "dbOperations", errors);
+  mergeCustomSteps(defs, extensions.steps);
   collectOverrideWarnings(defs, schema, extensions, warnings);
 
   return { schema, errors, warnings };
@@ -469,6 +470,51 @@ function mergeEnumDef(
     enumValues.push(value);
     added.add(value);
   }
+}
+
+function mergeCustomSteps(defs: Record<string, unknown> | null, steps: Record<string, StepDef>): void {
+  const step = getRecord(defs?.Step);
+  const nonReturnStep = getRecord(defs?.NonReturnStep);
+  const stepOneOf = Array.isArray(step?.oneOf) ? step.oneOf : null;
+  const nonReturnStepOneOf = Array.isArray(nonReturnStep?.oneOf) ? nonReturnStep.oneOf : null;
+  if (!stepOneOf) return;
+
+  for (const [type, definition] of Object.entries(steps)) {
+    const customStep = buildCustomStepSchema(type, definition.schema as Record<string, unknown>);
+    stepOneOf.push(customStep);
+    nonReturnStepOneOf?.push(deepClone(customStep));
+  }
+}
+
+function buildCustomStepSchema(type: string, schema: Record<string, unknown>): Record<string, unknown> {
+  const extensionProperties = getRecord(schema.properties) ?? {};
+  const extensionRequired = Array.isArray(schema.required)
+    ? schema.required.filter((key): key is string => typeof key === "string")
+    : [];
+
+  return {
+    type: "object",
+    required: Array.from(new Set(["id", "type", "description", ...extensionRequired])),
+    additionalProperties: schema.additionalProperties === true,
+    properties: {
+      id: true,
+      description: true,
+      note: true,
+      notes: true,
+      maturity: true,
+      runIf: true,
+      outputBinding: true,
+      txBoundary: true,
+      transactional: true,
+      compensatesFor: true,
+      externalChain: true,
+      subSteps: true,
+      requiredPermissions: true,
+      sla: true,
+      type: { const: type },
+      ...extensionProperties,
+    },
+  };
 }
 
 function collectOverrideWarnings(

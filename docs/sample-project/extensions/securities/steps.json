@@ -33,6 +33,21 @@
           "side": { "type": "string", "enum": ["BUY", "SELL"] }
         }
       }
+    },
+    "NettingStep": {
+      "label": "ネッティング計算",
+      "icon": "Sigma",
+      "description": "同一相手方・同一銘柄の買い/売りを相殺集計",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["counterparty", "securityCode"],
+        "properties": {
+          "counterparty": { "type": "string" },
+          "securityCode": { "type": "string" },
+          "settleDate": { "type": "string" }
+        }
+      }
     }
   }
 }
