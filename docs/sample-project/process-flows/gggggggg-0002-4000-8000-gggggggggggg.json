@@ -79,7 +79,7 @@
     },
     "冪等 UPSERT": {
       "definition": "同一キー (cart_id + product_code) で何度実行しても結果が同じになる INSERT ... ON CONFLICT DO UPDATE 操作。retail:UPSERT_CART_ITEM で実現。",
-      "aliases": ["IdempotentUpsert", "冪等追加"],
+      "aliases": ["IdempotentUpsert", "冪等追加", "UPSERT_CART_ITEM"],
       "domainRef": "cart_items"
     },
     "カート有効期限": {
@@ -349,7 +349,12 @@
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
             "ok": "次のステップへ進む",
-            "ng": "400 入力値エラーを返す",
+            "ng": "cart.validation_failed イベント発行後に 400 入力値エラーを返す",
+            "ngEventPublish": {
+              "topic": "cart.validation_failed",
+              "eventRef": "cart.validation_failed",
+              "payload": "{ cartId: @inputs.cartId, errorCode: 'VALIDATION' }"
+            },
             "ngResponseRef": "400-validation",
             "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', fieldErrors: @fieldErrors }"
           }
@@ -485,7 +490,8 @@
                   "maturity": "committed",
                   "topic": "cart.inventory_insufficient",
                   "eventRef": "cart.inventory_insufficient",
-                  "payload": "{ cartId: @inputs.cartId, productCode: @inputs.productCode, requestedQty: @inputs.quantity, availableQty: @inventoryRow != null ? @inventoryRow.available_quantity : 0 }"
+                  "payload": "{ cartId: @inputs.cartId, productCode: @inputs.productCode, requestedQty: @inputs.quantity, availableQty: @inventoryRow != null ? @inventoryRow.available_quantity : -1 }",
+                  "note": "availableQty: -1 は在庫レコード未登録 (商品マスタにのみ存在し inventory レコードがない) を表す番兵値。0 は在庫ゼロと区別する。"
                 },
                 {
                   "id": "step-07-a-02",
@@ -518,16 +524,29 @@
           }
         },
         {
+          "id": "step-08b",
+          "type": "dbAccess",
+          "description": "同一 cart_id + product_code の既存明細を SELECT して @existingCartItem にバインドする。既存行があれば UPSERT は更新のみで件数増加なし。",
+          "maturity": "committed",
+          "tableName": "cart_items",
+          "operation": "SELECT",
+          "sql": "SELECT cart_id, product_code, quantity FROM cart_items WHERE cart_id = @inputs.cartId AND product_code = @inputs.productCode LIMIT 1",
+          "outputBinding": "existingCartItem",
+          "lineage": {
+            "reads": ["cart_items"]
+          }
+        },
+        {
           "id": "step-09",
           "type": "branch",
-          "description": "カート明細が上限 (@conv.limit.cartItemMax=50) 以上で、かつ新規商品の場合は 422 を返す。",
+          "description": "カート明細が上限 (@conv.limit.cartItemMax=50) 以上で、かつ新規商品 (existingCartItem == null) の場合は 422 を返す。既存商品の数量更新は上限チェック対象外。",
           "maturity": "committed",
           "branches": [
             {
               "id": "br-09-a",
               "code": "A",
-              "label": "カート上限超過",
-              "condition": "@cartItemCount.item_count >= @conv.limit.cartItemMax",
+              "label": "カート上限超過 (新規商品のみ)",
+              "condition": "@existingCartItem == null && @cartItemCount.item_count >= @conv.limit.cartItemMax",
               "steps": [
                 {
                   "id": "step-09-a-01",
@@ -544,18 +563,6 @@
             "code": "B",
             "label": "上限内",
             "steps": []
-          }
-        },
-        {
-          "id": "step-10",
-          "type": "retail:CartManageStep",
-          "description": "cart_items に (cart_id, product_code) 複合キーで UPSERT する。既存行があれば quantity を加算し、なければ INSERT する。",
-          "maturity": "committed",
-          "outputSchema": {
-            "cart_id": "string",
-            "product_code": "string",
-            "quantity": "number",
-            "unit_price": "number"
           }
         },
         {
@@ -597,7 +604,7 @@
           "description": "200 OK を返す。",
           "maturity": "committed",
           "responseRef": "200-ok",
-          "bodyExpression": "{ cartId: @inputs.cartId, status: 'ADDED', itemCount: @cartItemCount.item_count }",
+          "bodyExpression": "{ cartId: @inputs.cartId, status: 'ADDED', itemCount: @existingCartItem == null ? @cartItemCount.item_count + 1 : @cartItemCount.item_count }",
           "runIf": "@upsertedItem != null"
         },
         {
@@ -607,6 +614,7 @@
           "maturity": "committed",
           "responseRef": "200-ok",
           "bodyExpression": "{ cartId: @inputs.cartId, status: 'ALREADY_UPDATED', itemCount: @cartItemCount.item_count }",
+          "note": "no-op (upsertedItem == null) の場合も件数は変わらないので cartItemCount.item_count をそのまま返す。",
           "runIf": "@upsertedItem == null"
         }
       ]
@@ -736,6 +744,58 @@
         { "kind": "outcome", "expected": "422-cart-expired" }
       ],
       "tags": ["error", "cart-expired"]
+    },
+    {
+      "id": "idempotent-noop-same-item",
+      "name": "同一商品を再追加しても no-op で 200 が返る (冪等パス)",
+      "description": "既にカートに存在する商品を同じ数量で追加しようとした場合、UPSERT は no-op となり ALREADY_UPDATED ステータスで 200 OK を返す。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": { "sessionUserId": "user-001", "requestId": "req-cart-noop-001" }
+        },
+        {
+          "kind": "dbState",
+          "table": "carts",
+          "rows": [
+            { "id": "cart-abc123", "status": "ACTIVE", "expires_at": "2026-05-01T00:00:00.000Z" }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            { "product_code": "PROD001", "name": "テスト商品", "unit_price": 1000, "is_active": true }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "inventory",
+          "rows": [
+            { "product_code": "PROD001", "store_code": "DEFAULT", "available_quantity": 100, "reserved_quantity": 0 }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "cart_items",
+          "rows": [
+            { "cart_id": "cart-abc123", "product_code": "PROD001", "quantity": 2, "unit_price": 1000 }
+          ]
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "cartId": "cart-abc123",
+          "productCode": "PROD001",
+          "quantity": 2
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "200-ok" },
+        { "kind": "output", "path": "$.status", "equals": "ALREADY_UPDATED" }
+      ],
+      "tags": ["idempotent", "noop", "cart"]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

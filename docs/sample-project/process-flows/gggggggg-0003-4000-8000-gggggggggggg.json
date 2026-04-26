@@ -134,6 +134,15 @@
       "date": "2026-04-26"
     },
     {
+      "id": "ADR-004",
+      "title": "branch の elseBranch は fallthrough で後続ステップに継続する",
+      "status": "accepted",
+      "context": "branch ステップで条件が全 branches に一致しない場合の動作を明示する必要がある。",
+      "decision": "elseBranch に steps: [] の場合、後続のステップ (同一 action 内の次の step) に自動的に制御が移る (fallthrough)。return ステップがない限り処理は継続される。",
+      "consequences": "elseBranch が空の場合に意図しない fallthrough が発生するリスクを排除するため、各 branch の意図を description で明示する。",
+      "date": "2026-04-26"
+    },
+    {
       "id": "ADR-003",
       "title": "消費税計算は compute step で行い、税率は @conv.tax.standard.rate を参照する",
       "status": "accepted",
@@ -222,6 +231,14 @@
     }
   },
   "functionsCatalog": {
+    "generateUUID": {
+      "signature": "generateUUID(): string",
+      "returnType": "string",
+      "description": "UUID v4 を生成する。注文 ID 採番に使用する。",
+      "examples": [
+        "@fn.generateUUID()"
+      ]
+    },
     "calcTax": {
       "signature": "calcTax(subtotal: number, rate: number): number",
       "returnType": "number",
@@ -530,22 +547,10 @@
         {
           "id": "step-11",
           "type": "compute",
-          "description": "注文 ID を採番する (UUID v4)。",
+          "description": "注文 ID を採番する (UUID v4)。@fn.generateUUID を使用する。",
           "maturity": "committed",
-          "expression": "generateUUID()",
+          "expression": "@fn.generateUUID()",
           "outputBinding": "newOrderId"
-        },
-        {
-          "id": "step-12",
-          "type": "retail:OrderConfirmStep",
-          "description": "注文確定ステップ (retail 拡張)。orders INSERT / order_items INSERT / inventory DECREMENT を TX で処理することを明示する。",
-          "maturity": "committed",
-          "outputSchema": {
-            "orderId": "string",
-            "customerId": "string",
-            "totalAmount": "number",
-            "taxAmount": "number"
-          }
         },
         {
           "id": "step-13",
@@ -574,19 +579,14 @@
               "maturity": "committed",
               "tableName": "order_items",
               "operation": "INSERT",
-              "sql": "INSERT INTO order_items (order_id, product_code, product_name, quantity, unit_price, subtotal, created_at) SELECT @newOrder.id, ci.product_code, p.name, ci.quantity, ci.unit_price, ci.quantity * ci.unit_price, NOW() FROM cart_items ci JOIN products p ON p.product_code = ci.product_code WHERE ci.cart_id = @inputs.cartId",
+              "sql": "INSERT INTO order_items (order_id, product_code, product_name, quantity, unit_price, subtotal, created_at) SELECT @newOrderId, ci.product_code, p.name, ci.quantity, ci.unit_price, ci.quantity * ci.unit_price, NOW() FROM cart_items ci JOIN products p ON p.product_code = ci.product_code WHERE ci.cart_id = @inputs.cartId",
               "lineage": { "writes": ["order_items"] }
             },
             {
               "id": "step-13-03",
               "type": "retail:InventoryReserveStep",
-              "description": "在庫引当 (retail 拡張)。inventory.available_quantity を各商品の注文数量分デクリメントする。在庫不足の場合は affectedRows = 0 で TX をロールバックする。",
-              "maturity": "committed",
-              "outputSchema": {
-                "productCode": "string",
-                "quantity": "number",
-                "orderId": "string"
-              }
+              "description": "在庫引当 (retail 拡張)。前処理フックとして在庫引当の retail セマンティクスを明示する。実際の引当 UPDATE は step-13-04 で行う。",
+              "maturity": "committed"
             },
             {
               "id": "step-13-04",
@@ -608,6 +608,56 @@
           ]
         },
         {
+          "id": "step-13b",
+          "type": "branch",
+          "description": "TX 失敗 (在庫不足 rollback 等) を検出する。newOrder.id が null の場合は TX が失敗している。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-13b-a",
+              "code": "A",
+              "label": "TX 失敗",
+              "condition": "@newOrder == null || @newOrder.id == null",
+              "steps": [
+                {
+                  "id": "step-13b-a-01",
+                  "type": "eventPublish",
+                  "description": "order.confirm_failed イベントを発行する。",
+                  "maturity": "committed",
+                  "topic": "order.confirm_failed",
+                  "eventRef": "order.confirm_failed",
+                  "payload": "{ cartId: @inputs.cartId, customerId: @inputs.customerId, errorCode: 'INSUFFICIENT_INVENTORY' }"
+                },
+                {
+                  "id": "step-13b-a-02",
+                  "type": "return",
+                  "description": "422 在庫不足で TX ロールバック",
+                  "responseRef": "422-insufficient-inventory",
+                  "bodyExpression": "{ code: 'INSUFFICIENT_INVENTORY', message: '在庫が不足しています' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-13b-else",
+            "code": "B",
+            "label": "TX 成功",
+            "description": "TX コミット済み。以降のステップを続行する。",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-13c",
+          "type": "dbAccess",
+          "description": "TX コミット後に orders テーブルから確定済み注文を再 SELECT する。TX inner outputBinding (@newOrder) のネスト参照を避け、TX 外の確定値を取得する (#460 の修正パターン踏襲)。",
+          "maturity": "committed",
+          "tableName": "orders",
+          "operation": "SELECT",
+          "sql": "SELECT id, order_number, total_amount FROM orders WHERE id = @newOrderId",
+          "outputBinding": "persistedOrder",
+          "lineage": { "reads": ["orders"] }
+        },
+        {
           "id": "step-14",
           "type": "dbAccess",
           "description": "carts のステータスを CHECKED_OUT に更新する (TX 外)。",
@@ -615,7 +665,8 @@
           "tableName": "carts",
           "operation": "UPDATE",
           "sql": "UPDATE carts SET status = 'CHECKED_OUT', updated_at = NOW() WHERE id = @inputs.cartId",
-          "lineage": { "writes": ["carts"] }
+          "lineage": { "writes": ["carts"] },
+          "runIf": "@persistedOrder != null"
         },
         {
           "id": "step-15",
@@ -624,16 +675,18 @@
           "maturity": "committed",
           "topic": "retail.order_tax_calculated",
           "eventRef": "retail.order_tax_calculated",
-          "payload": "{ orderId: @newOrder.id, subtotal: @subtotal, taxAmount: @taxAmount, totalAmount: @totalAmount }"
+          "payload": "{ orderId: @persistedOrder.id, subtotal: @subtotal, taxAmount: @taxAmount, totalAmount: @totalAmount }",
+          "runIf": "@persistedOrder != null"
         },
         {
           "id": "step-16",
           "type": "eventPublish",
-          "description": "order.inventory_reserved イベントを発行する。",
+          "description": "order.inventory_reserved イベントを発行する。reservedItems は TX 後 SELECT の @inventoryUpdate を参照する。",
           "maturity": "committed",
           "topic": "order.inventory_reserved",
           "eventRef": "order.inventory_reserved",
-          "payload": "{ orderId: @newOrder.id, reservedItems: @cartItems }"
+          "payload": "{ orderId: @persistedOrder.id, reservedItems: @inventoryUpdate }",
+          "runIf": "@persistedOrder != null"
         },
         {
           "id": "step-17",
@@ -642,7 +695,8 @@
           "maturity": "committed",
           "topic": "order.confirmed",
           "eventRef": "order.confirmed",
-          "payload": "{ orderId: @newOrder.id, orderNumber: @newOrder.order_number, customerId: @inputs.customerId, totalAmount: @totalAmount, taxAmount: @taxAmount }"
+          "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, customerId: @inputs.customerId, totalAmount: @totalAmount, taxAmount: @taxAmount }",
+          "runIf": "@persistedOrder != null"
         },
         {
           "id": "step-18",
@@ -650,7 +704,8 @@
           "description": "201 Created を返す。",
           "maturity": "committed",
           "responseRef": "201-created",
-          "bodyExpression": "{ orderId: @newOrder.id, orderNumber: @newOrder.order_number, status: 'CONFIRMED', totalAmount: @totalAmount, taxAmount: @taxAmount }"
+          "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, status: 'CONFIRMED', totalAmount: @totalAmount, taxAmount: @taxAmount }",
+          "runIf": "@persistedOrder != null"
         }
       ]
     }

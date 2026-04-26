@@ -9,7 +9,7 @@
   "maturity": "committed",
   "eventsCatalog": {
     "inventory.searched": {
-      "description": "在庫照会リクエストを受け付け、結果を返した時点で発行されるイベント。検索条件と件数をペイロードに含む。",
+      "description": "在庫照会リクエストを受け付け、結果を返した時点で発行されるイベント。在庫レコードが存在する場合に発行 (0 件の場合は inventory.notFound を発行)。検索条件と件数をペイロードに含む。",
       "payload": {
         "type": "object",
         "required": ["requestId", "storeCode", "resultCount"],
@@ -118,8 +118,8 @@
       "title": "在庫低下アラートイベントは照会時に発行する",
       "status": "accepted",
       "context": "在庫が低下しているかどうかをリアルタイムで検知するため、照会タイミングで判定する設計にする。",
-      "decision": "照会結果の available_quantity が @conv.limit.lowStockThreshold 未満の場合、retail.inventory_low_detected イベントを発行する。発行はベストエフォート (fireAndForget)。",
-      "consequences": "照会するたびにアラートが発行され重複する可能性がある。下流コンシューマは冪等に処理する必要がある。",
+      "decision": "照会結果の中で available_quantity が @conv.limit.lowStockThreshold 未満の最初の 1 件のみ通知する (@fn.isLowStock を使用した .find() の動作)。retail.inventory_low_detected イベントを発行する。発行はベストエフォート (fireAndForget)。",
+      "consequences": "照会するたびにアラートが発行され重複する可能性がある。下流コンシューマは冪等に処理する必要がある。複数の低在庫商品が存在しても通知は最初の 1 件のみ (全件通知が必要な場合は設計変更が必要)。",
       "date": "2026-04-26"
     },
     {
@@ -152,11 +152,6 @@
       "defaultMessage": "入力値が不正です",
       "responseRef": "400-validation"
     },
-    "STORE_NOT_FOUND": {
-      "httpStatus": 404,
-      "defaultMessage": "指定の店舗が見つかりません",
-      "responseRef": "404-store-not-found"
-    },
     "PRODUCT_NOT_FOUND": {
       "httpStatus": 404,
       "defaultMessage": "指定の商品が見つかりません",
@@ -166,11 +161,6 @@
       "httpStatus": 500,
       "defaultMessage": "内部エラーが発生しました",
       "responseRef": "500-internal-error"
-    },
-    "SEARCH_LIMIT_EXCEEDED": {
-      "httpStatus": 400,
-      "defaultMessage": "検索条件が多すぎます",
-      "responseRef": "400-search-limit-exceeded"
     }
   },
   "externalSystemCatalog": {
@@ -277,7 +267,7 @@
         {
           "name": "items",
           "label": "在庫一覧",
-          "type": "string"
+          "type": "object[]"
         },
         {
           "name": "totalCount",
@@ -299,12 +289,6 @@
           "when": "入力値が不正"
         },
         {
-          "id": "404-store-not-found",
-          "status": 404,
-          "bodySchema": { "typeRef": "ApiError" },
-          "when": "指定の店舗が存在しない"
-        },
-        {
           "id": "404-product-not-found",
           "status": 404,
           "bodySchema": { "typeRef": "ApiError" },
@@ -315,12 +299,6 @@
           "status": 500,
           "bodySchema": { "typeRef": "ApiError" },
           "when": "予期しないエラー"
-        },
-        {
-          "id": "400-search-limit-exceeded",
-          "status": 400,
-          "bodySchema": { "typeRef": "ApiError" },
-          "when": "検索条件が多すぎる"
         }
       ],
       "steps": [
@@ -340,7 +318,7 @@
               "field": "productCode",
               "type": "regex",
               "condition": "@inputs.productCode != null && @inputs.productCode != ''",
-              "pattern": "^[A-Z0-9]{3,20}$",
+              "patternRef": "@conv.regex.product-code",
               "message": "商品コードは英大文字・数字 3〜20 文字で入力してください"
             }
           ],
@@ -368,7 +346,8 @@
           "cache": {
             "ttlSeconds": 300,
             "key": "product-@inputs.productCode",
-            "invalidateOn": ["products.updated"]
+            "invalidateOn": ["products.updated"],
+            "note": "products.updated は商品マスタ更新フロー (cross-flow) が発行するイベント。キャッシュ無効化はフロー外依存であり、商品マスタ更新フローとの連携が前提となる。"
           }
         },
         {
@@ -381,7 +360,7 @@
               "id": "br-03-a",
               "code": "A",
               "label": "商品なし",
-              "condition": "@inputs.productCode != null && @inputs.productCode != '' && @product == null",
+              "condition": "@inputs.productCode != null && @inputs.productCode != '' && (@product == null || @product == undefined)",
               "steps": [
                 {
                   "id": "step-03-a-01",
@@ -465,7 +444,7 @@
           "type": "compute",
           "description": "在庫一覧の中で available_quantity < @conv.limit.lowStockThreshold の最初の行を抽出する。",
           "maturity": "committed",
-          "expression": "@inventoryRows.find(r => r.available_quantity < @conv.limit.lowStockThreshold)",
+          "expression": "@inventoryRows.find(r => @fn.isLowStock(r.available_quantity, @conv.limit.lowStockThreshold))",
           "outputBinding": "lowStockRow"
         },
         {

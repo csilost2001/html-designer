@@ -334,6 +334,10 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "このキャッシュを無効化するイベント名またはトピック名のリスト"
+        },
+        "note": {
+          "type": "string",
+          "description": "キャッシュ設定に関する補足説明。cross-flow 依存や運用上の注意事項を記述する"
         }
       }
     },
@@ -719,7 +723,7 @@
 
     "FieldType": {
       "oneOf": [
-        { "type": "string", "enum": ["string", "number", "boolean", "date"] },
+        { "type": "string", "enum": ["string", "number", "boolean", "date", "object[]", "string[]", "number[]"] },
         {
           "description": "配列型。itemType で要素型を再帰的に表現。例: Array<{itemId, quantity}>",
           "type": "object",
@@ -983,6 +987,10 @@
           "description": "GeneXus 由来の動作種別 (#422 P2-3)。type とは別概念。省略時はランタイム既定 (通常 Error 相当)"
         },
         "pattern": { "type": "string" },
+        "patternRef": {
+          "type": "string",
+          "description": "type=regex 時のパターンを @conv.regex.* 参照で指定するバリアント (リテラル pattern の代替)。例: '@conv.regex.product-code'"
+        },
         "length": { "type": "integer", "minimum": 0 },
         "min": { "type": "number" },
         "max": { "type": "number" },
@@ -1021,7 +1029,18 @@
         },
         "ngJumpTo": { "type": "string" },
         "ngResponseRef": { "type": "string" },
-        "ngBodyExpression": { "type": "string" }
+        "ngBodyExpression": { "type": "string" },
+        "ngEventPublish": {
+          "type": "object",
+          "description": "ng 時に eventPublish を実行してから ngResponseRef を返す。",
+          "required": ["topic", "eventRef", "payload"],
+          "additionalProperties": false,
+          "properties": {
+            "topic": { "type": "string" },
+            "eventRef": { "type": "string" },
+            "payload": { "type": "string" }
+          }
+        }
       }
     },
     "ValidationStep": {
@@ -1273,7 +1292,12 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "responseSchema": {
+          "type": "object",
+          "description": "外部システム API のレスポンス JSON スキーマ (参考定義)。required / properties を記述する。",
+          "additionalProperties": true
+        }
       }
     },
     "ExternalSystemStep": {
@@ -1491,6 +1515,7 @@
         "id": { "type": "string" },
         "code": { "type": "string" },
         "label": { "type": "string" },
+        "description": { "type": "string" },
         "condition": { "$ref": "#/$defs/BranchCondition" },
         "steps": {
           "type": "array",
