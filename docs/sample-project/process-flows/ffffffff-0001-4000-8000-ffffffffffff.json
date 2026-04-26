@@ -12,11 +12,21 @@
       "description": "配送指示が受付済みとなり、shipment_orders に登録されると同時に在庫引当が完了した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "orderId", "warehouseLocation"],
+        "required": [
+          "shipmentId",
+          "orderId",
+          "warehouseLocation"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "orderId": { "type": "string" },
-          "warehouseLocation": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "warehouseLocation": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -25,11 +35,21 @@
       "description": "倉庫作業者がピッキングを完了し、shipment_orders が PICKED に遷移した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "operatorId", "pickedAt"],
+        "required": [
+          "shipmentId",
+          "operatorId",
+          "pickedAt"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "operatorId": { "type": "string" },
-          "pickedAt": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "operatorId": {
+            "type": "string"
+          },
+          "pickedAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -38,12 +58,24 @@
       "description": "運送会社コールバックで位置情報が更新された時点で発行されるイベント。冪等 UPSERT により重複更新は発火しない。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "trackingNumber", "status"],
+        "required": [
+          "shipmentId",
+          "trackingNumber",
+          "status"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "trackingNumber": { "type": "string" },
-          "status": { "type": "string" },
-          "location": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "trackingNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -52,11 +84,20 @@
       "description": "運送会社の delivered イベント受信後に shipment_orders が DELIVERED に遷移した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "deliveredAt"],
+        "required": [
+          "shipmentId",
+          "deliveredAt"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "deliveredAt": { "type": "string" },
-          "receiverName": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "deliveredAt": {
+            "type": "string"
+          },
+          "receiverName": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -65,11 +106,21 @@
       "description": "配送試行が失敗し、再配達または廃棄の判断フローが開始された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "failureReason", "attemptCount"],
+        "required": [
+          "shipmentId",
+          "failureReason",
+          "attemptCount"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "failureReason": { "type": "string" },
-          "attemptCount": { "type": "number" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "failureReason": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -78,52 +129,82 @@
   "glossary": {
     "配送指示": {
       "definition": "受注確定後に倉庫・運送手配を指示する業務単位。shipment_orders テーブルに 1 行作成される。",
-      "aliases": ["ShipmentOrder", "出荷指示"],
+      "aliases": [
+        "ShipmentOrder",
+        "出荷指示"
+      ],
       "domainRef": "shipment_orders"
     },
     "ピッキング": {
       "definition": "倉庫作業者が棚からロケーションを指定して商品を取り出す作業。モバイル端末を使って操作し、完了登録すると shipment_orders が PICKED に遷移する。",
-      "aliases": ["Picking", "ピックアップ"],
+      "aliases": [
+        "Picking",
+        "ピックアップ"
+      ],
       "domainRef": "shipment_orders.status"
     },
     "配送追跡": {
       "definition": "運送会社から受信する位置情報・配送ステータスの更新履歴。shipment_tracking テーブルで管理し、UPSERT_IDEMPOTENT で冪等に登録する。",
-      "aliases": ["TrackingUpdate", "配送トラッキング"],
+      "aliases": [
+        "TrackingUpdate",
+        "配送トラッキング"
+      ],
       "domainRef": "shipment_tracking"
     },
     "到着確認": {
       "definition": "配送完了 (DELIVERED) を示す運送会社コールバック受信後のステータス遷移確認処理。",
-      "aliases": ["DeliveryConfirmation", "配達確認"],
+      "aliases": [
+        "DeliveryConfirmation",
+        "配達確認"
+      ],
       "domainRef": "shipment_orders.status"
     },
     "在庫排他ロック引当": {
       "definition": "SELECT FOR UPDATE と UPDATE を組み合わせ、同時競合を防ぎながら商品在庫を引き当てる DB 操作。",
-      "aliases": ["LOCK_INVENTORY", "排他引当"],
+      "aliases": [
+        "LOCK_INVENTORY",
+        "排他引当"
+      ],
       "domainRef": "inventory"
     },
     "配送ステータス": {
       "definition": "配送指示の現在状態を示すコード。PENDING → PICKING → PICKED → IN_TRANSIT → DELIVERED の遷移を持つ。失敗時は FAILED を経由して RETRY または DISPOSED に分岐する。",
-      "aliases": ["DeliveryStatus", "出荷ステータス"],
+      "aliases": [
+        "DeliveryStatus",
+        "出荷ステータス"
+      ],
       "domainRef": "shipment_orders.status"
     },
     "追跡番号": {
       "definition": "運送会社が付与する荷物識別コード。配送追跡 API の検索キーになる。",
-      "aliases": ["TrackingNumber", "配送番号"],
+      "aliases": [
+        "TrackingNumber",
+        "配送番号"
+      ],
       "domainRef": "shipment_orders.tracking_number"
     },
     "補償処理": {
       "definition": "配送失敗時に在庫引当を取り消し、商品を返庫状態に戻す逆操作。compensatesFor で対応する引当 step を参照する。",
-      "aliases": ["Compensation", "取り消し処理"],
+      "aliases": [
+        "Compensation",
+        "取り消し処理"
+      ],
       "domainRef": "inventory"
     },
     "倉庫ロケーション": {
       "definition": "倉庫内で商品が保管されている棚・通路・番地を示す識別子。ピッキング作業の作業指示に使用する。",
-      "aliases": ["WarehouseLocation", "棚番"],
+      "aliases": [
+        "WarehouseLocation",
+        "棚番"
+      ],
       "domainRef": "inventory.location"
     },
     "冪等再送": {
       "definition": "同一 shipmentId と trackingNumber の配送追跡更新が重複して届いても副作用が起きないよう UPSERT_IDEMPOTENT で制御する方針。",
-      "aliases": ["Idempotent Retry", "重複排除"],
+      "aliases": [
+        "Idempotent Retry",
+        "重複排除"
+      ],
       "domainRef": "shipment_tracking"
     }
   },
@@ -247,7 +328,9 @@
   },
   "domainsCatalog": {
     "ShipmentId": {
-      "type": { "kind": "shipmentId" },
+      "type": {
+        "kind": "shipmentId"
+      },
       "description": "配送指示 ID。受付時に採番される。",
       "constraints": [
         {
@@ -259,15 +342,21 @@
       ]
     },
     "TrackingNumber": {
-      "type": { "kind": "trackingNumber" },
+      "type": {
+        "kind": "trackingNumber"
+      },
       "description": "運送会社が付与する追跡番号。"
     },
     "WarehouseLocation": {
-      "type": { "kind": "warehouseLocation" },
+      "type": {
+        "kind": "warehouseLocation"
+      },
       "description": "倉庫ロケーション識別子 (通路-棚-段)。"
     },
     "DeliveryStatus": {
-      "type": { "kind": "deliveryStatus" },
+      "type": {
+        "kind": "deliveryStatus"
+      },
       "description": "配送ステータス列挙。PENDING / PICKING / PICKED / IN_TRANSIT / DELIVERED / FAILED / RETRY / DISPOSED"
     }
   },
@@ -362,26 +451,55 @@
         {
           "id": "201-created",
           "status": 201,
-          "bodySchema": { "typeRef": "ShipmentCreatedResponse" },
+          "bodySchema": {
+            "typeRef": "ShipmentCreatedResponse"
+          },
           "when": "配送指示が作成され、運送会社へ依頼が送信された"
         },
         {
           "id": "400-validation",
           "status": 400,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "入力値が不正"
         },
         {
           "id": "422-inventory-shortage",
           "status": 422,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "在庫不足で引当できない"
         },
         {
           "id": "502-carrier-rejected",
           "status": 502,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "運送会社が配送依頼を拒否"
+        },
+        {
+          "id": "404-shipment-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-invalid-status-transition",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-carrier-timeout",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -442,7 +560,9 @@
           "maturity": "committed",
           "isolationLevel": "REPEATABLE_READ",
           "propagation": "REQUIRED",
-          "rollbackOn": ["INVENTORY_SHORTAGE"],
+          "rollbackOn": [
+            "INVENTORY_SHORTAGE"
+          ],
           "outputBinding": "shipmentTxResult",
           "steps": [
             {
@@ -455,7 +575,9 @@
               "sql": "SELECT id, product_code, available_qty, reserved_qty FROM inventory WHERE product_code = @inputs.productCode AND warehouse_id = @inputs.warehouseId FOR UPDATE",
               "outputBinding": "inventoryRow",
               "lineage": {
-                "reads": ["inventory"]
+                "reads": [
+                  "inventory"
+                ]
               },
               "affectedRowsCheck": {
                 "operator": ">=",
@@ -474,7 +596,9 @@
               "operation": "UPDATE",
               "sql": "UPDATE inventory SET available_qty = available_qty - @inputs.quantity, reserved_qty = reserved_qty + @inputs.quantity, updated_at = NOW() WHERE product_code = @inputs.productCode AND warehouse_id = @inputs.warehouseId",
               "lineage": {
-                "writes": ["inventory"]
+                "writes": [
+                  "inventory"
+                ]
               }
             },
             {
@@ -488,7 +612,9 @@
               "sql": "INSERT INTO shipment_orders (order_id, product_code, quantity, warehouse_id, warehouse_location, delivery_address, requested_delivery_date, status, attempt_count, created_by, created_at) VALUES (@inputs.orderId, @inputs.productCode, @inputs.quantity, @inputs.warehouseId, @warehouseLocation, @inputs.deliveryAddress, @inputs.requestedDeliveryDate, 'PENDING', 0, @sessionUserId, NOW()) RETURNING id",
               "outputBinding": "newShipment",
               "lineage": {
-                "writes": ["shipment_orders"]
+                "writes": [
+                  "shipment_orders"
+                ]
               }
             }
           ]
@@ -529,9 +655,16 @@
           "idempotencyKey": "@inputs.idempotencyKey ?? @requestId",
           "outputBinding": "carrierResult",
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "continue" },
-            "timeout": { "action": "continue", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "continue"
+            },
+            "timeout": {
+              "action": "continue",
+              "sameAs": "failure"
+            }
           },
           "operationRef": "/openapi/carrier-api#CreateDeliveryOrder"
         },
@@ -556,7 +689,11 @@
                   "tableName": "inventory",
                   "operation": "UPDATE",
                   "sql": "UPDATE inventory SET available_qty = available_qty + @inputs.quantity, reserved_qty = reserved_qty - @inputs.quantity, updated_at = NOW() WHERE product_code = @inputs.productCode AND warehouse_id = @inputs.warehouseId",
-                  "lineage": { "writes": ["inventory"] },
+                  "lineage": {
+                    "writes": [
+                      "inventory"
+                    ]
+                  },
                   "compensatesFor": "step-03-03"
                 },
                 {
@@ -567,7 +704,11 @@
                   "tableName": "shipment_orders",
                   "operation": "UPDATE",
                   "sql": "UPDATE shipment_orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = @newShipment.id",
-                  "lineage": { "writes": ["shipment_orders"] },
+                  "lineage": {
+                    "writes": [
+                      "shipment_orders"
+                    ]
+                  },
                   "compensatesFor": "step-03-04"
                 },
                 {
@@ -596,7 +737,11 @@
           "tableName": "shipment_orders",
           "operation": "UPDATE",
           "sql": "UPDATE shipment_orders SET tracking_number = @carrierResult.trackingNumber, status = 'PICKING', updated_at = NOW() WHERE id = @newShipment.id",
-          "lineage": { "writes": ["shipment_orders"] }
+          "lineage": {
+            "writes": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-09",
@@ -684,26 +829,55 @@
         {
           "id": "200-ok",
           "status": 200,
-          "bodySchema": { "typeRef": "TrackingUpdateResponse" },
+          "bodySchema": {
+            "typeRef": "TrackingUpdateResponse"
+          },
           "when": "追跡更新を処理した"
         },
         {
           "id": "400-validation",
           "status": 400,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "入力値が不正"
         },
         {
           "id": "404-shipment-not-found",
           "status": 404,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "配送指示が存在しない"
         },
         {
           "id": "409-invalid-status-transition",
           "status": 409,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "現在のステータスからの遷移は許可されていない"
+        },
+        {
+          "id": "422-inventory-shortage",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-carrier-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-carrier-timeout",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -727,7 +901,13 @@
             {
               "field": "status",
               "type": "enum",
-              "values": ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"],
+              "values": [
+                "PICKED_UP",
+                "IN_TRANSIT",
+                "OUT_FOR_DELIVERY",
+                "DELIVERED",
+                "FAILED"
+              ],
               "message": "status が不正です"
             },
             {
@@ -753,7 +933,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, tracking_number, status, attempt_count, product_code, quantity, warehouse_id FROM shipment_orders WHERE id = @inputs.shipmentId",
           "outputBinding": "shipment",
-          "lineage": { "reads": ["shipment_orders"] }
+          "lineage": {
+            "reads": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-03",
@@ -800,7 +984,11 @@
           "operation": "UPSERT_IDEMPOTENT",
           "sql": "INSERT INTO shipment_tracking (shipment_id, tracking_number, status, location, updated_at, created_at) VALUES (@inputs.shipmentId, @inputs.trackingNumber, @inputs.status, @inputs.location, @inputs.updatedAt, NOW()) ON CONFLICT (shipment_id, tracking_number, status, updated_at) DO NOTHING RETURNING id",
           "outputBinding": "trackingRow",
-          "lineage": { "writes": ["shipment_tracking"] }
+          "lineage": {
+            "writes": [
+              "shipment_tracking"
+            ]
+          }
         },
         {
           "id": "step-05b",
@@ -850,7 +1038,11 @@
                   "operation": "UPDATE",
                   "sql": "UPDATE shipment_orders SET status = 'DELIVERED', delivered_at = @inputs.updatedAt, receiver_name = @inputs.receiverName, signature_ref = @inputs.signatureRef, updated_at = NOW() WHERE id = @inputs.shipmentId AND status = 'IN_TRANSIT' RETURNING status",
                   "outputBinding": "deliveredShipment",
-                  "lineage": { "writes": ["shipment_orders"] }
+                  "lineage": {
+                    "writes": [
+                      "shipment_orders"
+                    ]
+                  }
                 },
                 {
                   "id": "step-07-a-03",
@@ -875,9 +1067,16 @@
                   },
                   "fireAndForget": true,
                   "outcomes": {
-                    "success": { "action": "continue" },
-                    "failure": { "action": "continue" },
-                    "timeout": { "action": "continue", "sameAs": "failure" }
+                    "success": {
+                      "action": "continue"
+                    },
+                    "failure": {
+                      "action": "continue"
+                    },
+                    "timeout": {
+                      "action": "continue",
+                      "sameAs": "failure"
+                    }
                   }
                 },
                 {
@@ -904,7 +1103,11 @@
                   "operation": "UPDATE",
                   "sql": "UPDATE shipment_orders SET status = 'FAILED', attempt_count = attempt_count + 1, failure_reason = @inputs.failureReason, updated_at = NOW() WHERE id = @inputs.shipmentId RETURNING attempt_count",
                   "outputBinding": "failedShipment",
-                  "lineage": { "writes": ["shipment_orders"] }
+                  "lineage": {
+                    "writes": [
+                      "shipment_orders"
+                    ]
+                  }
                 },
                 {
                   "id": "step-07-b-02",
@@ -935,7 +1138,11 @@
                           "tableName": "shipment_orders",
                           "operation": "UPDATE",
                           "sql": "UPDATE shipment_orders SET status = 'DISPOSED', updated_at = NOW() WHERE id = @inputs.shipmentId",
-                          "lineage": { "writes": ["shipment_orders"] }
+                          "lineage": {
+                            "writes": [
+                              "shipment_orders"
+                            ]
+                          }
                         },
                         {
                           "id": "step-07-b-03-disp-02",
@@ -945,7 +1152,11 @@
                           "tableName": "inventory",
                           "operation": "UPDATE",
                           "sql": "UPDATE inventory SET reserved_qty = reserved_qty - @shipment.quantity, updated_at = NOW() WHERE product_code = @shipment.product_code AND warehouse_id = @shipment.warehouse_id",
-                          "lineage": { "writes": ["inventory"] }
+                          "lineage": {
+                            "writes": [
+                              "inventory"
+                            ]
+                          }
                         },
                         {
                           "id": "step-07-b-03-disp-03",
@@ -970,7 +1181,11 @@
                         "tableName": "shipment_orders",
                         "operation": "UPDATE",
                         "sql": "UPDATE shipment_orders SET status = 'RETRY', updated_at = NOW() WHERE id = @inputs.shipmentId",
-                        "lineage": { "writes": ["shipment_orders"] }
+                        "lineage": {
+                          "writes": [
+                            "shipment_orders"
+                          ]
+                        }
                       },
                       {
                         "id": "step-07-b-03-retry-02",
@@ -998,7 +1213,11 @@
                 "tableName": "shipment_orders",
                 "operation": "UPDATE",
                 "sql": "UPDATE shipment_orders SET status = 'IN_TRANSIT', updated_at = NOW() WHERE id = @inputs.shipmentId",
-                "lineage": { "writes": ["shipment_orders"] }
+                "lineage": {
+                  "writes": [
+                    "shipment_orders"
+                  ]
+                }
               },
               {
                 "id": "step-07-c-02",
@@ -1056,26 +1275,55 @@
         {
           "id": "200-ok",
           "status": 200,
-          "bodySchema": { "typeRef": "PickingCompleteResponse" },
+          "bodySchema": {
+            "typeRef": "PickingCompleteResponse"
+          },
           "when": "ピッキング完了が登録された"
         },
         {
           "id": "400-validation",
           "status": 400,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "入力値が不正"
         },
         {
           "id": "404-shipment-not-found",
           "status": 404,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "配送指示が存在しない"
         },
         {
           "id": "409-invalid-status-transition",
           "status": 409,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "PICKING 状態でない配送指示へのピッキング完了は許可されない"
+        },
+        {
+          "id": "422-inventory-shortage",
+          "status": 422,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-carrier-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-carrier-timeout",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -1119,7 +1367,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, product_code, quantity, warehouse_id, status FROM shipment_orders WHERE id = @inputs.shipmentId",
           "outputBinding": "shipment",
-          "lineage": { "reads": ["shipment_orders"] }
+          "lineage": {
+            "reads": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-03",
@@ -1185,7 +1437,11 @@
           "tableName": "shipment_orders",
           "operation": "UPDATE",
           "sql": "UPDATE shipment_orders SET status = 'PICKED', picked_by = @inputs.operatorId, picked_at = @pickingResult.pickedAt, updated_at = NOW() WHERE id = @inputs.shipmentId",
-          "lineage": { "writes": ["shipment_orders"] }
+          "lineage": {
+            "writes": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-06",
@@ -1278,17 +1534,29 @@
         {
           "kind": "dbRow",
           "table": "inventory",
-          "match": { "product_code": "PROD-A", "warehouse_id": "WH-01", "available_qty": 90, "reserved_qty": 10 },
+          "match": {
+            "product_code": "PROD-A",
+            "warehouse_id": "WH-01",
+            "available_qty": 90,
+            "reserved_qty": 10
+          },
           "count": 1
         },
         {
           "kind": "externalCall",
           "externalRef": "carrierApi",
           "method": "POST",
-          "bodyMatch": { "productCode": "PROD-A", "quantity": 10 }
+          "bodyMatch": {
+            "productCode": "PROD-A",
+            "quantity": 10
+          }
         }
       ],
-      "tags": ["happy", "shipment", "act-001"]
+      "tags": [
+        "happy",
+        "shipment",
+        "act-001"
+      ]
     },
     {
       "id": "validation-error-missing-product-code",
@@ -1323,7 +1591,11 @@
           "msgKey": "商品コードは必須です"
         }
       ],
-      "tags": ["error", "validation", "act-001"]
+      "tags": [
+        "error",
+        "validation",
+        "act-001"
+      ]
     },
     {
       "id": "inventory-shortage",
@@ -1369,17 +1641,27 @@
         {
           "kind": "dbRow",
           "table": "shipment_orders",
-          "match": { "order_id": "ORD-486-003" },
+          "match": {
+            "order_id": "ORD-486-003"
+          },
           "count": 0
         },
         {
           "kind": "dbRow",
           "table": "inventory",
-          "match": { "product_code": "PROD-B", "available_qty": 3, "reserved_qty": 0 },
+          "match": {
+            "product_code": "PROD-B",
+            "available_qty": 3,
+            "reserved_qty": 0
+          },
           "count": 1
         }
       ],
-      "tags": ["error", "inventory", "act-001"]
+      "tags": [
+        "error",
+        "inventory",
+        "act-001"
+      ]
     },
     {
       "id": "idempotent-tracking-callback",
@@ -1454,7 +1736,11 @@
           "count": 1
         }
       ],
-      "tags": ["idempotency", "callback", "act-002"]
+      "tags": [
+        "idempotency",
+        "callback",
+        "act-002"
+      ]
     },
     {
       "id": "delivery-failed-dispose-after-max-attempts",
@@ -1523,17 +1809,28 @@
         {
           "kind": "dbRow",
           "table": "shipment_orders",
-          "match": { "id": "SHP-2026-00000002", "status": "DISPOSED", "attempt_count": 4 },
+          "match": {
+            "id": "SHP-2026-00000002",
+            "status": "DISPOSED",
+            "attempt_count": 4
+          },
           "count": 1
         },
         {
           "kind": "dbRow",
           "table": "inventory",
-          "match": { "product_code": "PROD-C", "reserved_qty": 0 },
+          "match": {
+            "product_code": "PROD-C",
+            "reserved_qty": 0
+          },
           "count": 1
         }
       ],
-      "tags": ["failure", "dispose", "act-002"]
+      "tags": [
+        "failure",
+        "dispose",
+        "act-002"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

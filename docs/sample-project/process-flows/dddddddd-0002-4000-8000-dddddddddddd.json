@@ -11,13 +11,29 @@
       "description": "口座 × 銘柄単位のポジション更新が完了した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["positionId", "accountId", "securityCode", "quantity", "pnl"],
+        "required": [
+          "positionId",
+          "accountId",
+          "securityCode",
+          "quantity",
+          "pnl"
+        ],
         "properties": {
-          "positionId": { "type": "string" },
-          "accountId": { "type": "string" },
-          "securityCode": { "type": "string" },
-          "quantity": { "type": "number" },
-          "pnl": { "type": "number" }
+          "positionId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "securityCode": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "pnl": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -26,12 +42,25 @@
       "description": "BLOCK 判定時のみ発行。与信使用率、VaR、または集中リスクの閾値を超過した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["riskCheckId", "accountId", "threshold", "actual"],
+        "required": [
+          "riskCheckId",
+          "accountId",
+          "threshold",
+          "actual"
+        ],
         "properties": {
-          "riskCheckId": { "type": "string" },
-          "accountId": { "type": "string" },
-          "threshold": { "type": "number" },
-          "actual": { "type": "number" }
+          "riskCheckId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "actual": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -40,11 +69,21 @@
       "description": "短時間損失閾値により CircuitBreaker が発動した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["accountId", "recentLoss", "windowMinutes"],
+        "required": [
+          "accountId",
+          "recentLoss",
+          "windowMinutes"
+        ],
         "properties": {
-          "accountId": { "type": "string" },
-          "recentLoss": { "type": "number" },
-          "windowMinutes": { "type": "number" }
+          "accountId": {
+            "type": "string"
+          },
+          "recentLoss": {
+            "type": "number"
+          },
+          "windowMinutes": {
+            "type": "number"
+          }
         },
         "additionalProperties": false
       }
@@ -53,11 +92,26 @@
       "description": "取引前リスクチェックが ALLOW / WATCH / BLOCK の判定を返した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["riskCheckId", "accountId", "verdict"],
+        "required": [
+          "riskCheckId",
+          "accountId",
+          "verdict"
+        ],
         "properties": {
-          "riskCheckId": { "type": "string" },
-          "accountId": { "type": "string" },
-          "verdict": { "type": "string", "enum": ["ALLOW", "WATCH", "BLOCK"] }
+          "riskCheckId": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "ALLOW",
+              "WATCH",
+              "BLOCK"
+            ]
+          }
         },
         "additionalProperties": false
       }
@@ -66,37 +120,54 @@
   "glossary": {
     "ポジション": {
       "definition": "口座が保有する銘柄別の建玉。売買区分、数量、平均取得単価、評価損益を含む。",
-      "aliases": ["Position", "建玉"],
+      "aliases": [
+        "Position",
+        "建玉"
+      ],
       "domainRef": "Position"
     },
     "VaR": {
       "definition": "一定信頼水準で想定される最大損失額。日次バッチはヒストリカル法、リアルタイム判定は parametric VaR を用いる。",
-      "aliases": ["Value at Risk"],
+      "aliases": [
+        "Value at Risk"
+      ],
       "domainRef": "VaR"
     },
     "与信使用率": {
       "definition": "現在エクスポージャと推定 VaR の合計を与信限度額で除した比率。",
-      "aliases": ["Credit usage ratio"],
+      "aliases": [
+        "Credit usage ratio"
+      ],
       "domainRef": "credit_limits.usage_ratio"
     },
     "集中リスク": {
       "definition": "特定銘柄、セクター、または市場にポジションが偏ることで損失が拡大するリスク。",
-      "aliases": ["Concentration risk"],
+      "aliases": [
+        "Concentration risk"
+      ],
       "domainRef": "risk_limits.concentration"
     },
     "循環ブレーカー": {
       "definition": "5分間累積損失が閾値を超過した場合に新規ポジション更新や注文許可を一時停止する制御。",
-      "aliases": ["CircuitBreaker", "サーキットブレーカー"],
+      "aliases": [
+        "CircuitBreaker",
+        "サーキットブレーカー"
+      ],
       "domainRef": "risk_controls.circuit_breaker"
     },
     "SLA": {
       "definition": "リスクチェックが業務上許容される応答時間内に完了することを保証するサービスレベル。",
-      "aliases": ["Service Level Agreement"],
+      "aliases": [
+        "Service Level Agreement"
+      ],
       "domainRef": "risk_sla"
     },
     "マージン": {
       "definition": "ポジション保有や注文執行に必要な証拠金。リスクチェックでは利用可能額と比較する。",
-      "aliases": ["証拠金", "Margin"],
+      "aliases": [
+        "証拠金",
+        "Margin"
+      ],
       "domainRef": "margin_accounts"
     }
   },
@@ -185,14 +256,20 @@
     "marketDataService": {
       "name": "Market Data Service",
       "baseUrl": "https://market-data.example.internal",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.marketDataApiToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.marketDataApiToken"
+      },
       "timeoutMs": 1000,
       "description": "現在値、終値、ボラティリティ、250営業日ヒストリカル価格を提供する市場データサービス。"
     },
     "riskEngine": {
       "name": "Risk Engine",
       "baseUrl": "https://risk-engine.example.internal",
-      "auth": { "kind": "bearer", "tokenRef": "@secret.riskEngineApiToken" },
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.riskEngineApiToken"
+      },
       "timeoutMs": 2000,
       "description": "VaR、集中リスク、与信使用率、CircuitBreaker 状態を計算・保持するリスクエンジン。"
     }
@@ -218,11 +295,15 @@
       "description": "ポジション ID。accountId × securityCode の論理一意キーから導出する。"
     },
     "Position": {
-      "type": { "kind": "position" },
+      "type": {
+        "kind": "position"
+      },
       "description": "口座 × 銘柄単位の保有数量、平均取得単価、時価、損益を表す。"
     },
     "Pnl": {
-      "type": { "kind": "pnl" },
+      "type": {
+        "kind": "pnl"
+      },
       "description": "評価損益または実現損益。"
     },
     "VaR": {
@@ -234,7 +315,12 @@
       "type": "number",
       "uiHint": "number",
       "constraints": [
-        { "field": "quantity", "type": "range", "min": 1, "message": "数量は 1 以上で入力してください" }
+        {
+          "field": "quantity",
+          "type": "range",
+          "min": 1,
+          "message": "数量は 1 以上で入力してください"
+        }
       ],
       "description": "注文数量または約定数量。"
     },
@@ -242,7 +328,12 @@
       "type": "number",
       "uiHint": "number",
       "constraints": [
-        { "field": "price", "type": "range", "min": 0, "message": "価格は 0 以上で入力してください" }
+        {
+          "field": "price",
+          "type": "range",
+          "min": 0,
+          "message": "価格は 0 以上で入力してください"
+        }
       ],
       "description": "注文価格、約定価格、または現在値。"
     },
@@ -257,19 +348,25 @@
       "signature": "calcPnl(position: Position, currentPrice: number): number",
       "returnType": "number",
       "description": "ポジションの平均取得単価と現在値から評価損益を算出する。",
-      "examples": ["@fn.calcPnl(@position, @currentPrice)"]
+      "examples": [
+        "@fn.calcPnl(@position, @currentPrice)"
+      ]
     },
     "calcVaR": {
       "signature": "calcVaR(positions: Position[], confidence: number): number",
       "returnType": "number",
       "description": "ポジション集合と信頼水準から VaR を算出する。",
-      "examples": ["@fn.calcVaR(@projectedPositions, 0.99)"]
+      "examples": [
+        "@fn.calcVaR(@projectedPositions, 0.99)"
+      ]
     },
     "checkCircuitBreaker": {
       "signature": "checkCircuitBreaker(accountId: AccountId, recentLoss: number): boolean",
       "returnType": "boolean",
       "description": "口座別の損失閾値に対して CircuitBreaker 発動要否を判定する。内部で account.loss_threshold と比較。",
-      "examples": ["@fn.checkCircuitBreaker(@account, @recentLoss)"]
+      "examples": [
+        "@fn.checkCircuitBreaker(@account, @recentLoss)"
+      ]
     }
   },
   "actions": [
@@ -285,17 +382,64 @@
         "auth": "required"
       },
       "inputs": [
-        { "name": "orderId", "label": "注文 ID", "type": "string", "required": true },
-        { "name": "tradeId", "label": "約定 ID", "type": "string", "required": true },
-        { "name": "accountId", "label": "口座 ID", "type": "string", "required": true, "domainRef": "AccountId" },
-        { "name": "securityCode", "label": "銘柄コード", "type": "string", "required": true },
-        { "name": "executedQty", "label": "約定数量", "type": "number", "required": true, "domainRef": "Quantity" },
-        { "name": "executedPrice", "label": "約定価格", "type": "number", "required": true, "domainRef": "Price" },
-        { "name": "side", "label": "売買区分", "type": "string", "required": true }
+        {
+          "name": "orderId",
+          "label": "注文 ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "tradeId",
+          "label": "約定 ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "accountId",
+          "label": "口座 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "AccountId"
+        },
+        {
+          "name": "securityCode",
+          "label": "銘柄コード",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "executedQty",
+          "label": "約定数量",
+          "type": "number",
+          "required": true,
+          "domainRef": "Quantity"
+        },
+        {
+          "name": "executedPrice",
+          "label": "約定価格",
+          "type": "number",
+          "required": true,
+          "domainRef": "Price"
+        },
+        {
+          "name": "side",
+          "label": "売買区分",
+          "type": "string",
+          "required": true
+        }
       ],
       "outputs": [
-        { "name": "positionId", "label": "ポジション ID", "type": "string", "domainRef": "PositionId" },
-        { "name": "status", "label": "ステータス", "type": "string" }
+        {
+          "name": "positionId",
+          "label": "ポジション ID",
+          "type": "string",
+          "domainRef": "PositionId"
+        },
+        {
+          "name": "status",
+          "label": "ステータス",
+          "type": "string"
+        }
       ],
       "responses": [
         {
@@ -304,10 +448,21 @@
           "bodySchema": {
             "schema": {
               "type": "object",
-              "required": ["positionId", "status"],
+              "required": [
+                "positionId",
+                "status"
+              ],
               "properties": {
-                "positionId": { "type": "string" },
-                "status": { "type": "string", "enum": ["UPDATED", "CIRCUIT_BROKEN"] }
+                "positionId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "UPDATED",
+                    "CIRCUIT_BROKEN"
+                  ]
+                }
               },
               "additionalProperties": false
             }
@@ -317,14 +472,46 @@
         {
           "id": "422-risk-threshold-breached",
           "status": 422,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "リスク閾値超過を検出した場合"
         },
         {
           "id": "503-circuit-broken",
           "status": 503,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "CircuitBreaker が発動した場合"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "404-position-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-sla-exceeded",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-external-failure",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -335,13 +522,47 @@
           "maturity": "committed",
           "conditions": "必須項目、executedQty > 0、executedPrice >= 0、side は BUY/SELL。",
           "rules": [
-            { "field": "orderId", "type": "required", "message": "注文 ID は必須です" },
-            { "field": "tradeId", "type": "required", "message": "約定 ID は必須です" },
-            { "field": "accountId", "type": "required", "message": "口座 ID は必須です" },
-            { "field": "securityCode", "type": "required", "message": "銘柄コードは必須です" },
-            { "field": "executedQty", "type": "range", "min": 1, "message": "約定数量は 1 以上です" },
-            { "field": "executedPrice", "type": "range", "min": 0, "message": "約定価格は 0 以上です" },
-            { "field": "side", "type": "enum", "values": ["BUY", "SELL"], "message": "売買区分は BUY/SELL です" }
+            {
+              "field": "orderId",
+              "type": "required",
+              "message": "注文 ID は必須です"
+            },
+            {
+              "field": "tradeId",
+              "type": "required",
+              "message": "約定 ID は必須です"
+            },
+            {
+              "field": "accountId",
+              "type": "required",
+              "message": "口座 ID は必須です"
+            },
+            {
+              "field": "securityCode",
+              "type": "required",
+              "message": "銘柄コードは必須です"
+            },
+            {
+              "field": "executedQty",
+              "type": "range",
+              "min": 1,
+              "message": "約定数量は 1 以上です"
+            },
+            {
+              "field": "executedPrice",
+              "type": "range",
+              "min": 0,
+              "message": "約定価格は 0 以上です"
+            },
+            {
+              "field": "side",
+              "type": "enum",
+              "values": [
+                "BUY",
+                "SELL"
+              ],
+              "message": "売買区分は BUY/SELL です"
+            }
           ]
         },
         {
@@ -353,7 +574,9 @@
           "propagation": "REQUIRED",
           "rollbackOn": [],
           "outcomes": {
-            "failure": { "action": "abort" }
+            "failure": {
+              "action": "abort"
+            }
           },
           "steps": [
             {
@@ -379,7 +602,11 @@
               "operation": "UPDATE",
               "sql": "UPDATE positions SET quantity = CASE WHEN @inputs.side = 'BUY' THEN quantity + @inputs.executedQty ELSE quantity - @inputs.executedQty END, average_cost = CASE WHEN @inputs.side = 'BUY' THEN ((quantity * average_cost) + (@inputs.executedQty * @inputs.executedPrice)) / NULLIF(quantity + @inputs.executedQty, 0) ELSE average_cost END, updated_at = NOW() WHERE id = @position.position_id RETURNING id AS position_id, quantity, average_cost",
               "outputBinding": "position",
-              "lineage": { "writes": ["positions"] }
+              "lineage": {
+                "writes": [
+                  "positions"
+                ]
+              }
             }
           ]
         },
@@ -395,9 +622,16 @@
             "path": "/prices/@inputs.securityCode/current"
           },
           "outcomes": {
-            "success": { "action": "continue" },
-            "failure": { "action": "abort" },
-            "timeout": { "action": "abort", "sameAs": "failure" }
+            "success": {
+              "action": "continue"
+            },
+            "failure": {
+              "action": "abort"
+            },
+            "timeout": {
+              "action": "abort",
+              "sameAs": "failure"
+            }
           },
           "outputBinding": "currentPrice"
         },
@@ -418,7 +652,11 @@
           "operation": "SELECT",
           "sql": "SELECT COALESCE(SUM(loss_amount), 0) AS recent_loss FROM pnl_snapshots WHERE account_id = @inputs.accountId AND created_at >= NOW() - INTERVAL '5 minutes'",
           "outputBinding": "recentLoss",
-          "lineage": { "reads": ["pnl_snapshots"] }
+          "lineage": {
+            "reads": [
+              "pnl_snapshots"
+            ]
+          }
         },
         {
           "id": "step-006",
@@ -429,7 +667,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, loss_threshold, circuit_breaker_enabled FROM accounts WHERE id = @inputs.accountId",
           "outputBinding": "account",
-          "lineage": { "reads": ["accounts"] }
+          "lineage": {
+            "reads": [
+              "accounts"
+            ]
+          }
         },
         {
           "id": "step-007",
@@ -457,7 +699,10 @@
                   "description": "CircuitBreaker 発動を監査ログに記録する。",
                   "maturity": "committed",
                   "action": "risk.circuit_breaker",
-                  "resource": { "type": "Account", "id": "@inputs.accountId" },
+                  "resource": {
+                    "type": "Account",
+                    "id": "@inputs.accountId"
+                  },
                   "result": "failure",
                   "reason": "recentLoss threshold breached"
                 },
@@ -519,16 +764,56 @@
         "auth": "required"
       },
       "inputs": [
-        { "name": "accountId", "label": "口座 ID", "type": "string", "required": true, "domainRef": "AccountId" },
-        { "name": "securityCode", "label": "銘柄コード", "type": "string", "required": true },
-        { "name": "side", "label": "売買区分", "type": "string", "required": true },
-        { "name": "quantity", "label": "数量", "type": "number", "required": true, "domainRef": "Quantity" },
-        { "name": "price", "label": "価格", "type": "number", "required": true, "domainRef": "Price" }
+        {
+          "name": "accountId",
+          "label": "口座 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "AccountId"
+        },
+        {
+          "name": "securityCode",
+          "label": "銘柄コード",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "side",
+          "label": "売買区分",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "number",
+          "required": true,
+          "domainRef": "Quantity"
+        },
+        {
+          "name": "price",
+          "label": "価格",
+          "type": "number",
+          "required": true,
+          "domainRef": "Price"
+        }
       ],
       "outputs": [
-        { "name": "riskCheckId", "label": "リスクチェック ID", "type": "string" },
-        { "name": "verdict", "label": "判定", "type": "string" },
-        { "name": "message", "label": "メッセージ", "type": "string" }
+        {
+          "name": "riskCheckId",
+          "label": "リスクチェック ID",
+          "type": "string"
+        },
+        {
+          "name": "verdict",
+          "label": "判定",
+          "type": "string"
+        },
+        {
+          "name": "message",
+          "label": "メッセージ",
+          "type": "string"
+        }
       ],
       "responses": [
         {
@@ -537,11 +822,26 @@
           "bodySchema": {
             "schema": {
               "type": "object",
-              "required": ["riskCheckId", "verdict", "message"],
+              "required": [
+                "riskCheckId",
+                "verdict",
+                "message"
+              ],
               "properties": {
-                "riskCheckId": { "type": "string" },
-                "verdict": { "type": "string", "enum": ["ALLOW", "WATCH", "BLOCK"] },
-                "message": { "type": "string" }
+                "riskCheckId": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "ALLOW",
+                    "WATCH",
+                    "BLOCK"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
               },
               "additionalProperties": false
             }
@@ -551,8 +851,45 @@
         {
           "id": "422-risk-threshold-breached",
           "status": 422,
-          "bodySchema": { "typeRef": "ApiError" },
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
           "when": "BLOCK 判定の場合"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "404-position-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "503-circuit-broken",
+          "status": 503,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "504-sla-exceeded",
+          "status": 504,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-external-failure",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
         }
       ],
       "steps": [
@@ -563,11 +900,37 @@
           "maturity": "committed",
           "conditions": "必須項目、quantity > 0、price >= 0、side は BUY/SELL。",
           "rules": [
-            { "field": "accountId", "type": "required", "message": "口座 ID は必須です" },
-            { "field": "securityCode", "type": "required", "message": "銘柄コードは必須です" },
-            { "field": "side", "type": "enum", "values": ["BUY", "SELL"], "message": "売買区分は BUY/SELL です" },
-            { "field": "quantity", "type": "range", "min": 1, "message": "数量は 1 以上です" },
-            { "field": "price", "type": "range", "min": 0, "message": "価格は 0 以上です" }
+            {
+              "field": "accountId",
+              "type": "required",
+              "message": "口座 ID は必須です"
+            },
+            {
+              "field": "securityCode",
+              "type": "required",
+              "message": "銘柄コードは必須です"
+            },
+            {
+              "field": "side",
+              "type": "enum",
+              "values": [
+                "BUY",
+                "SELL"
+              ],
+              "message": "売買区分は BUY/SELL です"
+            },
+            {
+              "field": "quantity",
+              "type": "range",
+              "min": 1,
+              "message": "数量は 1 以上です"
+            },
+            {
+              "field": "price",
+              "type": "range",
+              "min": 0,
+              "message": "価格は 0 以上です"
+            }
           ]
         },
         {
@@ -579,7 +942,11 @@
           "operation": "SELECT",
           "sql": "SELECT * FROM positions WHERE account_id = @inputs.accountId AND security_code = @inputs.securityCode",
           "outputBinding": "currentPosition",
-          "lineage": { "reads": ["positions"] }
+          "lineage": {
+            "reads": [
+              "positions"
+            ]
+          }
         },
         {
           "id": "step-103",
@@ -598,7 +965,11 @@
           "operation": "SELECT",
           "sql": "SELECT credit_limit, current_exposure FROM credit_limits WHERE account_id = @inputs.accountId",
           "outputBinding": "credit",
-          "lineage": { "reads": ["credit_limits"] }
+          "lineage": {
+            "reads": [
+              "credit_limits"
+            ]
+          }
         },
         {
           "id": "step-105",
@@ -628,7 +999,11 @@
                   "tableName": "risk_check_log",
                   "operation": "INSERT",
                   "sql": "INSERT INTO risk_check_log (risk_check_id, account_id, security_code, verdict, usage_ratio, created_at) VALUES (@riskCheckId, @inputs.accountId, @inputs.securityCode, 'BLOCK', @usage, NOW())",
-                  "lineage": { "writes": ["risk_check_log"] }
+                  "lineage": {
+                    "writes": [
+                      "risk_check_log"
+                    ]
+                  }
                 },
                 {
                   "id": "step-106-a-02",
@@ -700,7 +1075,11 @@
           "tableName": "risk_check_log",
           "operation": "INSERT",
           "sql": "INSERT INTO risk_check_log (risk_check_id, account_id, security_code, verdict, usage_ratio, created_at) VALUES (@riskCheckId, @inputs.accountId, @inputs.securityCode, @riskVerdict.verdict, @usage, NOW())",
-          "lineage": { "writes": ["risk_check_log"] }
+          "lineage": {
+            "writes": [
+              "risk_check_log"
+            ]
+          }
         },
         {
           "id": "step-108",
@@ -729,11 +1108,46 @@
       "id": "happy-position-update",
       "name": "通常約定でポジション更新と PnL 計算が成功する",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T09:00:00.000Z" },
-        { "kind": "sessionContext", "context": { "requestId": "req-463-happy", "marketDate": "2026-04-26", "riskCheckId": "RISK-463-001" } },
-        { "kind": "dbState", "table": "positions", "rows": [{ "position_id": "POS-001", "account_id": "ACC-001", "security_code": "7203", "quantity": 100, "average_cost": 3000 }] },
-        { "kind": "dbState", "table": "pnl_snapshots", "rows": [] },
-        { "kind": "externalStub", "externalRef": "marketDataService", "responseMock": { "status": 200, "body": { "price": 3100 } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T09:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-463-happy",
+            "marketDate": "2026-04-26",
+            "riskCheckId": "RISK-463-001"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "positions",
+          "rows": [
+            {
+              "position_id": "POS-001",
+              "account_id": "ACC-001",
+              "security_code": "7203",
+              "quantity": 100,
+              "average_cost": 3000
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "pnl_snapshots",
+          "rows": []
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "marketDataService",
+          "responseMock": {
+            "status": 200,
+            "body": {
+              "price": 3100
+            }
+          }
+        }
       ],
       "when": {
         "actionId": "act-001",
@@ -748,20 +1162,68 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "200-ok" },
-        { "kind": "output", "path": "$.status", "equals": "UPDATED" },
-        { "kind": "dbRow", "table": "positions", "match": { "account_id": "ACC-001", "security_code": "7203" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-ok"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "UPDATED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "positions",
+          "match": {
+            "account_id": "ACC-001",
+            "security_code": "7203"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["happy", "position", "pnl"]
+      "tags": [
+        "happy",
+        "position",
+        "pnl"
+      ]
     },
     {
       "id": "circuit-broken-on-loss-threshold",
       "name": "累積損失が閾値を超え CircuitBreaker 503 になる",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T09:05:00.000Z" },
-        { "kind": "sessionContext", "context": { "requestId": "req-463-circuit", "marketDate": "2026-04-26" } },
-        { "kind": "dbState", "table": "accounts", "rows": [{ "id": "ACC-002", "loss_threshold": 1000000, "circuit_breaker_enabled": true }] },
-        { "kind": "dbState", "table": "pnl_snapshots", "rows": [{ "account_id": "ACC-002", "loss_amount": 1500000, "created_at": "2026-04-26T09:04:00.000Z" }] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T09:05:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-463-circuit",
+            "marketDate": "2026-04-26"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "accounts",
+          "rows": [
+            {
+              "id": "ACC-002",
+              "loss_threshold": 1000000,
+              "circuit_breaker_enabled": true
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "pnl_snapshots",
+          "rows": [
+            {
+              "account_id": "ACC-002",
+              "loss_amount": 1500000,
+              "created_at": "2026-04-26T09:04:00.000Z"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-001",
@@ -776,18 +1238,58 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "503-circuit-broken" },
-        { "kind": "auditLog", "action": "risk.circuit_breaker", "result": "failure" }
+        {
+          "kind": "outcome",
+          "expected": "503-circuit-broken"
+        },
+        {
+          "kind": "auditLog",
+          "action": "risk.circuit_breaker",
+          "result": "failure"
+        }
       ],
-      "tags": ["risk", "circuit-breaker", "error"]
+      "tags": [
+        "risk",
+        "circuit-breaker",
+        "error"
+      ]
     },
     {
       "id": "pre-trade-check-block",
       "name": "VaR 超過で BLOCK 判定になる",
       "given": [
-        { "kind": "sessionContext", "context": { "requestId": "req-463-block", "marketDate": "2026-04-26", "riskCheckId": "RISK-463-003" } },
-        { "kind": "dbState", "table": "positions", "rows": [{ "position_id": "POS-003", "account_id": "ACC-003", "security_code": "9984", "quantity": 1000, "average_cost": 8000 }] },
-        { "kind": "dbState", "table": "credit_limits", "rows": [{ "account_id": "ACC-003", "credit_limit": 10000000, "current_exposure": 9200000 }] }
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-463-block",
+            "marketDate": "2026-04-26",
+            "riskCheckId": "RISK-463-003"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "positions",
+          "rows": [
+            {
+              "position_id": "POS-003",
+              "account_id": "ACC-003",
+              "security_code": "9984",
+              "quantity": 1000,
+              "average_cost": 8000
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "credit_limits",
+          "rows": [
+            {
+              "account_id": "ACC-003",
+              "credit_limit": 10000000,
+              "current_exposure": 9200000
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-002",
@@ -800,11 +1302,30 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "422-risk-threshold-breached" },
-        { "kind": "output", "path": "$.verdict", "equals": "BLOCK" },
-        { "kind": "dbRow", "table": "risk_check_log", "match": { "account_id": "ACC-003", "verdict": "BLOCK" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "422-risk-threshold-breached"
+        },
+        {
+          "kind": "output",
+          "path": "$.verdict",
+          "equals": "BLOCK"
+        },
+        {
+          "kind": "dbRow",
+          "table": "risk_check_log",
+          "match": {
+            "account_id": "ACC-003",
+            "verdict": "BLOCK"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["risk", "var", "block"]
+      "tags": [
+        "risk",
+        "var",
+        "block"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",

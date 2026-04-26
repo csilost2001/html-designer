@@ -12,13 +12,29 @@
       "description": "受注確定からの連鎖で配送指示が shipment_orders に登録され、対象在庫が排他ロックされた時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "orderId", "warehouseId", "status"],
+        "required": [
+          "shipmentId",
+          "orderId",
+          "warehouseId",
+          "status"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "orderId": { "type": "string" },
-          "warehouseId": { "type": "string" },
-          "status": { "type": "string", "const": "PLANNED" },
-          "plannedShipAt": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "const": "PLANNED"
+          },
+          "plannedShipAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -27,11 +43,20 @@
       "description": "倉庫作業者が対象配送指示のピッキングを完了し、shipment_orders が PICKED に遷移した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "operatorId"],
+        "required": [
+          "shipmentId",
+          "operatorId"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "operatorId": { "type": "string" },
-          "pickedAt": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "operatorId": {
+            "type": "string"
+          },
+          "pickedAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -40,15 +65,31 @@
       "description": "運送会社からの追跡コールバックで tracking_events に新規行を冪等登録し、shipment_orders の current_status を反映した時点で発行されるイベント。冪等 no-op 経路では発行しない。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "trackingNumber", "status"],
+        "required": [
+          "shipmentId",
+          "trackingNumber",
+          "status"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "trackingNumber": { "type": "string" },
+          "shipmentId": {
+            "type": "string"
+          },
+          "trackingNumber": {
+            "type": "string"
+          },
           "status": {
             "type": "string",
-            "enum": ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "RETURNED"]
+            "enum": [
+              "IN_TRANSIT",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "FAILED",
+              "RETURNED"
+            ]
           },
-          "checkpointAt": { "type": "string" }
+          "checkpointAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -57,12 +98,28 @@
       "description": "顧客への到着確認 (受領サイン / 写真 / 不在票) が delivery_confirmations に記録され、shipment_orders が DELIVERED に確定した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "confirmationKind"],
+        "required": [
+          "shipmentId",
+          "confirmationKind"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "confirmationKind": { "type": "string", "enum": ["SIGNATURE", "PHOTO", "ABSENT_NOTICE"] },
-          "receivedBy": { "type": "string" },
-          "confirmedAt": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "confirmationKind": {
+            "type": "string",
+            "enum": [
+              "SIGNATURE",
+              "PHOTO",
+              "ABSENT_NOTICE"
+            ]
+          },
+          "receivedBy": {
+            "type": "string"
+          },
+          "confirmedAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -71,11 +128,21 @@
       "description": "配送失敗 (FAILED) を受信し、再配達枠の上限内で次回配達日時が決定された時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "attemptCount", "nextAttemptAt"],
+        "required": [
+          "shipmentId",
+          "attemptCount",
+          "nextAttemptAt"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "attemptCount": { "type": "number" },
-          "nextAttemptAt": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "type": "number"
+          },
+          "nextAttemptAt": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -84,11 +151,20 @@
       "description": "再配達上限を超過し、荷物を発荷元へ返送する判断が確定した時点で発行されるイベント。",
       "payload": {
         "type": "object",
-        "required": ["shipmentId", "attemptCount"],
+        "required": [
+          "shipmentId",
+          "attemptCount"
+        ],
         "properties": {
-          "shipmentId": { "type": "string" },
-          "attemptCount": { "type": "number" },
-          "reason": { "type": "string" }
+          "shipmentId": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
@@ -97,47 +173,74 @@
   "glossary": {
     "配送指示": {
       "definition": "受注確定後に倉庫・運送会社に対して発行する出荷の業務単位。1 配送指示 = 1 荷物 (複数明細を含み得る)。",
-      "aliases": ["Shipment Order", "出荷指示"],
+      "aliases": [
+        "Shipment Order",
+        "出荷指示"
+      ],
       "domainRef": "shipment_orders"
     },
     "ピッキング": {
       "definition": "倉庫作業者が指定された商品を保管ロケーションから取り出し、出荷準備エリアへ搬送する工程。",
-      "aliases": ["Picking", "出庫作業"],
+      "aliases": [
+        "Picking",
+        "出庫作業"
+      ],
       "domainRef": "shipment_orders.status:PICKED"
     },
     "追跡番号": {
       "definition": "運送会社が個別荷物に付番する一意識別子。配送状況照会と顧客通知に利用する。",
-      "aliases": ["Tracking Number", "問い合わせ番号"],
+      "aliases": [
+        "Tracking Number",
+        "問い合わせ番号"
+      ],
       "domainRef": "shipment_orders.tracking_number"
     },
     "倉庫ロケーション": {
       "definition": "倉庫内の棚・通路・段で表される保管位置。ピッキング順は通常ロケーションの巡回順で最適化する。",
-      "aliases": ["Warehouse Location", "棚番地"],
+      "aliases": [
+        "Warehouse Location",
+        "棚番地"
+      ],
       "domainRef": "parts_inventory.location_code"
     },
     "配送ステータス": {
       "definition": "荷物の現在状態。PLANNED / PICKED / IN_TRANSIT / OUT_FOR_DELIVERY / DELIVERED / FAILED / RETURNED の状態機械を構成する。",
-      "aliases": ["Delivery Status", "現在ステータス"],
+      "aliases": [
+        "Delivery Status",
+        "現在ステータス"
+      ],
       "domainRef": "shipment_orders.current_status"
     },
     "在庫排他ロック": {
       "definition": "配送指示登録時に対象在庫を SELECT ... FOR UPDATE で pessimistic ロックし、同一在庫への二重引当を物理的に防ぐ運用方針。",
-      "aliases": ["Inventory Lock", "排他在庫引当"],
+      "aliases": [
+        "Inventory Lock",
+        "排他在庫引当"
+      ],
       "domainRef": "parts_inventory.locked_qty"
     },
     "再配達": {
       "definition": "1 度配達失敗した荷物に対して、上限回数 (規約値) 内で次回配達日時を再設定する処理。",
-      "aliases": ["Redelivery", "再配達依頼"],
+      "aliases": [
+        "Redelivery",
+        "再配達依頼"
+      ],
       "domainRef": "shipment_orders.delivery_attempts"
     },
     "受領確認": {
       "definition": "顧客手元に荷物が届いた事実を確認する記録。受領サイン / 配達写真 / 不在票投函のいずれかの方式で行う。",
-      "aliases": ["Proof of Delivery", "POD"],
+      "aliases": [
+        "Proof of Delivery",
+        "POD"
+      ],
       "domainRef": "delivery_confirmations"
     },
     "返送": {
       "definition": "再配達上限を超過した、または受取拒否された荷物を発荷元 (倉庫) へ送り返す業務。",
-      "aliases": ["Return", "返品輸送"],
+      "aliases": [
+        "Return",
+        "返品輸送"
+      ],
       "domainRef": "shipment_orders.status:RETURNED"
     }
   },
@@ -293,7 +396,9 @@
   },
   "domainsCatalog": {
     "ShipmentId": {
-      "type": { "kind": "shipmentId" },
+      "type": {
+        "kind": "shipmentId"
+      },
       "uiHint": "text",
       "description": "配送指示 ID。配送指示登録時に採番される。"
     },
@@ -303,17 +408,23 @@
       "description": "受注 ID。配送指示の親となる注文識別子。"
     },
     "TrackingNumber": {
-      "type": { "kind": "trackingNumber" },
+      "type": {
+        "kind": "trackingNumber"
+      },
       "uiHint": "text",
       "description": "運送会社が付番する追跡番号。"
     },
     "WarehouseLocation": {
-      "type": { "kind": "warehouseLocation" },
+      "type": {
+        "kind": "warehouseLocation"
+      },
       "uiHint": "text",
       "description": "倉庫内の保管ロケーション。"
     },
     "DeliveryStatus": {
-      "type": { "kind": "deliveryStatus" },
+      "type": {
+        "kind": "deliveryStatus"
+      },
       "uiHint": "text",
       "description": "配送ステータス。PLANNED/PICKED/IN_TRANSIT/OUT_FOR_DELIVERY/DELIVERED/FAILED/RETURNED の状態機械。"
     },
@@ -321,7 +432,12 @@
       "type": "number",
       "uiHint": "number",
       "constraints": [
-        { "field": "quantity", "type": "range", "min": 1, "message": "数量は 1 以上で入力してください" }
+        {
+          "field": "quantity",
+          "type": "range",
+          "min": 1,
+          "message": "数量は 1 以上で入力してください"
+        }
       ],
       "description": "配送指示明細の数量。"
     }
@@ -372,21 +488,148 @@
         "path": "/internal/shipment/create-from-order",
         "auth": "required"
       },
-      "requiredPermissions": ["system"],
+      "requiredPermissions": [
+        "system"
+      ],
       "inputs": [
-        { "name": "orderId", "label": "受注 ID", "type": "string", "required": true, "domainRef": "OrderId" },
-        { "name": "warehouseId", "label": "発荷倉庫 ID", "type": "string", "required": false, "description": "未指定なら @fn.selectWarehouseRoute で自動選択。" },
-        { "name": "items", "label": "明細", "type": { "kind": "array", "itemType": "string" }, "required": true, "description": "明細を JSON 文字列または structured object として配列で受ける (例: [{ partNumber, quantity, location? }] 形式)。" }
+        {
+          "name": "orderId",
+          "label": "受注 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "OrderId"
+        },
+        {
+          "name": "warehouseId",
+          "label": "発荷倉庫 ID",
+          "type": "string",
+          "required": false,
+          "description": "未指定なら @fn.selectWarehouseRoute で自動選択。"
+        },
+        {
+          "name": "items",
+          "label": "明細",
+          "type": {
+            "kind": "array",
+            "itemType": "string"
+          },
+          "required": true,
+          "description": "明細を JSON 文字列または structured object として配列で受ける (例: [{ partNumber, quantity, location? }] 形式)。"
+        }
       ],
       "outputs": [
-        { "name": "shipmentId", "label": "配送指示 ID", "type": "string", "domainRef": "ShipmentId" },
-        { "name": "status", "label": "配送ステータス", "type": "string", "domainRef": "DeliveryStatus" }
+        {
+          "name": "shipmentId",
+          "label": "配送指示 ID",
+          "type": "string",
+          "domainRef": "ShipmentId"
+        },
+        {
+          "name": "status",
+          "label": "配送ステータス",
+          "type": "string",
+          "domainRef": "DeliveryStatus"
+        }
       ],
       "responses": [
-        { "id": "201-created", "status": 201, "bodySchema": { "schema": { "type": "object", "required": ["shipmentId", "status"], "properties": { "shipmentId": { "type": "string" }, "status": { "type": "string", "const": "PLANNED" }, "plannedShipAt": { "type": "string" } }, "additionalProperties": false } }, "when": "配送指示が登録され WMS にピッキング指示を送信した" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
-        { "id": "404-order-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "対象 order が存在しない" },
-        { "id": "409-stock-shortage", "status": 409, "bodySchema": { "schema": { "type": "object", "required": ["code"], "properties": { "code": { "type": "string", "const": "STOCK_SHORTAGE" }, "message": { "type": "string" } }, "additionalProperties": false } }, "when": "在庫不足 (LOCK_INVENTORY+UPDATE の affectedRowsCheck で検出)" }
+        {
+          "id": "201-created",
+          "status": 201,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "shipmentId",
+                "status"
+              ],
+              "properties": {
+                "shipmentId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "const": "PLANNED"
+                },
+                "plannedShipAt": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "配送指示が登録され WMS にピッキング指示を送信した"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-order-not-found",
+          "status": 404,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "対象 order が存在しない"
+        },
+        {
+          "id": "409-stock-shortage",
+          "status": 409,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "const": "STOCK_SHORTAGE"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "在庫不足 (LOCK_INVENTORY+UPDATE の affectedRowsCheck で検出)"
+        },
+        {
+          "id": "404-shipment-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "200-already-processed",
+          "status": 200,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-carrier-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
         {
@@ -396,10 +639,27 @@
           "maturity": "committed",
           "conditions": "orderId は必須。items は 1 件以上、各 items[*].partNumber と quantity > 0 が必須。",
           "rules": [
-            { "field": "orderId", "type": "required", "message": "受注 ID は必須です" },
-            { "field": "items", "type": "required", "message": "明細は必須です" },
-            { "field": "items[*].partNumber", "type": "required", "message": "明細の部品番号は必須です" },
-            { "field": "items[*].quantity", "type": "range", "min": 1, "message": "数量は 1 以上で入力してください" }
+            {
+              "field": "orderId",
+              "type": "required",
+              "message": "受注 ID は必須です"
+            },
+            {
+              "field": "items",
+              "type": "required",
+              "message": "明細は必須です"
+            },
+            {
+              "field": "items[*].partNumber",
+              "type": "required",
+              "message": "明細の部品番号は必須です"
+            },
+            {
+              "field": "items[*].quantity",
+              "type": "range",
+              "min": 1,
+              "message": "数量は 1 以上で入力してください"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -418,7 +678,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, customer_id, status FROM orders WHERE id = @inputs.orderId",
           "outputBinding": "order",
-          "lineage": { "reads": ["orders"] }
+          "lineage": {
+            "reads": [
+              "orders"
+            ]
+          }
         },
         {
           "id": "step-001-03",
@@ -482,7 +746,9 @@
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
           "outputBinding": "txResult",
-          "rollbackOn": ["STOCK_SHORTAGE"],
+          "rollbackOn": [
+            "STOCK_SHORTAGE"
+          ],
           "steps": [
             {
               "id": "step-001-05-01",
@@ -493,7 +759,11 @@
               "operation": "LOCK_INVENTORY",
               "sql": "SELECT part_number, location_code, available_qty, locked_qty FROM parts_inventory WHERE warehouse_id = @selectedWarehouseId AND part_number IN (SELECT i.partNumber FROM UNNEST(@inputs.items) AS i) FOR UPDATE",
               "outputBinding": "lockedInventory",
-              "lineage": { "reads": ["parts_inventory"] }
+              "lineage": {
+                "reads": [
+                  "parts_inventory"
+                ]
+              }
             },
             {
               "id": "step-001-05-02",
@@ -504,7 +774,11 @@
               "operation": "UPDATE",
               "sql": "UPDATE parts_inventory SET locked_qty = locked_qty + i.quantity, available_qty = available_qty - i.quantity, updated_at = NOW() FROM UNNEST(@inputs.items) AS i WHERE parts_inventory.warehouse_id = @selectedWarehouseId AND parts_inventory.part_number = i.partNumber AND parts_inventory.available_qty >= i.quantity",
               "outputBinding": "reservedInventory",
-              "lineage": { "writes": ["parts_inventory"] },
+              "lineage": {
+                "writes": [
+                  "parts_inventory"
+                ]
+              },
               "affectedRowsCheck": {
                 "operator": ">",
                 "expected": 0,
@@ -521,7 +795,11 @@
               "tableName": "shipment_orders",
               "operation": "INSERT",
               "sql": "INSERT INTO shipment_orders (id, order_id, warehouse_id, current_status, planned_ship_at, requested_by, delivery_attempts, created_at) VALUES (@newShipmentId, @inputs.orderId, @selectedWarehouseId, 'PLANNED', @plannedShipAt, @sessionUserId, 0, NOW())",
-              "lineage": { "writes": ["shipment_orders"] }
+              "lineage": {
+                "writes": [
+                  "shipment_orders"
+                ]
+              }
             }
           ]
         },
@@ -543,7 +821,10 @@
                   "description": "在庫不足を監査ログに記録する。",
                   "maturity": "committed",
                   "action": "shipment.create",
-                  "resource": { "type": "Order", "id": "@inputs.orderId" },
+                  "resource": {
+                    "type": "Order",
+                    "id": "@inputs.orderId"
+                  },
                   "result": "failure",
                   "reason": "STOCK_SHORTAGE",
                   "sensitive": false
@@ -587,7 +868,9 @@
                 },
                 "idempotencyKey": "wms-pick-@newShipmentId",
                 "outcomes": {
-                  "success": { "action": "continue" },
+                  "success": {
+                    "action": "continue"
+                  },
                   "failure": {
                     "action": "continue",
                     "sideEffects": [
@@ -597,14 +880,20 @@
                         "description": "WMS 連携失敗を監査ログに記録する (運用検知用)。",
                         "maturity": "committed",
                         "action": "wms.picking-order",
-                        "resource": { "type": "ShipmentOrder", "id": "@newShipmentId" },
+                        "resource": {
+                          "type": "ShipmentOrder",
+                          "id": "@newShipmentId"
+                        },
                         "result": "failure",
                         "reason": "WMS_UNAVAILABLE",
                         "sensitive": false
                       }
                     ]
                   },
-                  "timeout": { "action": "continue", "sameAs": "failure" }
+                  "timeout": {
+                    "action": "continue",
+                    "sameAs": "failure"
+                  }
                 }
               },
               {
@@ -632,19 +921,129 @@
         "auth": "required"
       },
       "inputs": [
-        { "name": "shipmentId", "label": "配送指示 ID", "type": { "kind": "shipmentId" }, "required": true, "domainRef": "ShipmentId" },
-        { "name": "operatorId", "label": "作業者 ID", "type": "string", "required": true },
-        { "name": "scannedItems", "label": "走査済み商品 ID リスト", "type": { "kind": "array", "itemType": "string" }, "required": true, "description": "倉庫モバイル端末でバーコード走査した商品 ID の配列 (string)。" }
+        {
+          "name": "shipmentId",
+          "label": "配送指示 ID",
+          "type": {
+            "kind": "shipmentId"
+          },
+          "required": true,
+          "domainRef": "ShipmentId"
+        },
+        {
+          "name": "operatorId",
+          "label": "作業者 ID",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "scannedItems",
+          "label": "走査済み商品 ID リスト",
+          "type": {
+            "kind": "array",
+            "itemType": "string"
+          },
+          "required": true,
+          "description": "倉庫モバイル端末でバーコード走査した商品 ID の配列 (string)。"
+        }
       ],
       "outputs": [
-        { "name": "shipmentId", "label": "配送指示 ID", "type": "string", "domainRef": "ShipmentId" },
-        { "name": "status", "label": "配送ステータス", "type": "string", "domainRef": "DeliveryStatus" }
+        {
+          "name": "shipmentId",
+          "label": "配送指示 ID",
+          "type": "string",
+          "domainRef": "ShipmentId"
+        },
+        {
+          "name": "status",
+          "label": "配送ステータス",
+          "type": "string",
+          "domainRef": "DeliveryStatus"
+        }
       ],
       "responses": [
-        { "id": "200-picked", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["shipmentId", "status"], "properties": { "shipmentId": { "type": "string" }, "status": { "type": "string", "const": "PICKED" } }, "additionalProperties": false } }, "when": "ピッキング完了 + shipment_orders を PICKED に遷移" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
-        { "id": "404-shipment-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "対象 shipment が存在しない" },
-        { "id": "409-invalid-state-transition", "status": 409, "bodySchema": { "schema": { "type": "object" } }, "when": "shipment が PLANNED 以外 (前提状態違反)" }
+        {
+          "id": "200-picked",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "shipmentId",
+                "status"
+              ],
+              "properties": {
+                "shipmentId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "const": "PICKED"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "ピッキング完了 + shipment_orders を PICKED に遷移"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-shipment-not-found",
+          "status": 404,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "対象 shipment が存在しない"
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "shipment が PLANNED 以外 (前提状態違反)"
+        },
+        {
+          "id": "404-order-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-stock-shortage",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "200-already-processed",
+          "status": 200,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "502-carrier-rejected",
+          "status": 502,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
         {
@@ -654,9 +1053,21 @@
           "maturity": "committed",
           "conditions": "shipmentId/operatorId は必須。scannedItems は 1 件以上。",
           "rules": [
-            { "field": "shipmentId", "type": "required", "message": "配送指示 ID は必須です" },
-            { "field": "operatorId", "type": "required", "message": "作業者 ID は必須です" },
-            { "field": "scannedItems", "type": "required", "message": "走査済み商品リストは必須です" }
+            {
+              "field": "shipmentId",
+              "type": "required",
+              "message": "配送指示 ID は必須です"
+            },
+            {
+              "field": "operatorId",
+              "type": "required",
+              "message": "作業者 ID は必須です"
+            },
+            {
+              "field": "scannedItems",
+              "type": "required",
+              "message": "走査済み商品リストは必須です"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -675,7 +1086,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, current_status, warehouse_id, order_id FROM shipment_orders WHERE id = @inputs.shipmentId",
           "outputBinding": "shipment",
-          "lineage": { "reads": ["shipment_orders"] }
+          "lineage": {
+            "reads": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-002-03",
@@ -754,7 +1169,10 @@
                   "description": "走査漏れを監査ログに記録する (運用検知)。",
                   "maturity": "committed",
                   "action": "shipment.pick",
-                  "resource": { "type": "ShipmentOrder", "id": "@inputs.shipmentId" },
+                  "resource": {
+                    "type": "ShipmentOrder",
+                    "id": "@inputs.shipmentId"
+                  },
                   "result": "failure",
                   "reason": "PICKING_INCOMPLETE",
                   "sensitive": false
@@ -784,7 +1202,11 @@
                 "operation": "UPDATE",
                 "sql": "UPDATE shipment_orders SET current_status = 'PICKED', picked_at = NOW(), updated_at = NOW() WHERE id = @inputs.shipmentId AND current_status = 'PLANNED' RETURNING id, current_status",
                 "outputBinding": "updatedShipment",
-                "lineage": { "writes": ["shipment_orders"] },
+                "lineage": {
+                  "writes": [
+                    "shipment_orders"
+                  ]
+                },
                 "affectedRowsCheck": {
                   "operator": ">",
                   "expected": 0,
@@ -799,7 +1221,10 @@
                 "description": "ピッキング完了を監査ログに記録する。",
                 "maturity": "committed",
                 "action": "shipment.pick",
-                "resource": { "type": "ShipmentOrder", "id": "@inputs.shipmentId" },
+                "resource": {
+                  "type": "ShipmentOrder",
+                  "id": "@inputs.shipmentId"
+                },
                 "result": "success",
                 "reason": "PICKED",
                 "sensitive": false
@@ -837,26 +1262,171 @@
         "path": "/internal/carrier-callback/tracking-update",
         "auth": "required"
       },
-      "requiredPermissions": ["system"],
+      "requiredPermissions": [
+        "system"
+      ],
       "inputs": [
-        { "name": "trackingNumber", "label": "追跡番号", "type": { "kind": "trackingNumber" }, "required": true, "domainRef": "TrackingNumber" },
-        { "name": "shipmentId", "label": "配送指示 ID", "type": { "kind": "shipmentId" }, "required": true, "domainRef": "ShipmentId" },
-        { "name": "status", "label": "配送ステータス", "type": { "kind": "deliveryStatus" }, "required": true, "domainRef": "DeliveryStatus" },
-        { "name": "checkpointAt", "label": "チェックポイント時刻", "type": "string", "required": true },
-        { "name": "checkpointLocation", "label": "チェックポイント拠点", "type": "string", "required": false },
-        { "name": "receivedBy", "label": "受領者氏名 (DELIVERED 時)", "type": "string", "required": false },
-        { "name": "confirmationKind", "label": "受領種別 (DELIVERED 時)", "type": "string", "required": false }
+        {
+          "name": "trackingNumber",
+          "label": "追跡番号",
+          "type": {
+            "kind": "trackingNumber"
+          },
+          "required": true,
+          "domainRef": "TrackingNumber"
+        },
+        {
+          "name": "shipmentId",
+          "label": "配送指示 ID",
+          "type": {
+            "kind": "shipmentId"
+          },
+          "required": true,
+          "domainRef": "ShipmentId"
+        },
+        {
+          "name": "status",
+          "label": "配送ステータス",
+          "type": {
+            "kind": "deliveryStatus"
+          },
+          "required": true,
+          "domainRef": "DeliveryStatus"
+        },
+        {
+          "name": "checkpointAt",
+          "label": "チェックポイント時刻",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "checkpointLocation",
+          "label": "チェックポイント拠点",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "receivedBy",
+          "label": "受領者氏名 (DELIVERED 時)",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "confirmationKind",
+          "label": "受領種別 (DELIVERED 時)",
+          "type": "string",
+          "required": false
+        }
       ],
       "outputs": [
-        { "name": "shipmentId", "label": "配送指示 ID", "type": "string", "domainRef": "ShipmentId" },
-        { "name": "status", "label": "現在ステータス", "type": "string", "domainRef": "DeliveryStatus" }
+        {
+          "name": "shipmentId",
+          "label": "配送指示 ID",
+          "type": "string",
+          "domainRef": "ShipmentId"
+        },
+        {
+          "name": "status",
+          "label": "現在ステータス",
+          "type": "string",
+          "domainRef": "DeliveryStatus"
+        }
       ],
       "responses": [
-        { "id": "200-updated", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["shipmentId", "status"], "properties": { "shipmentId": { "type": "string" }, "status": { "type": "string" } }, "additionalProperties": false } }, "when": "新規追跡更新を反映した" },
-        { "id": "200-already-processed", "status": 200, "bodySchema": { "schema": { "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "const": "ALREADY_PROCESSED" } }, "additionalProperties": false } }, "when": "同一 (trackingNumber, checkpointAt) が既に登録済みで no-op" },
-        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
-        { "id": "404-shipment-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "対象 shipment が存在しない" },
-        { "id": "502-carrier-rejected", "status": 502, "bodySchema": { "schema": { "type": "object" } }, "when": "DELIVERED 時に customerNotification 必須経路で運送会社情報不整合" }
+        {
+          "id": "200-updated",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "shipmentId",
+                "status"
+              ],
+              "properties": {
+                "shipmentId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "新規追跡更新を反映した"
+        },
+        {
+          "id": "200-already-processed",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "ALREADY_PROCESSED"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "when": "同一 (trackingNumber, checkpointAt) が既に登録済みで no-op"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-shipment-not-found",
+          "status": 404,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "対象 shipment が存在しない"
+        },
+        {
+          "id": "502-carrier-rejected",
+          "status": 502,
+          "bodySchema": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "when": "DELIVERED 時に customerNotification 必須経路で運送会社情報不整合"
+        },
+        {
+          "id": "404-order-not-found",
+          "status": 404,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-stock-shortage",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        },
+        {
+          "id": "409-invalid-state-transition",
+          "status": 409,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          }
+        }
       ],
       "steps": [
         {
@@ -866,12 +1436,50 @@
           "maturity": "committed",
           "conditions": "trackingNumber/shipmentId/status/checkpointAt は必須。status は IN_TRANSIT/OUT_FOR_DELIVERY/DELIVERED/FAILED/RETURNED のいずれか。status==DELIVERED の場合 confirmationKind は必須。",
           "rules": [
-            { "field": "trackingNumber", "type": "required", "message": "追跡番号は必須です" },
-            { "field": "shipmentId", "type": "required", "message": "配送指示 ID は必須です" },
-            { "field": "status", "type": "enum", "values": ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "RETURNED"], "message": "配送ステータスが不正です" },
-            { "field": "checkpointAt", "type": "required", "message": "チェックポイント時刻は必須です" },
-            { "field": "confirmationKind", "type": "required", "condition": "@inputs.status == 'DELIVERED'", "message": "DELIVERED 時は受領種別 (confirmationKind) が必須です" },
-            { "field": "confirmationKind", "type": "enum", "condition": "@inputs.status == 'DELIVERED'", "values": ["SIGNATURE", "PHOTO", "ABSENT_NOTICE"], "message": "受領種別は SIGNATURE/PHOTO/ABSENT_NOTICE のいずれかです" }
+            {
+              "field": "trackingNumber",
+              "type": "required",
+              "message": "追跡番号は必須です"
+            },
+            {
+              "field": "shipmentId",
+              "type": "required",
+              "message": "配送指示 ID は必須です"
+            },
+            {
+              "field": "status",
+              "type": "enum",
+              "values": [
+                "IN_TRANSIT",
+                "OUT_FOR_DELIVERY",
+                "DELIVERED",
+                "FAILED",
+                "RETURNED"
+              ],
+              "message": "配送ステータスが不正です"
+            },
+            {
+              "field": "checkpointAt",
+              "type": "required",
+              "message": "チェックポイント時刻は必須です"
+            },
+            {
+              "field": "confirmationKind",
+              "type": "required",
+              "condition": "@inputs.status == 'DELIVERED'",
+              "message": "DELIVERED 時は受領種別 (confirmationKind) が必須です"
+            },
+            {
+              "field": "confirmationKind",
+              "type": "enum",
+              "condition": "@inputs.status == 'DELIVERED'",
+              "values": [
+                "SIGNATURE",
+                "PHOTO",
+                "ABSENT_NOTICE"
+              ],
+              "message": "受領種別は SIGNATURE/PHOTO/ABSENT_NOTICE のいずれかです"
+            }
           ],
           "fieldErrorsVar": "fieldErrors",
           "inlineBranch": {
@@ -890,7 +1498,11 @@
           "operation": "SELECT",
           "sql": "SELECT id, current_status, tracking_number, delivery_attempts, order_id FROM shipment_orders WHERE id = @inputs.shipmentId",
           "outputBinding": "shipment",
-          "lineage": { "reads": ["shipment_orders"] }
+          "lineage": {
+            "reads": [
+              "shipment_orders"
+            ]
+          }
         },
         {
           "id": "step-003-03",
@@ -931,7 +1543,11 @@
           "operation": "UPSERT_IDEMPOTENT",
           "sql": "INSERT INTO tracking_events (tracking_number, shipment_id, status, checkpoint_at, checkpoint_location, request_id, created_at) VALUES (@inputs.trackingNumber, @inputs.shipmentId, @inputs.status, @inputs.checkpointAt, @inputs.checkpointLocation, @requestId, NOW()) ON CONFLICT (tracking_number, checkpoint_at) DO NOTHING RETURNING id",
           "outputBinding": "upsertedTrack",
-          "lineage": { "writes": ["tracking_events"] }
+          "lineage": {
+            "writes": [
+              "tracking_events"
+            ]
+          }
         },
         {
           "id": "step-003-05",
@@ -988,7 +1604,9 @@
                         "isolationLevel": "READ_COMMITTED",
                         "propagation": "REQUIRED",
                         "outputBinding": "deliveredTxResult",
-                        "rollbackOn": ["INVALID_STATE_TRANSITION"],
+                        "rollbackOn": [
+                          "INVALID_STATE_TRANSITION"
+                        ],
                         "steps": [
                           {
                             "id": "step-003-05-new-02-delivered-01-01",
@@ -998,7 +1616,11 @@
                             "tableName": "delivery_confirmations",
                             "operation": "INSERT",
                             "sql": "INSERT INTO delivery_confirmations (shipment_id, tracking_number, confirmation_kind, received_by, confirmed_at, created_at) VALUES (@inputs.shipmentId, @inputs.trackingNumber, @inputs.confirmationKind, @inputs.receivedBy, @inputs.checkpointAt, NOW())",
-                            "lineage": { "writes": ["delivery_confirmations"] }
+                            "lineage": {
+                              "writes": [
+                                "delivery_confirmations"
+                              ]
+                            }
                           },
                           {
                             "id": "step-003-05-new-02-delivered-01-02",
@@ -1008,7 +1630,11 @@
                             "tableName": "shipment_orders",
                             "operation": "UPDATE",
                             "sql": "UPDATE shipment_orders SET current_status = 'DELIVERED', delivered_at = @inputs.checkpointAt, updated_at = NOW() WHERE id = @inputs.shipmentId AND current_status IN ('PICKED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')",
-                            "lineage": { "writes": ["shipment_orders"] },
+                            "lineage": {
+                              "writes": [
+                                "shipment_orders"
+                              ]
+                            },
                             "affectedRowsCheck": {
                               "operator": ">",
                               "expected": 0,
@@ -1037,7 +1663,10 @@
                                 "description": "DELIVERED への遷移失敗を監査ログに記録 (運用検知)。",
                                 "maturity": "committed",
                                 "action": "shipment.deliver",
-                                "resource": { "type": "ShipmentOrder", "id": "@inputs.shipmentId" },
+                                "resource": {
+                                  "type": "ShipmentOrder",
+                                  "id": "@inputs.shipmentId"
+                                },
                                 "result": "failure",
                                 "reason": "INVALID_STATE_TRANSITION",
                                 "sensitive": false
@@ -1090,9 +1719,16 @@
                               },
                               "fireAndForget": true,
                               "outcomes": {
-                                "success": { "action": "continue" },
-                                "failure": { "action": "continue" },
-                                "timeout": { "action": "continue", "sameAs": "failure" }
+                                "success": {
+                                  "action": "continue"
+                                },
+                                "failure": {
+                                  "action": "continue"
+                                },
+                                "timeout": {
+                                  "action": "continue",
+                                  "sameAs": "failure"
+                                }
                               }
                             },
                             {
@@ -1123,7 +1759,11 @@
                         "operation": "UPDATE",
                         "sql": "UPDATE shipment_orders SET current_status = 'RETURNED', updated_at = NOW() WHERE id = @inputs.shipmentId AND current_status NOT IN ('DELIVERED', 'RETURNED') RETURNING id, current_status",
                         "outputBinding": "returnedDirectShipment",
-                        "lineage": { "writes": ["shipment_orders"] }
+                        "lineage": {
+                          "writes": [
+                            "shipment_orders"
+                          ]
+                        }
                       },
                       {
                         "id": "step-003-05-new-02-returned-02",
@@ -1131,7 +1771,10 @@
                         "description": "運送会社からの直接 RETURNED 通知を監査ログに記録する (sensitive: 顧客契約に影響)。",
                         "maturity": "committed",
                         "action": "shipment.return",
-                        "resource": { "type": "ShipmentOrder", "id": "@inputs.shipmentId" },
+                        "resource": {
+                          "type": "ShipmentOrder",
+                          "id": "@inputs.shipmentId"
+                        },
                         "result": "success",
                         "reason": "CARRIER_RETURNED_NOTICE",
                         "sensitive": true
@@ -1207,7 +1850,11 @@
                                 "operation": "UPDATE",
                                 "sql": "UPDATE shipment_orders SET delivery_attempts = @newAttemptCount, current_status = 'FAILED', next_attempt_at = @nextAttemptAt, updated_at = NOW() WHERE id = @inputs.shipmentId AND current_status IN ('IN_TRANSIT', 'OUT_FOR_DELIVERY', 'FAILED') RETURNING id, current_status",
                                 "outputBinding": "redeliverShipment",
-                                "lineage": { "writes": ["shipment_orders"] }
+                                "lineage": {
+                                  "writes": [
+                                    "shipment_orders"
+                                  ]
+                                }
                               },
                               {
                                 "id": "step-003-05-new-02-failed-02-redeliver-03",
@@ -1241,9 +1888,16 @@
                                 },
                                 "fireAndForget": true,
                                 "outcomes": {
-                                  "success": { "action": "continue" },
-                                  "failure": { "action": "continue" },
-                                  "timeout": { "action": "continue", "sameAs": "failure" }
+                                  "success": {
+                                    "action": "continue"
+                                  },
+                                  "failure": {
+                                    "action": "continue"
+                                  },
+                                  "timeout": {
+                                    "action": "continue",
+                                    "sameAs": "failure"
+                                  }
                                 }
                               },
                               {
@@ -1271,7 +1925,11 @@
                               "operation": "UPDATE",
                               "sql": "UPDATE shipment_orders SET delivery_attempts = @newAttemptCount, current_status = 'RETURNED', updated_at = NOW() WHERE id = @inputs.shipmentId RETURNING id, current_status",
                               "outputBinding": "returnedShipment",
-                              "lineage": { "writes": ["shipment_orders"] }
+                              "lineage": {
+                                "writes": [
+                                  "shipment_orders"
+                                ]
+                              }
                             },
                             {
                               "id": "step-003-05-new-02-failed-02-return-02",
@@ -1279,7 +1937,10 @@
                               "description": "返送判断を監査ログに記録する (sensitive: 顧客契約に影響)。",
                               "maturity": "committed",
                               "action": "shipment.return",
-                              "resource": { "type": "ShipmentOrder", "id": "@inputs.shipmentId" },
+                              "resource": {
+                                "type": "ShipmentOrder",
+                                "id": "@inputs.shipmentId"
+                              },
                               "result": "success",
                               "reason": "REDELIVERY_LIMIT_EXCEEDED",
                               "sensitive": true
@@ -1330,7 +1991,11 @@
                       "operation": "UPDATE",
                       "sql": "UPDATE shipment_orders SET current_status = @inputs.status, updated_at = NOW() WHERE id = @inputs.shipmentId AND current_status NOT IN ('DELIVERED', 'RETURNED') RETURNING id, current_status",
                       "outputBinding": "intransitShipment",
-                      "lineage": { "writes": ["shipment_orders"] }
+                      "lineage": {
+                        "writes": [
+                          "shipment_orders"
+                        ]
+                      }
                     },
                     {
                       "id": "step-003-05-new-02-other-02",
@@ -1364,36 +2029,133 @@
       "name": "受注確定→配送指示登録→DELIVERED まで通過する",
       "description": "在庫充足の受注から配送指示を登録し、運送会社から DELIVERED を受信して shipment_orders が DELIVERED 確定、顧客通知が送信される正常系。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T08:00:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "system-order", "requestId": "req-486-happy-create" } },
-        { "kind": "dbState", "table": "orders", "rows": [ { "id": "ORD-486-001", "customer_id": "CUS-001", "status": "CONFIRMED" } ] },
-        { "kind": "dbState", "table": "parts_inventory", "rows": [ { "warehouse_id": "WH-001", "part_number": "PRT-A", "available_qty": 10, "locked_qty": 0, "location_code": "A-01-1" } ] },
-        { "kind": "externalStub", "externalRef": "wmsSystem", "responseMock": { "status": 202, "body": { "accepted": true } } },
-        { "kind": "externalStub", "externalRef": "customerNotification", "responseMock": { "status": 202, "body": { "accepted": true } } }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T08:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "system-order",
+            "requestId": "req-486-happy-create"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "orders",
+          "rows": [
+            {
+              "id": "ORD-486-001",
+              "customer_id": "CUS-001",
+              "status": "CONFIRMED"
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "parts_inventory",
+          "rows": [
+            {
+              "warehouse_id": "WH-001",
+              "part_number": "PRT-A",
+              "available_qty": 10,
+              "locked_qty": 0,
+              "location_code": "A-01-1"
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "wmsSystem",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "customerNotification",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true
+            }
+          }
+        }
       ],
       "when": {
         "actionId": "act-001",
         "input": {
           "orderId": "ORD-486-001",
           "warehouseId": "WH-001",
-          "items": [ { "partNumber": "PRT-A", "quantity": 2, "location": "A-01-1" } ]
+          "items": [
+            {
+              "partNumber": "PRT-A",
+              "quantity": 2,
+              "location": "A-01-1"
+            }
+          ]
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "201-created" },
-        { "kind": "output", "path": "$.status", "equals": "PLANNED" },
-        { "kind": "dbRow", "table": "shipment_orders", "match": { "order_id": "ORD-486-001", "current_status": "PLANNED" }, "count": 1 },
-        { "kind": "dbRow", "table": "parts_inventory", "match": { "warehouse_id": "WH-001", "part_number": "PRT-A", "available_qty": 8, "locked_qty": 2 }, "count": 1 },
-        { "kind": "externalCall", "externalRef": "wmsSystem", "method": "POST", "bodyMatch": { "warehouseId": "WH-001" } }
+        {
+          "kind": "outcome",
+          "expected": "201-created"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "PLANNED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "shipment_orders",
+          "match": {
+            "order_id": "ORD-486-001",
+            "current_status": "PLANNED"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "parts_inventory",
+          "match": {
+            "warehouse_id": "WH-001",
+            "part_number": "PRT-A",
+            "available_qty": 8,
+            "locked_qty": 2
+          },
+          "count": 1
+        },
+        {
+          "kind": "externalCall",
+          "externalRef": "wmsSystem",
+          "method": "POST",
+          "bodyMatch": {
+            "warehouseId": "WH-001"
+          }
+        }
       ],
-      "tags": ["happy", "shipment", "create"]
+      "tags": [
+        "happy",
+        "shipment",
+        "create"
+      ]
     },
     {
       "id": "validation-error-empty-items",
       "name": "items 空配列は 400 になる",
       "description": "明細が空の配送指示登録要求は入力検証で拒否され、shipment_orders は登録されない。",
       "given": [
-        { "kind": "sessionContext", "context": { "sessionUserId": "system-order", "requestId": "req-486-validation" } }
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "system-order",
+            "requestId": "req-486-validation"
+          }
+        }
       ],
       "when": {
         "actionId": "act-001",
@@ -1404,45 +2166,147 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "400-validation" },
-        { "kind": "errorMessage", "msgKey": "明細は必須です" }
+        {
+          "kind": "outcome",
+          "expected": "400-validation"
+        },
+        {
+          "kind": "errorMessage",
+          "msgKey": "明細は必須です"
+        }
       ],
-      "tags": ["error", "validation"]
+      "tags": [
+        "error",
+        "validation"
+      ]
     },
     {
       "id": "stock-shortage-tx-rollback",
       "name": "在庫不足で TX rollback、shipment_orders は INSERT されない",
       "description": "LOCK_INVENTORY 後に available_qty < 要求数量を検知し、STOCK_SHORTAGE で TX rollback。shipment_orders は登録されず、parts_inventory も変化しない。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T08:30:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "system-order", "requestId": "req-486-shortage" } },
-        { "kind": "dbState", "table": "orders", "rows": [ { "id": "ORD-486-003", "customer_id": "CUS-002", "status": "CONFIRMED" } ] },
-        { "kind": "dbState", "table": "parts_inventory", "rows": [ { "warehouse_id": "WH-001", "part_number": "PRT-A", "available_qty": 1, "locked_qty": 0, "location_code": "A-01-1" } ] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T08:30:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "system-order",
+            "requestId": "req-486-shortage"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "orders",
+          "rows": [
+            {
+              "id": "ORD-486-003",
+              "customer_id": "CUS-002",
+              "status": "CONFIRMED"
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "parts_inventory",
+          "rows": [
+            {
+              "warehouse_id": "WH-001",
+              "part_number": "PRT-A",
+              "available_qty": 1,
+              "locked_qty": 0,
+              "location_code": "A-01-1"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-001",
         "input": {
           "orderId": "ORD-486-003",
           "warehouseId": "WH-001",
-          "items": [ { "partNumber": "PRT-A", "quantity": 5 } ]
+          "items": [
+            {
+              "partNumber": "PRT-A",
+              "quantity": 5
+            }
+          ]
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "409-stock-shortage" },
-        { "kind": "dbRow", "table": "shipment_orders", "match": { "order_id": "ORD-486-003" }, "count": 0 },
-        { "kind": "dbRow", "table": "parts_inventory", "match": { "warehouse_id": "WH-001", "part_number": "PRT-A", "available_qty": 1, "locked_qty": 0 }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "409-stock-shortage"
+        },
+        {
+          "kind": "dbRow",
+          "table": "shipment_orders",
+          "match": {
+            "order_id": "ORD-486-003"
+          },
+          "count": 0
+        },
+        {
+          "kind": "dbRow",
+          "table": "parts_inventory",
+          "match": {
+            "warehouse_id": "WH-001",
+            "part_number": "PRT-A",
+            "available_qty": 1,
+            "locked_qty": 0
+          },
+          "count": 1
+        }
       ],
-      "tags": ["error", "stock-shortage", "tx-rollback"]
+      "tags": [
+        "error",
+        "stock-shortage",
+        "tx-rollback"
+      ]
     },
     {
       "id": "idempotent-tracking-callback",
       "name": "同一 (trackingNumber, checkpointAt) の追跡更新再送は no-op になる",
       "description": "既に tracking_events に登録済みの (trackingNumber, checkpointAt) で再受信しても、UPSERT_IDEMPOTENT で no-op となり 200 ALREADY_PROCESSED が返る。tracking_events は 1 行のままで shipment_orders.current_status は変化しない。状態巻き戻し防止。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T12:00:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "carrier-system", "requestId": "req-486-idempotent" } },
-        { "kind": "dbState", "table": "shipment_orders", "rows": [ { "id": "SHP-486-004", "current_status": "DELIVERED", "tracking_number": "TRK-486-004", "delivery_attempts": 0, "order_id": "ORD-486-004" } ] },
-        { "kind": "dbState", "table": "tracking_events", "rows": [ { "tracking_number": "TRK-486-004", "shipment_id": "SHP-486-004", "status": "IN_TRANSIT", "checkpoint_at": "2026-04-26T11:30:00.000Z", "checkpoint_location": "BASE-A" } ] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T12:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "carrier-system",
+            "requestId": "req-486-idempotent"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "shipment_orders",
+          "rows": [
+            {
+              "id": "SHP-486-004",
+              "current_status": "DELIVERED",
+              "tracking_number": "TRK-486-004",
+              "delivery_attempts": 0,
+              "order_id": "ORD-486-004"
+            }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "tracking_events",
+          "rows": [
+            {
+              "tracking_number": "TRK-486-004",
+              "shipment_id": "SHP-486-004",
+              "status": "IN_TRANSIT",
+              "checkpoint_at": "2026-04-26T11:30:00.000Z",
+              "checkpoint_location": "BASE-A"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-003",
@@ -1455,21 +2319,69 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "200-already-processed" },
-        { "kind": "output", "path": "$.status", "equals": "ALREADY_PROCESSED" },
-        { "kind": "dbRow", "table": "tracking_events", "match": { "tracking_number": "TRK-486-004", "checkpoint_at": "2026-04-26T11:30:00.000Z" }, "count": 1 },
-        { "kind": "dbRow", "table": "shipment_orders", "match": { "id": "SHP-486-004", "current_status": "DELIVERED" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-already-processed"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "ALREADY_PROCESSED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "tracking_events",
+          "match": {
+            "tracking_number": "TRK-486-004",
+            "checkpoint_at": "2026-04-26T11:30:00.000Z"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "shipment_orders",
+          "match": {
+            "id": "SHP-486-004",
+            "current_status": "DELIVERED"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["idempotency", "callback", "carrier"]
+      "tags": [
+        "idempotency",
+        "callback",
+        "carrier"
+      ]
     },
     {
       "id": "redelivery-limit-exceeded-return",
       "name": "再配達上限超過で RETURNED に確定する",
       "description": "規約値 @conv.limit.maxDeliveryAttempts = 3 (catalog default) の前提で、shipment_orders.delivery_attempts が 2 (上限直前) の状態で FAILED を受信すると、+1 した newAttemptCount=3 が < 3 を満たさないため再配達枠を超え、RETURNED に確定し shipment.return_required イベントが発行される。",
       "given": [
-        { "kind": "clock", "now": "2026-04-26T15:00:00.000Z" },
-        { "kind": "sessionContext", "context": { "sessionUserId": "carrier-system", "requestId": "req-486-redelivery-limit" } },
-        { "kind": "dbState", "table": "shipment_orders", "rows": [ { "id": "SHP-486-005", "current_status": "OUT_FOR_DELIVERY", "tracking_number": "TRK-486-005", "delivery_attempts": 2, "order_id": "ORD-486-005" } ] }
+        {
+          "kind": "clock",
+          "now": "2026-04-26T15:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "sessionUserId": "carrier-system",
+            "requestId": "req-486-redelivery-limit"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "shipment_orders",
+          "rows": [
+            {
+              "id": "SHP-486-005",
+              "current_status": "OUT_FOR_DELIVERY",
+              "tracking_number": "TRK-486-005",
+              "delivery_attempts": 2,
+              "order_id": "ORD-486-005"
+            }
+          ]
+        }
       ],
       "when": {
         "actionId": "act-003",
@@ -1482,12 +2394,41 @@
         }
       },
       "then": [
-        { "kind": "outcome", "expected": "200-updated" },
-        { "kind": "output", "path": "$.status", "equals": "RETURNED" },
-        { "kind": "dbRow", "table": "shipment_orders", "match": { "id": "SHP-486-005", "current_status": "RETURNED", "delivery_attempts": 3 }, "count": 1 },
-        { "kind": "dbRow", "table": "tracking_events", "match": { "tracking_number": "TRK-486-005", "status": "FAILED" }, "count": 1 }
+        {
+          "kind": "outcome",
+          "expected": "200-updated"
+        },
+        {
+          "kind": "output",
+          "path": "$.status",
+          "equals": "RETURNED"
+        },
+        {
+          "kind": "dbRow",
+          "table": "shipment_orders",
+          "match": {
+            "id": "SHP-486-005",
+            "current_status": "RETURNED",
+            "delivery_attempts": 3
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "tracking_events",
+          "match": {
+            "tracking_number": "TRK-486-005",
+            "status": "FAILED"
+          },
+          "count": 1
+        }
       ],
-      "tags": ["error", "redelivery", "return", "limit"]
+      "tags": [
+        "error",
+        "redelivery",
+        "return",
+        "limit"
+      ]
     }
   ],
   "createdAt": "2026-04-26T00:00:00.000Z",
