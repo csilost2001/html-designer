@@ -8,6 +8,7 @@
  * - 先行ステップの StepBase.outputBinding (string or object.name)
  * - LoopStep.collectionItemName (ループ配下のスコープのみ)
  * - ValidationStep.fieldErrorsVar の宣言
+ * - BUILTIN_AMBIENTS (組み込み関数・グローバル識別子)
  *
  * 単純な regex ベースの識別子抽出 + スコープ走査。
  * 式の完全パースや型推論は今は行わない (path 部分は無視、root 識別子のみ検査)。
@@ -27,6 +28,26 @@ export interface IdentifierIssue {
   identifier: string;
   message: string;
 }
+
+/**
+ * 組み込み関数・グローバル識別子。
+ * これらは宣言なしで常に参照可能なため、スコープ検査から除外する。
+ *
+ * - fn    : @fn.calcXxx(...) 形式の業務関数呼び出し
+ * - now   : @now  現在時刻 (Timestamp)
+ * - uuid  : @uuid 新規 UUID 生成
+ * - secret: @secret.* secretsCatalog 参照
+ * - conv  : @conv.* conventions 参照 (conventionsValidator でカバー)
+ * - ambient: @ambient.* 旧形式の ambient 参照
+ */
+const BUILTIN_AMBIENTS = new Set<string>([
+  "fn",
+  "now",
+  "uuid",
+  "secret",
+  "conv",
+  "ambient",
+]);
 
 /** 任意の文字列から @identifier の root 部分を抽出 (property path は無視) */
 function extractIdentifiers(src: string): string[] {
@@ -224,8 +245,8 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
   for (const { src, field } of expressions) {
     const ids = extractIdentifiers(src);
     for (const id of ids) {
-      // @conv.* は規約カタログ (別機能) なので今は除外
-      if (id === "conv") continue;
+      // 組み込み関数・グローバル識別子は宣言不要
+      if (BUILTIN_AMBIENTS.has(id)) continue;
       if (!available.has(id)) {
         issues.push({
           path: `${path}.${field}`,
