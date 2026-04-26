@@ -1,0 +1,202 @@
+{
+  "namespace": "",
+  "responseTypes": {
+    "ApiError": {
+      "description": "product-scope §7 共通エラーレスポンス",
+      "schema": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "fieldErrors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "detail": {}
+        }
+      }
+    },
+    "OrderRegisterResponse": {
+      "description": "注文登録成功時の body",
+      "schema": {
+        "type": "object",
+        "required": [
+          "orderId",
+          "orderNumber"
+        ],
+        "properties": {
+          "orderId": {
+            "type": "number"
+          },
+          "orderNumber": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "PurchaseOrderResponse": {
+      "description": "発注登録成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": [
+          "poId",
+          "poNumber",
+          "subtotal",
+          "taxAmount",
+          "totalAmount"
+        ],
+        "properties": {
+          "poId": {
+            "type": "integer"
+          },
+          "poNumber": {
+            "type": "string",
+            "description": "@conv.numbering.orderNumber 準拠 ORD-YYYY-NNNN 形式 (PG sequence + trigger)"
+          },
+          "subtotal": {
+            "type": "integer"
+          },
+          "taxAmount": {
+            "type": "integer"
+          },
+          "totalAmount": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "InvoiceResponse": {
+      "description": "請求書発行成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": [
+          "invoiceId",
+          "invoiceNumber",
+          "subtotal",
+          "taxAmount",
+          "totalAmount"
+        ],
+        "properties": {
+          "invoiceId": {
+            "type": "integer"
+          },
+          "invoiceNumber": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}-\\d{4}$",
+            "description": "@conv.numbering.invoiceNumber 準拠 INV-YYYY-NNNN 形式"
+          },
+          "subtotal": {
+            "type": "integer"
+          },
+          "taxAmount": {
+            "type": "integer"
+          },
+          "totalAmount": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "PasswordChangeResponse": {
+      "description": "パスワード変更成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": [
+          "changed"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "CustomerSearchResult": {
+      "description": "顧客検索結果レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["customers"],
+        "properties": {
+          "customers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer" },
+                "name": { "type": "string" },
+                "nameKana": { "type": "string" },
+                "phone": { "type": "string" },
+                "email": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "OrderAcceptedResponse": {
+      "description": "証券注文受付成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["orderId", "status"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "ExecutionReportResponse": {
+      "description": "約定通知受信処理成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" },
+          "orderId": { "type": "string" },
+          "tradeId": { "type": "string" }
+        }
+      }
+    },
+    "ShipmentCreatedResponse": {
+      "description": "配送指示受付成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["shipmentId", "trackingNumber", "status"],
+        "properties": {
+          "shipmentId": { "type": "string" },
+          "trackingNumber": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "TrackingUpdateResponse": {
+      "description": "配送追跡更新処理成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["processResult"],
+        "properties": {
+          "processResult": { "type": "string" }
+        }
+      }
+    },
+    "PickingCompleteResponse": {
+      "description": "倉庫ピッキング完了通知成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    }
+  }
+}

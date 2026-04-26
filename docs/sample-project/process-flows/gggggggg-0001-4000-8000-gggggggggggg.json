@@ -1,0 +1,685 @@
+{
+  "id": "gggggggg-0001-4000-8000-gggggggggggg",
+  "name": "店舗在庫照会 (小売)",
+  "type": "screen",
+  "screenId": "aaaaaaaa-0001-4000-8000-gggggggggggg",
+  "description": "指定の店舗・商品コードで在庫テーブルを検索し、在庫可能数量と引当済数量を返す。小売 retail namespace を使用する。",
+  "apiVersion": "v2",
+  "mode": "upstream",
+  "maturity": "committed",
+  "eventsCatalog": {
+    "inventory.searched": {
+      "description": "在庫照会リクエストを受け付け、結果を返した時点で発行されるイベント。検索条件と件数をペイロードに含む。",
+      "payload": {
+        "type": "object",
+        "required": ["requestId", "storeCode", "resultCount"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "storeCode": { "type": "string" },
+          "productCode": { "type": "string" },
+          "resultCount": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inventory.notFound": {
+      "description": "指定条件に一致する在庫レコードが存在しない場合に発行されるイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["requestId", "storeCode"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "storeCode": { "type": "string" },
+          "productCode": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "retail.inventory_low_detected": {
+      "description": "照会結果の中に available_quantity が @conv.limit.lowStockThreshold を下回る商品が存在した場合に発行されるイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["storeCode", "productCode", "availableQuantity"],
+        "properties": {
+          "storeCode": { "type": "string" },
+          "productCode": { "type": "string" },
+          "availableQuantity": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "retail.search_validation_failed": {
+      "description": "在庫照会の入力検証に失敗した場合に発行されるイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["requestId", "errorCode"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "errorCode": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "glossary": {
+    "在庫照会": {
+      "definition": "指定の店舗と商品コードに対して現在の在庫可能数量および引当済数量を返す業務操作。",
+      "aliases": ["Inventory Search", "在庫確認"],
+      "domainRef": "inventory"
+    },
+    "店舗コード": {
+      "definition": "物理店舗を識別する英数字コード。在庫は店舗 × 商品単位で管理される。",
+      "aliases": ["StoreCode", "店舗識別子"],
+      "domainRef": "inventory.store_code"
+    },
+    "商品コード": {
+      "definition": "販売商品を識別する SKU コード。英大文字・数字 3〜20 文字。products.product_code と 1:1 対応。",
+      "aliases": ["ProductCode", "SKU"],
+      "domainRef": "products.product_code"
+    },
+    "在庫可能数量": {
+      "definition": "現在注文受付可能な数量。在庫総量から引当済数量を除いた値。",
+      "aliases": ["AvailableQuantity", "引当可能在庫"],
+      "domainRef": "inventory.available_quantity"
+    },
+    "引当済数量": {
+      "definition": "注文確定済みで出庫待ちの数量。在庫から引当済数量を減算することで実際に出庫可能な数量を算出できる。",
+      "aliases": ["ReservedQuantity", "引当数量"],
+      "domainRef": "inventory.reserved_quantity"
+    },
+    "在庫低下アラート": {
+      "definition": "available_quantity が @conv.limit.lowStockThreshold を下回った時に発行するアラート。補充フローを起動するトリガーとなる。",
+      "aliases": ["LowStockAlert", "在庫不足通知"],
+      "domainRef": "retail.lowStockThreshold"
+    },
+    "商品マスタ": {
+      "definition": "商品コード・商品名・単価を管理するマスタテーブル。在庫照会時に商品名を結合して返す。",
+      "aliases": ["Products", "商品情報"],
+      "domainRef": "products"
+    },
+    "在庫管理テーブル": {
+      "definition": "店舗 × 商品ごとの在庫数量・引当数量を管理するテーブル。照会・引当操作の主対象。",
+      "aliases": ["Inventory", "在庫テーブル"],
+      "domainRef": "inventory"
+    }
+  },
+  "decisions": [
+    {
+      "id": "ADR-001",
+      "title": "在庫照会は読取専用、トランザクション不要",
+      "status": "accepted",
+      "context": "在庫照会は SELECT のみで副作用がなく、高頻度の読み取り操作が想定される。",
+      "decision": "在庫照会フローでは transactionScope を使用しない。SELECT のみで完結し、READ_COMMITTED 分離レベルのデフォルト動作に委ねる。",
+      "consequences": "ダーティリード排除は不要 (スナップショット的な参照で十分)。高頻度の在庫照会でも DB 接続の消費を最小化できる。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-002",
+      "title": "在庫低下アラートイベントは照会時に発行する",
+      "status": "accepted",
+      "context": "在庫が低下しているかどうかをリアルタイムで検知するため、照会タイミングで判定する設計にする。",
+      "decision": "照会結果の available_quantity が @conv.limit.lowStockThreshold 未満の場合、retail.inventory_low_detected イベントを発行する。発行はベストエフォート (fireAndForget)。",
+      "consequences": "照会するたびにアラートが発行され重複する可能性がある。下流コンシューマは冪等に処理する必要がある。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-003",
+      "title": "在庫不在の場合は空配列で 200 OK を返す",
+      "status": "accepted",
+      "context": "照会条件に一致する在庫レコードが存在しない場合の HTTP ステータスを決定する必要がある。",
+      "decision": "在庫 0 件の場合は 404 ではなく、空配列 items: [] で 200 OK を返す。ただし inventory.notFound イベントは発行する。",
+      "consequences": "クライアントは items.length === 0 で在庫なしを判定できる。404 エラー処理を不要にして UI 実装を簡略化できる。",
+      "date": "2026-04-26"
+    }
+  ],
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "リクエスト単位の追跡 ID。"
+    },
+    {
+      "name": "sessionUserId",
+      "type": "string",
+      "required": false,
+      "description": "ログインユーザー ID。ゲスト閲覧時は null。"
+    }
+  ],
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値が不正です",
+      "responseRef": "400-validation"
+    },
+    "STORE_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "指定の店舗が見つかりません",
+      "responseRef": "404-store-not-found"
+    },
+    "PRODUCT_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "指定の商品が見つかりません",
+      "responseRef": "404-product-not-found"
+    },
+    "INTERNAL_ERROR": {
+      "httpStatus": 500,
+      "defaultMessage": "内部エラーが発生しました",
+      "responseRef": "500-internal-error"
+    },
+    "SEARCH_LIMIT_EXCEEDED": {
+      "httpStatus": 400,
+      "defaultMessage": "検索条件が多すぎます",
+      "responseRef": "400-search-limit-exceeded"
+    }
+  },
+  "externalSystemCatalog": {
+    "inventoryAnalyticsService": {
+      "name": "在庫分析サービス",
+      "baseUrl": "https://analytics.retail.example.internal",
+      "auth": {
+        "kind": "apiKey",
+        "tokenRef": "@secret.analyticsApiKey",
+        "headerName": "X-API-Key"
+      },
+      "timeoutMs": 3000,
+      "description": "在庫低下アラートを送信する分析サービス。fireAndForget で呼び出す。"
+    }
+  },
+  "secretsCatalog": {
+    "analyticsApiKey": {
+      "source": "env",
+      "name": "INVENTORY_ANALYTICS_API_KEY",
+      "rotationDays": 180,
+      "description": "在庫分析サービス API キー"
+    }
+  },
+  "domainsCatalog": {
+    "ProductCode": {
+      "type": "string",
+      "uiHint": "text",
+      "constraints": [
+        {
+          "field": "productCode",
+          "type": "regex",
+          "pattern": "^[A-Z0-9]{3,20}$",
+          "message": "商品コードは英大文字・数字 3〜20 文字で入力してください"
+        }
+      ],
+      "description": "商品コード。products.product_code と対応。"
+    },
+    "StoreCode": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "店舗コード。inventory.store_code と対応。"
+    },
+    "InventoryQuantity": {
+      "type": "number",
+      "uiHint": "number",
+      "constraints": [
+        {
+          "field": "quantity",
+          "type": "range",
+          "min": 0,
+          "message": "在庫数量は 0 以上で入力してください"
+        }
+      ],
+      "description": "在庫数量。0 以上の整数。"
+    }
+  },
+  "functionsCatalog": {
+    "isLowStock": {
+      "signature": "isLowStock(availableQty: number, threshold: number): boolean",
+      "returnType": "boolean",
+      "description": "available_quantity が threshold 未満かどうかを判定する。@conv.limit.lowStockThreshold を閾値として渡す。",
+      "examples": [
+        "@fn.isLowStock(@inventoryRow.available_quantity, @conv.limit.lowStockThreshold)"
+      ]
+    },
+    "buildInventorySearchKey": {
+      "signature": "buildInventorySearchKey(storeCode: string, productCode: string): string",
+      "returnType": "string",
+      "description": "在庫キャッシュキーを生成する。storeCode と productCode を連結する。",
+      "examples": [
+        "@fn.buildInventorySearchKey(@inputs.storeCode, @inputs.productCode)"
+      ]
+    }
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "在庫照会",
+      "trigger": "submit",
+      "description": "店舗コードと商品コード (任意) を受け付け、inventory + products を JOIN して在庫一覧を返す。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "GET",
+        "path": "/api/retail/inventory",
+        "auth": "optional"
+      },
+      "inputs": [
+        {
+          "name": "storeCode",
+          "label": "店舗コード",
+          "type": "string",
+          "required": true,
+          "domainRef": "StoreCode"
+        },
+        {
+          "name": "productCode",
+          "label": "商品コード",
+          "type": "string",
+          "required": false,
+          "domainRef": "ProductCode"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "items",
+          "label": "在庫一覧",
+          "type": "string"
+        },
+        {
+          "name": "totalCount",
+          "label": "件数",
+          "type": "number"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": { "typeRef": "InventorySearchResponse" },
+          "when": "在庫照会が完了した (0 件でも 200 OK)"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "入力値が不正"
+        },
+        {
+          "id": "404-store-not-found",
+          "status": 404,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "指定の店舗が存在しない"
+        },
+        {
+          "id": "404-product-not-found",
+          "status": 404,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "productCode が指定されたが商品が存在しない"
+        },
+        {
+          "id": "500-internal-error",
+          "status": 500,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "予期しないエラー"
+        },
+        {
+          "id": "400-search-limit-exceeded",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" },
+          "when": "検索条件が多すぎる"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "type": "validation",
+          "description": "storeCode は必須。productCode が指定された場合は @conv.regex.product-code パターンを検証する。",
+          "maturity": "committed",
+          "conditions": "storeCode は必須。productCode は任意だが指定された場合は英大文字・数字 3〜20 文字。",
+          "rules": [
+            {
+              "field": "storeCode",
+              "type": "required",
+              "message": "店舗コードは必須です"
+            },
+            {
+              "field": "productCode",
+              "type": "regex",
+              "condition": "@inputs.productCode != null && @inputs.productCode != ''",
+              "pattern": "^[A-Z0-9]{3,20}$",
+              "message": "商品コードは英大文字・数字 3〜20 文字で入力してください"
+            }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "次のステップへ進む",
+            "ng": "400 入力値エラーを返す",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-02",
+          "type": "dbAccess",
+          "description": "productCode が指定された場合、products テーブルで商品の存在確認を行う。",
+          "maturity": "committed",
+          "tableName": "products",
+          "operation": "SELECT",
+          "sql": "SELECT product_code, name, unit_price FROM products WHERE product_code = @inputs.productCode AND is_active = true",
+          "outputBinding": "product",
+          "runIf": "@inputs.productCode != null && @inputs.productCode != ''",
+          "lineage": {
+            "reads": ["products"]
+          },
+          "cache": {
+            "ttlSeconds": 300,
+            "key": "product-@inputs.productCode",
+            "invalidateOn": ["products.updated"]
+          }
+        },
+        {
+          "id": "step-03",
+          "type": "branch",
+          "description": "productCode が指定されたが商品が存在しない場合は 404 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-03-a",
+              "code": "A",
+              "label": "商品なし",
+              "condition": "@inputs.productCode != null && @inputs.productCode != '' && @product == null",
+              "steps": [
+                {
+                  "id": "step-03-a-01",
+                  "type": "eventPublish",
+                  "description": "retail.search_validation_failed イベントを発行する。",
+                  "maturity": "committed",
+                  "topic": "retail.search_validation_failed",
+                  "eventRef": "retail.search_validation_failed",
+                  "payload": "{ requestId: @requestId, errorCode: 'PRODUCT_NOT_FOUND' }"
+                },
+                {
+                  "id": "step-03-a-02",
+                  "type": "return",
+                  "description": "404 商品なし",
+                  "responseRef": "404-product-not-found",
+                  "bodyExpression": "{ code: 'PRODUCT_NOT_FOUND', message: '指定の商品が見つかりません' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-03-else",
+            "code": "B",
+            "label": "商品あり or productCode 未指定",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-04",
+          "type": "dbAccess",
+          "description": "inventory と products を JOIN して在庫一覧を取得する。productCode が指定された場合はフィルタを加える。",
+          "maturity": "committed",
+          "tableName": "inventory",
+          "operation": "SELECT",
+          "sql": "SELECT i.product_code, p.name AS product_name, i.store_code, i.available_quantity, i.reserved_quantity FROM inventory i JOIN products p ON p.product_code = i.product_code WHERE i.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR i.product_code = @inputs.productCode) AND p.is_active = true",
+          "outputBinding": "inventoryRows",
+          "lineage": {
+            "reads": ["inventory", "products"]
+          }
+        },
+        {
+          "id": "step-05",
+          "type": "branch",
+          "description": "在庫一覧が空の場合は inventory.notFound イベントを発行して 200 OK (空配列) を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-05-a",
+              "code": "A",
+              "label": "在庫レコードなし",
+              "condition": "@inventoryRows == null || @inventoryRows.length == 0",
+              "steps": [
+                {
+                  "id": "step-05-a-01",
+                  "type": "eventPublish",
+                  "description": "inventory.notFound イベントを発行する。",
+                  "maturity": "committed",
+                  "topic": "inventory.notFound",
+                  "eventRef": "inventory.notFound",
+                  "payload": "{ requestId: @requestId, storeCode: @inputs.storeCode, productCode: @inputs.productCode }"
+                },
+                {
+                  "id": "step-05-a-02",
+                  "type": "return",
+                  "description": "200 OK (空配列) を返す。",
+                  "responseRef": "200-ok",
+                  "bodyExpression": "{ items: [], totalCount: 0 }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-05-else",
+            "code": "B",
+            "label": "在庫レコードあり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-06",
+          "type": "compute",
+          "description": "在庫一覧の中で available_quantity < @conv.limit.lowStockThreshold の最初の行を抽出する。",
+          "maturity": "committed",
+          "expression": "@inventoryRows.find(r => r.available_quantity < @conv.limit.lowStockThreshold)",
+          "outputBinding": "lowStockRow"
+        },
+        {
+          "id": "step-07",
+          "type": "branch",
+          "description": "在庫低下行が存在する場合、inventoryAnalyticsService に fireAndForget で通知し、retail.inventory_low_detected イベントを発行する。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-07-a",
+              "code": "A",
+              "label": "在庫低下あり",
+              "condition": "@lowStockRow != null",
+              "steps": [
+                {
+                  "id": "step-07-a-01",
+                  "type": "externalSystem",
+                  "description": "在庫分析サービスに低在庫通知を送信する (fireAndForget)。",
+                  "maturity": "committed",
+                  "systemName": "在庫分析サービス",
+                  "systemRef": "inventoryAnalyticsService",
+                  "operationId": "NotifyLowStock",
+                  "httpCall": {
+                    "method": "POST",
+                    "path": "/alerts/low-stock",
+                    "body": "{ storeCode: @inputs.storeCode, productCode: @lowStockRow.product_code, availableQuantity: @lowStockRow.available_quantity }"
+                  },
+                  "fireAndForget": true,
+                  "outcomes": {
+                    "success": { "action": "continue" },
+                    "failure": { "action": "continue" },
+                    "timeout": { "action": "continue", "sameAs": "failure" }
+                  }
+                },
+                {
+                  "id": "step-07-a-02",
+                  "type": "eventPublish",
+                  "description": "retail.inventory_low_detected イベントを発行する。",
+                  "maturity": "committed",
+                  "topic": "retail.inventory_low_detected",
+                  "eventRef": "retail.inventory_low_detected",
+                  "payload": "{ storeCode: @inputs.storeCode, productCode: @lowStockRow.product_code, availableQuantity: @lowStockRow.available_quantity }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-07-else",
+            "code": "B",
+            "label": "在庫低下なし",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-08",
+          "type": "eventPublish",
+          "description": "inventory.searched イベントを発行する。",
+          "maturity": "committed",
+          "topic": "inventory.searched",
+          "eventRef": "inventory.searched",
+          "payload": "{ requestId: @requestId, storeCode: @inputs.storeCode, productCode: @inputs.productCode, resultCount: @inventoryRows.length }"
+        },
+        {
+          "id": "step-09",
+          "type": "return",
+          "description": "200 OK を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ items: @inventoryRows, totalCount: @inventoryRows.length }"
+        }
+      ]
+    }
+  ],
+  "testScenarios": [
+    {
+      "id": "happy-path-search-by-store",
+      "name": "店舗コードのみで在庫照会が成功する",
+      "description": "storeCode のみ指定して在庫一覧を取得する正常系。商品 2 件が返る。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-inv-001",
+            "sessionUserId": null
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            { "product_code": "PROD001", "name": "テスト商品A", "unit_price": 1000, "is_active": true },
+            { "product_code": "PROD002", "name": "テスト商品B", "unit_price": 2000, "is_active": true }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "inventory",
+          "rows": [
+            { "product_code": "PROD001", "store_code": "STORE01", "available_quantity": 100, "reserved_quantity": 5 },
+            { "product_code": "PROD002", "store_code": "STORE01", "available_quantity": 50, "reserved_quantity": 0 }
+          ]
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "storeCode": "STORE01"
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "200-ok" },
+        { "kind": "output", "path": "$.totalCount", "equals": 2 }
+      ],
+      "tags": ["happy", "search"]
+    },
+    {
+      "id": "validation-error-missing-store-code",
+      "name": "storeCode 未指定は 400 になる",
+      "description": "storeCode が空の場合は入力検証で拒否される。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-inv-002",
+            "sessionUserId": null
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "storeCode": ""
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "400-validation" }
+      ],
+      "tags": ["error", "validation"]
+    },
+    {
+      "id": "product-not-found",
+      "name": "存在しない商品コードを指定すると 404 になる",
+      "description": "productCode を指定したが products テーブルに該当レコードがない場合、404 を返す。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-inv-003",
+            "sessionUserId": null
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": []
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "storeCode": "STORE01",
+          "productCode": "NOTEXIST"
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "404-product-not-found" }
+      ],
+      "tags": ["error", "not-found"]
+    },
+    {
+      "id": "low-stock-alert-triggered",
+      "name": "在庫低下 (available_quantity < 10) でアラートイベントが発行される",
+      "description": "available_quantity が lowStockThreshold (10) 未満の商品が存在する場合、retail.inventory_low_detected イベントが発行される。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-inv-004",
+            "sessionUserId": null
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "products",
+          "rows": [
+            { "product_code": "LOWSTK", "name": "在庫少ない商品", "unit_price": 500, "is_active": true }
+          ]
+        },
+        {
+          "kind": "dbState",
+          "table": "inventory",
+          "rows": [
+            { "product_code": "LOWSTK", "store_code": "STORE01", "available_quantity": 3, "reserved_quantity": 0 }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "inventoryAnalyticsService",
+          "responseMock": { "status": 202, "body": { "accepted": true } }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "storeCode": "STORE01",
+          "productCode": "LOWSTK"
+        }
+      },
+      "then": [
+        { "kind": "outcome", "expected": "200-ok" }
+      ],
+      "tags": ["alert", "low-stock"]
+    }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

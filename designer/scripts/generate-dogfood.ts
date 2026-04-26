@@ -501,7 +501,7 @@ ${scenarioList.map((s, i) => `- シナリオ ${i + 1}: ${s}`).join("\n")}
 | 13 | \`affectedRowsCheck.expected\` は integer リテラル必須 (\`@var\` 参照不可) |
 | 14 | \`OtherStep.outputSchema\` 形式 — \`{field: "string"}\` 形式のみ受容 (複雑 JSON Schema 不可) |
 
-各フローは \`docs/sample-project/process-flows/cccccccc-0007-*.json\` (5/5 達成サンプル) の構造を参考に生成。
+各フローは \`docs/legacy-sample-project/process-flows/cccccccc-0007-*.json\` (5/5 達成サンプル) の構造を参考に生成。
 
 ---
 
@@ -554,7 +554,7 @@ npm run validate:dogfood
 
 ## 参考資料
 
-- 既存 5/5 達成サンプル: \`docs/sample-project/process-flows/cccccccc-0007-*.json\`
+- 既存 5/5 達成サンプル: \`docs/legacy-sample-project/process-flows/cccccccc-0007-*.json\`
 - /create-flow SKILL: \`.claude/skills/create-flow/SKILL.md\`
 - spec: \`docs/spec/process-flow-*.md\`
 - 既存 conventions: \`docs/sample-project/conventions/conventions-catalog.json\`

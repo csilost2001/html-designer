@@ -1,21 +1,22 @@
 {
   "$schema": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/conventions.schema.json",
   "version": "1.0.0",
-  "description": "retail 業界サンプルプロジェクト — 処理フロー仕様書から @conv.* で参照される横断規約カタログ。",
-  "updatedAt": "2026-04-26T00:00:00.000Z",
+  "description": "処理フロー仕様書 / ProcessFlow から @conv.* で参照される横断規約カタログ。docs/conventions/validation-rules.md の構造化版",
+  "updatedAt": "2026-04-24T00:00:00.000Z",
 
   "i18n": {
-    "supportedLocales": ["ja-JP"],
+    "supportedLocales": ["ja-JP", "en-US"],
     "defaultLocale": "ja-JP",
-    "dateFormat": { "ja-JP": "YYYY年MM月DD日" },
-    "currencyDisplay": { "ja-JP": "symbol" },
-    "numberGrouping": { "ja-JP": true }
+    "dateFormat": { "ja-JP": "YYYY年MM月DD日", "en-US": "MMM D, YYYY" },
+    "currencyDisplay": { "ja-JP": "symbol", "en-US": "code" },
+    "numberGrouping": { "ja-JP": true, "en-US": true }
   },
 
   "msg": {
     "required": {
       "template": "{label}は必須入力です",
       "params": ["label"],
+      "locales": { "en-US": "{label} is required" },
       "description": "非空必須エラーの既定メッセージ"
     },
     "maxLength": {
@@ -26,23 +27,18 @@
       "template": "{label}の形式が正しくありません",
       "params": ["label"]
     },
+    "duplicate": {
+      "template": "この{label}は既に登録されています",
+      "params": ["label"]
+    },
     "outOfRange": {
       "template": "{label}は{min}〜{max}の範囲で入力してください",
-      "params": ["label", "min", "max"]
+      "params": ["label", "min", "max"],
+      "locales": { "en-US": "{label} must be between {min} and {max}" }
     },
     "mustBePositive": {
       "template": "{label}は1以上の数値を入力してください",
       "params": ["label"]
-    },
-    "insufficientInventory": {
-      "template": "{label}の在庫が不足しています (要求: {required}, 在庫: {available})",
-      "params": ["label", "required", "available"],
-      "description": "在庫不足エラー"
-    },
-    "cartExpired": {
-      "template": "カートの有効期限が切れています",
-      "params": [],
-      "description": "カート期限切れエラー"
     }
   },
 
@@ -61,36 +57,42 @@
     },
     "postal-jp": {
       "pattern": "^\\d{3}-?\\d{4}$",
-      "description": "日本の郵便番号 (ハイフン任意)",
+      "description": "日本の郵便番号 (ハイフン任意、保存時は NNN-NNNN 正規化)",
       "exampleValid": ["100-0001", "1000001"],
       "exampleInvalid": ["10-00001"]
     },
-    "product-code": {
-      "pattern": "^[A-Z0-9]{3,20}$",
-      "description": "商品コード: 英大文字・数字 3〜20 文字",
-      "exampleValid": ["PROD001", "SKU12345"],
-      "exampleInvalid": ["ab", "PRODUCT-CODE"]
+    "kana-fullwidth": {
+      "pattern": "^[\\u30A0-\\u30FF ー・]+$",
+      "description": "全角カタカナ (長音符・中黒・半角空白許容)",
+      "exampleValid": ["ヤマダ タロウ", "オオノ・ケンイチ"],
+      "exampleInvalid": ["やまだ", "YAMADA"]
+    },
+    "alnum": {
+      "pattern": "^[A-Za-z0-9]+$",
+      "description": "英数字のみ",
+      "exampleValid": ["Abc123"],
+      "exampleInvalid": ["あいう", "A-1"]
     }
   },
 
   "limit": {
-    "nameMax": { "value": 100, "unit": "char", "description": "氏名最大長" },
+    "nameMax": { "value": 100, "unit": "char", "description": "氏名最大長 (customers.name 等)" },
+    "nameKanaMax": { "value": 100, "unit": "char" },
     "emailMax": { "value": 255, "unit": "char", "description": "RFC5321 準拠" },
     "phoneMax": { "value": 20, "unit": "char" },
+    "postalMax": { "value": 10, "unit": "char", "description": "NNN-NNNN 正規化後は 8 文字" },
     "addressMax": { "value": 500, "unit": "char" },
-    "quantityMax": { "value": 9999, "unit": "integer", "description": "1 回の注文で許容する最大商品数量" },
+    "companyNameMax": { "value": 200, "unit": "char" },
+    "quantityMax": { "value": 9999, "unit": "integer", "description": "発注可能数量の上限" },
     "quantityMin": { "value": 1, "unit": "integer" },
     "amountMax": { "value": 999999999999, "unit": "yen", "description": "DECIMAL(12,0) の上限、JPY" },
-    "cartItemMax": { "value": 50, "unit": "integer", "description": "1 カートに入れられる明細行の上限" },
-    "cartRetentionDays": { "value": 30, "unit": "days", "description": "カート保持期間。期限切れカートはバッチで EXPIRED に更新する" },
-    "maxDeliveryAttempts": { "value": 3, "unit": "integer", "description": "配送試行上限回数。超過した場合は FAILED に更新してサポートに通知する (ADR-003 参照)" },
-    "lowStockThreshold": { "value": 10, "unit": "integer", "description": "在庫低下アラートの閾値。available_quantity がこの値を下回るとアラートイベントを発行する" }
+    "maxDeliveryAttempts": { "value": 3, "unit": "integer", "description": "再配達上限回数 (ADR-003 参照)" }
   },
 
   "scope": {
-    "customerRegion": { "value": "domestic", "description": "国内顧客のみ (日本国内)" },
-    "timezone": { "value": "Asia/Tokyo", "default": true, "description": "JST 固定" },
-    "language": { "value": "ja", "description": "日本語" }
+    "customerRegion": { "value": "domestic", "description": "国内顧客のみ (日本国内在住/在所)" },
+    "timezone": { "value": "Asia/Tokyo", "default": true, "description": "JST 固定。海外顧客はスコープ外" },
+    "language": { "value": "ja", "description": "既定言語は日本語。利用可能 locale は i18n.supportedLocales で管理" }
   },
 
   "currency": {
@@ -110,12 +112,6 @@
       "roundingMode": "floor",
       "default": true,
       "description": "消費税 外税 10% (2026 年時点)、1 円未満切り捨て"
-    },
-    "reducedFood": {
-      "kind": "exclusive",
-      "rate": 0.08,
-      "roundingMode": "floor",
-      "description": "軽減税率 8%。飲食料品・定期購読新聞に適用"
     }
   },
 
@@ -133,39 +129,40 @@
     "order.create": {
       "resource": "Order",
       "action": "create",
-      "scope": "own",
-      "description": "注文を新規作成できる (顧客本人のみ)"
+      "scope": "department",
+      "description": "受注を新規登録できる"
     },
     "order.read": {
       "resource": "Order",
       "action": "read",
-      "scope": "own",
-      "description": "自分の注文を参照できる"
-    },
-    "inventory.read": {
-      "resource": "Inventory",
-      "action": "read",
-      "scope": "all",
-      "description": "在庫情報を参照できる (ゲスト含む)"
-    },
-    "shipment.create": {
-      "resource": "Shipment",
-      "action": "create",
       "scope": "department",
-      "description": "配送指示を作成できる (業務システム担当)"
+      "description": "所属部門の受注を参照できる"
+    },
+    "order.update": {
+      "resource": "Order",
+      "action": "update",
+      "scope": "department",
+      "description": "所属部門の受注を更新できる"
+    },
+    "order.approve": {
+      "resource": "Order",
+      "action": "approve",
+      "scope": "department",
+      "description": "所属部門の受注を承認できる"
     }
   },
 
   "role": {
-    "customer": {
-      "name": "顧客",
-      "description": "商品の検索・カート操作・注文確定を行う一般顧客",
-      "permissions": ["inventory.read", "order.create", "order.read"]
+    "orderOperator": {
+      "name": "受注担当",
+      "description": "受注の登録・参照・更新を担当する業務ロール",
+      "permissions": ["order.create", "order.read", "order.update"]
     },
-    "operationsSystem": {
-      "name": "業務システム",
-      "description": "配送指示・在庫管理を行うバックエンドシステムロール",
-      "permissions": ["inventory.read", "shipment.create"]
+    "orderApprover": {
+      "name": "受注承認者",
+      "description": "受注担当権限に加えて承認を実行できる業務ロール",
+      "permissions": ["order.read", "order.approve"],
+      "inherits": ["orderOperator"]
     }
   },
 
@@ -187,19 +184,14 @@
       "description": "顧客コード 4 桁ゼロパディング (例: C-0001)"
     },
     "orderNumber": {
-      "format": "RO-YYYY-NNNN",
+      "format": "ORD-YYYY-NNNN",
       "implementation": "PG sequence + trigger",
-      "description": "注文番号 年+4 桁ゼロパディング (例: RO-2026-0001)"
+      "description": "注文番号 年+4 桁ゼロパディング (例: ORD-2026-0001)"
     },
-    "cartCode": {
-      "format": "UUID-v4",
-      "implementation": "application-layer UUID",
-      "description": "カート ID は UUID v4 をアプリ層で採番"
-    },
-    "shipmentId": {
-      "format": "UUID-v4",
-      "implementation": "application-layer UUID",
-      "description": "配送 ID は UUID v4 をアプリ層で採番"
+    "invoiceNumber": {
+      "format": "INV-YYYY-NNNN",
+      "implementation": "PG sequence + trigger",
+      "description": "請求書番号 年+4 桁ゼロパディング (例: INV-2026-0001). seq_invoice_number を BEFORE INSERT トリガーで適用"
     }
   },
 
@@ -225,13 +217,13 @@
       "outcome": "failure",
       "action": "abort",
       "retry": "none",
-      "description": "4xx/5xx 明示エラー: 中断"
+      "description": "4xx/5xx 明示エラー: クリティカルな呼出は中断。v1 はリトライなし"
     },
     "timeout": {
       "outcome": "timeout",
       "action": "abort",
       "retry": "none",
-      "description": "タイムアウト: failure と同じ扱い"
+      "description": "タイムアウト (既定 10 秒): failure と同じ扱い。v1 はリトライなし"
     }
   }
 }
