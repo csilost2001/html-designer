@@ -243,8 +243,8 @@
       "title": "取引所 OpenAPI と FIX 接続を外部システムカタログで抽象化する",
       "status": "accepted",
       "context": "TSE/OSE で API 仕様や FIX 接続情報が異なるが、注文回送ステップは同一業務概念として扱いたい。",
-      "decision": "tseExchange と oseExchange を externalSystemCatalog に分け、OpenAPI 参照、FIX トークン、タイムアウトをカタログ化する。",
-      "consequences": "ルーティング結果から systemRef を切り替えるだけで注文回送の業務フローを共通化できる。",
+      "decision": "tseExchange と oseExchange を externalSystemCatalog に分け、OpenAPI 参照、FIX トークン、タイムアウトをカタログ化する。 FIX ClOrdID 由来の idempotencyKey をクライアントが付与する場合に優先利用し、未指定時は requestId をフォールバックする。",
+      "consequences": "ルーティング結果から systemRef を切り替えるだけで注文回送の業務フローを共通化できる。 クライアント指定の FIX ClOrdID と注文回送の冪等キーを対応付けられる。",
       "date": "2026-04-26"
     }
   ],
@@ -314,6 +314,11 @@
       "httpStatus": 503,
       "defaultMessage": "銘柄マスタのキャッシュ事前ロードに失敗しました",
       "responseRef": "503-cache-warmup-failed"
+    },
+    "ORDER_CANCELLED": {
+      "httpStatus": 400,
+      "defaultMessage": "対象注文はキャンセル済みです",
+      "responseRef": "400-order-cancelled"
     }
   },
   "externalSystemCatalog": {
@@ -767,22 +772,72 @@
         },
         {
           "id": "step-10",
-          "type": "dbAccess",
-          "description": "orders に PENDING 注文を登録する。",
+          "type": "transactionScope",
+          "description": "orders INSERT と ROUTED 更新を 1 トランザクションで実行する。外部取引所連携は TX 外で行う。",
           "maturity": "committed",
-          "tableName": "orders",
-          "operation": "INSERT",
-          "sql": "INSERT INTO orders (account_id, security_code, side, quantity, price, order_type, status, required_margin, created_by, created_at) VALUES (@inputs.accountId, @inputs.securityCode, @inputs.side, @inputs.quantity, @inputs.price, @inputs.orderType, 'PENDING', @requiredMargin, @sessionUserId, NOW()) RETURNING id",
-          "txBoundary": {
-            "role": "begin",
-            "txId": "tx-order-register"
-          },
-          "outputBinding": "newOrder",
-          "lineage": {
-            "writes": [
-              "orders"
-            ]
-          }
+          "isolationLevel": "READ_COMMITTED",
+          "propagation": "REQUIRED",
+          "rollbackOn": [
+            "EXCHANGE_REJECTED",
+            "EXCHANGE_TIMEOUT"
+          ],
+          "steps": [
+            {
+              "id": "step-10",
+              "type": "dbAccess",
+              "description": "orders に PENDING 注文を登録する。",
+              "maturity": "committed",
+              "tableName": "orders",
+              "operation": "INSERT",
+              "sql": "INSERT INTO orders (account_id, security_code, side, quantity, price, order_type, status, required_margin, created_by, created_at) VALUES (@inputs.accountId, @inputs.securityCode, @inputs.side, @inputs.quantity, @inputs.price, @inputs.orderType, 'PENDING', @requiredMargin, @sessionUserId, NOW()) RETURNING id",
+              "outputBinding": "newOrder",
+              "lineage": {
+                "writes": [
+                  "orders"
+                ]
+              }
+            },
+            {
+              "id": "step-13",
+              "type": "dbAccess",
+              "description": "orders を ROUTED に更新し、取引所 OrderID を保存する。",
+              "maturity": "committed",
+              "tableName": "orders",
+              "operation": "UPDATE",
+              "sql": "UPDATE orders SET status = 'ROUTED', exchange_code = @exchangeRoute, exchange_order_id = @exchangeResult.exchangeOrderId, updated_at = NOW() WHERE id = @newOrder.id",
+              "lineage": {
+                "writes": [
+                  "orders"
+                ]
+              }
+            }
+          ],
+          "onRollback": [
+            {
+              "id": "step-12-comp",
+              "type": "dbAccess",
+              "description": "補償処理: orders を REJECTED に更新する。",
+              "maturity": "committed",
+              "tableName": "orders",
+              "operation": "UPDATE",
+              "sql": "UPDATE orders SET status = 'REJECTED', reject_reason = 'EXCHANGE_REJECTED', updated_at = NOW() WHERE id = @newOrder.id",
+              "lineage": {
+                "writes": [
+                  "orders"
+                ]
+              },
+              "compensatesFor": "step-10"
+            }
+          ]
+        },
+        {
+          "id": "step-10b",
+          "type": "eventPublish",
+          "description": "order.received イベントを発行する。",
+          "maturity": "committed",
+          "topic": "order.received",
+          "eventRef": "order.received",
+          "payload": "{ orderId: @newOrder.id, accountId: @inputs.accountId, securityCode: @inputs.securityCode, side: @inputs.side, quantity: @inputs.quantity }"
         },
         {
           "id": "step-11",
@@ -797,7 +852,7 @@
             "path": "/orders/new-order-single",
             "body": "{ orderId: @newOrder.id, accountId: @inputs.accountId, securityCode: @inputs.securityCode, side: @inputs.side, quantity: @inputs.quantity, price: @inputs.price, orderType: @inputs.orderType }"
           },
-          "idempotencyKey": "order-@newOrder.id-@requestId",
+          "idempotencyKey": "@inputs.idempotencyKey ?? @requestId",
           "outputBinding": "exchangeResult",
           "outcomes": {
             "success": {
@@ -811,7 +866,8 @@
               "action": "abort",
               "sameAs": "failure"
             }
-          }
+          },
+          "operationRef": "/openapi/securities/exchanges#NewOrderSingle"
         },
         {
           "id": "step-12",
@@ -831,21 +887,6 @@
               },
               "steps": [
                 {
-                  "id": "step-12-comp",
-                  "type": "dbAccess",
-                  "description": "補償処理: orders を REJECTED に更新する。",
-                  "maturity": "committed",
-                  "tableName": "orders",
-                  "operation": "UPDATE",
-                  "sql": "UPDATE orders SET status = 'REJECTED', reject_reason = 'EXCHANGE_REJECTED', updated_at = NOW() WHERE id = @newOrder.id",
-                  "compensatesFor": "step-10",
-                  "lineage": {
-                    "writes": [
-                      "orders"
-                    ]
-                  }
-                },
-                {
                   "id": "step-12-a-02",
                   "type": "return",
                   "description": "502 取引所拒否",
@@ -860,24 +901,6 @@
             "code": "B",
             "label": "送信成功",
             "steps": []
-          }
-        },
-        {
-          "id": "step-13",
-          "type": "dbAccess",
-          "description": "orders を ROUTED に更新し、取引所 OrderID を保存する。",
-          "maturity": "committed",
-          "tableName": "orders",
-          "operation": "UPDATE",
-          "sql": "UPDATE orders SET status = 'ROUTED', exchange_code = @exchangeRoute, exchange_order_id = @exchangeResult.exchangeOrderId, updated_at = NOW() WHERE id = @newOrder.id",
-          "txBoundary": {
-            "role": "end",
-            "txId": "tx-order-register"
-          },
-          "lineage": {
-            "writes": [
-              "orders"
-            ]
           }
         },
         {
@@ -969,6 +992,14 @@
             "typeRef": "ApiError"
           },
           "when": "注文が存在しない"
+        },
+        {
+          "id": "400-order-cancelled",
+          "status": 400,
+          "bodySchema": {
+            "typeRef": "ApiError"
+          },
+          "when": "対象注文が CANCELLED 状態"
         }
       ],
       "steps": [
@@ -1025,7 +1056,7 @@
         {
           "id": "step-03",
           "type": "branch",
-          "description": "注文が存在しない場合は 404 を返す。",
+          "description": "注文が存在しない、または CANCELLED 状態の場合はエラーを返す。",
           "maturity": "committed",
           "branches": [
             {
@@ -1042,12 +1073,27 @@
                   "bodyExpression": "{ code: 'ORDER_NOT_FOUND', message: '注文が見つかりません' }"
                 }
               ]
+            },
+            {
+              "id": "br-03-b",
+              "code": "B",
+              "label": "キャンセル済み注文",
+              "condition": "@order != null && @order.status == 'CANCELLED'",
+              "steps": [
+                {
+                  "id": "step-03-b-01",
+                  "type": "return",
+                  "description": "400 キャンセル済み注文",
+                  "responseRef": "400-order-cancelled",
+                  "bodyExpression": "{ code: 'ORDER_CANCELLED', message: '対象注文はキャンセル済みです' }"
+                }
+              ]
             }
           ],
           "elseBranch": {
             "id": "br-03-else",
-            "code": "B",
-            "label": "注文あり",
+            "code": "C",
+            "label": "取引中の注文",
             "steps": []
           }
         },
@@ -1079,7 +1125,8 @@
             "writes": [
               "orders"
             ]
-          }
+          },
+          "runIf": "@upsertedTrade.trade_id != null"
         },
         {
           "id": "step-06",
@@ -1088,7 +1135,8 @@
           "maturity": "committed",
           "topic": "trade.executed",
           "eventRef": "trade.executed",
-          "payload": "{ orderId: @inputs.orderId, tradeId: @inputs.tradeId, executedQty: @inputs.executedQty, executedPrice: @inputs.executedPrice, status: @updatedOrder.status }"
+          "payload": "{ orderId: @inputs.orderId, tradeId: @inputs.tradeId, executedQty: @inputs.executedQty, executedPrice: @inputs.executedPrice, status: @updatedOrder.status }",
+          "runIf": "@upsertedTrade.trade_id != null"
         },
         {
           "id": "step-07",
@@ -1114,7 +1162,10 @@
               "action": "continue",
               "sameAs": "failure"
             }
-          }
+          },
+          "runIf": "@upsertedTrade.trade_id != null",
+          "operationId": "SendNotification",
+          "operationRef": "/openapi/notification-gateway#SendNotification"
         },
         {
           "id": "step-08",
@@ -1123,7 +1174,8 @@
           "maturity": "committed",
           "topic": "trade.notified",
           "eventRef": "trade.notified",
-          "payload": "{ orderId: @inputs.orderId, tradeId: @inputs.tradeId, notificationRequested: true }"
+          "payload": "{ orderId: @inputs.orderId, tradeId: @inputs.tradeId, notificationRequested: true }",
+          "runIf": "@upsertedTrade.trade_id != null"
         },
         {
           "id": "step-09",
@@ -1131,7 +1183,17 @@
           "description": "200 OK を返す。",
           "maturity": "committed",
           "responseRef": "200-ok",
-          "bodyExpression": "{ status: @updatedOrder.status }"
+          "bodyExpression": "{ status: @updatedOrder.status }",
+          "runIf": "@upsertedTrade.trade_id != null"
+        },
+        {
+          "id": "step-09b",
+          "type": "return",
+          "description": "冪等 no-op の場合は処理済みとして 200 OK を返す。",
+          "maturity": "committed",
+          "runIf": "@upsertedTrade.trade_id == null",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ status: 'ALREADY_PROCESSED' }"
         }
       ]
     },
@@ -1426,17 +1488,17 @@
     {
       "id": "idempotent-trade-callback",
       "name": "同一 tradeId の約定通知は 1 行のみ登録される",
-      "description": "同じ tradeId のコールバックを 2 回受けても、trades は 1 行のみになり注文数量は二重加算されない。",
+      "description": "既存 tradeId のコールバックを再送しても、trades は 1 行のままで副作用イベントを発火せず ALREADY_PROCESSED を返す。",
       "given": [
         {
           "kind": "clock",
-          "now": "2026-04-26T00:35:00.000Z"
+          "now": "2026-04-26T09:30:00.000Z"
         },
         {
           "kind": "sessionContext",
           "context": {
             "sessionUserId": "exchange-system",
-            "requestId": "req-459-trade",
+            "requestId": "req-459-trade-idempotent",
             "marketDate": "2026-04-26"
           }
         },
@@ -1447,15 +1509,23 @@
             {
               "id": "ORD-459-001",
               "quantity": 100,
-              "executed_qty": 0,
-              "status": "ROUTED"
+              "executed_qty": 100,
+              "status": "FILLED"
             }
           ]
         },
         {
           "kind": "dbState",
           "table": "trades",
-          "rows": []
+          "rows": [
+            {
+              "trade_id": "TRD-459-001",
+              "order_id": "ORD-459-001",
+              "executed_qty": 100,
+              "executed_price": 1500,
+              "executed_at": "2026-04-26T09:30:00.000Z"
+            }
+          ]
         },
         {
           "kind": "externalStub",
@@ -1474,8 +1544,8 @@
           "orderId": "ORD-459-001",
           "tradeId": "TRD-459-001",
           "executedQty": 100,
-          "executedPrice": 3000,
-          "executedAt": "2026-04-26T00:35:00.000Z"
+          "executedPrice": 1500,
+          "executedAt": "2026-04-26T09:30:00.000Z"
         }
       },
       "then": [
@@ -1487,8 +1557,7 @@
           "kind": "dbRow",
           "table": "trades",
           "match": {
-            "trade_id": "TRD-459-001",
-            "order_id": "ORD-459-001"
+            "trade_id": "TRD-459-001"
           },
           "count": 1
         },
@@ -1501,6 +1570,11 @@
             "status": "FILLED"
           },
           "count": 1
+        },
+        {
+          "kind": "output",
+          "path": "$.body.status",
+          "equals": "ALREADY_PROCESSED"
         }
       ],
       "tags": [
