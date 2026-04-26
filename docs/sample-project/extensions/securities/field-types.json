@@ -7,6 +7,7 @@
     { "kind": "securityCode", "label": "銘柄コード" },
     { "kind": "position", "label": "ポジション (BUY/SELL/数量)" },
     { "kind": "pnl", "label": "損益" },
-    { "kind": "settleDate", "label": "決済日" }
+    { "kind": "settleDate", "label": "決済日" },
+    { "kind": "accountStatus", "label": "口座ステータス (PENDING/UNDER_REVIEW/CREDIT_PENDING/APPROVED/ACTIVE/REJECTED/CLOSED)" }
   ]
 }
