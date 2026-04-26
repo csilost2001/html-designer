@@ -86,15 +86,18 @@ briefing には以下を含める:
 - Step 2 で書いた設計手順
 - 作業ディレクトリ: `C:/tmp/wt-$ARGUMENTS`
 - PR 作成まで完了すること
-- **ProcessFlow JSON 作成を含む ISSUE では `/create-flow` の 14 ルール self-check を遵守する旨を明示**:
-  > 「フロー作成にあたり `.claude/skills/create-flow/SKILL.md` の Step 3 既知パターン回避 self-check 14 ルールを遵守すること:
+- **`schemas/*.json` (グローバル定義スキーマ) 変更は AI の権限外。Codex/Sonnet/Opus は変更してはならない (#511、最重要)**:
+  > 「`schemas/process-flow.schema.json` 等のグローバル定義スキーマは変更禁止。表現できない場合は ISSUE 起票して作業停止、設計者承認待ち。テスト pass を理由に勝手に拡張するのは絶対禁止 (memory `feedback_schema_governance_strict.md` 参照)。」
+- **ProcessFlow JSON 作成を含む ISSUE では `/create-flow` の 15 ルール self-check を遵守する旨を明示**:
+  > 「フロー作成にあたり `.claude/skills/create-flow/SKILL.md` の Step 3 既知パターン回避 self-check 15 ルールを遵守すること:
   > **基本 8 ルール**: 1) TX 内 step が TX 外設定変数を前方参照しない、2) 外部呼び出しは TX 外、3) UPSERT 後の step すべてに同条件 runIf + no-op return、
   > 4) branch return 後の共通 step に fallthrough しない、5) compensatesFor 対象 step が実在、6) eventsCatalog ⇄ eventPublish 双方向整合、
   > 7) 外部呼び出しは TransactionScope inner にいない、8) rollbackOn は TX inner で発生するエラーコードのみ列挙 (死コード禁止)、
   > **追加 6 ルール (#486 検証で発覚)**: 9) SQL SELECT カラム整合 (後続参照の全フィールドが SELECT 句に含まれること)、
   > 10) `@conv.*` 参照は conventions-catalog.json 登録済キーのみ、11) TX 内 branch return 後の fallthrough も避ける、
   > 12) `affectedRowsCheck.operator` は `=` のみ (`==` 不可)、13) `affectedRowsCheck.expected` は integer リテラル必須、
-  > 14) `OtherStep.outputSchema` は `{field: \"string\"}` 形式のみ」
+  > 14) `OtherStep.outputSchema` は `{field: \"string\"}` 形式のみ、
+  > **追加 1 ルール (#511 で導入、最重要)**: 15) グローバル schema (`schemas/*.json`) を変更禁止、必要なら ISSUE 起票して停止」
 
 ### Codex が「プラン制限」エラー → 即 Sonnet フォールバック
 
@@ -105,6 +108,30 @@ Agent(subagent_type="general-purpose", model="sonnet", prompt="...")
 同じ briefing を渡す。
 
 **⚠️ 確認なしで最初から Sonnet を使うのは禁止 (Rule 6 違反)**
+
+## Step 5.0: schema 変更チェック (最優先、#511 で導入)
+
+**最重要**: `gh pr diff <PR番号> -- schemas/` で schema 変更の有無を確認:
+
+```bash
+gh pr diff <PR番号> --name-only | grep -E "^schemas/"
+```
+
+`schemas/*.json` (process-flow / extensions / conventions) に変更がある場合:
+
+1. **設計者承認 ISSUE が紐付いているか確認** (PR description / 元 ISSUE で明示的に schema 改修を依頼している場合のみ正当)
+2. **紐付かない schema 変更 = 権限外行為** (memory `feedback_schema_governance_strict.md` 参照):
+   - **即座に Codex/Sonnet に revert 指示** (本来の修正は schema を触らずにやり直し)
+   - もしくは **別 ISSUE 起票** で schema 変更を隔離 (例: `improve(schema): <フィールド名> 追加検討 — 経緯`)
+   - schema 変更を含む PR は設計者承認が出るまでマージ禁止
+3. テスト pass を理由にそのまま通すのは**絶対禁止**
+
+検出された場合は ISSUE コメントで報告:
+```bash
+gh issue comment $ARGUMENTS --body "⚠️ schema 変更検出: <ファイル名> — 設計者承認が必要"
+```
+
+→ schema 変更なしを確認後、Step 5 へ。
 
 ## Step 5: 逸脱確認 (Rule 7)
 

@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 14 観点を作成前 self-check として組み込み、既知パターンの再発を抑制する
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 15 観点を作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511)
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -173,6 +173,17 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 - 参考: 拡張定義 (`extensions/<namespace>/steps.json`) の `schema` フィールドは別物 (こちらは JSON Schema 完全対応)
 - 典型ミス: `"outputSchema": { "type": "object", "properties": {...}, "required": [...] }` を書く → schema 違反、Sonnet が #486 で実装中に修正
 
+### Rule 15: グローバル schema 変更禁止 (#511 教訓、最重要)
+
+- **`schemas/process-flow.schema.json` / `schemas/extensions-*.schema.json` / `schemas/conventions.schema.json` を変更しない**
+- これらは **フレームワーク製作者 (設計者) の専権事項**、AI による変更は権限外行為
+- 業務記述で表現できない場合の対処順序:
+  1. **拡張機構 (namespace 拡張定義) で代替できないか確認** — `extensions/<namespace>/*.json` で field-types / triggers / db-operations / steps を追加
+  2. **既存 schema フィールドで代替表現できないか確認** — description / note フィールドで意図を表現、`type: "other"` + outputSchema パターンを使う
+  3. それでも無理なら、**ISSUE 起票して作業を一時停止** (例: `improve(schema): <フィールド名> 追加検討 — <経緯>`)、設計者承認待ち
+- **絶対禁止**: テスト pass を理由に schema を勝手に拡張すること
+- 参考: PR #508 で Sonnet が 6 フィールド勝手追加 → #511 でガバナンス導入の発端
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -250,6 +261,7 @@ npm run build
 | 12. `affectedRowsCheck.operator` (`=` のみ) | ✓ / 該当なし |
 | 13. `affectedRowsCheck.expected` (integer リテラル) | ✓ / 該当なし |
 | 14. `OtherStep.outputSchema` 形式 | ✓ / 該当なし |
+| 15. グローバル schema 変更禁止 | ✓ (`schemas/*.json` 未変更) / ❌ |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
@@ -268,11 +280,11 @@ npm run build
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **14 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **15 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
 - スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
 - 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
 - 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` / `ffffffff-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
-- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 14 ルールを遵守すること」が含まれているはず
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 15 ルールを遵守すること」が含まれているはず
