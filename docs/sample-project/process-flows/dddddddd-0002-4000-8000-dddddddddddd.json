@@ -146,7 +146,7 @@
       "name": "riskCheckId",
       "type": "string",
       "required": true,
-      "description": "取引前リスクチェック単位の識別子。未指定時はミドルウェアで採番する。"
+      "description": "取引前リスクチェック単位の識別子。呼び出し元が必ず指定すること。"
     }
   ],
   "errorCatalog": {
@@ -174,6 +174,11 @@
       "httpStatus": 504,
       "defaultMessage": "リスクチェックの SLA を超過しました",
       "responseRef": "504-sla-exceeded"
+    },
+    "EXTERNAL_FAILURE": {
+      "httpStatus": 502,
+      "defaultMessage": "外部サービスとの通信に失敗しました",
+      "responseRef": "502-external-failure"
     }
   },
   "externalSystemCatalog": {
@@ -261,7 +266,7 @@
       "examples": ["@fn.calcVaR(@projectedPositions, 0.99)"]
     },
     "checkCircuitBreaker": {
-      "signature": "checkCircuitBreaker(account: Account, recentLoss: number): boolean",
+      "signature": "checkCircuitBreaker(accountId: AccountId, recentLoss: number): boolean",
       "returnType": "boolean",
       "description": "口座別の損失閾値に対して CircuitBreaker 発動要否を判定する。内部で account.loss_threshold と比較。",
       "examples": ["@fn.checkCircuitBreaker(@account, @recentLoss)"]
@@ -346,7 +351,7 @@
           "maturity": "committed",
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
-          "rollbackOn": ["VALIDATION"],
+          "rollbackOn": [],
           "outcomes": {
             "failure": { "action": "abort" }
           },
@@ -388,6 +393,11 @@
           "httpCall": {
             "method": "GET",
             "path": "/prices/@inputs.securityCode/current"
+          },
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": { "action": "abort" },
+            "timeout": { "action": "abort", "sameAs": "failure" }
           },
           "outputBinding": "currentPrice"
         },
