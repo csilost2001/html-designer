@@ -144,7 +144,7 @@
       "name": "requestId",
       "type": "string",
       "required": true,
-      "description": "処理単位の追跡 ID。清算機関連携の冪等キーにも利用する。"
+      "description": "処理単位の追跡 ID。HTTP X-Request-ID ヘッダーからミドルウェアが注入し、清算機関連携の冪等キーにも利用する。"
     },
     {
       "name": "marketDate",
@@ -333,6 +333,11 @@
           }
         },
         {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" }
+        },
+        {
           "id": "422-netting-failed",
           "status": 422,
           "bodySchema": { "typeRef": "ApiError" }
@@ -384,6 +389,7 @@
           "id": "step-003-trade-match",
           "type": "securities:TradeMatchStep",
           "description": "内部 trades と外部清算機関の約定明細を tradeId で照合する。拡張 TradeMatchStep の実利用。",
+          "note": "executedQty は拡張定義が number 固定のため、実装側で @pendingTrades[].executed_qty を集約して渡す前提のプレースホルダー。",
           "maturity": "committed",
           "tradeId": "@pendingTrades[].trade_id",
           "orderId": "@pendingTrades[].order_id",
@@ -429,8 +435,7 @@
           "maturity": "committed",
           "isolationLevel": "REPEATABLE_READ",
           "propagation": "REQUIRED",
-          "rollbackOn": ["NETTING_FAILED"],
-          "outputBinding": "settlementTx",
+          "rollbackOn": [],
           "steps": [
             {
               "id": "step-007-01-generate-batch-id",
@@ -479,7 +484,7 @@
           "httpCall": {
             "method": "POST",
             "path": "/settlements/instructions",
-            "body": "{ settlementBatchId: @settlementTx.txSettlementBatchId, clearingHouse: @fn.selectClearingHouse(@pendingTrades[0].security_code), settleDate: @inputs.settleDate, nettedAmount: @nettedAmount }"
+            "body": "{ settlementBatchId: @txSettlementBatchId, clearingHouse: @fn.selectClearingHouse(@pendingTrades[0].security_code), settleDate: @inputs.settleDate, nettedAmount: @nettedAmount }"
           },
           "operationId": "SendSettlementInstruction",
           "operationRef": "/openapi/jscc-clearing#SendSettlementInstruction",
@@ -510,7 +515,7 @@
                   "maturity": "committed",
                   "tableName": "trades",
                   "operation": "UPDATE",
-                  "sql": "UPDATE trades SET status = 'PENDING_SETTLEMENT', settlement_batch_id = NULL, updated_at = NOW() WHERE settlement_batch_id = @settlementTx.txSettlementBatchId",
+                  "sql": "UPDATE trades SET status = 'PENDING_SETTLEMENT', settlement_batch_id = NULL, updated_at = NOW() WHERE settlement_batch_id = @txSettlementBatchId",
                   "compensatesFor": "step-007-03-update-trades",
                   "lineage": {
                     "writes": ["trades"]
@@ -523,7 +528,7 @@
                   "maturity": "committed",
                   "tableName": "settlement_retry_queue",
                   "operation": "INSERT",
-                  "sql": "INSERT INTO settlement_retry_queue (settlement_batch_id, reason, queued_at) VALUES (@settlementTx.txSettlementBatchId, 'CLEARING_HOUSE_REJECTED', NOW())",
+                  "sql": "INSERT INTO settlement_retry_queue (settlement_batch_id, reason, queued_at) VALUES (@txSettlementBatchId, 'CLEARING_HOUSE_REJECTED', NOW())",
                   "lineage": {
                     "writes": ["settlement_retry_queue"]
                   }
@@ -535,7 +540,7 @@
                   "maturity": "committed",
                   "topic": "settlement.failed",
                   "eventRef": "settlement.failed",
-                  "payload": "{ settlementBatchId: @settlementTx.txSettlementBatchId, reason: 'CLEARING_HOUSE_REJECTED' }"
+                  "payload": "{ settlementBatchId: @txSettlementBatchId, reason: 'CLEARING_HOUSE_REJECTED' }"
                 },
                 {
                   "id": "step-009-04-return-502",
@@ -562,7 +567,7 @@
           "maturity": "committed",
           "topic": "settlement.instructed",
           "eventRef": "settlement.instructed",
-          "payload": "{ settlementBatchId: @settlementTx.txSettlementBatchId, instructedCount: @settlementTx.insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
+          "payload": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
           "runIf": "@clearingInstruction.outcome == 'success'"
         },
         {
@@ -581,7 +586,7 @@
           "description": "決済指図成功として 200 を返す。",
           "maturity": "committed",
           "responseRef": "200-ok",
-          "bodyExpression": "{ settlementBatchId: @settlementTx.txSettlementBatchId, instructedCount: @settlementTx.insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
+          "bodyExpression": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
           "runIf": "@clearingInstruction.outcome == 'success'"
         }
       ],
@@ -643,6 +648,11 @@
           }
         },
         {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" }
+        },
+        {
           "id": "404-trade-not-found",
           "status": 404,
           "bodySchema": { "typeRef": "ApiError" }
@@ -659,7 +669,13 @@
             { "field": "settlementId", "type": "required" },
             { "field": "clearingReference", "type": "required" },
             { "field": "completedAt", "type": "required" }
-          ]
+          ],
+          "inlineBranch": {
+            "ok": "決済完了対象の取得へ進む",
+            "ng": "入力値エラーとして 400 を返す",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
         },
         {
           "id": "step-102-select-settlement",
@@ -715,8 +731,7 @@
           "outputBinding": "updatedSettlement",
           "lineage": {
             "writes": ["settlements"]
-          },
-          "runIf": "@settlement != null"
+          }
         },
         {
           "id": "step-105-update-trades",
@@ -729,8 +744,7 @@
           "outputBinding": "settledTrades",
           "lineage": {
             "writes": ["trades"]
-          },
-          "runIf": "@settlement != null"
+          }
         },
         {
           "id": "step-106-publish-completed",
@@ -739,8 +753,7 @@
           "maturity": "committed",
           "topic": "settlement.completed",
           "eventRef": "settlement.completed",
-          "payload": "{ settlementId: @inputs.settlementId, clearingReference: @inputs.clearingReference, status: 'COMPLETED' }",
-          "runIf": "@settlement != null"
+          "payload": "{ settlementId: @inputs.settlementId, clearingReference: @inputs.clearingReference, status: 'COMPLETED' }"
         },
         {
           "id": "step-107-return-200",
@@ -748,8 +761,7 @@
           "description": "完了通知処理の成功を返す。",
           "maturity": "committed",
           "responseRef": "200-ok",
-          "bodyExpression": "{ status: 'COMPLETED' }",
-          "runIf": "@settlement != null"
+          "bodyExpression": "{ status: 'COMPLETED' }"
         }
       ],
       "requiredPermissions": ["settlement.callback"]
@@ -837,12 +849,18 @@
           },
           "operationId": "ListSettlements",
           "operationRef": "/openapi/jscc-clearing#ListSettlements",
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": { "action": "abort" },
+            "timeout": { "action": "abort" }
+          },
           "outputBinding": "clearingSettlements"
         },
         {
           "id": "step-203-reconcile",
           "type": "dbAccess",
           "description": "RECONCILE operation で内部記録と清算機関記録を照合する。",
+          "note": "実装側で内部配列を一時テーブル展開する前提。",
           "maturity": "committed",
           "tableName": "settlement_reconciliation",
           "operation": "RECONCILE",
