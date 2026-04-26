@@ -105,9 +105,11 @@ describe("aggregateValidation — 統合テスト", () => {
     expect(w?.path).toContain("externalSystemCatalog");
   });
 
-  it("サンプル 0005 は clean (structural error なし + warning 最小)", () => {
+  it("legacy サンプル 0005 は clean (structural error なし + warning 最小)", () => {
+    // Phase 4-2 で docs/sample-project は retail (gggggggg-*) に置き換え、
+    // 既存 cccccccc-* は docs/legacy-sample-project に退避済。
     const group = JSON.parse(readFileSync(
-      resolve(repoRoot, "docs/sample-project/process-flows/cccccccc-0005-4000-8000-cccccccccccc.json"),
+      resolve(repoRoot, "docs/legacy-sample-project/process-flows/cccccccc-0005-4000-8000-cccccccccccc.json"),
       "utf-8",
     )) as ProcessFlow;
     const errors = aggregateValidation(group);
