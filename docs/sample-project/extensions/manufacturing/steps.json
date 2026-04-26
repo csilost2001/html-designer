@@ -4,14 +4,15 @@
     "BomExplodeStep": {
       "label": "BOM 展開",
       "icon": "GitBranch",
-      "description": "製品コードから必要部品リストを階層展開",
+      "description": "製品コードから BOM を再帰展開し、必要部品リストを生成する。",
       "schema": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["productCode", "quantity"],
+        "required": ["productCode"],
         "properties": {
           "productCode": { "type": "string" },
-          "quantity": { "type": "number" }
+          "quantity": { "type": "number" },
+          "explodeDepth": { "type": "integer" }
         }
       }
     },
@@ -27,6 +28,37 @@
           "partNumber": { "type": "string" },
           "quantity": { "type": "number" },
           "lotId": { "type": "string" }
+        }
+      }
+    },
+    "TraceabilityStep": {
+      "label": "トレーサビリティ記録",
+      "icon": "Activity",
+      "description": "部材ロット / 製造工程 / 担当者を traceability_log に記録する。",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lotId", "eventType"],
+        "properties": {
+          "lotId": { "type": "string" },
+          "eventType": { "type": "string", "enum": ["PRODUCTION", "INSPECTION", "SHIPMENT"] },
+          "operatorId": { "type": "string" },
+          "metadata": { "type": "object" }
+        }
+      }
+    },
+    "QualityCheckStep": {
+      "label": "品質検査",
+      "icon": "CheckCircle",
+      "description": "ロットの品質仕様適合チェックを行う。inspectionItems は配列値式 (例: @inputs.inspectionItems) を文字列で受ける想定。",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lotId", "specification"],
+        "properties": {
+          "lotId": { "type": "string" },
+          "specification": { "type": "string" },
+          "inspectionItems": { "type": "string" }
         }
       }
     }
