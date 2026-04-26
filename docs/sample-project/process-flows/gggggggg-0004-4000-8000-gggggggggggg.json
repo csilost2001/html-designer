@@ -86,7 +86,7 @@
       "domainRef": "retail.maxDeliveryAttempts"
     },
     "配送ステータス": {
-      "definition": "shipments.status の値。PENDING / DISPATCHED / IN_TRANSIT / DELIVERED / FAILED のいずれか。",
+      "definition": "shipments.status の値。PENDING / DISPATCHED / IN_TRANSIT / DELIVERED / FAILED のいずれか。existingShipment.id は shipments.id (PK, UUID v4) で、order_id に対して 1:1 制約 (UNIQUE INDEX)。",
       "aliases": ["ShipmentStatus"],
       "domainRef": "shipments.status"
     },
@@ -123,6 +123,15 @@
       "context": "物流会社 API は外部システムのため TX 内に含められない。試行回数の上限管理が必要。",
       "decision": "外部 API は TX 外で呼び出す。失敗時は delivery_attempt_count を +1 し、@conv.limit.maxDeliveryAttempts (3) 超過時は FAILED ステータスに更新してアラートイベントを発行する。",
       "consequences": "最大 3 回試行後に FAILED になる。4 回目以降は manual 対応が必要。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-004",
+      "title": "step-12/13 (DB 更新 2 件) は TX なしでべき等リトライを保証する",
+      "status": "accepted",
+      "context": "step-12 (shipments DISPATCHED 更新) と step-13 (orders SHIPPED 更新) を TransactionScope に入れるかどうか。",
+      "decision": "両ステップは独立した UPDATE であり、いずれかが失敗しても再試行でべき等に収束する。TX は使用しない。step-12 の shipmentId をべき等キーとして利用し、再試行時に同じ値で UPDATE することで副作用が発生しない。",
+      "consequences": "step-12 成功後 step-13 失敗のパターンでは orders が CONFIRMED のまま残るが、再試行時に step-12 はノーオペレーション (同値 UPDATE)、step-13 は冪等に SHIPPED に更新される。",
       "date": "2026-04-26"
     },
     {
@@ -191,7 +200,16 @@
         "headerName": "X-API-Key"
       },
       "timeoutMs": 5000,
-      "description": "ヤマト運輸の配送依頼 API。追跡番号・配送予定日を返す。"
+      "description": "ヤマト運輸の配送依頼 API。追跡番号・配送予定日を返す。",
+      "responseSchema": {
+        "type": "object",
+        "required": ["success", "trackingNumber", "estimatedDeliveryDate"],
+        "properties": {
+          "success": { "type": "boolean", "description": "配送依頼の成否" },
+          "trackingNumber": { "type": "string", "description": "ヤマト運輸が発行する追跡番号" },
+          "estimatedDeliveryDate": { "type": "string", "description": "配送予定日 (ISO 8601 date 形式)" }
+        }
+      }
     },
     "carrierApiSagawa": {
       "name": "佐川急便 API",
@@ -202,7 +220,16 @@
         "headerName": "X-API-Key"
       },
       "timeoutMs": 5000,
-      "description": "佐川急便の配送依頼 API。追跡番号・配送予定日を返す。"
+      "description": "佐川急便の配送依頼 API。追跡番号・配送予定日を返す。",
+      "responseSchema": {
+        "type": "object",
+        "required": ["success", "trackingNumber", "estimatedDeliveryDate"],
+        "properties": {
+          "success": { "type": "boolean", "description": "配送依頼の成否" },
+          "trackingNumber": { "type": "string", "description": "佐川急便が発行する追跡番号" },
+          "estimatedDeliveryDate": { "type": "string", "description": "配送予定日 (ISO 8601 date 形式)" }
+        }
+      }
     }
   },
   "secretsCatalog": {
@@ -457,8 +484,18 @@
               "id": "br-05-b",
               "code": "B",
               "label": "試行上限超過",
-              "condition": "@existingShipment != null && @existingShipment.delivery_attempt_count >= @conv.limit.maxDeliveryAttempts",
+              "condition": "@existingShipment != null && @existingShipment.delivery_attempt_count > @conv.limit.maxDeliveryAttempts",
               "steps": [
+                {
+                  "id": "step-05-b-00",
+                  "type": "dbAccess",
+                  "description": "配送指示を FAILED ステータスに更新する。試行上限超過を永続化する。",
+                  "maturity": "committed",
+                  "tableName": "shipments",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE shipments SET status = 'FAILED', updated_at = NOW() WHERE id = @existingShipment.id",
+                  "lineage": { "writes": ["shipments"] }
+                },
                 {
                   "id": "step-05-b-01",
                   "type": "eventPublish",
@@ -490,7 +527,7 @@
           "type": "compute",
           "description": "配送指示 ID を採番する。既存 shipment があれば再利用、なければ新規生成。",
           "maturity": "committed",
-          "expression": "@existingShipment != null ? @existingShipment.id : generateUUID()",
+          "expression": "@existingShipment?.id != null ? @existingShipment.id : @fn.generateShipmentId()",
           "outputBinding": "shipmentId"
         },
         {
@@ -511,18 +548,6 @@
           "sql": "INSERT INTO shipments (id, order_id, carrier_code, status, delivery_attempt_count, created_at, updated_at) VALUES (@shipmentId, @inputs.orderId, @selectedCarrier, 'PENDING', 1, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET carrier_code = @selectedCarrier, delivery_attempt_count = shipments.delivery_attempt_count + 1, status = 'PENDING', updated_at = NOW() RETURNING id, delivery_attempt_count",
           "outputBinding": "upsertedShipment",
           "lineage": { "writes": ["shipments"] }
-        },
-        {
-          "id": "step-09",
-          "type": "retail:ShipmentDispatchStep",
-          "description": "配送指示ステップ (retail 拡張)。物流会社 API への配送依頼送信を明示する。",
-          "maturity": "committed",
-          "outputSchema": {
-            "orderId": "string",
-            "shipmentId": "string",
-            "carrierCode": "string",
-            "trackingNumber": "string"
-          }
         },
         {
           "id": "step-10",
@@ -555,7 +580,7 @@
               "id": "br-11-a",
               "code": "A",
               "label": "API 失敗",
-              "condition": "@carrierResult.success == false",
+              "condition": "@carrierResult == null || @carrierResult.success != true",
               "steps": [
                 {
                   "id": "step-11-a-01",
@@ -564,7 +589,17 @@
                   "maturity": "committed",
                   "topic": "shipment.dispatch_failed",
                   "eventRef": "shipment.dispatch_failed",
-                  "payload": "{ orderId: @inputs.orderId, errorCode: 'CARRIER_API_FAILED', retryCount: @upsertedShipment.delivery_attempt_count }"
+                  "payload": "{ orderId: @inputs.orderId, errorCode: 'CARRIER_API_FAILED', retryCount: @upsertedShipment.delivery_attempt_count }",
+                  "compensatesFor": "step-08"
+                },
+                {
+                  "id": "step-11-a-01b",
+                  "type": "eventPublish",
+                  "description": "shipment.carrier_notified イベントを success: false で発行する (catalog 整合)。",
+                  "maturity": "committed",
+                  "topic": "shipment.carrier_notified",
+                  "eventRef": "shipment.carrier_notified",
+                  "payload": "{ shipmentId: @shipmentId, orderId: @inputs.orderId, carrierCode: @selectedCarrier, success: false }"
                 },
                 {
                   "id": "step-11-a-02",
