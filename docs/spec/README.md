@@ -11,6 +11,8 @@
 | [process-flow-variables.md](process-flow-variables.md) | 変数・入出力・outputBinding (Phase 1 基盤) | #151 / #152 |
 | [process-flow-extensions.md](process-flow-extensions.md) | HTTP 契約 / TX / Saga / 外部 outcomes / ValidationRule / compute / return (Phase B) | #151 / #182 |
 | [process-flow-sla.md](process-flow-sla.md) | SLA / Timeout 宣言 (ProcessFlow / ActionDefinition / StepBase) | #412 |
+| [process-flow-criterion.md](process-flow-criterion.md) | Criterion (ExternalSystemStep の `successCriteria`、Arazzo 1.0 互換、`$` Runtime Expression 推奨) | #427 |
+| [process-flow-tier-c.md](process-flow-tier-c.md) | Tier C 拡張 — circuitBreaker / bulkhead / ClosingStep / CdcStep / health / readiness / resources | #426 |
 | [process-flow-expression-language.md](process-flow-expression-language.md) | runIf / expression / bodyExpression の式言語 BNF (js-subset) | #253 |
 | [process-flow-runtime-conventions.md](process-flow-runtime-conventions.md) | SQL 式補間 / HTTP body シリアライズ / TX×throw×tryCatch / fireAndForget / sideEffects TX 境界等の実行時規約 | #261 |
 | [process-flow-external-system.md](process-flow-external-system.md) | ExternalSystemStep の OpenAPI operation 参照 (`openApiSpec` / `operationRef`) | #413 |
@@ -26,7 +28,9 @@
 | [dogfood-2026-04-27-logistics-create-flow-validation.md](dogfood-2026-04-27-logistics-create-flow-validation.md) | `/create-flow` 効果検証レポート (物流業務、Must-fix 50-75% 削減) | #486 |
 | [dogfood-2026-04-27-phase4-retail-validation.md](dogfood-2026-04-27-phase4-retail-validation.md) | Phase 4 全仕様書統合検証レポート — retail (既存退避→AI 生成→改善ループで Must-fix ゼロ達成) | #500 / #506 |
 | **[schema-governance.md](schema-governance.md)** | **最重要**: グローバル定義スキーマ変更ガバナンス (AI による勝手拡張を構造的に禁止) | #511 |
+| **[schema-design-principles.md](schema-design-principles.md)** | **schema を どう書くか の規範** — 命名 / 構造 / フォーマット / コード補完 / 拡張判断 / 後方互換 / テスト規約 / 既知課題 | #517 |
 | [schema-audit-2026-04-27.md](schema-audit-2026-04-27.md) | Schema 変更履歴監査レポート — 過去 102 コミット精査、(A) 正当 88% / (B) 不規則 2-3% / (C) 不適切 0% | #511 (Phase B-1) |
+| [schema-redesign-proposal-codex-2026-04-27.md](schema-redesign-proposal-codex-2026-04-27.md) | Codex (GPT-5.5) による schema 再設計セカンドオピニオン提案 (#517 の判断材料) | #517 |
 
 **一次成果物**: JSON スキーマ [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) ([README](../../schemas/README.md))。仕様書と突合する機械可読版。
 
