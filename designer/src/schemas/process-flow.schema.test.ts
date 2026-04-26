@@ -2,20 +2,83 @@
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { readFileSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
-import { buildExtendedSchema, loadExtensionsFromBundle } from "./loadExtensions";
+import { basename, resolve, join } from "node:path";
+import { buildExtendedSchema, loadExtensionsFromBundle, type ExtensionsBundle } from "./loadExtensions";
 
 const repoRoot = resolve(__dirname, "../../../");
 const schemaPath = resolve(repoRoot, "schemas/process-flow.schema.json");
 const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
+const sampleExtensionsDir = resolve(repoRoot, "docs/sample-project/extensions");
 
 let validate: ValidateFunction;
+let validateWithSampleExtensions: ValidateFunction;
+
+function withNamespace(namespace: string, key: string): string {
+  return namespace ? `${namespace}:${key}` : key;
+}
+
+function mergeObjectExtension(
+  bundle: Record<string, unknown>,
+  raw: Record<string, unknown>,
+  bodyKey: string,
+): void {
+  const namespace = typeof raw.namespace === "string" ? raw.namespace : "";
+  const body = raw[bodyKey];
+  if (!body || typeof body !== "object" || Array.isArray(body)) return;
+  for (const [key, value] of Object.entries(body)) {
+    bundle[withNamespace(namespace, key)] = value;
+  }
+}
+
+function loadSampleExtensionsBundle(): ExtensionsBundle {
+  const bundle = {
+    steps: { namespace: "", steps: {} as Record<string, unknown> },
+    fieldTypes: { namespace: "", fieldTypes: [] as unknown[] },
+    triggers: { namespace: "", triggers: [] as unknown[] },
+    dbOperations: { namespace: "", dbOperations: [] as unknown[] },
+    responseTypes: { namespace: "", responseTypes: {} as Record<string, unknown> },
+  };
+
+  const files = readdirSync(sampleExtensionsDir, { recursive: true })
+    .filter((f): f is string => typeof f === "string" && f.endsWith(".json"));
+
+  for (const file of files) {
+    const raw = JSON.parse(readFileSync(join(sampleExtensionsDir, file), "utf-8")) as Record<string, unknown>;
+    switch (basename(file)) {
+      case "field-types.json":
+        if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
+        break;
+      case "triggers.json":
+        if (Array.isArray(raw.triggers)) bundle.triggers.triggers.push(...raw.triggers);
+        break;
+      case "db-operations.json":
+        if (Array.isArray(raw.dbOperations)) bundle.dbOperations.dbOperations.push(...raw.dbOperations);
+        break;
+      case "steps.json":
+        mergeObjectExtension(bundle.steps.steps, raw, "steps");
+        break;
+      case "response-types.json":
+        mergeObjectExtension(bundle.responseTypes.responseTypes, raw, "responseTypes");
+        break;
+    }
+  }
+
+  return bundle;
+}
 
 beforeAll(() => {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   const schema = JSON.parse(readFileSync(schemaPath, "utf-8"));
   validate = ajv.compile(schema);
+
+  const loaded = loadExtensionsFromBundle(loadSampleExtensionsBundle());
+  const extended = buildExtendedSchema(schema, loaded.extensions);
+  expect(loaded.errors).toEqual([]);
+  expect(extended.errors).toEqual([]);
+  const extendedAjv = new Ajv2020({ allErrors: true, strict: false });
+  addFormats(extendedAjv);
+  validateWithSampleExtensions = extendedAjv.compile(extended.schema);
 });
 
 describe("process-flow.schema.json - LogStep / AuditStep (#397)", () => {
@@ -112,9 +175,9 @@ describe("process-flow.schema.json — docs/sample-project/process-flows/*.json"
   for (const file of files) {
     it(`${file} がスキーマに適合する`, () => {
       const data = JSON.parse(readFileSync(join(samplesDir, file), "utf-8"));
-      const ok = validate(data);
+      const ok = validateWithSampleExtensions(data);
       if (!ok) {
-        const msg = validate.errors
+        const msg = validateWithSampleExtensions.errors
           ?.map((e) => `  - ${e.instancePath} ${e.message}${e.params ? " " + JSON.stringify(e.params) : ""}`)
           .join("\n");
         throw new Error(`スキーマ違反 (${file}):\n${msg}`);
