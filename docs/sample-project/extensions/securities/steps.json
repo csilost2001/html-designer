@@ -63,6 +63,21 @@
           "currency": { "type": "string" }
         }
       }
+    },
+    "RegulatoryReportStep": {
+      "label": "規制報告生成",
+      "icon": "FileText",
+      "description": "報告期間の取引データを抽出し当局指定形式で暗号化",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reportingPeriod", "regulatoryAuthority"],
+        "properties": {
+          "reportingPeriod": { "type": "string" },
+          "regulatoryAuthority": { "type": "string" },
+          "encryptionKeyRef": { "type": "string" }
+        }
+      }
     }
   }
 }
