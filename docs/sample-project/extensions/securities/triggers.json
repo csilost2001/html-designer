@@ -3,6 +3,7 @@
   "triggers": [
     { "value": "marketOpen", "label": "市場開場時" },
     { "value": "marketClose", "label": "市場閉場時" },
-    { "value": "settlementCutoff", "label": "決済期限到来時" }
+    { "value": "settlementCutoff", "label": "決済期限到来時" },
+    { "value": "regulatoryDeadline", "label": "規制期限到来時" }
   ]
 }
