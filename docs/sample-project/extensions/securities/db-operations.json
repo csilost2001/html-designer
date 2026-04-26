@@ -1,0 +1,6 @@
+{
+  "namespace": "securities",
+  "dbOperations": [
+    { "value": "UPSERT_IDEMPOTENT", "label": "冪等 UPSERT (重複時 no-op)" }
+  ]
+}

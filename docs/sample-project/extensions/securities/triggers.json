@@ -1,0 +1,7 @@
+{
+  "namespace": "securities",
+  "triggers": [
+    { "value": "marketOpen", "label": "市場開場時" },
+    { "value": "marketClose", "label": "市場閉場時" }
+  ]
+}

@@ -18,7 +18,7 @@ function schemaPathForSample(fileName: string): string {
   return join(schemasDir, `extensions-${kind}.schema.json`);
 }
 
-const sampleFiles = readdirSync(samplesDir)
+const sampleFiles = readdirSync(samplesDir, { recursive: true })
   .filter((f) => f.endsWith(".json"))
   .map((f) => ({
     file: f,
@@ -40,9 +40,11 @@ describe("docs/sample-project/extensions — スキーマバリデーション",
 
   it.each(sampleFiles)("$file が対応スキーマで valid", ({ file, samplePath, schemaPath }) => {
     const sample = JSON.parse(readFileSync(samplePath, "utf-8")) as unknown;
-    const schema = JSON.parse(readFileSync(schemaPath, "utf-8")) as object;
+    const schema = JSON.parse(readFileSync(schemaPath, "utf-8")) as { $id?: string };
 
-    const validate: ValidateFunction = ajv.compile(schema);
+    const validate: ValidateFunction = schema.$id
+      ? ajv.getSchema(schema.$id) ?? ajv.compile(schema)
+      : ajv.compile(schema);
     const ok = validate(sample);
 
     if (!ok) {
