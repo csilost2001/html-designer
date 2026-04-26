@@ -165,12 +165,6 @@
       "type": "string",
       "required": true,
       "description": "操作したログインユーザー ID。act-002/act-003 では検査員・出荷担当者が該当。"
-    },
-    {
-      "name": "inspectorId",
-      "type": "string",
-      "required": false,
-      "description": "品質検査画面のセッションコンテキストで設定される検査員 ID。act-002 で audit / event に注入される。"
     }
   ],
   "errorCatalog": {
@@ -429,22 +423,20 @@
           "tableName": "work_orders",
           "operation": "UPDATE",
           "sql": "UPDATE work_orders SET completed_qty = completed_qty + 1, status = CASE WHEN completed_qty + 1 >= planned_qty THEN 'COMPLETED' ELSE 'IN_PROGRESS' END, updated_at = NOW() WHERE id = @inputs.workOrderId AND status IN ('IN_PROGRESS', 'COMPLETED') RETURNING id, status",
-          "outputBinding": "updatedWorkOrder",
           "lineage": { "writes": ["work_orders"] }
         },
         {
           "id": "step-001-06",
-          "type": "manufacturing:TraceabilityStep",
-          "description": "PRODUCTION イベントとして traceability_log にスナップショットを記録する。新規登録時のみ実行。",
+          "type": "other",
+          "description": "manufacturing:TraceabilityStep 拡張定義 (docs/sample-project/extensions/manufacturing/steps.json) を呼び出す意図。PRODUCTION イベントとして traceability_log にスナップショットを記録する。新規登録時のみ実行。",
           "maturity": "committed",
           "runIf": "@upsertedRecord?.id != null",
-          "lotId": "@inputs.lotId",
-          "eventType": "PRODUCTION",
-          "operatorId": "@inputs.operatorId",
-          "metadata": {
-            "workOrderId": "@inputs.workOrderId",
-            "serialNumber": "@inputs.serialNumber",
-            "lineId": "@inputs.lineId"
+          "note": "extensionStep=manufacturing:TraceabilityStep; lotId=@inputs.lotId; eventType=PRODUCTION; operatorId=@inputs.operatorId; metadata.workOrderId=@inputs.workOrderId; metadata.serialNumber=@inputs.serialNumber; metadata.lineId=@inputs.lineId",
+          "outputBinding": "productionTrace",
+          "outputSchema": {
+            "lotId": "string",
+            "eventType": "string",
+            "traceId": "string"
           }
         },
         {
@@ -583,13 +575,10 @@
         },
         {
           "id": "step-002-04",
-          "type": "manufacturing:QualityCheckStep",
-          "description": "品質仕様を ambient コンテキストから引いて、検査項目との総合適合性を補助計算する。",
+          "type": "other",
+          "description": "manufacturing:QualityCheckStep 拡張定義 (docs/sample-project/extensions/manufacturing/steps.json) を呼び出す意図。品質仕様を ambient コンテキストから引いて、検査項目との総合適合性を補助計算する。本フローでは判定値そのものは @inputs.overallResult を採用するため、本 step は補助 (出力非依存) として実行する。",
           "maturity": "committed",
-          "lotId": "@inputs.lotId",
-          "specification": "@lot.product_code",
-          "inspectionItems": "@inputs.inspectionItems",
-          "outputBinding": "qualityCheck"
+          "note": "extensionStep=manufacturing:QualityCheckStep; lotId=@inputs.lotId; specification=@lot.product_code; inspectionItems=@inputs.inspectionItems"
         },
         {
           "id": "step-002-05",
@@ -650,50 +639,68 @@
                       "tableName": "work_orders",
                       "operation": "UPDATE",
                       "sql": "UPDATE work_orders SET status = 'READY_FOR_SHIPMENT', updated_at = NOW() WHERE id = @lot.work_order_id AND status = 'COMPLETED' RETURNING id, status",
-                      "outputBinding": "updatedWorkOrder",
                       "lineage": { "writes": ["work_orders"] }
                     }
                   ]
                 },
                 {
                   "id": "step-002-05-a-02",
-                  "type": "return",
-                  "description": "TX commit 失敗 (DB_CONSTRAINT_VIOLATION rollback) 時に 409 を返す。",
+                  "type": "branch",
+                  "description": "TX commit 結果で commit / rollback を分岐する。runIf による return 後 fallthrough を構造化で防止する (#482 review M-4)。",
                   "maturity": "committed",
-                  "runIf": "@txResult.committed == false",
-                  "responseRef": "409-invalid-state-transition",
-                  "bodyExpression": "{ code: 'INVALID_STATE_TRANSITION', message: 'TX commit failed (lot status mismatch)', lotId: @inputs.lotId }"
-                },
-                {
-                  "id": "step-002-05-a-03",
-                  "type": "audit",
-                  "description": "PASS 判定を監査ログに記録する。TX 成功時のみ。",
-                  "maturity": "committed",
-                  "runIf": "@txResult.committed == true",
-                  "action": "quality.inspection",
-                  "resource": { "type": "Lot", "id": "@inputs.lotId" },
-                  "result": "success",
-                  "reason": "PASS",
-                  "sensitive": false
-                },
-                {
-                  "id": "step-002-05-a-04",
-                  "type": "eventPublish",
-                  "description": "quality.inspected イベントを発行する。TX 成功時のみ。",
-                  "maturity": "committed",
-                  "runIf": "@txResult.committed == true",
-                  "topic": "quality.inspected",
-                  "eventRef": "quality.inspected",
-                  "payload": "{ lotId: @inputs.lotId, verdict: 'PASS', inspectorId: @inputs.inspectorId, inspectedAt: @updatedLot.status }"
-                },
-                {
-                  "id": "step-002-05-a-05",
-                  "type": "return",
-                  "description": "200 PASS を返す。TX 成功時のみ。",
-                  "maturity": "committed",
-                  "runIf": "@txResult.committed == true",
-                  "responseRef": "200-pass",
-                  "bodyExpression": "{ lotId: @inputs.lotId, verdict: 'PASS', nextAction: 'shipment-evaluation' }"
+                  "branches": [
+                    {
+                      "id": "br-002-05-a-02-rollback",
+                      "code": "ROLLBACK",
+                      "label": "TX rollback (lot 前提状態違反など)",
+                      "condition": "@txResult.committed == false",
+                      "steps": [
+                        {
+                          "id": "step-002-05-a-02-rollback-01",
+                          "type": "return",
+                          "description": "TX commit 失敗 (DB_CONSTRAINT_VIOLATION rollback) 時に 409 を返す。",
+                          "maturity": "committed",
+                          "responseRef": "409-invalid-state-transition",
+                          "bodyExpression": "{ code: 'INVALID_STATE_TRANSITION', message: 'TX commit failed (lot status mismatch)', lotId: @inputs.lotId }"
+                        }
+                      ]
+                    }
+                  ],
+                  "elseBranch": {
+                    "id": "br-002-05-a-02-commit",
+                    "code": "COMMIT",
+                    "label": "TX commit (PASS 状態遷移成功)",
+                    "steps": [
+                      {
+                        "id": "step-002-05-a-02-commit-01",
+                        "type": "audit",
+                        "description": "PASS 判定を監査ログに記録する。",
+                        "maturity": "committed",
+                        "action": "quality.inspection",
+                        "resource": { "type": "Lot", "id": "@inputs.lotId" },
+                        "result": "success",
+                        "reason": "PASS",
+                        "sensitive": false
+                      },
+                      {
+                        "id": "step-002-05-a-02-commit-02",
+                        "type": "eventPublish",
+                        "description": "quality.inspected イベントを発行する。inspectedAt は ambient @now を使う (TX 内 outputBinding @updatedLot は TX 外参照不可、UPDATE 時 NOW() と同一 wall-clock として近似)。",
+                        "maturity": "committed",
+                        "topic": "quality.inspected",
+                        "eventRef": "quality.inspected",
+                        "payload": "{ lotId: @inputs.lotId, verdict: 'PASS', inspectorId: @inputs.inspectorId, inspectedAt: @now }"
+                      },
+                      {
+                        "id": "step-002-05-a-02-commit-03",
+                        "type": "return",
+                        "description": "200 PASS を返す。",
+                        "maturity": "committed",
+                        "responseRef": "200-pass",
+                        "bodyExpression": "{ lotId: @inputs.lotId, verdict: 'PASS', nextAction: 'shipment-evaluation' }"
+                      }
+                    ]
+                  }
                 }
               ]
             },
@@ -782,7 +789,16 @@
                     "id": "br-002-05-b-02-else",
                     "code": "OTHER",
                     "label": "想定外 (validator 通過後の防御)",
-                    "steps": []
+                    "steps": [
+                      {
+                        "id": "step-002-05-b-02-else-01",
+                        "type": "return",
+                        "description": "validator を通過した想定外の disposition が来た場合の防御的 400 (理論上到達不能、深層防御)。",
+                        "maturity": "committed",
+                        "responseRef": "400-validation",
+                        "bodyExpression": "{ code: 'VALIDATION', message: 'Unknown disposition', disposition: @inputs.disposition }"
+                      }
+                    ]
                   }
                 },
                 {
@@ -975,21 +991,21 @@
           "maturity": "committed",
           "tableName": "shipment_orders",
           "operation": "INSERT",
-          "sql": "INSERT INTO shipment_orders (lot_id, work_order_id, status, planned_ship_at, requested_by, created_at) VALUES (@inputs.lotId, @lotWithInspections.work_order_id, 'PLANNED', NOW() + INTERVAL '1 day', @sessionUserId, NOW()) RETURNING id",
+          "sql": "INSERT INTO shipment_orders (lot_id, work_order_id, status, planned_ship_at, requested_by, created_at) VALUES (@inputs.lotId, @lotWithInspections.work_order_id, 'PLANNED', NOW() + INTERVAL '1 day', @sessionUserId, NOW()) RETURNING id, planned_ship_at",
           "outputBinding": "shipmentOrder",
           "lineage": { "writes": ["shipment_orders"] }
         },
         {
           "id": "step-003-07",
-          "type": "manufacturing:TraceabilityStep",
-          "description": "SHIPMENT イベントとして出荷時 traceability snapshot を記録する。",
+          "type": "other",
+          "description": "manufacturing:TraceabilityStep 拡張定義 (docs/sample-project/extensions/manufacturing/steps.json) を呼び出す意図。SHIPMENT イベントとして出荷時 traceability snapshot を記録する。",
           "maturity": "committed",
-          "lotId": "@inputs.lotId",
-          "eventType": "SHIPMENT",
-          "operatorId": "@sessionUserId",
-          "metadata": {
-            "shipmentOrderId": "@shipmentOrder.id",
-            "workOrderId": "@lotWithInspections.work_order_id"
+          "note": "extensionStep=manufacturing:TraceabilityStep; lotId=@inputs.lotId; eventType=SHIPMENT; operatorId=@sessionUserId; metadata.shipmentOrderId=@shipmentOrder.id; metadata.workOrderId=@lotWithInspections.work_order_id",
+          "outputBinding": "shipmentTrace",
+          "outputSchema": {
+            "lotId": "string",
+            "eventType": "string",
+            "traceId": "string"
           }
         },
         {
@@ -1037,7 +1053,7 @@
           "httpCall": {
             "method": "POST",
             "path": "/notifications/shipment-planned",
-            "body": "{ shipmentOrderId: @shipmentOrder.id, lotId: @inputs.lotId, plannedShipAt: '@shipmentOrder.planned_ship_at' }"
+            "body": "{ shipmentOrderId: @shipmentOrder.id, lotId: @inputs.lotId, plannedShipAt: @shipmentOrder.planned_ship_at }"
           },
           "fireAndForget": true,
           "outcomes": {
@@ -1053,7 +1069,7 @@
           "maturity": "committed",
           "topic": "shipment.approved",
           "eventRef": "shipment.approved",
-          "payload": "{ lotId: @inputs.lotId, shipmentOrderId: @shipmentOrder.id, approvedAt: NOW() }"
+          "payload": "{ lotId: @inputs.lotId, shipmentOrderId: @shipmentOrder.id, approvedAt: @now }"
         },
         {
           "id": "step-003-11",
