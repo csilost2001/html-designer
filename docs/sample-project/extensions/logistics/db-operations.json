@@ -1,0 +1,6 @@
+{
+  "namespace": "logistics",
+  "dbOperations": [
+    { "value": "LOCK_INVENTORY", "label": "在庫排他ロック付き引当 (SELECT FOR UPDATE + UPDATE)" }
+  ]
+}
