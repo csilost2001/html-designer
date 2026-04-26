@@ -86,11 +86,15 @@ briefing には以下を含める:
 - Step 2 で書いた設計手順
 - 作業ディレクトリ: `C:/tmp/wt-$ARGUMENTS`
 - PR 作成まで完了すること
-- **ProcessFlow JSON 作成を含む ISSUE では `/create-flow` の 8 ルール self-check を遵守する旨を明示**:
-  > 「フロー作成にあたり `.claude/skills/create-flow/SKILL.md` の Step 3 既知パターン回避 self-check 8 ルールを遵守すること:
-  > 1) TX 内 step が TX 外設定変数を前方参照しない、2) 外部呼び出しは TX 外、3) UPSERT 後の step すべてに同条件 runIf + no-op return、
+- **ProcessFlow JSON 作成を含む ISSUE では `/create-flow` の 14 ルール self-check を遵守する旨を明示**:
+  > 「フロー作成にあたり `.claude/skills/create-flow/SKILL.md` の Step 3 既知パターン回避 self-check 14 ルールを遵守すること:
+  > **基本 8 ルール**: 1) TX 内 step が TX 外設定変数を前方参照しない、2) 外部呼び出しは TX 外、3) UPSERT 後の step すべてに同条件 runIf + no-op return、
   > 4) branch return 後の共通 step に fallthrough しない、5) compensatesFor 対象 step が実在、6) eventsCatalog ⇄ eventPublish 双方向整合、
-  > 7) 外部呼び出しは TransactionScope inner にいない、8) rollbackOn は TX inner で発生するエラーコードのみ列挙 (死コード禁止)」
+  > 7) 外部呼び出しは TransactionScope inner にいない、8) rollbackOn は TX inner で発生するエラーコードのみ列挙 (死コード禁止)、
+  > **追加 6 ルール (#486 検証で発覚)**: 9) SQL SELECT カラム整合 (後続参照の全フィールドが SELECT 句に含まれること)、
+  > 10) `@conv.*` 参照は conventions-catalog.json 登録済キーのみ、11) TX 内 branch return 後の fallthrough も避ける、
+  > 12) `affectedRowsCheck.operator` は `=` のみ (`==` 不可)、13) `affectedRowsCheck.expected` は integer リテラル必須、
+  > 14) `OtherStep.outputSchema` は `{field: \"string\"}` 形式のみ」
 
 ### Codex が「プラン制限」エラー → 即 Sonnet フォールバック
 
