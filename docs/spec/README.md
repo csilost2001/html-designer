@@ -22,6 +22,7 @@
 | [screen-items.md](screen-items.md) | 画面項目定義 (フォーム系バリデーション 3 層のうち「画面」層) — **ドラフト v0.1** | #318 |
 | [plugin-system.md](plugin-system.md) | プラグインシステム — ソース変更なしにスキーマ・ステップ型・enum を拡張する仕組み | #390 |
 | [dogfood-2026-04-26-finance.md](dogfood-2026-04-26-finance.md) | 金融複合業務ドッグフード評価レポート (2026-04-26、6 シナリオで 5/5 達成) | #458 |
+| [dogfood-2026-04-26-manufacturing.md](dogfood-2026-04-26-manufacturing.md) | 再ドッグフード (製造業) 評価レポート — Codex 抜き / Sonnet vs Opus 比較 / 3 分類別件数集計 | #478 |
 
 **一次成果物**: JSON スキーマ [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) ([README](../../schemas/README.md))。仕様書と突合する機械可読版。
 
