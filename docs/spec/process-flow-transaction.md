@@ -164,3 +164,75 @@ TX が rollback された**後**に実行する step 列。任意・補償処理
 - 関連: `BranchConditionVariant.kind = "tryCatch"` (TX rollback エラー捕捉)
 - 関連: `compensatesFor` (Saga 補償の手動マーキング)
 - 業界フレームワーク: Power Platform Dataverse "Changeset", EF Core `TransactionScope`, Spring `@Transactional`
+
+## §8 実装ガイドライン (ドッグフード由来)
+
+シナリオ #2-#6 (PR #468-#472) の実装レビューで繰り返し検出された誤りパターンを以下にまとめる。新規フロー実装前に必読。
+
+### §8.1 TransactionScope 内外の変数アクセスパス
+
+`TransactionScopeStep` の inner step で `outputBinding` した変数を、TX 外の後続 step が参照する際のセマンティクス。
+
+- **TX 全体に `outputBinding: "txName"` を付けた場合**: 推奨は **inner 変数を直接参照** (`@innerVar`) する形。`@txName.innerVar` のネスト参照は spec で保証しない (シナリオ #3 で問題化)
+- **後続参照は TX commit が前提**: TX rollback 後は inner outputBinding 変数は未定義になりうる。後続 step に `runIf` ガード必須
+
+```json
+{ "id": "step-tx", "type": "transactionScope", "outputBinding": "txResult", "steps": [
+  { "id": "step-tx-insert", "type": "dbAccess", "operation": "INSERT", "outputBinding": "newRow" }
+]},
+{ "id": "step-after", "type": "eventPublish", "runIf": "@txResult.committed == true", "payload": "{ id: @newRow.id }" }
+```
+
+上の例では、TX commit 後の後続 step は `@newRow.id` (inner 変数直接参照) を使う。`@txResult.newRow.id` のようなネスト形式は避けること。
+
+### §8.2 外部呼び出しと TX の位置関係 (anti-pattern と例外)
+
+- **原則**: `externalSystem` step は `TransactionScopeStep` の inner に入れない (DB 接続長時間占有 / 外部障害で TX タイムアウト)
+- **例外ケース**: 補償処理が困難な場合 (例: 取引所への約定送信) でも、外部呼び出しは TX 外で行い `outcomes.failure: "compensate"` で逆操作を補償処理として記述する
+- **検出パターン**: TX inner step で `@外部呼び出しResult` を前方参照する誤りは `/review-flow` 観点 1 で検出 (シナリオ #1 で実例あり)
+
+推奨パターン:
+
+```json
+{ "id": "step-tx", "type": "transactionScope", "steps": [
+  { "id": "step-db-insert", "type": "dbAccess", "operation": "INSERT", "outputBinding": "newRow" }
+]},
+{ "id": "step-external", "type": "externalSystem", "runIf": "@txResult.committed == true",
+  "outcomes": { "failure": { "action": "compensate" } } }
+```
+
+### §8.3 TX rollback 時の制御フロー
+
+**TX rollback 発生後の後続 step** (TX の外側) は**明示的 `runIf` ガードが必要**。エンジン仕様で「自動 skip」は保証されない。
+
+推奨パターン:
+
+- TX に `outputBinding: "txResult"` を付与する
+- TX commit 経路の後続 step: `runIf: "@txResult.committed == true"`
+- TX rollback 経路のエラー返却 step: `runIf: "@txResult.committed == false"`
+
+```json
+{ "id": "step-tx", "type": "transactionScope", "outputBinding": "txResult", "steps": [ ... ] },
+{ "id": "step-success", "type": "return", "runIf": "@txResult.committed == true",
+  "responseRef": "201-success" },
+{ "id": "step-rollback-error", "type": "return", "runIf": "@txResult.committed == false",
+  "responseRef": "409-conflict" }
+```
+
+参考: シナリオ #6 (#473 で修正) では `runIf: "@creditTxResult.committed == false"` で 409 INVALID_STATE_TRANSITION を返す step を追加して解決。
+
+### §8.4 rollbackOn の発火可能性チェック
+
+**rollbackOn には TX inner step から実際に発生しうるエラーコードのみ列挙する。**
+
+- TX 外 step が返すエラーコード (例: `EXCHANGE_REJECTED` が `externalSystem` step 由来) を `rollbackOn` に書くと**死コード**になる
+- inner step の `affectedRowsCheck.errorCode` / `ValidationStep` が throw するコードのみが rollback トリガーになりえる
+- **検出パターン**: `/review-flow` 観点 8 で「rollbackOn の発火可能性」を体系チェック (シナリオ #1/#2/#3/#6 で実例)
+
+```jsonc
+// NG: externalSystem step の結果コードを rollbackOn に列挙 (TX 内に externalSystem がない場合)
+"rollbackOn": ["EXCHANGE_REJECTED", "STOCK_SHORTAGE"]
+
+// OK: TX inner の dbAccess が throw するコードのみ列挙
+"rollbackOn": ["STOCK_SHORTAGE"]
+```

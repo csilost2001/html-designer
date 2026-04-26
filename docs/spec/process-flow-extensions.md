@@ -1074,3 +1074,62 @@ apiVersion?: string;                  // step 単位の override
 - 2026-04-24: `ProcessFlow.ambientOverrides` 追加 (#369)。§8.7 を新設。
 - 2026-04-25: P2+D 拡張 (#422)。§9 を新設。domainsCatalog / functionsCatalog / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
 - 2026-04-25: Tier-B (#423) 全 6 項目追加。§13 を新設 (B-1〜B-6)。
+- 2026-04-26: 拡張実装ガイドライン追記 (#474)。§15 を新設。
+
+## 15. 拡張実装ガイドライン (ドッグフード由来)
+
+シナリオ #2-#6 (PR #468-#472) 実装・レビュー時に判明した拡張定義の誤りパターン。拡張を新規追加・参照する前に確認すること。
+
+### §15.1 fieldType と domainsCatalog の使い分け
+
+| 区別 | 使い所 | 例 |
+|---|---|---|
+| **拡張 fieldType** (`{kind: "orderId"}`) | 業界固有の**型カテゴリ自体**を追加する場合。inputs/outputs の `type` フィールドで `kind` 形式で参照 | `{ "name": "orderId", "type": { "kind": "orderId" } }` |
+| **domainsCatalog** (`OrderId: {type: "string", constraints: ...}`) | ドメイン**制約付きの型エイリアス**を定義する場合。`constraints` (range / pattern 等) を持つ | `"domainRef": "OrderId"` |
+
+**使い分け基準**:
+- 制約が付くなら `domainsCatalog`
+- 純粋な型カテゴリ追加なら拡張 `fieldType`
+- 両方使う場合は `domainsCatalog` の `type` で fieldType kind を参照する形が自然
+
+```json
+// 拡張 fieldType 定義 (plugin extensions)
+{ "kind": "orderId", "label": "注文 ID", "baseType": "string" }
+
+// domainsCatalog で拡張 fieldType を参照
+"domainsCatalog": {
+  "OrderId": {
+    "type": { "kind": "orderId" },
+    "constraints": [{ "field": "orderId", "type": "regex", "pattern": "^ORD-\\d{4}-\\d{6}$" }]
+  }
+}
+```
+
+### §15.2 拡張 step の参照形式
+
+フロー JSON 内で拡張 step を参照する際の形式を統一する。
+
+- **正式形式**: `type: "namespace:StepName"` (例: `"securities:TradeMatchStep"`)
+- **過渡期許容**: `type: "other"` + `description` で明示する旧形式は後方互換として許容するが、**新規実装では namespace 修飾を推奨**
+- `process-flow.schema.json` の `Step` 定義は `type` のパターンとして `^[a-z][a-z0-9_-]*:[A-Z][A-Za-z0-9]*$` を許容する (allOf で `OtherStep` 互換)
+
+```json
+// 推奨 (namespace 修飾)
+{ "id": "step-match", "type": "securities:TradeMatchStep", "description": "約定マッチング" }
+
+// 許容 (過渡期・旧形式)
+{ "id": "step-match", "type": "other", "description": "securities:TradeMatchStep — 約定マッチング" }
+```
+
+### §15.3 拡張定義の実利用必須
+
+**「定義したが未使用」状態は禁止**。拡張定義 (`data/extensions/<namespace>/*.json`) を追加する際は、同 PR 内で対応するサンプルフロー JSON でその拡張を**実体使用すること**。
+
+- **理由**: 定義のみで未使用の拡張は、スキーマ整合検証の対象にならず、仕様ドリフトの温床になる
+- **例外**: 将来用として README に候補として記載する形は許容するが、継続的に未使用のままは避ける
+- **確認方法**: `/review-flow` の「拡張定義の実利用」観点 (SKILL.md への追記候補) で確認
+
+```
+# NG: 拡張定義を追加したが、サンプルフローで一度も type: "securities:TradeMatchStep" を使っていない
+# OK: 同一 PR で dddddddd-0007-*.json に type: "securities:TradeMatchStep" の step が存在する
+```

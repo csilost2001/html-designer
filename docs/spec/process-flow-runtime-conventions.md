@@ -415,3 +415,54 @@ Step-level の `requiredPermissions` は Action-level と AND 条件で評価す
 - [ ] `httpRoute.auth` のスキーム具体化は ambient 変数 + product-scope (§8)
 - [ ] ambient 前提 (TZ / 通貨 / 税率) は `data/conventions/catalog.json` の `default: true` エントリから取得 (§9.2)
 - [ ] フロー固有の ambient 例外は `ambientOverrides` を確認し、未記載なら catalog defaults をそのまま適用 (§9.3)
+
+## 13. 実装ガイドライン (ドッグフード由来)
+
+シナリオ #2-#6 (PR #468-#472) のレビューで繰り返し検出された実装ミスを以下にまとめる。チェックリスト §12 の補足として読むこと。
+
+### §13.1 内部スケジューラ起動の auth 表現
+
+グローバル定義スキーマで `action.httpRoute.auth` の enum は `["required", "optional", "none"]` の 3 値のみ。
+
+**内部スケジューラから呼ぶ API** (例: `marketOpen` トリガー、夜間バッチ) の auth は次のいずれかで表現する:
+
+| 方法 | 状況 | 例 |
+|---|---|---|
+| `auth: "required"` + `requiredPermissions: ["system"]` | 現行 workaround。内部スケジューラが system パーミッションを持つとして扱う | `"auth": "required", "requiredPermissions": ["system"]` |
+| `auth: "none"` | 完全に内部のみ・外部からアクセス不可と明示できる場合 | `"auth": "none"` |
+
+将来的に schema に `auth: "system"` 値を追加することを検討しているが (#474 とは別 ISSUE で起票)、現状は上記 workaround を使う。シナリオ #5 (#465) での実例を参照。
+
+### §13.2 ON CONFLICT DO NOTHING 時の outputBinding 振る舞い
+
+`INSERT ... ON CONFLICT DO NOTHING RETURNING ...` で衝突時 (no-op) の `outputBinding` 変数は **null か空オブジェクト** になる。
+
+**後続参照は null 安全表現を必須とする**:
+
+```json
+// 危険: ON CONFLICT DO NOTHING で衝突した場合 null deref
+{ "type": "compute", "expression": "@submissionRecord.submittedCount" }
+
+// 安全: null 安全アクセスまたは null 合体演算子を使う
+{ "type": "compute", "expression": "@submissionRecord?.submittedCount ?? @reportableTrades.length" }
+```
+
+シナリオ #5 での対策例: `@submissionRecord?.submittedCount ?? @reportableTrades.length` の形で null 安全表現を適用して解決。
+
+### §13.3 loop 0 件時の accumulate 初期化
+
+`outputBinding: { name: "total", operation: "accumulate", initialValue: 0 }` で loop が 0 件の場合、`@total` の値は**実装依存**になる。
+
+**安全な書き方**: loop の前に明示的初期化 step を置く。
+
+```json
+{ "id": "init-total", "type": "compute", "expression": "0", "outputBinding": "total" },
+{ "id": "the-loop", "type": "loop", "items": "@list", "steps": [
+  { "id": "accumulate", "type": "compute",
+    "expression": "@total + @item.amount", "outputBinding": "total" }
+]}
+```
+
+- `initialValue` を指定していても「loop 入口での初期化タイミング」は実装依存
+- loop 前の明示的 `compute` step で初期化することで、0 件パスでも `@total` が確実に定義済みになる
+- **検出パターン**: `/review-flow` 観点 1 (変数ライフサイクル) で「loop accumulate の 0 件パス」を確認 (シナリオ #4 で実例)
