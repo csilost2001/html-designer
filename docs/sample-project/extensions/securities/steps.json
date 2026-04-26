@@ -1,0 +1,21 @@
+{
+  "namespace": "securities",
+  "steps": {
+    "TradeMatchStep": {
+      "label": "約定照合",
+      "icon": "git-compare",
+      "description": "取引所から受信した約定 ID と注文 ID を照合し、約定数量・約定価格を処理します。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "tradeId": { "type": "string" },
+          "orderId": { "type": "string" },
+          "executedQty": { "type": "number" },
+          "executedPrice": { "type": "number" }
+        },
+        "required": ["tradeId", "orderId", "executedQty"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
