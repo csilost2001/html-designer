@@ -120,6 +120,83 @@
           }
         }
       }
+    },
+    "CustomerSearchResult": {
+      "description": "顧客検索結果レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["customers"],
+        "properties": {
+          "customers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer" },
+                "name": { "type": "string" },
+                "nameKana": { "type": "string" },
+                "phone": { "type": "string" },
+                "email": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "OrderAcceptedResponse": {
+      "description": "証券注文受付成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["orderId", "status"],
+        "properties": {
+          "orderId": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "ExecutionReportResponse": {
+      "description": "約定通知受信処理成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" },
+          "orderId": { "type": "string" },
+          "tradeId": { "type": "string" }
+        }
+      }
+    },
+    "ShipmentCreatedResponse": {
+      "description": "配送指示受付成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["shipmentId", "trackingNumber", "status"],
+        "properties": {
+          "shipmentId": { "type": "string" },
+          "trackingNumber": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "TrackingUpdateResponse": {
+      "description": "配送追跡更新処理成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["processResult"],
+        "properties": {
+          "processResult": { "type": "string" }
+        }
+      }
+    },
+    "PickingCompleteResponse": {
+      "description": "倉庫ピッキング完了通知成功レスポンス",
+      "schema": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
     }
   }
 }

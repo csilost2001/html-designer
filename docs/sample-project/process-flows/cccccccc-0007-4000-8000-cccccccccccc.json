@@ -511,7 +511,7 @@
           "tableName": "invoice_items",
           "operation": "INSERT",
           "bulkValues": "@lineItems",
-          "sql": "INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, line_amount, created_at) SELECT @newInvoice.id, v.product_id, v.quantity, v.unit_price, v.line_amount, NOW() FROM (VALUES @lineItems) AS v(product_id, quantity, unit_price, line_amount)",
+          "sql": "INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, line_amount, created_at) VALUES (@newInvoice.id, NULL, NULL, NULL, NULL, NOW())",
           "txBoundary": { "role": "end", "txId": "tx-invoice-register" }
         },
 
