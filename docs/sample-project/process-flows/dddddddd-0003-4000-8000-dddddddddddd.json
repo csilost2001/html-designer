@@ -1,0 +1,1167 @@
+{
+  "id": "dddddddd-0003-4000-8000-dddddddddddd",
+  "name": "決済/清算/ネッティング (証券)",
+  "type": "system",
+  "description": "証券約定の決済期限到来を契機に、約定突合、銘柄×相手方×受渡日単位のネッティング、清算機関への指図送信、完了通知、日次照合までを扱う金融バックオフィス向けサンプルフロー。",
+  "apiVersion": "v2",
+  "mode": "downstream",
+  "maturity": "committed",
+  "eventsCatalog": {
+    "settlement.instructed": {
+      "description": "清算機関への決済指図送信が完了した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["settlementBatchId", "instructedCount", "nettedAmount"],
+        "properties": {
+          "settlementBatchId": { "type": "string" },
+          "instructedCount": { "type": "number" },
+          "nettedAmount": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "settlement.matched": {
+      "description": "内部 settlements と清算機関の当日明細が照合済みになった時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["marketDate", "matchedCount", "mismatchCount"],
+        "properties": {
+          "marketDate": { "type": "string" },
+          "matchedCount": { "type": "number" },
+          "mismatchCount": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "settlement.completed": {
+      "description": "清算機関の完了通知を受け、settlements と trades を完了状態に更新した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["settlementId", "clearingReference", "status"],
+        "properties": {
+          "settlementId": { "type": "string" },
+          "clearingReference": { "type": "string" },
+          "status": { "type": "string", "const": "COMPLETED" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "settlement.failed": {
+      "description": "清算機関拒否または決済処理失敗により、補償処理または再試行キュー投入が必要になった時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["settlementBatchId", "reason"],
+        "properties": {
+          "settlementBatchId": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "netting.calculated": {
+      "description": "買い/売りを相殺し、相手方・銘柄・受渡日単位の集約金額が確定した時点で発行するイベント。",
+      "payload": {
+        "type": "object",
+        "required": ["settleDate", "nettedAmount"],
+        "properties": {
+          "settleDate": { "type": "string" },
+          "nettedAmount": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "glossary": {
+    "決済": {
+      "definition": "約定後に証券と資金の受渡しを完了させ、取引上の債務を消滅させる業務。",
+      "aliases": ["Settlement"],
+      "domainRef": "settlements"
+    },
+    "清算": {
+      "definition": "約定から決済までの間に債権債務を整理し、清算機関を介して履行を確実にする業務。",
+      "aliases": ["Clearing"],
+      "domainRef": "clearing_house"
+    },
+    "ネッティング": {
+      "definition": "同一相手方・同一銘柄・同一受渡日の買いと売りを相殺し、決済すべき差額だけに集約する処理。",
+      "aliases": ["Netting", "集計相殺"],
+      "domainRef": "settlement_netting"
+    },
+    "T+1": {
+      "definition": "取引日から 1 営業日後に決済する決済サイクル。",
+      "aliases": ["Trade date plus one"]
+    },
+    "T+2": {
+      "definition": "取引日から 2 営業日後に決済する決済サイクル。",
+      "aliases": ["Trade date plus two"]
+    },
+    "清算機関(JSCC)": {
+      "definition": "日本証券クリアリング機構を想定した中央清算機関。決済指図、清算結果、完了通知を連携する外部システム。",
+      "aliases": ["JSCC", "Japan Securities Clearing Corporation"],
+      "domainRef": "clearingHouse"
+    },
+    "二相コミット": {
+      "definition": "同期確認で指図受付を確認し、非同期完了通知で最終確定する二段階の整合性確保方式。",
+      "aliases": ["Two-phase commit", "2PC"]
+    },
+    "約定突合(TradeMatch)": {
+      "definition": "内部 trades と清算機関が保持する約定明細を tradeId で照合し、数量や金額の食い違いを検出する処理。",
+      "aliases": ["TradeMatch", "約定照合"],
+      "domainRef": "trades.trade_id"
+    }
+  },
+  "decisions": [
+    {
+      "id": "ADR-001",
+      "title": "ネッティングは銘柄×相手方×受渡日単位で集約する",
+      "status": "accepted",
+      "context": "清算機関への指図件数と決済資金を圧縮するには、同一条件の買いと売りを相殺する単位を明確にする必要がある。",
+      "decision": "security_code、counterparty、settle_date を集約キーとし、買い金額をプラス、売り金額をマイナスとして差額を settlement_netting に記録する。",
+      "consequences": "銘柄または受渡日が異なる約定は相殺せず、後続の照合でも同じキー単位を使う。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-002",
+      "title": "清算機関連携は同期確認と非同期完了通知の二相コミットにする",
+      "status": "accepted",
+      "context": "OpenAPI ラッパーと FIX/SWIFT 接続は即時受付と最終決済完了のタイミングが異なる。",
+      "decision": "指図送信 API の同期レスポンスで受付を確認し、清算機関からの完了通知 callback で settlements/trades を最終確定する。",
+      "consequences": "指図済みかつ未完了の settlement は INSTRUCTED 状態で保持し、完了通知の冪等性を settlementId で担保する。",
+      "date": "2026-04-26"
+    },
+    {
+      "id": "ADR-003",
+      "title": "失敗時は settlement_pending に戻し、別ジョブで再試行キューイングする",
+      "status": "accepted",
+      "context": "清算機関の拒否や通信失敗をその場で無限再試行すると、締め処理の進行と監視性が悪化する。",
+      "decision": "清算機関拒否時は trades.status を PENDING_SETTLEMENT に戻し、settlement_retry_queue へ登録して後続ジョブで再送する。",
+      "consequences": "補償処理とアラートが明示され、運用者は保留分だけを再処理できる。",
+      "date": "2026-04-26"
+    }
+  ],
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "処理単位の追跡 ID。HTTP X-Request-ID ヘッダーからミドルウェアが注入し、清算機関連携の冪等キーにも利用する。"
+    },
+    {
+      "name": "marketDate",
+      "type": "date",
+      "required": true,
+      "description": "市場営業日。照合対象日と日次バッチの基準日。"
+    },
+    {
+      "name": "settlementBatchId",
+      "type": "string",
+      "required": false,
+      "description": "決済指図バッチ ID。ネッティング結果と清算機関指図を紐付ける。"
+    }
+  ],
+  "errorCatalog": {
+    "VALIDATION": {
+      "httpStatus": 400,
+      "defaultMessage": "入力値が不正です",
+      "responseRef": "400-validation"
+    },
+    "TRADE_NOT_FOUND": {
+      "httpStatus": 404,
+      "defaultMessage": "対象約定または決済が見つかりません",
+      "responseRef": "404-trade-not-found"
+    },
+    "NETTING_FAILED": {
+      "httpStatus": 422,
+      "defaultMessage": "ネッティング計算に失敗しました",
+      "responseRef": "422-netting-failed"
+    },
+    "CLEARING_HOUSE_REJECTED": {
+      "httpStatus": 502,
+      "defaultMessage": "清算機関が決済指図を拒否しました",
+      "responseRef": "502-clearing-house-rejected"
+    },
+    "RECONCILIATION_MISMATCH": {
+      "httpStatus": 422,
+      "defaultMessage": "内部記録と清算機関記録が一致しません",
+      "responseRef": "422-reconciliation-mismatch"
+    }
+  },
+  "externalSystemCatalog": {
+    "clearingHouse": {
+      "name": "JSCC Clearing Gateway",
+      "baseUrl": "https://jscc-clearing.example.internal",
+      "openApiSpec": "docs/openapi/jscc-clearing.yaml",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.clearingHouseApiToken"
+      },
+      "timeoutMs": 5000,
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "backoff": "exponential",
+        "initialDelayMs": 500
+      },
+      "description": "JSCC を想定した清算機関連携。OpenAPI を同期受付、FIX/SWIFT ラッパーを実回線として扱う。"
+    },
+    "custodianBank": {
+      "name": "Custodian Settlement Bank",
+      "baseUrl": "https://custodian-bank.example.internal",
+      "auth": {
+        "kind": "apiKey",
+        "tokenRef": "@secret.custodianBankApiToken",
+        "headerName": "X-API-Key"
+      },
+      "timeoutMs": 5000,
+      "description": "証券・資金受渡しを担う受渡行。清算機関確定後の口座振替に利用する。"
+    }
+  },
+  "secretsCatalog": {
+    "clearingHouseApiToken": {
+      "source": "env",
+      "name": "CLEARING_HOUSE_API_TOKEN",
+      "rotationDays": 90,
+      "description": "清算機関連携 API/FIX ラッパー用トークン"
+    },
+    "custodianBankApiToken": {
+      "source": "env",
+      "name": "CUSTODIAN_BANK_API_TOKEN",
+      "rotationDays": 90,
+      "description": "受渡行 API 用トークン"
+    }
+  },
+  "domainsCatalog": {
+    "TradeId": {
+      "type": { "kind": "tradeId" },
+      "uiHint": "text",
+      "description": "約定を一意に識別する ID。"
+    },
+    "SettlementId": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "決済指図または決済明細を識別する ID。"
+    },
+    "Counterparty": {
+      "type": "string",
+      "uiHint": "text",
+      "description": "決済相手方。"
+    },
+    "SettleDate": {
+      "type": { "kind": "settleDate" },
+      "uiHint": "date",
+      "description": "証券と資金を受け渡す決済日。"
+    },
+    "NettedAmount": {
+      "type": "number",
+      "uiHint": "number",
+      "description": "買い/売り相殺後の差額決済金額。"
+    }
+  },
+  "functionsCatalog": {
+    "calcNettedAmount": {
+      "signature": "calcNettedAmount(trades: Trade[]): number",
+      "returnType": "number",
+      "description": "同一相手方の買い/売りを相殺し、決済すべき合計金額を返す。",
+      "examples": ["@fn.calcNettedAmount(@pendingTrades)"]
+    },
+    "selectClearingHouse": {
+      "signature": "selectClearingHouse(securityCode: string): string",
+      "returnType": "string",
+      "description": "銘柄市場別に利用する清算機関 ID を選定する。",
+      "examples": ["@fn.selectClearingHouse(@pendingTrades[0].security_code) // => \"clearingHouse\""]
+    }
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "ネッティング計算 + 清算指示送信",
+      "trigger": "settlementCutoff",
+      "description": "決済期限到来時に保留約定を抽出し、約定突合、ネッティング、決済指図、補償処理までを行う。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/settlement/instruct",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "marketDate",
+          "label": "市場日",
+          "type": "date",
+          "required": true
+        },
+        {
+          "name": "settleDate",
+          "label": "決済日",
+          "type": { "kind": "settleDate" },
+          "required": true,
+          "domainRef": "SettleDate"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "settlementBatchId",
+          "label": "決済バッチ ID",
+          "type": "string"
+        },
+        {
+          "name": "instructedCount",
+          "label": "指図件数",
+          "type": "number"
+        },
+        {
+          "name": "nettedAmount",
+          "label": "ネッティング金額",
+          "type": "number",
+          "domainRef": "NettedAmount"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": ["settlementBatchId", "instructedCount", "nettedAmount"],
+              "properties": {
+                "settlementBatchId": { "type": "string" },
+                "instructedCount": { "type": "number" },
+                "nettedAmount": { "type": "number" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" }
+        },
+        {
+          "id": "422-netting-failed",
+          "status": 422,
+          "bodySchema": { "typeRef": "ApiError" }
+        },
+        {
+          "id": "502-clearing-house-rejected",
+          "status": 502,
+          "bodySchema": { "typeRef": "ApiError" }
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-001-validate",
+          "type": "validation",
+          "description": "marketDate と settleDate の必須チェックを行う。",
+          "maturity": "committed",
+          "conditions": "marketDate/settleDate は必須。settleDate は市場営業日カレンダー上の T+1/T+2 決済日であること。",
+          "rules": [
+            { "field": "marketDate", "type": "required", "message": "市場日は必須です" },
+            { "field": "settleDate", "type": "required", "message": "決済日は必須です" }
+          ],
+          "inlineBranch": {
+            "ok": "保留約定取得へ進む",
+            "ng": [
+              {
+                "id": "step-001-validate-ng",
+                "type": "return",
+                "description": "入力不正として 400 を返す。",
+                "responseRef": "400-validation",
+                "bodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です' }"
+              }
+            ]
+          }
+        },
+        {
+          "id": "step-002-select-pending-trades",
+          "type": "dbAccess",
+          "description": "確定済 trades から決済待ちの約定を取得する。",
+          "maturity": "committed",
+          "tableName": "trades",
+          "operation": "SELECT",
+          "sql": "SELECT trade_id, order_id, security_code, counterparty, side, amount, settle_date FROM trades WHERE settle_date = @inputs.settleDate AND status = 'PENDING_SETTLEMENT'",
+          "outputBinding": "pendingTrades",
+          "lineage": {
+            "reads": ["trades"]
+          }
+        },
+        {
+          "id": "step-003-trade-match",
+          "type": "securities:TradeMatchStep",
+          "description": "内部 trades と外部清算機関の約定明細を tradeId で照合する。拡張 TradeMatchStep の実利用。",
+          "note": "executedQty は拡張定義が number 固定のため、実装側で @pendingTrades[].executed_qty を集約して渡す前提のプレースホルダー。",
+          "maturity": "committed",
+          "tradeId": "@pendingTrades[].trade_id",
+          "orderId": "@pendingTrades[].order_id",
+          "executedQty": 0,
+          "outputBinding": "tradeMatchResult"
+        },
+        {
+          "id": "step-004-netting-step",
+          "type": "securities:NettingStep",
+          "description": "同一相手方・同一銘柄・同一受渡日の約定を相殺集計する。拡張 NettingStep の実利用。",
+          "maturity": "committed",
+          "counterparty": "@pendingTrades[].counterparty",
+          "securityCode": "@pendingTrades[].security_code",
+          "settleDate": "@inputs.settleDate",
+          "outputBinding": "nettingKeys"
+        },
+        {
+          "id": "step-005-calc-netted-amount",
+          "type": "compute",
+          "description": "同一相手方の買い/売り相殺合計を計算する。",
+          "maturity": "committed",
+          "expression": "@fn.calcNettedAmount(@pendingTrades)",
+          "outputBinding": "nettedAmount"
+        },
+        {
+          "id": "step-006-register-netting",
+          "type": "dbAccess",
+          "description": "NETTING operation で settlement_netting 表に集約結果を挿入する。",
+          "maturity": "committed",
+          "tableName": "settlement_netting",
+          "operation": "NETTING",
+          "sql": "INSERT INTO settlement_netting (settle_date, security_code, counterparty, netted_amount, status) SELECT @inputs.settleDate, security_code, counterparty, SUM(CASE WHEN side = 'BUY' THEN amount ELSE -amount END), 'CALCULATED' FROM trades WHERE settle_date = @inputs.settleDate AND status = 'PENDING_SETTLEMENT' GROUP BY security_code, counterparty RETURNING id, security_code, counterparty, netted_amount",
+          "outputBinding": "nettingResult",
+          "lineage": {
+            "reads": ["trades"],
+            "writes": ["settlement_netting"]
+          }
+        },
+        {
+          "id": "step-007-transaction-scope",
+          "type": "transactionScope",
+          "description": "settlements 作成と trades 指図済み更新を 1 トランザクションで確定する。TX 内では先に生成した txSettlementBatchId を後続 inner step から参照する。",
+          "maturity": "committed",
+          "isolationLevel": "REPEATABLE_READ",
+          "propagation": "REQUIRED",
+          "rollbackOn": [],
+          "steps": [
+            {
+              "id": "step-007-01-generate-batch-id",
+              "type": "compute",
+              "description": "TX 内で決済バッチ ID を生成する。",
+              "maturity": "committed",
+              "expression": "'SETTLE-' + uuid()",
+              "outputBinding": "txSettlementBatchId"
+            },
+            {
+              "id": "step-007-02-insert-settlements",
+              "type": "dbAccess",
+              "description": "settlements 表にネッティング済み決済明細を登録する。",
+              "maturity": "committed",
+              "tableName": "settlements",
+              "operation": "INSERT",
+              "sql": "INSERT INTO settlements (settlement_batch_id, settle_date, counterparty, security_code, netted_amount, status) SELECT @txSettlementBatchId, settle_date, counterparty, security_code, netted_amount, 'INSTRUCTED' FROM settlement_netting WHERE settle_date = @inputs.settleDate AND status = 'CALCULATED' RETURNING settlement_batch_id, COUNT(*) OVER() AS instructed_count",
+              "outputBinding": "insertedSettlements",
+              "lineage": {
+                "reads": ["settlement_netting"],
+                "writes": ["settlements"]
+              }
+            },
+            {
+              "id": "step-007-03-update-trades",
+              "type": "dbAccess",
+              "description": "対象 trades の status を INSTRUCTED に更新する。",
+              "maturity": "committed",
+              "tableName": "trades",
+              "operation": "UPDATE",
+              "sql": "UPDATE trades SET status = 'INSTRUCTED', settlement_batch_id = @txSettlementBatchId, updated_at = NOW() WHERE settle_date = @inputs.settleDate AND status = 'PENDING_SETTLEMENT'",
+              "outputBinding": "updatedTrades",
+              "lineage": {
+                "writes": ["trades"]
+              }
+            }
+          ]
+        },
+        {
+          "id": "step-008-send-clearing-instruction",
+          "type": "externalSystem",
+          "description": "TX 外で清算機関へ決済指図を送信する。同期確認に失敗した場合は補償分岐へ進む。",
+          "maturity": "committed",
+          "systemName": "JSCC Clearing Gateway",
+          "systemRef": "clearingHouse",
+          "httpCall": {
+            "method": "POST",
+            "path": "/settlements/instructions",
+            "body": "{ settlementBatchId: @txSettlementBatchId, clearingHouse: @fn.selectClearingHouse(@pendingTrades[0].security_code), settleDate: @inputs.settleDate, nettedAmount: @nettedAmount }"
+          },
+          "operationId": "SendSettlementInstruction",
+          "operationRef": "/openapi/jscc-clearing#SendSettlementInstruction",
+          "idempotencyKey": "@requestId",
+          "outcomes": {
+            "success": { "action": "continue", "description": "受付完了。非同期完了通知を待つ。" },
+            "failure": { "action": "compensate", "description": "清算機関拒否。trades を PENDING_SETTLEMENT に戻す。" },
+            "timeout": { "action": "compensate", "sameAs": "failure" }
+          },
+          "outputBinding": "clearingInstruction"
+        },
+        {
+          "id": "step-009-branch-clearing-failure",
+          "type": "branch",
+          "description": "清算機関送信失敗時の補償処理と 502 応答。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-009-failure",
+              "code": "failure",
+              "label": "清算機関拒否",
+              "condition": { "kind": "externalOutcome", "outcome": "failure" },
+              "steps": [
+                {
+                  "id": "step-009-01-compensate-trades",
+                  "type": "dbAccess",
+                  "description": "補償処理として trades の status を PENDING_SETTLEMENT に戻す。",
+                  "maturity": "committed",
+                  "tableName": "trades",
+                  "operation": "UPDATE",
+                  "sql": "UPDATE trades SET status = 'PENDING_SETTLEMENT', settlement_batch_id = NULL, updated_at = NOW() WHERE settlement_batch_id = @txSettlementBatchId",
+                  "compensatesFor": "step-007-03-update-trades",
+                  "lineage": {
+                    "writes": ["trades"]
+                  }
+                },
+                {
+                  "id": "step-009-02-enqueue-retry",
+                  "type": "dbAccess",
+                  "description": "別ジョブで再試行するため settlement_retry_queue に投入する。",
+                  "maturity": "committed",
+                  "tableName": "settlement_retry_queue",
+                  "operation": "INSERT",
+                  "sql": "INSERT INTO settlement_retry_queue (settlement_batch_id, reason, queued_at) VALUES (@txSettlementBatchId, 'CLEARING_HOUSE_REJECTED', NOW())",
+                  "lineage": {
+                    "writes": ["settlement_retry_queue"]
+                  }
+                },
+                {
+                  "id": "step-009-03-publish-failed",
+                  "type": "eventPublish",
+                  "description": "settlement.failed を発行する。",
+                  "maturity": "committed",
+                  "topic": "settlement.failed",
+                  "eventRef": "settlement.failed",
+                  "payload": "{ settlementBatchId: @txSettlementBatchId, reason: 'CLEARING_HOUSE_REJECTED' }"
+                },
+                {
+                  "id": "step-009-04-return-502",
+                  "type": "return",
+                  "description": "清算機関拒否として 502 を返す。",
+                  "maturity": "committed",
+                  "responseRef": "502-clearing-house-rejected",
+                  "bodyExpression": "{ code: 'CLEARING_HOUSE_REJECTED', message: '清算機関が決済指図を拒否しました' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-009-success",
+            "code": "success",
+            "label": "送信成功",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-010-publish-instructed",
+          "type": "eventPublish",
+          "description": "settlement.instructed を発行する。",
+          "maturity": "committed",
+          "topic": "settlement.instructed",
+          "eventRef": "settlement.instructed",
+          "payload": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
+          "runIf": "@clearingInstruction.outcome == 'success'"
+        },
+        {
+          "id": "step-011-publish-netting",
+          "type": "eventPublish",
+          "description": "netting.calculated を発行する。",
+          "maturity": "committed",
+          "topic": "netting.calculated",
+          "eventRef": "netting.calculated",
+          "payload": "{ settleDate: @inputs.settleDate, nettedAmount: @nettedAmount }",
+          "runIf": "@clearingInstruction.outcome == 'success'"
+        },
+        {
+          "id": "step-012-return-200",
+          "type": "return",
+          "description": "決済指図成功として 200 を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
+          "runIf": "@clearingInstruction.outcome == 'success'"
+        }
+      ],
+      "requiredPermissions": ["settlement.instruct"]
+    },
+    {
+      "id": "act-002",
+      "name": "清算機関完了通知受信",
+      "trigger": "other",
+      "description": "清算機関からの非同期完了通知を受け、settlements と関連 trades を完了状態にする。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/clearing-callback/settlement-confirmed",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "settlementId",
+          "label": "決済 ID",
+          "type": "string",
+          "required": true,
+          "domainRef": "SettlementId"
+        },
+        {
+          "name": "clearingReference",
+          "label": "清算機関参照番号",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "completedAt",
+          "label": "完了日時",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "status",
+          "label": "決済状態",
+          "type": "string",
+          "defaultValue": "COMPLETED"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": ["status"],
+              "properties": {
+                "status": { "type": "string", "const": "COMPLETED" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "ApiError" }
+        },
+        {
+          "id": "404-trade-not-found",
+          "status": 404,
+          "bodySchema": { "typeRef": "ApiError" }
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-101-validate",
+          "type": "validation",
+          "description": "清算機関完了通知の必須項目を検証する。",
+          "maturity": "committed",
+          "conditions": "settlementId/clearingReference/completedAt は必須。",
+          "rules": [
+            { "field": "settlementId", "type": "required" },
+            { "field": "clearingReference", "type": "required" },
+            { "field": "completedAt", "type": "required" }
+          ],
+          "inlineBranch": {
+            "ok": "決済完了対象の取得へ進む",
+            "ng": "入力値エラーとして 400 を返す",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-102-select-settlement",
+          "type": "dbAccess",
+          "description": "settlements から対象決済を取得する。",
+          "maturity": "committed",
+          "tableName": "settlements",
+          "operation": "SELECT",
+          "sql": "SELECT id, settlement_batch_id, status FROM settlements WHERE id = @inputs.settlementId",
+          "outputBinding": "settlement",
+          "lineage": {
+            "reads": ["settlements"]
+          }
+        },
+        {
+          "id": "step-103-branch-not-found",
+          "type": "branch",
+          "description": "対象 settlement が存在しない場合は 404 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-103-not-found",
+              "code": "notFound",
+              "label": "決済なし",
+              "condition": "@settlement == null",
+              "steps": [
+                {
+                  "id": "step-103-01-return-404",
+                  "type": "return",
+                  "description": "対象 settlement が存在しない。",
+                  "maturity": "committed",
+                  "responseRef": "404-trade-not-found",
+                  "bodyExpression": "{ code: 'TRADE_NOT_FOUND', message: '対象約定または決済が見つかりません' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-103-found",
+            "code": "found",
+            "label": "決済あり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-104-update-settlement",
+          "type": "dbAccess",
+          "description": "settlements の status を COMPLETED に更新する。",
+          "maturity": "committed",
+          "tableName": "settlements",
+          "operation": "UPDATE",
+          "sql": "UPDATE settlements SET status = 'COMPLETED', clearing_reference = @inputs.clearingReference, completed_at = @inputs.completedAt WHERE id = @inputs.settlementId",
+          "outputBinding": "updatedSettlement",
+          "lineage": {
+            "writes": ["settlements"]
+          }
+        },
+        {
+          "id": "step-105-update-trades",
+          "type": "dbAccess",
+          "description": "関連 trades を SETTLED に更新する。",
+          "maturity": "committed",
+          "tableName": "trades",
+          "operation": "UPDATE",
+          "sql": "UPDATE trades SET status = 'SETTLED', updated_at = NOW() WHERE settlement_batch_id = @settlement.settlement_batch_id",
+          "outputBinding": "settledTrades",
+          "lineage": {
+            "writes": ["trades"]
+          }
+        },
+        {
+          "id": "step-106-publish-completed",
+          "type": "eventPublish",
+          "description": "settlement.completed を発行する。",
+          "maturity": "committed",
+          "topic": "settlement.completed",
+          "eventRef": "settlement.completed",
+          "payload": "{ settlementId: @inputs.settlementId, clearingReference: @inputs.clearingReference, status: 'COMPLETED' }"
+        },
+        {
+          "id": "step-107-return-200",
+          "type": "return",
+          "description": "完了通知処理の成功を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ status: 'COMPLETED' }"
+        }
+      ],
+      "requiredPermissions": ["settlement.callback"]
+    },
+    {
+      "id": "act-003",
+      "name": "日次照合バッチ",
+      "trigger": "auto",
+      "description": "日次 cron で内部 settlements と清算機関記録を照合し、不一致を検出する。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/internal/settlement/reconcile",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "marketDate",
+          "label": "市場日",
+          "type": "date",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "matchedCount",
+          "label": "照合一致件数",
+          "type": "number"
+        },
+        {
+          "name": "mismatchCount",
+          "label": "不一致件数",
+          "type": "number"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": {
+            "schema": {
+              "type": "object",
+              "required": ["matchedCount", "mismatchCount"],
+              "properties": {
+                "matchedCount": { "type": "number" },
+                "mismatchCount": { "type": "number" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        {
+          "id": "422-reconciliation-mismatch",
+          "status": 422,
+          "bodySchema": { "typeRef": "ApiError" }
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-201-select-internal-settlements",
+          "type": "dbAccess",
+          "description": "当日の内部 settlements を取得する。",
+          "maturity": "committed",
+          "tableName": "settlements",
+          "operation": "SELECT",
+          "sql": "SELECT id, settlement_batch_id, counterparty, security_code, netted_amount, status FROM settlements WHERE market_date = @inputs.marketDate",
+          "outputBinding": "internalSettlements",
+          "lineage": {
+            "reads": ["settlements"]
+          }
+        },
+        {
+          "id": "step-202-fetch-clearing-settlements",
+          "type": "externalSystem",
+          "description": "清算機関から当日 settlements 一覧を取得する。",
+          "maturity": "committed",
+          "systemName": "JSCC Clearing Gateway",
+          "systemRef": "clearingHouse",
+          "httpCall": {
+            "method": "GET",
+            "path": "/settlements",
+            "query": {
+              "marketDate": "@inputs.marketDate"
+            }
+          },
+          "operationId": "ListSettlements",
+          "operationRef": "/openapi/jscc-clearing#ListSettlements",
+          "outcomes": {
+            "success": { "action": "continue" },
+            "failure": { "action": "abort" },
+            "timeout": { "action": "abort" }
+          },
+          "outputBinding": "clearingSettlements"
+        },
+        {
+          "id": "step-203-reconcile",
+          "type": "dbAccess",
+          "description": "RECONCILE operation で内部記録と清算機関記録を照合する。",
+          "note": "実装側で内部配列を一時テーブル展開する前提。",
+          "maturity": "committed",
+          "tableName": "settlement_reconciliation",
+          "operation": "RECONCILE",
+          "sql": "INSERT INTO settlement_reconciliation (market_date, settlement_id, result, checked_at) SELECT @inputs.marketDate, s.id, CASE WHEN s.netted_amount = c.netted_amount AND s.status = c.status THEN 'MATCHED' ELSE 'MISMATCH' END, NOW() FROM @internalSettlements s FULL OUTER JOIN @clearingSettlements c ON s.id = c.settlement_id RETURNING COUNT(*) FILTER (WHERE result = 'MATCHED') AS matched_count, COUNT(*) FILTER (WHERE result = 'MISMATCH') AS mismatch_count",
+          "outputBinding": "reconciliationResult",
+          "lineage": {
+            "reads": ["settlements"],
+            "writes": ["settlement_reconciliation"]
+          }
+        },
+        {
+          "id": "step-204-branch-mismatch",
+          "type": "branch",
+          "description": "不一致があれば監査ログを残し、アラート扱いで 422 を返す。",
+          "maturity": "committed",
+          "branches": [
+            {
+              "id": "br-204-mismatch",
+              "code": "mismatch",
+              "label": "不一致あり",
+              "condition": "@reconciliationResult.mismatch_count > 0",
+              "steps": [
+                {
+                  "id": "step-204-01-audit-mismatch",
+                  "type": "audit",
+                  "description": "照合不一致を監査ログとして記録する。",
+                  "maturity": "committed",
+                  "action": "settlement.reconcile",
+                  "resource": {
+                    "type": "settlement_reconciliation",
+                    "id": "@inputs.marketDate"
+                  },
+                  "result": "failure",
+                  "reason": "RECONCILIATION_MISMATCH",
+                  "sensitive": false
+                },
+                {
+                  "id": "step-204-02-return-422",
+                  "type": "return",
+                  "description": "照合不一致を 422 として返す。",
+                  "maturity": "committed",
+                  "responseRef": "422-reconciliation-mismatch",
+                  "bodyExpression": "{ code: 'RECONCILIATION_MISMATCH', message: '内部記録と清算機関記録が一致しません' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-204-no-mismatch",
+            "code": "matched",
+            "label": "不一致なし",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-205-publish-matched",
+          "type": "eventPublish",
+          "description": "settlement.matched を発行する。",
+          "maturity": "committed",
+          "topic": "settlement.matched",
+          "eventRef": "settlement.matched",
+          "payload": "{ marketDate: @inputs.marketDate, matchedCount: @reconciliationResult.matched_count, mismatchCount: @reconciliationResult.mismatch_count }",
+          "runIf": "@reconciliationResult.mismatch_count == 0"
+        },
+        {
+          "id": "step-206-return-200",
+          "type": "return",
+          "description": "照合成功として 200 を返す。",
+          "maturity": "committed",
+          "responseRef": "200-ok",
+          "bodyExpression": "{ matchedCount: @reconciliationResult.matched_count, mismatchCount: @reconciliationResult.mismatch_count }",
+          "runIf": "@reconciliationResult.mismatch_count == 0"
+        }
+      ],
+      "requiredPermissions": ["settlement.reconcile"]
+    }
+  ],
+  "testScenarios": [
+    {
+      "id": "happy-netting-and-instruct",
+      "name": "ネッティング計算 + 清算指示送信成功",
+      "description": "決済待ち約定を銘柄×相手方×受渡日単位で相殺し、清算機関への決済指図が成功する。",
+      "given": [
+        {
+          "kind": "clock",
+          "now": "2026-04-26T06:00:00.000Z"
+        },
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-464-happy",
+            "marketDate": "2026-04-26"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "trades",
+          "rows": [
+            {
+              "trade_id": "TRD-464-001",
+              "order_id": "ORD-464-001",
+              "security_code": "7203",
+              "counterparty": "CP-A",
+              "side": "BUY",
+              "amount": 1000000,
+              "settle_date": "2026-04-28",
+              "status": "PENDING_SETTLEMENT"
+            },
+            {
+              "trade_id": "TRD-464-002",
+              "order_id": "ORD-464-002",
+              "security_code": "7203",
+              "counterparty": "CP-A",
+              "side": "SELL",
+              "amount": 300000,
+              "settle_date": "2026-04-28",
+              "status": "PENDING_SETTLEMENT"
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "clearingHouse",
+          "responseMock": {
+            "status": 202,
+            "body": {
+              "accepted": true,
+              "clearingReference": "JSCC-464-001"
+            }
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "marketDate": "2026-04-26",
+          "settleDate": "2026-04-28"
+        }
+      },
+      "then": [
+        {
+          "kind": "outcome",
+          "expected": "200-ok"
+        },
+        {
+          "kind": "externalCall",
+          "externalRef": "clearingHouse",
+          "method": "POST",
+          "bodyMatch": {
+            "settleDate": "2026-04-28",
+            "nettedAmount": 700000
+          }
+        },
+        {
+          "kind": "output",
+          "path": "$.nettedAmount",
+          "equals": 700000
+        }
+      ],
+      "tags": ["happy", "netting", "clearing"]
+    },
+    {
+      "id": "compensate-on-clearing-rejected",
+      "name": "清算機関拒否時に trades が PENDING_SETTLEMENT に戻る",
+      "description": "清算機関が決済指図を拒否した場合、補償処理で指図済み trades を決済待ちに戻し再試行キューへ投入する。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-464-rejected",
+            "marketDate": "2026-04-26"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "trades",
+          "rows": [
+            {
+              "trade_id": "TRD-464-010",
+              "order_id": "ORD-464-010",
+              "security_code": "8306",
+              "counterparty": "CP-B",
+              "side": "BUY",
+              "amount": 500000,
+              "settle_date": "2026-04-28",
+              "status": "PENDING_SETTLEMENT"
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "clearingHouse",
+          "responseMock": {
+            "status": 502,
+            "body": {
+              "code": "CLEARING_HOUSE_REJECTED"
+            }
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-001",
+        "input": {
+          "marketDate": "2026-04-26",
+          "settleDate": "2026-04-28"
+        }
+      },
+      "then": [
+        {
+          "kind": "outcome",
+          "expected": "502-clearing-house-rejected"
+        },
+        {
+          "kind": "dbRow",
+          "table": "trades",
+          "match": {
+            "trade_id": "TRD-464-010",
+            "status": "PENDING_SETTLEMENT"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "settlement_retry_queue",
+          "match": {
+            "reason": "CLEARING_HOUSE_REJECTED"
+          },
+          "count": 1
+        }
+      ],
+      "tags": ["compensation", "clearing-rejected"]
+    },
+    {
+      "id": "reconciliation-mismatch-detected",
+      "name": "内部記録と清算機関記録の不一致検出",
+      "description": "日次照合で内部 settlements と清算機関記録の金額不一致を検出し、監査ログと 422 を返す。",
+      "given": [
+        {
+          "kind": "sessionContext",
+          "context": {
+            "requestId": "req-464-reconcile",
+            "marketDate": "2026-04-26"
+          }
+        },
+        {
+          "kind": "dbState",
+          "table": "settlements",
+          "rows": [
+            {
+              "id": "SET-464-001",
+              "settlement_batch_id": "SETTLE-464-001",
+              "counterparty": "CP-A",
+              "security_code": "7203",
+              "netted_amount": 700000,
+              "status": "INSTRUCTED",
+              "market_date": "2026-04-26"
+            }
+          ]
+        },
+        {
+          "kind": "externalStub",
+          "externalRef": "clearingHouse",
+          "responseMock": {
+            "status": 200,
+            "body": {
+              "settlements": [
+                {
+                  "settlement_id": "SET-464-001",
+                  "netted_amount": 690000,
+                  "status": "INSTRUCTED"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "when": {
+        "actionId": "act-003",
+        "input": {
+          "marketDate": "2026-04-26"
+        }
+      },
+      "then": [
+        {
+          "kind": "outcome",
+          "expected": "422-reconciliation-mismatch"
+        },
+        {
+          "kind": "auditLog",
+          "action": "settlement.reconcile",
+          "result": "failure"
+        },
+        {
+          "kind": "output",
+          "path": "$.code",
+          "equals": "RECONCILIATION_MISMATCH"
+        }
+      ],
+      "tags": ["reconciliation", "mismatch"]
+    }
+  ],
+  "createdAt": "2026-04-26T00:00:00.000Z",
+  "updatedAt": "2026-04-26T00:00:00.000Z"
+}

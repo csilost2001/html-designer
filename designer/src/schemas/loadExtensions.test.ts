@@ -105,6 +105,43 @@ describe("loadExtensions", () => {
     expect(ok).toBe(true);
   });
 
+  it("有効な step 拡張が追加される", () => {
+    const loaded = loadExtensionsFromBundle({
+      steps: {
+        namespace: "gm50",
+        steps: {
+          BatchStep: {
+            label: "Batch",
+            icon: "bi-gear",
+            description: "Batch step",
+            schema: {
+              type: "object",
+              required: ["batchId"],
+              additionalProperties: false,
+              properties: {
+                batchId: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    });
+    const extended = buildExtendedSchema(baseSchema, loaded.extensions);
+    const validate = compile(extended.schema);
+
+    const ok = validate(makeFlow({
+      steps: [{
+        id: "step-batch",
+        type: "gm50:BatchStep",
+        description: "拡張バッチステップ",
+        batchId: "BATCH-001",
+      }],
+    }));
+
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
   it("field-type でグローバル enum 衝突なら reject する", () => {
     const loaded = loadExtensionsFromBundle({
       fieldTypes: {
