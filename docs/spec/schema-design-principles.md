@@ -96,7 +96,7 @@ JSON Schema 上の識別子は **5 種類のレベル** を持つ。それぞれ
 
 ### 2.1 ProcessFlow root プロパティ (camelCase 主体)
 
-`schemas/process-flow.schema.json:9-95` で root に並ぶ 30+ プロパティの実態:
+`schemas/process-flow.schema.json:9-95` で root に並ぶ 28 プロパティの実態:
 
 | 種別 | 命名 | 例 |
 |---|---|---|
@@ -249,7 +249,7 @@ union 型の variant を識別する **discriminator フィールド** は 2 つ
 | ProcessFlow root | `schemas/process-flow.schema.json:8-9` |
 | ActionDefinition | `:849` |
 | Step variants (全 22) | `:1052`, `:1103`, `:1309`, etc. |
-| Catalog entry ($defs) | `ErrorCatalogEntry:636`, `ExternalSystemCatalogEntry:1280-1301`, `EnvVarEntry:614-631`, `SecretRef:595-608` |
+| Catalog entry ($defs) | `ErrorCatalogEntry:634-642`, `ExternalSystemCatalogEntry:1276-1301`, `EnvVarEntry:611-631`, `SecretRef:592-608` |
 | value object | `Sla:113`, `TxBoundary:919`, `HttpRoute:549`, `WorkflowApprover:1742` |
 
 #### 規範
@@ -718,7 +718,7 @@ JSON Schema → TypeScript 型生成 (json-schema-to-typescript / quicktype) は
 - 拡張 step の **存在検証 / DynamicFormSchema 整合検証** は **二段検証** で行う:
   - **段 1**: core schema による pattern / 必須 / additionalProperties 検証
   - **段 2**: extensions registry を読んで、core schema + extensions の合成 schema を組み立て、追加検証
-- 段 2 の実装: Node 環境では `loadExtensions()` (`designer/src/schemas/loadExtensions.ts`) が拡張定義を読み合成 schema を組み立てる。ブラウザ環境では `wsBridge` 経由で取得済みのキャッシュを使う
+- 段 2 の実装: Node 環境では `loadExtensionsFromDir(dir)` (`designer/src/schemas/loadExtensions.ts:125`) が拡張定義ディレクトリを読み合成 schema を組み立てる。ブラウザ環境では `wsBridge` 経由で取得した bundle に対して `loadExtensionsFromBundle(bundle)` (同上 `:174`) を使う
 
 #### 採用しない代替案
 
