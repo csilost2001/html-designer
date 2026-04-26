@@ -211,6 +211,11 @@
       "httpStatus": 409,
       "defaultMessage": "現在の口座ステータスでは操作できません",
       "responseRef": "409-invalid-state-transition"
+    },
+    "DB_CONSTRAINT_VIOLATION": {
+      "httpStatus": 500,
+      "defaultMessage": "データベース制約違反が発生しました",
+      "responseRef": "500-db-constraint-violation"
     }
   },
   "externalSystemCatalog": {
@@ -524,7 +529,7 @@
           "lineage": { "writes": ["account_applications"] }
         },
         {
-          "id": "step-001-09",
+          "id": "step-001-08",
           "type": "eventPublish",
           "description": "kyc.completed を発行する。",
           "maturity": "committed",
@@ -533,7 +538,7 @@
           "payload": "{ applicationId: @reviewApplication.id, kycLevel: @reviewApplication.kyc_level, accountStatus: 'UNDER_REVIEW' }"
         },
         {
-          "id": "step-001-10",
+          "id": "step-001-09",
           "type": "eventPublish",
           "description": "application.received を発行する。",
           "maturity": "committed",
@@ -542,7 +547,7 @@
           "payload": "{ applicationId: @reviewApplication.id, accountStatus: 'UNDER_REVIEW' }"
         },
         {
-          "id": "step-001-11",
+          "id": "step-001-10",
           "type": "return",
           "description": "201 Created を返す。",
           "maturity": "committed",
@@ -835,6 +840,7 @@
         { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object" } }, "when": "与信判定が完了" },
         { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
         { "id": "404-application-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "申込が存在しない" },
+        { "id": "409-state-transition", "status": 409, "bodySchema": { "schema": { "type": "object" } }, "when": "TX commit 失敗 (状態遷移不整合)" },
         { "id": "502-credit-info-unavailable", "status": 502, "bodySchema": { "schema": { "type": "object" } }, "when": "信用情報 API 失敗" }
       ],
       "steps": [
@@ -918,7 +924,7 @@
           }
         },
         {
-          "id": "step-003-06",
+          "id": "step-003-05",
           "type": "compute",
           "description": "信用スコアを抽出する。",
           "maturity": "committed",
@@ -926,7 +932,7 @@
           "outputBinding": "creditScore"
         },
         {
-          "id": "step-003-07",
+          "id": "step-003-06",
           "type": "compute",
           "description": "KYC レベルを抽出する。",
           "maturity": "committed",
@@ -934,7 +940,7 @@
           "outputBinding": "kycLevel"
         },
         {
-          "id": "step-003-08",
+          "id": "step-003-07",
           "type": "compute",
           "description": "申込者情報を与信評価用にまとめる。",
           "maturity": "committed",
@@ -942,7 +948,7 @@
           "outputBinding": "applicant"
         },
         {
-          "id": "step-003-09",
+          "id": "step-003-08",
           "type": "compute",
           "description": "@fn.calcCreditLimit(@creditScore, @kycLevel) により与信枠を算出する。",
           "maturity": "committed",
@@ -950,7 +956,7 @@
           "outputBinding": "creditLimit"
         },
         {
-          "id": "step-003-10",
+          "id": "step-003-09",
           "type": "compute",
           "description": "@fn.evaluateRiskRating(@applicant) によりリスク評価を算出する。",
           "maturity": "committed",
@@ -958,7 +964,7 @@
           "outputBinding": "riskRating"
         },
         {
-          "id": "step-003-11",
+          "id": "step-003-10",
           "type": "branch",
           "description": "accountStatus が CREDIT_PENDING であることを確認し、リスク評価を LOW/MEDIUM/HIGH の 3 段階に分岐する。",
           "maturity": "committed",
@@ -985,7 +991,7 @@
                   "description": "accounts INSERT と applications APPROVED を 1 トランザクションで実行する。inner step は先に定義済みの @newAccountId/@creditLimit だけを参照する。コミット結果は creditTxResult に格納し、以降の step は creditTxResult.committed == true の場合のみ実行する。",
                   "maturity": "committed",
                   "isolationLevel": "READ_COMMITTED",
-                  "rollbackOn": ["INVALID_STATE_TRANSITION"],
+                  "rollbackOn": ["INVALID_STATE_TRANSITION", "DB_CONSTRAINT_VIOLATION"],
                   "outputBinding": "creditTxResult",
                   "steps": [
                     {
@@ -1011,6 +1017,15 @@
                       "lineage": { "writes": ["account_applications"] }
                     }
                   ]
+                },
+                {
+                  "id": "step-003-11-a-06-rollback-return",
+                  "type": "return",
+                  "description": "TX commit 失敗 (INVALID_STATE_TRANSITION rollback) 時に 409 を返す。",
+                  "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == false",
+                  "responseRef": "409-state-transition",
+                  "bodyExpression": "{ code: 'INVALID_STATE_TRANSITION', message: 'TX commit failed (state mismatch)' }"
                 },
                 {
                   "id": "step-003-11-a-03",
