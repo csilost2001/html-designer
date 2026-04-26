@@ -572,7 +572,7 @@
               "maturity": "committed",
               "tableName": "inventory",
               "operation": "LOCK_INVENTORY",
-              "sql": "SELECT id, product_code, available_qty, reserved_qty FROM inventory WHERE product_code = @inputs.productCode AND warehouse_id = @inputs.warehouseId FOR UPDATE",
+              "sql": "SELECT id, product_code, available_qty, reserved_qty FROM inventory WHERE product_code = @inputs.productCode AND warehouse_id = @inputs.warehouseId",
               "outputBinding": "inventoryRow",
               "lineage": {
                 "reads": [

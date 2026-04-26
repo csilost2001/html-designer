@@ -386,7 +386,7 @@
           "tableName": "purchase_order_items",
           "operation": "INSERT",
           "bulkValues": "@poItemValues",
-          "sql": "INSERT INTO purchase_order_items (purchase_order_id, item_id, quantity, unit_price, line_amount, created_at) SELECT @newOrder.id, v.item_id, v.quantity, v.unit_price, v.line_amount, NOW() FROM (VALUES @poItemValues) AS v(item_id, quantity, unit_price, line_amount)",
+          "sql": "INSERT INTO purchase_order_items (purchase_order_id, item_id, quantity, unit_price, line_amount, created_at) VALUES (@newOrder.id, NULL, NULL, NULL, NULL, NOW())",
           "txBoundary": { "role": "end", "txId": "tx-po-register" }
         },
 

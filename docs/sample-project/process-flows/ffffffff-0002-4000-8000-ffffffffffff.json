@@ -757,7 +757,7 @@
               "maturity": "committed",
               "tableName": "parts_inventory",
               "operation": "LOCK_INVENTORY",
-              "sql": "SELECT part_number, location_code, available_qty, locked_qty FROM parts_inventory WHERE warehouse_id = @selectedWarehouseId AND part_number IN (SELECT i.partNumber FROM UNNEST(@inputs.items) AS i) FOR UPDATE",
+              "sql": "SELECT part_number, location_code, available_qty, locked_qty FROM parts_inventory WHERE warehouse_id = @selectedWarehouseId AND part_number IN (SELECT i.partNumber FROM UNNEST(@inputs.items) AS i)",
               "outputBinding": "lockedInventory",
               "lineage": {
                 "reads": [

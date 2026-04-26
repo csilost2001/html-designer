@@ -98,7 +98,7 @@
           "tableName": "customers",
           "tableId": "bbbbbbbb-0002-4000-8000-bbbbbbbbbbbb",
           "operation": "SELECT",
-          "sql": "SELECT id, name, name_kana, phone, email FROM customers WHERE (@name IS NULL OR name ILIKE '%' || @name || '%') AND (@phone IS NULL OR phone = @phone) AND (@email IS NULL OR email = @email) AND is_deleted = false",
+          "sql": "SELECT id, name, name_kana, phone, email FROM customers WHERE (@name IS NULL OR name ILIKE CONCAT('%', @name, '%')) AND (@phone IS NULL OR phone = @phone) AND (@email IS NULL OR email = @email) AND is_deleted = false",
           "outputBinding": "customers"
         },
         {

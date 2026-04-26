@@ -813,7 +813,7 @@
               "maturity": "committed",
               "tableName": "position_valuations",
               "operation": "MERGE",
-              "sql": "MERGE INTO position_valuations pv USING (SELECT @position.id AS position_id, @inputs.marketDate AS market_date) src ON (pv.position_id = src.position_id AND pv.market_date = src.market_date) WHEN MATCHED THEN UPDATE SET mark_price = @positionValuation.mark_price, unrealized_pnl = @positionValuation.unrealized_pnl, updated_at = NOW() WHEN NOT MATCHED THEN INSERT (position_id, market_date, mark_price, unrealized_pnl, created_at) VALUES (@position.id, @inputs.marketDate, @positionValuation.mark_price, @positionValuation.unrealized_pnl, NOW())",
+              "sql": "INSERT INTO position_valuations (position_id, market_date, mark_price, unrealized_pnl, created_at) VALUES (@position.id, @inputs.marketDate, @positionValuation.mark_price, @positionValuation.unrealized_pnl, NOW()) ON CONFLICT (position_id, market_date) DO UPDATE SET mark_price = EXCLUDED.mark_price, unrealized_pnl = EXCLUDED.unrealized_pnl, updated_at = NOW()",
               "lineage": {
                 "writes": [
                   "position_valuations"
