@@ -403,8 +403,7 @@
           "maturity": "committed",
           "counterparty": "@pendingTrades[].counterparty",
           "securityCode": "@pendingTrades[].security_code",
-          "settleDate": "@inputs.settleDate",
-          "outputBinding": "nettingKeys"
+          "settleDate": "@inputs.settleDate"
         },
         {
           "id": "step-005-calc-netted-amount",
@@ -567,8 +566,7 @@
           "maturity": "committed",
           "topic": "settlement.instructed",
           "eventRef": "settlement.instructed",
-          "payload": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
-          "runIf": "@clearingInstruction.outcome == 'success'"
+          "payload": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }"
         },
         {
           "id": "step-011-publish-netting",
@@ -577,8 +575,7 @@
           "maturity": "committed",
           "topic": "netting.calculated",
           "eventRef": "netting.calculated",
-          "payload": "{ settleDate: @inputs.settleDate, nettedAmount: @nettedAmount }",
-          "runIf": "@clearingInstruction.outcome == 'success'"
+          "payload": "{ settleDate: @inputs.settleDate, nettedAmount: @nettedAmount }"
         },
         {
           "id": "step-012-return-200",
@@ -586,8 +583,7 @@
           "description": "決済指図成功として 200 を返す。",
           "maturity": "committed",
           "responseRef": "200-ok",
-          "bodyExpression": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }",
-          "runIf": "@clearingInstruction.outcome == 'success'"
+          "bodyExpression": "{ settlementBatchId: @txSettlementBatchId, instructedCount: @insertedSettlements.instructed_count, nettedAmount: @nettedAmount }"
         }
       ],
       "requiredPermissions": ["settlement.instruct"]

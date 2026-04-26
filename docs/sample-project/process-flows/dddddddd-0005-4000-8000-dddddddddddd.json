@@ -512,7 +512,7 @@
           "maturity": "committed",
           "topic": "regulatory.report.submitted",
           "eventRef": "regulatory.report.submitted",
-          "payload": "{ submissionId: @submissionRecord.submissionId, reportingPeriod: @inputs.reportingPeriod, submittedCount: @submissionRecord.submittedCount }"
+          "payload": "{ submissionId: @submissionRecord.submissionId, reportingPeriod: @inputs.reportingPeriod, submittedCount: @submissionRecord.submittedCount ?? @reportableTrades.length }"
         },
         {
           "id": "step-10",
@@ -520,7 +520,7 @@
           "description": "200 OK と submissionId/submittedCount を返す。",
           "maturity": "committed",
           "responseRef": "200-ok",
-          "bodyExpression": "{ submissionId: @submissionRecord.submissionId, submittedCount: @submissionRecord.submittedCount }"
+          "bodyExpression": "{ submissionId: @submissionRecord.submissionId, submittedCount: @submissionRecord.submittedCount ?? @reportableTrades.length }"
         }
       ],
       "requiredPermissions": ["system", "compliance"]
@@ -673,7 +673,7 @@
           },
           "outcomes": {
             "success": { "action": "continue" },
-            "failure": { "action": "abort", "description": "照合失敗時は内部異常検知スコアのみで評価を継続する" },
+            "failure": { "action": "continue", "description": "照合失敗時は内部異常検知スコアのみで評価を継続する" },
             "timeout": { "action": "continue", "sameAs": "failure" }
           },
           "outputBinding": "sanctionsResult"
@@ -683,7 +683,7 @@
           "type": "compute",
           "description": "金額・頻度・相手国に基づく取引パターン異常検知を行う。",
           "maturity": "committed",
-          "expression": "detectTradeAnomaly({ tradeId: @inputs.tradeId, accountId: @inputs.accountId, amount: @inputs.amount, customer: @customer, sanctions: @sanctionsResult })",
+          "expression": "detectTradeAnomaly({ tradeId: @inputs.tradeId, accountId: @inputs.accountId, amount: @inputs.amount, customer: @customer, sanctions: @sanctionsResult ?? null })",
           "outputBinding": "anomalyScore"
         },
         {
@@ -696,7 +696,7 @@
               "id": "br-06-a",
               "code": "HIGH",
               "label": "高リスク",
-              "condition": "@sanctionsResult.riskRating == 'HIGH' || @anomalyScore >= 90",
+              "condition": "@sanctionsResult?.riskRating == 'HIGH' || @anomalyScore >= 90",
               "steps": [
                 {
                   "id": "step-06-a-01",
@@ -771,7 +771,7 @@
               "id": "br-06-b",
               "code": "MEDIUM",
               "label": "中リスク",
-              "condition": "@sanctionsResult.riskRating == 'MEDIUM' || @anomalyScore >= 50",
+              "condition": "@sanctionsResult?.riskRating == 'MEDIUM' || @anomalyScore >= 50",
               "steps": [
                 {
                   "id": "step-06-b-01",
@@ -1000,6 +1000,16 @@
           "match": {
             "trade_id": "TRD-466-HIGH",
             "risk_rating": "HIGH"
+          },
+          "count": 1
+        },
+        {
+          "kind": "dbRow",
+          "table": "aml_screening_log",
+          "match": {
+            "trade_id": "TRD-466-HIGH",
+            "risk_rating": "HIGH",
+            "action_taken": "HOLD"
           },
           "count": 1
         }
