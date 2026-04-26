@@ -187,6 +187,49 @@ describe("process-flow.schema.json — docs/sample-project/process-flows/*.json"
   }
 });
 
+describe("process-flow.schema.json — OtherStep namespace:StepName 形式 (#492)", () => {
+  const makeFlow = (step: object) => ({
+    id: "a", name: "x", type: "screen", description: "",
+    actions: [{
+      id: "act-1", name: "test", trigger: "submit",
+      steps: [step],
+    }],
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+
+  it("namespace:StepName 形式 (manufacturing:TraceabilityStep) が valid", () => {
+    const ok = validate(makeFlow({
+      id: "step-1", type: "manufacturing:TraceabilityStep",
+      description: "ロット記録",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("type: 'other' は引き続き valid (後方互換)", () => {
+    const ok = validate(makeFlow({
+      id: "step-1", type: "other", description: "汎用 step",
+    }));
+    if (!ok) throw new Error(JSON.stringify(validate.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("不正形式 (大文字始まり namespace) は invalid", () => {
+    expect(validate(makeFlow({
+      id: "step-1", type: "Manufacturing:Step",
+      description: "",
+    }))).toBe(false);
+  });
+
+  it("不正形式 (StepName が小文字始まり) は invalid", () => {
+    expect(validate(makeFlow({
+      id: "step-1", type: "manufacturing:step",
+      description: "",
+    }))).toBe(false);
+  });
+});
+
 describe("process-flow.schema.json — v1.1 拡張 (#253)", () => {
   const base = {
     id: "a", name: "x", type: "screen", description: "",

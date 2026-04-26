@@ -190,10 +190,10 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 ### 重要原則 (`docs/spec/process-flow-extensions.md` §15)
 
 - **拡張定義の実利用必須** (§15.3): 定義した拡張は**同 PR 内**で実フローから実体使用する。「定義したが未使用」は禁止
-- **拡張 step の参照形式**:
-  - 現行 schema は `type: "other"` + `outputSchema` + description 注記の形式が安全
-  - `namespace:StepName` 形式は schema が未対応で reject される (#480 で実証、Opus が遭遇)
-  - spec §15.2 と schema の乖離は別 ISSUE で解消予定
+- **拡張 step の参照形式** (#492 / PR #494 で schema 改修済):
+  - **推奨**: `type: "namespace:StepName"` (例: `"securities:TradeMatchStep"`) — 現行 schema 受容済
+  - **後方互換**: `type: "other"` + `outputSchema` + description 注記の旧形式も引き続き valid
+  - 旧版の `/create-flow` SKILL では `type: "other"` workaround を強制していたが、#492 で解消
 - **fieldType vs domainsCatalog 使い分け** (§15.1):
   - 拡張 fieldType (`{kind: "orderId"}`): 業界固有の**型自体**を追加
   - domainsCatalog (`OrderId: {type: "string", constraints: ...}`): ドメイン**制約付き**の型エイリアス

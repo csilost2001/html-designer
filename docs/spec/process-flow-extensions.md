@@ -1109,15 +1109,15 @@ apiVersion?: string;                  // step 単位の override
 
 フロー JSON 内で拡張 step を参照する際の形式を統一する。
 
-- **正式形式**: `type: "namespace:StepName"` (例: `"securities:TradeMatchStep"`)
-- **過渡期許容**: `type: "other"` + `description` で明示する旧形式は後方互換として許容するが、**新規実装では namespace 修飾を推奨**
-- `process-flow.schema.json` の `Step` 定義は `type` のパターンとして `^[a-z][a-z0-9_-]*:[A-Z][A-Za-z0-9]*$` を許容する (allOf で `OtherStep` 互換)
+- **正式形式 (推奨)**: `type: "namespace:StepName"` (例: `"securities:TradeMatchStep"`)
+- **後方互換**: `type: "other"` + `description` で明示する旧形式も引き続き受容
+- `process-flow.schema.json` の `OtherStep.type` は `oneOf` で `{const: "other"}` と pattern `^[a-z][a-z0-9_-]*:[A-Z][A-Za-z0-9]*$` の両方を受容する (#492 で対応、PR #494)
 
 ```json
-// 推奨 (namespace 修飾)
+// 推奨 (namespace 修飾、schema valid)
 { "id": "step-match", "type": "securities:TradeMatchStep", "description": "約定マッチング" }
 
-// 許容 (過渡期・旧形式)
+// 後方互換 (旧形式、schema valid)
 { "id": "step-match", "type": "other", "description": "securities:TradeMatchStep — 約定マッチング" }
 ```
 

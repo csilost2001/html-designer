@@ -1834,7 +1834,12 @@
             "maturity": true, "runIf": true, "outputBinding": true,
             "txBoundary": true, "transactional": true, "compensatesFor": true,
             "externalChain": true, "subSteps": true, "requiredPermissions": true, "sla": true,
-            "type": { "const": "other" },
+            "type": {
+              "oneOf": [
+                { "const": "other" },
+                { "type": "string", "pattern": "^[a-z][a-z0-9_-]*:[A-Z][A-Za-z0-9]*$" }
+              ]
+            },
             "outputSchema": {
               "type": "object",
               "additionalProperties": { "type": "string" }
