@@ -184,10 +184,25 @@ namespace: `manufacturing` (新規)
 
 ### #478 (製造、Codex 不使用、2 シナリオ)
 
-- 2 シナリオで実装者による自己申告 + テスト全 pass でマージ
-- 別セッションによる `/review-flow` 独立レビューは未実施
-- 自己申告問題 12 件を 3 分類で集計
-- Codex 不使用でも実装 → テスト pass → マージの完遂を確認
+- 2 シナリオで実装後、**別セッション Sonnet による独立 `/review-flow` を初回 + 修正後の 2 ラウンド実施**
+- 初回独立 `/review-flow` 検出 (合算): **Must-fix 8 / Should-fix 6 / Nit 5 = 19 件**
+  - シナリオ #1 (Sonnet): Must-fix 4 / Should-fix 3 / Nit 2
+  - シナリオ #2 (Opus): Must-fix 4 / Should-fix 3 / Nit 3
+- 修正委譲後の再 `/review-flow`: **両シナリオで Must-fix ゼロ達成** (Should-fix 3 / Nit 4 が修正副作用として残)
+- Codex 不使用でも実装 → 独立レビュー → 修正 → 再レビュー → マージの完遂を確認
+
+### 既知パターン再発の検証 (#458 と #478 で対比)
+
+| 既知パターン | #458 (Codex 主) | #478 Sonnet | #478 Opus |
+|---|---|---|---|
+| TX outputBinding ネスト参照 | あり (PR #460) | **再発** | **再発** |
+| branch return 後 fallthrough | あり (#2/#5/#6) | **再発** | **再発** |
+| 死コード rollbackOn | あり | **あり** | なし (改善) |
+| responseRef 意味的矛盾 | — | あり | なし |
+| inlineBranch.ng 欠落 | あり (#3/#6) | なし | なし |
+| spec ↔ schema 乖離検出 | — | workaround で回避 | **schema invalid 発生** |
+
+→ **spec 改訂 #474 が明文化したガイドラインのうち、TX outputBinding ネスト参照と branch return fallthrough の 2 パターンは両 AI で再発**。spec 文書化だけでは AI のミスを完全に防げないことを実証。`/review-flow` の検出ワークフローが必須。
 
 ### 比較まとめ
 
@@ -196,10 +211,11 @@ namespace: `manufacturing` (新規)
 | シナリオ数 | 6 | 2 |
 | 担当 AI | Codex (主) / Sonnet (フォールバック) | Sonnet / Opus |
 | spec 改訂 | 改訂前 | 改訂後 (#474) |
-| 独立 `/review-flow` | 実施 | 未実施 (自己申告のみ) |
-| schema test pass | 全件 | 全件 (203 件) |
+| 独立 `/review-flow` | 実施 | **実施 (初回 + 修正後の 2 ラウンド)** |
+| schema test pass | 全件 | 全件 (203-215 件、シナリオごとに変動) |
 | build pass | 全件 | 全件 |
-| 自己申告問題 (合算) | — | 12 件 (フレームワーク 4 / 拡張 4 / 設計 4) |
+| 独立レビュー検出問題 (修正前合算) | — | 19 件 (Must-fix 8 / Should-fix 6 / Nit 5) |
+| 修正後 Must-fix | 0 | **0 (両シナリオ)** |
 | Codex 不使用完遂 | 非対象 | ✅ 確認 |
 
 ## 副産物 / 派生課題
@@ -231,10 +247,14 @@ namespace: `manufacturing` (新規)
 
 ### 一般化された知見
 
-- **spec 改訂 (#474) の基本効果は確認済**: TX 設計・rollbackOn・外部呼出位置の 3 観点は両 AI で初回から正しく設計された。spec 文書が AI の基本設計を誘導できることを確認。
-- **AI 別の特性差は明確**: Opus は問題の自己発見・記録粒度が高く spec 遵守を優先する。Sonnet は schema 安全性を経験から担保する。どちらも有用だが異なる強みを持つ。
+- **spec 改訂 (#474) の効果は部分的**: TX 外部呼出位置・rollbackOn 列挙原則・ADR 記述・拡張定義実利用の 4 観点は両 AI で改善傾向。一方で **TX outputBinding ネスト参照・branch return 後 fallthrough の 2 既知パターンは両 AI で再発**。spec 文書化だけでは AI のミスを完全には防げない。
+- **`/review-flow` ワークフローが品質保証の最終防衛線**: 初回検出 19 件 → 修正委譲 → 再レビューで Must-fix ゼロ達成。spec 改訂と並行して検出・修正サイクルが必須。
+- **AI 別の特性差は明確**:
+  - **Opus**: spec 遵守度が高く rollbackOn / runIf / ADR 記述が初回から精確。ただし spec ↔ schema 乖離があると spec を信じすぎて schema 違反になる (シナリオ #2 で schema invalid 3 step)
+  - **Sonnet**: schema レベルで安全な実装を経験から担保。spec の細かいガイドラインの遵守度は Opus より低い (修正前は死コード rollbackOn 残留等)
+  - 補完関係: Opus を実装、Sonnet を独立レビュアーに使う等の使い分けが有効
 - **spec ↔ schema 乖離は構造的リスク**: spec 改訂時に schema 側の追従を必須化する CI 等の仕組みがないと、実装者 (AI 含む) が実装中に遭遇し続ける。
-- **`/review-flow` 独立レビューの価値**: 本ドッグフードでは独立レビューを省略したが、金融ドッグフード (#458) では独立レビューで複数の Must-fix が発覚した。品質保証として `/review-flow` 独立レビューの継続実施を推奨。
+- **Codex 抜きでも完遂可能**: Sonnet/Opus + 独立 review-flow の組合せで実装 → 修正 → マージの自律ワークフローを確認。Codex プラン上限到達時のフォールバックパスとしても有効。
 
 ## 関連
 
@@ -247,5 +267,5 @@ namespace: `manufacturing` (新規)
 ## 次フェーズへの推奨
 
 - **spec §15.2 ↔ schema 乖離 ISSUE を別途起票** (フレームワーク問題の根本解消)
+- **`/review-flow` SKILL.md に既知パターンを明示列挙** — TX outputBinding ネスト参照 / branch return 後 fallthrough を AI が事前自己チェックできるよう SKILL を強化候補
 - **Phase 2** (テーブル定義 + 処理フロー連携) の準備を進めて良いタイミング
-- `/review-flow` 独立レビューを省略した場合の品質差を把握するため、後続ドッグフードでは実施継続を推奨
