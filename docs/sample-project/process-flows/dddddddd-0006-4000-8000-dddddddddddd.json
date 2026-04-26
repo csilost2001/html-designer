@@ -71,6 +71,19 @@
         },
         "additionalProperties": false
       }
+    },
+    "application.statusChanged": {
+      "description": "口座申込のステータス遷移時に発行する。担当者承認で UNDER_REVIEW から CREDIT_PENDING への遷移など。",
+      "payload": {
+        "type": "object",
+        "required": ["applicationId", "fromStatus", "toStatus"],
+        "properties": {
+          "applicationId": { "type": "string" },
+          "fromStatus": { "type": "string" },
+          "toStatus": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "glossary": {
@@ -140,7 +153,7 @@
       "status": "accepted",
       "context": "信用情報と投資経験により、自動承認できる顧客と上席承認が必要な顧客、拒否すべき顧客が分かれる。",
       "decision": "evaluateRiskRating の結果を LOW/MEDIUM/HIGH とし、LOW は自動開設、MEDIUM は SUPERVISOR_REVIEW_PENDING、高リスクは REJECTED に遷移する。",
-      "consequences": "自動化できるケースと追加人手承認が必要なケースを分離し、拒否理由もイベントで追跡できる。",
+      "consequences": "自動化できるケースと追加人手承認が必要なケースを分離し、拒否理由もイベントで追跡できる。なお、riskRating が LOW/MEDIUM/HIGH のいずれにも該当しない場合や accountStatus が CREDIT_PENDING 以外の場合は elseBranch (manual-investigation) に落ち、200 応答で nextAction: 'manual-investigation' を返す 4 番目のパスがある。",
       "date": "2026-04-26"
     }
   ],
@@ -298,7 +311,7 @@
       "id": "act-001",
       "name": "口座開設申込受付",
       "trigger": "submit",
-      "description": "顧客からの口座開設申込を受け付け、eKYC と AML を実行して担当者承認待ちへ進める。",
+      "description": "顧客からの口座開設申込を受け付け、eKYC と AML を実行して担当者承認待ち (UNDER_REVIEW) で終了する。Manual 承認待ちはこの action の終了を意味し、担当者の承認/差戻し操作は act-002 で再開される別 action である。act-001 の最後に workflow ステップは置かない。",
       "maturity": "committed",
       "httpRoute": {
         "method": "POST",
@@ -511,17 +524,6 @@
           "lineage": { "writes": ["account_applications"] }
         },
         {
-          "id": "step-001-08",
-          "type": "workflow",
-          "description": "Manual ステップ: 担当者承認待ち。承認または差戻し操作は act-002 で再開される。",
-          "maturity": "committed",
-          "pattern": "review",
-          "approvers": [
-            { "role": "accountReviewer", "label": "口座開設担当者", "order": 1 }
-          ],
-          "deadlineExpression": "NOW() + duration('P2D')"
-        },
-        {
           "id": "step-001-09",
           "type": "eventPublish",
           "description": "kyc.completed を発行する。",
@@ -574,6 +576,7 @@
       ],
       "responses": [
         { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object" } }, "when": "担当者操作が完了" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
         { "id": "404-application-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "申込が存在しない" },
         { "id": "409-invalid-state-transition", "status": 409, "bodySchema": { "schema": { "type": "object" } }, "when": "UNDER_REVIEW 以外への review 操作" }
       ],
@@ -590,7 +593,13 @@
             { "field": "reviewerId", "type": "required", "message": "担当者 ID は必須です" },
             { "field": "accountStatus", "type": "enum", "values": ["UNDER_REVIEW"], "message": "担当者承認は UNDER_REVIEW の申込だけ操作できます" }
           ],
-          "fieldErrorsVar": "fieldErrors"
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "申込取得へ進む",
+            "ng": "400 バリデーションエラー",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
         },
         {
           "id": "step-002-02",
@@ -689,14 +698,25 @@
                 {
                   "id": "step-002-05-a-02",
                   "type": "eventPublish",
-                  "description": "承認後に与信判定待ちとなったことを application.received の更新イベントとして発行する。",
+                  "description": "承認後に UNDER_REVIEW から CREDIT_PENDING へのステータス遷移を application.statusChanged として発行する。",
                   "maturity": "committed",
-                  "topic": "application.received",
-                  "eventRef": "application.received",
-                  "payload": "{ applicationId: @reviewResult.id, accountStatus: 'CREDIT_PENDING' }"
+                  "topic": "application.statusChanged",
+                  "eventRef": "application.statusChanged",
+                  "payload": "{ applicationId: @reviewResult.id, fromStatus: 'UNDER_REVIEW', toStatus: 'CREDIT_PENDING' }"
                 },
                 {
                   "id": "step-002-05-a-03",
+                  "type": "audit",
+                  "description": "承認操作を監査ログに記録する。",
+                  "maturity": "committed",
+                  "action": "accountApplication.review",
+                  "resource": { "type": "AccountApplication", "id": "@inputs.applicationId" },
+                  "result": "success",
+                  "reason": "APPROVE",
+                  "sensitive": true
+                },
+                {
+                  "id": "step-002-05-a-04",
                   "type": "return",
                   "description": "200 承認済み。",
                   "maturity": "committed",
@@ -752,6 +772,17 @@
                 },
                 {
                   "id": "step-002-05-b-04",
+                  "type": "audit",
+                  "description": "差戻し操作を監査ログに記録する。",
+                  "maturity": "committed",
+                  "action": "accountApplication.review",
+                  "resource": { "type": "AccountApplication", "id": "@inputs.applicationId" },
+                  "result": "success",
+                  "reason": "REJECT",
+                  "sensitive": true
+                },
+                {
+                  "id": "step-002-05-b-05",
                   "type": "return",
                   "description": "200 拒否済み。",
                   "maturity": "committed",
@@ -760,18 +791,22 @@
                 }
               ]
             }
-          ]
-        },
-        {
-          "id": "step-002-06",
-          "type": "audit",
-          "description": "担当者操作を監査ログに記録する。",
-          "maturity": "committed",
-          "action": "accountApplication.review",
-          "resource": { "type": "AccountApplication", "id": "@inputs.applicationId" },
-          "result": "success",
-          "reason": "@inputs.decision",
-          "sensitive": true
+          ],
+          "elseBranch": {
+            "id": "br-002-05-else",
+            "code": "C",
+            "label": "decision が APPROVE/REJECT 以外 → 400",
+            "steps": [
+              {
+                "id": "step-002-05-else-01",
+                "type": "return",
+                "description": "decision が APPROVE/REJECT 以外の場合 400 を返す。",
+                "maturity": "committed",
+                "responseRef": "400-validation",
+                "bodyExpression": "{ code: 'VALIDATION', message: 'decision must be APPROVE or REJECT' }"
+              }
+            ]
+          }
         }
       ]
     },
@@ -798,6 +833,7 @@
       ],
       "responses": [
         { "id": "200-ok", "status": 200, "bodySchema": { "schema": { "type": "object" } }, "when": "与信判定が完了" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "schema": { "type": "object" } }, "when": "入力値が不正" },
         { "id": "404-application-not-found", "status": 404, "bodySchema": { "schema": { "type": "object" } }, "when": "申込が存在しない" },
         { "id": "502-credit-info-unavailable", "status": 502, "bodySchema": { "schema": { "type": "object" } }, "when": "信用情報 API 失敗" }
       ],
@@ -811,7 +847,14 @@
           "rules": [
             { "field": "applicationId", "type": "required", "message": "申込 ID は必須です" },
             { "field": "accountStatus", "type": "enum", "values": ["CREDIT_PENDING"], "condition": "@inputs.accountStatus != null", "message": "与信判定は CREDIT_PENDING の申込だけ実行できます" }
-          ]
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": "申込取得へ進む",
+            "ng": "400 バリデーションエラー",
+            "ngResponseRef": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値エラー', fieldErrors: @fieldErrors }"
+          }
         },
         {
           "id": "step-003-02",
@@ -872,36 +915,6 @@
             "success": { "action": "continue" },
             "failure": { "action": "abort" },
             "timeout": { "action": "abort", "sameAs": "failure" }
-          }
-        },
-        {
-          "id": "step-003-05",
-          "type": "branch",
-          "description": "信用情報 API が失敗した場合は 502 を返す。",
-          "maturity": "committed",
-          "branches": [
-            {
-              "id": "br-003-05-a",
-              "code": "CREDIT_API_FAILED",
-              "label": "信用情報取得失敗",
-              "condition": "@creditReport == null || @creditReport.status == 'FAILED'",
-              "steps": [
-                {
-                  "id": "step-003-05-a-01",
-                  "type": "return",
-                  "description": "502 信用情報取得失敗。",
-                  "maturity": "committed",
-                  "responseRef": "502-credit-info-unavailable",
-                  "bodyExpression": "{ code: 'CREDIT_INFO_UNAVAILABLE', applicationId: @creditApplication.id }"
-                }
-              ]
-            }
-          ],
-          "elseBranch": {
-            "id": "br-003-05-else",
-            "code": "CREDIT_API_OK",
-            "label": "信用情報取得成功",
-            "steps": []
           }
         },
         {
@@ -969,10 +982,11 @@
                 {
                   "id": "step-003-11-a-02",
                   "type": "transactionScope",
-                  "description": "accounts INSERT と applications APPROVED を 1 トランザクションで実行する。inner step は先に定義済みの @newAccountId/@creditLimit だけを参照する。",
+                  "description": "accounts INSERT と applications APPROVED を 1 トランザクションで実行する。inner step は先に定義済みの @newAccountId/@creditLimit だけを参照する。コミット結果は creditTxResult に格納し、以降の step は creditTxResult.committed == true の場合のみ実行する。",
                   "maturity": "committed",
                   "isolationLevel": "READ_COMMITTED",
-                  "rollbackOn": ["VALIDATION", "INVALID_STATE_TRANSITION"],
+                  "rollbackOn": ["INVALID_STATE_TRANSITION"],
+                  "outputBinding": "creditTxResult",
                   "steps": [
                     {
                       "id": "step-003-11-a-02-01",
@@ -1001,8 +1015,9 @@
                 {
                   "id": "step-003-11-a-03",
                   "type": "eventPublish",
-                  "description": "account.activated を発行する。",
+                  "description": "account.activated を発行する。TX コミット成功時のみ実行。",
                   "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == true",
                   "topic": "account.activated",
                   "eventRef": "account.activated",
                   "payload": "{ accountId: @newAccount.id, applicationId: @approvedApplication.id, accountStatus: 'ACTIVE' }"
@@ -1010,8 +1025,9 @@
                 {
                   "id": "step-003-11-a-04",
                   "type": "eventPublish",
-                  "description": "application.approved を発行する。",
+                  "description": "application.approved を発行する。TX コミット成功時のみ実行。",
                   "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == true",
                   "topic": "application.approved",
                   "eventRef": "application.approved",
                   "payload": "{ applicationId: @approvedApplication.id, accountId: @newAccount.id, creditLimit: @creditLimit }"
@@ -1019,8 +1035,9 @@
                 {
                   "id": "step-003-11-a-05",
                   "type": "return",
-                  "description": "200 口座開設成功を返す。",
+                  "description": "200 口座開設成功を返す。TX コミット成功時のみ実行。",
                   "maturity": "committed",
+                  "runIf": "@creditTxResult.committed == true",
                   "responseRef": "200-ok",
                   "bodyExpression": "{ applicationId: @approvedApplication.id, accountId: @newAccount.id, accountStatus: 'ACTIVE', creditLimit: @creditLimit }"
                 }
