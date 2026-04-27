@@ -176,9 +176,10 @@ v3 EventTopic regex は `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$` (lowercase + und
 | v1 | v3 |
 |---|---|
 | `inventory.notFound` | `inventory.not_found` |
-| `cart.itemAdded` | `cart.item_added` (もしくは `cart.item_added` のままでも v1 と同じ) |
+| `cart.itemAdded` | `cart.item_added` |
 | `order.userCancelled` | `order.user_cancelled` |
 | `payment.preAuthorized` | `payment.pre_authorized` |
+| `cart.item_added` (snake_case 部分) | そのまま (v3 規範に合致、rename 不要) |
 
 ### ProcessFlow 構造変更 (root 30+ → 4 セクション)
 

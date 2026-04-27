@@ -130,6 +130,42 @@ describe("schema v3 dogfood samples (#523)", () => {
     expect(ok, ok ? "" : dumpErrors("F-2 fixture", validateProcessFlow)).toBe(true);
   });
 
+  it("F-2 regression: DbAccessStep が継承された lineage を保持", () => {
+    // F-2 で DbAccessStep の lineage 重複宣言を削除した。継承で機能するか検証
+    const fixture = {
+      meta: {
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "F-2 DbAccessStep lineage 継承テスト",
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+        kind: "screen",
+      },
+      actions: [
+        {
+          id: "act-001",
+          name: "dbAccess lineage regression",
+          trigger: "submit",
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "DbAccessStep の lineage は StepBaseProps から継承される",
+              tableId: "eb574288-88f2-419f-ac5e-56a9948e8f46",
+              operation: "SELECT",
+              sql: "SELECT * FROM products",
+              outputBinding: { name: "rows" },
+              lineage: {
+                reads: [{ tableId: "eb574288-88f2-419f-ac5e-56a9948e8f46", purpose: "lookup" }],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const ok = validateProcessFlow(fixture);
+    expect(ok, ok ? "" : dumpErrors("F-2 DbAccessStep regression", validateProcessFlow)).toBe(true);
+  });
+
   it("F-4: BranchCondition の不正 kind は discriminator で 1 branch のみエラー", () => {
     // 不正な kind を持つ BranchCondition を Step.branches[0].condition に置く
     const fixture = {
@@ -167,6 +203,104 @@ describe("schema v3 dogfood samples (#523)", () => {
     expect(ok).toBe(false);
     // discriminator が効いていれば、kind の値ミスマッチエラーが先頭に出る
     const errs = validateProcessFlow.errors ?? [];
+    const discriminatorErr = errs.find(
+      (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
+    );
+    expect(discriminatorErr).toBeDefined();
+  });
+
+  it("F-4: CdcDestination の不正 kind は discriminator でエラー", () => {
+    const fixture = {
+      meta: {
+        id: "44444444-4444-4444-8444-444444444444",
+        name: "F-4 CdcDestination",
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+        kind: "batch",
+      },
+      actions: [
+        {
+          id: "act-001",
+          name: "cdc test",
+          trigger: "auto",
+          steps: [
+            {
+              id: "step-01",
+              kind: "cdc",
+              description: "CdcDestination kind ミスマッチ",
+              tableIds: ["eb574288-88f2-419f-ac5e-56a9948e8f46"],
+              captureMode: "full",
+              destination: { kind: "invalidKind", topic: "x.y" },
+            },
+          ],
+        },
+      ],
+    };
+    const ok = validateProcessFlow(fixture);
+    expect(ok).toBe(false);
+    const errs = validateProcessFlow.errors ?? [];
+    const discriminatorErr = errs.find(
+      (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
+    );
+    expect(discriminatorErr).toBeDefined();
+  });
+
+  it("F-4: TestPrecondition の不正 kind は discriminator でエラー (common.v3 経由)", () => {
+    // ProcessFlow.authoring.testScenarios.given[].kind が discriminated union
+    const fixture = {
+      meta: {
+        id: "55555555-5555-4555-8555-555555555555",
+        name: "F-4 TestPrecondition",
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+        kind: "screen",
+      },
+      actions: [
+        {
+          id: "act-001",
+          name: "minimal",
+          trigger: "submit",
+          steps: [
+            { id: "step-01", kind: "return", description: "return" },
+          ],
+        },
+      ],
+      authoring: {
+        testScenarios: [
+          {
+            id: "ts-01",
+            name: "test",
+            given: [{ kind: "invalidKind", anything: "x" }],
+            when: { actionId: "act-001", input: {} },
+            then: [{ kind: "outcome", expected: "200-ok" }],
+          },
+        ],
+      },
+    };
+    const ok = validateProcessFlow(fixture);
+    expect(ok).toBe(false);
+    const errs = validateProcessFlow.errors ?? [];
+    const discriminatorErr = errs.find(
+      (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
+    );
+    expect(discriminatorErr).toBeDefined();
+  });
+
+  it("F-4: Constraint (table.v3) の不正 kind は discriminator でエラー", () => {
+    const fixture = {
+      id: "eb574288-88f2-419f-ac5e-56a9948e8f47",
+      name: "F-4 Constraint テスト",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+      physicalName: "test_table",
+      columns: [{ id: "col-01", physicalName: "id", name: "ID", dataType: "INTEGER" }],
+      constraints: [
+        { id: "c1", kind: "invalidKind" },
+      ],
+    };
+    const ok = validateTable(fixture);
+    expect(ok).toBe(false);
+    const errs = validateTable.errors ?? [];
     const discriminatorErr = errs.find(
       (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
     );
