@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/view.v3.schema.json",
+  "title": "View (v3 ビュー定義)",
+  "description": "DB ビュー 1 件の定義。data/views/<id>.json に対応。SELECT 文 + 出力カラム定義 + 依存テーブル/ビュー。",
+  "type": "object",
+  "$ref": "#/$defs/View",
+  "$defs": {
+    "View": {
+      "allOf": [
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+      ],
+      "type": "object",
+      "required": ["physicalName", "selectStatement", "outputColumns"],
+      "properties": {
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "ビュー物理名。" },
+        "selectStatement": { "type": "string", "description": "ビューを定義する SELECT 文 (DB 方言依存)。" },
+        "outputColumns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/OutputColumn" }
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "依存する Table / View entity の Uuid 一覧。",
+          "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" }
+        },
+        "materialized": {
+          "type": "boolean",
+          "description": "true でマテリアライズドビュー。"
+        },
+        "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "OutputColumn": {
+      "type": "object",
+      "required": ["physicalName", "dataType"],
+      "additionalProperties": false,
+      "properties": {
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "dataType": { "$ref": "table.v3.schema.json#/$defs/DataType" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    }
+  }
+}

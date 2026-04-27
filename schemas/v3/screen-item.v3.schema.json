@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/screen-item.v3.schema.json",
+  "title": "ScreenItem (v3 画面項目定義)",
+  "description": "画面項目 1 件の正規定義。screen.v3.schema.json#/$defs/Screen.items[] から参照される。フォーム入力項目 (direction='input') と表示項目 (direction='output') の双方を表現。",
+  "type": "object",
+  "$ref": "#/$defs/ScreenItem",
+  "$defs": {
+
+    "ScreenItem": {
+      "description": "画面項目 1 件。識別子 (Identifier) は画面内で一意、AI 実装で API key / 変数名としてそのまま使用可能。",
+      "type": "object",
+      "required": ["id", "label", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "画面項目識別子 (camelCase 強制、JS 識別子に直接使用可)。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "type": { "$ref": "common.v3.schema.json#/$defs/FieldType" },
+        "direction": {
+          "type": "string",
+          "enum": ["input", "output"],
+          "description": "input = フォーム入力項目 (既定) / output = 表示専用項目。"
+        },
+        "required": { "type": "boolean" },
+        "readonly": { "type": "boolean" },
+        "disabled": { "type": "boolean" },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number" },
+        "pattern": { "type": "string", "description": "正規表現または @conv.regex.<key> 参照。" },
+        "options": {
+          "type": "array",
+          "description": "選択肢 (select / radio / checkbox 用)。静的マスタ。",
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "value": { "type": "string" },
+              "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" }
+            }
+          }
+        },
+        "defaultValue": {
+          "description": "既定値。型に応じた primitive または式文字列 (formula で代用も可)。",
+          "type": ["string", "number", "boolean", "null"]
+        },
+        "placeholder": { "type": "string" },
+        "helperText": { "type": "string" },
+        "errorMessages": {
+          "type": "object",
+          "description": "バリデーション NG 時のメッセージ。@conv.msg.<key> 参照推奨。キーは required / minLength / maxLength / invalidFormat / outOfRange / 任意のカスタムコード。",
+          "additionalProperties": { "type": "string" }
+        },
+        "visibleWhen": { "$ref": "common.v3.schema.json#/$defs/ExpressionString", "description": "表示条件式。" },
+        "enabledWhen": { "$ref": "common.v3.schema.json#/$defs/ExpressionString", "description": "活性条件式。" },
+        "displayFormat": {
+          "type": "string",
+          "description": "表示書式 (output 専用)。例: 'YYYY/MM/DD', '¥#,##0', '0.00%'"
+        },
+        "valueFrom": { "$ref": "#/$defs/ValueSource" },
+        "formula": {
+          "$ref": "common.v3.schema.json#/$defs/ExpressionString",
+          "description": "派生計算式 (= で始まる)。output 項目用。"
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "ValueSource": {
+      "description": "output 項目のバインド元。discriminated union (kind)。組み込み 4 種 + 拡張 (extensions.v3.valueSourceKinds で定義)。tableColumn / viewColumn は common.v3 の Ref 型を流用。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "variableName"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "flowVariable" },
+            "processFlowId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "省略時はカレント画面に紐付く ProcessFlow を解決する。" },
+            "variableName": { "$ref": "common.v3.schema.json#/$defs/Identifier" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tableColumn" },
+            "ref": { "$ref": "common.v3.schema.json#/$defs/TableColumnRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "viewColumn" },
+            "ref": { "$ref": "common.v3.schema.json#/$defs/ViewColumnRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "expression"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "expression" },
+            "expression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        },
+        {
+          "description": "拡張 ValueSource。kind は namespace:identifier 形式。固有プロパティは config object に閉じる (loader が extensions.v3.valueSourceKinds[<kind>].schema で検証)。",
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$",
+              "description": "namespace:kindName 形式 (例: 'retail:cartCalculation')"
+            },
+            "config": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "拡張固有設定。loader が extensions.v3.valueSourceKinds[<kind>].schema で構造を検証。"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

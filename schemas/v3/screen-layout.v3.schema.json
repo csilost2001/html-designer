@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/screen-layout.v3.schema.json",
+  "title": "ScreenLayout (v3 画面フロー UI 座標)",
+  "description": "画面フロー図 (ReactFlow キャンバス) 上の各画面・グループ・遷移の UI 座標を集約する。Designer (画面フローエディタ) 専用、業務実装には不要。data/screen-layout.json に対応。",
+  "type": "object",
+  "required": ["positions", "updatedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "positions": {
+      "type": "object",
+      "description": "Screen / ScreenGroup の UUID をキーとし、UI 座標を値とする。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+      "additionalProperties": { "$ref": "#/$defs/Position" }
+    },
+    "transitions": {
+      "type": "object",
+      "description": "ScreenTransition の LocalId をキーとし、UI 座標 (handle 位置等) を値とする。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+      "additionalProperties": { "$ref": "#/$defs/TransitionLayout" }
+    },
+    "updatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" }
+  },
+  "$defs": {
+    "Position": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "thumbnail": { "type": "string", "description": "data:image/... の base64 サムネイル。" },
+        "color": { "type": "string", "description": "ScreenGroup の表示色 (#RRGGBB)。" }
+      }
+    },
+    "TransitionLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceHandle": { "type": "string" },
+        "targetHandle": { "type": "string" }
+      }
+    }
+  }
+}

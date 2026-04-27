@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/table.v3.schema.json",
+  "title": "Table (v3 テーブル定義)",
+  "description": "テーブル entity 1 件分の正規定義。EntityMeta + 物理名 + カラム + 制約 + インデックス + DEFAULT + トリガー + コメント + authoring。FK は ConstraintDefinition に集約 (TableColumn に inline foreignKey は持たない)。",
+  "type": "object",
+  "$ref": "#/$defs/Table",
+  "$defs": {
+
+    "Table": {
+      "allOf": [
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+      ],
+      "type": "object",
+      "required": ["physicalName", "columns"],
+      "properties": {
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "DB 物理名 (snake_case)。例: 'users', 'order_items'" },
+        "category": { "type": "string", "description": "テーブルカテゴリ (例: 'マスタ', 'トランザクション', '中間テーブル', 'ログ', '設定', 'その他')。" },
+        "comment": { "type": "string", "description": "DDL レベルのテーブルコメント (DB に COMMENT として出力)。" },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Column" }
+        },
+        "indexes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Index" }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Constraint" }
+        },
+        "defaults": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DefaultDefinition" }
+        },
+        "triggers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TriggerDefinition" }
+        },
+        "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "Column": {
+      "description": "カラム 1 件。physicalName (snake_case) と name (表示名、自由) を分離。",
+      "type": "object",
+      "required": ["id", "physicalName", "name", "dataType"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "no": { "type": "integer", "minimum": 1, "description": "物理順 (1..N)。" },
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName", "description": "表示名 (例: 'ユーザーID', 'ログインID')。" },
+        "dataType": { "$ref": "#/$defs/DataType" },
+        "length": { "type": "integer", "minimum": 0, "description": "VARCHAR / CHAR / DECIMAL の長さ。" },
+        "scale": { "type": "integer", "minimum": 0, "description": "DECIMAL のスケール (小数桁)。" },
+        "notNull": { "type": "boolean" },
+        "primaryKey": { "type": "boolean" },
+        "unique": { "type": "boolean" },
+        "autoIncrement": { "type": "boolean" },
+        "defaultValue": { "type": "string", "description": "DDL DEFAULT 句に出す値 (リテラル / 関数式)。" },
+        "comment": { "type": "string", "description": "DDL カラムコメント。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "DataType": {
+      "description": "DB データ型。SQL 業界慣習に従い UPPER。プリミティブ enum + 拡張参照。",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["VARCHAR", "CHAR", "TEXT", "INTEGER", "BIGINT", "SMALLINT", "DECIMAL", "FLOAT", "BOOLEAN", "DATE", "TIME", "TIMESTAMP", "BLOB", "JSON"]
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*:[A-Z][A-Z0-9_]*$",
+          "description": "拡張 DataType 参照。namespace:DATA_TYPE 形式 (例: 'oracle:VARCHAR2', 'postgres:JSONB')。"
+        }
+      ]
+    },
+
+    "Index": {
+      "type": "object",
+      "required": ["id", "physicalName", "columns"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "インデックス物理名 (例: 'idx_users_email')。" },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["columnId"],
+            "additionalProperties": false,
+            "properties": {
+              "columnId": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Column.id (LocalId) を参照。" },
+              "order": { "type": "string", "enum": ["asc", "desc"] }
+            }
+          }
+        },
+        "unique": { "type": "boolean" },
+        "method": {
+          "type": "string",
+          "enum": ["btree", "hash", "gin", "gist"],
+          "description": "インデックスアルゴリズム。"
+        },
+        "where": { "type": "string", "description": "Partial Index の WHERE 句。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "Constraint": {
+      "description": "テーブル制約。kind による discriminated union (unique / check / foreignKey)。",
+      "oneOf": [
+        { "$ref": "#/$defs/UniqueConstraint" },
+        { "$ref": "#/$defs/CheckConstraint" },
+        { "$ref": "#/$defs/ForeignKeyConstraint" }
+      ]
+    },
+
+    "UniqueConstraint": {
+      "type": "object",
+      "required": ["id", "kind", "columnIds"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "kind": { "const": "unique" },
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "columnIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CheckConstraint": {
+      "type": "object",
+      "required": ["id", "kind", "expression"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "kind": { "const": "check" },
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "expression": { "type": "string", "description": "SQL CHECK 式 (例: 'price > 0', 'status IN (\\'active\\', \\'inactive\\')')。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "ForeignKeyConstraint": {
+      "description": "外部キー制約。単一カラム / 複合カラムを統一表現。referencedTableId は Uuid (物理名直書きは廃止)。",
+      "type": "object",
+      "required": ["id", "kind", "columnIds", "referencedTableId", "referencedColumnIds"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "kind": { "const": "foreignKey" },
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "columnIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+          "description": "本テーブルの Column.id 配列。"
+        },
+        "referencedTableId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "参照先 Table の Uuid。" },
+        "referencedColumnIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+          "description": "参照先 Column.id 配列。"
+        },
+        "onDelete": { "$ref": "#/$defs/FkAction" },
+        "onUpdate": { "$ref": "#/$defs/FkAction" },
+        "noConstraint": {
+          "type": "boolean",
+          "description": "true なら DDL に FK 制約を出力しない (論理 FK のみ、ER 図表示用)。"
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "FkAction": {
+      "description": "FK 違反時のアクション。lowerCamelCase 統一 (v1 の 'NO ACTION' / 'SET NULL' のスペース含み廃止)。",
+      "type": "string",
+      "enum": ["cascade", "setNull", "setDefault", "restrict", "noAction"]
+    },
+
+    "DefaultDefinition": {
+      "description": "カラム DEFAULT 値の構造化定義。Column.defaultValue の代替として使用可。",
+      "type": "object",
+      "required": ["columnId", "kind", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "columnId": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "kind": {
+          "type": "string",
+          "enum": ["literal", "function", "sequence", "convention"],
+          "description": "literal=リテラル / function=DB 関数 (NOW() 等) / sequence=シーケンス参照 / convention=@conv.numbering.<key> 参照。"
+        },
+        "value": { "type": "string" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "TriggerDefinition": {
+      "type": "object",
+      "required": ["id", "physicalName", "timing", "events", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "timing": {
+          "type": "string",
+          "enum": ["BEFORE", "AFTER", "INSTEAD_OF"]
+        },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "enum": ["INSERT", "UPDATE", "DELETE", "TRUNCATE"] }
+        },
+        "whenCondition": { "type": "string", "description": "WHEN 句 (省略可)。" },
+        "body": { "type": "string", "description": "トリガー本体 (PL/pgSQL 等の DB 方言依存)。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    }
+  }
+}

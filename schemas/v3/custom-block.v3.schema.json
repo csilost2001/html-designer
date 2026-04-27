@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/custom-block.v3.schema.json",
+  "title": "CustomBlock (v3 カスタムブロック集合)",
+  "description": "Designer (画面デザイナー) で再利用するカスタムブロックの集合。data/custom-blocks.json に対応。",
+  "type": "array",
+  "items": { "$ref": "#/$defs/CustomBlock" },
+  "$defs": {
+    "CustomBlock": {
+      "type": "object",
+      "required": ["id", "label", "category", "content", "shared", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "ブロック識別子 (UUID 強制、v1 の timestamp 形式は廃止)。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "category": { "type": "string", "description": "ブロックパレット上のカテゴリ名 (例: 'マイブロック', 'フォーム')。" },
+        "content": { "type": "string", "description": "GrapesJS が展開する HTML 文字列 (data-shared-block-id 属性付き推奨)。" },
+        "shared": { "type": "boolean", "description": "true で複数画面で共有 (data-shared-block-id で同期)。" },
+        "createdAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" },
+        "updatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    }
+  }
+}
