@@ -1,0 +1,189 @@
+{
+  "namespace": "retail",
+  "version": "1.0.0",
+  "requiresCoreSchema": ">=3.0.0",
+  "description": "小売業 (retail) namespace の v3 統合拡張定義。v1/v2 では steps / fieldTypes / triggers / dbOperations が別ファイルだったが、v3 では 1 ファイルに集約 (loader は同 namespace の複数ファイル分割も許容)。本サンプルは 1 ファイル統合運用の実証。",
+  "fieldTypes": [
+    { "kind": "productCode", "label": "商品コード", "baseType": "string" },
+    { "kind": "cartId", "label": "カート ID", "baseType": "string" },
+    { "kind": "orderId", "label": "注文 ID", "baseType": "string" },
+    { "kind": "shipmentTrackingNumber", "label": "配送追跡番号", "baseType": "string" },
+    { "kind": "sku", "label": "SKU (在庫管理単位)", "baseType": "string" },
+    { "kind": "storeCode", "label": "店舗コード", "baseType": "string" },
+    { "kind": "inventoryQuantity", "label": "在庫数量", "baseType": "integer" },
+    { "kind": "unitPrice", "label": "単価 (税抜)", "baseType": "integer" }
+  ],
+  "actionTriggers": [
+    {
+      "value": "orderConfirmed",
+      "label": "注文確定トリガー",
+      "description": "order.confirmed イベントを購読して後続の配送指示フローを起動する。"
+    },
+    {
+      "value": "inventoryLow",
+      "label": "在庫低下アラートトリガー",
+      "description": "available_quantity が @conv.limit.lowStockThreshold を下回った時点で補充フローを起動する。"
+    }
+  ],
+  "dbOperations": [
+    {
+      "value": "UPSERT_CART_ITEM",
+      "label": "カート明細 UPSERT",
+      "description": "(cart_id, product_code) 複合キーで冪等 UPSERT。既存行があれば数量を加算し、なければ INSERT する。"
+    },
+    {
+      "value": "DECREMENT_INVENTORY",
+      "label": "在庫数量デクリメント",
+      "description": "inventory.available_quantity を引当数量分減算する。available_quantity < 0 になる場合は affectedRows = 0 で制御する。"
+    }
+  ],
+  "stepKinds": {
+    "CartManageStep": {
+      "label": "カート管理",
+      "icon": "ShoppingCart",
+      "description": "カートへの商品追加・数量変更・削除を冪等に処理します。既存明細があれば数量を加算し、なければ新規追加します。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "cartId": { "type": "string", "description": "カート識別子" },
+          "productCode": { "type": "string", "description": "商品コード" },
+          "quantity": { "type": "integer", "description": "追加・変更する数量" },
+          "unitPrice": { "type": "integer", "description": "単価 (税抜、円)" }
+        },
+        "required": ["cartId", "productCode", "quantity"],
+        "additionalProperties": false
+      }
+    },
+    "OrderConfirmStep": {
+      "label": "注文確定",
+      "icon": "CheckCircle",
+      "description": "カート内容を注文に確定し、在庫引当・注文マスタ・注文明細を原子的にコミットします。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "orderId": { "type": "string" },
+          "customerId": { "type": "string" },
+          "totalAmount": { "type": "integer" },
+          "taxAmount": { "type": "integer" }
+        },
+        "required": ["orderId", "customerId", "totalAmount"],
+        "additionalProperties": false
+      }
+    },
+    "InventoryReserveStep": {
+      "label": "在庫引当",
+      "icon": "Package",
+      "description": "注文明細の商品ごとに在庫テーブルから引当数量を減算します。在庫不足の場合はエラーを返します。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "productCode": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "orderId": { "type": "string" }
+        },
+        "required": ["productCode", "quantity", "orderId"],
+        "additionalProperties": false
+      }
+    },
+    "ShipmentDispatchStep": {
+      "label": "配送指示",
+      "icon": "Truck",
+      "description": "確定注文に対して配送指示レコードを作成し、物流会社への連携リクエストを送信します。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "orderId": { "type": "string" },
+          "shipmentId": { "type": "string" },
+          "carrierCode": { "type": "string" },
+          "trackingNumber": { "type": "string" }
+        },
+        "required": ["orderId", "shipmentId"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "screenKinds": [
+    {
+      "kind": "storefront",
+      "label": "店舗フロント画面",
+      "icon": "bi-shop",
+      "description": "店舗向け POS / セルフレジ等のフロント画面。"
+    }
+  ],
+  "responseTypes": {
+    "InventorySearchResponse": {
+      "description": "在庫照会 API のレスポンス body。items 配列 + totalCount。",
+      "schema": {
+        "type": "object",
+        "required": ["items", "totalCount"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productCode", "productName", "storeCode", "availableQuantity", "reservedQuantity"],
+              "properties": {
+                "productCode": { "type": "string" },
+                "productName": { "type": "string" },
+                "storeCode": { "type": "string" },
+                "availableQuantity": { "type": "integer" },
+                "reservedQuantity": { "type": "integer" }
+              }
+            }
+          },
+          "totalCount": { "type": "integer" }
+        }
+      }
+    },
+    "ApiError": {
+      "description": "汎用 API エラーレスポンス。",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "fieldErrors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "constraintPatterns": [
+    {
+      "id": "fk-product-code",
+      "label": "商品コード FK 雛形",
+      "kind": "foreignKey",
+      "description": "products テーブルの product_code (UNIQUE) を参照する FK。on delete restrict, on update cascade を既定とする。",
+      "template": {
+        "kind": "foreignKey",
+        "onDelete": "restrict",
+        "onUpdate": "cascade"
+      }
+    }
+  ],
+  "conventionCategories": [
+    {
+      "categoryName": "retailLimit",
+      "label": "小売業限度値",
+      "description": "在庫低下閾値・カート上限・注文上限など、小売業固有の限度値。",
+      "entrySchema": {
+        "type": "object",
+        "required": ["value", "unit"],
+        "properties": {
+          "value": { "type": "number" },
+          "unit": { "enum": ["integer", "yen", "percent"] },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
