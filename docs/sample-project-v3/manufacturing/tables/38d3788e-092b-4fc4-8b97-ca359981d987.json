@@ -1,0 +1,59 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "38d3788e-092b-4fc4-8b97-ca359981d987",
+  "name": "品目マスタ",
+  "description": "製品・部品・原材料を統一管理するテーブル。kind で 'product' (完成品) / 'subassembly' (中間品) / 'part' (購入部品) / 'material' (原材料) を識別。BOM (boms テーブル) で親子関係を構築。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "items",
+  "category": "マスタ",
+  "comment": "品目マスタ。BOM 階層は self-reference せず boms テーブルで保持。default 値は DefaultDefinition で表現 (Round 1/2 未使用要素)。",
+  "columns": [
+    { "id": "col-it01", "no": 1, "physicalName": "id", "name": "品目ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-it02", "no": 2, "physicalName": "item_code", "name": "品目コード", "dataType": "VARCHAR", "length": 30, "notNull": true, "unique": true, "comment": "I + 9 桁数字。" },
+    { "id": "col-it03", "no": 3, "physicalName": "name", "name": "品目名", "dataType": "VARCHAR", "length": 200, "notNull": true },
+    { "id": "col-it04", "no": 4, "physicalName": "kind", "name": "種別", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "product / subassembly / part / material。" },
+    { "id": "col-it05", "no": 5, "physicalName": "unit", "name": "単位", "dataType": "VARCHAR", "length": 10, "notNull": true, "comment": "個 / kg / m / L 等。" },
+    { "id": "col-it06", "no": 6, "physicalName": "standard_cost", "name": "標準原価", "dataType": "DECIMAL", "length": 12, "scale": 2, "notNull": true, "comment": "JPY、税抜。" },
+    { "id": "col-it07", "no": 7, "physicalName": "lead_time_days", "name": "リードタイム", "dataType": "INTEGER", "notNull": true, "comment": "日数。" },
+    { "id": "col-it08", "no": 8, "physicalName": "min_order_quantity", "name": "最小発注数", "dataType": "INTEGER", "notNull": true },
+    { "id": "col-it09", "no": 9, "physicalName": "is_active", "name": "アクティブ", "dataType": "BOOLEAN", "notNull": true },
+    { "id": "col-it10", "no": 10, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true },
+    { "id": "col-it11", "no": 11, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true }
+  ],
+  "indexes": [
+    { "id": "idx-it01", "physicalName": "idx_items_item_code", "columns": [{ "columnId": "col-it02" }], "unique": true },
+    { "id": "idx-it02", "physicalName": "idx_items_kind_active", "columns": [{ "columnId": "col-it04" }, { "columnId": "col-it09" }] }
+  ],
+  "constraints": [
+    {
+      "id": "chk-it01",
+      "kind": "check",
+      "physicalName": "chk_items_kind_enum",
+      "expression": "kind IN ('product', 'subassembly', 'part', 'material')",
+      "description": "品目種別の許容値。"
+    },
+    {
+      "id": "chk-it02",
+      "kind": "check",
+      "physicalName": "chk_items_standard_cost_positive",
+      "expression": "standard_cost > 0 AND lead_time_days >= 0 AND min_order_quantity > 0",
+      "description": "標準原価・リードタイム・最小発注数の妥当性。"
+    },
+    {
+      "id": "chk-it03",
+      "kind": "check",
+      "physicalName": "chk_items_item_code_pattern",
+      "expression": "item_code ~ '^I[0-9]{9}$'",
+      "description": "品目コードは I + 9 桁数字。"
+    }
+  ],
+  "defaults": [
+    { "columnId": "col-it08", "kind": "literal", "value": "1", "description": "最小発注数の既定値は 1 (個別品)。" },
+    { "columnId": "col-it09", "kind": "literal", "value": "true", "description": "新規登録は active 既定。" },
+    { "columnId": "col-it10", "kind": "function", "value": "CURRENT_TIMESTAMP", "description": "作成日時自動セット。" },
+    { "columnId": "col-it11", "kind": "function", "value": "CURRENT_TIMESTAMP", "description": "更新日時自動セット (UPDATE 時はトリガー or アプリ層で更新)。" }
+  ]
+}

@@ -1,0 +1,301 @@
+{
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "e3a68880-9648-4bdc-b787-b083784c1229",
+    "name": "月次棚卸締め (製造業)",
+    "description": "月末 cron 起動の定期実行フロー。(1) 冪等チェック (当月スナップショット既存なら早期 return)、(2) CdcStep で inventory 変動を auditLog に capture、(3) ClosingStep で月次締め宣言、(4) inventory_snapshots への bulk INSERT、(5) 月次評価額集計、(6) 完了イベント発行。meta.kind='scheduled' / ClosingStep / CdcStep の Round 3 検証フロー。",
+    "version": "1.0.0",
+    "maturity": "committed",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "updatedAt": "2026-04-28T00:00:00.000Z",
+    "kind": "scheduled",
+    "sla": {
+      "timeoutMs": 1800000,
+      "onTimeout": "throw",
+      "errorCode": "CLOSING_TIMEOUT"
+    }
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "CLOSING_TIMEOUT": {
+          "httpStatus": 504,
+          "defaultMessage": "月次棚卸締め処理タイムアウト (30 分超過)",
+          "description": "cron 起動フロー SLA 超過。前回実行を確認し、ロールバックが完了しているか調査すること。"
+        },
+        "ALREADY_CLOSED": {
+          "httpStatus": 409,
+          "defaultMessage": "当月分の棚卸締めは既に完了しています",
+          "description": "冪等チェックで既存スナップショットを検出した場合。再実行安全 (早期 return)。"
+        },
+        "INTERNAL_ERROR": {
+          "httpStatus": 500,
+          "defaultMessage": "月次棚卸締め内部エラー",
+          "description": "予期しないエラー。ClosingStep rollbackOnFailure=true により TX はロールバック済みのはず。"
+        }
+      },
+      "events": {
+        "manufacturing.monthly_closing_completed": {
+          "description": "月次棚卸締め完了イベント。会計システム・レポーティング基盤が消費。",
+          "payload": {
+            "type": "object",
+            "required": ["closingDate", "snapshotCount", "totalValuation"],
+            "properties": {
+              "closingDate": { "type": "string", "description": "締め対象月末日 (YYYY-MM-DD)。" },
+              "snapshotCount": { "type": "integer", "description": "作成したスナップショット行数 (= active 品目数)。" },
+              "totalValuation": { "type": "number", "description": "月次評価額合計 (円)。" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "functions": {
+        "calcTotalValuation": {
+          "signature": "calcTotalValuation(snapshots: object[]): number",
+          "returnType": "number",
+          "description": "inventory_snapshots 行配列から評価額合計を集計: sum(quantity_on_hand × unit_cost)。",
+          "examples": [
+            "@fn.calcTotalValuation(@snapshots)"
+          ]
+        }
+      }
+    },
+    "ambientVariables": [
+      { "name": "cutoffDate", "type": "string", "required": true, "description": "月末締め日 (YYYY-MM-DD)。cron runner が注入する ambient context。例: '2026-04-30'。" },
+      { "name": "traceId", "type": "string", "required": true, "description": "分散トレーシング ID。" }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "月次棚卸締め実行",
+      "trigger": "auto",
+      "description": "cron runner から自動起動。cutoffDate (月末日) を ambient から受け取り、締め処理全体を実行する。",
+      "maturity": "committed",
+      "steps": [
+        {
+          "id": "step-01",
+          "kind": "compute",
+          "description": "cutoffDate から当月識別キー (YYYY-MM) を算出し、冪等チェック用キーを生成する",
+          "expression": "@cutoffDate.substring(0, 7)",
+          "outputBinding": { "name": "closingMonth" }
+        },
+        {
+          "id": "step-02",
+          "kind": "dbAccess",
+          "description": "当月分の inventory_snapshots が既に存在するか確認 (冪等チェック)",
+          "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85",
+          "operation": "SELECT",
+          "sql": "SELECT COUNT(*) AS cnt FROM inventory_snapshots WHERE closing_month = @closingMonth",
+          "outputBinding": { "name": "existingCheck" },
+          "lineage": {
+            "reads": [{ "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-03",
+          "kind": "branch",
+          "description": "当月スナップショットが既存ならば冪等 early return (再実行安全)",
+          "branches": [
+            {
+              "id": "br-03-a",
+              "code": "A",
+              "label": "既存スナップショットあり",
+              "condition": { "kind": "expression", "expression": "@existingCheck.cnt > 0" },
+              "steps": [
+                {
+                  "id": "step-03-a-01",
+                  "kind": "log",
+                  "description": "冪等 early return をログ記録",
+                  "level": "info",
+                  "message": "月次棚卸締め @closingMonth は既に完了済み。処理をスキップします。"
+                },
+                {
+                  "id": "step-03-a-02",
+                  "kind": "return",
+                  "description": "already-closed early return (HTTP 409 相当だが cron なのでログのみ)",
+                  "responseId": "200-ok"
+                }
+              ]
+            }
+          ],
+          "elseBranch": { "id": "br-03-else", "code": "B", "label": "新規締め処理を継続", "steps": [] }
+        },
+        {
+          "id": "step-04",
+          "kind": "dbAccess",
+          "description": "全 active 品目 (is_active=true) の在庫情報を取得",
+          "tableId": "38d3788e-092b-4fc4-8b97-ca359981d987",
+          "operation": "SELECT",
+          "sql": "SELECT i.id AS item_id, i.item_code, i.name AS item_name, i.unit, COALESCE(inv.quantity_on_hand, 0) AS quantity_on_hand, COALESCE(inv.unit_cost, 0) AS unit_cost FROM items i LEFT JOIN inventory inv ON inv.item_id = i.id WHERE i.is_active = true ORDER BY i.item_code",
+          "outputBinding": { "name": "activeItems" },
+          "lineage": {
+            "reads": [
+              { "tableId": "38d3788e-092b-4fc4-8b97-ca359981d987", "purpose": "lookup" }
+            ]
+          }
+        },
+        {
+          "id": "step-05",
+          "kind": "cdc",
+          "description": "月次締め直前の inventory 状態変動を auditLog に capture (Round 3 CdcStep 検証)",
+          "tableIds": ["38d3788e-092b-4fc4-8b97-ca359981d987"],
+          "captureMode": "full",
+          "destination": {
+            "kind": "auditLog",
+            "auditAction": "inventory.monthlyClose"
+          },
+          "lineage": {
+            "reads": [{ "tableId": "38d3788e-092b-4fc4-8b97-ca359981d987", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-06",
+          "kind": "closing",
+          "description": "月次棚卸締め宣言 (Round 3 ClosingStep 検証)。idempotencyKey で再実行安全、rollbackOnFailure=true でエラー時は TX ロールバック",
+          "period": "monthly",
+          "cutoffAt": "23:59:59",
+          "idempotencyKey": "@closingMonth",
+          "rollbackOnFailure": true
+        },
+        {
+          "id": "step-07",
+          "kind": "dbAccess",
+          "description": "inventory_snapshots に active 品目の在庫情報を bulk INSERT (INSERT INTO ... SELECT 1 文)",
+          "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85",
+          "operation": "INSERT",
+          "sql": "INSERT INTO inventory_snapshots (item_id, item_code, item_name, unit, quantity_on_hand, unit_cost, closing_month, snapshot_at) SELECT i.id, i.item_code, i.name, i.unit, COALESCE(inv.quantity_on_hand, 0), COALESCE(inv.unit_cost, 0), @closingMonth, NOW() FROM items i LEFT JOIN inventory inv ON inv.item_id = i.id WHERE i.is_active = true RETURNING id, item_id, quantity_on_hand, unit_cost",
+          "outputBinding": { "name": "snapshots" },
+          "lineage": {
+            "reads": [{ "tableId": "38d3788e-092b-4fc4-8b97-ca359981d987", "purpose": "lookup" }],
+            "writes": [{ "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85", "purpose": "create" }]
+          }
+        },
+        {
+          "id": "step-08",
+          "kind": "compute",
+          "description": "月次評価額合計を集計 (quantity_on_hand × unit_cost の総和)",
+          "expression": "@fn.calcTotalValuation(@snapshots)",
+          "outputBinding": { "name": "totalValuation" }
+        },
+        {
+          "id": "step-09",
+          "kind": "eventPublish",
+          "description": "月次棚卸締め完了イベントを発行。会計・レポーティング基盤が消費する。",
+          "topic": "manufacturing.monthly_closing_completed",
+          "payload": "{ closingDate: @cutoffDate, snapshotCount: @snapshots.length, totalValuation: @totalValuation }"
+        },
+        {
+          "id": "step-10",
+          "kind": "audit",
+          "description": "月次棚卸締め完了を監査ログに記録",
+          "action": "manufacturing.inventory.monthly_close",
+          "resource": { "type": "inventory_snapshot", "id": "@closingMonth" },
+          "result": "success"
+        },
+        {
+          "id": "step-11",
+          "kind": "return",
+          "description": "cron フロー正常完了 (HTTP route なし、200-ok は形式的 ID)",
+          "responseId": "200-ok"
+        }
+      ],
+      "responses": [
+        { "id": "200-ok", "status": 200, "when": "月次棚卸締め正常完了 (または already-closed 冪等 return)" }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-001",
+        "title": "CdcStep を ClosingStep の直前に配置",
+        "status": "accepted",
+        "context": "締め処理中に在庫の変更が発生すると、スナップショットとの整合性が失われる。",
+        "decision": "ClosingStep (step-06) の直前に CdcStep (step-05) で full capture を実施し、締め前の最終状態を auditLog に記録する。captureMode='full' を選択したのは、増分ではなく月次全件の絶対量を記録する要件のため。",
+        "consequences": "全 active 品目分のログが auditLog に書き込まれるため、品目数が多い場合は書き込み量が大きい。品目数 10 万件超では incremental への変更を検討する。",
+        "date": "2026-04-28"
+      },
+      {
+        "id": "ADR-002",
+        "title": "scheduled フロー + meta.kind='scheduled' で HTTP route を持たない",
+        "status": "accepted",
+        "context": "月次締めは cron runner から自動起動するため、HTTP エンドポイントは不要。",
+        "decision": "ActionDefinition.httpRoute を省略し、trigger='auto' とする。cutoffDate は cron runner が ambient context として注入する。",
+        "consequences": "HTTP 経由での手動実行には別の wrapper が必要。緊急再実行は DB 直接操作 or cron 手動 trigger で対応。",
+        "date": "2026-04-28"
+      },
+      {
+        "id": "ADR-003",
+        "title": "冪等性を ClosingStep.idempotencyKey + 冪等チェック branch の 2 重で保証",
+        "status": "accepted",
+        "context": "cron は二重起動・失敗後リトライの可能性があるため再実行安全性が必要。",
+        "decision": "step-02/03 で inventory_snapshots 存在確認による early return (アプリ層冪等)、step-06 の ClosingStep.idempotencyKey='@closingMonth' によるフレームワーク層冪等の 2 重保護。",
+        "consequences": "どちらか一方が失敗しても他方が保護する。ただし early return が先行するため ClosingStep の idempotencyKey は「フレームワーク実装次第の二次保険」として機能。",
+        "date": "2026-04-28"
+      }
+    ],
+    "glossary": {
+      "棚卸締め": {
+        "definition": "月末時点の在庫数量・評価額を確定し、スナップショットとして記録する会計・在庫管理上の作業。締め後は当月分の在庫修正が禁止される。",
+        "aliases": ["月次締め", "inventory closing"]
+      },
+      "評価額": {
+        "definition": "在庫の金額換算値。quantity_on_hand × unit_cost で算出。移動平均法・先入先出法等の原価計算方式によって unit_cost の算出方法が異なる。",
+        "aliases": ["inventory valuation"]
+      }
+    },
+    "testScenarios": [
+      {
+        "id": "happy-path-closing",
+        "name": "active 品目 3 件で月次締めが正常完了する",
+        "given": [
+          { "kind": "sessionContext", "context": { "cutoffDate": "2026-04-30", "traceId": "trace-closing-001" } },
+          {
+            "kind": "dbState",
+            "tableId": "38d3788e-092b-4fc4-8b97-ca359981d987",
+            "rows": [
+              { "id": 1, "item_code": "I000000001", "name": "完成品A", "unit": "個", "is_active": true },
+              { "id": 2, "item_code": "I000000002", "name": "部品X", "unit": "個", "is_active": true },
+              { "id": 3, "item_code": "I000000003", "name": "原材料Y", "unit": "kg", "is_active": true }
+            ]
+          },
+          { "kind": "dbState", "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85", "rows": [] }
+        ],
+        "when": { "actionId": "act-001", "input": {} },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "dbRow", "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85", "match": { "closing_month": "2026-04" }, "count": 3 },
+          { "kind": "auditLog", "action": "manufacturing.inventory.monthly_close", "result": "success" }
+        ],
+        "tags": ["happy", "closing", "scheduled"]
+      },
+      {
+        "id": "idempotent-already-closed",
+        "name": "当月スナップショット既存 → early return で二重締めしない",
+        "given": [
+          { "kind": "sessionContext", "context": { "cutoffDate": "2026-04-30", "traceId": "trace-closing-002" } },
+          {
+            "kind": "dbState",
+            "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85",
+            "rows": [{ "id": 1, "item_id": 1, "closing_month": "2026-04", "quantity_on_hand": 100, "unit_cost": 500 }]
+          }
+        ],
+        "when": { "actionId": "act-001", "input": {} },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "dbRow", "tableId": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85", "match": { "closing_month": "2026-04" }, "count": 1 }
+        ],
+        "tags": ["idempotent", "closing", "scheduled"]
+      }
+    ],
+    "notes": [
+      {
+        "id": "note-r3-dogfood-01",
+        "kind": "assumption",
+        "body": "Round 3 dogfood (#529) — 月次棚卸締めフロー。ClosingStep (period='monthly', idempotencyKey, rollbackOnFailure) / CdcStep (captureMode='full', destination.kind='auditLog') / meta.kind='scheduled' の 3 要素を実機で初めて書いた感想: (1) ClosingStep は period + idempotencyKey の 2 プロパティで冪等制御が宣言できるのは直感的。cutoffAt の型が string (例: '23:59:59') なのは ISO 8601 time 形式を想定しているが、schema の description だけでは形式 (HH:MM:SS vs HH:MM) が不明なため ajv-formats の 'time' 制約があると嬉しい。(2) CdcStep の captureMode='full' は「締め前スナップショット」ユースケースにぴったりだが、'incremental' との使い分け基準 (増分期間の定義) が schema コメントに無いので運用者が迷う可能性あり。(3) meta.kind='scheduled' + trigger='auto' の組み合わせは自然。httpRoute を省略できるのは重要だが、「scheduled なら httpRoute 禁止」の schema 制約は無く、誤って両方書いてもバリデーション通過する点は注意 (既知 R3-1 とは別の軽微な事項)。",
+        "createdAt": "2026-04-28T00:00:00.000Z"
+      }
+    ]
+  }
+}

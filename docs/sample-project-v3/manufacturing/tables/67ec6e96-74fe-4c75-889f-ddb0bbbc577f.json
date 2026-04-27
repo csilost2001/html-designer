@@ -1,0 +1,80 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "67ec6e96-74fe-4c75-889f-ddb0bbbc577f",
+  "name": "BOM (部品表)",
+  "description": "親品目 → 子品目の構成関係を保持する。1 行 = 1 構成関係。階層は再帰展開で取得 (parent_item_id を辿る)。**Round 1/2 未使用の self-referencing FK パターン (items への 2 つの FK)** を実機検証。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "boms",
+  "category": "マスタ",
+  "comment": "BOM。1 製品 = 多数の部品行。LoopStep collection mode で展開する。循環参照は CHECK 制約 (parent <> child) で防御 + アプリ層で再帰深さチェック。",
+  "columns": [
+    { "id": "col-bm01", "no": 1, "physicalName": "id", "name": "BOM行ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-bm02", "no": 2, "physicalName": "parent_item_id", "name": "親品目ID", "dataType": "BIGINT", "notNull": true, "comment": "items.id への FK (親側)。" },
+    { "id": "col-bm03", "no": 3, "physicalName": "child_item_id", "name": "子品目ID", "dataType": "BIGINT", "notNull": true, "comment": "items.id への FK (子側)。" },
+    { "id": "col-bm04", "no": 4, "physicalName": "quantity_per_parent", "name": "親 1 個あたり数量", "dataType": "DECIMAL", "length": 10, "scale": 4, "notNull": true, "comment": "親 1 単位生産に必要な子の数量。" },
+    { "id": "col-bm05", "no": 5, "physicalName": "scrap_factor", "name": "ロス率", "dataType": "DECIMAL", "length": 5, "scale": 4, "notNull": true, "comment": "0.0500 = 5% のロス想定 (実所要量 = 数量 × (1 + scrap_factor))。" },
+    { "id": "col-bm06", "no": 6, "physicalName": "valid_from", "name": "有効開始日", "dataType": "DATE", "notNull": true },
+    { "id": "col-bm07", "no": 7, "physicalName": "valid_to", "name": "有効終了日", "dataType": "DATE", "comment": "NULL = 無期限。" },
+    { "id": "col-bm08", "no": 8, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-bm01", "physicalName": "idx_boms_parent", "columns": [{ "columnId": "col-bm02" }] },
+    { "id": "idx-bm02", "physicalName": "idx_boms_child", "columns": [{ "columnId": "col-bm03" }] },
+    { "id": "idx-bm03", "physicalName": "idx_boms_parent_active", "columns": [{ "columnId": "col-bm02" }], "where": "valid_to IS NULL", "description": "現在有効な BOM のみの Partial Index。" }
+  ],
+  "constraints": [
+    {
+      "id": "fk-bm01",
+      "kind": "foreignKey",
+      "physicalName": "fk_boms_parent_item",
+      "columnIds": ["col-bm02"],
+      "referencedTableId": "38d3788e-092b-4fc4-8b97-ca359981d987",
+      "referencedColumnIds": ["col-it01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade",
+      "description": "親品目への FK (1 つ目)。"
+    },
+    {
+      "id": "fk-bm02",
+      "kind": "foreignKey",
+      "physicalName": "fk_boms_child_item",
+      "columnIds": ["col-bm03"],
+      "referencedTableId": "38d3788e-092b-4fc4-8b97-ca359981d987",
+      "referencedColumnIds": ["col-it01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade",
+      "description": "子品目への FK (2 つ目、同 items テーブルを 2 重参照する self-reference 系構造)。"
+    },
+    {
+      "id": "uq-bm01",
+      "kind": "unique",
+      "physicalName": "uq_boms_parent_child_valid",
+      "columnIds": ["col-bm02", "col-bm03", "col-bm06"],
+      "description": "親 × 子 × 有効開始日で UNIQUE (履歴管理)。"
+    },
+    {
+      "id": "chk-bm01",
+      "kind": "check",
+      "physicalName": "chk_boms_parent_not_child",
+      "expression": "parent_item_id <> child_item_id",
+      "description": "自身を子にできない。"
+    },
+    {
+      "id": "chk-bm02",
+      "kind": "check",
+      "physicalName": "chk_boms_quantity_positive",
+      "expression": "quantity_per_parent > 0 AND scrap_factor >= 0 AND scrap_factor < 1",
+      "description": "数量は正、ロス率は 0〜100% 未満。"
+    },
+    {
+      "id": "chk-bm03",
+      "kind": "check",
+      "physicalName": "chk_boms_valid_period",
+      "expression": "valid_to IS NULL OR valid_to >= valid_from",
+      "description": "有効終了日は有効開始日以降。"
+    }
+  ]
+}

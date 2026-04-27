@@ -1,0 +1,115 @@
+{
+  "$schema": "../../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "19b4f1a7-b37b-4c1e-9735-5857f2caedf0",
+    "name": "v3 dogfood Round 3 — manufacturing",
+    "description": "Round 1 (retail) / Round 2 (finance) で未使用だった schema 要素 (CdcStep / ClosingStep / LoopStep / ScheduledStep / Sequence / TriggerDefinition / DefaultDefinition / 自己参照 FK) を製造業の業務文脈で網羅検証する dogfood Round 3 (#529)。",
+    "version": "1.0.0",
+    "maturity": "draft",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "updatedAt": "2026-04-28T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [
+    { "namespace": "manufacturing", "version": ">=1.0.0" }
+  ],
+  "entities": {
+    "screens": [
+      {
+        "id": "67cf4447-cff1-4402-ac73-816cf4fe4ca2",
+        "no": 1,
+        "name": "製造指示作成",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "form",
+        "path": "/manufacturing/production-orders/new",
+        "hasDesign": false
+      }
+    ],
+    "tables": [
+      {
+        "id": "38d3788e-092b-4fc4-8b97-ca359981d987",
+        "no": 1,
+        "name": "品目マスタ",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "items",
+        "category": "マスタ",
+        "columnCount": 11
+      },
+      {
+        "id": "67ec6e96-74fe-4c75-889f-ddb0bbbc577f",
+        "no": 2,
+        "name": "BOM (部品表)",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "boms",
+        "category": "マスタ",
+        "columnCount": 8
+      },
+      {
+        "id": "81f7dcd2-11ac-4929-8f82-a2f1ad809e68",
+        "no": 3,
+        "name": "製造指示",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "production_orders",
+        "category": "トランザクション",
+        "columnCount": 13
+      },
+      {
+        "id": "b85f3668-a0f8-4a84-ae99-7424ffd7ef85",
+        "no": 4,
+        "name": "在庫スナップショット",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "inventory_snapshots",
+        "category": "ログ",
+        "columnCount": 6
+      },
+      {
+        "id": "eb2b1bf1-270c-439c-b506-21e8b858983b",
+        "no": 5,
+        "name": "品質検査記録",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "quality_inspections",
+        "category": "ログ",
+        "columnCount": 8
+      }
+    ],
+    "sequences": [
+      {
+        "id": "28e5b81c-ee4d-4325-94c1-215021c56d44",
+        "no": 1,
+        "name": "製造指示番号採番",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "production_order_seq",
+        "conventionRef": "@conv.numbering.productionOrderNumber"
+      }
+    ],
+    "processFlows": [
+      {
+        "id": "8210362d-c149-4963-bc6e-9512fe18e465",
+        "no": 1,
+        "name": "製造指示生成",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "screen",
+        "screenId": "67cf4447-cff1-4402-ac73-816cf4fe4ca2",
+        "actionCount": 1
+      },
+      {
+        "id": "e3a68880-9648-4bdc-b787-b083784c1229",
+        "no": 2,
+        "name": "月次棚卸締め",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "scheduled",
+        "actionCount": 1
+      }
+    ]
+  }
+}
