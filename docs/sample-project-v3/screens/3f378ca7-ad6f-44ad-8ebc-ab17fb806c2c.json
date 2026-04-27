@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
   "id": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
   "name": "店舗在庫照会",
   "description": "店舗コード・商品コード (任意) で在庫を検索し、在庫一覧と在庫低下アラートを表示する画面。",

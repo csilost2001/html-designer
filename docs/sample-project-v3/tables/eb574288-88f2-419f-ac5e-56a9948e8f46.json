@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/v3/table.v3.schema.json",
   "id": "eb574288-88f2-419f-ac5e-56a9948e8f46",
   "name": "商品マスタ",
   "description": "販売する商品の基本情報を管理する。商品コード・商品名・カテゴリ・価格を保持する。",

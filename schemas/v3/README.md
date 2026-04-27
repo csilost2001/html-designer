@@ -165,6 +165,110 @@ Step.kind / FieldType.kind / Constraint.kind / BranchCondition.kind / ValueSourc
 | 拡張 1 ファイル限定 | 単一/複数ファイル両対応 (loader が glob で merge) |
 | ProcessFlow 専用 testScenarios | `common.v3#/$defs/TestScenario` で全 entity 共通化 |
 
+## v1/v2 → v3 移行マッピング表
+
+dogfood (#523) で v1 → v3 への機械変換は不能と判明。**人手で確認すべき rename / 構造変更** を一覧化:
+
+### EventTopic 命名規範 (camelCase → snake_case)
+
+v3 EventTopic regex は `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$` (lowercase + underscore のみ)。v1 sample で camelCase 部分を含む topic は **必ず rename**:
+
+| v1 | v3 |
+|---|---|
+| `inventory.notFound` | `inventory.not_found` |
+| `cart.itemAdded` | `cart.item_added` |
+| `order.userCancelled` | `order.user_cancelled` |
+| `payment.preAuthorized` | `payment.pre_authorized` |
+| `cart.item_added` (snake_case 部分) | そのまま (v3 規範に合致、rename 不要) |
+
+### ProcessFlow 構造変更 (root 30+ → 4 セクション)
+
+| v1 | v3 |
+|---|---|
+| `type: "screen"` | `meta.kind: "screen"` |
+| `screenId`, `apiVersion`, `mode`, `maturity`, `description`, `version`, `createdAt`, `updatedAt` | `meta.{...}` (EntityMeta + ProcessFlow 固有) |
+| `errorCatalog: { CODE: { responseRef } }` | `context.catalogs.errors: { CODE: { responseId } }` |
+| `eventsCatalog` | `context.catalogs.events` (EventTopic 規範遵守) |
+| `externalSystemCatalog` | `context.catalogs.externalSystems` |
+| `secretsCatalog` | `context.catalogs.secrets` |
+| `domainsCatalog` | `context.catalogs.domains` |
+| `functionsCatalog` | `context.catalogs.functions` |
+| `ambientVariables: [{name, type, required, description}]` | `context.ambientVariables: StructuredField[]` (構造同じ、type は FieldType に拡張) |
+| `glossary` | `authoring.glossary` |
+| `decisions` | `authoring.decisions` |
+| `testScenarios` | `authoring.testScenarios` |
+| `actions: [...]` | `actions: [...]` (root 直接、`body` ラッパなし) |
+
+### Step 構造変更
+
+| v1 | v3 |
+|---|---|
+| `step.type: "validation"` | `step.kind: "validation"` |
+| `outputBinding: "var"` (string 短縮形) | `outputBinding: { name: "var" }` (構造化、v3 短縮形廃止) |
+| `tableName: "products"` | `tableId: "<Uuid>"` (物理名直書き廃止) |
+| `lineage.reads: ["products"]` | `lineage.reads: [{ tableId: "<Uuid>", purpose?: "..." }]` |
+| `eventPublish.eventRef + topic` 二重持ち | `eventPublish.topic` のみ |
+| `validation.inlineBranch.ngEventPublish.eventRef + topic` | `topic` のみ |
+| `return.responseRef` | `return.responseId` |
+| `branch.branches[].condition: "@x == 1"` (string) | `condition: { kind: "expression", expression: "@x == 1" }` |
+| `externalSystem.systemName + systemRef` 併記 | `systemRef` のみ (catalog キー = systemId) |
+| `validation.rules[].kind: "Error"` (PascalCase) | `validation.rules[].severity: "error"` (lowerCamelCase + フィールド名 rename) |
+| `dbAccess.lineage` のみ持てた | **任意の step に `lineage` を持てる** (#525 F-2、StepBaseProps 移植) |
+
+### ValidationInlineBranch
+
+| v1 | v3 |
+|---|---|
+| `inlineBranch.ok: "次のステップへ"` (string) | `inlineBranch.ok: []` または `[Step, ...]` (Step[] 必須) |
+| `inlineBranch.ng: "..." + ngResponseRef + ngBodyExpression` | `inlineBranch.ng: []` + `ngResponseId` + `ngBodyExpression` (短縮構造維持可) |
+
+### Table 構造変更
+
+| v1 | v3 |
+|---|---|
+| `table.logicalName: "商品マスタ"` (display) | `table.name: "商品マスタ"` (DisplayName) + `table.physicalName: "products"` (PhysicalName) |
+| `column.name: "products"` (混在) | `column.name: "商品名"` (display) + `column.physicalName: "products"` (snake_case) |
+| `column.foreignKey: { tableName, columnName }` (inline) | `table.constraints[]: { kind: "foreignKey", referencedTableId: Uuid, referencedColumnIds: LocalId[] }` |
+| `referencedTable: "users"` (物理名) | `referencedTableId: "<Uuid>"` |
+| FK action: `"NO ACTION"` (空白含み) | `"noAction"` (lowerCamelCase) |
+| FK action: `"SET NULL"` | `"setNull"` |
+
+### Screen / ScreenItem 構造変更
+
+| v1 | v3 |
+|---|---|
+| `screenItems[].name: "user_id"` (混在) | `screenItem.id: "userId"` (Identifier / camelCase 強制) + `screenItem.label: "ユーザーID"` |
+| Screen に `position` / `size` / `thumbnail` (UI 座標) | `screen-layout.v3.schema.json` に分離 (`data/screen-layout.json`) |
+| `valueFrom: "@var"` (string) | `valueFrom: { kind: "flowVariable", variableName: "var" }` (構造化) |
+
+### TestScenario 構造変更
+
+| v1 | v3 |
+|---|---|
+| `given.dbState.table: "products"` (物理名) | `given.dbState.tableId: "<Uuid>"` |
+| `given.externalStub.externalRef: "..."` | `externalRef: Identifier (camelCase)` (catalog キー、catalogs.externalSystems と整合) |
+
+### Uuid 強化
+
+| v1 | v3 |
+|---|---|
+| `id: "gggggggg-0001-4000-8000-gggggggggggg"` (UuidLoose、a-z 含む) | `id: "<RFC 4122 v4 strict UUID>"` (`UuidLoose` は deprecated、test/sample のみ受容) |
+| `CustomBlock.id: "custom-block-1776079074303"` (timestamp 形式) | `id: "<Uuid>"` (RFC 4122 v4 strict) |
+
+### Catalog キー命名強制 (v3 で新規)
+
+各 catalog のキーは `propertyNames` で schema 上強制される:
+
+| Catalog | キー命名 | 例 |
+|---|---|---|
+| `errors` | UPPER_SNAKE (ErrorCode) | `STOCK_SHORTAGE`, `INSUFFICIENT_INVENTORY` |
+| `externalSystems` | camelCase (Identifier) | `inventoryAnalyticsService` |
+| `secrets` | camelCase (Identifier) | `analyticsApiKey` |
+| `envVars` | UPPER_SNAKE (EnvVarKey) | `STRIPE_API_BASE` |
+| `domains` | PascalCase | `EmailAddress`, `Quantity` |
+| `functions` | camelCase (Identifier) | `formatCurrency` |
+| `events` | dot.lowercase + underscore (EventTopic) | `order.confirmed` |
+
 ## バリデータ実装ヒント (AJV)
 
 JSON Schema 2020-12 を使うため、AJV では `Ajv2020` を使用:
@@ -182,9 +286,25 @@ const validate = ajv.compile(processFlowV3);
 ```
 
 ポイント:
-- `discriminator: true` を有効化することで Step.oneOf 22 variant のエラーメッセージが kind discriminator 単位で 1 branch のみ報告される (デフォルトでは 22 branch 全部のエラーが列挙されて読みにくい)
+- `discriminator: true` を有効化すると、`discriminator` keyword を持つ oneOf (BranchCondition / CdcDestination / Constraint / TestPrecondition / TestAssertion) で kind 単位の focused エラー報告 (1 branch のみ) になる (#525 F-4)
+- **Step.oneOf / NonReturnStep.oneOf には discriminator keyword なし**: ExtensionStep の `kind` がパターン (`namespace:StepName`) で AJV strict const 要件を満たさないため。Step 系は従来通り 22 branch 全評価で fall back する (限界、上位 UI 側でフィルタ推奨)
 - `addSchema(commonV3)` を先に呼んで cross-file `$ref` を解決可能にする
 - 他 schema (extensions / table / screen 等) も同様に addSchema で登録
+
+## $schema 属性 (instance JSON 側)
+
+各 entity instance の root に `"$schema": "<相対パス or URL>"` を書ける (#525 F-1 で許容)。IDE (VS Code 等) で schema 関連付けされ、自動補完・型チェックが効く。
+
+```jsonc
+{
+  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "id": "<Uuid>",
+  "name": "...",
+  ...
+}
+```
+
+対応 entity: project / table / screen / screen-layout / process-flow / sequence / view / er-layout / extensions / conventions。**custom-block は array root のため対象外**、common は $defs ライブラリのため不要。
 
 ## ガバナンス
 

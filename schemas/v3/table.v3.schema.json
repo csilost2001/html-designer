@@ -14,6 +14,7 @@
       "type": "object",
       "required": ["physicalName", "columns"],
       "properties": {
+        "$schema": { "type": "string", "description": "instance JSON が参照する schema 文書への URL/相対パス。IDE の schema 関連付け用 (内容は loader が無視)。" },
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "DB 物理名 (snake_case)。例: 'users', 'order_items'" },
         "category": { "type": "string", "description": "テーブルカテゴリ (例: 'マスタ', 'トランザクション', '中間テーブル', 'ログ', '設定', 'その他')。" },
         "comment": { "type": "string", "description": "DDL レベルのテーブルコメント (DB に COMMENT として出力)。" },
@@ -118,7 +119,8 @@
         { "$ref": "#/$defs/UniqueConstraint" },
         { "$ref": "#/$defs/CheckConstraint" },
         { "$ref": "#/$defs/ForeignKeyConstraint" }
-      ]
+      ],
+      "discriminator": { "propertyName": "kind" }
     },
 
     "UniqueConstraint": {

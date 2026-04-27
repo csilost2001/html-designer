@@ -355,7 +355,8 @@
         "outputBinding": { "$ref": "#/$defs/OutputBinding" },
         "txBoundary": { "$ref": "#/$defs/TxBoundary", "description": "TX 境界宣言。txId 単位で begin/member/end を結合。簡易フラグの transactional は v3 で廃止 (txBoundary に統一)。" },
         "compensatesFor": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Saga 補償対象の Step.id 参照。" },
-        "externalChain": { "$ref": "#/$defs/ExternalChain" }
+        "externalChain": { "$ref": "#/$defs/ExternalChain" },
+        "lineage": { "$ref": "#/$defs/DataLineage", "description": "本 step が読み書きするデータ系譜 (CDC / 監査 / 影響範囲分析用)。DbAccessStep に限らず任意の step (ExtensionStep / CdcStep / WorkflowStep 等) で宣言可能。#525 F-2: ExtensionStep の lineage 透過のため StepBaseProps に集約 (案 A)。" }
       }
     },
 
@@ -420,7 +421,7 @@
     },
 
     "Step": {
-      "description": "Step union。kind プロパティで variant を識別。組み込み 21 variant + ExtensionStep の計 22 variant。",
+      "description": "Step union。kind プロパティで variant を識別。組み込み 21 variant + ExtensionStep の計 22 variant。ExtensionStep は kind にパターン (namespace:StepName) を取るため AJV `discriminator: true` の strict const 要件を満たさず、本 oneOf には discriminator keyword を付けない (#525 F-4 limitation)。Step.kind ミスマッチ時のエラー読みやすさは AJV `allErrors: true` + 上位 UI 側でフィルタ推奨。",
       "oneOf": [
         { "$ref": "#/$defs/ValidationStep" },
         { "$ref": "#/$defs/DbAccessStep" },
@@ -557,7 +558,6 @@
             "sql": { "type": "string", "description": "完全 SQL 文 (式補間は @<var> / @conv.* / @env.* 等)。" },
             "bulkValues": { "$ref": "common.v3.schema.json#/$defs/ExpressionString", "description": "一括 INSERT 時に VALUES に展開する配列変数の式。" },
             "affectedRowsCheck": { "$ref": "#/$defs/AffectedRowsCheck" },
-            "lineage": { "$ref": "#/$defs/DataLineage" },
             "cache": { "$ref": "#/$defs/CacheHint" }
           }
         }
@@ -894,7 +894,8 @@
             "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
           }
         }
-      ]
+      ],
+      "discriminator": { "propertyName": "kind" }
     },
 
     "LoopStep": {
@@ -1253,7 +1254,8 @@
             "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" }
           }
         }
-      ]
+      ],
+      "discriminator": { "propertyName": "kind" }
     },
 
     "ExtensionStep": {

@@ -506,6 +506,7 @@
 
     "TestPrecondition": {
       "description": "テスト前提条件。kind による discriminated union。",
+      "discriminator": { "propertyName": "kind" },
       "oneOf": [
         {
           "type": "object",
@@ -572,6 +573,7 @@
 
     "TestAssertion": {
       "description": "テスト期待結果。kind による discriminated union。",
+      "discriminator": { "propertyName": "kind" },
       "oneOf": [
         {
           "type": "object",

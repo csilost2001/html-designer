@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/v3/extensions.v3.schema.json",
   "namespace": "retail",
   "version": "1.0.0",
   "requiresCoreSchema": ">=3.0.0",
