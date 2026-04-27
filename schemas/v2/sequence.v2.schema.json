@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/sequence.v2.schema.json",
+  "title": "Sequence — シーケンス定義 v2",
+  "description": "DB シーケンスの定義ファイル (data/sequences/{id}.json)。採番規則 (開始値 / 増分 / 最大値 / 循環) と使用先テーブル・カラムを管理する。",
+  "$ref": "#/$defs/SequenceDefinition",
+  "$defs": {
+    "SequenceUsedBy": {
+      "description": "シーケンスを使用するテーブル・カラムへの参照。",
+      "type": "object",
+      "required": ["tableId", "columnName"],
+      "additionalProperties": false,
+      "properties": {
+        "tableId": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "シーケンスを使用するテーブルの ID (TableDefinition.id と一致)。"
+        },
+        "columnName": {
+          "$ref": "common.v2.schema.json#/$defs/DbColumnName",
+          "description": "シーケンスを使用するカラムの物理名。"
+        }
+      }
+    },
+    "SequenceMeta": {
+      "description": "シーケンスのメタ情報 (project.json 管理用)。完全データは data/sequences/{id}.json を参照。project.v2.schema.json の SequenceMeta と同一定義。",
+      "type": "object",
+      "required": ["id", "no", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "シーケンスの一意識別子 (UUID v4)。"
+        },
+        "no": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "物理順 (1..N 連番)。一覧表示の No 列として使用。"
+        },
+        "conventionRef": {
+          "type": "string",
+          "description": "規約カタログへの参照 key (例: @conv.sequence.orderNo)。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description",
+          "description": "シーケンスの用途説明。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    },
+    "SequenceDefinition": {
+      "description": "シーケンス定義の完全データ。DB の CREATE SEQUENCE に相当する設定を宣言的に保持する。",
+      "type": "object",
+      "required": ["id", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "JSON Schema URL (IDE 関連付け用)。"
+        },
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "シーケンスの一意識別子 (UUID v4)。"
+        },
+        "startValue": {
+          "type": "integer",
+          "description": "シーケンスの開始値 (省略時は RDBMS のデフォルト、通常 1)。"
+        },
+        "increment": {
+          "type": "integer",
+          "description": "シーケンスの増分値 (省略時は RDBMS のデフォルト、通常 1)。"
+        },
+        "minValue": {
+          "type": "integer",
+          "description": "シーケンスの最小値。"
+        },
+        "maxValue": {
+          "type": "integer",
+          "description": "シーケンスの最大値。"
+        },
+        "cycle": {
+          "type": "boolean",
+          "description": "最大値到達後に最小値から循環するかどうか (CYCLE / NO CYCLE)。"
+        },
+        "cache": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "パフォーマンス向上のためにメモリにキャッシュする値の個数。"
+        },
+        "usedBy": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SequenceUsedBy" },
+          "description": "このシーケンスを使用するテーブル・カラムのリスト。"
+        },
+        "conventionRef": {
+          "type": "string",
+          "description": "規約カタログへの参照 key。シーケンス命名規約や採番ルールを参照する。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description",
+          "description": "シーケンスの用途・業務ルールの説明。"
+        },
+        "createdAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "作成日時 (ISO 8601 UTC)。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    }
+  }
+}
