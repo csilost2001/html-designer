@@ -91,4 +91,85 @@ describe("schema v3 dogfood samples (#523)", () => {
       expect(ok, ok ? "" : dumpErrors(file, validateExtension)).toBe(true);
     }
   });
+
+  it("F-2: ExtensionStep can declare lineage at top-level (StepBaseProps への移植)", () => {
+    const fixture = {
+      meta: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "F-2 lineage 透過テスト",
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+        kind: "screen",
+      },
+      actions: [
+        {
+          id: "act-001",
+          name: "extension step lineage test",
+          trigger: "submit",
+          steps: [
+            {
+              id: "step-01",
+              kind: "retail:CartManageStep",
+              description: "ExtensionStep が lineage を top-level に持てる (StepBaseProps から継承)",
+              lineage: {
+                writes: [
+                  { tableId: "eb574288-88f2-419f-ac5e-56a9948e8f46", purpose: "upsert" },
+                ],
+              },
+              config: {
+                cartId: "cart-001",
+                productCode: "PROD001",
+                quantity: 2,
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const ok = validateProcessFlow(fixture);
+    expect(ok, ok ? "" : dumpErrors("F-2 fixture", validateProcessFlow)).toBe(true);
+  });
+
+  it("F-4: BranchCondition の不正 kind は discriminator で 1 branch のみエラー", () => {
+    // 不正な kind を持つ BranchCondition を Step.branches[0].condition に置く
+    const fixture = {
+      meta: {
+        id: "22222222-2222-4222-8222-222222222222",
+        name: "F-4 discriminator テスト",
+        createdAt: "2026-04-27T00:00:00.000Z",
+        updatedAt: "2026-04-27T00:00:00.000Z",
+        kind: "screen",
+      },
+      actions: [
+        {
+          id: "act-001",
+          name: "branch discriminator test",
+          trigger: "submit",
+          steps: [
+            {
+              id: "step-01",
+              kind: "branch",
+              description: "BranchCondition kind ミスマッチで discriminator が効くか",
+              branches: [
+                {
+                  id: "br-01-a",
+                  code: "A",
+                  condition: { kind: "invalidKind", expression: "@x" },
+                  steps: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const ok = validateProcessFlow(fixture);
+    expect(ok).toBe(false);
+    // discriminator が効いていれば、kind の値ミスマッチエラーが先頭に出る
+    const errs = validateProcessFlow.errors ?? [];
+    const discriminatorErr = errs.find(
+      (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
+    );
+    expect(discriminatorErr).toBeDefined();
+  });
 });

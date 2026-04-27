@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "506c266f-cc46-4d6f-86df-3c71f515bfcc",
     "name": "店舗在庫照会 (小売)",

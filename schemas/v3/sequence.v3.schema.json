@@ -13,6 +13,7 @@
       "type": "object",
       "required": ["physicalName"],
       "properties": {
+        "$schema": { "type": "string", "description": "instance JSON が参照する schema 文書への URL/相対パス。IDE の schema 関連付け用 (内容は loader が無視)。" },
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "シーケンス物理名 (例: 'seq_order_number')。" },
         "startValue": { "type": "integer" },
         "increment": { "type": "integer" },

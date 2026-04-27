@@ -14,6 +14,7 @@
       "type": "object",
       "required": ["kind", "path"],
       "properties": {
+        "$schema": { "type": "string", "description": "instance JSON が参照する schema 文書への URL/相対パス。IDE の schema 関連付け用 (内容は loader が無視)。" },
         "kind": { "$ref": "#/$defs/ScreenKind" },
         "path": { "type": "string", "description": "URL ルーティングパス。例: '/customers', '/customers/:id', '/orders/new'" },
         "auth": {
