@@ -70,7 +70,7 @@
     },
 
     "ValueSource": {
-      "description": "output 項目のバインド元。discriminated union (kind)。",
+      "description": "output 項目のバインド元。discriminated union (kind)。組み込み 4 種 + 拡張 (extensions.v3.valueSourceKinds で定義)。tableColumn / viewColumn は common.v3 の Ref 型を流用。",
       "oneOf": [
         {
           "type": "object",
@@ -84,22 +84,20 @@
         },
         {
           "type": "object",
-          "required": ["kind", "tableId", "columnId"],
+          "required": ["kind", "ref"],
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "tableColumn" },
-            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-            "columnId": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+            "ref": { "$ref": "common.v3.schema.json#/$defs/TableColumnRef" }
           }
         },
         {
           "type": "object",
-          "required": ["kind", "viewId", "columnPhysicalName"],
+          "required": ["kind", "ref"],
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "viewColumn" },
-            "viewId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-            "columnPhysicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" }
+            "ref": { "$ref": "common.v3.schema.json#/$defs/ViewColumnRef" }
           }
         },
         {
@@ -109,6 +107,24 @@
           "properties": {
             "kind": { "const": "expression" },
             "expression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        },
+        {
+          "description": "拡張 ValueSource。kind は namespace:identifier 形式。固有プロパティは config object に閉じる (loader が extensions.v3.valueSourceKinds[<kind>].schema で検証)。",
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$",
+              "description": "namespace:kindName 形式 (例: 'retail:cartCalculation')"
+            },
+            "config": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "拡張固有設定。loader が extensions.v3.valueSourceKinds[<kind>].schema で構造を検証。"
+            }
           }
         }
       ]

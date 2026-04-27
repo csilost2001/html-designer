@@ -145,7 +145,7 @@
       "required": ["value"],
       "additionalProperties": false,
       "properties": {
-        "value": { "type": ["number", "integer"] },
+        "value": { "type": "number", "description": "境界値。整数のみが有効な場合は unit='integer' で示す。" },
         "unit": { "type": "string", "description": "単位 (char / integer / yen / ms / days 等)。" },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
       }

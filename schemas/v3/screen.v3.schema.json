@@ -14,8 +14,6 @@
       "type": "object",
       "required": ["kind", "path"],
       "properties": {
-        "id": true, "name": true, "description": true, "version": true,
-        "maturity": true, "createdAt": true, "updatedAt": true,
         "kind": { "$ref": "#/$defs/ScreenKind" },
         "path": { "type": "string", "description": "URL ルーティングパス。例: '/customers', '/customers/:id', '/orders/new'" },
         "auth": {

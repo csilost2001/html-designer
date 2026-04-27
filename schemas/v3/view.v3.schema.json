@@ -13,8 +13,6 @@
       "type": "object",
       "required": ["physicalName", "selectStatement", "outputColumns"],
       "properties": {
-        "id": true, "name": true, "description": true, "version": true,
-        "maturity": true, "createdAt": true, "updatedAt": true,
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "ビュー物理名。" },
         "selectStatement": { "type": "string", "description": "ビューを定義する SELECT 文 (DB 方言依存)。" },
         "outputColumns": {

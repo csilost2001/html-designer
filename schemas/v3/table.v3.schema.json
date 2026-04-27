@@ -14,8 +14,6 @@
       "type": "object",
       "required": ["physicalName", "columns"],
       "properties": {
-        "id": true, "name": true, "description": true, "version": true,
-        "maturity": true, "createdAt": true, "updatedAt": true,
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "DB 物理名 (snake_case)。例: 'users', 'order_items'" },
         "category": { "type": "string", "description": "テーブルカテゴリ (例: 'マスタ', 'トランザクション', '中間テーブル', 'ログ', '設定', 'その他')。" },
         "comment": { "type": "string", "description": "DDL レベルのテーブルコメント (DB に COMMENT として出力)。" },

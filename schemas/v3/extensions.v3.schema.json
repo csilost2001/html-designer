@@ -23,6 +23,11 @@
           "description": "ScreenKind の拡張。Screen.kind の namespace:kindName で参照される。",
           "items": { "$ref": "#/$defs/CustomScreenKind" }
         },
+        "processFlowKinds": {
+          "type": "array",
+          "description": "ProcessFlowKind の拡張。ProcessFlow.meta.kind の namespace:kindName で参照される。",
+          "items": { "$ref": "#/$defs/CustomProcessFlowKind" }
+        },
         "actionTriggers": {
           "type": "array",
           "description": "Action.trigger の拡張。",
@@ -35,12 +40,14 @@
         },
         "stepKinds": {
           "type": "object",
-          "description": "Step.kind の拡張定義。OtherStep の namespace:StepName で参照される。キー = StepName (PascalCase)。",
+          "description": "Step.kind の拡張定義。process-flow.v3 ExtensionStep の namespace:StepName で参照される。キー = StepName (PascalCase)。",
+          "propertyNames": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
           "additionalProperties": { "$ref": "#/$defs/CustomStepKind" }
         },
         "responseTypes": {
           "type": "object",
-          "description": "Response 型の拡張。HttpResponseSpec.bodySchema={typeRef} で参照。キー = TypeName。",
+          "description": "Response 型の拡張。HttpResponseSpec.bodySchema={typeRef} で参照。キー = TypeName (PascalCase)。",
+          "propertyNames": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
           "additionalProperties": { "$ref": "#/$defs/CustomResponseType" }
         },
         "valueSourceKinds": {
@@ -147,7 +154,7 @@
     },
 
     "CustomStepKind": {
-      "description": "拡張 Step 種別。OtherStep に namespace:StepName で参照される。schema フィールドで動的フォーム生成 (subset JSON Schema)。",
+      "description": "拡張 Step 種別。process-flow.v3 ExtensionStep に namespace:StepName で参照される。schema フィールドで動的フォーム生成 (subset JSON Schema)、ExtensionStep.config の構造を縛る。",
       "type": "object",
       "required": ["label", "icon", "description", "schema"],
       "additionalProperties": false,
@@ -155,8 +162,21 @@
         "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
         "icon": { "type": "string", "description": "アイコン (Bootstrap Icons / Lucide 名)。" },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
-        "schema": { "$ref": "#/$defs/DynamicFormSchema" },
+        "schema": { "$ref": "#/$defs/DynamicFormSchema", "description": "ExtensionStep.config の構造を縛る subset schema。" },
         "outputType": { "$ref": "common.v3.schema.json#/$defs/FieldType", "description": "拡張 step の outputBinding 結果型 (型推論用)。" }
+      }
+    },
+
+    "CustomProcessFlowKind": {
+      "description": "拡張 ProcessFlowKind。ProcessFlow.meta.kind の namespace:kindName で参照される。",
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "拡張 ProcessFlowKind 識別子 (camelCase)。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "icon": { "type": "string" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
       }
     },
 
@@ -175,17 +195,14 @@
     },
 
     "CustomValueSourceKind": {
+      "description": "拡張 ValueSource。ScreenItem.valueFrom の namespace:kindName で参照される。schema は ValueSource.config の構造を縛る。",
       "type": "object",
-      "required": ["kind", "label"],
+      "required": ["kind", "label", "schema"],
       "additionalProperties": false,
       "properties": {
         "kind": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
         "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
-        "schema": {
-          "type": "object",
-          "description": "ValueSource variant の追加プロパティ schema (動的フォーム生成用)。",
-          "additionalProperties": true
-        },
+        "schema": { "$ref": "#/$defs/DynamicFormSchema", "description": "ValueSource.config の構造を縛る subset schema。" },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
       }
     },

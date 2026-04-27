@@ -13,8 +13,6 @@
       "type": "object",
       "required": ["physicalName"],
       "properties": {
-        "id": true, "name": true, "description": true, "version": true,
-        "maturity": true, "createdAt": true, "updatedAt": true,
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "シーケンス物理名 (例: 'seq_order_number')。" },
         "startValue": { "type": "integer" },
         "increment": { "type": "integer" },
@@ -24,16 +22,8 @@
         "cache": { "type": "integer", "minimum": 1, "description": "キャッシュサイズ。" },
         "usedBy": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["tableId", "columnId"],
-            "additionalProperties": false,
-            "properties": {
-              "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-              "columnId": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
-            }
-          },
-          "description": "本シーケンスを利用するテーブルカラム参照。"
+          "items": { "$ref": "common.v3.schema.json#/$defs/TableColumnRef" },
+          "description": "本シーケンスを利用するテーブルカラム参照。common.v3 の TableColumnRef に統一 (Pattern B 複合参照)。"
         },
         "conventionRef": {
           "type": "string",

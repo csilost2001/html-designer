@@ -23,8 +23,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "id": true, "name": true, "description": true, "version": true,
-        "maturity": true, "createdAt": true, "updatedAt": true,
         "mode": { "$ref": "common.v3.schema.json#/$defs/Mode", "description": "プロジェクト全体の上流/下流モード。" }
       },
       "unevaluatedProperties": false
@@ -32,8 +30,8 @@
 
     "extensionsApplied": {
       "type": "array",
-      "items": { "$ref": "common.v3.schema.json#/$defs/Namespace" },
-      "description": "本プロジェクトが適用する拡張 namespace 一覧 (例: ['retail'])。loader は data/extensions/<ns>.v3.json を読み core schema と合成する。"
+      "items": { "$ref": "common.v3.schema.json#/$defs/ExtensionApplied" },
+      "description": "本プロジェクトが適用する拡張 namespace 一覧 (version 制約付き object)。例: [{ namespace: 'retail', version: '>=2.0.0' }]。loader は data/extensions/<ns>.v3.json (または data/extensions/<ns>/*.v3.json 分割) を読み、version 制約と突合の上で core schema と合成する。"
     },
 
     "entities": {
@@ -75,8 +73,7 @@
       "allOf": [{ "$ref": "#/$defs/EntryBase" }],
       "type": "object",
       "properties": {
-        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
-        "kind": { "type": "string", "description": "ScreenKind 文字列 (login/dashboard/list/detail/form 等、または 'extension:retail:storefront' 等の拡張参照)。" },
+        "kind": { "type": "string", "description": "ScreenKind 文字列 (login/dashboard/list/detail/form 等、または 'retail:storefront' 等の拡張参照)。" },
         "path": { "type": "string", "description": "URL ルーティングパス。" },
         "groupId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
         "hasDesign": { "type": "boolean" }
@@ -88,7 +85,6 @@
       "allOf": [{ "$ref": "#/$defs/EntryBase" }],
       "type": "object",
       "properties": {
-        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
         "category": { "type": "string", "description": "テーブルカテゴリ (例: 'マスタ', 'トランザクション', '中間テーブル', 'ログ' 等)。" },
         "columnCount": { "type": "integer", "minimum": 0 }
@@ -100,8 +96,7 @@
       "allOf": [{ "$ref": "#/$defs/EntryBase" }],
       "type": "object",
       "properties": {
-        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
-        "kind": { "type": "string", "description": "ProcessFlowKind (screen/batch/scheduled/system/common/other)。" },
+        "kind": { "type": "string", "description": "ProcessFlowKind (screen/batch/scheduled/system/common/other、または 'retail:posTransaction' 等の拡張参照)。" },
         "screenId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "screen kind の場合の関連画面 ID。" },
         "actionCount": { "type": "integer", "minimum": 0 },
         "notesCount": { "type": "integer", "minimum": 0 }
@@ -113,7 +108,6 @@
       "allOf": [{ "$ref": "#/$defs/EntryBase" }],
       "type": "object",
       "properties": {
-        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" }
       },
       "unevaluatedProperties": false
@@ -123,7 +117,6 @@
       "allOf": [{ "$ref": "#/$defs/EntryBase" }],
       "type": "object",
       "properties": {
-        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
         "conventionRef": { "type": "string", "description": "@conv.numbering.<key> 形式の参照。" }
       },

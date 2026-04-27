@@ -2,28 +2,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/process-flow.v3.schema.json",
   "title": "ProcessFlow (v3 処理フロー定義)",
-  "description": "業務処理フロー entity 1 件分の正規定義。data/process-flows/<id>.json に対応。root を 4 セクション (meta / context / body / authoring) に再編し、catalog 群を context.catalogs.<kind> に階層化することで意味付けと拡張性を確保する。",
+  "description": "業務処理フロー entity 1 件分の正規定義。data/process-flows/<id>.json に対応。root を 4 セクション (meta / context / actions / authoring) に再編し、catalog 群を context.catalogs.<kind> に階層化することで意味付けと拡張性を確保する。actions は実行ロジック本体、authoring は実行不要 (markers / decisions / glossary / notes / testScenarios)。",
   "type": "object",
-  "required": ["meta", "body"],
+  "required": ["meta", "actions"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
-
     "meta": { "$ref": "#/$defs/Meta" },
     "context": { "$ref": "#/$defs/Context" },
-    "body": { "$ref": "#/$defs/Body" },
-    "authoring": {
-      "allOf": [{ "$ref": "common.v3.schema.json#/$defs/Authoring" }],
-      "type": "object",
-      "properties": {
-        "markers": true, "decisions": true, "glossary": true, "notes": true,
-        "testScenarios": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/TestScenario" }
-        }
-      },
-      "unevaluatedProperties": false
-    }
+    "actions": {
+      "type": "array",
+      "minItems": 0,
+      "items": { "$ref": "#/$defs/ActionDefinition" },
+      "description": "実行ロジック本体。0 件も許容 (ロード時の placeholder ProcessFlow 用)。"
+    },
+    "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
   },
 
   "$defs": {
@@ -34,8 +27,6 @@
       "type": "object",
       "required": ["kind"],
       "properties": {
-        "id": true, "name": true, "description": true, "version": true,
-        "maturity": true, "createdAt": true, "updatedAt": true,
         "kind": { "$ref": "#/$defs/ProcessFlowKind" },
         "screenId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "kind='screen' の場合に紐付く Screen の Uuid。" },
         "apiVersion": { "type": "string", "description": "ProcessFlow が公開する API のバージョン (例: 'v1', '2026-04-25')。" },
@@ -94,43 +85,50 @@
     },
 
     "Catalogs": {
-      "description": "ProcessFlow 内 catalog 群を階層化集約。新 catalog 追加時に root を肥大化させない。",
+      "description": "ProcessFlow 内 catalog 群を階層化集約。新 catalog 追加時に root を肥大化させない。各 catalog のキー命名規範は propertyNames pattern で schema 上強制する。",
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "errors": {
           "type": "object",
           "description": "エラーコード catalog。キー: ErrorCode (UPPER_SNAKE)。affectedRowsCheck.errorCode / Branch.condition.errorCode から参照。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" },
           "additionalProperties": { "$ref": "#/$defs/ErrorCatalogEntry" }
         },
         "externalSystems": {
           "type": "object",
-          "description": "外部システム catalog。キー: systemId (lowercase)。ExternalSystemStep.systemRef から参照。",
+          "description": "外部システム catalog。キー: systemId (lowerCamelCase)。ExternalSystemStep.systemRef から参照。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
           "additionalProperties": { "$ref": "#/$defs/ExternalSystemCatalogEntry" }
         },
         "secrets": {
           "type": "object",
           "description": "Secrets catalog。キー: secretKey (camelCase)。@secret.<key> で参照。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
           "additionalProperties": { "$ref": "#/$defs/SecretEntry" }
         },
         "envVars": {
           "type": "object",
           "description": "環境変数 catalog。キー: EnvVarKey (UPPER_SNAKE)。@env.<KEY> で参照。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/EnvVarKey" },
           "additionalProperties": { "$ref": "#/$defs/EnvVarEntry" }
         },
         "domains": {
           "type": "object",
           "description": "ドメイン型 catalog。キー: ドメイン名 (PascalCase)。FieldType.kind='domain' から参照。",
+          "propertyNames": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
           "additionalProperties": { "$ref": "#/$defs/DomainEntry" }
         },
         "functions": {
           "type": "object",
           "description": "組み込み関数 catalog。キー: 関数名 (camelCase)。@fn.<name>(...) で参照。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
           "additionalProperties": { "$ref": "#/$defs/FunctionEntry" }
         },
         "events": {
           "type": "object",
-          "description": "イベント pub/sub catalog。キー: EventTopic (dot.lowercase)。EventPublishStep / EventSubscribeStep の eventRef から参照。",
+          "description": "イベント pub/sub catalog。キー: EventTopic (dot.lowercase)。EventPublishStep.topic / EventSubscribeStep.topic から参照。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
           "additionalProperties": { "$ref": "#/$defs/EventEntry" }
         }
       }
@@ -243,19 +241,6 @@
       }
     },
 
-    "Body": {
-      "description": "実行ロジック本体。ActionDefinition の配列。",
-      "type": "object",
-      "required": ["actions"],
-      "additionalProperties": false,
-      "properties": {
-        "actions": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/ActionDefinition" }
-        }
-      }
-    },
 
     "ActionDefinition": {
       "type": "object",
@@ -365,8 +350,7 @@
           "items": { "type": "string" }
         },
         "outputBinding": { "$ref": "#/$defs/OutputBinding" },
-        "txBoundary": { "$ref": "#/$defs/TxBoundary" },
-        "transactional": { "type": "boolean", "description": "簡易 TX マーク (txBoundary 不要時の boolean 短縮)。" },
+        "txBoundary": { "$ref": "#/$defs/TxBoundary", "description": "TX 境界宣言。txId 単位で begin/member/end を結合。簡易フラグの transactional は v3 で廃止 (txBoundary に統一)。" },
         "compensatesFor": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Saga 補償対象の Step.id 参照。" },
         "externalChain": { "$ref": "#/$defs/ExternalChain" }
       }
@@ -599,19 +583,32 @@
     },
 
     "DataLineage": {
+      "description": "DbAccessStep のデータ系譜。reads/writes の各エントリは目的 (purpose) を持てる (CDC / 監査 / 影響範囲分析用)。",
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "reads": {
           "type": "array",
-          "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-          "description": "読み取り対象 Table.id 一覧。"
+          "items": { "$ref": "#/$defs/LineageEntry" },
+          "description": "読み取り対象 Table の参照 + 目的。"
         },
         "writes": {
           "type": "array",
-          "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-          "description": "書き込み対象 Table.id 一覧。"
+          "items": { "$ref": "#/$defs/LineageEntry" },
+          "description": "書き込み対象 Table の参照 + 目的。"
         }
+      }
+    },
+
+    "LineageEntry": {
+      "description": "DataLineage の 1 エントリ。tableId 必須 + purpose 任意。",
+      "type": "object",
+      "required": ["tableId"],
+      "additionalProperties": false,
+      "properties": {
+        "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "purpose": { "type": "string", "description": "読み取り/書き込みの目的 (例: 'lookup', 'lock', 'audit', 'snapshot', 'soft-delete')。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
       }
     },
 
@@ -638,7 +635,10 @@
           "required": ["id", "kind", "description", "systemRef"],
           "properties": {
             "kind": { "const": "externalSystem" },
-            "systemRef": { "type": "string", "description": "ProcessFlow.context.catalogs.externalSystems のキー参照。" },
+            "systemRef": {
+              "$ref": "common.v3.schema.json#/$defs/Identifier",
+              "description": "ProcessFlow.context.catalogs.externalSystems のキー参照 (Identifier / camelCase)。"
+            },
             "httpCall": { "$ref": "#/$defs/ExternalHttpCall" },
             "operationRef": { "type": "string", "description": "OpenAPI operation 参照 (例: '/v1/payment_intents POST')。" },
             "operationId": { "type": "string" },
@@ -828,7 +828,7 @@
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
-        "code": { "type": "string", "description": "1 文字大文字 (A/B/C...)。" },
+        "code": { "type": "string", "pattern": "^[A-Z]$", "description": "1 文字大文字 (A/B/C...)。" },
         "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
         "condition": { "$ref": "#/$defs/BranchCondition" },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } }
@@ -841,7 +841,7 @@
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
-        "code": { "type": "string" },
+        "code": { "type": "string", "pattern": "^[A-Z]$", "description": "1 文字大文字 (A/B/C...、通常 'X' 等の最終枠を使用)。" },
         "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } }
@@ -1136,6 +1136,7 @@
     },
 
     "EventPublishStep": {
+      "description": "イベント発行 step。topic は context.catalogs.events のキーと一致する (eventRef 二重持ちは v3 廃止)。",
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
         {
@@ -1143,8 +1144,7 @@
           "required": ["id", "kind", "description", "topic"],
           "properties": {
             "kind": { "const": "eventPublish" },
-            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
-            "eventRef": { "$ref": "common.v3.schema.json#/$defs/EventTopic", "description": "context.catalogs.events のキー (= topic 名と一致が原則)。" },
+            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic", "description": "発行先 topic。同時に context.catalogs.events のキーとして登録されている必要がある。" },
             "payload": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
           }
         }
@@ -1153,6 +1153,7 @@
     },
 
     "EventSubscribeStep": {
+      "description": "イベント購読 step。topic は context.catalogs.events のキーと一致 (eventRef 二重持ちは v3 廃止)。",
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
         {
@@ -1160,8 +1161,7 @@
           "required": ["id", "kind", "description", "topic"],
           "properties": {
             "kind": { "const": "eventSubscribe" },
-            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
-            "eventRef": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic", "description": "購読 topic。同時に context.catalogs.events のキーとして登録されている必要がある。" },
             "filter": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
           }
         }
@@ -1203,15 +1203,7 @@
               "description": "対象 Table の Uuid 配列。"
             },
             "captureMode": { "type": "string", "enum": ["full", "incremental"] },
-            "destination": {
-              "type": "object",
-              "required": ["type"],
-              "additionalProperties": false,
-              "properties": {
-                "type": { "type": "string", "enum": ["auditLog", "eventStream", "table"] },
-                "target": { "type": "string" }
-              }
-            },
+            "destination": { "$ref": "#/$defs/CdcDestination" },
             "includeColumnIds": {
               "type": "array",
               "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
@@ -1226,8 +1218,41 @@
       "unevaluatedProperties": false
     },
 
+    "CdcDestination": {
+      "description": "CDC 出力先。kind による discriminated union (auditLog / eventStream / table)。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "auditAction"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "auditLog" },
+            "auditAction": { "type": "string", "description": "監査ログのアクション名 (例: 'inventory.monthlyClose')。" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "topic"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "eventStream" },
+            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "tableId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "table" },
+            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" }
+          }
+        }
+      ]
+    },
+
     "ExtensionStep": {
-      "description": "拡張 Step (extensions.v3.stepKinds で定義)。kind は namespace:StepName 形式。outputSchema は拡張定義側 schema で確認すること。",
+      "description": "拡張 Step (extensions.v3.stepKinds で定義)。kind は namespace:StepName 形式。固有プロパティは config object に閉じる (loader が拡張定義側 schema で config を検証)。",
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
         {
@@ -1238,151 +1263,16 @@
               "type": "string",
               "pattern": "^[a-z][a-z0-9_-]*:[A-Z][A-Za-z0-9]*$",
               "description": "拡張 step 識別子 (namespace:StepName)。例: 'retail:OrderConfirmStep'"
+            },
+            "config": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "拡張 step 固有設定。loader が extensions.v3.stepKinds[<kind>].schema (DynamicFormSchema) で構造を検証する。core schema 上は任意 object。"
             }
           }
         }
       ],
-      "unevaluatedProperties": true
-    },
-
-    "TestScenario": {
-      "type": "object",
-      "required": ["id", "name", "given", "when", "then"],
-      "additionalProperties": false,
-      "properties": {
-        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
-        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
-        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
-        "given": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/TestPrecondition" }
-        },
-        "when": { "$ref": "#/$defs/TestInvocation" },
-        "then": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/TestAssertion" }
-        },
-        "tags": { "type": "array", "items": { "type": "string" } }
-      }
-    },
-
-    "TestPrecondition": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": ["kind", "tableId", "rows"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "dbState" },
-            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-            "rows": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "context"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "sessionContext" },
-            "context": { "type": "object", "additionalProperties": true }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "externalRef", "responseMock"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "externalStub" },
-            "externalRef": { "type": "string" },
-            "responseMock": true
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "now"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "clock" },
-            "now": { "$ref": "common.v3.schema.json#/$defs/Timestamp" }
-          }
-        }
-      ]
-    },
-
-    "TestInvocation": {
-      "type": "object",
-      "required": ["actionId", "input"],
-      "additionalProperties": false,
-      "properties": {
-        "actionId": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
-        "input": { "type": "object", "additionalProperties": true }
-      }
-    },
-
-    "TestAssertion": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": ["kind", "expected"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "outcome" },
-            "expected": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "期待される Response.id。" }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "tableId", "match"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "dbRow" },
-            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
-            "match": { "type": "object", "additionalProperties": true },
-            "count": { "type": "integer", "minimum": 0 }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "path"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "output" },
-            "path": { "type": "string" },
-            "equals": true,
-            "matches": { "type": "string", "format": "regex" }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "externalRef"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "externalCall" },
-            "externalRef": { "type": "string" },
-            "method": { "type": "string" },
-            "bodyMatch": { "type": "object", "additionalProperties": true }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "action"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "auditLog" },
-            "action": { "type": "string" },
-            "result": { "type": "string", "enum": ["success", "failure"] }
-          }
-        },
-        {
-          "type": "object",
-          "required": ["kind", "msgKey"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "errorMessage" },
-            "msgKey": { "type": "string", "description": "@conv.msg.<key>" }
-          }
-        }
-      ]
+      "unevaluatedProperties": false
     },
 
     "HealthCheckGroup": {

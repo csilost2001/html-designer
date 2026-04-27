@@ -2,19 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/common.v3.schema.json",
   "title": "Common (v3 共通定義)",
-  "description": "全 v3 schema が参照する共通 $defs。業務システムの最小構成要素 (識別子・参照・メタ・型・マーカー・拡張入口) のみを集約する。各領域 schema は本ファイルを $ref で参照する。",
+  "description": "全 v3 schema が参照する共通 $defs。業務システムの最小構成要素 (識別子・参照・メタ・型・マーカー・テスト・拡張入口) を集約する。各領域 schema は本ファイルを $ref で参照する。",
   "$defs": {
 
     "Uuid": {
-      "description": "Top-level entity (Project / Screen / Table / ProcessFlow / View / Sequence / CustomBlock 等) の永続識別子。RFC 4122 UUID v4 を基本とするが a-z 拡張も許容 (擬似 UUID サンプル用)。",
+      "description": "Top-level entity (Project / Screen / Table / ProcessFlow / View / Sequence / CustomBlock 等) の永続識別子。RFC 4122 UUID v4 形式。",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+
+    "UuidLoose": {
+      "description": "テスト・サンプル用途の擬似 UUID。RFC 4122 v4 に加え a-z を許容 (例: 'gggggggg-0001-4000-8000-...')。本番データには Uuid を使用すること。",
       "type": "string",
       "pattern": "^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$"
     },
 
     "LocalId": {
-      "description": "ネスト構造 (Step / Action / Branch / Column / Index / Constraint / Trigger / Note / TestScenario / Decision / Response / Marker 等) の識別子。kebab-case + 大文字 + 数字 / 階層を許容。例: step-01, step-13b-a-01, col-u01, idx-u01, act-001, br-03-a, ADR-001, 201-created, happy-path-order-confirm",
+      "description": "ネスト構造 (Step / Action / Branch / Column / Index / Constraint / Trigger / Note / TestScenario / Decision / Response / Marker 等) の識別子。kebab-case + 英大文字 + 数字 / 階層を許容。1 文字目から記号は不可、末尾も英数字のみ。例: step-01, step-13b-a-01, col-u01, idx-u01, act-001, br-03-a, ADR-001, 201-created, happy-path-order-confirm",
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$",
       "minLength": 1
     },
 
@@ -27,7 +33,7 @@
     },
 
     "PhysicalName": {
-      "description": "システム物理名 (DB テーブル名 / カラム名 / 環境変数 / 拡張 namespace 等)。snake_case 強制。例: login_id, password_hash, order_items, STRIPE_API_KEY (環境変数のみ大文字許容は別途 EnvVarKey で扱う)",
+      "description": "システム物理名 (DB テーブル名 / カラム名 / シーケンス名 等)。snake_case 強制。例: login_id, password_hash, order_items, seq_order_number",
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*$",
       "minLength": 1,
@@ -67,13 +73,19 @@
       "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
     },
 
+    "SemVerRange": {
+      "description": "SemVer 範囲式。npm semver 互換 (>=, ~, ^, x など)。例: '>=3.0.0', '~3.1', '^3.0.0', '3.x'",
+      "type": "string",
+      "minLength": 1
+    },
+
     "Description": {
       "description": "自由記述の説明文。Markdown 改行可。AI 実装者・業務開発者が読む人間向け補足情報。",
       "type": "string"
     },
 
     "DisplayName": {
-      "description": "人間向け表示名。多言語前提のため、文字種制限なし。物理名 (PhysicalName) とは別概念。例: '顧客一覧', 'ユーザー登録', '商品マスタ'",
+      "description": "人間向け表示名。多言語前提のため文字種制限なし。物理名 (PhysicalName) とは別概念。例: '顧客一覧', 'ユーザー登録', '商品マスタ'",
       "type": "string",
       "minLength": 1
     },
@@ -96,13 +108,13 @@
     },
 
     "Namespace": {
-      "description": "拡張機構 / 業界別定義の namespace 識別子。空文字はグローバル拡張。例: '', 'retail', 'finance', 'manufacturing'",
+      "description": "拡張機構 / 業界別定義の namespace 識別子。空文字はグローバル拡張 (組み込み拡張、project.json で extensionsApplied を指定しなくても loader が読み込む)。それ以外は業界・業態別 (例: 'retail', 'finance', 'manufacturing')。loader 運用は schemas/v3/README.md を参照。",
       "type": "string",
       "pattern": "^[a-z0-9_-]*$"
     },
 
     "EntityMeta": {
-      "description": "全 top-level entity (Project / Screen / Table / ProcessFlow / View / Sequence / CustomBlock 等) の共通 meta。各 entity root は本定義を allOf でマージし、固有プロパティを追加する。",
+      "description": "全 top-level entity (Project / Screen / Table / ProcessFlow / View / Sequence 等) の共通 meta。各 entity root は本定義を allOf でマージし、固有プロパティを追加する。CustomBlock のような特殊形式 entity は EntityMeta を採用しない (個別 schema で定義)。",
       "type": "object",
       "required": ["id", "name", "createdAt", "updatedAt"],
       "properties": {
@@ -117,7 +129,7 @@
     },
 
     "Authoring": {
-      "description": "設計プロセス用情報 (実行に不要)。各 entity は本定義を任意で持つ。markers (人間↔AI 対話) / decisions (ADR) / glossary (用語集) / testScenarios (テスト) を集約。",
+      "description": "設計プロセス用情報 (実行に不要)。各 entity は本定義を任意で持つ。markers (人間↔AI 対話) / decisions (ADR) / glossary (用語集) / notes / testScenarios を集約。Project / Screen / Table / ScreenItem / ProcessFlow 全領域で利用可。",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -137,12 +149,17 @@
         "notes": {
           "type": "array",
           "items": { "$ref": "#/$defs/Note" }
+        },
+        "testScenarios": {
+          "type": "array",
+          "description": "Given-When-Then 形式のテストシナリオ。ProcessFlow / Screen / Table 等、対象 entity の文脈で AI 実装者がテストを生成するための入力。",
+          "items": { "$ref": "#/$defs/TestScenario" }
         }
       }
     },
 
     "Marker": {
-      "description": "人間↔AI のメッセージマーカー。指示・質問・TODO・チャット。entity の authoring セクションで使用。anchor で entity 内の位置 (step / field) を指す。",
+      "description": "人間↔AI のメッセージマーカー。指示・質問・TODO・チャット・validator 警告。entity の authoring セクションで使用。anchor で entity 内の位置 (step / field) を指す。",
       "type": "object",
       "required": ["id", "kind", "body", "author", "createdAt"],
       "additionalProperties": false,
@@ -150,8 +167,8 @@
         "id": { "$ref": "#/$defs/Uuid" },
         "kind": {
           "type": "string",
-          "enum": ["chat", "attention", "todo", "question"],
-          "description": "マーカー種別。"
+          "enum": ["chat", "attention", "todo", "question", "validator"],
+          "description": "マーカー種別。chat: 自由対話 / attention: 注意喚起 / todo: 未完了タスク / question: 質問 / validator: ツール由来の警告 (validatorCode/validatorPath 必須)。"
         },
         "body": { "type": "string", "description": "メッセージ本文。" },
         "anchor": {
@@ -168,9 +185,11 @@
         "createdAt": { "$ref": "#/$defs/Timestamp" },
         "resolvedAt": { "$ref": "#/$defs/Timestamp" },
         "resolution": { "type": "string", "description": "解決時の補足メッセージ。" },
-        "code": { "type": "string", "description": "validator 由来の警告コード (UNKNOWN_IDENTIFIER 等)。" },
-        "path": { "type": "string", "description": "validator 由来の JSON path。" }
-      }
+        "validatorCode": { "type": "string", "description": "kind='validator' 時の警告コード (UNKNOWN_IDENTIFIER 等)。" },
+        "validatorPath": { "type": "string", "description": "kind='validator' 時の対象 JSON path。" }
+      },
+      "if": { "properties": { "kind": { "const": "validator" } }, "required": ["kind"] },
+      "then": { "required": ["validatorCode", "validatorPath"] }
     },
 
     "MarkerShape": {
@@ -238,10 +257,10 @@
     },
 
     "FieldType": {
-      "description": "全領域 (StructuredField / ScreenItem / DomainDef / TableColumn 派生型) で共有するフィールド型。プリミティブ + 構造体 + 参照型 + 拡張入口。",
+      "description": "全領域 (StructuredField / ScreenItem / DomainEntry / TableColumn 派生型) で共有するフィールド型。プリミティブ + 構造体 + 参照型 + 拡張入口。",
       "oneOf": [
         {
-          "description": "プリミティブ型。",
+          "description": "プリミティブ型。'json' は任意の構造化データを表す (オブジェクト型を厳密表現したい場合は kind='object' + fields を使う)。",
           "type": "string",
           "enum": ["string", "number", "integer", "boolean", "date", "datetime", "json"]
         },
@@ -406,6 +425,28 @@
       }
     },
 
+    "ViewColumnRef": {
+      "description": "View 内のカラムへの複合参照。viewId + columnPhysicalName (View カラムは LocalId ではなく物理名で識別)。",
+      "type": "object",
+      "required": ["viewId", "columnPhysicalName"],
+      "additionalProperties": false,
+      "properties": {
+        "viewId": { "$ref": "#/$defs/Uuid" },
+        "columnPhysicalName": { "$ref": "#/$defs/PhysicalName" }
+      }
+    },
+
+    "SequenceColumnRef": {
+      "description": "Sequence の利用先 Table カラムへの複合参照。",
+      "type": "object",
+      "required": ["tableId", "columnId"],
+      "additionalProperties": false,
+      "properties": {
+        "tableId": { "$ref": "#/$defs/Uuid" },
+        "columnId": { "$ref": "#/$defs/LocalId" }
+      }
+    },
+
     "ActionRef": {
       "description": "ProcessFlow 内のアクションへの複合参照。",
       "type": "object",
@@ -441,16 +482,30 @@
       }
     },
 
-    "ExtensionRoot": {
-      "description": "拡張定義 root の共通プロパティ (extensions.v3.schema.json で allOf マージ)。namespace 単位 1 ファイルで全種類の拡張を集約する運用。",
+    "ExtensionApplied": {
+      "description": "プロジェクトが適用する拡張 namespace の宣言。namespace 名 + version 制約 (任意)。",
       "type": "object",
       "required": ["namespace"],
+      "additionalProperties": false,
+      "properties": {
+        "namespace": { "$ref": "#/$defs/Namespace" },
+        "version": {
+          "$ref": "#/$defs/SemVerRange",
+          "description": "拡張定義のバージョン制約 (例: '>=2.0.0')。loader が拡張定義の version と突合する。"
+        }
+      }
+    },
+
+    "ExtensionRoot": {
+      "description": "拡張定義 root の共通プロパティ (extensions.v3.schema.json で allOf マージ)。namespace 単位 1 ファイルで全種類の拡張を集約する運用 (data/extensions/<ns>.v3.json)。loader は data/extensions/<ns>/*.v3.json の分割運用も許容する (詳細: schemas/v3/README.md)。",
+      "type": "object",
+      "required": ["namespace", "version"],
       "properties": {
         "$schema": { "type": "string" },
         "namespace": { "$ref": "#/$defs/Namespace" },
-        "version": { "$ref": "#/$defs/SemVer" },
+        "version": { "$ref": "#/$defs/SemVer", "description": "拡張定義のバージョン (SemVer)。互換性追跡のため必須。" },
         "requiresCoreSchema": {
-          "type": "string",
+          "$ref": "#/$defs/SemVerRange",
           "description": "互換 core schema のバージョン範囲式。例: '>=3.0.0', '~3.1'"
         },
         "deprecated": {
@@ -459,6 +514,171 @@
         },
         "description": { "$ref": "#/$defs/Description" }
       }
+    },
+
+    "TestScenario": {
+      "description": "Given-When-Then 形式のテストシナリオ 1 件。ProcessFlow / Screen / Table 等の authoring セクションで使用。AI 実装者がテストコード生成の入力として読む。",
+      "type": "object",
+      "required": ["id", "name", "given", "when", "then"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/LocalId" },
+        "name": { "$ref": "#/$defs/DisplayName" },
+        "description": { "$ref": "#/$defs/Description" },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestPrecondition" }
+        },
+        "when": { "$ref": "#/$defs/TestInvocation" },
+        "then": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestAssertion" }
+        },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "TestPrecondition": {
+      "description": "テスト前提条件。kind による discriminated union。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "tableId", "rows"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "dbState" },
+            "tableId": { "$ref": "#/$defs/Uuid" },
+            "rows": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "context"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "sessionContext" },
+            "context": { "type": "object", "additionalProperties": true, "description": "ログインユーザー / 権限 / リクエスト ID 等の実行コンテキスト。" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "externalRef", "responseMock"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalStub" },
+            "externalRef": { "type": "string", "description": "ProcessFlow.context.catalogs.externalSystems のキー。" },
+            "responseMock": { "description": "外部 API のモックレスポンス (任意の値)。" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "now"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "clock" },
+            "now": { "$ref": "#/$defs/Timestamp" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "screenId", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "screenInput" },
+            "screenId": { "$ref": "#/$defs/Uuid" },
+            "items": { "type": "object", "additionalProperties": true, "description": "画面項目 ID → 入力値のマップ。" }
+          }
+        }
+      ]
+    },
+
+    "TestInvocation": {
+      "description": "テスト起動点。ProcessFlow.actions[].id 参照。",
+      "type": "object",
+      "required": ["actionId", "input"],
+      "additionalProperties": false,
+      "properties": {
+        "processFlowId": { "$ref": "#/$defs/Uuid", "description": "省略時は同 ProcessFlow 内の actionId として解決。" },
+        "actionId": { "$ref": "#/$defs/LocalId" },
+        "input": { "type": "object", "additionalProperties": true }
+      }
+    },
+
+    "TestAssertion": {
+      "description": "テスト期待結果。kind による discriminated union。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "expected"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "outcome" },
+            "expected": { "$ref": "#/$defs/LocalId", "description": "期待される Response.id。" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "tableId", "match"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "dbRow" },
+            "tableId": { "$ref": "#/$defs/Uuid" },
+            "match": { "type": "object", "additionalProperties": true },
+            "count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "output" },
+            "path": { "type": "string", "description": "JSON path (例: '$.status')" },
+            "equals": true,
+            "matches": { "type": "string", "format": "regex" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "externalRef"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalCall" },
+            "externalRef": { "type": "string" },
+            "method": { "type": "string" },
+            "bodyMatch": { "type": "object", "additionalProperties": true }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "action"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "auditLog" },
+            "action": { "type": "string" },
+            "result": { "type": "string", "enum": ["success", "failure"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "msgKey"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "errorMessage" },
+            "msgKey": { "type": "string", "description": "@conv.msg.<key>" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "screenId", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "screenItemValue" },
+            "screenId": { "$ref": "#/$defs/Uuid" },
+            "items": { "type": "object", "additionalProperties": true, "description": "画面項目 ID → 期待表示値のマップ。" }
+          }
+        }
+      ]
     }
   }
 }
