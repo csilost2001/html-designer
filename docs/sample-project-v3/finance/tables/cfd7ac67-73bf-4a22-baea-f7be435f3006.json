@@ -1,0 +1,88 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "cfd7ac67-73bf-4a22-baea-f7be435f3006",
+  "name": "振込履歴",
+  "description": "口座間の振込トランザクション履歴。承認ワークフロー対象 (>=1,000,000 JPY は 3 段承認)。実行は TransactionScopeStep で原子的に from_account 引落 + to_account 入金。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "transfers",
+  "category": "トランザクション",
+  "comment": "振込履歴。status は state machine (pending → approved → executed / rejected / cancelled)。",
+  "columns": [
+    { "id": "col-t01", "no": 1, "physicalName": "id", "name": "振込ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-t02", "no": 2, "physicalName": "transfer_number", "name": "振込番号", "dataType": "VARCHAR", "length": 24, "notNull": true, "unique": true, "comment": "T + YYYYMMDD + 連番13桁。@conv.numbering.transferNumber で採番。" },
+    { "id": "col-t03", "no": 3, "physicalName": "from_account_id", "name": "振込元口座ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-t04", "no": 4, "physicalName": "to_account_id", "name": "振込先口座ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-t05", "no": 5, "physicalName": "amount", "name": "振込額", "dataType": "BIGINT", "notNull": true, "comment": "JPY、税込円。" },
+    { "id": "col-t06", "no": 6, "physicalName": "fee", "name": "手数料", "dataType": "INTEGER", "notNull": true, "defaultValue": "0", "comment": "JPY。" },
+    { "id": "col-t07", "no": 7, "physicalName": "status", "name": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "pending / approved / executed / rejected / cancelled。" },
+    { "id": "col-t08", "no": 8, "physicalName": "approval_required", "name": "承認必要", "dataType": "BOOLEAN", "notNull": true, "comment": "amount >= 1000000 で true。" },
+    { "id": "col-t09", "no": 9, "physicalName": "requested_by_customer_id", "name": "依頼顧客ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-t10", "no": 10, "physicalName": "requested_at", "name": "依頼日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-t11", "no": 11, "physicalName": "executed_at", "name": "実行日時", "dataType": "TIMESTAMP", "comment": "executed 状態に遷移時に記録。" },
+    { "id": "col-t12", "no": 12, "physicalName": "memo", "name": "メモ", "dataType": "VARCHAR", "length": 200 },
+    { "id": "col-t13", "no": 13, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-t14", "no": 14, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-t01", "physicalName": "idx_transfers_transfer_number", "columns": [{ "columnId": "col-t02" }], "unique": true },
+    { "id": "idx-t02", "physicalName": "idx_transfers_from_account", "columns": [{ "columnId": "col-t03" }, { "columnId": "col-t10", "order": "desc" }] },
+    { "id": "idx-t03", "physicalName": "idx_transfers_to_account", "columns": [{ "columnId": "col-t04" }, { "columnId": "col-t10", "order": "desc" }] },
+    { "id": "idx-t04", "physicalName": "idx_transfers_status_pending", "columns": [{ "columnId": "col-t07" }], "where": "status IN ('pending', 'approved')", "description": "pending/approved の検索を高速化する Partial Index。" }
+  ],
+  "constraints": [
+    {
+      "id": "fk-t01",
+      "kind": "foreignKey",
+      "physicalName": "fk_transfers_from_account",
+      "columnIds": ["col-t03"],
+      "referencedTableId": "3d37919f-fddb-4ebb-a742-74d3ab76e593",
+      "referencedColumnIds": ["col-a01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade"
+    },
+    {
+      "id": "fk-t02",
+      "kind": "foreignKey",
+      "physicalName": "fk_transfers_to_account",
+      "columnIds": ["col-t04"],
+      "referencedTableId": "3d37919f-fddb-4ebb-a742-74d3ab76e593",
+      "referencedColumnIds": ["col-a01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade"
+    },
+    {
+      "id": "fk-t03",
+      "kind": "foreignKey",
+      "physicalName": "fk_transfers_requested_by_customer",
+      "columnIds": ["col-t09"],
+      "referencedTableId": "542f7234-b3e2-4c51-a1e7-582ca2ee783e",
+      "referencedColumnIds": ["col-c01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade"
+    },
+    {
+      "id": "chk-t01",
+      "kind": "check",
+      "physicalName": "chk_transfers_amount_positive",
+      "expression": "amount > 0 AND fee >= 0",
+      "description": "振込額は正、手数料は 0 以上。"
+    },
+    {
+      "id": "chk-t02",
+      "kind": "check",
+      "physicalName": "chk_transfers_status_enum",
+      "expression": "status IN ('pending', 'approved', 'executed', 'rejected', 'cancelled')",
+      "description": "ステータスの許容値。"
+    },
+    {
+      "id": "chk-t03",
+      "kind": "check",
+      "physicalName": "chk_transfers_self_not_allowed",
+      "expression": "from_account_id <> to_account_id",
+      "description": "同一口座への振込禁止 (DB レベル防御)。"
+    }
+  ]
+}

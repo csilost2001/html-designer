@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "55867587-b493-4d93-91ed-0f5abeb98579",
+  "name": "振込承認履歴",
+  "description": "高額振込 (>=1,000,000 JPY) の 3 段承認 (担当→課長→部長) の履歴。1 振込 = 最大 3 行。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "transfer_approvals",
+  "category": "ログ",
+  "comment": "承認履歴。WorkflowStep の各承認ステップで 1 行 INSERT。decision = rejected で振込が rejected 状態に遷移。",
+  "columns": [
+    { "id": "col-ap01", "no": 1, "physicalName": "id", "name": "承認ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-ap02", "no": 2, "physicalName": "transfer_id", "name": "振込ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-ap03", "no": 3, "physicalName": "approver_role", "name": "承認者役職", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "staff (担当) / manager (課長) / director (部長)。" },
+    { "id": "col-ap04", "no": 4, "physicalName": "approver_user_id", "name": "承認者ID", "dataType": "VARCHAR", "length": 50, "notNull": true, "comment": "従業員 ID。auth サービス管理。" },
+    { "id": "col-ap05", "no": 5, "physicalName": "decision", "name": "判断", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "approved / rejected。" },
+    { "id": "col-ap06", "no": 6, "physicalName": "decided_at", "name": "判断日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-ap07", "no": 7, "physicalName": "comment", "name": "コメント", "dataType": "VARCHAR", "length": 500 },
+    { "id": "col-ap08", "no": 8, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-ap01", "physicalName": "idx_approvals_transfer_id", "columns": [{ "columnId": "col-ap02" }, { "columnId": "col-ap06", "order": "asc" }] }
+  ],
+  "constraints": [
+    {
+      "id": "fk-ap01",
+      "kind": "foreignKey",
+      "physicalName": "fk_approvals_transfer_id",
+      "columnIds": ["col-ap02"],
+      "referencedTableId": "cfd7ac67-73bf-4a22-baea-f7be435f3006",
+      "referencedColumnIds": ["col-t01"],
+      "onDelete": "cascade",
+      "onUpdate": "cascade",
+      "description": "振込が削除された場合、承認履歴も削除 (実運用ではトランザクション側 cancel で残すが、本サンプルは cascade)。"
+    },
+    {
+      "id": "uq-ap01",
+      "kind": "unique",
+      "physicalName": "uq_approvals_transfer_role",
+      "columnIds": ["col-ap02", "col-ap03"],
+      "description": "1 振込 1 役職 = 1 行 (同役職 2 回承認禁止)。"
+    },
+    {
+      "id": "chk-ap01",
+      "kind": "check",
+      "physicalName": "chk_approvals_role_enum",
+      "expression": "approver_role IN ('staff', 'manager', 'director')",
+      "description": "承認者役職の許容値。"
+    },
+    {
+      "id": "chk-ap02",
+      "kind": "check",
+      "physicalName": "chk_approvals_decision_enum",
+      "expression": "decision IN ('approved', 'rejected')",
+      "description": "判断の許容値。"
+    }
+  ]
+}

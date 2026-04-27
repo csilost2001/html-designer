@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "542f7234-b3e2-4c51-a1e7-582ca2ee783e",
+  "name": "顧客マスタ",
+  "description": "金融機関の口座保有者を管理する。顧客コード・氏名・連絡先を保持。口座 (accounts) は本テーブルの顧客に紐付く。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "customers",
+  "category": "マスタ",
+  "comment": "顧客マスタ。KYC 完了済みの顧客のみ登録、論理削除は is_active で表現。",
+  "columns": [
+    { "id": "col-c01", "no": 1, "physicalName": "id", "name": "顧客ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-c02", "no": 2, "physicalName": "customer_code", "name": "顧客コード", "dataType": "VARCHAR", "length": 20, "notNull": true, "unique": true, "comment": "C + 8 桁数字 (例: C00000001)。全行一意。" },
+    { "id": "col-c03", "no": 3, "physicalName": "name", "name": "氏名", "dataType": "VARCHAR", "length": 100, "notNull": true },
+    { "id": "col-c04", "no": 4, "physicalName": "name_kana", "name": "氏名 (カナ)", "dataType": "VARCHAR", "length": 200 },
+    { "id": "col-c05", "no": 5, "physicalName": "email", "name": "メールアドレス", "dataType": "VARCHAR", "length": 255 },
+    { "id": "col-c06", "no": 6, "physicalName": "phone", "name": "電話番号", "dataType": "VARCHAR", "length": 20 },
+    { "id": "col-c07", "no": 7, "physicalName": "is_active", "name": "アクティブ", "dataType": "BOOLEAN", "notNull": true, "defaultValue": "true" },
+    { "id": "col-c08", "no": 8, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-c09", "no": 9, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-c01", "physicalName": "idx_customers_customer_code", "columns": [{ "columnId": "col-c02" }], "unique": true },
+    { "id": "idx-c02", "physicalName": "idx_customers_email", "columns": [{ "columnId": "col-c05" }] }
+  ],
+  "constraints": [
+    {
+      "id": "chk-c01",
+      "kind": "check",
+      "physicalName": "chk_customers_customer_code_pattern",
+      "expression": "customer_code ~ '^C[0-9]{8}$'",
+      "description": "顧客コードは C + 8 桁数字。"
+    }
+  ]
+}

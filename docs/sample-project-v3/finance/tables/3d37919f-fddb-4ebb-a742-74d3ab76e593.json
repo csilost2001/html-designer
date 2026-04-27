@@ -1,0 +1,64 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "3d37919f-fddb-4ebb-a742-74d3ab76e593",
+  "name": "口座",
+  "description": "顧客の銀行口座を管理する。残高 (balance) は引落・入金トランザクションで原子的に更新。マイナス残高は CHECK 制約で禁止。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "accounts",
+  "category": "マスタ",
+  "comment": "口座テーブル。balance は SERIALIZABLE TX で更新前提。同時引落・入金は アプリ層で順序保証。",
+  "columns": [
+    { "id": "col-a01", "no": 1, "physicalName": "id", "name": "口座ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-a02", "no": 2, "physicalName": "account_number", "name": "口座番号", "dataType": "VARCHAR", "length": 30, "notNull": true, "unique": true, "comment": "支店コード(3桁) + 種別(1桁) + 連番(7桁)、合計 11 桁。" },
+    { "id": "col-a03", "no": 3, "physicalName": "customer_id", "name": "顧客ID", "dataType": "BIGINT", "notNull": true, "comment": "customers.id への FK。" },
+    { "id": "col-a04", "no": 4, "physicalName": "branch_code", "name": "支店コード", "dataType": "VARCHAR", "length": 3, "notNull": true, "comment": "3 桁数字。" },
+    { "id": "col-a05", "no": 5, "physicalName": "account_type", "name": "口座種別", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "ordinary (普通) / current (当座) / savings (定期)。" },
+    { "id": "col-a06", "no": 6, "physicalName": "balance", "name": "残高", "dataType": "BIGINT", "notNull": true, "defaultValue": "0", "comment": "JPY 単位 (税込円)。マイナス禁止 (CHECK 制約)。" },
+    { "id": "col-a07", "no": 7, "physicalName": "currency", "name": "通貨", "dataType": "CHAR", "length": 3, "notNull": true, "defaultValue": "'JPY'" },
+    { "id": "col-a08", "no": 8, "physicalName": "is_active", "name": "アクティブ", "dataType": "BOOLEAN", "notNull": true, "defaultValue": "true" },
+    { "id": "col-a09", "no": 9, "physicalName": "last_transaction_at", "name": "最終取引日時", "dataType": "TIMESTAMP" },
+    { "id": "col-a10", "no": 10, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-a11", "no": 11, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-a01", "physicalName": "idx_accounts_account_number", "columns": [{ "columnId": "col-a02" }], "unique": true },
+    { "id": "idx-a02", "physicalName": "idx_accounts_customer_id", "columns": [{ "columnId": "col-a03" }] }
+  ],
+  "constraints": [
+    {
+      "id": "fk-a01",
+      "kind": "foreignKey",
+      "physicalName": "fk_accounts_customer_id",
+      "columnIds": ["col-a03"],
+      "referencedTableId": "542f7234-b3e2-4c51-a1e7-582ca2ee783e",
+      "referencedColumnIds": ["col-c01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade",
+      "description": "口座は顧客に紐付く。顧客削除時は restrict (口座が残っている場合は削除不可)。"
+    },
+    {
+      "id": "chk-a01",
+      "kind": "check",
+      "physicalName": "chk_accounts_balance_nonnegative",
+      "expression": "balance >= 0",
+      "description": "残高はマイナス禁止 (信用枠なし、当座貸越も別途借入金科目で表現)。"
+    },
+    {
+      "id": "chk-a02",
+      "kind": "check",
+      "physicalName": "chk_accounts_account_number_pattern",
+      "expression": "account_number ~ '^[0-9]{3}[1-3][0-9]{7}$'",
+      "description": "口座番号: 支店3桁 + 種別1桁(1=普通/2=当座/3=定期) + 連番7桁。"
+    },
+    {
+      "id": "chk-a03",
+      "kind": "check",
+      "physicalName": "chk_accounts_account_type_enum",
+      "expression": "account_type IN ('ordinary', 'current', 'savings')",
+      "description": "口座種別の許容値。"
+    }
+  ]
+}

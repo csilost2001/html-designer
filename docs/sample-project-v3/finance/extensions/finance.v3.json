@@ -1,0 +1,175 @@
+{
+  "$schema": "../../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "finance",
+  "version": "1.0.0",
+  "requiresCoreSchema": ">=3.0.0",
+  "description": "金融業 (banking / payment) namespace の v3 拡張定義。口座番号・振込・承認・与信などの業務概念を集約。retail と同様 1 ファイル統合運用。",
+  "fieldTypes": [
+    { "kind": "accountNumber", "label": "口座番号", "baseType": "string", "description": "支店3桁 + 種別1桁 + 連番7桁 = 11 桁。" },
+    { "kind": "transferAmount", "label": "振込額", "baseType": "integer", "description": "JPY、税込円、正の整数。" },
+    { "kind": "branchCode", "label": "支店コード", "baseType": "string", "description": "3 桁数字。" },
+    { "kind": "customerCode", "label": "顧客コード", "baseType": "string", "description": "C + 8 桁数字。" },
+    { "kind": "transferNumber", "label": "振込番号", "baseType": "string", "description": "T + YYYYMMDD + 連番13桁。" },
+    { "kind": "creditScore", "label": "信用スコア", "baseType": "integer", "description": "0-1000 の整数。" }
+  ],
+  "actionTriggers": [
+    {
+      "value": "transferRequested",
+      "label": "振込依頼トリガー",
+      "description": "顧客が振込画面で実行ボタンを押下した時に起動する。"
+    },
+    {
+      "value": "approvalDecided",
+      "label": "承認判断トリガー",
+      "description": "管理職が承認画面で承認/却下を判断した時に起動する。次の承認段階または振込実行に遷移。"
+    }
+  ],
+  "dbOperations": [
+    {
+      "value": "DEBIT_BALANCE",
+      "label": "残高引落",
+      "description": "accounts.balance を amount 分減算 (UPDATE WHERE balance >= amount)。affectedRows = 0 で残高不足検出。"
+    },
+    {
+      "value": "CREDIT_BALANCE",
+      "label": "残高入金",
+      "description": "accounts.balance を amount 分加算。INSERT に近い意味で affectedRows ＝ 1 必須。"
+    }
+  ],
+  "stepKinds": {
+    "TransferExecuteStep": {
+      "label": "振込実行",
+      "icon": "ArrowRightLeft",
+      "description": "from_account_id → to_account_id へ amount を atomic に移動する複合 step。内部的に DEBIT_BALANCE + CREDIT_BALANCE + transfers UPSERT + audit log を 1 つの TX で実行。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "transferId": { "type": "string", "description": "transfers.id (Uuid 化前提)" },
+          "fromAccountId": { "type": "string" },
+          "toAccountId": { "type": "string" },
+          "amount": { "type": "integer" },
+          "fee": { "type": "integer" }
+        },
+        "required": ["transferId", "fromAccountId", "toAccountId", "amount"],
+        "additionalProperties": false
+      }
+    },
+    "ApprovalRequestStep": {
+      "label": "承認依頼",
+      "icon": "UserCheck",
+      "description": "管理職に承認依頼を送信する。実装は通知サービス連携 (社内ワークフロー or メール)。WorkflowStep の補完用。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "transferId": { "type": "string" },
+          "approverRole": { "type": "string", "enum": ["staff", "manager", "director"] }
+        },
+        "required": ["transferId", "approverRole"],
+        "additionalProperties": false
+      }
+    },
+    "CreditCheckStep": {
+      "label": "与信チェック",
+      "icon": "ShieldCheck",
+      "description": "顧客の信用スコアを外部 CIC サービスから取得し、振込上限を判定する。信用スコア < 500 で否決。",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "customerId": { "type": "string" },
+          "requestedAmount": { "type": "integer" },
+          "outputBindingName": { "type": "string", "default": "creditCheckResult" }
+        },
+        "required": ["customerId", "requestedAmount"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "responseTypes": {
+    "TransferResponse": {
+      "description": "振込 API の成功 response body。",
+      "schema": {
+        "type": "object",
+        "required": ["transferNumber", "status", "executedAt"],
+        "properties": {
+          "transferNumber": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "approved", "executed"] },
+          "executedAt": { "type": "string" },
+          "fee": { "type": "integer" }
+        }
+      }
+    },
+    "BalanceResponse": {
+      "description": "残高照会 API の response body。",
+      "schema": {
+        "type": "object",
+        "required": ["accountNumber", "balance", "currency"],
+        "properties": {
+          "accountNumber": { "type": "string" },
+          "balance": { "type": "integer" },
+          "currency": { "type": "string" },
+          "lastTransactionAt": { "type": "string" }
+        }
+      }
+    },
+    "ApiError": {
+      "description": "汎用 API エラー (retail.v3 と同じ shape、namespace は共有しない方針で各 namespace に重複可)。",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "fieldErrors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "constraintPatterns": [
+    {
+      "id": "fk-account-id",
+      "label": "口座ID FK 雛形",
+      "kind": "foreignKey",
+      "description": "accounts テーブルの id を参照する FK。on delete restrict, on update cascade を既定とする。",
+      "template": {
+        "kind": "foreignKey",
+        "onDelete": "restrict",
+        "onUpdate": "cascade"
+      }
+    },
+    {
+      "id": "chk-balance-nonnegative",
+      "label": "残高非負 CHECK 雛形",
+      "kind": "check",
+      "description": "残高 / 金額カラムにマイナス禁止 CHECK を付ける雛形。",
+      "template": {
+        "kind": "check",
+        "expression": "<column> >= 0"
+      }
+    }
+  ],
+  "conventionCategories": [
+    {
+      "categoryName": "financeLimit",
+      "label": "金融業限度値",
+      "description": "高額振込閾値・口座開設最低残高・与信スコア閾値など金融業固有の限度値。",
+      "entrySchema": {
+        "type": "object",
+        "required": ["value", "unit"],
+        "properties": {
+          "value": { "type": "number" },
+          "unit": { "type": "string", "enum": ["yen", "score", "integer"] },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
