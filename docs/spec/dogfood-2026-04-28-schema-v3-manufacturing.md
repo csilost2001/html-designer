@@ -163,6 +163,29 @@ R3-1〜R3-3 fix で 90-95%、Round 4 (manufacturing 以外の異質業界) で 0
 - **v3.0 確定判定は Round 2 から後退**、R3-1〜R3-3 を v3.0.2 として fix してから TS 同期推奨
 - 完成度: **80-85% (R3 fix 後に 90-95%、Round 4 で 95%+)**
 - **Round 3 をやって良かった** — Round 1/2 だけで TS 同期着手していたら R3-1 はまる所だった
-- 次の手: 新規 ISSUE で **R3-1/R3-2/R3-3 schema 修正** を起票、設計者承認 (governance §7) → fix → 0 件継続確認 → TS 同期へ
 
-「Round 3 をやってから A」という判断は正解だった。「Round 2 で 0 件 = 確定」と急ぐと R3-1 はまり所が TS 同期の途中で発覚し、TS 型を書き直すコストが発生していた。
+### PR #530 独立レビュー (Sonnet) で追加検出 — 依然多くの未使用 variant が残る
+
+Round 3 後でも以下は **0 use のまま**:
+
+- BranchCondition: `tryCatch` / `affectedRowsZero` / `externalOutcome` (3/4 未使用)
+- Step kind: `screenTransition` / `displayUpdate` / `eventSubscribe` / `jump` / `loopBreak` / `loopContinue` / `commonProcess` (7 件)
+- LoopKind: `count` / `condition` (2/3 未使用)
+- WorkflowPattern: 10/11 未使用 (`approval-sequential` のみ使用)
+- Context: `health` / `readiness` / `resources` 未使用
+- StepBaseProps: `txBoundary` / `compensatesFor` (Saga 系) 未使用
+- CdcDestination: `eventStream` / `table` (2/3 未使用)
+
+新業界 sample で全部カバーは過剰。**現実的な対応**:
+
+- **A: 未使用 variant の AJV fixture テスト拡充** — 業務文脈なしで構造的バリデーション網羅 (推奨、~1 日)
+- **B: Round 4 (新業界、例: healthcare)** で**意図的に未使用 variant を使う設計** — 1 業界で複数カバー
+- **推奨**: A 先 → 必要なら B
+
+### 次の手 (確定版)
+
+1. **R3-1/R3-2/R3-3 schema fix ISSUE 起票** (governance §7 設計者承認、別 ISSUE)
+2. **未使用 variant AJV fixture 拡充 ISSUE 起票** (案 A、別 ISSUE) — Round 4 やる前に構造的網羅性を上げる
+3. これらが完了したら TS 同期着手、または Round 4 を判断
+
+「Round 3 をやってから A」という判断は正解だった。Round 2 で確定判断していれば R3-1 は TS 同期途中で発覚した。Round 3 後の「未使用 variant fixture 拡充」が次の現実解。
