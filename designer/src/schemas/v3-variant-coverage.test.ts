@@ -265,7 +265,7 @@ describe("v3 variant fixture coverage — LoopKind (#531)", () => {
   });
 });
 
-describe("v3 variant fixture coverage — WorkflowPattern 10 種 (#531)", () => {
+describe("v3 variant fixture coverage — WorkflowPattern 11 種 + quorum 2 variants (#531)", () => {
   const APPROVERS = [
     { role: "@conv.role.staff", label: "担当", order: 1 },
     { role: "@conv.role.manager", label: "課長", order: 2 },
