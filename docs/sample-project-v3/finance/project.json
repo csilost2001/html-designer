@@ -1,0 +1,107 @@
+{
+  "$schema": "../../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "5f967720-6ccb-4d2a-9806-554f269eefd9",
+    "name": "v3 dogfood Round 2 — finance (振込・残高照会)",
+    "description": "PR #526 (#525) F-1/F-2/F-4 fix 後の v3.0.1 を finance namespace で再検証する dogfood Round 2 サンプル (#527)。振込実行 (TX + Workflow + 与信) と残高照会 (シンプル参照系) を対比。",
+    "version": "1.0.0",
+    "maturity": "draft",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "updatedAt": "2026-04-28T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [
+    { "namespace": "finance", "version": ">=1.0.0" }
+  ],
+  "entities": {
+    "screens": [
+      {
+        "id": "e3a7d690-4021-41bd-92c7-440e320de37e",
+        "no": 1,
+        "name": "振込実行",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "form",
+        "path": "/finance/transfers/new",
+        "hasDesign": false
+      }
+    ],
+    "tables": [
+      {
+        "id": "542f7234-b3e2-4c51-a1e7-582ca2ee783e",
+        "no": 1,
+        "name": "顧客マスタ",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "customers",
+        "category": "マスタ",
+        "columnCount": 9
+      },
+      {
+        "id": "3d37919f-fddb-4ebb-a742-74d3ab76e593",
+        "no": 2,
+        "name": "口座",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "accounts",
+        "category": "マスタ",
+        "columnCount": 11
+      },
+      {
+        "id": "cfd7ac67-73bf-4a22-baea-f7be435f3006",
+        "no": 3,
+        "name": "振込履歴",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "transfers",
+        "category": "トランザクション",
+        "columnCount": 14
+      },
+      {
+        "id": "55867587-b493-4d93-91ed-0f5abeb98579",
+        "no": 4,
+        "name": "振込承認履歴",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "transfer_approvals",
+        "category": "ログ",
+        "columnCount": 8
+      }
+    ],
+    "processFlows": [
+      {
+        "id": "a4d18f30-0524-4303-a656-1bf2390c386c",
+        "no": 1,
+        "name": "振込実行 (金融)",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "screen",
+        "screenId": "e3a7d690-4021-41bd-92c7-440e320de37e",
+        "actionCount": 1
+      },
+      {
+        "id": "b27ad0f3-8a2d-40d0-a914-f278efc21119",
+        "no": 2,
+        "name": "残高照会 (金融)",
+        "updatedAt": "2026-04-28T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "system",
+        "actionCount": 1
+      }
+    ]
+  },
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-PRJ-001",
+        "title": "Round 2 は finance を選択 (retail と性質を変える)",
+        "status": "accepted",
+        "context": "Round 1 (retail) では参照系・拡張機構・catalog 階層化を検証した。Round 2 では TX 集約・Workflow 承認・与信の重量級フロー領域で v3 schema の弱点を再検証する目的で finance を選定。",
+        "decision": "振込実行 (TransactionScopeStep + WorkflowStep approval-sequential + ExtensionStep with lineage + AffectedRowsCheck で残高不足検出) を Opus 担当、残高照会 (シンプル参照系) を Sonnet 担当として対比検証。",
+        "consequences": "schema が想定する重量フロー要素を実機で書ける/書けないが判明。F-2 lineage が ExtensionStep でも書けるか、TransactionScopeStep の rollback 表現が十分か等を確認できた。",
+        "date": "2026-04-28"
+      }
+    ]
+  }
+}
