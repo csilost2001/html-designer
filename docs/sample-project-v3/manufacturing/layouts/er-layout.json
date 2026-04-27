@@ -1,0 +1,22 @@
+{
+  "$schema": "../../../../schemas/v3/er-layout.v3.schema.json",
+  "positions": {
+    "38d3788e-092b-4fc4-8b97-ca359981d987": { "x": 0, "y": 0 },
+    "67ec6e96-74fe-4c75-889f-ddb0bbbc577f": { "x": 400, "y": 200 },
+    "81f7dcd2-11ac-4929-8f82-a2f1ad809e68": { "x": 0, "y": 400 },
+    "b85f3668-a0f8-4a84-ae99-7424ffd7ef85": { "x": 800, "y": 0 },
+    "eb2b1bf1-270c-439c-b506-21e8b858983b": { "x": 400, "y": 600 }
+  },
+  "logicalRelations": [
+    {
+      "id": "lr-bom-self",
+      "sourceTableId": "67ec6e96-74fe-4c75-889f-ddb0bbbc577f",
+      "sourceColumnId": "col-bm02",
+      "targetTableId": "38d3788e-092b-4fc4-8b97-ca359981d987",
+      "targetColumnId": "col-it01",
+      "cardinality": "many-to-many",
+      "label": "BOM は items を多対多で参照 (parent + child)"
+    }
+  ],
+  "updatedAt": "2026-04-28T00:00:00.000Z"
+}

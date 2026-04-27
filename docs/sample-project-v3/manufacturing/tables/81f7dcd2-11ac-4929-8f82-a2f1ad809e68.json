@@ -1,0 +1,82 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "81f7dcd2-11ac-4929-8f82-a2f1ad809e68",
+  "name": "製造指示",
+  "description": "製造現場への作業指示書 1 件。order_number は production_order_seq シーケンスで採番 (Sequence 連動)。BOM 展開結果の所要部品リストは production_order_components (本サンプル省略) で保持想定。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "production_orders",
+  "category": "トランザクション",
+  "comment": "製造指示。order_number は DB Sequence で採番 (DefaultDefinition.kind='sequence' 使用)。",
+  "columns": [
+    { "id": "col-po01", "no": 1, "physicalName": "id", "name": "指示ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-po02", "no": 2, "physicalName": "order_number", "name": "指示番号", "dataType": "VARCHAR", "length": 20, "notNull": true, "unique": true, "comment": "production_order_seq シーケンスで採番。例: PO-20260428-000001" },
+    { "id": "col-po03", "no": 3, "physicalName": "product_item_id", "name": "製品ID", "dataType": "BIGINT", "notNull": true, "comment": "items.id (kind='product') への FK。" },
+    { "id": "col-po04", "no": 4, "physicalName": "planned_quantity", "name": "計画数量", "dataType": "DECIMAL", "length": 10, "scale": 4, "notNull": true },
+    { "id": "col-po05", "no": 5, "physicalName": "completed_quantity", "name": "完成数量", "dataType": "DECIMAL", "length": 10, "scale": 4, "notNull": true, "defaultValue": "0" },
+    { "id": "col-po06", "no": 6, "physicalName": "status", "name": "ステータス", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "draft / scheduled / in_progress / completed / cancelled。" },
+    { "id": "col-po07", "no": 7, "physicalName": "scheduled_start_at", "name": "計画開始日時", "dataType": "TIMESTAMP", "notNull": true },
+    { "id": "col-po08", "no": 8, "physicalName": "scheduled_end_at", "name": "計画完了日時", "dataType": "TIMESTAMP", "notNull": true },
+    { "id": "col-po09", "no": 9, "physicalName": "actual_start_at", "name": "実績開始日時", "dataType": "TIMESTAMP" },
+    { "id": "col-po10", "no": 10, "physicalName": "actual_end_at", "name": "実績完了日時", "dataType": "TIMESTAMP" },
+    { "id": "col-po11", "no": 11, "physicalName": "created_by_user_id", "name": "作成者ID", "dataType": "VARCHAR", "length": 50, "notNull": true },
+    { "id": "col-po12", "no": 12, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-po13", "no": 13, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-po01", "physicalName": "idx_production_orders_order_number", "columns": [{ "columnId": "col-po02" }], "unique": true },
+    { "id": "idx-po02", "physicalName": "idx_production_orders_status_scheduled", "columns": [{ "columnId": "col-po06" }, { "columnId": "col-po07", "order": "asc" }] }
+  ],
+  "constraints": [
+    {
+      "id": "fk-po01",
+      "kind": "foreignKey",
+      "physicalName": "fk_production_orders_product_item",
+      "columnIds": ["col-po03"],
+      "referencedTableId": "38d3788e-092b-4fc4-8b97-ca359981d987",
+      "referencedColumnIds": ["col-it01"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade"
+    },
+    {
+      "id": "chk-po01",
+      "kind": "check",
+      "physicalName": "chk_production_orders_status_enum",
+      "expression": "status IN ('draft', 'scheduled', 'in_progress', 'completed', 'cancelled')"
+    },
+    {
+      "id": "chk-po02",
+      "kind": "check",
+      "physicalName": "chk_production_orders_quantity_consistency",
+      "expression": "planned_quantity > 0 AND completed_quantity >= 0 AND completed_quantity <= planned_quantity"
+    },
+    {
+      "id": "chk-po03",
+      "kind": "check",
+      "physicalName": "chk_production_orders_schedule_consistency",
+      "expression": "scheduled_end_at >= scheduled_start_at"
+    }
+  ],
+  "defaults": [
+    {
+      "columnId": "col-po02",
+      "kind": "sequence",
+      "value": "production_order_seq",
+      "description": "DB Sequence (28e5b81c-...json) で自動採番。"
+    },
+    {
+      "columnId": "col-po05",
+      "kind": "literal",
+      "value": "0",
+      "description": "完成数量の初期値は 0。"
+    },
+    {
+      "columnId": "col-po06",
+      "kind": "literal",
+      "value": "'draft'",
+      "description": "新規作成時のステータスは draft。"
+    }
+  ]
+}

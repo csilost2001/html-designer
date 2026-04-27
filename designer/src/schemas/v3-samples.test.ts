@@ -18,6 +18,9 @@ let validateScreen: ValidateFunction;
 let validateTable: ValidateFunction;
 let validateProcessFlow: ValidateFunction;
 let validateExtension: ValidateFunction;
+let validateSequence: ValidateFunction;
+let validateScreenLayout: ValidateFunction;
+let validateErLayout: ValidateFunction;
 
 beforeAll(() => {
   ajv = new Ajv2020({ allErrors: true, strict: false, discriminator: true });
@@ -29,6 +32,9 @@ beforeAll(() => {
   validateTable = ajv.compile(loadJson(join(v3Dir, "table.v3.schema.json")) as object);
   validateProcessFlow = ajv.compile(loadJson(join(v3Dir, "process-flow.v3.schema.json")) as object);
   validateExtension = ajv.compile(loadJson(join(v3Dir, "extensions.v3.schema.json")) as object);
+  validateSequence = ajv.compile(loadJson(join(v3Dir, "sequence.v3.schema.json")) as object);
+  validateScreenLayout = ajv.compile(loadJson(join(v3Dir, "screen-layout.v3.schema.json")) as object);
+  validateErLayout = ajv.compile(loadJson(join(v3Dir, "er-layout.v3.schema.json")) as object);
 });
 
 function dumpErrors(file: string, validate: ValidateFunction): string {
@@ -46,10 +52,11 @@ function listJsonRecursive(dir: string): string[] {
 }
 
 describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
-  it("project.json (retail + finance) validates against project.v3.schema.json", () => {
+  it("project.json (retail + finance + manufacturing) validates against project.v3.schema.json", () => {
     const files = [
       join(samplesV3Dir, "project.json"),
       join(samplesV3Dir, "finance", "project.json"),
+      join(samplesV3Dir, "manufacturing", "project.json"),
     ];
     for (const file of files) {
       const data = loadJson(file);
@@ -59,10 +66,10 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
   });
 
   it("table samples validate against table.v3.schema.json", () => {
-    // retail (top-level tables/) + finance (finance/tables/) を網羅
     const files = [
       ...listJsonRecursive(join(samplesV3Dir, "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "tables")),
+      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "tables")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -76,6 +83,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
     const files = [
       ...listJsonRecursive(join(samplesV3Dir, "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "screens")),
+      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "screens")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -89,6 +97,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
     const files = [
       ...listJsonRecursive(join(samplesV3Dir, "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "process-flows")),
+      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "process-flows")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -98,10 +107,36 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
     }
   });
 
+  it("screen-layout sample validates against screen-layout.v3.schema.json (#529 R3)", () => {
+    const file = join(samplesV3Dir, "manufacturing", "layouts", "screen-layout.json");
+    const data = loadJson(file);
+    const ok = validateScreenLayout(data);
+    expect(ok, ok ? "" : dumpErrors(file, validateScreenLayout)).toBe(true);
+  });
+
+  it("er-layout sample validates against er-layout.v3.schema.json (#529 R3)", () => {
+    const file = join(samplesV3Dir, "manufacturing", "layouts", "er-layout.json");
+    const data = loadJson(file);
+    const ok = validateErLayout(data);
+    expect(ok, ok ? "" : dumpErrors(file, validateErLayout)).toBe(true);
+  });
+
+  it("sequence samples validate against sequence.v3.schema.json", () => {
+    const dir = join(samplesV3Dir, "manufacturing", "sequences");
+    const files = listJsonRecursive(dir);
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const data = loadJson(file);
+      const ok = validateSequence(data);
+      expect(ok, ok ? "" : dumpErrors(file, validateSequence)).toBe(true);
+    }
+  });
+
   it("extension samples validate against extensions.v3.schema.json", () => {
     const files = [
       ...listJsonRecursive(join(samplesV3Dir, "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "extensions")),
+      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "extensions")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
