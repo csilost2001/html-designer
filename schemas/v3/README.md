@@ -15,7 +15,7 @@ v1 (機械変換前) / v2 (機械変換版) を base にせず、業務概念か
 
 | ファイル | 役割 |
 |---|---|
-| `common.v3.schema.json` | 全 schema が `$ref` で参照する共通 `$defs`。Uuid / LocalId / Identifier / PhysicalName / EnvVarKey / ErrorCode / EventTopic / Timestamp / SemVer / SemVerRange / Description / DisplayName / Maturity / Mode / ExpressionString / Namespace / EntityMeta / Authoring / Marker / MarkerShape / DecisionRecord / GlossaryEntry / Note / FieldType / StructuredField / 各種 Ref (ScreenRef / TableRef / ProcessFlowRef / ViewRef / SequenceRef / ScreenItemRef / TableColumnRef / ViewColumnRef / SequenceColumnRef / ActionRef / StepRef / ResponseRef) / ExtensionApplied / ExtensionRoot / TestScenario / TestPrecondition / TestInvocation / TestAssertion を集約 |
+| `common.v3.schema.json` | 全 schema が `$ref` で参照する共通 `$defs`。Uuid / UuidLoose / LocalId / Identifier / PhysicalName / EnvVarKey / ErrorCode / EventTopic / Timestamp / SemVer / SemVerRange / Description / DisplayName / Maturity / Mode / ExpressionString / Namespace / EntityMeta / Authoring / Marker / MarkerShape / DecisionRecord / GlossaryEntry / Note / FieldType / StructuredField / 複合参照型 (ScreenItemRef / TableColumnRef / ViewColumnRef / ActionRef / StepRef / ResponseRef) / ExtensionApplied / ExtensionRoot / TestScenario / TestPrecondition / TestInvocation / TestAssertion を集約。Pattern A (top-level entity 単独参照) は素 Uuid を直接 `$ref` する方針のため named Ref 型 (旧 ScreenRef / TableRef 等) は設けない |
 
 ### プロジェクト・entity 定義
 
@@ -123,7 +123,7 @@ Step.kind / FieldType.kind / Constraint.kind / BranchCondition.kind / ValueSourc
 | ベンダ慣習 (DB ツール) | lowercase | SqlDialect / IndexMethod |
 | Workflow / BPM 業界 | kebab-case | WorkflowPattern |
 | ER モデリング | kebab-case | ErCardinality |
-| **その他 (新規 enum / discriminator / valueSource.kind 等)** | **lowerCamelCase** | StepKind / Constraint.kind / WorkflowQuorum.type / ValidationRuleKind |
+| **その他 (新規 enum / discriminator / valueSource.kind 等)** | **lowerCamelCase** | StepKind / Constraint.kind / WorkflowQuorum.type / ValidationRule.severity |
 
 ### 11. 業務識別子規範 (3 種)
 
@@ -153,7 +153,7 @@ Step.kind / FieldType.kind / Constraint.kind / BranchCondition.kind / ValueSourc
 | 10 個の extensions schema | extensions.v3.schema.json 1 ファイル統合 |
 | ScreenNode の position / size / thumbnail (UI 座標) | screen-layout.v3.schema.json に分離 |
 | `FkAction` の `NO ACTION` (スペース含み) | `noAction` (lowerCamelCase) |
-| `ValidationRuleKind` の PascalCase (`Error` 等) | lowerCamelCase (`error` 等) |
+| `ValidationRuleKind` (`Error` / `Msg` 等 PascalCase) | `ValidationRule.severity` (`error` / `msg` 等 lowerCamelCase、`kind` 多義性回避のためフィールド名も rename) |
 | `WorkflowQuorum.type` の `n-of-m` | `nOfM` |
 | `CustomBlock.id` の timestamp 形式 | Uuid 強制 |
 | `StepBaseProps` の二重列挙 | `unevaluatedProperties: false` で構造的解消 |
