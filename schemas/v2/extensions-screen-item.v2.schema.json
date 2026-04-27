@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/extensions-screen-item.v2.schema.json",
+  "title": "画面項目拡張定義 v2",
+  "description": "業界・業態別の画面項目拡張。拡張フィールド型と拡張バリューソース種別を namespace 単位で定義する。screen-item.v2.schema.json の FieldType / ValueSource を業界固有の型で補完する。",
+  "allOf": [
+    { "$ref": "common.v2.schema.json#/$defs/ExtensionRootProps" },
+    {
+      "type": "object",
+      "properties": {
+        "fieldTypes": {
+          "type": "array",
+          "description": "業界固有の拡張フィールド型。screen-item.v2.schema.json の FieldType (custom variant) の kind に対応する識別子を定義する。例: retail namespace で cartId, productCode を追加する場合。",
+          "items": { "$ref": "#/$defs/CustomFieldType" }
+        },
+        "valueSourceKinds": {
+          "type": "array",
+          "description": "業界固有の拡張バリューソース種別。screen-item.v2.schema.json の ValueSource discriminated union に業界固有のバインド元を追加する。",
+          "items": { "$ref": "#/$defs/CustomValueSourceKind" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "CustomFieldType": {
+      "description": "拡張フィールド型の 1 定義。kind で識別し、業界固有のフォームフィールド型として screen-item の FieldType custom variant に対応する。",
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "common.v2.schema.json#/$defs/BusinessIdentifier",
+          "description": "フィールド型の識別子 (lowerCamelCase)。screen-item.v2.schema.json の FieldType custom.kind として参照される。例: 'cartId', 'productCode', 'janCode'。"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI 表示ラベル (日本語可)。例: 'カート ID', '商品コード', 'JAN コード'。"
+        },
+        "baseType": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "date", "object", "array"],
+          "description": "基底型。バリデーション・型変換の基準となる型。省略時は 'string' 扱い。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description"
+        }
+      }
+    },
+    "CustomValueSourceKind": {
+      "description": "拡張バリューソース種別の 1 定義。業界固有のデータバインド元 (外部サービス API / キャッシュストア / POS データ等) を screen-item の valueFrom として参照できるよう宣言する。",
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "common.v2.schema.json#/$defs/BusinessIdentifier",
+          "description": "バリューソース種別の識別子 (lowerCamelCase)。screen-item.v2.schema.json の ValueSource discriminated union の kind として参照される。例: 'posData', 'inventoryApi', 'loyaltyPoints'。"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI 表示ラベル (日本語可)。例: 'POS データ', '在庫 API', 'ポイント残高'。"
+        },
+        "schema": {
+          "type": "object",
+          "description": "このバリューソース種別が持つ追加プロパティの JSON Schema (動的フォーム生成用サブセット)。省略可。",
+          "additionalProperties": true
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description"
+        }
+      }
+    }
+  }
+}
