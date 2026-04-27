@@ -1,0 +1,1439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/process-flow.v3.schema.json",
+  "title": "ProcessFlow (v3 処理フロー定義)",
+  "description": "業務処理フロー entity 1 件分の正規定義。data/process-flows/<id>.json に対応。root を 4 セクション (meta / context / body / authoring) に再編し、catalog 群を context.catalogs.<kind> に階層化することで意味付けと拡張性を確保する。",
+  "type": "object",
+  "required": ["meta", "body"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+
+    "meta": { "$ref": "#/$defs/Meta" },
+    "context": { "$ref": "#/$defs/Context" },
+    "body": { "$ref": "#/$defs/Body" },
+    "authoring": {
+      "allOf": [{ "$ref": "common.v3.schema.json#/$defs/Authoring" }],
+      "type": "object",
+      "properties": {
+        "markers": true, "decisions": true, "glossary": true, "notes": true,
+        "testScenarios": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestScenario" }
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  },
+
+  "$defs": {
+
+    "Meta": {
+      "description": "ProcessFlow の identity と運用設定。",
+      "allOf": [{ "$ref": "common.v3.schema.json#/$defs/EntityMeta" }],
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "id": true, "name": true, "description": true, "version": true,
+        "maturity": true, "createdAt": true, "updatedAt": true,
+        "kind": { "$ref": "#/$defs/ProcessFlowKind" },
+        "screenId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "kind='screen' の場合に紐付く Screen の Uuid。" },
+        "apiVersion": { "type": "string", "description": "ProcessFlow が公開する API のバージョン (例: 'v1', '2026-04-25')。" },
+        "mode": { "$ref": "common.v3.schema.json#/$defs/Mode" },
+        "sla": { "$ref": "#/$defs/Sla" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ProcessFlowKind": {
+      "description": "ProcessFlow の種別。プリミティブ + 拡張参照。",
+      "oneOf": [
+        { "type": "string", "enum": ["screen", "batch", "scheduled", "system", "common", "other"] },
+        { "type": "string", "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$", "description": "拡張 ProcessFlowKind 参照 (namespace:kindName)。" }
+      ]
+    },
+
+    "Sla": {
+      "description": "SLA / Timeout 設定。ProcessFlow / Action / Step の 3 レベルで使用可。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeoutMs": { "type": "number", "minimum": 0 },
+        "onTimeout": { "type": "string", "enum": ["throw", "continue", "compensate", "log"] },
+        "errorCode": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" },
+        "warningThresholdMs": { "type": "number", "minimum": 0 },
+        "p95LatencyMs": { "type": "number", "minimum": 0 }
+      },
+      "if": {
+        "properties": { "onTimeout": { "enum": ["throw", "compensate"] } },
+        "required": ["onTimeout"]
+      },
+      "then": { "required": ["errorCode"] }
+    },
+
+    "Context": {
+      "description": "実行に必要な参照情報 (catalog 群 / ambient / 健全性 / リソース)。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "catalogs": { "$ref": "#/$defs/Catalogs" },
+        "ambientVariables": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/StructuredField" },
+          "description": "ミドルウェア由来の自動注入変数 (@requestId / @traceId / @fieldErrors 等)。"
+        },
+        "ambientOverrides": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "規約カタログ defaults の本フロー固有 override。キー: カテゴリ名または 'カテゴリ.キー'。"
+        },
+        "health": { "$ref": "#/$defs/HealthCheckGroup" },
+        "readiness": { "$ref": "#/$defs/ReadinessCheckGroup" },
+        "resources": { "$ref": "#/$defs/ResourceRequirements" }
+      }
+    },
+
+    "Catalogs": {
+      "description": "ProcessFlow 内 catalog 群を階層化集約。新 catalog 追加時に root を肥大化させない。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "errors": {
+          "type": "object",
+          "description": "エラーコード catalog。キー: ErrorCode (UPPER_SNAKE)。affectedRowsCheck.errorCode / Branch.condition.errorCode から参照。",
+          "additionalProperties": { "$ref": "#/$defs/ErrorCatalogEntry" }
+        },
+        "externalSystems": {
+          "type": "object",
+          "description": "外部システム catalog。キー: systemId (lowercase)。ExternalSystemStep.systemRef から参照。",
+          "additionalProperties": { "$ref": "#/$defs/ExternalSystemCatalogEntry" }
+        },
+        "secrets": {
+          "type": "object",
+          "description": "Secrets catalog。キー: secretKey (camelCase)。@secret.<key> で参照。",
+          "additionalProperties": { "$ref": "#/$defs/SecretEntry" }
+        },
+        "envVars": {
+          "type": "object",
+          "description": "環境変数 catalog。キー: EnvVarKey (UPPER_SNAKE)。@env.<KEY> で参照。",
+          "additionalProperties": { "$ref": "#/$defs/EnvVarEntry" }
+        },
+        "domains": {
+          "type": "object",
+          "description": "ドメイン型 catalog。キー: ドメイン名 (PascalCase)。FieldType.kind='domain' から参照。",
+          "additionalProperties": { "$ref": "#/$defs/DomainEntry" }
+        },
+        "functions": {
+          "type": "object",
+          "description": "組み込み関数 catalog。キー: 関数名 (camelCase)。@fn.<name>(...) で参照。",
+          "additionalProperties": { "$ref": "#/$defs/FunctionEntry" }
+        },
+        "events": {
+          "type": "object",
+          "description": "イベント pub/sub catalog。キー: EventTopic (dot.lowercase)。EventPublishStep / EventSubscribeStep の eventRef から参照。",
+          "additionalProperties": { "$ref": "#/$defs/EventEntry" }
+        }
+      }
+    },
+
+    "ErrorCatalogEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "defaultMessage": { "type": "string" },
+        "responseId": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Action.responses[].id 参照。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "ExternalSystemCatalogEntry": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "baseUrl": { "type": "string" },
+        "openApiSpec": { "type": "string", "description": "OpenAPI spec への URL または相対パス。" },
+        "auth": { "$ref": "#/$defs/ExternalAuth" },
+        "timeoutMs": { "type": "integer", "minimum": 0 },
+        "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "SecretEntry": {
+      "type": "object",
+      "required": ["source", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "enum": ["env", "vault", "file"] },
+        "name": { "type": "string", "description": "source ごとの参照名 (env=環境変数名 / vault=path / file=パス)。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "rotationDays": { "type": "integer", "minimum": 1 },
+        "lastRotatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" },
+        "values": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "環境別の参照式 (vault://... / env://... / k8s-secret://... / file://...)。実値は含まない。"
+        }
+      }
+    },
+
+    "EnvVarEntry": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["string", "number", "boolean"] },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "values": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "環境別の値 (キー: dev/staging/prod 等)。"
+        },
+        "default": { "description": "values で当該環境キーが未指定時の既定値。" }
+      }
+    },
+
+    "DomainEntry": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "common.v3.schema.json#/$defs/FieldType" },
+        "constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ValidationRule" }
+        },
+        "uiHint": { "type": "string", "description": "UI 表示ヒント (例: 'email', 'tel', 'textarea')。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "FunctionEntry": {
+      "type": "object",
+      "required": ["signature", "returnType", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "signature": { "type": "string", "description": "関数シグネチャ (例: 'formatCurrency(amount: number, currency: string): string')。" },
+        "returnType": { "type": "string" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "EventEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "payload": {
+          "type": "object",
+          "description": "ペイロードの JSON Schema (draft 2020-12)。",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "Body": {
+      "description": "実行ロジック本体。ActionDefinition の配列。",
+      "type": "object",
+      "required": ["actions"],
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ActionDefinition" }
+        }
+      }
+    },
+
+    "ActionDefinition": {
+      "type": "object",
+      "required": ["id", "name", "trigger", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Action ID (例: 'act-001')。" },
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "trigger": { "$ref": "#/$defs/ActionTrigger" },
+        "elementRef": { "type": "string", "description": "GrapesJS の DOM 要素 ID (画面側からの紐付け用)。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/StructuredField" }
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/StructuredField" }
+        },
+        "maturity": { "$ref": "common.v3.schema.json#/$defs/Maturity" },
+        "sla": { "$ref": "#/$defs/Sla" },
+        "requiredPermissions": {
+          "type": "array",
+          "items": { "type": "string", "description": "@conv.permission.<key> または permission キー名。" }
+        },
+        "httpRoute": { "$ref": "#/$defs/HttpRoute" },
+        "responses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/HttpResponseSpec" }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Step" }
+        }
+      }
+    },
+
+    "ActionTrigger": {
+      "oneOf": [
+        { "type": "string", "enum": ["click", "submit", "select", "change", "load", "timer", "auto", "other"] },
+        { "type": "string", "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$" }
+      ]
+    },
+
+    "HttpRoute": {
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+        "path": { "type": "string", "description": "URL パターン。例: '/api/orders', '/api/orders/:id'" },
+        "auth": { "type": "string", "enum": ["required", "optional", "none"] }
+      }
+    },
+
+    "HttpResponseSpec": {
+      "type": "object",
+      "required": ["id", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Response ID (例: '201-created', '400-validation')。Step.responseId / errorCatalog.responseId から参照。" },
+        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "contentType": { "type": "string" },
+        "bodySchema": { "$ref": "#/$defs/BodySchema" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "when": { "type": "string", "description": "発生条件 (人間向け説明)。" }
+      }
+    },
+
+    "BodySchema": {
+      "description": "Response body の schema。typeRef (拡張 responseTypes 参照) または inline schema の oneOf。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["typeRef"],
+          "additionalProperties": false,
+          "properties": {
+            "typeRef": { "type": "string", "description": "namespace:typeName または typeName 形式。extensions.v3.responseTypes から解決される。" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["schema"],
+          "additionalProperties": false,
+          "properties": {
+            "schema": { "type": "object", "additionalProperties": true, "description": "インライン JSON Schema。" }
+          }
+        }
+      ]
+    },
+
+    "StepBaseProps": {
+      "description": "全 Step variant 共通のプロパティ集合。各 variant は本定義を allOf でマージし、固有プロパティを追加 + unevaluatedProperties: false で閉じる。",
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/Note" }
+        },
+        "maturity": { "$ref": "common.v3.schema.json#/$defs/Maturity" },
+        "sla": { "$ref": "#/$defs/Sla" },
+        "runIf": { "$ref": "common.v3.schema.json#/$defs/ExpressionString", "description": "実行条件式。false なら本 step を skip。" },
+        "requiredPermissions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "outputBinding": { "$ref": "#/$defs/OutputBinding" },
+        "txBoundary": { "$ref": "#/$defs/TxBoundary" },
+        "transactional": { "type": "boolean", "description": "簡易 TX マーク (txBoundary 不要時の boolean 短縮)。" },
+        "compensatesFor": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Saga 補償対象の Step.id 参照。" },
+        "externalChain": { "$ref": "#/$defs/ExternalChain" }
+      }
+    },
+
+    "OutputBinding": {
+      "description": "Step 結果の outputBinding (構造化のみ、v3 で string 短縮形は廃止)。",
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "結果変数名 (camelCase)。" },
+        "operation": {
+          "type": "string",
+          "enum": ["assign", "accumulate", "push"],
+          "description": "代入方式。assign=上書き / accumulate=数値加算 / push=配列追加。既定: assign。"
+        },
+        "initialValue": {
+          "description": "accumulate / push 時の初期値。JSON 値 (例: 0, []) または式文字列。"
+        }
+      }
+    },
+
+    "TxBoundary": {
+      "type": "object",
+      "required": ["role", "txId"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "enum": ["begin", "member", "end"] },
+        "txId": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+      }
+    },
+
+    "ExternalChain": {
+      "type": "object",
+      "required": ["chainId", "phase"],
+      "additionalProperties": false,
+      "properties": {
+        "chainId": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "phase": { "type": "string", "enum": ["authorize", "capture", "cancel", "other"] }
+      }
+    },
+
+    "RetryPolicy": {
+      "type": "object",
+      "required": ["maxAttempts"],
+      "additionalProperties": false,
+      "properties": {
+        "maxAttempts": { "type": "integer", "minimum": 1 },
+        "backoff": { "type": "string", "enum": ["fixed", "exponential"] },
+        "initialDelayMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "ExternalAuth": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["bearer", "basic", "apiKey", "oauth2", "none"] },
+        "tokenRef": { "type": "string", "description": "@secret.<key> 推奨 (旧 ENV: / SECRET: 形式は v3 廃止)。" },
+        "headerName": { "type": "string" }
+      }
+    },
+
+    "Step": {
+      "description": "Step union。kind プロパティで variant を識別。22 種の組み込み variant + 拡張 (ExtensionStep)。",
+      "oneOf": [
+        { "$ref": "#/$defs/ValidationStep" },
+        { "$ref": "#/$defs/DbAccessStep" },
+        { "$ref": "#/$defs/ExternalSystemStep" },
+        { "$ref": "#/$defs/CommonProcessStep" },
+        { "$ref": "#/$defs/ScreenTransitionStep" },
+        { "$ref": "#/$defs/DisplayUpdateStep" },
+        { "$ref": "#/$defs/BranchStep" },
+        { "$ref": "#/$defs/LoopStep" },
+        { "$ref": "#/$defs/LoopBreakStep" },
+        { "$ref": "#/$defs/LoopContinueStep" },
+        { "$ref": "#/$defs/JumpStep" },
+        { "$ref": "#/$defs/ComputeStep" },
+        { "$ref": "#/$defs/ReturnStep" },
+        { "$ref": "#/$defs/LogStep" },
+        { "$ref": "#/$defs/AuditStep" },
+        { "$ref": "#/$defs/WorkflowStep" },
+        { "$ref": "#/$defs/TransactionScopeStep" },
+        { "$ref": "#/$defs/EventPublishStep" },
+        { "$ref": "#/$defs/EventSubscribeStep" },
+        { "$ref": "#/$defs/ClosingStep" },
+        { "$ref": "#/$defs/CdcStep" },
+        { "$ref": "#/$defs/ExtensionStep" }
+      ]
+    },
+
+    "NonReturnStep": {
+      "description": "Return を除く Step subset。ExternalCallOutcomeSpec.sideEffects 等で使用。",
+      "oneOf": [
+        { "$ref": "#/$defs/ValidationStep" },
+        { "$ref": "#/$defs/DbAccessStep" },
+        { "$ref": "#/$defs/ExternalSystemStep" },
+        { "$ref": "#/$defs/CommonProcessStep" },
+        { "$ref": "#/$defs/ScreenTransitionStep" },
+        { "$ref": "#/$defs/DisplayUpdateStep" },
+        { "$ref": "#/$defs/BranchStep" },
+        { "$ref": "#/$defs/LoopStep" },
+        { "$ref": "#/$defs/LoopBreakStep" },
+        { "$ref": "#/$defs/LoopContinueStep" },
+        { "$ref": "#/$defs/JumpStep" },
+        { "$ref": "#/$defs/ComputeStep" },
+        { "$ref": "#/$defs/LogStep" },
+        { "$ref": "#/$defs/AuditStep" },
+        { "$ref": "#/$defs/WorkflowStep" },
+        { "$ref": "#/$defs/TransactionScopeStep" },
+        { "$ref": "#/$defs/EventPublishStep" },
+        { "$ref": "#/$defs/EventSubscribeStep" },
+        { "$ref": "#/$defs/ClosingStep" },
+        { "$ref": "#/$defs/CdcStep" },
+        { "$ref": "#/$defs/ExtensionStep" }
+      ]
+    },
+
+    "ValidationStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description"],
+          "properties": {
+            "kind": { "const": "validation" },
+            "conditions": { "type": "string", "description": "人間向けバリデーション概要。" },
+            "rules": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ValidationRule" }
+            },
+            "fieldErrorsVar": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "rules[] 結果格納変数名。既定: 'fieldErrors'。" },
+            "inlineBranch": { "$ref": "#/$defs/ValidationInlineBranch" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ValidationRule": {
+      "type": "object",
+      "required": ["field", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string", "description": "対象フィールドパス (例: 'email', 'items[*].quantity')。" },
+        "type": { "type": "string", "enum": ["required", "regex", "maxLength", "minLength", "range", "enum", "custom"] },
+        "kind": {
+          "type": "string",
+          "enum": ["error", "msg", "noaccept", "default"],
+          "description": "違反時の振る舞い。"
+        },
+        "pattern": { "type": "string" },
+        "patternRef": { "type": "string", "description": "@conv.regex.<key> 参照。" },
+        "length": { "type": "integer", "minimum": 0 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "minRef": { "type": "string", "description": "@conv.limit.<key> 参照 (min の代替)。" },
+        "maxRef": { "type": "string", "description": "@conv.limit.<key> 参照 (max の代替)。" },
+        "values": { "type": "array", "items": { "type": "string" } },
+        "condition": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+        "message": { "type": "string", "description": "違反メッセージ (@conv.msg.<key> 推奨)。" }
+      }
+    },
+
+    "ValidationInlineBranch": {
+      "type": "object",
+      "required": ["ok", "ng"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "type": "array", "items": { "$ref": "#/$defs/Step" }, "description": "OK 時の後続 step 列。" },
+        "ng": { "type": "array", "items": { "$ref": "#/$defs/Step" }, "description": "NG 時の後続 step 列。" },
+        "ngJumpTo": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "ngResponseId": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "NG 時の Response.id 参照。" },
+        "ngBodyExpression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+        "ngEventPublish": {
+          "type": "object",
+          "required": ["topic", "eventRef", "payload"],
+          "additionalProperties": false,
+          "properties": {
+            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+            "eventRef": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+            "payload": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        }
+      }
+    },
+
+    "DbAccessStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "tableId", "operation"],
+          "properties": {
+            "kind": { "const": "dbAccess" },
+            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "対象 Table の Uuid (物理名直書きは v3 廃止)。" },
+            "operation": { "$ref": "#/$defs/DbOperation" },
+            "fields": { "type": "string", "description": "対象フィールド (人間向け簡易表記)。" },
+            "sql": { "type": "string", "description": "完全 SQL 文 (式補間は @<var> / @conv.* / @env.* 等)。" },
+            "bulkValues": { "$ref": "common.v3.schema.json#/$defs/ExpressionString", "description": "一括 INSERT 時に VALUES に展開する配列変数の式。" },
+            "affectedRowsCheck": { "$ref": "#/$defs/AffectedRowsCheck" },
+            "lineage": { "$ref": "#/$defs/DataLineage" },
+            "cache": { "$ref": "#/$defs/CacheHint" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "DbOperation": {
+      "oneOf": [
+        { "type": "string", "enum": ["SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "LOCK"] },
+        { "type": "string", "pattern": "^[a-z][a-z0-9_-]*:[A-Z][A-Z0-9_]*$", "description": "拡張 DbOperation (namespace:UPPER_SNAKE)。" }
+      ]
+    },
+
+    "AffectedRowsCheck": {
+      "type": "object",
+      "required": ["operator", "expected", "onViolation"],
+      "additionalProperties": false,
+      "properties": {
+        "operator": { "type": "string", "enum": [">", ">=", "=", "<", "<="] },
+        "expected": { "type": "integer", "minimum": 0 },
+        "onViolation": { "type": "string", "enum": ["throw", "abort", "log", "continue"] },
+        "errorCode": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "DataLineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reads": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+          "description": "読み取り対象 Table.id 一覧。"
+        },
+        "writes": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+          "description": "書き込み対象 Table.id 一覧。"
+        }
+      }
+    },
+
+    "CacheHint": {
+      "type": "object",
+      "required": ["ttlSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "ttlSeconds": { "type": "number", "minimum": 0 },
+        "key": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+        "invalidateOn": {
+          "type": "array",
+          "items": { "$ref": "common.v3.schema.json#/$defs/EventTopic" }
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "ExternalSystemStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "systemRef"],
+          "properties": {
+            "kind": { "const": "externalSystem" },
+            "systemRef": { "type": "string", "description": "ProcessFlow.context.catalogs.externalSystems のキー参照。" },
+            "httpCall": { "$ref": "#/$defs/ExternalHttpCall" },
+            "operationRef": { "type": "string", "description": "OpenAPI operation 参照 (例: '/v1/payment_intents POST')。" },
+            "operationId": { "type": "string" },
+            "requestBodyRef": { "type": "string", "description": "OpenAPI request body schema への JSON Pointer。" },
+            "responseRef": { "type": "string" },
+            "outcomes": { "$ref": "#/$defs/ExternalCallOutcomes" },
+            "timeoutMs": { "type": "integer", "minimum": 0 },
+            "retryPolicy": { "$ref": "#/$defs/RetryPolicy" },
+            "circuitBreaker": { "$ref": "#/$defs/CircuitBreakerConfig" },
+            "bulkhead": { "$ref": "#/$defs/BulkheadConfig" },
+            "fireAndForget": { "type": "boolean" },
+            "auth": { "$ref": "#/$defs/ExternalAuth" },
+            "idempotencyKey": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+            "headers": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "apiVersion": { "type": "string" },
+            "cache": { "$ref": "#/$defs/CacheHint" },
+            "successCriteria": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Criterion" }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ExternalHttpCall": {
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+        "path": { "type": "string" },
+        "query": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "body": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+      }
+    },
+
+    "ExternalCallOutcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "success": { "$ref": "#/$defs/ExternalCallOutcomeSpec" },
+        "failure": { "$ref": "#/$defs/ExternalCallOutcomeSpec" },
+        "timeout": { "$ref": "#/$defs/ExternalCallOutcomeSpec" }
+      }
+    },
+
+    "ExternalCallOutcomeSpec": {
+      "type": "object",
+      "required": ["action"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "type": "string", "enum": ["continue", "abort", "compensate"] },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "jumpTo": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "sideEffects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/NonReturnStep" }
+        },
+        "sameAs": { "type": "string", "enum": ["success", "failure", "timeout"] }
+      }
+    },
+
+    "Criterion": {
+      "description": "Arazzo 互換の成功判定条件。",
+      "type": "object",
+      "required": ["type", "expression"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["simple", "regex", "jsonpath", "xpath"] },
+        "expression": { "type": "string", "description": "Arazzo Runtime Expression ($ 記法) 推奨。" },
+        "context": { "type": "string" }
+      }
+    },
+
+    "CircuitBreakerConfig": {
+      "type": "object",
+      "required": ["failureThreshold", "timeout"],
+      "additionalProperties": false,
+      "properties": {
+        "failureThreshold": { "type": "number", "minimum": 0 },
+        "timeout": { "type": "number", "minimum": 0 },
+        "halfOpenMaxCalls": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "BulkheadConfig": {
+      "type": "object",
+      "required": ["maxConcurrent"],
+      "additionalProperties": false,
+      "properties": {
+        "maxConcurrent": { "type": "number", "minimum": 0 },
+        "maxWait": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "CommonProcessStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "refId"],
+          "properties": {
+            "kind": { "const": "commonProcess" },
+            "refId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "呼び出し先 ProcessFlow の Uuid (kind='common' の他フロー)。" },
+            "argumentMapping": {
+              "type": "object",
+              "additionalProperties": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+              "description": "呼び先 inputs 名 → 引数式の対応。"
+            },
+            "returnMapping": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "呼び先 outputs 名 → 説明 / バインド先の対応。"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ScreenTransitionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "targetScreenId"],
+          "properties": {
+            "kind": { "const": "screenTransition" },
+            "targetScreenId": { "$ref": "common.v3.schema.json#/$defs/Uuid" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "DisplayUpdateStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "target"],
+          "properties": {
+            "kind": { "const": "displayUpdate" },
+            "target": { "type": "string", "description": "更新対象 (式 / DOM / variable)。" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "BranchStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "branches"],
+          "properties": {
+            "kind": { "const": "branch" },
+            "branches": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/Branch" }
+            },
+            "elseBranch": { "$ref": "#/$defs/ElseBranch" },
+            "tryScope": {
+              "type": "array",
+              "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+              "description": "tryCatch 分岐の try 範囲となる Step.id 列。"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "Branch": {
+      "type": "object",
+      "required": ["id", "code", "condition", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "code": { "type": "string", "description": "1 文字大文字 (A/B/C...)。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "condition": { "$ref": "#/$defs/BranchCondition" },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } }
+      }
+    },
+
+    "ElseBranch": {
+      "type": "object",
+      "required": ["id", "code", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "code": { "type": "string" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } }
+      }
+    },
+
+    "BranchCondition": {
+      "description": "分岐条件。kind による discriminated union (式 / tryCatch / affectedRowsZero / externalOutcome)。string 短縮形は v3 廃止。",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "expression"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "expression" },
+            "expression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "errorCode"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tryCatch" },
+            "errorCode": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" },
+            "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "affectedRowsZero" },
+            "stepId": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+            "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "outcome"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalOutcome" },
+            "stepId": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+            "outcome": { "type": "string", "enum": ["success", "failure", "timeout"] },
+            "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+          }
+        }
+      ]
+    },
+
+    "LoopStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "loopKind", "steps"],
+          "properties": {
+            "kind": { "const": "loop" },
+            "loopKind": { "type": "string", "enum": ["count", "condition", "collection"] },
+            "countExpression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+            "conditionMode": { "type": "string", "enum": ["continue", "exit"] },
+            "conditionExpression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+            "collectionSource": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+            "collectionItemName": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+            "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "LoopBreakStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description"],
+          "properties": { "kind": { "const": "loopBreak" } }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "LoopContinueStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description"],
+          "properties": { "kind": { "const": "loopContinue" } }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "JumpStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "jumpTo"],
+          "properties": {
+            "kind": { "const": "jump" },
+            "jumpTo": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ComputeStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "expression"],
+          "properties": {
+            "kind": { "const": "compute" },
+            "expression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ReturnStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description"],
+          "properties": {
+            "kind": { "const": "return" },
+            "responseId": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Action.responses[].id 参照。" },
+            "bodyExpression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "LogStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "level", "message"],
+          "properties": {
+            "kind": { "const": "log" },
+            "level": { "type": "string", "enum": ["trace", "debug", "info", "warn", "error"] },
+            "message": { "type": "string" },
+            "category": { "type": "string" },
+            "structuredData": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "AuditStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "action"],
+          "properties": {
+            "kind": { "const": "audit" },
+            "action": { "type": "string", "description": "監査対象アクション (例: 'order.confirm')。" },
+            "resource": {
+              "type": "object",
+              "required": ["type", "id"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" }
+              }
+            },
+            "result": { "type": "string", "enum": ["success", "failure"] },
+            "reason": { "type": "string" },
+            "sensitive": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "WorkflowStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "pattern", "approvers"],
+          "properties": {
+            "kind": { "const": "workflow" },
+            "pattern": { "$ref": "#/$defs/WorkflowPattern" },
+            "approvers": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/WorkflowApprover" }
+            },
+            "quorum": { "$ref": "#/$defs/WorkflowQuorum" },
+            "onApproved": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+            "onRejected": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+            "onTimeout": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+            "deadlineExpression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+            "escalateAfter": { "type": "string", "description": "ISO 8601 duration またはエスカレーション期間式。" },
+            "escalateTo": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "role": { "type": "string", "description": "@conv.role.<key>" },
+                "userExpression": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "pattern": { "const": "approval-escalation" } }, "required": ["pattern"] },
+          "then": { "required": ["escalateAfter", "escalateTo"] }
+        },
+        {
+          "if": { "properties": { "pattern": { "const": "approval-quorum" } }, "required": ["pattern"] },
+          "then": { "required": ["quorum"] }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "WorkflowPattern": {
+      "type": "string",
+      "enum": [
+        "approval-sequential", "approval-parallel", "approval-veto",
+        "approval-quorum", "approval-escalation", "review", "sign-off",
+        "acknowledge", "branch-merge", "discussion", "ad-hoc"
+      ]
+    },
+
+    "WorkflowApprover": {
+      "type": "object",
+      "required": ["role"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "description": "@conv.role.<key> 参照。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "order": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "WorkflowQuorum": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["all", "any", "majority", "nOfM"] },
+        "n": { "type": "integer", "minimum": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "nOfM" } }, "required": ["type"] },
+          "then": { "required": ["n"] }
+        }
+      ]
+    },
+
+    "TransactionScopeStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "steps"],
+          "properties": {
+            "kind": { "const": "transactionScope" },
+            "isolationLevel": { "type": "string", "enum": ["READ_COMMITTED", "REPEATABLE_READ", "SERIALIZABLE"] },
+            "propagation": { "type": "string", "enum": ["REQUIRED", "REQUIRES_NEW", "NESTED"] },
+            "timeoutMs": { "type": "number", "minimum": 0 },
+            "rollbackOn": {
+              "type": "array",
+              "items": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" }
+            },
+            "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+            "onCommit": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+            "onRollback": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
+            "outcomes": { "$ref": "#/$defs/ExternalCallOutcomes" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "EventPublishStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "topic"],
+          "properties": {
+            "kind": { "const": "eventPublish" },
+            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+            "eventRef": { "$ref": "common.v3.schema.json#/$defs/EventTopic", "description": "context.catalogs.events のキー (= topic 名と一致が原則)。" },
+            "payload": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "EventSubscribeStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "topic"],
+          "properties": {
+            "kind": { "const": "eventSubscribe" },
+            "topic": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+            "eventRef": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+            "filter": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ClosingStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "period"],
+          "properties": {
+            "kind": { "const": "closing" },
+            "period": { "type": "string", "enum": ["daily", "monthly", "quarterly", "yearly", "custom"] },
+            "customCron": { "type": "string" },
+            "cutoffAt": { "type": "string", "description": "締切時刻 (例: '23:59:59')。" },
+            "idempotencyKey": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+            "rollbackOnFailure": { "type": "boolean" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "CdcStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "tableIds", "captureMode", "destination"],
+          "properties": {
+            "kind": { "const": "cdc" },
+            "tableIds": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+              "description": "対象 Table の Uuid 配列。"
+            },
+            "captureMode": { "type": "string", "enum": ["full", "incremental"] },
+            "destination": {
+              "type": "object",
+              "required": ["type"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "type": "string", "enum": ["auditLog", "eventStream", "table"] },
+                "target": { "type": "string" }
+              }
+            },
+            "includeColumnIds": {
+              "type": "array",
+              "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+            },
+            "excludeColumnIds": {
+              "type": "array",
+              "items": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ExtensionStep": {
+      "description": "拡張 Step (extensions.v3.stepKinds で定義)。kind は namespace:StepName 形式。outputSchema は拡張定義側 schema で確認すること。",
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*:[A-Z][A-Za-z0-9]*$",
+              "description": "拡張 step 識別子 (namespace:StepName)。例: 'retail:OrderConfirmStep'"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": true
+    },
+
+    "TestScenario": {
+      "type": "object",
+      "required": ["id", "name", "given", "when", "then"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestPrecondition" }
+        },
+        "when": { "$ref": "#/$defs/TestInvocation" },
+        "then": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TestAssertion" }
+        },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "TestPrecondition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "tableId", "rows"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "dbState" },
+            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+            "rows": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "context"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "sessionContext" },
+            "context": { "type": "object", "additionalProperties": true }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "externalRef", "responseMock"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalStub" },
+            "externalRef": { "type": "string" },
+            "responseMock": true
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "now"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "clock" },
+            "now": { "$ref": "common.v3.schema.json#/$defs/Timestamp" }
+          }
+        }
+      ]
+    },
+
+    "TestInvocation": {
+      "type": "object",
+      "required": ["actionId", "input"],
+      "additionalProperties": false,
+      "properties": {
+        "actionId": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "input": { "type": "object", "additionalProperties": true }
+      }
+    },
+
+    "TestAssertion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "expected"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "outcome" },
+            "expected": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "期待される Response.id。" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "tableId", "match"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "dbRow" },
+            "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+            "match": { "type": "object", "additionalProperties": true },
+            "count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "output" },
+            "path": { "type": "string" },
+            "equals": true,
+            "matches": { "type": "string", "format": "regex" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "externalRef"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "externalCall" },
+            "externalRef": { "type": "string" },
+            "method": { "type": "string" },
+            "bodyMatch": { "type": "object", "additionalProperties": true }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "action"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "auditLog" },
+            "action": { "type": "string" },
+            "result": { "type": "string", "enum": ["success", "failure"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "msgKey"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "errorMessage" },
+            "msgKey": { "type": "string", "description": "@conv.msg.<key>" }
+          }
+        }
+      ]
+    },
+
+    "HealthCheckGroup": {
+      "type": "object",
+      "required": ["checks"],
+      "additionalProperties": false,
+      "properties": {
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/HealthCheck" } }
+      }
+    },
+
+    "ReadinessCheckGroup": {
+      "type": "object",
+      "required": ["checks"],
+      "additionalProperties": false,
+      "properties": {
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/HealthCheck" } },
+        "minimumPassCount": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "HealthCheck": {
+      "type": "object",
+      "required": ["name", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "kind": { "type": "string", "enum": ["db", "http", "custom"] },
+        "target": { "type": "string" },
+        "timeout": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "ResourceRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "$ref": "#/$defs/ResourceQuota" },
+        "memory": { "$ref": "#/$defs/ResourceQuota" },
+        "dbConnections": { "type": "number", "minimum": 0 },
+        "timeout": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "ResourceQuota": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request": { "type": "string" },
+        "limit": { "type": "string" }
+      }
+    }
+  }
+}

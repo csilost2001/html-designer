@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/conventions.v3.schema.json",
+  "title": "Conventions (v3 横断規約カタログ)",
+  "description": "プロジェクト横断の規約カタログ。@conv.<category>.<key> で参照される。data/conventions/catalog.json に対応。標準 14 カテゴリ + 拡張 (extensions.v3 の conventionCategories で追加) を持つ。",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "$ref": "common.v3.schema.json#/$defs/SemVer" },
+    "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+    "updatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" },
+
+    "i18n": { "$ref": "#/$defs/I18nConfig" },
+
+    "msg": {
+      "type": "object",
+      "description": "メッセージテンプレート (@conv.msg.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/MessageTemplate" }
+    },
+    "regex": {
+      "type": "object",
+      "description": "正規表現 (@conv.regex.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/RegexEntry" }
+    },
+    "limit": {
+      "type": "object",
+      "description": "境界値 (@conv.limit.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/LimitEntry" }
+    },
+    "scope": {
+      "type": "object",
+      "description": "業務スコープ (@conv.scope.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/ScopeEntry" }
+    },
+    "currency": {
+      "type": "object",
+      "description": "通貨 (@conv.currency.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/CurrencyEntry" }
+    },
+    "tax": {
+      "type": "object",
+      "description": "税率 (@conv.tax.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/TaxEntry" }
+    },
+    "auth": {
+      "type": "object",
+      "description": "認証 (@conv.auth.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/AuthEntry" }
+    },
+    "role": {
+      "type": "object",
+      "description": "役割 (@conv.role.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/RoleEntry" }
+    },
+    "permission": {
+      "type": "object",
+      "description": "権限 (@conv.permission.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/PermissionEntry" }
+    },
+    "db": {
+      "type": "object",
+      "description": "DB 規約 (@conv.db.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/DbEntry" }
+    },
+    "numbering": {
+      "type": "object",
+      "description": "採番規約 (@conv.numbering.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/NumberingEntry" }
+    },
+    "tx": {
+      "type": "object",
+      "description": "TX 方針 (@conv.tx.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/TxEntry" }
+    },
+    "externalOutcomeDefaults": {
+      "type": "object",
+      "description": "外部連携 outcome 規約 (@conv.externalOutcomeDefaults.<key>)。",
+      "additionalProperties": { "$ref": "#/$defs/ExternalOutcomeEntry" }
+    },
+    "extensionCategories": {
+      "type": "object",
+      "description": "拡張カテゴリ (extensions.v3 の conventionCategories で定義された業界規約)。@conv.<categoryName>.<key> で参照。",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+
+  "$defs": {
+
+    "I18nConfig": {
+      "type": "object",
+      "required": ["supportedLocales", "defaultLocale"],
+      "additionalProperties": false,
+      "properties": {
+        "supportedLocales": {
+          "type": "array",
+          "items": { "type": "string", "description": "BCP 47 locale (例: 'ja-JP', 'en-US')。" }
+        },
+        "defaultLocale": { "type": "string" },
+        "dateFormat": { "type": "object", "additionalProperties": { "type": "string" } },
+        "timeFormat": { "type": "object", "additionalProperties": { "type": "string" } },
+        "currencyDisplay": { "type": "object", "additionalProperties": { "enum": ["symbol", "code", "name"] } },
+        "numberGrouping": { "type": "object", "additionalProperties": { "type": "boolean" } }
+      }
+    },
+
+    "MessageTemplate": {
+      "type": "object",
+      "required": ["template"],
+      "additionalProperties": false,
+      "properties": {
+        "template": { "type": "string", "description": "{placeholder} 記法。" },
+        "params": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "locales": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "locale 別の文言上書き。"
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "RegexEntry": {
+      "type": "object",
+      "required": ["pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": { "type": "string", "description": "ECMAScript 互換正規表現 (スラッシュ囲みなし)。" },
+        "flags": { "type": "string" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "exampleValid": { "type": "array", "items": { "type": "string" } },
+        "exampleInvalid": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "LimitEntry": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "integer"] },
+        "unit": { "type": "string", "description": "単位 (char / integer / yen / ms / days 等)。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "DefaultableEntry": {
+      "description": "ambient default 機構を持つエントリの共通フィールド (scope / currency / tax / auth / db で使用)。",
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "boolean",
+          "description": "true でこのエントリが project-wide ambient default。同カテゴリ内で複数 default は未定義動作。"
+        }
+      }
+    },
+
+    "ScopeEntry": {
+      "allOf": [{ "$ref": "#/$defs/DefaultableEntry" }],
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "string" },
+        "default": true,
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "CurrencyEntry": {
+      "allOf": [{ "$ref": "#/$defs/DefaultableEntry" }],
+      "type": "object",
+      "required": ["code"],
+      "properties": {
+        "code": { "type": "string", "description": "ISO 4217 通貨コード (例: 'JPY')。" },
+        "subunit": { "type": "integer", "minimum": 0, "description": "小数点以下桁数。" },
+        "roundingMode": { "$ref": "#/$defs/RoundingMode" },
+        "default": true,
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "TaxEntry": {
+      "allOf": [{ "$ref": "#/$defs/DefaultableEntry" }],
+      "type": "object",
+      "required": ["kind", "rate"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["inclusive", "exclusive"] },
+        "rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "roundingMode": { "$ref": "#/$defs/RoundingMode" },
+        "default": true,
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "AuthEntry": {
+      "allOf": [{ "$ref": "#/$defs/DefaultableEntry" }],
+      "type": "object",
+      "required": ["scheme"],
+      "properties": {
+        "scheme": { "type": "string", "description": "認証方式 (session-cookie / bearer-jwt / basic 等)。" },
+        "sessionStorage": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "default": true,
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "RoleEntry": {
+      "type": "object",
+      "required": ["permissions"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string", "description": "@conv.permission.<key> で参照されるキー。" }
+        },
+        "inherits": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "PermissionEntry": {
+      "type": "object",
+      "required": ["resource", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "resource": { "type": "string" },
+        "action": { "type": "string" },
+        "scope": { "type": "string", "enum": ["all", "own", "department"] },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "DbEntry": {
+      "allOf": [{ "$ref": "#/$defs/DefaultableEntry" }],
+      "type": "object",
+      "properties": {
+        "engine": { "type": "string", "description": "例: 'postgresql@14'" },
+        "namingConvention": { "type": "string", "description": "例: 'snake_case'" },
+        "timestampColumns": { "type": "array", "items": { "type": "string" } },
+        "logicalDeleteColumn": { "type": "string" },
+        "default": true,
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "NumberingEntry": {
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": { "type": "string", "description": "採番フォーマット (例: 'C-NNNN', 'ORD-YYYY-NNNN')。" },
+        "implementation": { "type": "string", "description": "実装方式 (例: 'PG sequence + DEFAULT')。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "TxEntry": {
+      "type": "object",
+      "required": ["policy"],
+      "additionalProperties": false,
+      "properties": {
+        "policy": { "type": "string" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "ExternalOutcomeEntry": {
+      "type": "object",
+      "required": ["outcome", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": { "type": "string", "enum": ["success", "failure", "timeout"] },
+        "action": { "type": "string", "enum": ["continue", "abort", "compensate"] },
+        "retry": { "type": "string", "enum": ["none", "fixed", "exponential"] },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "RoundingMode": {
+      "type": "string",
+      "enum": ["floor", "ceil", "round"]
+    }
+  }
+}

@@ -1,0 +1,464 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/common.v3.schema.json",
+  "title": "Common (v3 共通定義)",
+  "description": "全 v3 schema が参照する共通 $defs。業務システムの最小構成要素 (識別子・参照・メタ・型・マーカー・拡張入口) のみを集約する。各領域 schema は本ファイルを $ref で参照する。",
+  "$defs": {
+
+    "Uuid": {
+      "description": "Top-level entity (Project / Screen / Table / ProcessFlow / View / Sequence / CustomBlock 等) の永続識別子。RFC 4122 UUID v4 を基本とするが a-z 拡張も許容 (擬似 UUID サンプル用)。",
+      "type": "string",
+      "pattern": "^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$"
+    },
+
+    "LocalId": {
+      "description": "ネスト構造 (Step / Action / Branch / Column / Index / Constraint / Trigger / Note / TestScenario / Decision / Response / Marker 等) の識別子。kebab-case + 大文字 + 数字 / 階層を許容。例: step-01, step-13b-a-01, col-u01, idx-u01, act-001, br-03-a, ADR-001, 201-created, happy-path-order-confirm",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "minLength": 1
+    },
+
+    "Identifier": {
+      "description": "業務識別子 (画面項目 ID / API key / ProcessFlow 変数名 / FieldType 拡張 kind 等)。lowerCamelCase 強制。AI 実装者が JS 識別子としてそのまま使える形式。例: userName, cartId, postalCode, productCode",
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+
+    "PhysicalName": {
+      "description": "システム物理名 (DB テーブル名 / カラム名 / 環境変数 / 拡張 namespace 等)。snake_case 強制。例: login_id, password_hash, order_items, STRIPE_API_KEY (環境変数のみ大文字許容は別途 EnvVarKey で扱う)",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+
+    "EnvVarKey": {
+      "description": "環境変数キー。OS / 12-factor 慣習に従い UPPER_SNAKE_CASE。例: STRIPE_API_BASE, MAX_RETRY_ATTEMPTS",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "minLength": 1
+    },
+
+    "ErrorCode": {
+      "description": "エラーコード。HTTP / 業界慣習に従い UPPER_SNAKE。例: STOCK_SHORTAGE, INSUFFICIENT_INVENTORY",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "minLength": 1
+    },
+
+    "EventTopic": {
+      "description": "イベント topic。dot.separated.lowercase (メッセージング業界慣習)。例: order.confirmed, invoice.issued",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+      "minLength": 1
+    },
+
+    "Timestamp": {
+      "description": "ISO 8601 / RFC 3339 形式の UTC タイムスタンプ。Z 終端必須。例: 2026-04-27T00:00:00.000Z",
+      "type": "string",
+      "format": "date-time"
+    },
+
+    "SemVer": {
+      "description": "Semantic Versioning 2.0 文字列。例: 1.0.0, 2.3.4-beta.1",
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+    },
+
+    "Description": {
+      "description": "自由記述の説明文。Markdown 改行可。AI 実装者・業務開発者が読む人間向け補足情報。",
+      "type": "string"
+    },
+
+    "DisplayName": {
+      "description": "人間向け表示名。多言語前提のため、文字種制限なし。物理名 (PhysicalName) とは別概念。例: '顧客一覧', 'ユーザー登録', '商品マスタ'",
+      "type": "string",
+      "minLength": 1
+    },
+
+    "Maturity": {
+      "description": "成熟度 3 値。draft = 下書き / provisional = 暫定 (想定残あり) / committed = 確定 (下流 AI に渡してよい)。entity / nested 構造の双方で使用可。",
+      "type": "string",
+      "enum": ["draft", "provisional", "committed"]
+    },
+
+    "Mode": {
+      "description": "ProcessFlow / Project の上流・下流モード。upstream = 人間が仕様を書く工程 / downstream = AI が読んで実装する工程。",
+      "type": "string",
+      "enum": ["upstream", "downstream"]
+    },
+
+    "ExpressionString": {
+      "description": "式言語 (js-subset) の文字列表現。文法は docs/spec/process-flow-expression-language.md を参照。@conv.* / @secret.* / @env.* / @fn.* / @<var> および Arazzo の $ 記法 (Criterion 内のみ) を許容。",
+      "type": "string"
+    },
+
+    "Namespace": {
+      "description": "拡張機構 / 業界別定義の namespace 識別子。空文字はグローバル拡張。例: '', 'retail', 'finance', 'manufacturing'",
+      "type": "string",
+      "pattern": "^[a-z0-9_-]*$"
+    },
+
+    "EntityMeta": {
+      "description": "全 top-level entity (Project / Screen / Table / ProcessFlow / View / Sequence / CustomBlock 等) の共通 meta。各 entity root は本定義を allOf でマージし、固有プロパティを追加する。",
+      "type": "object",
+      "required": ["id", "name", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "name": { "$ref": "#/$defs/DisplayName", "description": "entity の表示名。物理名と異なる場合は entity 固有に physicalName を別途持つ。" },
+        "description": { "$ref": "#/$defs/Description" },
+        "version": { "$ref": "#/$defs/SemVer", "description": "entity 単独のリビジョン。" },
+        "maturity": { "$ref": "#/$defs/Maturity" },
+        "createdAt": { "$ref": "#/$defs/Timestamp" },
+        "updatedAt": { "$ref": "#/$defs/Timestamp" }
+      }
+    },
+
+    "Authoring": {
+      "description": "設計プロセス用情報 (実行に不要)。各 entity は本定義を任意で持つ。markers (人間↔AI 対話) / decisions (ADR) / glossary (用語集) / testScenarios (テスト) を集約。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "markers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Marker" }
+        },
+        "decisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DecisionRecord" }
+        },
+        "glossary": {
+          "type": "object",
+          "description": "ドメイン用語集。キー: 用語名 (日本語可)。",
+          "additionalProperties": { "$ref": "#/$defs/GlossaryEntry" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" }
+        }
+      }
+    },
+
+    "Marker": {
+      "description": "人間↔AI のメッセージマーカー。指示・質問・TODO・チャット。entity の authoring セクションで使用。anchor で entity 内の位置 (step / field) を指す。",
+      "type": "object",
+      "required": ["id", "kind", "body", "author", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "kind": {
+          "type": "string",
+          "enum": ["chat", "attention", "todo", "question"],
+          "description": "マーカー種別。"
+        },
+        "body": { "type": "string", "description": "メッセージ本文。" },
+        "anchor": {
+          "type": "object",
+          "description": "マーカーが指す entity 内の位置。stepId / fieldPath / shape (DOM 描画用) を任意。",
+          "additionalProperties": false,
+          "properties": {
+            "stepId": { "$ref": "#/$defs/LocalId" },
+            "fieldPath": { "type": "string", "description": "JSON path 風 (例: '$.actions[0].steps[2].sql')" },
+            "shape": { "$ref": "#/$defs/MarkerShape" }
+          }
+        },
+        "author": { "type": "string", "enum": ["human", "ai"] },
+        "createdAt": { "$ref": "#/$defs/Timestamp" },
+        "resolvedAt": { "$ref": "#/$defs/Timestamp" },
+        "resolution": { "type": "string", "description": "解決時の補足メッセージ。" },
+        "code": { "type": "string", "description": "validator 由来の警告コード (UNKNOWN_IDENTIFIER 等)。" },
+        "path": { "type": "string", "description": "validator 由来の JSON path。" }
+      }
+    },
+
+    "MarkerShape": {
+      "description": "自由描画マーカーの形状。SVG path. anchor 指定時は entity の DOM bbox 相対 % 座標。",
+      "type": "object",
+      "required": ["kind", "d"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["path"] },
+        "d": { "type": "string", "description": "SVG path d 属性 (0-100 % 座標)" },
+        "color": { "type": "string", "description": "描画色 (#ef4444 既定)" },
+        "strokeWidth": { "type": "number", "minimum": 0.1 }
+      }
+    },
+
+    "DecisionRecord": {
+      "description": "MADR 形式のアーキテクチャ決定記録。Project root / 各 entity authoring で使用可能。",
+      "type": "object",
+      "required": ["id", "title", "status", "context", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/LocalId", "description": "ADR-NNN 形式推奨。" },
+        "title": { "$ref": "#/$defs/DisplayName" },
+        "status": {
+          "type": "string",
+          "enum": ["proposed", "accepted", "deprecated", "superseded"]
+        },
+        "context": { "type": "string", "description": "決定の背景・問題の説明。" },
+        "decision": { "type": "string", "description": "採択した決定内容。" },
+        "consequences": { "type": "string", "description": "結果・影響・トレードオフ。" },
+        "date": { "type": "string", "description": "ISO date (YYYY-MM-DD)。" }
+      }
+    },
+
+    "GlossaryEntry": {
+      "description": "ドメイン用語集の 1 エントリ。キーは用語名 (日本語可)。",
+      "type": "object",
+      "required": ["definition"],
+      "additionalProperties": false,
+      "properties": {
+        "definition": { "type": "string", "description": "用語の定義。" },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "別名・略語のリスト。"
+        },
+        "domainRef": { "type": "string", "description": "ドメインモデルやテーブル等への参照文字列 (例: 'orders.order_number')。" }
+      }
+    },
+
+    "Note": {
+      "description": "Step / Action / Field レベルの付箋。意図・前提・TODO・将来検討・質問を構造化。",
+      "type": "object",
+      "required": ["id", "kind", "body", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/LocalId" },
+        "kind": {
+          "type": "string",
+          "enum": ["assumption", "prerequisite", "todo", "deferred", "question"]
+        },
+        "body": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/Timestamp" }
+      }
+    },
+
+    "FieldType": {
+      "description": "全領域 (StructuredField / ScreenItem / DomainDef / TableColumn 派生型) で共有するフィールド型。プリミティブ + 構造体 + 参照型 + 拡張入口。",
+      "oneOf": [
+        {
+          "description": "プリミティブ型。",
+          "type": "string",
+          "enum": ["string", "number", "integer", "boolean", "date", "datetime", "json"]
+        },
+        {
+          "description": "配列型。要素型を再帰的に表現。",
+          "type": "object",
+          "required": ["kind", "itemType"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "array" },
+            "itemType": { "$ref": "#/$defs/FieldType" }
+          }
+        },
+        {
+          "description": "オブジェクト型。fields[] で構造を表現。",
+          "type": "object",
+          "required": ["kind", "fields"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "object" },
+            "fields": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/StructuredField" }
+            }
+          }
+        },
+        {
+          "description": "テーブル 1 行型。",
+          "type": "object",
+          "required": ["kind", "tableId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tableRow" },
+            "tableId": { "$ref": "#/$defs/Uuid" }
+          }
+        },
+        {
+          "description": "テーブル配列型。",
+          "type": "object",
+          "required": ["kind", "tableId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "tableList" },
+            "tableId": { "$ref": "#/$defs/Uuid" }
+          }
+        },
+        {
+          "description": "画面入力セット型。",
+          "type": "object",
+          "required": ["kind", "screenId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "screenInput" },
+            "screenId": { "$ref": "#/$defs/Uuid" }
+          }
+        },
+        {
+          "description": "ドメイン参照型。domainsCatalog から型・制約・UI ヒントを継承する。",
+          "type": "object",
+          "required": ["kind", "domainKey"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "domain" },
+            "domainKey": { "type": "string", "description": "ProcessFlow.context.catalogs.domains のキー (PascalCase)。例: 'EmailAddress', 'Quantity'" }
+          }
+        },
+        {
+          "description": "ファイル型 (バッチ I/O 等)。format で CSV/ZIP 等を表現。",
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "file" },
+            "format": { "type": "string", "description": "ファイル形式 (csv / tsv / zip / pdf 等)。" }
+          }
+        },
+        {
+          "description": "拡張型。業界別 namespace の fieldType 拡張を参照。",
+          "type": "object",
+          "required": ["kind", "extensionRef"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "extension" },
+            "extensionRef": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$",
+              "description": "namespace:fieldTypeKey 形式。例: 'retail:productCode', 'finance:accountNumber'"
+            }
+          }
+        }
+      ]
+    },
+
+    "StructuredField": {
+      "description": "構造化フィールド定義。ProcessFlow.inputs/outputs / FieldType.object.fields 等で使用。識別子・型・必須・制約・参照を 1 単位で表現。",
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/Identifier", "description": "フィールド識別子 (camelCase)。" },
+        "label": { "$ref": "#/$defs/DisplayName" },
+        "type": { "$ref": "#/$defs/FieldType" },
+        "required": { "type": "boolean" },
+        "description": { "$ref": "#/$defs/Description" },
+        "format": {
+          "type": "string",
+          "description": "採番形式 / 正規表現 / 自由ヒント。@conv.numbering.* 参照可。"
+        },
+        "defaultValue": { "type": "string", "description": "既定値 (式可)。" },
+        "screenItemRef": { "$ref": "#/$defs/ScreenItemRef" },
+        "formula": {
+          "$ref": "#/$defs/ExpressionString",
+          "description": "派生属性の計算式。'= ' で始まる (例: '= @quantity * @unitPrice')。"
+        }
+      }
+    },
+
+    "ScreenRef": {
+      "description": "Screen entity への単独参照 (Pattern A: UUID 単独)。",
+      "$ref": "#/$defs/Uuid"
+    },
+
+    "TableRef": {
+      "description": "Table entity への単独参照。",
+      "$ref": "#/$defs/Uuid"
+    },
+
+    "ProcessFlowRef": {
+      "description": "ProcessFlow entity への単独参照。",
+      "$ref": "#/$defs/Uuid"
+    },
+
+    "ViewRef": {
+      "description": "View entity への単独参照。",
+      "$ref": "#/$defs/Uuid"
+    },
+
+    "SequenceRef": {
+      "description": "Sequence entity への単独参照。",
+      "$ref": "#/$defs/Uuid"
+    },
+
+    "ScreenItemRef": {
+      "description": "Screen 内の画面項目への複合参照 (Pattern B)。screenId + itemId。",
+      "type": "object",
+      "required": ["screenId", "itemId"],
+      "additionalProperties": false,
+      "properties": {
+        "screenId": { "$ref": "#/$defs/Uuid" },
+        "itemId": { "$ref": "#/$defs/Identifier" }
+      }
+    },
+
+    "TableColumnRef": {
+      "description": "Table 内のカラムへの複合参照。tableId + columnId (LocalId)。",
+      "type": "object",
+      "required": ["tableId", "columnId"],
+      "additionalProperties": false,
+      "properties": {
+        "tableId": { "$ref": "#/$defs/Uuid" },
+        "columnId": { "$ref": "#/$defs/LocalId" }
+      }
+    },
+
+    "ActionRef": {
+      "description": "ProcessFlow 内のアクションへの複合参照。",
+      "type": "object",
+      "required": ["processFlowId", "actionId"],
+      "additionalProperties": false,
+      "properties": {
+        "processFlowId": { "$ref": "#/$defs/Uuid" },
+        "actionId": { "$ref": "#/$defs/LocalId" }
+      }
+    },
+
+    "StepRef": {
+      "description": "ProcessFlow 内のステップへの複合参照。",
+      "type": "object",
+      "required": ["processFlowId", "actionId", "stepId"],
+      "additionalProperties": false,
+      "properties": {
+        "processFlowId": { "$ref": "#/$defs/Uuid" },
+        "actionId": { "$ref": "#/$defs/LocalId" },
+        "stepId": { "$ref": "#/$defs/LocalId" }
+      }
+    },
+
+    "ResponseRef": {
+      "description": "Action.responses[] への複合参照。",
+      "type": "object",
+      "required": ["processFlowId", "actionId", "responseId"],
+      "additionalProperties": false,
+      "properties": {
+        "processFlowId": { "$ref": "#/$defs/Uuid" },
+        "actionId": { "$ref": "#/$defs/LocalId" },
+        "responseId": { "$ref": "#/$defs/LocalId" }
+      }
+    },
+
+    "ExtensionRoot": {
+      "description": "拡張定義 root の共通プロパティ (extensions.v3.schema.json で allOf マージ)。namespace 単位 1 ファイルで全種類の拡張を集約する運用。",
+      "type": "object",
+      "required": ["namespace"],
+      "properties": {
+        "$schema": { "type": "string" },
+        "namespace": { "$ref": "#/$defs/Namespace" },
+        "version": { "$ref": "#/$defs/SemVer" },
+        "requiresCoreSchema": {
+          "type": "string",
+          "description": "互換 core schema のバージョン範囲式。例: '>=3.0.0', '~3.1'"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "true で本拡張全体を廃止予定とマーク。"
+        },
+        "description": { "$ref": "#/$defs/Description" }
+      }
+    }
+  }
+}

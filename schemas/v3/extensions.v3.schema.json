@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/extensions.v3.schema.json",
+  "title": "Extensions (v3 統合拡張定義)",
+  "description": "業界・業態別 (retail / finance / manufacturing 等) の全種類の拡張を 1 namespace = 1 ファイルで定義する。data/extensions/<namespace>.v3.json に対応。core schema は本拡張を loader で動的にマージして合成 schema を作る。",
+  "allOf": [
+    { "$ref": "common.v3.schema.json#/$defs/ExtensionRoot" },
+    {
+      "type": "object",
+      "properties": {
+        "fieldTypes": {
+          "type": "array",
+          "description": "FieldType の業界拡張。FieldType.kind='extension' で参照される。",
+          "items": { "$ref": "#/$defs/CustomFieldType" }
+        },
+        "dataTypes": {
+          "type": "array",
+          "description": "DataType (DB) の拡張。DataType の namespace:UPPER 形式で参照される。",
+          "items": { "$ref": "#/$defs/CustomDataType" }
+        },
+        "screenKinds": {
+          "type": "array",
+          "description": "ScreenKind の拡張。Screen.kind の namespace:kindName で参照される。",
+          "items": { "$ref": "#/$defs/CustomScreenKind" }
+        },
+        "actionTriggers": {
+          "type": "array",
+          "description": "Action.trigger の拡張。",
+          "items": { "$ref": "#/$defs/CustomActionTrigger" }
+        },
+        "dbOperations": {
+          "type": "array",
+          "description": "DbAccessStep.operation の拡張。",
+          "items": { "$ref": "#/$defs/CustomDbOperation" }
+        },
+        "stepKinds": {
+          "type": "object",
+          "description": "Step.kind の拡張定義。OtherStep の namespace:StepName で参照される。キー = StepName (PascalCase)。",
+          "additionalProperties": { "$ref": "#/$defs/CustomStepKind" }
+        },
+        "responseTypes": {
+          "type": "object",
+          "description": "Response 型の拡張。HttpResponseSpec.bodySchema={typeRef} で参照。キー = TypeName。",
+          "additionalProperties": { "$ref": "#/$defs/CustomResponseType" }
+        },
+        "valueSourceKinds": {
+          "type": "array",
+          "description": "ScreenItem.valueFrom.kind の拡張。",
+          "items": { "$ref": "#/$defs/CustomValueSourceKind" }
+        },
+        "columnTemplates": {
+          "type": "array",
+          "description": "Table.columns 用カラム雛形 (一括追加用)。",
+          "items": { "$ref": "#/$defs/CustomColumnTemplate" }
+        },
+        "constraintPatterns": {
+          "type": "array",
+          "description": "Table.constraints の典型パターン雛形。",
+          "items": { "$ref": "#/$defs/CustomConstraintPattern" }
+        },
+        "conventionCategories": {
+          "type": "array",
+          "description": "Conventions の業界拡張カテゴリ。@conv.<categoryName>.<key> で参照される。",
+          "items": { "$ref": "#/$defs/CustomConventionCategory" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+
+  "$defs": {
+
+    "CustomFieldType": {
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "拡張 fieldType の識別子 (camelCase)。FieldType.kind='extension' + extensionRef='<ns>:<kind>' で参照。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "baseType": {
+          "type": "string",
+          "enum": ["string", "number", "integer", "boolean", "date", "datetime", "json"],
+          "description": "底になるプリミティブ型 (実装の型 mapping ヒント)。"
+        },
+        "constraints": {
+          "type": "array",
+          "description": "拡張 fieldType に紐付く既定制約 (validation 等)。",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomDataType": {
+      "type": "object",
+      "required": ["physicalKind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "physicalKind": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "拡張 DataType (UPPER_SNAKE)。例: 'VARCHAR2', 'JSONB'。"
+        },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "lengthRequired": { "type": "boolean" },
+        "scaleSupported": { "type": "boolean" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomScreenKind": {
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "拡張画面種別 (camelCase)。Screen.kind='<ns>:<kind>' で参照。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "icon": { "type": "string", "description": "Bootstrap Icons クラス名 (例: 'bi-shop')。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomActionTrigger": {
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomDbOperation": {
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "DbOperation 拡張 (UPPER_SNAKE)。例: 'UPSERT', 'TRUNCATE'。"
+        },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomStepKind": {
+      "description": "拡張 Step 種別。OtherStep に namespace:StepName で参照される。schema フィールドで動的フォーム生成 (subset JSON Schema)。",
+      "type": "object",
+      "required": ["label", "icon", "description", "schema"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "icon": { "type": "string", "description": "アイコン (Bootstrap Icons / Lucide 名)。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "schema": { "$ref": "#/$defs/DynamicFormSchema" },
+        "outputType": { "$ref": "common.v3.schema.json#/$defs/FieldType", "description": "拡張 step の outputBinding 結果型 (型推論用)。" }
+      }
+    },
+
+    "CustomResponseType": {
+      "type": "object",
+      "required": ["schema"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema draft 2020-12 (response body 構造)。",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "CustomValueSourceKind": {
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "schema": {
+          "type": "object",
+          "description": "ValueSource variant の追加プロパティ schema (動的フォーム生成用)。",
+          "additionalProperties": true
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomColumnTemplate": {
+      "type": "object",
+      "required": ["id", "label", "category", "column"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "icon": { "type": "string" },
+        "category": { "type": "string" },
+        "column": {
+          "type": "object",
+          "description": "カラム雛形 (table.v3.schema.json#/$defs/Column の id/no を除いたサブセット)。",
+          "additionalProperties": true
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "CustomConstraintPattern": {
+      "type": "object",
+      "required": ["id", "label", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "kind": { "type": "string", "enum": ["unique", "check", "foreignKey"] },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "template": {
+          "type": "object",
+          "description": "制約雛形の構造 (table.v3#/$defs/Constraint の subset)。",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "CustomConventionCategory": {
+      "type": "object",
+      "required": ["categoryName", "label", "entrySchema"],
+      "additionalProperties": false,
+      "properties": {
+        "categoryName": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "@conv.<categoryName>.<key> の categoryName (camelCase)。" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "entrySchema": {
+          "$ref": "#/$defs/DynamicFormSchema",
+          "description": "本カテゴリの 1 entry の動的フォーム schema (JSON Schema subset)。"
+        }
+      }
+    },
+
+    "DynamicFormSchema": {
+      "description": "拡張 schema 定義用の JSON Schema subset。動的フォーム生成 UI が対応する範囲のみ。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "oneOf": [
+            { "enum": ["string", "number", "integer", "boolean", "object", "array"] },
+            { "type": "array", "items": { "enum": ["string", "number", "integer", "boolean", "object", "array"] } }
+          ]
+        },
+        "enum": { "type": "array" },
+        "properties": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/DynamicFormSchema" }
+        },
+        "items": { "$ref": "#/$defs/DynamicFormSchema" },
+        "required": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
+        "default": true,
+        "additionalProperties": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/project.v3.schema.json",
+  "title": "Project (v3 プロジェクト root)",
+  "description": "業務システム 1 案件の root 定義。data/project.json に対応。プロジェクト全体のメタ・参照する entity 一覧 (各 entity は別ファイル) を集約する。各 entity の中身は別 schema 参照。",
+  "type": "object",
+  "required": ["meta", "schemaVersion"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+
+    "schemaVersion": {
+      "type": "string",
+      "enum": ["v3"],
+      "description": "本プロジェクトが使う schema バージョン。loader は本値で schemas/v3/ を選択する。"
+    },
+
+    "meta": {
+      "description": "プロジェクト identity と運用設定。",
+      "allOf": [
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+      ],
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": true, "name": true, "description": true, "version": true,
+        "maturity": true, "createdAt": true, "updatedAt": true,
+        "mode": { "$ref": "common.v3.schema.json#/$defs/Mode", "description": "プロジェクト全体の上流/下流モード。" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "extensionsApplied": {
+      "type": "array",
+      "items": { "$ref": "common.v3.schema.json#/$defs/Namespace" },
+      "description": "本プロジェクトが適用する拡張 namespace 一覧 (例: ['retail'])。loader は data/extensions/<ns>.v3.json を読み core schema と合成する。"
+    },
+
+    "entities": {
+      "description": "プロジェクトが保持する各 entity への参照一覧。各 entity の本体は別ファイル (data/screens/<id>.json 等) に格納される。本セクションは entity の存在と表示用メタ (一覧 UI で使う) を集約する。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "screens": { "type": "array", "items": { "$ref": "#/$defs/ScreenEntry" } },
+        "tables":  { "type": "array", "items": { "$ref": "#/$defs/TableEntry" } },
+        "processFlows": { "type": "array", "items": { "$ref": "#/$defs/ProcessFlowEntry" } },
+        "views": { "type": "array", "items": { "$ref": "#/$defs/ViewEntry" } },
+        "sequences": { "type": "array", "items": { "$ref": "#/$defs/SequenceEntry" } },
+        "screenGroups": { "type": "array", "items": { "$ref": "#/$defs/ScreenGroupEntry" } },
+        "screenTransitions": { "type": "array", "items": { "$ref": "#/$defs/ScreenTransitionEntry" } }
+      }
+    },
+
+    "authoring": {
+      "$ref": "common.v3.schema.json#/$defs/Authoring",
+      "description": "プロジェクト全体の authoring 情報 (markers / decisions / glossary)。entity 横断で共有される ADR や用語集はここに集約。"
+    }
+  },
+  "$defs": {
+
+    "EntryBase": {
+      "description": "entities.* 配列要素の共通プロパティ。一覧 UI が表示する最小メタ。",
+      "type": "object",
+      "required": ["id", "no", "name", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "no": { "type": "integer", "minimum": 1, "description": "物理順 (1..N)。一覧の並び替え永続化に使用。" },
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "updatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" },
+        "maturity": { "$ref": "common.v3.schema.json#/$defs/Maturity" }
+      }
+    },
+
+    "ScreenEntry": {
+      "allOf": [{ "$ref": "#/$defs/EntryBase" }],
+      "type": "object",
+      "properties": {
+        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
+        "kind": { "type": "string", "description": "ScreenKind 文字列 (login/dashboard/list/detail/form 等、または 'extension:retail:storefront' 等の拡張参照)。" },
+        "path": { "type": "string", "description": "URL ルーティングパス。" },
+        "groupId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "hasDesign": { "type": "boolean" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "TableEntry": {
+      "allOf": [{ "$ref": "#/$defs/EntryBase" }],
+      "type": "object",
+      "properties": {
+        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "category": { "type": "string", "description": "テーブルカテゴリ (例: 'マスタ', 'トランザクション', '中間テーブル', 'ログ' 等)。" },
+        "columnCount": { "type": "integer", "minimum": 0 }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ProcessFlowEntry": {
+      "allOf": [{ "$ref": "#/$defs/EntryBase" }],
+      "type": "object",
+      "properties": {
+        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
+        "kind": { "type": "string", "description": "ProcessFlowKind (screen/batch/scheduled/system/common/other)。" },
+        "screenId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "screen kind の場合の関連画面 ID。" },
+        "actionCount": { "type": "integer", "minimum": 0 },
+        "notesCount": { "type": "integer", "minimum": 0 }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ViewEntry": {
+      "allOf": [{ "$ref": "#/$defs/EntryBase" }],
+      "type": "object",
+      "properties": {
+        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "SequenceEntry": {
+      "allOf": [{ "$ref": "#/$defs/EntryBase" }],
+      "type": "object",
+      "properties": {
+        "id": true, "no": true, "name": true, "updatedAt": true, "maturity": true,
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" },
+        "conventionRef": { "type": "string", "description": "@conv.numbering.<key> 形式の参照。" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ScreenGroupEntry": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "name": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "color": { "type": "string", "description": "UI 表示色 (#RRGGBB)。" }
+      }
+    },
+
+    "ScreenTransitionEntry": {
+      "description": "画面間の遷移定義。source / target は ScreenEntry.id を指す。UI 座標は screen-layout に分離。",
+      "type": "object",
+      "required": ["id", "sourceScreenId", "targetScreenId", "trigger"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
+        "sourceScreenId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "targetScreenId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "trigger": {
+          "type": "string",
+          "enum": ["click", "submit", "select", "cancel", "auto", "back", "other"],
+          "description": "遷移トリガー種別。"
+        }
+      }
+    }
+  }
+}

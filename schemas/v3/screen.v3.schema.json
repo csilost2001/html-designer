@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/screen.v3.schema.json",
+  "title": "Screen (v3 画面定義)",
+  "description": "画面 entity 1 件分の正規定義。業務情報のみを保持し、UI 座標 (position / size / thumbnail) は schemas/v3/screen-layout.v3.schema.json に分離する。GrapesJS の生 HTML データは本 schema の対象外 (data/screens/<id>.html 等で別管理)。",
+  "type": "object",
+  "$ref": "#/$defs/Screen",
+  "$defs": {
+    "Screen": {
+      "description": "画面 entity 本体。EntityMeta + 業務情報 + 画面項目集合 (本ファイル内に embed) + authoring。",
+      "allOf": [
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+      ],
+      "type": "object",
+      "required": ["kind", "path"],
+      "properties": {
+        "id": true, "name": true, "description": true, "version": true,
+        "maturity": true, "createdAt": true, "updatedAt": true,
+        "kind": { "$ref": "#/$defs/ScreenKind" },
+        "path": { "type": "string", "description": "URL ルーティングパス。例: '/customers', '/customers/:id', '/orders/new'" },
+        "auth": {
+          "type": "string",
+          "enum": ["required", "optional", "none"],
+          "description": "本画面アクセスに必要な認証要件。未指定は required 相当。"
+        },
+        "groupId": {
+          "$ref": "common.v3.schema.json#/$defs/Uuid",
+          "description": "所属画面グループ ID (project.v3.entities.screenGroups[].id 参照)。"
+        },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "screen-item.v3.schema.json#/$defs/ScreenItem" },
+          "description": "画面項目定義一覧 (フォーム要素・表示要素)。"
+        },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "本画面表示に必要な permission キー (@conv.permission.<key>)。"
+        },
+        "design": {
+          "$ref": "#/$defs/ScreenDesign",
+          "description": "画面デザイン (GrapesJS 生 HTML への参照)。本フレームワークの schema 範囲外、外部参照のみ。"
+        },
+        "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ScreenKind": {
+      "description": "画面種別。プリミティブ enum (組み込み 12 種) + 拡張参照。",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["login", "dashboard", "list", "detail", "form", "search", "confirm", "complete", "error", "modal", "wizard", "other"]
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$",
+          "description": "拡張 ScreenKind 参照。namespace:kindName 形式 (例: 'retail:storefront')。"
+        }
+      ]
+    },
+
+    "ScreenDesign": {
+      "description": "画面デザイン (GrapesJS) の参照情報。生 HTML/CSS/component tree は別ファイル (data/screens/<id>.design.json) で管理し、本 schema は参照のみ持つ。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "designFileRef": {
+          "type": "string",
+          "description": "デザインファイルへの相対パス (例: 'design.json')。"
+        },
+        "thumbnailRef": {
+          "type": "string",
+          "description": "サムネイル画像への相対パス または data URL。"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/sequence.v3.schema.json",
+  "title": "Sequence (v3 シーケンス定義)",
+  "description": "DB シーケンス 1 件の定義。data/sequences/<id>.json に対応。@conv.numbering.<key> から参照される。",
+  "type": "object",
+  "$ref": "#/$defs/Sequence",
+  "$defs": {
+    "Sequence": {
+      "allOf": [
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+      ],
+      "type": "object",
+      "required": ["physicalName"],
+      "properties": {
+        "id": true, "name": true, "description": true, "version": true,
+        "maturity": true, "createdAt": true, "updatedAt": true,
+        "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName", "description": "シーケンス物理名 (例: 'seq_order_number')。" },
+        "startValue": { "type": "integer" },
+        "increment": { "type": "integer" },
+        "minValue": { "type": "integer" },
+        "maxValue": { "type": "integer" },
+        "cycle": { "type": "boolean", "description": "true で max 到達後 min に巡回。" },
+        "cache": { "type": "integer", "minimum": 1, "description": "キャッシュサイズ。" },
+        "usedBy": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tableId", "columnId"],
+            "additionalProperties": false,
+            "properties": {
+              "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+              "columnId": { "$ref": "common.v3.schema.json#/$defs/LocalId" }
+            }
+          },
+          "description": "本シーケンスを利用するテーブルカラム参照。"
+        },
+        "conventionRef": {
+          "type": "string",
+          "description": "@conv.numbering.<key> 形式の参照。本シーケンスがどの採番規約を実装するかを示す。"
+        },
+        "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}
