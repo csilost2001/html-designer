@@ -10,9 +10,9 @@
       "pattern": "^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$"
     },
     "LocalId": {
-      "description": "ネスト構造の識別子。kebab-case + 番号 / 階層を許容。例: step-01, step-13b-a-01, col-u01, idx-u01, act-001, br-03-a",
+      "description": "ネスト構造の識別子。kebab-case + 英大文字 + 数字 / 階層を許容。例: step-01, step-13b-a-01, col-u01, idx-u01, act-001, br-03-a, ADR-001, 201-created, happy-path-order-confirm",
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
       "minLength": 1
     },
     "BusinessIdentifier": {
@@ -68,6 +68,16 @@
       "description": "拡張機構の namespace 識別子。kebab-case + 数字 + アンダースコア。空文字も許容 (グローバル拡張)。",
       "type": "string",
       "pattern": "^[a-z0-9_-]*$"
+    },
+    "MetaIdentity": {
+      "description": "識別情報の共通プロパティ。各 entity の properties に展開される mix-in。",
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "name": { "type": "string", "description": "entity の表示名。" },
+        "description": { "$ref": "#/$defs/Description" }
+      }
     },
     "MetaTimestamps": {
       "description": "作成日時 / 更新日時の共通プロパティ。各 entity の properties に展開される mix-in。",

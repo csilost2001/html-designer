@@ -6,40 +6,18 @@
   "$ref": "#/$defs/ScreenItemsFile",
   "$defs": {
     "FieldType": {
-      "description": "画面項目の入出力値の型。process-flow.v2.schema.json の FieldType と同等の型セットを独立定義する (相互参照による運用複雑化を避けるため)。",
-      "oneOf": [
-        {
-          "description": "プリミティブ型 (文字列 / 数値 / 真偽値 / 日付 / 時刻 / ファイル / 選択肢)。",
-          "type": "string",
-          "enum": [
-            "string",
-            "number",
-            "boolean",
-            "date",
-            "datetime",
-            "time",
-            "file",
-            "select",
-            "multiselect"
-          ]
-        },
-        {
-          "description": "カスタム型 (業界・業態固有の拡張フィールド型)。",
-          "type": "object",
-          "required": ["kind", "label"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "custom",
-              "description": "カスタム型の discriminator。値は固定 'custom'。"
-            },
-            "label": {
-              "type": "string",
-              "description": "カスタム型の表示名 (例: 「郵便番号」「電話番号」)。"
-            }
-          }
-        }
+      "description": "画面項目の入出力値の型。プリミティブ型文字列のみ。process-flow.v2.schema.json の FieldType と同等の型セットを独立定義する (相互参照による運用複雑化を避けるため)。",
+      "type": "string",
+      "enum": [
+        "string",
+        "number",
+        "boolean",
+        "date",
+        "datetime",
+        "time",
+        "file",
+        "select",
+        "multiselect"
       ]
     },
     "DirectionKind": {

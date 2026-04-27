@@ -181,17 +181,20 @@
       "properties": {
         "timeoutMs": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "タイムアウト閾値 (ミリ秒)。この時間を超過すると onTimeout が発動する。"
         },
         "onTimeout": {
           "$ref": "#/$defs/OnTimeout"
         },
         "errorCode": {
-          "type": "string"
+          "type": "string",
+          "description": "タイムアウト時に使用するエラーコード。ProcessFlow.errorCatalog のキー参照。"
         },
         "warningThresholdMs": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "警告閾値 (ミリ秒)。この時間を超過すると監視警告を発する。timeout 以下の値を推奨。"
         },
         "p95LatencyMs": {
           "type": "number",
@@ -234,13 +237,15 @@
           "$ref": "common.v2.schema.json#/$defs/LocalId"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "テストシナリオの表示名 (例: 「正常系: 注文確定成功」)。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
         },
         "given": {
           "type": "array",
+          "description": "前提条件 (Given 節)。DB 状態 / セッション / 外部スタブ / 時刻を設定する TestPrecondition の配列。",
           "items": {
             "$ref": "#/$defs/TestPrecondition"
           }
@@ -250,12 +255,14 @@
         },
         "then": {
           "type": "array",
+          "description": "検証条件 (Then 節)。実行後の状態・出力・外部呼出・監査ログを確認する TestAssertion の配列。",
           "items": {
             "$ref": "#/$defs/TestAssertion"
           }
         },
         "tags": {
           "type": "array",
+          "description": "タグ一覧。テスト種別・優先度・担当者など任意のラベルを付与して絞り込みに使用する。",
           "items": {
             "type": "string"
           }
@@ -278,10 +285,12 @@
               "const": "dbState"
             },
             "table": {
-              "type": "string"
+              "type": "string",
+              "description": "初期データを投入するテーブルの物理名。"
             },
             "rows": {
               "type": "array",
+              "description": "投入するレコードの配列。各要素はカラム名をキーとするオブジェクト。",
               "items": {
                 "type": "object",
                 "additionalProperties": true
@@ -302,7 +311,8 @@
             },
             "context": {
               "type": "object",
-              "additionalProperties": true
+              "additionalProperties": true,
+              "description": "テスト用セッション変数のマップ (例: {\"userId\": \"u001\", \"role\": \"admin\"})。"
             }
           }
         },
@@ -319,7 +329,8 @@
               "const": "externalStub"
             },
             "externalRef": {
-              "type": "string"
+              "type": "string",
+              "description": "スタブ対象の外部システム参照名。externalSystemCatalog のキー。"
             },
             "responseMock": true
           }
@@ -337,7 +348,8 @@
             },
             "now": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "description": "テスト実行時の固定日時 (ISO 8601 / RFC 3339 UTC)。"
             }
           }
         }
@@ -353,11 +365,13 @@
       "additionalProperties": false,
       "properties": {
         "actionId": {
-          "type": "string"
+          "type": "string",
+          "description": "実行する Action の ID。ActionDefinition.id を指定する。"
         },
         "input": {
           "type": "object",
-          "additionalProperties": true
+          "additionalProperties": true,
+          "description": "Action への入力データ。Action.inputs のフィールド名をキーとするオブジェクト。"
         }
       }
     },
@@ -376,7 +390,8 @@
               "const": "outcome"
             },
             "expected": {
-              "type": "string"
+              "type": "string",
+              "description": "期待される処理結果 (例: 'success', 'stockShortage')。"
             }
           }
         },
@@ -393,15 +408,18 @@
               "const": "dbRow"
             },
             "table": {
-              "type": "string"
+              "type": "string",
+              "description": "検証対象テーブルの物理名。"
             },
             "match": {
               "type": "object",
-              "additionalProperties": true
+              "additionalProperties": true,
+              "description": "期待するレコードの部分一致条件 (カラム名: 期待値)。"
             },
             "count": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "期待する一致行数。省略時は 1 行以上を期待。"
             }
           }
         },
@@ -417,12 +435,14 @@
               "const": "output"
             },
             "path": {
-              "type": "string"
+              "type": "string",
+              "description": "検証対象の出力フィールドの JSON Path (例: '$.orderId', '$.items[0].price')。"
             },
             "equals": true,
             "matches": {
               "type": "string",
-              "format": "regex"
+              "format": "regex",
+              "description": "期待値の正規表現パターン。equals と排他。"
             }
           }
         },
@@ -438,14 +458,17 @@
               "const": "externalCall"
             },
             "externalRef": {
-              "type": "string"
+              "type": "string",
+              "description": "検証対象の外部システム参照名 (externalSystemCatalog のキー)。"
             },
             "method": {
-              "type": "string"
+              "type": "string",
+              "description": "期待する HTTP メソッド (例: 'POST', 'GET')。"
             },
             "bodyMatch": {
               "type": "object",
-              "additionalProperties": true
+              "additionalProperties": true,
+              "description": "リクエストボディの部分一致条件。"
             }
           }
         },
@@ -461,7 +484,8 @@
               "const": "auditLog"
             },
             "action": {
-              "type": "string"
+              "type": "string",
+              "description": "検証対象の監査アクション名 (例: 'ORDER_CONFIRMED')。"
             },
             "result": {
               "$ref": "#/$defs/AuditResult"
@@ -480,7 +504,8 @@
               "const": "errorMessage"
             },
             "msgKey": {
-              "type": "string"
+              "type": "string",
+              "description": "期待するエラーメッセージキー (例: 'STOCK_SHORTAGE')。errorCatalog のキーと整合させる。"
             }
           }
         }
@@ -607,7 +632,8 @@
           "description": "例: ADR-001"
         },
         "title": {
-          "type": "string"
+          "type": "string",
+          "description": "ADR のタイトル (例: 「外部決済に Stripe を採用する」)。"
         },
         "status": {
           "type": "string",
@@ -616,7 +642,8 @@
             "accepted",
             "deprecated",
             "superseded"
-          ]
+          ],
+          "description": "ADR のステータス。proposed: 提案中、accepted: 採択済、deprecated: 廃止、superseded: 別 ADR で置き換え済。"
         },
         "context": {
           "type": "string",
@@ -716,17 +743,20 @@
       "additionalProperties": false,
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "ヘルスチェックの識別名 (例: 'db-main', 'payment-api')。"
         },
         "type": {
           "$ref": "#/$defs/HealthCheckKind"
         },
         "target": {
-          "type": "string"
+          "type": "string",
+          "description": "チェック対象の接続先 (DB 接続文字列 / HTTP URL 等)。type に応じた形式で指定する。"
         },
         "timeout": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "チェックのタイムアウト (秒)。"
         }
       }
     },
@@ -740,6 +770,7 @@
       "properties": {
         "checks": {
           "type": "array",
+          "description": "ヘルスチェック定義の配列。全チェックが通過するとヘルシーとみなす。",
           "items": {
             "$ref": "#/$defs/HealthCheck"
           }
@@ -756,13 +787,15 @@
       "properties": {
         "checks": {
           "type": "array",
+          "description": "レディネスチェック定義の配列。minimumPassCount 件以上通過でレディ状態となる。",
           "items": {
             "$ref": "#/$defs/HealthCheck"
           }
         },
         "minimumPassCount": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "レディ判定に必要な最低通過チェック数。省略時は全件通過が必要。"
         }
       }
     },
@@ -772,10 +805,12 @@
       "additionalProperties": false,
       "properties": {
         "request": {
-          "type": "string"
+          "type": "string",
+          "description": "リソース要求量 (保証値)。例: CPU は '100m' (0.1 コア)、Memory は '128Mi'。"
         },
         "limit": {
-          "type": "string"
+          "type": "string",
+          "description": "リソース上限量 (超過不可)。例: CPU は '500m' (0.5 コア)、Memory は '512Mi'。"
         }
       }
     },
@@ -792,11 +827,13 @@
         },
         "dbConnections": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "同時使用 DB コネクション数の上限。コネクションプールの設定根拠に使用する。"
         },
         "timeout": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "ProcessFlow 全体の実行タイムアウト (秒)。Sla.timeoutMs より粗い粒度の宣言用。"
         }
       }
     },
@@ -850,7 +887,8 @@
           "$ref": "#/$defs/HttpMethod"
         },
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "API パス (例: '/api/orders/{orderId}')。パスパラメータは {name} 形式で表現する。"
         },
         "auth": {
           "$ref": "#/$defs/HttpAuthRequirement"
@@ -876,13 +914,16 @@
           "$ref": "#/$defs/MarkerKind"
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "description": "マーカーの本文テキスト。指示・質問・TODO・チャットの内容を記述する。"
         },
         "stepId": {
-          "type": "string"
+          "type": "string",
+          "description": "マーカーを紐付けるステップの ID。省略時はフロー全体に対するマーカー。"
         },
         "fieldPath": {
-          "type": "string"
+          "type": "string",
+          "description": "マーカーを紐付けるフィールドのパス (例: 'sql', 'conditions[0].expression')。stepId と組み合わせて使用する。"
         },
         "author": {
           "$ref": "#/$defs/MarkerAuthor"
@@ -894,7 +935,8 @@
           "$ref": "common.v2.schema.json#/$defs/Timestamp"
         },
         "resolution": {
-          "type": "string"
+          "type": "string",
+          "description": "解決内容の説明。resolvedAt と同時に記録し、どのように対応したかを残す。"
         },
         "code": {
           "type": "string",
@@ -922,7 +964,8 @@
           "type": "string",
           "enum": [
             "path"
-          ]
+          ],
+          "description": "形状種別。現在は 'path' (SVG path) のみ対応。"
         },
         "d": {
           "type": "string",
@@ -934,7 +977,8 @@
         },
         "strokeWidth": {
           "type": "number",
-          "minimum": 0.1
+          "minimum": 0.1,
+          "description": "線の太さ (px 相当)。既定は 2.0 程度。"
         },
         "anchorStepId": {
           "type": "string",
@@ -961,21 +1005,25 @@
             "env",
             "vault",
             "file"
-          ]
+          ],
+          "description": "秘匿値の取得元種別。env: 環境変数、vault: HashiCorp Vault 等、file: シークレットファイル。"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "秘匿値のキー名 (例: 'STRIPE_SECRET_KEY', 'stripe/api-key')。source に応じた形式で指定する。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
         },
         "rotationDays": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "description": "ローテーション周期 (日数)。セキュリティポリシーに基づく更新頻度を宣言する。"
         },
         "lastRotatedAt": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "最終ローテーション日時 (ISO 8601 / RFC 3339 UTC)。"
         },
         "values": {
           "type": "object",
@@ -1024,13 +1072,16 @@
         "httpStatus": {
           "type": "integer",
           "minimum": 100,
-          "maximum": 599
+          "maximum": 599,
+          "description": "このエラーに対応する HTTP ステータスコード (例: 404, 409, 422, 500)。"
         },
         "defaultMessage": {
-          "type": "string"
+          "type": "string",
+          "description": "エラーのデフォルトメッセージ (例: 「在庫が不足しています」)。i18n key でも可。"
         },
         "responseRef": {
-          "type": "string"
+          "type": "string",
+          "description": "エラーレスポンスのスキーマ参照 (ActionDefinition.responses の id または $ref)。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
@@ -1139,10 +1190,12 @@
         "status": {
           "type": "integer",
           "minimum": 100,
-          "maximum": 599
+          "maximum": 599,
+          "description": "HTTP ステータスコード (例: 200, 201, 400, 404, 500)。"
         },
         "contentType": {
-          "type": "string"
+          "type": "string",
+          "description": "レスポンスの Content-Type (例: 'application/json', 'text/csv')。省略時は 'application/json' 相当。"
         },
         "bodySchema": {
           "$ref": "#/$defs/BodySchemaRef"
@@ -1151,7 +1204,8 @@
           "$ref": "common.v2.schema.json#/$defs/Description"
         },
         "when": {
-          "type": "string"
+          "type": "string",
+          "description": "このレスポンスが返される条件の説明 (例: 「在庫不足時」「認証エラー時」)。ドキュメント用フィールド。"
         }
       }
     },
@@ -1201,6 +1255,7 @@
             },
             "fields": {
               "type": "array",
+              "description": "オブジェクトのフィールド定義一覧。StructuredField の配列で構造を表現する。",
               "items": {
                 "$ref": "#/$defs/StructuredField"
               }
@@ -1208,6 +1263,7 @@
           }
         },
         {
+          "description": "テーブル 1 行型。指定テーブルの 1 レコードを表現する。",
           "type": "object",
           "required": [
             "kind",
@@ -1219,11 +1275,13 @@
               "const": "tableRow"
             },
             "tableId": {
-              "type": "string"
+              "type": "string",
+              "description": "参照するテーブルの物理名または UUID。"
             }
           }
         },
         {
+          "description": "テーブル複数行型。指定テーブルの複数レコードのリストを表現する。",
           "type": "object",
           "required": [
             "kind",
@@ -1235,7 +1293,8 @@
               "const": "tableList"
             },
             "tableId": {
-              "type": "string"
+              "type": "string",
+              "description": "参照するテーブルの物理名または UUID。"
             }
           }
         },
@@ -1284,16 +1343,19 @@
       "additionalProperties": false,
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "フィールドの識別名 (lowerCamelCase 推奨)。処理フロー内での変数名として使用する。"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "フィールドの表示ラベル (例: 「注文番号」「合計金額」)。UI / ドキュメント用。"
         },
         "type": {
           "$ref": "#/$defs/FieldType"
         },
         "required": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "必須フィールドか否か。true の場合、入力 Action では必ず値が要求される。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
@@ -1303,7 +1365,8 @@
           "description": "採番形式・フォーマットパターン。文字列型フィールドで @conv.numbering.* 参照や正規表現パターンを構造化宣言する (#253)"
         },
         "defaultValue": {
-          "type": "string"
+          "type": "string",
+          "description": "フィールドの既定値。式文字列または JSON literal 文字列 (例: '0', 'PENDING', '@fn.today()')。"
         },
         "screenItemRef": {
           "type": "object",
@@ -1318,7 +1381,8 @@
               "$ref": "common.v2.schema.json#/$defs/Uuid"
             },
             "itemId": {
-              "type": "string"
+              "type": "string",
+              "description": "画面項目の識別子 (BusinessIdentifier 相当)。ScreenItem.id フィールドと対応する。"
             }
           }
         },
@@ -1354,13 +1418,15 @@
           "$ref": "common.v2.schema.json#/$defs/LocalId"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "アクションの表示名 (例: 「注文確定」「商品検索」)。"
         },
         "trigger": {
           "$ref": "#/$defs/ActionTrigger"
         },
         "elementRef": {
-          "type": "string"
+          "type": "string",
+          "description": "このアクションを起動する画面要素の参照 (例: 'btn-confirm', 'form-search')。設計者が designerで設定する。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
@@ -1379,6 +1445,7 @@
         },
         "requiredPermissions": {
           "type": "array",
+          "description": "このアクション実行に必要な権限コードの一覧。RBAC チェックに使用する (例: ['ORDER_WRITE', 'PAYMENT_EXEC'])。",
           "items": {
             "type": "string"
           }
@@ -1388,12 +1455,14 @@
         },
         "responses": {
           "type": "array",
+          "description": "HTTP レスポンス仕様の一覧。ステータスコード毎のレスポンス形式を宣言する。",
           "items": {
             "$ref": "#/$defs/HttpResponseSpec"
           }
         },
         "steps": {
           "type": "array",
+          "description": "このアクションの処理ステップ列。上から順に実行される。",
           "items": {
             "$ref": "#/$defs/Step"
           }
@@ -1429,7 +1498,8 @@
           "$ref": "#/$defs/StepNoteType"
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "description": "注記の本文。前提条件・質問・TODO 等の内容を自由記述する。"
         },
         "createdAt": {
           "$ref": "common.v2.schema.json#/$defs/Timestamp"
@@ -1454,7 +1524,8 @@
       "additionalProperties": false,
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "バインド先の変数名 (lowerCamelCase)。以降のステップで @ prefix で参照できる。"
         },
         "operation": {
           "$ref": "#/$defs/OutputBindingOperation"
@@ -1490,7 +1561,8 @@
           "$ref": "#/$defs/TxBoundaryRole"
         },
         "txId": {
-          "type": "string"
+          "type": "string",
+          "description": "トランザクション識別子 (例: 'tx-order-confirm')。begin / member / end をまとめて追跡する ID。"
         }
       }
     },
@@ -1514,7 +1586,8 @@
       "additionalProperties": false,
       "properties": {
         "chainId": {
-          "type": "string"
+          "type": "string",
+          "description": "外部連携チェーンの識別子 (例: 'stripe-payment-chain')。複数ステップで同じ chainId を使い連携を追跡する。"
         },
         "phase": {
           "$ref": "#/$defs/ExternalChainPhase"
@@ -1531,10 +1604,8 @@
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
         },
-        "note": {
-          "type": "string"
-        },
         "notes": {
+          "description": "ステップ注記リスト。設計者が任意のタイミングで添付する補足メモ (StepNote の配列)。",
           "type": "array",
           "items": {
             "$ref": "#/$defs/StepNote"
@@ -1551,6 +1622,7 @@
         },
         "requiredPermissions": {
           "type": "array",
+          "description": "このステップ実行に必要な権限コードの一覧。RBAC チェックに使用する (例: ['PAYMENT_EXEC'])。",
           "items": {
             "type": "string"
           }
@@ -1562,16 +1634,19 @@
           "$ref": "#/$defs/TxBoundary"
         },
         "transactional": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "true の場合、このステップを既存トランザクション内で実行する。TransactionScopeStep の代替として使用する。"
         },
         "compensatesFor": {
-          "type": "string"
+          "type": "string",
+          "description": "補償処理の対象ステップ ID。このステップが補償するステップを参照する。"
         },
         "externalChain": {
           "$ref": "#/$defs/ExternalChain"
         },
         "subSteps": {
           "type": "array",
+          "description": "サブステップ列。ステップのネスト実行に使用する (例: ループ内の詳細ステップを構造化する)。",
           "items": {
             "$ref": "#/$defs/Step"
           }
@@ -1611,7 +1686,8 @@
       "additionalProperties": false,
       "properties": {
         "field": {
-          "type": "string"
+          "type": "string",
+          "description": "バリデーション対象のフィールド名 (例: 'orderId', 'items[].quantity')。"
         },
         "type": {
           "$ref": "#/$defs/ValidationRuleType"
@@ -1621,7 +1697,8 @@
           "description": "GeneXus 由来の動作種別 (#422 P2-3)。type とは別概念。省略時はランタイム既定 (通常 Error 相当)"
         },
         "pattern": {
-          "type": "string"
+          "type": "string",
+          "description": "type=regex 時の正規表現パターン (例: '^[0-9]{7}$')。patternRef と排他。"
         },
         "patternRef": {
           "type": "string",
@@ -1629,13 +1706,16 @@
         },
         "length": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "type=maxLength / minLength 時の文字数。"
         },
         "min": {
-          "type": "number"
+          "type": "number",
+          "description": "type=range 時の最小値。minRef と排他。"
         },
         "max": {
-          "type": "number"
+          "type": "number",
+          "description": "type=range 時の最大値。maxRef と排他。"
         },
         "minRef": {
           "type": "string",
@@ -1647,15 +1727,18 @@
         },
         "values": {
           "type": "array",
+          "description": "type=enum 時の許容値リスト。",
           "items": {
             "type": "string"
           }
         },
         "condition": {
-          "type": "string"
+          "type": "string",
+          "description": "このルールを適用する条件式 (ExpressionString)。条件が真の場合のみバリデーションを実行する。"
         },
         "message": {
-          "type": "string"
+          "type": "string",
+          "description": "バリデーション失敗時のメッセージ。省略時はランタイム既定メッセージを使用する。"
         }
       }
     },
@@ -1670,21 +1753,25 @@
       "properties": {
         "ok": {
           "type": "array",
+          "description": "バリデーション OK 時に実行する追加ステップ列。メインフローの続行前に割り込む。",
           "items": {
             "$ref": "#/$defs/Step"
           }
         },
         "ng": {
           "type": "array",
+          "description": "バリデーション NG 時に実行するステップ列。",
           "items": {
             "$ref": "#/$defs/Step"
           }
         },
         "ngJumpTo": {
-          "type": "string"
+          "type": "string",
+          "description": "NG 時にジャンプするステップ ID。ngResponseRef との排他ではないが通常どちらか一方を使う。"
         },
         "ngResponseRef": {
-          "type": "string"
+          "type": "string",
+          "description": "NG 時に返すレスポンス参照 (ActionDefinition.responses の id)。例: '400-validation-error'。"
         },
         "ngBodyExpression": {
           "$ref": "common.v2.schema.json#/$defs/ExpressionString"
@@ -1700,13 +1787,16 @@
           "additionalProperties": false,
           "properties": {
             "topic": {
-              "type": "string"
+              "type": "string",
+              "description": "パブリッシュ先トピック名。"
             },
             "eventRef": {
-              "type": "string"
+              "type": "string",
+              "description": "ProcessFlow.eventsCatalog のキー参照。"
             },
             "payload": {
-              "type": "string"
+              "type": "string",
+              "description": "送信ペイロードの式 (例: '{ fieldErrors: @fieldErrors }')。"
             }
           }
         }
@@ -1728,10 +1818,12 @@
           ],
           "properties": {
             "conditions": {
-              "type": "string"
+              "type": "string",
+              "description": "バリデーション対象の条件式。truthy の場合にのみ rules / inlineBranch を評価する (ExpressionString)。"
             },
             "rules": {
               "type": "array",
+              "description": "適用するバリデーションルールの一覧。各ルールが独立して評価される。",
               "items": {
                 "$ref": "#/$defs/ValidationRule"
               }
@@ -1788,7 +1880,8 @@
           "$ref": "#/$defs/AffectedRowsOperator"
         },
         "expected": {
-          "type": "integer"
+          "type": "integer",
+          "description": "期待する影響行数。operator との組み合わせで判定される (例: operator='>=' expected=1 → 1 件以上更新)。"
         },
         "onViolation": {
           "type": "string",
@@ -1797,10 +1890,12 @@
             "abort",
             "log",
             "continue"
-          ]
+          ],
+          "description": "違反時の動作。throw: エラー起票、abort: TX 中断、log: ログのみ、continue: 継続。"
         },
         "errorCode": {
-          "type": "string"
+          "type": "string",
+          "description": "onViolation=throw 時のエラーコード。ProcessFlow.errorCatalog のキー参照。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
@@ -1824,19 +1919,23 @@
           ],
           "properties": {
             "tableName": {
-              "type": "string"
+              "type": "string",
+              "description": "アクセス対象テーブルの物理名 (snake_case)。tableId と併用可能だが、こちらを主キーとして使用する。"
             },
             "tableId": {
-              "type": "string"
+              "$ref": "common.v2.schema.json#/$defs/Uuid",
+              "description": "アクセス対象 Table entity の UUID。tableName と対になり、ID による厳密参照に使用する。"
             },
             "operation": {
               "$ref": "#/$defs/DbOperation"
             },
             "fields": {
-              "type": "string"
+              "type": "string",
+              "description": "SELECT/INSERT/UPDATE 対象のカラム名列挙 (例: 'id, name, status')。省略時は全カラム (*) 相当。"
             },
             "sql": {
-              "type": "string"
+              "type": "string",
+              "description": "実行する SQL 文または SQL テンプレート。式補間 (例: WHERE id = #{@orderId}) を含めてよい。"
             },
             "bulkValues": {
               "type": "string",
@@ -1884,13 +1983,15 @@
             "continue",
             "abort",
             "compensate"
-          ]
+          ],
+          "description": "外部呼出結果に対するアクション。continue: 後続処理継続、abort: 処理中断、compensate: 補償処理実行。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
         },
         "jumpTo": {
-          "type": "string"
+          "type": "string",
+          "description": "action=continue 時にジャンプするステップ ID。省略時は次のステップに進む。"
         },
         "sideEffects": {
           "description": "副作用ステップ列 (#261): ReturnStep は禁止。action=abort との意味衝突を避けるため。レスポンス返却は ReturnStep として通常のフロー上に配置する",
@@ -2018,18 +2119,21 @@
       "properties": {
         "maxAttempts": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "description": "最大試行回数 (初回含む)。例: 3 = 初回 + 最大 2 回リトライ。"
         },
         "backoff": {
           "type": "string",
           "enum": [
             "fixed",
             "exponential"
-          ]
+          ],
+          "description": "バックオフ戦略。fixed: 固定待機、exponential: 指数待機。"
         },
         "initialDelayMs": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "初回リトライ前の待機時間 (ミリ秒)。exponential の場合は基礎遅延となる。"
         }
       }
     },
@@ -2044,15 +2148,18 @@
       "properties": {
         "failureThreshold": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "サーキットをオープンにする連続失敗数の閾値。この回数を超えるとオープン状態になる。"
         },
         "timeout": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "オープン状態からハーフオープンへの遷移待機時間 (秒)。"
         },
         "halfOpenMaxCalls": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "ハーフオープン状態での最大試行呼出数。これを超えるとオープンに戻る。"
         }
       }
     },
@@ -2066,11 +2173,13 @@
       "properties": {
         "maxConcurrent": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "最大同時実行数。この数を超えたリクエストは maxWait まで待機するか拒否される。"
         },
         "maxWait": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "同時実行上限超過時の最大待機時間 (ミリ秒)。超過するとエラーを返す。"
         }
       }
     },
@@ -2101,7 +2210,8 @@
           "description": "秘密値の参照文字列 (例: \"ENV:STRIPE_SECRET_KEY\", \"SECRET:stripe/api-key\")"
         },
         "headerName": {
-          "type": "string"
+          "type": "string",
+          "description": "カスタム認証ヘッダー名 (例: 'X-Api-Key')。kind=apiKey 時に使用する。"
         }
       }
     },
@@ -2118,16 +2228,19 @@
           "$ref": "#/$defs/HttpMethod"
         },
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "API パス。式補間可 (例: '/api/orders/#{@orderId}')。baseUrl に結合して完全 URL を構成する。"
         },
         "query": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
-          }
+          },
+          "description": "クエリパラメータのマップ (キー: パラメータ名、値: 式文字列)。例: {\"status\": \"@orderStatus\"}。"
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "description": "リクエストボディの式文字列 (例: '{ orderId: @orderId, amount: @totalAmount }')。"
         }
       }
     },
@@ -2140,21 +2253,24 @@
       "additionalProperties": false,
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "外部システムの表示名 (例: 「Stripe 決済 API」「在庫管理サービス」)。"
         },
         "baseUrl": {
-          "type": "string"
+          "type": "string",
+          "description": "外部システムの基底 URL (例: 'https://api.stripe.com/v1')。ExternalHttpCall.path と結合して使用する。"
         },
         "openApiSpec": {
           "type": "string",
-          "description": "OpenAPI specification URL or relative path (#413)"
+          "description": "OpenAPI 仕様の URL または相対パス (#413)。ExternalSystemStep.operationRef / operationId の参照解決に使用する。"
         },
         "auth": {
           "$ref": "#/$defs/ExternalAuth"
         },
         "timeoutMs": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "外部システムへの呼出タイムアウト (ミリ秒)。ExternalSystemStep.timeoutMs より優先度は低い。"
         },
         "retryPolicy": {
           "$ref": "#/$defs/RetryPolicy"
@@ -2163,7 +2279,8 @@
           "type": "object",
           "additionalProperties": {
             "type": "string"
-          }
+          },
+          "description": "全呼出に共通して付与する HTTP ヘッダーのマップ。例: {\"Accept\": \"application/json\"}。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
@@ -2191,7 +2308,8 @@
           ],
           "properties": {
             "systemName": {
-              "type": "string"
+              "type": "string",
+              "description": "呼び出す外部システムの名称 (例: 'Stripe', '在庫管理サービス')。ドキュメント用フィールド。"
             },
             "systemRef": {
               "type": "string",
@@ -2202,22 +2320,23 @@
             },
             "operationRef": {
               "type": "string",
-              "description": "OpenAPI operation reference. When httpCall is also present, operationRef takes precedence (#413)."
+              "description": "OpenAPI オペレーション参照 (#413)。httpCall と同時指定した場合は operationRef が優先される。例: 'paths/~1orders/post'"
             },
             "operationId": {
               "type": "string",
-              "description": "OpenAPI operationId (#413)"
+              "description": "OpenAPI operationId (#413)。外部システムの操作を ID で識別する。例: 'createOrder'"
             },
             "requestBodyRef": {
               "type": "string",
-              "description": "JSON Pointer / $ref to request body schema (#413)"
+              "description": "リクエストボディスキーマへの JSON Pointer / $ref (#413)。例: '#/components/schemas/OrderRequest'"
             },
             "responseRef": {
               "type": "string",
-              "description": "JSON Pointer / $ref to response schema (#413)"
+              "description": "レスポンススキーマへの JSON Pointer / $ref (#413)。例: '#/components/schemas/OrderResponse'"
             },
             "outcomes": {
               "type": "object",
+              "description": "呼出結果 (success / failure / timeout) に対する動作仕様。",
               "additionalProperties": false,
               "properties": {
                 "success": {
@@ -2233,7 +2352,8 @@
             },
             "timeoutMs": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "このステップ固有の呼出タイムアウト (ミリ秒)。externalSystemCatalog のタイムアウトより優先する。"
             },
             "retryPolicy": {
               "$ref": "#/$defs/RetryPolicy"
@@ -2245,19 +2365,22 @@
               "$ref": "#/$defs/BulkheadConfig"
             },
             "fireAndForget": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "true の場合、レスポンスを待たずに次のステップに進む (非同期発火)。"
             },
             "auth": {
               "$ref": "#/$defs/ExternalAuth"
             },
             "idempotencyKey": {
-              "type": "string"
+              "type": "string",
+              "description": "冪等キー。再試行時に同一リクエストを重複実行させないために外部システムに送る識別子の式。"
             },
             "headers": {
               "type": "object",
               "additionalProperties": {
                 "type": "string"
-              }
+              },
+              "description": "このステップ固有の追加 HTTP ヘッダー (externalSystemCatalog の headers を上書き・補完する)。"
             },
             "apiVersion": {
               "type": "string",
@@ -2298,13 +2421,16 @@
           ],
           "properties": {
             "refId": {
-              "type": "string"
+              "$ref": "common.v2.schema.json#/$defs/Uuid",
+              "description": "呼び出し先 ProcessFlow entity の UUID。共通処理の識別子として使用する。"
             },
             "refName": {
-              "type": "string"
+              "type": "string",
+              "description": "呼び出し先 ProcessFlow の表示名。refId と対になるドキュメント用フィールド。"
             },
             "argumentMapping": {
               "type": "object",
+              "description": "呼び先フローへの引数マッピング (呼び先変数名: 式文字列)。例: {\"cartId\": \"@cart.id\", \"userId\": \"@session.userId\"}。",
               "additionalProperties": {
                 "type": "string"
               }
@@ -2340,10 +2466,12 @@
           ],
           "properties": {
             "targetScreenId": {
-              "type": "string"
+              "$ref": "common.v2.schema.json#/$defs/Uuid",
+              "description": "遷移先 Screen entity の UUID。targetScreenName と併用可能だが、UUID が優先される。"
             },
             "targetScreenName": {
-              "type": "string"
+              "type": "string",
+              "description": "遷移先画面の表示名。targetScreenId が未指定の場合にルックアップに使用する。"
             },
             "kind": {
               "const": "screenTransition"
@@ -2369,7 +2497,8 @@
           ],
           "properties": {
             "target": {
-              "type": "string"
+              "type": "string",
+              "description": "更新対象の画面項目 ID またはセレクター (例: 'totalAmount', '#summary-panel')。"
             },
             "kind": {
               "const": "displayUpdate"
@@ -2395,7 +2524,8 @@
               "const": "tryCatch"
             },
             "errorCode": {
-              "type": "string"
+              "type": "string",
+              "description": "捕捉するエラーコード。ProcessFlow.errorCatalog のキー参照 (例: 'STOCK_SHORTAGE')。"
             },
             "description": {
               "$ref": "common.v2.schema.json#/$defs/Description"
@@ -2414,7 +2544,8 @@
               "const": "affectedRowsZero"
             },
             "stepRef": {
-              "type": "string"
+              "type": "string",
+              "description": "参照する DbAccessStep の ID。省略時は直前の DbAccessStep を暗黙参照する。"
             },
             "description": {
               "$ref": "common.v2.schema.json#/$defs/Description"
@@ -2434,7 +2565,8 @@
               "const": "externalOutcome"
             },
             "stepRef": {
-              "type": "string"
+              "type": "string",
+              "description": "参照する ExternalSystemStep の ID。省略時は直前の ExternalSystemStep を暗黙参照する。"
             },
             "outcome": {
               "$ref": "#/$defs/ExternalCallOutcome"
@@ -2465,16 +2597,19 @@
           "$ref": "common.v2.schema.json#/$defs/LocalId"
         },
         "code": {
-          "type": "string"
+          "type": "string",
+          "description": "分岐の識別コード (例: 'stock-shortage', 'payment-failure')。ログ・デバッグ用の短い識別子。"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "分岐の表示ラベル (例: 「在庫不足」「決済エラー」)。UI / ドキュメント用。"
         },
         "condition": {
           "$ref": "#/$defs/BranchCondition"
         },
         "steps": {
           "type": "array",
+          "description": "この分岐が選択された時に実行するステップ列。",
           "items": {
             "$ref": "#/$defs/Step"
           }
@@ -2495,10 +2630,12 @@
           "$ref": "common.v2.schema.json#/$defs/LocalId"
         },
         "code": {
-          "type": "string"
+          "type": "string",
+          "description": "else 分岐の識別コード (例: 'default', 'else')。"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "else 分岐の表示ラベル (例: 「その他」「デフォルト」)。"
         },
         "description": {
           "$ref": "common.v2.schema.json#/$defs/Description"
@@ -2508,6 +2645,7 @@
         },
         "steps": {
           "type": "array",
+          "description": "else 分岐が選択された時に実行するステップ列。",
           "items": {
             "$ref": "#/$defs/Step"
           }
@@ -2532,6 +2670,7 @@
             "branches": {
               "type": "array",
               "minItems": 1,
+              "description": "分岐定義の一覧。最低 1 件必須。条件は上から順に評価され、最初に一致した分岐を実行する。",
               "items": {
                 "$ref": "#/$defs/Branch"
               }
@@ -2601,13 +2740,16 @@
               "$ref": "common.v2.schema.json#/$defs/ExpressionString"
             },
             "collectionSource": {
-              "type": "string"
+              "$ref": "common.v2.schema.json#/$defs/ExpressionString",
+              "description": "反復対象のコレクションを取得する式。loopKind=collection 時に必須 (例: '@orderItems', '@fn.getRows(@tableId)')。"
             },
             "collectionItemName": {
-              "type": "string"
+              "type": "string",
+              "description": "コレクションの各要素を参照する変数名 (例: 'item')。ループ内で @<collectionItemName> として参照する。"
             },
             "steps": {
               "type": "array",
+              "description": "ループ内で繰り返し実行するステップ列。",
               "items": {
                 "$ref": "#/$defs/Step"
               }
@@ -2680,7 +2822,8 @@
           ],
           "properties": {
             "jumpTo": {
-              "type": "string"
+              "type": "string",
+              "description": "ジャンプ先のステップ ID。同一 Action 内のステップを指定する (例: 'step-error-handler')。"
             },
             "kind": {
               "const": "jump"
@@ -2731,7 +2874,8 @@
           ],
           "properties": {
             "responseRef": {
-              "type": "string"
+              "type": "string",
+              "description": "返すレスポンスの参照 (ActionDefinition.responses の id)。例: '200-success', '201-created'。"
             },
             "bodyExpression": {
               "$ref": "common.v2.schema.json#/$defs/ExpressionString"
@@ -2764,16 +2908,19 @@
               "$ref": "#/$defs/LogLevel"
             },
             "message": {
-              "type": "string"
+              "type": "string",
+              "description": "ログメッセージ本文。式補間可 (例: '注文 #{@orderId} を確定しました')。"
             },
             "category": {
-              "type": "string"
+              "type": "string",
+              "description": "ログカテゴリ (例: 'AUDIT', 'PAYMENT', 'STOCK')。ログ集計・フィルタリングに使用する。"
             },
             "structuredData": {
               "type": "object",
               "additionalProperties": {
                 "type": "string"
-              }
+              },
+              "description": "構造化ログの追加データ (キー: フィールド名、値: 式文字列)。MDC / Mapped Diagnostic Context 相当。"
             },
             "kind": {
               "const": "log"
@@ -2793,7 +2940,8 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "監査対象リソースの種別名 (例: 'ORDER', 'PRODUCT', 'USER')。"
         },
         "id": {
           "$ref": "common.v2.schema.json#/$defs/LocalId"
@@ -2816,7 +2964,8 @@
           ],
           "properties": {
             "action": {
-              "type": "string"
+              "type": "string",
+              "description": "監査アクション名 (例: 'ORDER_CONFIRMED', 'PAYMENT_CHARGED', 'USER_LOGIN')。"
             },
             "resource": {
               "$ref": "#/$defs/AuditResource"
@@ -2825,10 +2974,12 @@
               "$ref": "#/$defs/AuditResult"
             },
             "reason": {
-              "type": "string"
+              "type": "string",
+              "description": "監査記録の理由・備考 (例: 「管理者による強制キャンセル」)。ドキュメント / 準拠対応用。"
             },
             "sensitive": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "機密情報を含む監査レコードか否か。true の場合は特権アクセスが必要なログストアに記録する。"
             },
             "kind": {
               "const": "audit"
@@ -2848,14 +2999,16 @@
       "properties": {
         "role": {
           "type": "string",
-          "description": "RBAC catalog role key reference"
+          "description": "RBAC カタログの role キー参照。承認者のロールを指定する (例: 'manager', 'cfo')。"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "承認者の表示ラベル (例: 「部長」「最終承認者」)。UI 表示用の補足名称。"
         },
         "order": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "description": "承認順序。approval-sequential パターン時に昇順で処理される。"
         }
       }
     },
@@ -2872,7 +3025,8 @@
         },
         "n": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "description": "type=nOfM 時の必要承認者数 (n)。approvers の総数 (m) 以下に設定する。"
         }
       },
       "allOf": [
@@ -2880,7 +3034,7 @@
           "if": {
             "properties": {
               "type": {
-                "const": "n-of-m"
+                "const": "nOfM"
               }
             },
             "required": [
@@ -2902,11 +3056,11 @@
       "properties": {
         "role": {
           "type": "string",
-          "description": "RBAC catalog role key reference"
+          "description": "RBAC カタログの role キー参照。エスカレーション先のロールを静的に指定する (例: 'director')。"
         },
         "userExpression": {
           "$ref": "common.v2.schema.json#/$defs/ExpressionString",
-          "description": "ConvCompletion expression for dynamic escalation assignee"
+          "description": "エスカレーション先の動的アサイニーを返す式 (例: '@fn.getManagerOf(@requestorId)')。role より優先される。"
         }
       }
     },
@@ -2931,6 +3085,7 @@
             },
             "approvers": {
               "type": "array",
+              "description": "承認者一覧。role と順序を定義する。",
               "items": {
                 "$ref": "#/$defs/WorkflowApprover"
               }
@@ -2940,29 +3095,32 @@
             },
             "onApproved": {
               "type": "array",
+              "description": "承認時に実行するステップ列。",
               "items": {
                 "$ref": "#/$defs/Step"
               }
             },
             "onRejected": {
               "type": "array",
+              "description": "否決時に実行するステップ列。",
               "items": {
                 "$ref": "#/$defs/Step"
               }
             },
             "onTimeout": {
               "type": "array",
+              "description": "承認タイムアウト時に実行するステップ列。",
               "items": {
                 "$ref": "#/$defs/Step"
               }
             },
             "deadlineExpression": {
               "$ref": "common.v2.schema.json#/$defs/ExpressionString",
-              "description": "ConvCompletion expression for approval deadline"
+              "description": "承認期限を返す式 (例: '@fn.addDays(@today, 3)')。approval-escalation パターン時に使用する。"
             },
             "escalateAfter": {
               "type": "string",
-              "description": "Duration expression before escalation"
+              "description": "エスカレーションまでの猶予期間を表す duration 式 (例: 'P1D' = 1 日、'PT8H' = 8 時間)。"
             },
             "escalateTo": {
               "$ref": "#/$defs/WorkflowEscalateTo"
@@ -3045,9 +3203,11 @@
               "type": "object",
               "additionalProperties": {
                 "type": "string"
-              }
+              },
+              "description": "拡張ステップの出力フィールド定義 (キー: フィールド名、値: 型説明文字列)。下流ステップの参照解決に使用する。"
             },
             "kind": {
+              "description": "ステップ種別。'other' または 'namespace:StepName' 形式の拡張ステップ名。",
               "oneOf": [
                 {
                   "const": "other"
@@ -3093,16 +3253,20 @@
               "$ref": "#/$defs/ClosingPeriod"
             },
             "customCron": {
-              "type": "string"
+              "type": "string",
+              "description": "period=custom 時の cron 式 (例: '0 23 * * *' = 毎日 23:00)。"
             },
             "cutoffAt": {
-              "type": "string"
+              "type": "string",
+              "description": "締め日時を返す式または固定値 (例: '2026-03-31T23:59:59Z', '@fn.endOfMonth(@today)')。"
             },
             "idempotencyKey": {
-              "type": "string"
+              "type": "string",
+              "description": "冪等キー式。同一期間の二重締め処理を防ぐために使用する。"
             },
             "rollbackOnFailure": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "true の場合、締め処理失敗時に全 DB 操作をロールバックする。"
             },
             "kind": {
               "const": "closing"
@@ -3132,7 +3296,8 @@
           "$ref": "#/$defs/CdcDestinationKind"
         },
         "target": {
-          "type": "string"
+          "type": "string",
+          "description": "出力先の名称。auditLog は省略可、eventStream はトピック名、table はテーブル物理名を指定する。"
         }
       }
     },
@@ -3155,6 +3320,7 @@
           "properties": {
             "tables": {
               "type": "array",
+              "description": "CDC キャプチャ対象のテーブル物理名の一覧。",
               "items": {
                 "type": "string"
               }
@@ -3167,12 +3333,14 @@
             },
             "includeColumns": {
               "type": "array",
+              "description": "キャプチャに含めるカラム名の一覧。省略時は全カラム。excludeColumns と排他。",
               "items": {
                 "type": "string"
               }
             },
             "excludeColumns": {
               "type": "array",
+              "description": "キャプチャから除外するカラム名の一覧 (例: パスワード・個人情報カラム)。includeColumns と排他。",
               "items": {
                 "type": "string"
               }
@@ -3226,7 +3394,8 @@
             },
             "timeoutMs": {
               "type": "number",
-              "minimum": 0
+              "minimum": 0,
+              "description": "TX 全体のタイムアウト (ミリ秒)。超過すると自動ロールバックする。"
             },
             "rollbackOn": {
               "description": "rollback を引き起こす errorCode の配列。ProcessFlow.errorCatalog のキー参照",
@@ -3258,6 +3427,7 @@
             },
             "outcomes": {
               "type": "object",
+              "description": "TX 結果 (success / failure / timeout) に対する動作仕様。",
               "additionalProperties": false,
               "properties": {
                 "success": {
@@ -3402,13 +3572,13 @@
       ]
     },
     "WorkflowQuorumType": {
-      "description": "クォーラム判定種別。all: 全員承認、any: 1 名承認、majority: 過半数、n-of-m: n 名以上",
+      "description": "クォーラム判定種別。all: 全員承認、any: 1 名承認、majority: 過半数、nOfM: n 名以上",
       "type": "string",
       "enum": [
         "all",
         "any",
         "majority",
-        "n-of-m"
+        "nOfM"
       ]
     },
     "HealthCheckKind": {
