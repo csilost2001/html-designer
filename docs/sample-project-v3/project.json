@@ -1,0 +1,89 @@
+{
+  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "ccd2aa83-1d02-47e8-adbe-864cb9619a41",
+    "name": "v3 dogfood サンプル — 小売在庫照会",
+    "description": "PR #522 でマージされた schema v3 を実 sample で実証するための小売在庫照会プロジェクト。retail namespace 拡張を適用。",
+    "version": "1.0.0",
+    "maturity": "draft",
+    "createdAt": "2026-04-27T00:00:00.000Z",
+    "updatedAt": "2026-04-27T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [
+    {
+      "namespace": "retail",
+      "version": ">=1.0.0"
+    }
+  ],
+  "entities": {
+    "screens": [
+      {
+        "id": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
+        "no": 1,
+        "name": "店舗在庫照会",
+        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "search",
+        "path": "/retail/inventory/search",
+        "hasDesign": false
+      }
+    ],
+    "tables": [
+      {
+        "id": "eb574288-88f2-419f-ac5e-56a9948e8f46",
+        "no": 1,
+        "name": "商品マスタ",
+        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "products",
+        "category": "マスタ",
+        "columnCount": 9
+      },
+      {
+        "id": "d6db2166-5634-404d-84e4-8a7a11c28233",
+        "no": 2,
+        "name": "在庫管理テーブル",
+        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "maturity": "committed",
+        "physicalName": "inventory",
+        "category": "トランザクション",
+        "columnCount": 6
+      }
+    ],
+    "processFlows": [
+      {
+        "id": "506c266f-cc46-4d6f-86df-3c71f515bfcc",
+        "no": 1,
+        "name": "店舗在庫照会 (小売)",
+        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "screen",
+        "screenId": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
+        "actionCount": 1
+      }
+    ]
+  },
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-PRJ-001",
+        "title": "本サンプルでは strict Uuid を使い UuidLoose は採用しない",
+        "status": "accepted",
+        "context": "v1/v2 サンプルは UuidLoose (gggggggg-/aaaaaaaa-/bbbbbbbb- 形式) を採用していたが、v3 では Uuid (RFC 4122 v4 strict) を要求する schema 設計とした。dogfood で UuidLoose を許容すると AJV validation 時の $ref 解決を分けて持つ必要がある。",
+        "decision": "本 v3 dogfood サンプル群は全て strict UUID v4 を使用する。loader 実装時の UuidLoose 受容範囲は v3.1 で再評価する。",
+        "consequences": "v1/v2 サンプルとの相互運用は不可能 (data/screens/aaaaaaaa-... を v3 sample が参照することはない)。dogfood の独立性は保たれる。",
+        "date": "2026-04-27"
+      }
+    ],
+    "notes": [
+      {
+        "id": "note-prj-01",
+        "kind": "assumption",
+        "body": "本プロジェクトはあくまで dogfood サンプル。実際の小売業務をフルに表現する目的ではなく、schema v3 の主要設計判断を 1 つの最小プロジェクトで通しで実証するスコープ。",
+        "createdAt": "2026-04-27T00:00:00.000Z"
+      }
+    ]
+  }
+}

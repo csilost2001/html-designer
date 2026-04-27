@@ -1,0 +1,51 @@
+{
+  "id": "d6db2166-5634-404d-84e4-8a7a11c28233",
+  "name": "在庫管理テーブル",
+  "description": "店舗 × 商品ごとの在庫数量・引当数量を管理するテーブル。照会・引当操作の主対象。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-27T00:00:00.000Z",
+  "updatedAt": "2026-04-27T00:00:00.000Z",
+  "physicalName": "inventory",
+  "category": "トランザクション",
+  "comment": "在庫テーブル。store_code + product_code の複合自然キーで一意。",
+  "columns": [
+    { "id": "col-i01", "no": 1, "physicalName": "id", "name": "在庫ID", "dataType": "INTEGER", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-i02", "no": 2, "physicalName": "store_code", "name": "店舗コード", "dataType": "VARCHAR", "length": 50, "notNull": true, "comment": "物理店舗を識別する英数字コード。" },
+    { "id": "col-i03", "no": 3, "physicalName": "product_code", "name": "商品コード", "dataType": "VARCHAR", "length": 50, "notNull": true, "comment": "products.product_code に対応 (FK)。" },
+    { "id": "col-i04", "no": 4, "physicalName": "available_quantity", "name": "在庫可能数量", "dataType": "INTEGER", "notNull": true, "defaultValue": "0", "comment": "現在注文受付可能な数量 (在庫総量 - 引当済数量)。" },
+    { "id": "col-i05", "no": 5, "physicalName": "reserved_quantity", "name": "引当済数量", "dataType": "INTEGER", "notNull": true, "defaultValue": "0", "comment": "注文確定済みで出庫待ちの数量。" },
+    { "id": "col-i06", "no": 6, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-i01", "physicalName": "idx_inventory_store_product", "columns": [{ "columnId": "col-i02" }, { "columnId": "col-i03" }], "unique": true, "description": "店舗 × 商品の複合一意制約。" },
+    { "id": "idx-i02", "physicalName": "idx_inventory_product_code", "columns": [{ "columnId": "col-i03" }] }
+  ],
+  "constraints": [
+    {
+      "id": "uq-i01",
+      "kind": "unique",
+      "physicalName": "uq_inventory_store_product",
+      "columnIds": ["col-i02", "col-i03"],
+      "description": "店舗 × 商品 で 1 行のみ。"
+    },
+    {
+      "id": "fk-i01",
+      "kind": "foreignKey",
+      "physicalName": "fk_inventory_product_code",
+      "columnIds": ["col-i03"],
+      "referencedTableId": "eb574288-88f2-419f-ac5e-56a9948e8f46",
+      "referencedColumnIds": ["col-p02"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade",
+      "description": "products.product_code への FK。商品マスタから product_code を変更した場合は cascade。"
+    },
+    {
+      "id": "chk-i01",
+      "kind": "check",
+      "physicalName": "chk_inventory_qty_nonnegative",
+      "expression": "available_quantity >= 0 AND reserved_quantity >= 0",
+      "description": "在庫数量は 0 以上。"
+    }
+  ]
+}
