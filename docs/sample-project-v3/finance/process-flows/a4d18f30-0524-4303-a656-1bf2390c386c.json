@@ -420,6 +420,41 @@
                       "responseId": "422-approval-rejected",
                       "bodyExpression": "{ code: 'APPROVAL_REJECTED', message: '承認者により却下されました' }"
                     }
+                  ],
+                  "onTimeout": [
+                    {
+                      "id": "step-07-a-05-to-01",
+                      "kind": "dbAccess",
+                      "description": "deadline 48h 経過 → transfers.status = cancelled",
+                      "tableId": "cfd7ac67-73bf-4a22-baea-f7be435f3006",
+                      "operation": "UPDATE",
+                      "sql": "UPDATE transfers SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = @createdTransfer.id",
+                      "lineage": { "writes": [{ "tableId": "cfd7ac67-73bf-4a22-baea-f7be435f3006", "purpose": "status-update" }] }
+                    },
+                    {
+                      "id": "step-07-a-05-to-02",
+                      "kind": "eventPublish",
+                      "description": "承認タイムアウトイベント (依頼顧客 / 担当者通知)",
+                      "topic": "finance.transfer_rejected",
+                      "payload": "{ transferNumber: @createdTransfer.transfer_number, reason: 'approval_timeout' }"
+                    },
+                    {
+                      "id": "step-07-a-05-to-03",
+                      "kind": "audit",
+                      "description": "deadline 経過の監査ログ (内部統制要件)",
+                      "action": "finance.transfer.approval_timeout",
+                      "resource": { "type": "transfer", "id": "@createdTransfer.transfer_number" },
+                      "result": "failure",
+                      "reason": "承認 deadline (48h) 経過、自動 cancelled に遷移",
+                      "sensitive": true
+                    },
+                    {
+                      "id": "step-07-a-05-to-04",
+                      "kind": "return",
+                      "description": "422 承認 deadline 経過",
+                      "responseId": "422-approval-rejected",
+                      "bodyExpression": "{ code: 'APPROVAL_TIMEOUT', message: '承認 deadline (48h) を超過したため振込が cancelled になりました' }"
+                    }
                   ]
                 }
               ]
@@ -510,11 +545,36 @@
             },
             {
               "id": "step-08-rb-02",
+              "kind": "eventPublish",
+              "description": "rollback 原因に応じた reason で finance.transfer_rejected を発行",
+              "topic": "finance.transfer_rejected",
+              "payload": "{ transferNumber: @createdTransfer.transfer_number, reason: @error.code == 'INSUFFICIENT_BALANCE' ? 'insufficient_balance' : 'internal_error' }"
+            },
+            {
+              "id": "step-08-rb-03",
+              "kind": "audit",
+              "description": "rollback 監査ログ (内部統制 / 障害分析用)",
+              "action": "finance.transfer.execute_failed",
+              "resource": { "type": "transfer", "id": "@createdTransfer.transfer_number" },
+              "result": "failure",
+              "reason": "@error.code",
+              "sensitive": true
+            },
+            {
+              "id": "step-08-rb-04",
               "kind": "return",
-              "description": "残高不足エラー応答",
+              "description": "残高不足エラー応答 (INSUFFICIENT_BALANCE のみ 422)",
               "runIf": "@error.code == 'INSUFFICIENT_BALANCE'",
               "responseId": "422-insufficient-balance",
               "bodyExpression": "{ code: 'INSUFFICIENT_BALANCE', message: '残高不足です' }"
+            },
+            {
+              "id": "step-08-rb-05",
+              "kind": "return",
+              "description": "それ以外の TX rollback (INTERNAL_ERROR / 不明エラー) は 500",
+              "runIf": "@error.code != 'INSUFFICIENT_BALANCE'",
+              "responseId": "500-internal-error",
+              "bodyExpression": "{ code: 'INTERNAL_ERROR', message: '内部エラーが発生しました', errorCode: @error.code }"
             }
           ]
         },
@@ -650,7 +710,13 @@
           "input": { "fromAccountNumber": "00111234567", "toAccountNumber": "00211234567", "amount": 1500000 }
         },
         "then": [
-          { "kind": "outcome", "expected": "200-ok" }
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "output", "path": "$.status", "equals": "executed" },
+          { "kind": "dbRow", "tableId": "cfd7ac67-73bf-4a22-baea-f7be435f3006", "match": { "amount": 1500000, "status": "executed", "approval_required": true }, "count": 1 },
+          { "kind": "dbRow", "tableId": "3d37919f-fddb-4ebb-a742-74d3ab76e593", "match": { "id": 1, "balance": 3500000 }, "count": 1 },
+          { "kind": "dbRow", "tableId": "3d37919f-fddb-4ebb-a742-74d3ab76e593", "match": { "id": 2, "balance": 1500000 }, "count": 1 },
+          { "kind": "externalCall", "externalRef": "creditInformationCenter", "method": "GET" },
+          { "kind": "auditLog", "action": "finance.transfer.execute", "result": "success" }
         ],
         "tags": ["high-value", "approval"]
       },

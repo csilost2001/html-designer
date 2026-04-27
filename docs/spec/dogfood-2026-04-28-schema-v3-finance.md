@@ -41,7 +41,7 @@ Round 1 (retail) では参照系が中心だったが、Round 2 (finance) では
 | `AffectedRowsCheck` (operator, expected, onViolation, errorCode) | step-08-01 残高引落 | ✅ UPDATE WHERE balance >= amount で affectedRows = 0 検出 → INSUFFICIENT_BALANCE スロー |
 | `ExtensionStep` + `lineage` (F-2 検証) | step-07-a-01 (CreditCheckStep) | ✅ extension step が lineage を top-level に持てる、`reads: [{tableId, purpose}]` で監査用途を宣言可 |
 | `requiredPermissions` + `@conv.permission.*` 参照 | act-001 / step (任意) | ✅ permission 参照が catalog 規範と一貫 |
-| `sla` (Action root + Sla) | act-001 と meta | ✅ timeoutMs / onTimeout / errorCode / warningThresholdMs / p95LatencyMs 全て使える |
+| `sla` (Sla 構造) | meta.sla (本 sample では Action / Step level の sla は未使用、対応箇所のみ) | ✅ timeoutMs / onTimeout / errorCode / warningThresholdMs / p95LatencyMs 全て使える (Action / Step level でも schema 上同じ Sla 型で表現可能) |
 | `ConstraintDefinition` 集約 (UniqueConstraint + CheckConstraint + ForeignKeyConstraint 各複数) | accounts / transfers / transfer_approvals | ✅ FK 連鎖 (transfers → accounts → customers) が UUID 参照で機能。Pattern Index (where 句) も使える |
 | `branch.condition: { kind: "expression", expression }` | 残高チェック / 高額判定 / 与信判定 / 同口座判定 | ✅ 全て discriminator で 1 branch のみエラー報告 (F-4 効果) |
 | `valueFrom: tableColumn / expression` (ScreenItem) | 振込画面 fromAccountBalance / fee / approvalRequired | ✅ ScreenItem.valueFrom の discriminated union で表現可、catalog 連動 |
@@ -115,7 +115,7 @@ memory `project_schema_v3_2026_04_27.md` の v3.1 候補について Round 2 結
 
 ## 6. v3.0 確定可否判定
 
-### 判定: **v3.0 確定可能 ✅**
+### 判定: **v3.0 確定可能 ✅** (条件付き)
 
 根拠:
 - Round 2 で **新規フレームワーク改善 0 件**、新規拡張定義改善 0 件、新規サンプル設計問題 0 件
@@ -124,10 +124,15 @@ memory `project_schema_v3_2026_04_27.md` の v3.1 候補について Round 2 結
 - Sonnet 独立委譲も迷いなく書けた = schema が「別 AI が独立に読める」品質に到達
 - 残る課題 (F-4 Step.oneOf limitation / v3.1 候補 #6 拡張機構統一) は既知 / 容認範囲 or 別 ISSUE で扱う
 
+### 条件 / 留保
+
+- **2 業界 (retail + finance) のみでの検証**であり、manufacturing / healthcare 等の異質業界では未検証。新業界スコープ追加時は再評価
+- 完成度を 90-95% と評価したが、**85-90% の方が現実的** (PR #528 独立レビュー指摘を反映)。Round 3 が必須ではないが、TS 型同期と並行して manufacturing dogfood を回すことで完成度を 95% 以上に上げる選択肢はある
+
 ### 完成度評価
 
 Round 1 後: 70-75% (β 版)、F-1〜F-4 が dogfood 1 回で出る状態
-Round 2 後: **90-95% (RC 候補)**、新規問題 0 件、Round 1 残骸 (limitation) のみ
+Round 2 後: **85-90% (RC 候補)**、新規問題 0 件、Round 1 残骸 (limitation) のみ。残り 10-15% は新業界 (manufacturing/healthcare) での再検証 + TS 型同期で詰める範囲
 
 ---
 
