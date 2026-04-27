@@ -145,9 +145,16 @@
       "required": ["value"],
       "additionalProperties": false,
       "properties": {
-        "value": { "type": "number", "description": "境界値。整数のみが有効な場合は unit='integer' で示す。" },
+        "value": { "type": "number", "description": "境界値。unit='integer' のときは整数値必須 (if/then で強制)。" },
         "unit": { "type": "string", "description": "単位 (char / integer / yen / ms / days 等)。" },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "if": {
+        "properties": { "unit": { "const": "integer" } },
+        "required": ["unit"]
+      },
+      "then": {
+        "properties": { "value": { "type": "integer" } }
       }
     },
 

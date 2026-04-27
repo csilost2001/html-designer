@@ -11,11 +11,13 @@
     "positions": {
       "type": "object",
       "description": "Screen / ScreenGroup の UUID をキーとし、UI 座標を値とする。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
       "additionalProperties": { "$ref": "#/$defs/Position" }
     },
     "transitions": {
       "type": "object",
       "description": "ScreenTransition の LocalId をキーとし、UI 座標 (handle 位置等) を値とする。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/LocalId" },
       "additionalProperties": { "$ref": "#/$defs/TransitionLayout" }
     },
     "updatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" }

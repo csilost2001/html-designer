@@ -21,7 +21,6 @@
         { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
       ],
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "mode": { "$ref": "common.v3.schema.json#/$defs/Mode", "description": "プロジェクト全体の上流/下流モード。" }
       },

@@ -12,9 +12,10 @@
     },
 
     "UuidLoose": {
-      "description": "テスト・サンプル用途の擬似 UUID。RFC 4122 v4 に加え a-z を許容 (例: 'gggggggg-0001-4000-8000-...')。本番データには Uuid を使用すること。",
+      "description": "[非本番] テスト・サンプル専用の擬似 UUID。RFC 4122 v4 に加え a-z を許容 (例: 'gggggggg-0001-4000-8000-...')。本番データには Uuid を使用する (deprecated 扱い、loader はサンプルデータの読み込み時のみ受容する)。",
       "type": "string",
-      "pattern": "^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$"
+      "pattern": "^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$",
+      "deprecated": true
     },
 
     "LocalId": {
@@ -25,7 +26,7 @@
     },
 
     "Identifier": {
-      "description": "業務識別子 (画面項目 ID / API key / ProcessFlow 変数名 / FieldType 拡張 kind 等)。lowerCamelCase 強制。AI 実装者が JS 識別子としてそのまま使える形式。例: userName, cartId, postalCode, productCode",
+      "description": "業務識別子 (画面項目 ID / API key / ProcessFlow 変数名 / FieldType 拡張 kind 等)。lowerCamelCase 強制。AI 実装者が JS 識別子としてそのまま使える形式。maxLength 64 は GraphQL / OpenAPI / 一般的なコード規約の慣行値 (実装言語側でさらに長い識別子を許容する場合は本制約に縛られないが、schema レベルで業務識別子は 64 字に収める運用)。例: userName, cartId, postalCode, productCode",
       "type": "string",
       "pattern": "^[a-z][a-zA-Z0-9]*$",
       "minLength": 1,
@@ -62,9 +63,10 @@
     },
 
     "Timestamp": {
-      "description": "ISO 8601 / RFC 3339 形式の UTC タイムスタンプ。Z 終端必須。例: 2026-04-27T00:00:00.000Z",
+      "description": "ISO 8601 / RFC 3339 形式の UTC タイムスタンプ。Z 終端必須 (timezone offset 形式は v3 で受容しない)。例: 2026-04-27T00:00:00.000Z",
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
     },
 
     "SemVer": {
@@ -143,7 +145,7 @@
         },
         "glossary": {
           "type": "object",
-          "description": "ドメイン用語集。キー: 用語名 (日本語可)。",
+          "description": "ドメイン用語集。キー: 用語名。日本語を**正本**とし、英語別名は GlossaryEntry.aliases に格納する (キーに英日混在を作らない)。",
           "additionalProperties": { "$ref": "#/$defs/GlossaryEntry" }
         },
         "notes": {
@@ -378,31 +380,6 @@
       }
     },
 
-    "ScreenRef": {
-      "description": "Screen entity への単独参照 (Pattern A: UUID 単独)。",
-      "$ref": "#/$defs/Uuid"
-    },
-
-    "TableRef": {
-      "description": "Table entity への単独参照。",
-      "$ref": "#/$defs/Uuid"
-    },
-
-    "ProcessFlowRef": {
-      "description": "ProcessFlow entity への単独参照。",
-      "$ref": "#/$defs/Uuid"
-    },
-
-    "ViewRef": {
-      "description": "View entity への単独参照。",
-      "$ref": "#/$defs/Uuid"
-    },
-
-    "SequenceRef": {
-      "description": "Sequence entity への単独参照。",
-      "$ref": "#/$defs/Uuid"
-    },
-
     "ScreenItemRef": {
       "description": "Screen 内の画面項目への複合参照 (Pattern B)。screenId + itemId。",
       "type": "object",
@@ -433,17 +410,6 @@
       "properties": {
         "viewId": { "$ref": "#/$defs/Uuid" },
         "columnPhysicalName": { "$ref": "#/$defs/PhysicalName" }
-      }
-    },
-
-    "SequenceColumnRef": {
-      "description": "Sequence の利用先 Table カラムへの複合参照。",
-      "type": "object",
-      "required": ["tableId", "columnId"],
-      "additionalProperties": false,
-      "properties": {
-        "tableId": { "$ref": "#/$defs/Uuid" },
-        "columnId": { "$ref": "#/$defs/LocalId" }
       }
     },
 
@@ -566,7 +532,7 @@
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "externalStub" },
-            "externalRef": { "type": "string", "description": "ProcessFlow.context.catalogs.externalSystems のキー。" },
+            "externalRef": { "$ref": "#/$defs/Identifier", "description": "ProcessFlow.context.catalogs.externalSystems のキー (Identifier / camelCase、ExternalSystemStep.systemRef と整合)。" },
             "responseMock": { "description": "外部 API のモックレスポンス (任意の値)。" }
           }
         },
@@ -593,12 +559,12 @@
     },
 
     "TestInvocation": {
-      "description": "テスト起動点。ProcessFlow.actions[].id 参照。",
+      "description": "テスト起動点。ProcessFlow.actions[].id 参照。Screen / Table の authoring から呼ぶ場合は processFlowId 必須 (どの ProcessFlow を起動するかが文脈に依存しないため)。同 ProcessFlow 内の authoring から呼ぶ場合は省略可。",
       "type": "object",
       "required": ["actionId", "input"],
       "additionalProperties": false,
       "properties": {
-        "processFlowId": { "$ref": "#/$defs/Uuid", "description": "省略時は同 ProcessFlow 内の actionId として解決。" },
+        "processFlowId": { "$ref": "#/$defs/Uuid", "description": "起動対象 ProcessFlow の Uuid。省略時は同 ProcessFlow 内の actionId として解決 (ProcessFlow.authoring.testScenarios 経由の場合)。" },
         "actionId": { "$ref": "#/$defs/LocalId" },
         "input": { "type": "object", "additionalProperties": true }
       }
@@ -644,7 +610,7 @@
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "externalCall" },
-            "externalRef": { "type": "string" },
+            "externalRef": { "$ref": "#/$defs/Identifier", "description": "ProcessFlow.context.catalogs.externalSystems のキー (Identifier、ExternalSystemStep.systemRef と整合)。" },
             "method": { "type": "string" },
             "bodyMatch": { "type": "object", "additionalProperties": true }
           }

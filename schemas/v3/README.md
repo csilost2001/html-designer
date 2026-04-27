@@ -22,7 +22,7 @@ v1 (機械変換前) / v2 (機械変換版) を base にせず、業務概念か
 | ファイル | 役割 |
 |---|---|
 | `project.v3.schema.json` | プロジェクト root (data/project.json)。schemaVersion / meta / extensionsApplied (ExtensionApplied[]) / entities / authoring |
-| `screen.v3.schema.json` | Screen entity。EntityMeta + 業務情報のみ (kind / path / hasDesign / items / auth / permissions / design 参照)、UI 座標は分離 |
+| `screen.v3.schema.json` | Screen entity。EntityMeta + 業務情報のみ (kind / path / items / auth / permissions / design 参照)、UI 座標は分離。hasDesign は project.v3 の ScreenEntry 側で一覧表示用に保持 (Screen 本体には不在) |
 | `screen-layout.v3.schema.json` | 画面フロー UI 座標 (Designer 専用、業務実装には不要)。data/screen-layout.json |
 | `screen-item.v3.schema.json` | ScreenItem (画面項目)。id は Identifier (camelCase 強制)、ValueSource discriminated union (組み込み 4 種 + 拡張) |
 | `table.v3.schema.json` | Table (DB テーブル)。EntityMeta + physicalName + columns + indexes + constraints (discriminated union: unique/check/foreignKey、FK は ConstraintDefinition に集約) + defaults + triggers |
@@ -52,10 +52,21 @@ v1 (機械変換前) / v2 (機械変換版) を base にせず、業務概念か
 
 ### 2. 参照規範を 4 パターンに統一
 
-- **Pattern A**: `<entity>Id: Uuid` — top-level entity 単独参照
+- **Pattern A**: `<entity>Id: Uuid` — top-level entity 単独参照。`common.v3#/$defs/Uuid` を直接 `$ref` する (named alias は schema レベルでは型区別ができないため設けない、実装言語側で **branded type** を定義することを推奨)
 - **Pattern B**: `<entity>Ref: { ... }` — 複合参照 (ScreenItemRef / TableColumnRef / ViewColumnRef / ActionRef / StepRef / ResponseRef)
 - **Pattern C**: catalog key `string` — 同 entity 内 catalog のキー (各 catalog に `propertyNames` 制約で命名規範を schema 上強制)
 - **Pattern D**: 式言語 `@conv.* @secret.* @env.* @fn.* @<var> $...`
+
+### 実装言語側の branded type 推奨例 (TypeScript)
+
+```ts
+type Brand<K, T> = K & { readonly __brand: T };
+type ScreenId = Brand<string, 'ScreenId'>;
+type TableId = Brand<string, 'TableId'>;
+type ProcessFlowId = Brand<string, 'ProcessFlowId'>;
+```
+
+これにより `tableId: ScreenId` のような誤代入をコンパイル時に検出できる。schema レベルの Uuid では型区別できないため、本対応は実装言語側の責務とする。
 
 **廃止 anti-pattern**: 物理名で entity 指定 (`referencedTable: "users"` 等) / id+name 重複併記 (`tableId + tableName` 等) / `eventRef + topic` の二重持ち
 
@@ -153,6 +164,27 @@ Step.kind / FieldType.kind / Constraint.kind / BranchCondition.kind / ValueSourc
 | `ExtensionStep` の任意 top-level 属性 | `config: object` に閉じる + `unevaluatedProperties: false` |
 | 拡張 1 ファイル限定 | 単一/複数ファイル両対応 (loader が glob で merge) |
 | ProcessFlow 専用 testScenarios | `common.v3#/$defs/TestScenario` で全 entity 共通化 |
+
+## バリデータ実装ヒント (AJV)
+
+JSON Schema 2020-12 を使うため、AJV では `Ajv2020` を使用:
+
+```ts
+import Ajv2020 from "ajv/dist/2020";
+import addFormats from "ajv-formats";
+import commonV3 from "./schemas/v3/common.v3.schema.json" assert { type: "json" };
+import processFlowV3 from "./schemas/v3/process-flow.v3.schema.json" assert { type: "json" };
+
+const ajv = new Ajv2020({ allErrors: true, strict: false, discriminator: true });
+addFormats(ajv);
+ajv.addSchema(commonV3);  // 他 schema が common を $ref 解決できるよう先に登録
+const validate = ajv.compile(processFlowV3);
+```
+
+ポイント:
+- `discriminator: true` を有効化することで Step.oneOf 22 variant のエラーメッセージが kind discriminator 単位で 1 branch のみ報告される (デフォルトでは 22 branch 全部のエラーが列挙されて読みにくい)
+- `addSchema(commonV3)` を先に呼んで cross-file `$ref` を解決可能にする
+- 他 schema (extensions / table / screen 等) も同様に addSchema で登録
 
 ## ガバナンス
 

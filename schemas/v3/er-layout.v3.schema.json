@@ -11,6 +11,7 @@
     "positions": {
       "type": "object",
       "description": "Table の Uuid をキーとし、UI 座標を値とする。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
       "additionalProperties": {
         "type": "object",
         "required": ["x", "y"],
