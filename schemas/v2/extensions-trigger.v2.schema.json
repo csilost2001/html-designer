@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/extensions-trigger.v2.schema.json",
+  "title": "ActionTrigger Extension v2",
+  "description": "拡張アクショントリガー定義。namespace 単位で業界・業態固有のトリガー種別を追加定義する。ActionDefinition.trigger の選択肢に追加される。",
+  "allOf": [
+    { "$ref": "common.v2.schema.json#/$defs/ExtensionRootProps" },
+    {
+      "type": "object",
+      "required": ["triggers"],
+      "properties": {
+        "triggers": {
+          "description": "拡張トリガーの一覧。各エントリで value (識別子) と label (表示名) を定義する。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/TriggerDef" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "TriggerDef": {
+      "description": "拡張アクショントリガーの 1 定義。value で識別し、label で UI 表示名を指定する",
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "トリガーの識別子 (例: 'scan', 'gesture', 'voiceCommand')"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI に表示するトリガー名 (例: 'バーコードスキャン', 'ジェスチャー操作', '音声コマンド')"
+        }
+      }
+    }
+  }
+}

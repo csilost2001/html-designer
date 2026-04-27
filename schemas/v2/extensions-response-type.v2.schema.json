@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/extensions-response-type.v2.schema.json",
+  "title": "Response Type Extension v2",
+  "description": "拡張レスポンス型定義。namespace 単位で業界・業態固有のレスポンス型を定義する。ActionDefinition.responses[].bodySchema や ExternalSystemStep の responseRef から参照される。",
+  "allOf": [
+    { "$ref": "common.v2.schema.json#/$defs/ExtensionRootProps" },
+    {
+      "type": "object",
+      "required": ["responseTypes"],
+      "properties": {
+        "responseTypes": {
+          "description": "拡張レスポンス型の object マップ。キーは型名 (PascalCase 推奨)。値は ResponseTypeDef で定義する。",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ResponseTypeDef" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "ResponseTypeDef": {
+      "description": "拡張レスポンス型の 1 定義。JSON Schema (参考定義) と説明を持つ",
+      "type": "object",
+      "required": ["schema"],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description"
+        },
+        "schema": {
+          "type": "object",
+          "description": "レスポンスの JSON Schema (参考定義)。required / properties / type 等を記述する。AI 実装者がレスポンス構造を把握するために参照する"
+        }
+      }
+    }
+  }
+}

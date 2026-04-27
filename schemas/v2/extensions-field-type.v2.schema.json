@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/extensions-field-type.v2.schema.json",
+  "title": "FieldType Extension v2",
+  "description": "拡張フィールド型定義。namespace 単位で業界・業態固有のフィールド種別を追加定義する。ProcessFlow エディタの型選択肢に追加される。",
+  "allOf": [
+    { "$ref": "common.v2.schema.json#/$defs/ExtensionRootProps" },
+    {
+      "type": "object",
+      "required": ["fieldTypes"],
+      "properties": {
+        "fieldTypes": {
+          "description": "拡張フィールド型の一覧。各エントリで kind (識別子) と label (表示名) を定義する。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/FieldTypeDef" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "FieldTypeDef": {
+      "description": "拡張フィールド型の 1 定義。kind で識別し、label で UI 表示名を指定する",
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "フィールド型の識別子 (例: 'barcode', 'phoneNumber', 'postalCode')"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI に表示する型名 (例: 'バーコード', '電話番号', '郵便番号')"
+        }
+      }
+    }
+  }
+}

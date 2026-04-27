@@ -17,7 +17,8 @@
       "$ref": "common.v2.schema.json#/$defs/Uuid"
     },
     "name": {
-      "type": "string"
+      "type": "string",
+      "description": "処理フローの表示名。人間が識別するための名前 (例: 「注文確定処理」)"
     },
     "screenId": {
       "$ref": "common.v2.schema.json#/$defs/Uuid"
@@ -132,12 +133,14 @@
       }
     },
     "testScenarios": {
+      "description": "テストシナリオ一覧。BDD 形式の Given / When / Then で受け入れ条件を記述する",
       "type": "array",
       "items": {
         "$ref": "#/$defs/TestScenario"
       }
     },
     "actions": {
+      "description": "アクション定義一覧。この ProcessFlow が持つ全アクション (画面操作 / API エンドポイント) を列挙する",
       "type": "array",
       "items": {
         "$ref": "#/$defs/ActionDefinition"
@@ -153,7 +156,8 @@
       "$ref": "#/$defs/ProcessFlowKind"
     },
     "$schema": {
-      "type": "string"
+      "type": "string",
+      "description": "JSON Schema URL (IDE 関連付け用)。省略可"
     },
     "version": {
       "$ref": "common.v2.schema.json#/$defs/SemVer"
@@ -161,6 +165,7 @@
   },
   "$defs": {
     "OnTimeout": {
+      "description": "タイムアウト時の動作。throw: エラーを起票、continue: 継続、compensate: 補償処理を実行、log: ログのみ",
       "type": "string",
       "enum": [
         "throw",
@@ -170,6 +175,7 @@
       ]
     },
     "Sla": {
+      "description": "SLA / タイムアウト定義。ProcessFlow または Step 単位のレイテンシ目標と超過時の動作を宣言する",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -213,6 +219,7 @@
       }
     },
     "TestScenario": {
+      "description": "テストシナリオ定義。BDD (Given / When / Then) 形式で ProcessFlow の受け入れ条件を記述する",
       "type": "object",
       "required": [
         "id",
@@ -256,6 +263,7 @@
       }
     },
     "TestPrecondition": {
+      "description": "テスト前提条件 (Given 節)。dbState / sessionContext / externalStub / clock の 4 variant",
       "oneOf": [
         {
           "type": "object",
@@ -336,6 +344,7 @@
       ]
     },
     "TestInvocation": {
+      "description": "テスト起動条件 (When 節)。実行する Action と入力データを指定する",
       "type": "object",
       "required": [
         "actionId",
@@ -353,6 +362,7 @@
       }
     },
     "TestAssertion": {
+      "description": "テスト検証条件 (Then 節)。outcome / dbRow / output / externalCall / auditLog / errorMessage の 6 variant",
       "oneOf": [
         {
           "type": "object",
@@ -477,6 +487,7 @@
       ]
     },
     "ActionTrigger": {
+      "description": "Action を起動するトリガー種別。click / submit / select / change / load / timer / auto / other",
       "type": "string",
       "enum": [
         "click",
@@ -626,6 +637,7 @@
       }
     },
     "EventPublishStep": {
+      "description": "イベント発行ステップ (#423 B-1)。指定トピックにイベントをパブリッシュする",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -660,6 +672,7 @@
       "unevaluatedProperties": false
     },
     "EventSubscribeStep": {
+      "description": "イベント購読ステップ (#423 B-1)。指定トピックのイベントを受信し、フィルタリングして処理する",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -694,6 +707,7 @@
       "unevaluatedProperties": false
     },
     "HealthCheck": {
+      "description": "個別ヘルスチェック定義。db / http / custom の 3 種を指定できる",
       "type": "object",
       "required": [
         "name",
@@ -717,6 +731,7 @@
       }
     },
     "HealthCheckGroup": {
+      "description": "ヘルスチェックグループ。複数の HealthCheck をまとめて宣言する",
       "type": "object",
       "required": [
         "checks"
@@ -732,6 +747,7 @@
       }
     },
     "ReadinessCheckGroup": {
+      "description": "レディネスチェックグループ。minimumPassCount 以上のチェックが通過すればレディとみなす",
       "type": "object",
       "required": [
         "checks"
@@ -751,6 +767,7 @@
       }
     },
     "ResourceQuota": {
+      "description": "リソース量の要求と上限を宣言する。Kubernetes requests/limits 相当。単位は CPU: 'millicores' (例: '100m')、Memory: '128Mi'",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -763,6 +780,7 @@
       }
     },
     "ResourceRequirements": {
+      "description": "ProcessFlow の実行リソース要件定義。CPU / メモリ / DB コネクション数 / タイムアウトを宣言する",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -783,6 +801,7 @@
       }
     },
     "WorkflowPattern": {
+      "description": "承認ワークフローのパターン種別。approval-sequential / approval-parallel / approval-veto / approval-quorum / approval-escalation / review / sign-off / acknowledge / branch-merge / discussion / ad-hoc",
       "type": "string",
       "enum": [
         "approval-sequential",
@@ -799,6 +818,7 @@
       ]
     },
     "HttpMethod": {
+      "description": "HTTP メソッド。GET / POST / PUT / PATCH / DELETE",
       "type": "string",
       "enum": [
         "GET",
@@ -818,6 +838,7 @@
       "description": "認証要件。未指定は required 相当"
     },
     "HttpRoute": {
+      "description": "HTTP ルート定義。ActionDefinition に紐付けて REST API エンドポイントを宣言する",
       "type": "object",
       "required": [
         "method",
@@ -996,6 +1017,7 @@
       }
     },
     "ErrorCatalogEntry": {
+      "description": "エラーコードカタログの 1 エントリ (#253)。HTTP ステータス / デフォルトメッセージ / レスポンス参照を定義する",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -1073,6 +1095,7 @@
       }
     },
     "BodySchemaRef": {
+      "description": "レスポンス / リクエストボディのスキーマ参照。typeRef (名前参照) または schema (インライン) のどちらかを指定する",
       "oneOf": [
         {
           "type": "object",
@@ -1103,6 +1126,7 @@
       ]
     },
     "HttpResponseSpec": {
+      "description": "HTTP レスポンス仕様定義。ActionDefinition.responses[] に列挙して HTTP ステータスコード毎のレスポンス形式を宣言する",
       "type": "object",
       "required": [
         "status"
@@ -1132,6 +1156,7 @@
       }
     },
     "FieldType": {
+      "description": "フィールドの型定義。プリミティブ文字列 (string / number / boolean / date / object[] / string[] / number[]) または構造化 object (array / object / tableRow / tableList / screenInput / file) の union",
       "oneOf": [
         {
           "type": "string",
@@ -1250,6 +1275,7 @@
       ]
     },
     "StructuredField": {
+      "description": "構造化フィールド定義。Action の入出力フィールドを型・バリデーション・参照込みで宣言する",
       "type": "object",
       "required": [
         "name",
@@ -1307,12 +1333,14 @@
       }
     },
     "ActionFields": {
+      "description": "Action の入出力フィールド一覧。StructuredField の配列で型・バリデーション・UI 参照をまとめて宣言する",
       "type": "array",
       "items": {
         "$ref": "#/$defs/StructuredField"
       }
     },
     "ActionDefinition": {
+      "description": "アクション定義。画面操作や API エンドポイントに対応する処理フローの実行単位。trigger / inputs / outputs / steps を宣言する",
       "type": "object",
       "required": [
         "id",
@@ -1373,6 +1401,7 @@
       }
     },
     "StepNoteType": {
+      "description": "ステップ注記の種別。assumption: 前提、prerequisite: 事前条件、todo: 未実装、deferred: 先送り、question: 質問",
       "type": "string",
       "enum": [
         "assumption",
@@ -1383,6 +1412,7 @@
       ]
     },
     "StepNote": {
+      "description": "ステップ注記 (StepNote)。設計者がステップに添付する補足メモ。type で分類し、AI / 業務開発者が読む",
       "type": "object",
       "required": [
         "id",
@@ -1407,6 +1437,7 @@
       }
     },
     "OutputBindingOperation": {
+      "description": "OutputBinding の操作種別。assign: 変数に代入、accumulate: 数値累積加算、push: 配列に追加",
       "type": "string",
       "enum": [
         "assign",
@@ -1415,6 +1446,7 @@
       ]
     },
     "OutputBindingObject": {
+      "description": "ステップ出力のバインディング設定 (構造化形式)。変数名と操作種別、初期値を指定する",
       "type": "object",
       "required": [
         "name"
@@ -1433,9 +1465,11 @@
       }
     },
     "OutputBinding": {
+      "description": "ステップ出力のバインディング設定。変数名と操作種別 (assign / accumulate / push) を指定する",
       "$ref": "#/$defs/OutputBindingObject"
     },
     "TxBoundaryRole": {
+      "description": "トランザクション境界の役割。begin: TX 開始、member: TX 参加、end: TX 終了",
       "type": "string",
       "enum": [
         "begin",
@@ -1444,6 +1478,7 @@
       ]
     },
     "TxBoundary": {
+      "description": "トランザクション境界マーカー。複数ステップをまたぐ手動 TX 管理に使用する (TransactionScopeStep を優先推奨)",
       "type": "object",
       "required": [
         "role",
@@ -1460,6 +1495,7 @@
       }
     },
     "ExternalChainPhase": {
+      "description": "外部連携チェーンのフェーズ。authorize: 与信、capture: 確定、cancel: キャンセル、other: その他",
       "type": "string",
       "enum": [
         "authorize",
@@ -1469,6 +1505,7 @@
       ]
     },
     "ExternalChain": {
+      "description": "外部システム多段連携の管理情報 (#261)。Stripe 決済の authorize→capture 等、1 トランザクションを複数ステップに分けて管理する",
       "type": "object",
       "required": [
         "chainId",
@@ -1542,6 +1579,7 @@
       }
     },
     "ValidationRuleType": {
+      "description": "バリデーションルールの種別。required / regex / maxLength / minLength / range / enum / custom",
       "type": "string",
       "enum": [
         "required",
@@ -1554,6 +1592,7 @@
       ]
     },
     "ValidationRuleKind": {
+      "description": "GeneXus 由来の ValidationRule 動作種別 (#422 P2-3)。error: エラー表示してブロック / msg: メッセージのみ / noaccept: 値を受け付けない / default: 既定値を設定",
       "type": "string",
       "enum": [
         "error",
@@ -1563,6 +1602,7 @@
       ]
     },
     "ValidationRule": {
+      "description": "個別バリデーションルール定義。field / type を必須とし、パターン / 長さ / 範囲 / 列挙値等の制約を宣言する",
       "type": "object",
       "required": [
         "field",
@@ -1620,6 +1660,7 @@
       }
     },
     "ValidationInlineBranch": {
+      "description": "ValidationStep のインライン分岐定義。ok / ng の後続 Step 列と、ng 時の jump / responseRef / eventPublish を宣言する",
       "type": "object",
       "required": [
         "ok",
@@ -1672,6 +1713,7 @@
       }
     },
     "ValidationStep": {
+      "description": "バリデーションステップ。conditions / rules を評価し ok / ng 分岐を制御する。kind: 'validation'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -1710,6 +1752,7 @@
       "unevaluatedProperties": false
     },
     "DbOperation": {
+      "description": "DB 操作種別。SELECT / INSERT / UPDATE / DELETE / MERGE / LOCK",
       "type": "string",
       "enum": [
         "SELECT",
@@ -1721,6 +1764,7 @@
       ]
     },
     "AffectedRowsOperator": {
+      "description": "AffectedRowsCheck の比較演算子。> / >= / = / < / <=",
       "type": "string",
       "enum": [
         ">",
@@ -1731,6 +1775,7 @@
       ]
     },
     "AffectedRowsCheck": {
+      "description": "DB 操作の影響行数チェック定義。期待値と比較演算子を指定し、違反時の動作を宣言する",
       "type": "object",
       "required": [
         "operator",
@@ -1763,6 +1808,7 @@
       }
     },
     "DbAccessStep": {
+      "description": "DB アクセスステップ。テーブル名と操作 (SELECT / INSERT / UPDATE / DELETE / MERGE / LOCK) を指定してデータ操作を行う。kind: 'dbAccess'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -1816,6 +1862,7 @@
       "unevaluatedProperties": false
     },
     "ExternalCallOutcome": {
+      "description": "外部システム呼出の結果種別。success: 成功、failure: 失敗、timeout: タイムアウト",
       "type": "string",
       "enum": [
         "success",
@@ -1824,6 +1871,7 @@
       ]
     },
     "ExternalCallOutcomeSpec": {
+      "description": "外部システム呼出の結果に対する動作仕様。action (continue / abort / compensate) と後続処理を定義する",
       "type": "object",
       "required": [
         "action"
@@ -1889,6 +1937,7 @@
       }
     },
     "Criterion": {
+      "description": "成功判定条件 (#427 P3-2)。v2 では StructuredCriterion のみ (string union 廃止)",
       "$ref": "#/$defs/StructuredCriterion"
     },
     "NonReturnStep": {
@@ -1960,6 +2009,7 @@
       ]
     },
     "RetryPolicy": {
+      "description": "リトライポリシー定義。最大試行回数 / バックオフ戦略 / 初回遅延時間を宣言する",
       "type": "object",
       "required": [
         "maxAttempts"
@@ -1984,6 +2034,7 @@
       }
     },
     "CircuitBreakerConfig": {
+      "description": "サーキットブレーカー設定。failureThreshold 超過でオープン状態になり、timeout 後にハーフオープンで復帰を試みる",
       "type": "object",
       "required": [
         "failureThreshold",
@@ -2006,6 +2057,7 @@
       }
     },
     "BulkheadConfig": {
+      "description": "バルクヘッド (隔壁) 設定。最大同時接続数と待機タイムアウトを制限し、外部呼出の過負荷を防止する",
       "type": "object",
       "required": [
         "maxConcurrent"
@@ -2023,6 +2075,7 @@
       }
     },
     "ExternalAuthKind": {
+      "description": "外部システム認証方式の種別。bearer / basic / apiKey / oauth2 / none",
       "type": "string",
       "enum": [
         "bearer",
@@ -2033,6 +2086,7 @@
       ]
     },
     "ExternalAuth": {
+      "description": "外部システム認証情報定義。kind で認証方式を指定し、トークン参照やヘッダー名を添付する",
       "type": "object",
       "required": [
         "kind"
@@ -2122,6 +2176,7 @@
       }
     },
     "ExternalSystemStep": {
+      "description": "外部システム呼出ステップ。REST / その他 API 経由で外部サービスを呼び出す。kind: 'externalSystem'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2228,6 +2283,7 @@
       "unevaluatedProperties": false
     },
     "CommonProcessStep": {
+      "description": "共通処理呼出ステップ。他の ProcessFlow を refId で参照して呼び出す。引数・戻り値マッピングも宣言できる。kind: 'commonProcess'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2269,6 +2325,7 @@
       "unevaluatedProperties": false
     },
     "ScreenTransitionStep": {
+      "description": "画面遷移ステップ。指定画面に遷移する。targetScreenName (表示名) または targetScreenId (UUID) で遷移先を指定。kind: 'screenTransition'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2297,6 +2354,7 @@
       "unevaluatedProperties": false
     },
     "DisplayUpdateStep": {
+      "description": "表示更新ステップ。指定 target (画面項目 ID / セレクター) の表示内容を動的に更新する。kind: 'displayUpdate'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2389,9 +2447,11 @@
       ]
     },
     "BranchCondition": {
+      "description": "分岐条件定義。v2 では BranchConditionVariant のみ (string union 廃止)",
       "$ref": "#/$defs/BranchConditionVariant"
     },
     "Branch": {
+      "description": "分岐定義。id / code / condition / steps を持ち、BranchStep.branches[] の 1 要素として使用する",
       "type": "object",
       "required": [
         "id",
@@ -2455,6 +2515,7 @@
       }
     },
     "BranchStep": {
+      "description": "分岐ステップ。branches[] の条件を評価して実行経路を分岐する。kind: 'branch'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2495,6 +2556,7 @@
       "unevaluatedProperties": false
     },
     "LoopKind": {
+      "description": "ループ種別。count: 固定回数、condition: 条件式、collection: コレクション反復",
       "type": "string",
       "enum": [
         "count",
@@ -2503,6 +2565,7 @@
       ]
     },
     "LoopConditionMode": {
+      "description": "条件ループの評価モード。continue: 条件が真の間継続、exit: 条件が真になったら脱出",
       "type": "string",
       "enum": [
         "continue",
@@ -2510,6 +2573,7 @@
       ]
     },
     "LoopStep": {
+      "description": "ループステップ。count / condition / collection の 3 種で反復処理を宣言する。kind: 'loop'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2557,6 +2621,7 @@
       "unevaluatedProperties": false
     },
     "LoopBreakStep": {
+      "description": "ループ脱出ステップ。直近の LoopStep を即時終了する。kind: 'loopBreak'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2578,6 +2643,7 @@
       "unevaluatedProperties": false
     },
     "LoopContinueStep": {
+      "description": "ループ継続ステップ。以降の処理をスキップし次のループイテレーションに進む。kind: 'loopContinue'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2599,6 +2665,7 @@
       "unevaluatedProperties": false
     },
     "JumpStep": {
+      "description": "ジャンプステップ。jumpTo で指定したステップ ID に制御を移す。kind: 'jump'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2624,6 +2691,7 @@
       "unevaluatedProperties": false
     },
     "ComputeStep": {
+      "description": "計算ステップ。expression (式文字列) を評価して変数に代入する。kind: 'compute'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2649,6 +2717,7 @@
       "unevaluatedProperties": false
     },
     "ReturnStep": {
+      "description": "レスポンス返却ステップ。HTTP レスポンスまたは呼び出し元への戻り値を返して Action を終了する。kind: 'return'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2676,6 +2745,7 @@
       "unevaluatedProperties": false
     },
     "LogStep": {
+      "description": "ログ出力ステップ。level (trace / debug / info / warn / error) とメッセージ・構造化データをログに記録する。kind: 'log'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2714,6 +2784,7 @@
       "unevaluatedProperties": false
     },
     "AuditResource": {
+      "description": "監査対象リソースの識別情報。type (リソース種別名) と id (LocalId) で特定する",
       "type": "object",
       "required": [
         "type",
@@ -2730,6 +2801,7 @@
       }
     },
     "AuditStep": {
+      "description": "監査ログ記録ステップ。action / resource / result / reason を監査ログに書き込む。kind: 'audit'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2767,6 +2839,7 @@
       "unevaluatedProperties": false
     },
     "WorkflowApprover": {
+      "description": "承認者定義。RBAC catalog の role キーで承認者を指定し、承認順序も定義できる",
       "type": "object",
       "required": [
         "role"
@@ -2787,6 +2860,7 @@
       }
     },
     "WorkflowQuorum": {
+      "description": "クォーラム (定足数) 定義。approval-quorum パターン時に必要な承認者数の条件を指定する",
       "type": "object",
       "required": [
         "type"
@@ -2822,6 +2896,7 @@
       ]
     },
     "WorkflowEscalateTo": {
+      "description": "エスカレーション先定義。approval-escalation パターン時のエスカレーション先 role または動的アサイニーを指定する",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -2836,6 +2911,7 @@
       }
     },
     "WorkflowStep": {
+      "description": "承認ワークフローステップ。pattern で承認パターンを指定し、approvers / quorum / エスカレーション条件を宣言する。kind: 'workflow'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2952,6 +3028,7 @@
       "unevaluatedProperties": false
     },
     "OtherStep": {
+      "description": "その他ステップ。kind='other' または 'namespace:StepName' 形式の拡張ステップ。outputSchema で出力フィールドを宣言できる",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -2987,6 +3064,7 @@
       "unevaluatedProperties": false
     },
     "ClosingPeriod": {
+      "description": "締め処理の周期。daily / monthly / quarterly / yearly / custom",
       "type": "string",
       "enum": [
         "daily",
@@ -2997,6 +3075,7 @@
       ]
     },
     "ClosingStep": {
+      "description": "締め処理ステップ。日次・月次・四半期・年次の締め処理を宣言する。kind: 'closing'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -3034,6 +3113,7 @@
       "unevaluatedProperties": false
     },
     "CdcCaptureMode": {
+      "description": "CDC キャプチャモード。full: 全件取得、incremental: 差分取得",
       "type": "string",
       "enum": [
         "full",
@@ -3041,6 +3121,7 @@
       ]
     },
     "CdcDestination": {
+      "description": "CDC 出力先定義。auditLog / eventStream / table の 3 種。target で出力先名を指定する",
       "type": "object",
       "required": [
         "type"
@@ -3056,6 +3137,7 @@
       }
     },
     "CdcStep": {
+      "description": "CDC (変更データキャプチャ) ステップ。テーブルの変更差分を auditLog / eventStream / table に転送する。kind: 'cdc'",
       "allOf": [
         {
           "$ref": "#/$defs/StepBaseProps"
@@ -3104,6 +3186,7 @@
       "unevaluatedProperties": false
     },
     "TransactionIsolationLevel": {
+      "description": "トランザクション分離レベル。READ_COMMITTED / REPEATABLE_READ / SERIALIZABLE",
       "type": "string",
       "enum": [
         "READ_COMMITTED",
@@ -3112,6 +3195,7 @@
       ]
     },
     "TransactionPropagation": {
+      "description": "トランザクション伝播設定。REQUIRED: 既存 TX に参加または新規作成、REQUIRES_NEW: 常に新規 TX、NESTED: ネスト TX",
       "type": "string",
       "enum": [
         "REQUIRED",
@@ -3196,6 +3280,7 @@
       "unevaluatedProperties": false
     },
     "Step": {
+      "description": "処理ステップ。kind プロパティの値で variant を決定する discriminated union。22 種のステップ variant を包含する",
       "oneOf": [
         {
           "$ref": "#/$defs/ValidationStep"
@@ -3266,6 +3351,7 @@
       ]
     },
     "ProcessFlowKind": {
+      "description": "処理フロー種別。screen: 画面連動、batch: バッチ、scheduled: スケジュール実行、system: システム内部、common: 共通処理、other: その他",
       "type": "string",
       "enum": [
         "screen",
@@ -3277,6 +3363,7 @@
       ]
     },
     "StepKind": {
+      "description": "ステップ種別の全値リスト。discriminator として各 Step variant の kind プロパティに使用する",
       "type": "string",
       "enum": [
         "validation",
@@ -3304,6 +3391,7 @@
       ]
     },
     "LogLevel": {
+      "description": "ログレベル。trace / debug / info / warn / error の 5 段階",
       "type": "string",
       "enum": [
         "trace",
@@ -3314,6 +3402,7 @@
       ]
     },
     "WorkflowQuorumType": {
+      "description": "クォーラム判定種別。all: 全員承認、any: 1 名承認、majority: 過半数、n-of-m: n 名以上",
       "type": "string",
       "enum": [
         "all",
@@ -3323,6 +3412,7 @@
       ]
     },
     "HealthCheckKind": {
+      "description": "ヘルスチェック種別。db: DB 接続確認、http: HTTP エンドポイント確認、custom: カスタムロジック",
       "type": "string",
       "enum": [
         "db",
@@ -3331,6 +3421,7 @@
       ]
     },
     "CdcDestinationKind": {
+      "description": "CDC 出力先種別。auditLog: 監査ログ、eventStream: イベントストリーム、table: 別テーブル",
       "type": "string",
       "enum": [
         "auditLog",
@@ -3339,6 +3430,7 @@
       ]
     },
     "MarkerKind": {
+      "description": "マーカーの種別。chat: チャット、attention: 注意、todo: TODO、question: 質問",
       "type": "string",
       "enum": [
         "chat",
@@ -3348,6 +3440,7 @@
       ]
     },
     "AuditResult": {
+      "description": "監査ログの結果種別。success: 成功、failure: 失敗",
       "type": "string",
       "enum": [
         "success",
@@ -3355,6 +3448,7 @@
       ]
     },
     "MarkerAuthor": {
+      "description": "マーカーの投稿者種別。human: 人間 (設計者)、ai: AI エージェント",
       "type": "string",
       "enum": [
         "human",
