@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/project.v2.schema.json",
+  "title": "Project — プロジェクト全体 v2",
+  "description": "プロジェクト全体のメタ情報を管理するルートドキュメント (data/project.json)。画面 / グループ / エッジ / テーブル / 処理フロー / シーケンスのメタ情報を一元管理する。各エンティティの完全データは別ファイル (data/tables/*.json 等) に分離する。",
+  "$ref": "#/$defs/FlowProject",
+  "$defs": {
+    "TableMeta": {
+      "description": "テーブルのメタ情報 (project.json 管理用)。完全データは data/tables/{id}.json を参照。",
+      "type": "object",
+      "required": ["id", "no", "name", "logicalName", "columnCount", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "テーブルの一意識別子 (UUID v4)。TableDefinition.id と一致する。"
+        },
+        "no": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "物理順 (1..N 連番)。一覧表示の No 列として使用。"
+        },
+        "name": {
+          "$ref": "common.v2.schema.json#/$defs/DbTableName",
+          "description": "テーブルの物理名 (snake_case)。"
+        },
+        "logicalName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "テーブルの論理名 (日本語)。一覧表示に使用。"
+        },
+        "category": {
+          "type": "string",
+          "description": "テーブルの業務カテゴリ (マスタ / トランザクション 等)。"
+        },
+        "columnCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "カラム数。一覧表示用のサマリ情報。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    },
+    "ProcessFlowMeta": {
+      "description": "処理フローのメタ情報 (project.json 管理用)。完全データは data/process-flows/{id}.json を参照。",
+      "type": "object",
+      "required": ["id", "no", "name", "kind", "actionCount", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "処理フローの一意識別子 (UUID v4)。ProcessFlow.id と一致する。"
+        },
+        "no": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "物理順 (1..N 連番)。一覧表示の No 列として使用。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "処理フローの表示名。一覧表示に使用。"
+        },
+        "kind": {
+          "type": "string",
+          "description": "処理フローの種別 (ProcessFlow.kind と一致)。"
+        },
+        "screenId": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "紐付く画面の ID。画面なしの処理フローは省略する。"
+        },
+        "actionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "アクション数。一覧表示用のサマリ情報。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        },
+        "maturity": {
+          "$ref": "common.v2.schema.json#/$defs/MaturityLevel",
+          "description": "成熟度 (draft / provisional / committed)。未指定は draft として解釈する。"
+        },
+        "notesCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "付箋 (StepNote) の合計件数。一覧表示用のサマリ情報。"
+        }
+      }
+    },
+    "SequenceMeta": {
+      "description": "シーケンスのメタ情報 (project.json 管理用)。完全データは data/sequences/{id}.json を参照。",
+      "type": "object",
+      "required": ["id", "no", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "シーケンスの一意識別子 (UUID v4)。SequenceDefinition.id と一致する。"
+        },
+        "no": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "物理順 (1..N 連番)。一覧表示の No 列として使用。"
+        },
+        "conventionRef": {
+          "type": "string",
+          "description": "規約カタログへの参照 key (例: @conv.sequence.orderNo)。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description",
+          "description": "シーケンスの用途説明。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    },
+    "FlowProject": {
+      "description": "プロジェクト全体のルートオブジェクト (data/project.json)。",
+      "type": "object",
+      "required": ["schemaVersion", "version", "name", "screens", "groups", "edges", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "JSON Schema URL (IDE 関連付け用)。"
+        },
+        "schemaVersion": {
+          "type": "string",
+          "enum": ["v2"],
+          "description": "スキーマバージョン識別子。将来のスキーマ切替に使用する。現状は 'v2' 固定。"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1,
+          "description": "プロジェクトデータのフォーマットバージョン。現状は 1 固定。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "プロジェクトの名称 (日本語可)。例: 「ECサイト業務システム」。"
+        },
+        "screens": {
+          "type": "array",
+          "items": { "$ref": "screen.v2.schema.json#/$defs/ScreenNode" },
+          "description": "画面ノードのリスト。no の昇順で並べる。"
+        },
+        "groups": {
+          "type": "array",
+          "items": { "$ref": "screen.v2.schema.json#/$defs/ScreenGroup" },
+          "description": "画面グループのリスト。"
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "screen.v2.schema.json#/$defs/ScreenEdge" },
+          "description": "画面遷移エッジのリスト。"
+        },
+        "tables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TableMeta" },
+          "description": "テーブルのメタ情報リスト。no の昇順で並べる。"
+        },
+        "processFlows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProcessFlowMeta" },
+          "description": "処理フローのメタ情報リスト。no の昇順で並べる。"
+        },
+        "sequences": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SequenceMeta" },
+          "description": "シーケンスのメタ情報リスト。no の昇順で並べる。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    }
+  }
+}

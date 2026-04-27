@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/screen.v2.schema.json",
+  "title": "Screen — 画面・グループ・遷移エッジ v2",
+  "description": "画面フロー上のノード (ScreenNode) / グループ (ScreenGroup) / 遷移エッジ (ScreenEdge) の単一ドキュメント定義。root は ScreenNode を検証する。project.v2.schema.json の screens / groups / edges 配列が本 schema の $defs を参照する。GrapesJS 生データ (data/screens/*.json) は対象外。",
+  "$ref": "#/$defs/ScreenNode",
+  "$defs": {
+    "ScreenType": {
+      "description": "画面の種別。業務フロー上の役割を表す分類。",
+      "type": "string",
+      "enum": [
+        "login",
+        "dashboard",
+        "list",
+        "detail",
+        "form",
+        "search",
+        "confirm",
+        "complete",
+        "error",
+        "modal",
+        "other"
+      ]
+    },
+    "TransitionTrigger": {
+      "description": "画面遷移を引き起こすトリガー種別。",
+      "type": "string",
+      "enum": [
+        "click",
+        "submit",
+        "select",
+        "cancel",
+        "auto",
+        "back",
+        "other"
+      ]
+    },
+    "Position": {
+      "description": "フロー図上の座標 (px)。",
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "横方向の座標 (px)。"
+        },
+        "y": {
+          "type": "number",
+          "description": "縦方向の座標 (px)。"
+        }
+      }
+    },
+    "Size": {
+      "description": "フロー図上の表示サイズ (px)。",
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "number",
+          "description": "横幅 (px)。"
+        },
+        "height": {
+          "type": "number",
+          "description": "縦幅 (px)。"
+        }
+      }
+    },
+    "ScreenNode": {
+      "description": "画面フロー図上の 1 画面ノード。GrapesJS デザインと紐付くメタ情報を保持する。",
+      "type": "object",
+      "required": ["id", "no", "name", "kind", "description", "path", "position", "size", "hasDesign", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "画面ノードの一意識別子 (UUID v4)。"
+        },
+        "no": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "物理順 (1..N 連番)。一覧表示の No 列として使用。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "画面の表示名 (日本語可)。例: 「注文一覧」「ログイン」。"
+        },
+        "kind": {
+          "$ref": "#/$defs/ScreenType",
+          "description": "画面種別。業務上の役割を示す分類 (例: list, form, modal)。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description",
+          "description": "画面の業務説明。目的・利用シーン・主要操作を記述する。"
+        },
+        "path": {
+          "type": "string",
+          "description": "URL パス。例: /order/list, /user/detail/:id。"
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "フロー図上の表示位置。"
+        },
+        "size": {
+          "$ref": "#/$defs/Size",
+          "description": "フロー図上の表示サイズ。"
+        },
+        "hasDesign": {
+          "type": "boolean",
+          "description": "GrapesJS デザインデータが存在するかどうか。"
+        },
+        "groupId": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "所属する ScreenGroup の ID。未設定の場合はグループなし。"
+        },
+        "thumbnail": {
+          "type": "string",
+          "description": "デザインのサムネイル画像 (data:image/jpeg;base64,... 形式)。"
+        },
+        "createdAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "作成日時 (ISO 8601 UTC)。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    },
+    "ScreenGroup": {
+      "description": "フロー図上で複数の画面ノードをまとめるグループ。業務機能ブロック (例: 「注文管理」) を視覚的にまとめる。",
+      "type": "object",
+      "required": ["id", "name", "position", "size", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "グループの一意識別子 (UUID v4)。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "グループの表示名 (日本語可)。例: 「注文管理」。"
+        },
+        "color": {
+          "type": "string",
+          "description": "グループの背景色。CSS カラー文字列 (例: '#e8f4fd', 'rgba(0,128,255,0.1)')。"
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "フロー図上のグループ表示位置。"
+        },
+        "size": {
+          "$ref": "#/$defs/Size",
+          "description": "フロー図上のグループ表示サイズ。"
+        },
+        "createdAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "作成日時 (ISO 8601 UTC)。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    },
+    "ScreenEdge": {
+      "description": "画面間の遷移エッジ (矢印)。source 画面から target 画面へのトリガー付き遷移を表す。",
+      "type": "object",
+      "required": ["id", "source", "target", "label", "trigger"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/LocalId",
+          "description": "エッジの識別子。フロー内でユニーク。例: edge-01, edge-02。"
+        },
+        "source": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "遷移元の ScreenNode ID。"
+        },
+        "target": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "遷移先の ScreenNode ID。"
+        },
+        "sourceHandle": {
+          "type": "string",
+          "description": "ReactFlow のハンドル識別子 (source 側)。省略可。"
+        },
+        "targetHandle": {
+          "type": "string",
+          "description": "ReactFlow のハンドル識別子 (target 側)。省略可。"
+        },
+        "label": {
+          "type": "string",
+          "description": "遷移ラベル。エッジ上に表示するテキスト (例: 「注文確定」)。"
+        },
+        "trigger": {
+          "$ref": "#/$defs/TransitionTrigger",
+          "description": "遷移を引き起こすユーザー操作やシステムイベントの種別。"
+        }
+      }
+    }
+  }
+}

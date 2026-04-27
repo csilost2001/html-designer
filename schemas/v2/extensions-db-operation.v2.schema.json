@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/extensions-db-operation.v2.schema.json",
+  "title": "DbOperation Extension v2",
+  "description": "拡張 DB 操作種別定義。namespace 単位で業界・業態固有の DB 操作を追加定義する。DbAccessStep.operation の選択肢に追加される。",
+  "allOf": [
+    { "$ref": "common.v2.schema.json#/$defs/ExtensionRootProps" },
+    {
+      "type": "object",
+      "required": ["dbOperations"],
+      "properties": {
+        "dbOperations": {
+          "description": "拡張 DB 操作の一覧。各エントリで value (識別子) と label (表示名) を定義する。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/DbOperationDef" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "DbOperationDef": {
+      "description": "拡張 DB 操作の 1 定義。value で識別し、label で UI 表示名を指定する",
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "DB 操作の識別子 (例: 'UPSERT', 'BULK_INSERT', 'TRUNCATE')"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI に表示する操作名 (例: 'UPSERT (存在すれば更新、なければ挿入)', '一括挿入')"
+        }
+      }
+    }
+  }
+}

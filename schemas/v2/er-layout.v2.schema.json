@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/er-layout.v2.schema.json",
+  "title": "ErLayout — ER 図レイアウト v2",
+  "description": "ER 図のレイアウト情報 (テーブルノード座標 / 論理リレーション) を管理するファイル定義 (data/er-layout.json)。テーブル定義 (TableDefinition) とは独立して、ER 図表示のみに使用される。",
+  "$ref": "#/$defs/ErLayout",
+  "$defs": {
+    "ErCardinality": {
+      "description": "ER 図リレーションのカーディナリティ (多重度)。",
+      "type": "string",
+      "enum": ["one-to-many", "one-to-one", "many-to-many"]
+    },
+    "NodePosition": {
+      "description": "ER 図上のテーブルノードの座標。",
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "横方向の座標 (px)。"
+        },
+        "y": {
+          "type": "number",
+          "description": "縦方向の座標 (px)。"
+        }
+      }
+    },
+    "ErLogicalRelation": {
+      "description": "ER 図上の論理リレーション。FK 制約なしだが事実上の関連を持つテーブル間の関係を表す。概念設計段階や非正規化テーブル間の意味的結合を可視化するために使用する。",
+      "type": "object",
+      "required": ["id", "sourceTableId", "targetTableId", "cardinality"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/LocalId",
+          "description": "論理リレーションの識別子。ER 図内でユニーク。例: rel-01, rel-02。"
+        },
+        "sourceTableId": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "リレーション起点テーブルの ID。"
+        },
+        "sourceColumnName": {
+          "$ref": "common.v2.schema.json#/$defs/DbColumnName",
+          "description": "起点側カラムの物理名。概念設計段階では省略可。"
+        },
+        "targetTableId": {
+          "$ref": "common.v2.schema.json#/$defs/Uuid",
+          "description": "リレーション終点テーブルの ID。"
+        },
+        "targetColumnName": {
+          "$ref": "common.v2.schema.json#/$defs/DbColumnName",
+          "description": "終点側カラムの物理名。概念設計段階では省略可。"
+        },
+        "cardinality": {
+          "$ref": "#/$defs/ErCardinality",
+          "description": "リレーションのカーディナリティ (多重度)。"
+        },
+        "label": {
+          "type": "string",
+          "description": "リレーションのメモラベル (例: 「顧客は複数の注文を持つ」)。"
+        }
+      }
+    },
+    "ErLayout": {
+      "description": "ER 図レイアウトのルートオブジェクト (data/er-layout.json)。テーブルノードの座標と論理リレーション定義を保持する。",
+      "type": "object",
+      "required": ["positions", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "JSON Schema URL (IDE 関連付け用)。"
+        },
+        "positions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/NodePosition"
+          },
+          "description": "テーブル ID をキーとするノード座標マップ。キーは TableDefinition.id (UUID v4)。値はフロー図上の表示座標 (px)。"
+        },
+        "logicalRelations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ErLogicalRelation" },
+          "description": "論理リレーションのリスト。FK 定義なしの意味的関連を表す。"
+        },
+        "updatedAt": {
+          "$ref": "common.v2.schema.json#/$defs/Timestamp",
+          "description": "最終更新日時 (ISO 8601 UTC)。"
+        }
+      }
+    }
+  }
+}

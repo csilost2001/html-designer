@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v2/extensions-table.v2.schema.json",
+  "title": "テーブル拡張定義 v2",
+  "description": "業界・業態別のテーブル設計拡張。カスタムデータ型・カラム雛形・制約パターンを namespace 単位で定義する。",
+  "allOf": [
+    { "$ref": "common.v2.schema.json#/$defs/ExtensionRootProps" },
+    {
+      "type": "object",
+      "properties": {
+        "dataTypes": {
+          "type": "array",
+          "description": "業界固有のカスタムデータ型 (DataType enum 拡張)。SQL レベルでは VARCHAR / DECIMAL 等にマップされるが、業界文脈では独自の型として扱う。",
+          "items": { "$ref": "#/$defs/CustomDataType" }
+        },
+        "columnTemplates": {
+          "type": "array",
+          "description": "業界固有のカラム雛形。業界固有の典型カラムをワンクリックで追加する用の雛形一覧。",
+          "items": { "$ref": "#/$defs/ColumnTemplate" }
+        },
+        "constraintPatterns": {
+          "type": "array",
+          "description": "業界固有の制約パターン。業界固有の典型 CHECK 制約・複合 UNIQUE などの雛形一覧。",
+          "items": { "$ref": "#/$defs/ConstraintPattern" }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "CustomDataType": {
+      "description": "拡張データ型。SQL レベルでは VARCHAR / DECIMAL 等にマップされるが、業界文脈では独自の型として扱う。例: retail namespace で productCode データ型を業界固有として追加する場合。",
+      "type": "object",
+      "required": ["value", "label", "baseType"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "拡張型識別子 (camelCase)。例: 'productCode', 'sku', 'barcode'。table.v2.schema.json の DataType enum に追加される。"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI 表示ラベル (日本語可)。例: '商品コード', 'SKU', 'バーコード'。"
+        },
+        "baseType": {
+          "type": "string",
+          "description": "実際の DB 型 (例: 'VARCHAR(20)', 'DECIMAL(12,2)', 'CHAR(13)')。DDL 生成時にこの型にマップされる。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description"
+        }
+      }
+    },
+    "ColumnTemplate": {
+      "description": "カラム雛形。業界固有の典型カラムをワンクリックで追加する用の雛形。designer/src/types/table.ts の COLUMN_TEMPLATES に相当する業界固有版。",
+      "type": "object",
+      "required": ["id", "label", "category", "column"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/LocalId",
+          "description": "雛形の識別子。namespace 内でユニーク。例: 'tmpl-product-code', 'tmpl-jan'。"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI 表示ラベル (日本語可)。例: '商品コード', 'JAN コード'。"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Bootstrap Icons クラス名 (例: 'bi-tag', 'bi-barcode')。省略可。"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "description": "雛形カテゴリ (日本語可)。例: '商品管理', '在庫管理'。一覧 UI でのグループ分けに使用する。"
+        },
+        "column": {
+          "type": "object",
+          "description": "雛形のカラム定義。table.v2.schema.json#/$defs/TableColumn の id / no を除いたサブセット。実際の列追加時に id / no はシステムが付与する。",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ConstraintPattern": {
+      "description": "制約パターン。業界固有の典型 CHECK 制約・複合 UNIQUE・外部キーなどの雛形。",
+      "type": "object",
+      "required": ["id", "label", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.v2.schema.json#/$defs/LocalId",
+          "description": "制約パターンの識別子。namespace 内でユニーク。例: 'cp-price-positive', 'cp-sku-unique'。"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "UI 表示ラベル (日本語可)。例: '価格は正数', 'SKU 一意制約'。"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["unique", "check", "foreignKey"],
+          "description": "制約種別。table.v2.schema.json#/$defs/ConstraintDefinition の kind と対応する。"
+        },
+        "description": {
+          "$ref": "common.v2.schema.json#/$defs/Description"
+        }
+      }
+    }
+  }
+}

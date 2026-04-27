@@ -14,7 +14,8 @@ import { resolve, join } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
 const catalogPath = resolve(repoRoot, "docs/sample-project/conventions/conventions-catalog.json");
-const catalogSchemaPath = resolve(repoRoot, "schemas/conventions.schema.json");
+// v1 凍結 (#519): schemas/v1/ に退避済み。v2 移行が完了するまで本テストは v1 を検証する。
+const catalogSchemaPath = resolve(repoRoot, "schemas/v1/conventions.schema.json");
 const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
 
 function loadCatalog(): ConventionsCatalog {
