@@ -228,7 +228,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                   >
                     <option value="">— 列選択 —</option>
                     {selectedTable?.columns?.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>{c.name || c.physicalName}</option>
                     ))}
                   </select>
                 </label>

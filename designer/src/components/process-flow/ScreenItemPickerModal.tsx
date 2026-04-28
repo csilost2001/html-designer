@@ -32,6 +32,8 @@ function v3TypeToV1(type: ScreenItem["type"]): V1FieldType {
   }
   if (type.kind === "extension") return { kind: "custom", label: type.extensionRef };
   if (type.kind === "domain") return { kind: "custom", label: type.domainKey };
+  // object/array/tableRow/tableList/screenInput/file は v1 と shape 互換のため通過。
+  // Phase 4 で ProcessFlow が v3 化したら本関数自体が不要になる。
   return type as V1FieldType;
 }
 
