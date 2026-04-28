@@ -1,14 +1,14 @@
 # 処理フロー式言語 (runIf / expression / bodyExpression / condition)
 
-Issue: #253 (部分対応)
-策定日: 2026-04-20
-ステータス: **初版** (convention として宣言、将来的に設定化の余地あり)
+Issue: #253 (初版) / #533 R3 fix で IdentifierPath 規範化 / **#539 R5-3 で datetime 算術明文化**
+策定日: 2026-04-20 / **改訂日: 2026-04-28 (v3 反映)**
+ステータス: **v3 確定** (schema は v3.0.2 で確定、本仕様は v3 schema 整合性を保つ)
 
 ## 1. 目的
 
-処理フロー内の式 (expression / runIf / bodyExpression / condition / countExpression / conditionExpression / collectionSource / ValidationRule.condition / ExternalCallOutcomeSpec.jumpTo 等) は現状すべて **文字列**。`Math.floor(@subtotal * 0.10)` のような JS 風の式や `@flag == true` のような真偽式が混在しているが、**どの構文が許容されるか** がスキーマから読み取れず、AI 実装者が判断に迷っていた (#253 ドッグフード評価 4/5 の主因の一つ)。
+処理フロー内の式 (`expression` / `runIf` / `bodyExpression` / `condition` / `countExpression` / `conditionExpression` / `collectionSource` / `ValidationRule.condition` / `idempotencyKey` 等) は schema 上 `ExpressionString` (= `string`) で表現される。`Math.floor(@subtotal * 0.10)` のような JS 風の式や `@flag == true` のような真偽式が混在するが、**どの構文が許容されるか** をスキーマから読み取れない (#253 ドッグフード評価 4/5 の主因の一つ)。
 
-本ドキュメントで処理フロー式言語の **仕様 (BNF) と既定規約** を定義し、スキーマ上は従来通り文字列のままとする。
+本ドキュメントで処理フロー式言語の **仕様 (BNF) と既定規約** を定義し、スキーマ上は従来通り `string` のままとする。
 
 ## 2. 設計判断: convention over configuration
 
@@ -46,6 +46,7 @@ primary         = '@' IDENTIFIER                   (* 変数参照 *)
                 | arrayLiteral
                 | objectLiteral
                 | 'Math' '.' IDENTIFIER            (* Math 組込 (下記 §4) *)
+                | 'duration' '(' STRING ')'        (* 期間リテラル (§4.4) *)
 
 arrayLiteral    = '[' (expression (',' expression)*)? ']'
 objectLiteral   = '{' (objectEntry (',' objectEntry)*)? '}'
@@ -61,13 +62,16 @@ argList         = expression (',' expression)*
 - **文字列**: `'...'` または `"..."`。エスケープは `\n \t \' \" \\` のみ
 - **真偽値**: `true` / `false`
 - **null**: `null` (undefined は不使用、常に null)
+- **期間**: `duration('PnDTnHnMnS')` — ISO 8601 期間 (§4.4)
 
 ### 3.2 変数参照
 
 - `@identifier` が変数参照の基本形。`@` はこのフロー言語固有のマーカー
 - ドット/ブラケット記法でネストアクセス: `@customer.address.postalCode` / `@items[0].quantity`
 - Optional chain: `@paymentAuth?.id` — undefined プロパティへのアクセス時に null を返す
-- **`@inputs` / `@outputs` 全体参照**: `ActionDefinition.inputs` / `outputs` の配列全体をオブジェクトとして参照できる。例: `@inputs.items` (inputs フィールド "items" へのアクセス)、`@outputs.result`。個別フィールド名 (`@items` 等) と全体参照 (`@inputs.items`) は**どちらも解決可能**だが、**全体参照スタイルを推奨** (名前衝突が生じにくい)。
+- **`@inputs` / `@outputs` 全体参照**: `ActionDefinition.inputs` / `outputs` の配列全体をオブジェクトとしてアクセス可能。例: `@inputs.items` (inputs フィールド "items" へのアクセス)、`@outputs.result`。個別フィールド名 (`@items` 等) と全体参照 (`@inputs.items`) は**どちらも解決可能**だが、**全体参照スタイルを推奨** (名前衝突が生じにくい)。
+- **`@sessionUserId` / `@requestId` / `@traceId` 等**: ambient 変数 (§6.5)
+- **catalog 参照**: `@conv.<category>.<key>` / `@secret.<key>` / `@env.<KEY>` / `@fn.<name>(...)` (§4.5)
 
 ### 3.3 比較・論理
 
@@ -80,6 +84,7 @@ argList         = expression (',' expression)*
 
 - `+` `-` `*` `/` `%`
 - `+` は文字列結合も兼ねる (JS 準拠)
+- **datetime 算術** (§4.4 で詳説、`+ duration('P2D')` 形式)
 
 ## 4. 組込関数・オブジェクト
 
@@ -119,6 +124,56 @@ argList         = expression (',' expression)*
 
 **制限**: body は単一 expression のみ。`{ ... return ... }` ブロック形式・複数文は禁止。
 
+### 4.4 datetime 算術 (#539 R5-3 で明文化)
+
+`deadlineExpression` / `escalateAfter` / `idempotencyKey` 等で日時を扱う場面で使う。
+
+#### 推奨形式: `duration('PnDTnHnMnS')` リテラル
+
+ISO 8601 期間表記。Tier 0 仕様。
+
+```
+duration('P2D')        // 2 日
+duration('PT24H')      // 24 時間
+duration('PT15M')      // 15 分
+duration('P1DT12H')    // 1 日 12 時間
+duration('P14D')       // 14 日 (公示期間例)
+```
+
+datetime 値との算術:
+
+```
+@createdAt + duration('P2D')           // 2 日後
+@deadline - duration('PT1H')           // 1 時間前
+@scheduledShipAt + duration('P14D')    // 14 日後
+```
+
+#### shorthand (`+ N days` / `- N (s|m|h|d)`) の扱い
+
+dogfood サンプル (#523〜#537) では shorthand (`+ 14 days` / `- 24h`) を使用していた箇所がある。本仕様では:
+
+- **dogfood サンプル限定で許容**: 既存サンプルとの互換性のため、parser は shorthand も受け付ける
+- **新規記述は `duration('...')` 形式を推奨**: spec 公式形式、TS 型の datetime ヘルパー / parser 実装も `duration()` のみを必須サポート対象とする
+- shorthand → `duration()` 形式への変換 migration script は v3.1 で検討 (現状は手動で揃える)
+
+#### 受容する形式 (parser 実装ガイド)
+
+| 形式 | 例 | 状態 |
+|---|---|---|
+| `duration('P2D')` 等 | ISO 8601 期間リテラル | **推奨**、必須対応 |
+| `duration('P2D').plus(@x)` 等 method chain | 期間に対する操作 | v3.1 候補、現状不要 |
+| `+ N days` / `- N hours` 等 shorthand | dogfood サンプル互換 | 既存互換のみ、新規禁止 |
+| `+ "P2D"` 等 ISO 文字列直接加算 | 曖昧 | 不可 |
+
+### 4.5 catalog 参照式
+
+| 記法 | 解決先 | 例 |
+|---|---|---|
+| `@conv.<category>.<key>` | `Conventions` catalog (`conventions.v3.schema.json`) | `@conv.regex.email` / `@conv.limit.lowStockThreshold` / `@conv.role.manager` |
+| `@secret.<key>` | `ProcessFlow.context.catalogs.secrets[<key>]` | `@secret.cicApiToken` |
+| `@env.<KEY>` | `ProcessFlow.context.catalogs.envVars[<KEY>]` (UPPER_SNAKE) | `@env.STRIPE_API_BASE` |
+| `@fn.<name>(...)` | `ProcessFlow.context.catalogs.functions[<name>]` | `@fn.calculateRequiredQuantity(@a, @b, @c)` |
+
 ## 5. 許容されない構文
 
 - `===` / `!==` (型強制なしなので `==` で十分)
@@ -127,7 +182,7 @@ argList         = expression (',' expression)*
 - `function` キーワード (アロー関数のみ許容)
 - `var` / `let` / `const` (局所変数は作らない)
 - `new`, `this`
-- `Math` 以外のグローバル (`Date`, `JSON`, `Object`, `Array`, `Promise` 等)
+- `Math` / `duration` 以外のグローバル (`Date`, `JSON`, `Object`, `Array`, `Promise` 等)
 - 正規表現リテラル `/.../` — 正規表現は `ValidationRule.pattern: string` で渡す
 - テンプレート文字列 `` `${...}` ``
 - 分割代入 `{a, b} = expr`
@@ -135,52 +190,72 @@ argList         = expression (',' expression)*
 - 三項演算子 `? :` — 条件は `inlineBranch` / `branch` / `runIf` / outcomes で表現
 - 非同期関数 `async` / `await`
 
-## 6. 式が現れるフィールド一覧
+## 6. 式が現れるフィールド一覧 (v3)
 
-スキーマ (`schemas/process-flow.schema.json`) 上では単なる `string` だが、評価時は本 §3〜§5 のルールに従う。
+スキーマ (`schemas/v3/process-flow.v3.schema.json`) 上では `ExpressionString` (= `string`) だが、評価時は本 §3〜§5 のルールに従う。
 
 | フィールド | 型 | 例 |
 |------|------|-----|
-| `StepBase.runIf` | 真偽式 | `"@paymentMethod == 'credit_card'"` |
+| `StepBaseProps.runIf` | 真偽式 | `"@paymentMethod == 'credit_card'"` |
 | `ComputeStep.expression` | 任意式 | `"Math.floor(@subtotal * 0.10)"` |
 | `ReturnStep.bodyExpression` | object literal 式 | `"{ code: 'STOCK_SHORTAGE', detail: @shortageList }"` |
 | `ValidationStep.conditions` | 自由記述 (人間向け補足) | — |
 | `ValidationRule.condition` | 真偽式 (type=custom 時) | `"@items.length >= 1"` |
 | `ValidationRule.pattern` | 正規表現 (type=regex 時) | `"^\\d{3}-\\d{4}$"` |
-| `Branch.condition` (string variant) | 真偽式 | `"@duplicateCustomer != null"` |
+| `BranchCondition.expression` (kind=expression) | 真偽式 | `"@duplicateCustomer != null"` |
 | `LoopStep.countExpression` | 数値式 | `"@items.length"` |
 | `LoopStep.conditionExpression` | 真偽式 | `"@remaining > 0"` |
 | `LoopStep.collectionSource` | 配列式 | `"@items"` |
-| `OutputBindingObject.initialValue` | JSON 値 または 式文字列 | `0` / `[]` / `"@emptyArr"` |
-| `ExternalCallOutcomeSpec.jumpTo` | ステップ ID 文字列 (式ではない) | `"step-error-handler"` |
+| `OutputBinding.initialValue` | JSON 値 または 式文字列 | `0` / `[]` / `"@emptyArr"` |
+| `ExternalCallOutcomeSpec.sideEffects[].runIf` | 真偽式 | `"@error.code == 'INSUFFICIENT_BALANCE'"` |
 | `CommonProcessStep.argumentMapping[k]` | 任意式 | `"@customerId"` |
-| `ExternalSystemStep.protocol` (#261) | 自由記述。URL 中の `@path` 式補間を許容 (例: `"HTTPS POST /v1/payment_intents/@paymentAuth.id/cancel"`) | URL 構造化は v1.3-b 以降の `httpCall` フィールドで予定 |
-| `ExternalSystemStep.idempotencyKey` (#253 v1.2) | 任意式 (下記 §8 参照) | `"order-@registeredOrder.id"` |
-| `ExternalSystemStep.headers[k]` (#253 v1.2) | 任意式 (値のみ。キーは静的文字列) | `"@traceId"` / `"2024-06-20"` |
+| `ExternalSystemStep.idempotencyKey` | 任意式 | `"order-@registeredOrder.id"` |
+| `ExternalHttpCall.body` | 任意式 (object literal 推奨) | `"{ amount: @amount }"` |
+| `EventPublishStep.payload` | object literal 式 | `"{ orderId: @order.id }"` |
+| `ValidationInlineBranch.ngBodyExpression` | object literal 式 | `"{ code: 'VALIDATION', fieldErrors: @fieldErrors }"` |
+| `WorkflowStep.deadlineExpression` | datetime 算術式 | `"@submittedAt + duration('P2D')"` |
+| `WorkflowStep.escalateAfter` | ISO 期間または datetime 式 | `"duration('P1D')"` |
+| `WorkflowStep.escalateTo.userExpression` | 任意式 | `"@managerOf(@employeeId)"` |
+| `CacheHint.key` | 任意式 | `"product-@inputs.productCode"` |
+| `ClosingStep.idempotencyKey` | 任意式 | `"@closingMonth"` |
 
-## 6.5 Ambient 変数 (#261 v1.4)
+## 6.5 Ambient 変数
 
-`@requestId` / `@traceId` / `@fieldErrors` 等、**ミドルウェア・フレームワーク由来の自動注入変数**は `ProcessFlow.ambientVariables?: StructuredField[]` で宣言する。
+`@requestId` / `@traceId` / `@sessionUserId` 等、**ミドルウェア・フレームワーク由来の自動注入変数**は `ProcessFlow.context.ambientVariables: StructuredField[]` で宣言する (#525 R3 fix で `context.ambientVariables` 配置に統一)。
 
 ```json
-"ambientVariables": [
-  { "name": "requestId", "type": "string", "required": true,
-    "description": "リクエスト単位の一意 ID。ミドルウェアが注入" },
-  { "name": "traceId",   "type": "string" },
-  { "name": "fieldErrors", "type": { "kind": "custom", "label": "Record<string, string>" },
-    "description": "ValidationStep.rules[] の結果。既定変数名 (ValidationStep.fieldErrorsVar で上書き可)" }
-]
+"context": {
+  "ambientVariables": [
+    {
+      "name": "requestId",
+      "type": "string",
+      "required": true,
+      "description": "リクエスト単位の一意 ID。ミドルウェアが注入"
+    },
+    { "name": "traceId", "type": "string" },
+    { "name": "sessionUserId", "type": "string", "required": true,
+      "description": "ログインユーザー ID。auth ミドルウェアが注入" },
+    {
+      "name": "fieldErrors",
+      "type": { "kind": "object", "fields": [
+        { "name": "field", "type": "string" },
+        { "name": "message", "type": "string" }
+      ] },
+      "description": "ValidationStep.rules[] の結果。既定変数名 (ValidationStep.fieldErrorsVar で上書き可)"
+    }
+  ]
+}
 ```
 
-`@` 参照時、**inputs / outputBinding / ループ変数 / ambientVariables のいずれにも無い変数は未定義エラー**扱い (将来の型推論バリデータで検査)。現状は運用規約として扱う。
+`@` 参照時、**inputs / outputBinding / ループ変数 / ambientVariables / catalog のいずれにも無い変数は未定義エラー**扱い (将来の型推論バリデータで検査)。現状は運用規約として扱う。
 
-### 6.5a `ValidationStep.fieldErrorsVar` (#261 v1.4)
+### 6.5a `ValidationStep.fieldErrorsVar`
 
 `ValidationStep.rules[]` の評価結果を格納する変数名を明示するフィールド。既定 `"fieldErrors"`。`inlineBranch.ngBodyExpression` 等で `@fieldErrors` として参照する。
 
 型は `Record<fieldName, errorMessage>`。`ambientVariables` で明示宣言すれば式参照との整合性が取れる。
 
-## 7. runIf 連鎖規則 (#261)
+## 7. runIf 連鎖規則
 
 `runIf` はステップ実行の条件ガード。ネスト構造での評価規則を以下に規定する。
 
@@ -193,10 +268,10 @@ argList         = expression (',' expression)*
 `BranchStep.branches[i].steps[j]` の step.runIf は、
 
 ```
-effective = branch.condition && step.runIf
+effective = branch.condition.evaluate() && step.runIf
 ```
 
-で評価される。すなわち **branch.condition が false → step.runIf 評価不要**。
+で評価される (BranchCondition は v3 で discriminated union 化、kind=expression なら expression を、kind=tryCatch なら errorCode マッチを評価)。**branch.condition が false → step.runIf 評価不要**。
 
 `LoopStep.steps[j]` の step.runIf は、**ループ 1 イテレーションごとに評価**される (count/condition/collection いずれでも同じ)。ループ入口で 1 回だけ評価する挙動は非採用。
 
@@ -208,7 +283,7 @@ effective = branch.condition && step.runIf
 
 `runIf` 式内で副作用を起こす関数呼出は禁止 (§5 で変数代入 `=` を禁止済みのため自動的に担保)。短絡評価を前提とした同等書き換え (`@a && @a.b` 等) は安全に動作する。
 
-## 8. idempotencyKey の評価規約 (#261)
+## 8. idempotencyKey の評価規約
 
 `ExternalSystemStep.idempotencyKey` は以下を満たすべし。
 
@@ -230,22 +305,33 @@ effective = branch.condition && step.runIf
 
 スキーマでは必須化しない (多くの外部 API は Idempotency-Key をオプション扱い)。
 
-## 9. sideEffects 内で return 禁止 (#261)
+## 9. sideEffects 内で return 禁止
 
-`ExternalCallOutcomeSpec.sideEffects` 配列には `ReturnStep` を置けない (JSON Schema レベルで `NonReturnStep` 制約化)。
+`ExternalCallOutcomeSpec.sideEffects` 配列には `ReturnStep` を置けない (JSON Schema レベルで `NonReturnStep` 制約化、process-flow.v3 で discriminator も追加)。
 
 **理由**: `outcome.action` が `"abort"` (処理中断) の意味と `return` ステップ (HTTP レスポンス返却) の意味が衝突する。
 
 **書き方**:
-- レスポンスで返したい場合: outcome.action = "continue" にして、外側のフロー上に ReturnStep を配置
-- 処理中断する場合: outcome.action = "abort" のみ。body は `errorCatalog` / middleware で生成
+- レスポンスで返したい場合: `outcome.action = "continue"` にして、外側のフロー上に ReturnStep を配置
+- 処理中断する場合: `outcome.action = "abort"` のみ。body は `errorCatalog` / middleware で生成
 
-## 7. 参照整合性
+## 10. 参照整合性
 
-- `@identifier` が既存の `inputs[].name` / `outputBinding` / ループ変数 (`LoopStep.collectionItemName`) に存在するかは、**参照整合性バリデータ** (`designer/src/schemas/referentialIntegrity.ts`) の将来拡張で検査予定 (現状は未検査)
+- `@identifier` が既存の `inputs[].name` / `outputBinding.name` / ループ変数 (`LoopStep.collectionItemName`) / ambient / catalog のいずれかに存在するかは、**参照整合性バリデータ** (`designer/src/schemas/referentialIntegrity.ts`) の将来拡張で検査予定 (現状は未検査)
+- catalog 階層 (`context.catalogs.errors[<key>]` 等) の存在チェックも同バリデータで実施予定
+- IdentifierPath (#533 R3-1) の field 部分 (`createdOrder.order_number` の `.order_number`) は型推論側で検査
 
-## 8. 将来の拡張余地
+## 11. 将来の拡張余地
 
 - `ProcessFlow.expressionLang: "js-subset" | "custom-dsl"` を追加して複数言語を併存
 - 式のパース結果を AST として `parsedExpression?: AstNode` のように保持 (静的解析可能化)
-- `@conv.regex.phone-jp` 等の規約 ID 参照を式内で使えるように拡張
+- shorthand datetime 算術 (`+ 14 days`) を `duration('P14D')` への自動変換 migration script (#539 R5-3 後続)
+- datetime 算術の method chain 化 (`@x.plus(duration('P2D'))`)
+
+## 関連
+
+- スキーマ: [`schemas/v3/process-flow.v3.schema.json`](../../schemas/v3/process-flow.v3.schema.json) (`ExpressionString` ($defs) は `common.v3.schema.json#/$defs/ExpressionString`)
+- ambient 変数: [`process-flow-variables.md`](process-flow-variables.md)
+- catalog: [`process-flow-runtime-conventions.md`](process-flow-runtime-conventions.md)
+- workflow deadline: [`process-flow-workflow.md`](process-flow-workflow.md)
+- 実例: `docs/sample-project-v3/` 配下 (5 業界 50 sample で全式パターンを使用)

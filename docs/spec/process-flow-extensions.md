@@ -1,14 +1,26 @@
 # 処理フロースキーマ拡張 (Phase B 包括リファレンス)
 
-Issue: #182 (親: #151, #152)
+Issue: #182 (親: #151, #152) / **#539 で v3 反映**
 策定日: 2026-04-20
-ステータス: **初版** (ドッグフード 9 連続で 5.0/5 到達後に策定)
+**改訂日: 2026-04-28 (v3 schema v3.0.2 整合)**
+ステータス: **v3 整合性確保** (ドッグフード Round 1〜5 で 5 業界 50 sample 検証済、PR #534 R3 fix + PR #538 Round 5)
 
 本ドキュメントは、`docs/spec/process-flow-maturity.md` / `process-flow-variables.md` の Phase 1 ベースライン以降に追加されたスキーマ拡張を網羅する**リファレンス**。個別設計思想は各 PR (#155〜#181) に記載。
 
+**v3 反映の主な変更点**:
+- step の `type:` → `kind:` 全面 rename
+- catalog 階層化 (`errorCatalog` → `context.catalogs.errors` 等)
+- ValidationRule の `kind: "Error"` → `severity: "error"` (lowerCamelCase + フィールド名 rename)
+- `responseRef` → `responseId`
+- 拡張機構 10 ファイル → 1 ファイル統合 (`schemas/v3/extensions.v3.schema.json`)
+- `outputBinding` の string 短縮形廃止、`{ name: "..." }` 構造化のみ
+- IdentifierPath (#533 R3-1) で object field 参照可
+
 **UI 対応**: 各機能の実際の UI は [`docs/ui-screenshots/`](../ui-screenshots/README.md) を参照。
 
-**一次成果物 (機械可読)**: [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) — 外部 AI / CI からも参照可能な JSON Schema 2020-12。本ドキュメントの各節と 1:1 対応。
+**一次成果物 (機械可読)**: [`schemas/v3/process-flow.v3.schema.json`](../../schemas/v3/process-flow.v3.schema.json) — 外部 AI / CI からも参照可能な JSON Schema 2020-12。本ドキュメントの各節と 1:1 対応。
+
+**拡張定義の一次成果物**: [`schemas/v3/extensions.v3.schema.json`](../../schemas/v3/extensions.v3.schema.json) — 業界別 namespace (retail / finance / manufacturing / public-service / logistics 等) を 1 ファイル統合。
 
 ## 位置づけ
 
@@ -43,7 +55,7 @@ type BodySchemaRef =
   | { schema: object };           // 新: インライン JSON Schema (#253 v1.2)
 
 interface HttpResponseSpec {
-  id?: string;                     // ReturnStep.responseRef が参照する ID
+  id?: string;                     // ReturnStep.responseId が参照する ID
   status: number;                  // 201, 400, 409, ...
   contentType?: string;            // 既定 "application/json"
   bodySchema?: BodySchemaRef;      // 3 形式の union
@@ -73,7 +85,7 @@ UI: ![HTTP 契約パネル](../ui-screenshots/03-action-editor.png)
 
 ## 2. ステップの実行制御
 
-### 2.1 `StepBase.runIf`
+### 2.1 `StepBaseProps.runIf`
 
 ステップの**条件実行ガード**。式が偽の場合 skip。
 
@@ -87,7 +99,7 @@ PR: #179
 
 UI: ![runIf / outputBinding / 代入方式](../ui-screenshots/04-step-expanded.png)
 
-### 2.2 トランザクション境界 (`StepBase.txBoundary` / `transactional`)
+### 2.2 トランザクション境界 (`StepBaseProps.txBoundary` / `transactional`)
 
 同一 `txId` を持つステップ群が単一 TX 内で実行される想定。
 
@@ -102,7 +114,7 @@ transactional?: boolean;
 
 PR: #163
 
-### 2.3 Saga 補償 (`StepBase.compensatesFor`)
+### 2.3 Saga 補償 (`StepBaseProps.compensatesFor`)
 
 補償ステップから補償対象ステップへの**逆参照**。
 
@@ -116,7 +128,7 @@ PR: #163
 
 UI: ![詳細メタ情報パネル (TX境界 / Saga / 外部chain)](../ui-screenshots/07-notes-and-advanced-meta.png)
 
-### 2.4 外部呼出チェーン (`StepBase.externalChain`)
+### 2.4 外部呼出チェーン (`StepBaseProps.externalChain`)
 
 同一外部リソースを扱う複数ステップを束ねる。
 
@@ -164,7 +176,7 @@ interface ExternalHttpCall {
 }
 
 // ExternalSystemStep に追加
-systemRef?: string;                  // ProcessFlow.externalSystemCatalog のキー
+systemRef?: string;                  // ProcessFlow.context.catalogs.externalSystems のキー
 httpCall?: ExternalHttpCall;         // 旧 protocol の後継
 protocol?: string;                   // DEPRECATED: httpCall への移行推奨
 ```
@@ -217,7 +229,7 @@ response 側:
 
 参照整合性バリデータが `typeRef → extensions.responseTypes` 存在検査を行う。extensions 未指定時は後方互換で skip する。
 
-### 3.0b externalSystemCatalog (ProcessFlow レベル, #261 v1.3)
+### 3.0b context.catalogs.externalSystems (ProcessFlow レベル, #261 v1.3)
 
 同じ外部システム (Stripe, SendGrid 等) を使う複数ステップで **auth / baseUrl / timeoutMs / retryPolicy / headers** を 1 箇所に集約。drift 防止と DRY 化。
 
@@ -233,13 +245,13 @@ interface ExternalSystemCatalogEntry {
 }
 
 // ProcessFlow に追加
-externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
+context.catalogs.externalSystems?: Record<string, ExternalSystemCatalogEntry>;
 ```
 
 用例:
 
 ```json
-"externalSystemCatalog": {
+"context.catalogs.externalSystems": {
   "stripe": {
     "name": "Stripe Japan",
     "baseUrl": "https://api.stripe.com",
@@ -255,7 +267,7 @@ step 側:
 
 ```json
 {
-  "type": "externalSystem",
+  "kind": "externalSystem",
   "systemName": "Stripe Japan",
   "systemRef": "stripe",
   "httpCall": {
@@ -314,8 +326,8 @@ PR: #159
   "failure": {
     "action": "continue",
     "sideEffects": [
-      { "type": "dbAccess", "operation": "UPDATE", "sql": "UPDATE orders SET status='payment_failed' WHERE id = @registeredOrder.id" },
-      { "type": "other", "description": "Sentry error 記録" }
+      { "kind": "dbAccess", "operation": "UPDATE", "sql": "UPDATE orders SET status='payment_failed' WHERE id = @registeredOrder.id" },
+      { "kind": "other", "description": "Sentry error 記録" }
     ]
   },
   "timeout": { "action": "continue", "sameAs": "failure" }
@@ -384,8 +396,8 @@ interface DbAccessStep extends StepBase {
 
 ```json
 {
-  "type": "dbAccess",
-  "tableName": "purchase_order_items",
+  "kind": "dbAccess",
+  "tableId": "11111111-1111-4111-8111-111111111111",
   "operation": "INSERT",
   "bulkValues": "@poItemValues",
   "sql": "INSERT INTO purchase_order_items (...) SELECT ... FROM (VALUES @poItemValues) AS v(...)"
@@ -422,7 +434,7 @@ interface ValidationRule {
 
 PR: #167
 
-UI: ![構造化 ValidationRule + A:OK/B:NG 分岐 + responseRef/bodyExpression](../ui-screenshots/09-validation-rules.png)
+UI: ![構造化 ValidationRule + A:OK/B:NG 分岐 + responseId/bodyExpression](../ui-screenshots/09-validation-rules.png)
 
 ### 5.2 `inlineBranch.ngResponseRef` / `ngBodyExpression`
 
@@ -453,7 +465,7 @@ interface ComputeStep extends StepBase {
 }
 ```
 
-用例: `{ "type": "compute", "expression": "Math.floor(@subtotal * 0.10)", "outputBinding": "taxAmount" }`
+用例: `{ "kind": "compute", "expression": "Math.floor(@subtotal * 0.10)", "outputBinding": "taxAmount" }`
 
 PR: #175
 
@@ -466,12 +478,12 @@ HTTP レスポンス返却を構造化。action.responses[] と突合する。
 ```ts
 interface ReturnStep extends StepBase {
   type: "return";
-  responseRef?: string;             // action.responses[].id 参照
+  responseId?: string;             // action.responses[].id 参照
   bodyExpression?: string;          // 返却 body 式
 }
 ```
 
-用例: `{ "type": "return", "responseRef": "409-stock-shortage", "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }" }`
+用例: `{ "kind": "return", "responseId": "409-stock-shortage", "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }" }`
 
 PR: #179
 
@@ -522,7 +534,7 @@ interface BranchStep extends StepBase {
 
 ```json
 {
-  "type": "branch",
+  "kind": "branch",
   "tryScope": ["step-db-insert", "step-inventory-update"],
   "branches": [
     { "condition": { "kind": "tryCatch", "errorCode": "DEADLOCK" }, "steps": [...] }
@@ -574,7 +586,7 @@ type OutputBinding = string | OutputBindingObject;
 
 PR: #169 / #255 (#253 v1.2)
 
-## 8.5 エラーカタログ (ProcessFlow.errorCatalog, #253 v1.2)
+## 8.5 エラーカタログ (ProcessFlow.context.catalogs.errors, #253 v1.2)
 
 同一 `errorCode` が `affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` / `responses[].description` の複数箇所に散在する問題を解決するため、ProcessFlow 単位で 1 箇所に集約する。
 
@@ -582,30 +594,30 @@ PR: #169 / #255 (#253 v1.2)
 interface ErrorCatalogEntry {
   httpStatus?: number;          // 例: 409
   defaultMessage?: string;      // @conv.msg.* 参照も可
-  responseRef?: string;         // action.responses[].id への参照
+  responseId?: string;         // action.responses[].id への参照
   description?: string;
 }
 
 // ProcessFlow に追加
-errorCatalog?: Record<string, ErrorCatalogEntry>;
+context.catalogs.errors?: Record<string, ErrorCatalogEntry>;
 ```
 
 用例:
 
 ```json
-"errorCatalog": {
+"context.catalogs.errors": {
   "STOCK_SHORTAGE": {
     "httpStatus": 409,
     "defaultMessage": "在庫不足",
-    "responseRef": "409-stock-shortage",
+    "responseId": "409-stock-shortage",
     "description": "引当 UPDATE で rowCount=0"
   },
-  "VALIDATION": { "httpStatus": 400, "responseRef": "400-validation" },
-  "PAYMENT_FAILED": { "httpStatus": 402, "responseRef": "402-payment-failed" }
+  "VALIDATION": { "httpStatus": 400, "responseId": "400-validation" },
+  "PAYMENT_FAILED": { "httpStatus": 402, "responseId": "402-payment-failed" }
 }
 ```
 
-実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `errorCatalog.STOCK_SHORTAGE` を引いて httpStatus / responseRef / defaultMessage を 1 箇所で解決。
+実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `context.catalogs.errors.STOCK_SHORTAGE` を引いて httpStatus / responseId / defaultMessage を 1 箇所で解決。
 
 ## 8.6 `StructuredField.format` と `ValidationRule.minRef/maxRef` (#253 v1.3)
 
@@ -698,20 +710,20 @@ interface DomainDef {
 }
 
 // ProcessFlow に追加
-domainsCatalog?: Record<string, DomainDef>;
+context.catalogs.domains?: Record<string, DomainDef>;
 
 // StructuredField に追加
-domainRef?: string;   // domainsCatalog のキー参照 (例: "@conv.domain.EmailAddress")
+domainRef?: string;   // context.catalogs.domains のキー参照 (例: "@conv.domain.EmailAddress")
 ```
 
-**参照形式**: `@conv.domain.<name>` (Convention 規約経由) または `domainsCatalog` キー直接。
+**参照形式**: `@conv.domain.<name>` (Convention 規約経由) または `context.catalogs.domains` キー直接。
 
 ```json
-"domainsCatalog": {
+"context.catalogs.domains": {
   "Quantity": {
     "type": "number",
     "constraints": [
-      { "field": "quantity", "type": "range", "minRef": "@conv.limit.quantityMin", "maxRef": "@conv.limit.quantityMax", "kind": "Error" }
+      { "field": "quantity", "type": "range", "minRef": "@conv.limit.quantityMin", "maxRef": "@conv.limit.quantityMax", "severity": "error" }
     ],
     "uiHint": "number"
   }
@@ -744,30 +756,30 @@ computed?: string;  // direction="output" フィールドの計算式 (D-1)
 
 PR: #422
 
-### 9.3 Rules DSL 統一化 — ValidationRule.kind (P2-3 / GeneXus 由来)
+### 9.3 Rules DSL 統一化 — ValidationRule.severity (P2-3 / GeneXus 由来)
 
-既存の `type` (required/regex/range 等、**検証ルールの種類**) とは別に、**動作種別**を表す `kind` フィールドを追加。GeneXus の Rules DSL 由来の orthogonal な分類。
+**v3 で `kind` → `severity` にリネーム** (#525 R3 fix、Step.kind 等の discriminator と多義性回避のため、加えて lowerCamelCase 統一)。既存の `type` (required/regex/range 等、**検証ルールの種類**) とは別に、**動作種別**を表す `severity` フィールド。GeneXus の Rules DSL 由来の orthogonal な分類。
 
 ```ts
-type ValidationRuleKind = "Error" | "Msg" | "Noaccept" | "Default";
+type ValidationRuleSeverity = "error" | "msg" | "noaccept" | "default";
 
 interface ValidationRule {
   // ... 既存フィールド ...
-  kind?: ValidationRuleKind;   // 動作種別 (省略時: ランタイム既定 = "Error" 相当)
+  severity?: ValidationRuleSeverity;   // 動作種別 (省略時: ランタイム既定 = "error" 相当)
 }
 ```
 
-| kind | 意味 |
+| severity | 意味 |
 |---|---|
-| `Error` | エラー表示してブロック (既定) |
-| `Msg` | メッセージのみ表示、続行可 |
-| `Noaccept` | 値を受け付けない |
-| `Default` | 既定値を設定 |
+| `error` | エラー表示してブロック (既定) |
+| `msg` | メッセージのみ表示、続行可 |
+| `noaccept` | 値を受け付けない |
+| `default` | 既定値を設定 |
 
-**`type` との関係**: `type` = **何を検証するか** (`required`, `range` 等)、`kind` = **違反時にどう振る舞うか**。両者を組み合わせて表現する。
+**`type` との関係**: `type` = **何を検証するか** (`required`, `range` 等)、`severity` = **違反時にどう振る舞うか**。両者を組み合わせて表現する。
 
 ```json
-{ "field": "quantity", "type": "range", "min": 1, "kind": "Error", "message": "1 以上を入力してください" }
+{ "field": "quantity", "type": "range", "min": 1, "severity": "error", "message": "1 以上を入力してください" }
 ```
 
 PR: #422
@@ -785,13 +797,13 @@ interface FunctionDef {
 }
 
 // ProcessFlow に追加
-functionsCatalog?: Record<string, FunctionDef>;
+context.catalogs.functions?: Record<string, FunctionDef>;
 ```
 
 **参照形式**: `@fn.<name>(<args>)` — 式の中で直接呼び出す。
 
 ```json
-"functionsCatalog": {
+"context.catalogs.functions": {
   "formatCurrency": {
     "signature": "formatCurrency(amount: number, currency: string): string",
     "returnType": "string",
@@ -802,7 +814,7 @@ functionsCatalog?: Record<string, FunctionDef>;
 ```
 
 ```json
-{ "type": "compute", "expression": "@fn.formatCurrency(@subtotal, 'JPY')", "outputBinding": "displayAmount" }
+{ "kind": "compute", "expression": "@fn.formatCurrency(@subtotal, 'JPY')", "outputBinding": "displayAmount" }
 ```
 
 PR: #422
@@ -854,7 +866,7 @@ Issue: #396 (Tier B) / #423 (実装)
 
 非同期メッセージング・イベント駆動アーキテクチャのための宣言サポート。
 
-#### ProcessFlow.eventsCatalog
+#### ProcessFlow.context.catalogs.events
 
 ```ts
 interface EventDef {
@@ -863,7 +875,7 @@ interface EventDef {
 }
 
 // ProcessFlow に追加
-eventsCatalog?: Record<string, EventDef>;  // キー: トピック名
+context.catalogs.events?: Record<string, EventDef>;  // キー: トピック名
 ```
 
 #### EventPublishStep (type: "eventPublish")
@@ -872,7 +884,7 @@ eventsCatalog?: Record<string, EventDef>;  // キー: トピック名
 interface EventPublishStep extends StepBase {
   type: "eventPublish";
   topic: string;                  // パブリッシュ先トピック名 (required)
-  eventRef?: string;              // eventsCatalog のキー参照
+  eventRef?: string;              // context.catalogs.events のキー参照
   payload?: string;               // 送信ペイロードの式
 }
 ```
@@ -883,7 +895,7 @@ interface EventPublishStep extends StepBase {
 interface EventSubscribeStep extends StepBase {
   type: "eventSubscribe";
   topic: string;                  // サブスクライブするトピック名 (required)
-  eventRef?: string;              // eventsCatalog のキー参照
+  eventRef?: string;              // context.catalogs.events のキー参照
   filter?: string;                // 受信フィルター条件の式
 }
 ```
@@ -891,7 +903,7 @@ interface EventSubscribeStep extends StepBase {
 用例:
 
 ```json
-"eventsCatalog": {
+"context.catalogs.events": {
   "invoice.issued": {
     "description": "請求書発行完了イベント",
     "payload": {
@@ -907,7 +919,7 @@ interface EventSubscribeStep extends StepBase {
 "steps": [
   {
     "id": "step-evt",
-    "type": "eventPublish",
+    "kind": "eventPublish",
     "description": "請求書発行完了イベントを発行",
     "topic": "invoice.issued",
     "eventRef": "invoice.issued",
@@ -934,10 +946,10 @@ lineage?: DataLineage;
 
 ```json
 {
-  "type": "dbAccess",
-  "tableName": "invoices",
+  "kind": "dbAccess",
+  "tableId": "22222222-2222-4222-8222-222222222222",
   "operation": "INSERT",
-  "lineage": { "writes": ["invoices"] }
+  "lineage": { "writes": [{ "tableId": "22222222-2222-4222-8222-222222222222", "purpose": "create" }] }
 }
 ```
 
@@ -990,8 +1002,8 @@ cache?: CacheHint;
 
 ```json
 {
-  "type": "dbAccess",
-  "tableName": "customers",
+  "kind": "dbAccess",
+  "tableId": "33333333-3333-4333-8333-333333333333",
   "operation": "SELECT",
   "cache": {
     "ttlSeconds": 300,
@@ -1057,7 +1069,7 @@ apiVersion?: string;                  // step 単位の override
   "apiVersion": "v1",
   "actions": [{
     "steps": [{
-      "type": "externalSystem",
+      "kind": "externalSystem",
       "systemName": "新規 API",
       "apiVersion": "v2",
       "httpCall": { "method": "POST", "path": "/v2/resource" }
@@ -1072,7 +1084,7 @@ apiVersion?: string;                  // step 単位の override
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
 - 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
 - 2026-04-24: `ProcessFlow.ambientOverrides` 追加 (#369)。§8.7 を新設。
-- 2026-04-25: P2+D 拡張 (#422)。§9 を新設。domainsCatalog / functionsCatalog / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
+- 2026-04-25: P2+D 拡張 (#422)。§9 を新設。context.catalogs.domains / context.catalogs.functions / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
 - 2026-04-25: Tier-B (#423) 全 6 項目追加。§13 を新設 (B-1〜B-6)。
 - 2026-04-26: 拡張実装ガイドライン追記 (#474)。§15 を新設。
 
@@ -1080,24 +1092,24 @@ apiVersion?: string;                  // step 単位の override
 
 シナリオ #2-#6 (PR #468-#472) 実装・レビュー時に判明した拡張定義の誤りパターン。拡張を新規追加・参照する前に確認すること。
 
-### §15.1 fieldType と domainsCatalog の使い分け
+### §15.1 fieldType と context.catalogs.domains の使い分け
 
 | 区別 | 使い所 | 例 |
 |---|---|---|
 | **拡張 fieldType** (`{kind: "orderId"}`) | 業界固有の**型カテゴリ自体**を追加する場合。inputs/outputs の `type` フィールドで `kind` 形式で参照 | `{ "name": "orderId", "type": { "kind": "orderId" } }` |
-| **domainsCatalog** (`OrderId: {type: "string", constraints: ...}`) | ドメイン**制約付きの型エイリアス**を定義する場合。`constraints` (range / pattern 等) を持つ | `"domainRef": "OrderId"` |
+| **context.catalogs.domains** (`OrderId: {type: "string", constraints: ...}`) | ドメイン**制約付きの型エイリアス**を定義する場合。`constraints` (range / pattern 等) を持つ | `"domainRef": "OrderId"` |
 
 **使い分け基準**:
-- 制約が付くなら `domainsCatalog`
+- 制約が付くなら `context.catalogs.domains`
 - 純粋な型カテゴリ追加なら拡張 `fieldType`
-- 両方使う場合は `domainsCatalog` の `type` で fieldType kind を参照する形が自然
+- 両方使う場合は `context.catalogs.domains` の `type` で fieldType kind を参照する形が自然
 
 ```json
 // 拡張 fieldType 定義 (plugin extensions)
 { "kind": "orderId", "label": "注文 ID", "baseType": "string" }
 
-// domainsCatalog で拡張 fieldType を参照
-"domainsCatalog": {
+// context.catalogs.domains で拡張 fieldType を参照
+"context.catalogs.domains": {
   "OrderId": {
     "type": { "kind": "orderId" },
     "constraints": [{ "field": "orderId", "type": "regex", "pattern": "^ORD-\\d{4}-\\d{6}$" }]
@@ -1115,10 +1127,10 @@ apiVersion?: string;                  // step 単位の override
 
 ```json
 // 推奨 (namespace 修飾、schema valid)
-{ "id": "step-match", "type": "securities:TradeMatchStep", "description": "約定マッチング" }
+{ "id": "step-match", "kind": "securities:TradeMatchStep", "description": "約定マッチング" }
 
 // 後方互換 (旧形式、schema valid)
-{ "id": "step-match", "type": "other", "description": "securities:TradeMatchStep — 約定マッチング" }
+{ "id": "step-match", "kind": "other", "description": "securities:TradeMatchStep — 約定マッチング" }
 ```
 
 ### §15.3 拡張定義の実利用必須

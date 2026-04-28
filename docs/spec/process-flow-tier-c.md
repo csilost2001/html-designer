@@ -1,8 +1,12 @@
 # ProcessFlow Tier C 仕様
 
+**改訂日: 2026-04-28 (v3 反映)**
+
 関連 issue: #426
 
-本仕様は処理フロー JSON Schema の Tier C 拡張を定義する。一次成果物は `schemas/process-flow.schema.json` であり、TypeScript 型と UI 表示定義は派生物として追従する。
+本仕様は処理フロー JSON Schema の Tier C 拡張を定義する。一次成果物は `schemas/v3/process-flow.v3.schema.json` であり、TypeScript 型と UI 表示定義は派生物として追従する。
+
+v3 では step の `type` フィールドは `kind` に改称。以下のすべての例は v3 形式。
 
 ## C-1 ExternalSystemStep の耐障害性設定
 
@@ -10,7 +14,10 @@
 
 ```json
 {
-  "type": "externalSystem",
+  "kind": "externalSystem",
+  "id": "step-external-resilient",
+  "description": "外部システムを耐障害性設定付きで呼び出す",
+  "systemRef": "inventoryService",
   "circuitBreaker": {
     "failureThreshold": 5,
     "timeout": 60000,
@@ -29,12 +36,12 @@
 
 ## C-2 ClosingStep
 
-`ClosingStep` は日次・月次・四半期・年次などの締め処理境界を表す。
+`ClosingStep` は日次・月次・四半期・年次などの締め処理境界を表す。Round 3 で実機検証済み。
 
 ```json
 {
   "id": "step-close",
-  "type": "closing",
+  "kind": "closing",
   "description": "月次在庫締めを確定する",
   "period": "monthly",
   "cutoffAt": "23:59:59",
@@ -47,24 +54,64 @@
 
 ## C-3 CdcStep
 
-`CdcStep` は対象テーブルの変更捕捉と、その出力先を宣言する。
+`CdcStep` は対象テーブルの変更捕捉と、その出力先を宣言する。Round 3 で実機検証済み。
+
+`destination.type` は以下 3 種が利用可能 (CdcDestination):
+
+| type | 説明 |
+|---|---|
+| `auditLog` | 監査ログへ送信 |
+| `eventStream` | イベントストリームへ送信 |
+| `table` | 別テーブルへ書き込み |
 
 ```json
 {
   "id": "step-cdc",
-  "type": "cdc",
+  "kind": "cdc",
   "description": "在庫締め結果の変更履歴を監査ログへ送る",
-  "tables": ["inventory_closing_results"],
+  "tables": ["11111111-1111-4111-8111-111111111111"],
   "captureMode": "incremental",
   "destination": {
     "type": "auditLog",
-    "target": "inventory.monthlyClose"
+    "target": "inventory.monthly_close"
   },
   "includeColumns": ["item_id", "closing_month", "closing_quantity"]
 }
 ```
 
-`tables`、`captureMode`、`destination` は必須。`destination.type` は `auditLog` / `eventStream` / `table` のいずれか。
+**v3 変更点**:
+- `tables` の要素は物理テーブル名ではなく **テーブル UUID** を指定する
+- `destination.target` の EventTopic は snake_case + dot 規範 (`inventory.monthly_close` など)
+
+### CdcDestination 詳細
+
+`eventStream` 出力の場合:
+
+```json
+{
+  "destination": {
+    "type": "eventStream",
+    "target": "inventory.stock_closed",
+    "streamConfig": {
+      "partitionKey": "store_id"
+    }
+  }
+}
+```
+
+`table` 出力の場合:
+
+```json
+{
+  "destination": {
+    "type": "table",
+    "target": "22222222-2222-4222-8222-222222222222",
+    "upsertKey": ["item_id", "closing_month"]
+  }
+}
+```
+
+`tables`、`captureMode`、`destination` は必須。
 
 ## C-4 Health / Readiness
 
@@ -104,3 +151,17 @@
 ```
 
 `resources` は実装時の実行基盤向け目安であり、既存フローに対して後方互換の optional フィールドとして扱う。
+
+## EventTopic 規範
+
+Tier C で使用するイベントトピック名は以下の規範に従う:
+
+- 形式: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`
+- 例: `inventory.monthly_close`, `inventory.stock_closed`, `inventory.not_found`
+- NG: `inventory.monthlyClose` (camelCase 不可)
+
+## 関連
+
+- スキーマ: `schemas/v3/process-flow.v3.schema.json` — `ClosingStep` / `CdcStep` / `HealthCheck` / `ResourceRequirements`
+- `docs/spec/process-flow-workflow.md` — step 種別全体の v3 構造
+- `docs/spec/process-flow-runtime-conventions.md` — 実行時規約

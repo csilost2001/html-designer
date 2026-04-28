@@ -1,10 +1,14 @@
 # 処理フロー 実行時規約 (ランタイム挙動)
 
+**改訂日: 2026-04-28 (v3 反映)**
+
 Issue: #261 v1.5
 策定日: 2026-04-20
 ステータス: **初版**
 
 本ドキュメントは、処理フロー JSON Schema 上に現れるが「**スキーマ制約としては表現しない / できないが、実装者が従うべき規約**」を集約する。再ドッグフード 4.85/5 で「schema だけでは決定できない」と指摘された項目が対象。
+
+本ドキュメントは v3 スキーマ (`schemas/v3/process-flow.v3.schema.json`) に準拠する。v3 では step の `type` フィールドは `kind` に改称、カタログ類は `context.catalogs.*` 配下に統合、`ambientVariables` は `context.ambientVariables` に移動した。
 
 関連仕様:
 - [process-flow-extensions.md](process-flow-extensions.md) — 構造化フィールド定義
@@ -58,7 +62,7 @@ WHERE id IN ($1, $2, $3)
 
 ### 2.1 既定: `application/json`
 
-`httpCall.body` は js-subset の object literal 式。既定で **JSON 直列化**される。Content-Type ヘッダは externalSystemCatalog.headers / step.headers で上書き可。
+`httpCall.body` は js-subset の object literal 式。既定で **JSON 直列化**される。Content-Type ヘッダは `context.catalogs.externalSystems[systemRef].headers` / step.headers で上書き可。
 
 ```json
 // 既定
@@ -68,14 +72,22 @@ WHERE id IN ($1, $2, $3)
 
 ### 2.2 `application/x-www-form-urlencoded` (Stripe 等)
 
-外部 API が form-urlencoded を要求する場合 (Stripe、レガシー OAuth 等)、**externalSystemCatalog または step.headers で明示**:
+外部 API が form-urlencoded を要求する場合 (Stripe、レガシー OAuth 等)、**`context.catalogs.externalSystems` または step.headers で明示**:
 
 ```json
-"stripe": {
-  "name": "Stripe Japan",
-  "headers": {
-    "Stripe-Version": "2024-06-20",
-    "Content-Type": "application/x-www-form-urlencoded"
+{
+  "context": {
+    "catalogs": {
+      "externalSystems": {
+        "stripe": {
+          "name": "Stripe Japan",
+          "headers": {
+            "Stripe-Version": "2024-06-20",
+            "Content-Type": "application/x-www-form-urlencoded"
+          }
+        }
+      }
+    }
   }
 }
 ```
@@ -115,7 +127,7 @@ TX 範囲内 (begin〜end の間) で以下が起きた場合、**TX は自動 R
 
 `errorCode` のマッチング:
 - `affectedRowsCheck.errorCode` の値と `BranchConditionVariant.errorCode` が等しければマッチ
-- 通常 Error の場合は `errorCatalog` のキーにマッチさせる規約 (implicit)
+- 通常 Error の場合は `context.catalogs.errors` のキーにマッチさせる規約 (implicit)
 
 ### 3.4 捕捉後の補償 (Saga compensate)
 
@@ -185,40 +197,50 @@ step-or2-011 (capture) が失敗
 
 `auth: "required" | "optional" | "none"` は **認証の有無**を示すフラグ。具体的な認証スキーム (Bearer / Session cookie / Basic / API key 等) は:
 
-### 8.1 推奨: ProcessFlow.ambientVariables で明示
+### 8.1 推奨: ProcessFlow.context.ambientVariables で明示 (v3)
 
 ```json
-"ambientVariables": [
-  { "name": "userId", "type": "number", "required": true,
-    "description": "Bearer token から middleware が解決して注入" }
-]
+{
+  "context": {
+    "ambientVariables": [
+      { "name": "userId", "type": "number", "required": true,
+        "description": "Bearer token から middleware が解決して注入" }
+    ]
+  }
+}
 ```
 
-### 8.2 externalSystemCatalog とは別扱い
+### 8.2 context.catalogs.externalSystems とは別扱い
 
-`externalSystemCatalog` は **outbound** (自アプリ → 外部 API) の認証。`httpRoute.auth` は **inbound** (クライアント → 自アプリ)。混同しないこと。
+`context.catalogs.externalSystems` は **outbound** (自アプリ → 外部 API) の認証。`httpRoute.auth` は **inbound** (クライアント → 自アプリ)。混同しないこと。
 
 ### 8.3 スキーム固有の仕様は product-scope へ
 
 プロジェクト全体で採用している認証方式 (Bearer JWT / Session / OAuth2 等) は `docs/conventions/product-scope.md` に宣言。処理フロー個別のスキーマではなく**プロダクト横断規約**として管理。
 
-### 8.5 secretsCatalog と tokenRef の連携 (#261 v1.6)
+### 8.5 context.catalogs.secrets と tokenRef の連携 (#261 v1.6)
 
 ExternalAuth.tokenRef は以下 3 形式を受け付ける:
 
-1. **`@secret.<key>`** (推奨): ProcessFlow.secretsCatalog 参照。参照整合性バリデータが未登録エラーを検出
+1. **`@secret.<key>`** (推奨): ProcessFlow.context.catalogs.secrets 参照。参照整合性バリデータが未登録エラーを検出
 2. **`ENV:<envName>`** (後方互換): 環境変数名直書き
 3. **`SECRET:<path>`** (後方互換): 外部 secret store パス直書き
 
-新規データは \`@secret.*\` を使い、catalog 側で source (env/vault/file) と name を管理する。catalog は値そのものを持たず、**メタデータのみ**。
+新規データは `@secret.*` を使い、catalog 側で source (env/vault/file) と name を管理する。catalog は値そのものを持たず、**メタデータのみ**。
 
 ```json
-"secretsCatalog": {
-  "stripeApiKey": {
-    "source": "env",
-    "name": "STRIPE_SECRET_KEY",
-    "description": "Stripe API 認証",
-    "rotationDays": 90
+{
+  "context": {
+    "catalogs": {
+      "secrets": {
+        "stripeApiKey": {
+          "source": "env",
+          "name": "STRIPE_SECRET_KEY",
+          "description": "Stripe API 認証",
+          "rotationDays": 90
+        }
+      }
+    }
   }
 }
 ```
@@ -234,19 +256,19 @@ ExternalAuth.tokenRef は以下 3 形式を受け付ける:
 
 ```
 httpRoute.auth == "required" ?
-  ├─ yes → ambientVariables に "userId" / "accountId" 等の identity 変数があるか?
+  ├─ yes → context.ambientVariables に "userId" / "accountId" 等の identity 変数があるか?
   │   ├─ yes → scheme は Bearer JWT (token から middleware が userId を解決して @userId に注入)
   │   └─ no → docs/conventions/product-scope.md §6 の既定 scheme (例: Session cookie) を採用
   └─ no → スキーム解決不要 (auth: "none" / "optional")
 ```
 
-0005 の例: `httpRoute.auth: "required"` + ambientVariables に `sessionId` があるが `userId` なし → product-scope §6 の規定 (Session cookie + httpOnly) を採用。
+0005 の例: `httpRoute.auth: "required"` + `context.ambientVariables` に `sessionId` があるが `userId` なし → product-scope §6 の規定 (Session cookie + httpOnly) を採用。
 
 ## 9. Ambient Context — 規約カタログ defaults と ambientOverrides (#369)
 
 ### 9.1 Ambient Context の定義
 
-**Ambient Context** とは、ProcessFlow が明示的に inputs で受け取るのではなく、「プロジェクト全体に共通する前提」として暗黙に利用する環境情報のこと。代表例:
+**Ambient Context** とは、ProcessFlow が明示的に inputs で受け取るのではなく、「プロジェクト全体に共通する前提」として暗黙に利用する環境情報のこと。v3 では `context.ambientVariables` に宣言する。代表例:
 
 | Ambient 項目 | 参照パス | 既定値 (プロジェクト既定) |
 |---|---|---|
@@ -276,19 +298,22 @@ httpRoute.auth == "required" ?
 }
 ```
 
-### 9.3 ProcessFlow.ambientOverrides — フロー単位の例外指定
+### 9.3 ProcessFlow.context.ambientOverrides — フロー単位の例外指定 (v3)
 
-大多数のフローは規約カタログの defaults をそのまま使う。**特定フローだけ例外** (外貨精算・UTC バッチ等) の場合にのみ、`ambientOverrides` フィールドで上書きする。
+大多数のフローは規約カタログの defaults をそのまま使う。**特定フローだけ例外** (外貨精算・UTC バッチ等) の場合にのみ、`context.ambientOverrides` フィールドで上書きする。
 
 ```json
 // data/process-flows/xxx.json (override が必要な場合のみ記述)
 {
-  "id": "...",
-  "ambientOverrides": {
-    "currency": "@conv.currency.usd",
-    "scope.timezone": "UTC"
+  "meta": { "id": "11111111-1111-4111-8111-111111111111", "name": "外貨精算" },
+  "context": {
+    "ambientOverrides": {
+      "currency": "@conv.currency.usd",
+      "scope.timezone": "UTC"
+    },
+    "catalogs": {}
   },
-  "actions": [...]
+  "actions": []
 }
 ```
 
@@ -312,14 +337,14 @@ httpRoute.auth == "required" ?
 5. 画面項目定義                             — 入出力の UI 制約
 ```
 
-### 9.5 ambientOverrides と ambientVariables の違い
+### 9.5 context.ambientOverrides と context.ambientVariables の違い (v3)
 
-| フィールド | 目的 | 例 |
+| フィールド | 目的 | 例 (v3 パス) |
 |---|---|---|
-| `ambientVariables` | ミドルウェア由来の **変数宣言** (`@requestId` 等が存在することを明示) | `[{ "name": "userId", "type": "number" }]` |
-| `ambientOverrides` | 規約カタログ defaults への **例外指定** (フロー単位で通貨・TZ 等を変える) | `{ "currency": "@conv.currency.usd" }` |
+| `context.ambientVariables` | ミドルウェア由来の **変数宣言** (`@requestId` 等が存在することを明示) | `[{ "name": "userId", "type": "number" }]` |
+| `context.ambientOverrides` | 規約カタログ defaults への **例外指定** (フロー単位で通貨・TZ 等を変える) | `{ "currency": "@conv.currency.usd" }` |
 
-両者は別物。`ambientVariables` はリクエストスコープの変数、`ambientOverrides` はプロジェクト規約に対するフロー固有の例外。
+両者は別物。`context.ambientVariables` はリクエストスコープの変数、`context.ambientOverrides` はプロジェクト規約に対するフロー固有の例外。
 
 ## 10. `compensatesFor` の配置規約
 
@@ -414,7 +439,7 @@ Step-level の `requiredPermissions` は Action-level と AND 条件で評価す
 - [ ] `responses[].when` は documentation (§7)
 - [ ] `httpRoute.auth` のスキーム具体化は ambient 変数 + product-scope (§8)
 - [ ] ambient 前提 (TZ / 通貨 / 税率) は `data/conventions/catalog.json` の `default: true` エントリから取得 (§9.2)
-- [ ] フロー固有の ambient 例外は `ambientOverrides` を確認し、未記載なら catalog defaults をそのまま適用 (§9.3)
+- [ ] フロー固有の ambient 例外は `context.ambientOverrides` を確認し、未記載なら catalog defaults をそのまま適用 (§9.3)
 
 ## 13. 実装ガイドライン (ドッグフード由来)
 
@@ -441,10 +466,10 @@ Step-level の `requiredPermissions` は Action-level と AND 条件で評価す
 
 ```json
 // 危険: ON CONFLICT DO NOTHING で衝突した場合 null deref
-{ "type": "compute", "expression": "@submissionRecord.submittedCount" }
+{ "kind": "compute", "expression": "@submissionRecord.submittedCount" }
 
 // 安全: null 安全アクセスまたは null 合体演算子を使う
-{ "type": "compute", "expression": "@submissionRecord?.submittedCount ?? @reportableTrades.length" }
+{ "kind": "compute", "expression": "@submissionRecord?.submittedCount ?? @reportableTrades.length" }
 ```
 
 シナリオ #5 での対策例: `@submissionRecord?.submittedCount ?? @reportableTrades.length` の形で null 安全表現を適用して解決。
@@ -456,13 +481,22 @@ Step-level の `requiredPermissions` は Action-level と AND 条件で評価す
 **安全な書き方**: loop の前に明示的初期化 step を置く。
 
 ```json
-{ "id": "init-total", "type": "compute", "expression": "0", "outputBinding": "total" },
-{ "id": "the-loop", "type": "loop", "items": "@list", "steps": [
-  { "id": "accumulate", "type": "compute",
-    "expression": "@total + @item.amount", "outputBinding": "total" }
+{ "id": "init-total", "kind": "compute", "expression": "0", "outputBinding": { "name": "total" } },
+{ "id": "the-loop", "kind": "loop", "items": "@list", "steps": [
+  { "id": "accumulate", "kind": "compute",
+    "expression": "@total + @item.amount", "outputBinding": { "name": "total" } }
 ]}
 ```
 
 - `initialValue` を指定していても「loop 入口での初期化タイミング」は実装依存
 - loop 前の明示的 `compute` step で初期化することで、0 件パスでも `@total` が確実に定義済みになる
 - **検出パターン**: `/review-flow` 観点 1 (変数ライフサイクル) で「loop accumulate の 0 件パス」を確認 (シナリオ #4 で実例)
+
+## 関連
+
+- スキーマ: `schemas/v3/process-flow.v3.schema.json` — v3 全体定義
+- `docs/spec/process-flow-extensions.md` — 構造化フィールド定義
+- `docs/spec/process-flow-expression-language.md` — 式言語 BNF
+- `docs/spec/process-flow-variables.md` — 変数・outputBinding
+- `docs/spec/process-flow-maturity.md` — 成熟度・モード
+- `docs/sample-project-v3/process-flows/` — v3 形式の実サンプル

@@ -1,5 +1,7 @@
 # ProcessFlow SLA / Timeout 仕様
 
+**改訂日: 2026-04-28 (v3 反映)**
+
 ## 目的
 
 処理フロー定義に、性能・待ち時間・タイムアウト時の扱いを宣言するための `sla` を追加する。AI 実装者はこの情報を使い、タイムアウト設定、監視、ログ、補償処理、エラー応答を生成する。
@@ -53,7 +55,7 @@ interface Sla {
 
 ### errorCode
 
-`errorCatalog` のキーと連携するエラーコード。`onTimeout: "throw"` または `compensate` の場合、HTTP レスポンスや業務エラーへの変換に利用する。
+`context.catalogs.errors` のキーと連携するエラーコード。`onTimeout: "throw"` または `compensate` の場合、HTTP レスポンスや業務エラーへの変換に利用する。
 
 **スキーマ制約 (#412)**: `onTimeout` が `throw` または `compensate` の場合、`errorCode` は必須 (JSON Schema の `if/then` で強制)。`continue` / `log` では `errorCode` は不要。
 
@@ -66,6 +68,51 @@ interface Sla {
 P95 レイテンシ目標 (ms)。SRE 監視・SLO 評価で「95% のリクエストが満たすべき応答時間」として使用する。`timeoutMs` (絶対上限) と異なり、超過しても処理は継続するが、観測値が継続的に超えた場合は監視 alert 対象。
 
 例: `timeoutMs: 5000`, `p95LatencyMs: 500` — 上限 5 秒 / SLO 目標 P95 < 500ms。
+
+## v3 での利用例
+
+ProcessFlow レベルの sla 指定 (v3 形式):
+
+```json
+{
+  "meta": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "注文処理",
+    "sla": {
+      "timeoutMs": 30000,
+      "warningThresholdMs": 20000,
+      "p95LatencyMs": 5000
+    }
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "TIMEOUT": {
+          "httpStatus": 504,
+          "defaultMessage": "処理がタイムアウトしました",
+          "responseId": "504-timeout"
+        }
+      }
+    }
+  }
+}
+```
+
+ステップレベルの sla 指定 (v3 形式):
+
+```json
+{
+  "kind": "externalSystem",
+  "id": "step-payment",
+  "description": "決済 API を呼び出す",
+  "systemRef": "paymentGateway",
+  "sla": {
+    "timeoutMs": 5000,
+    "onTimeout": "throw",
+    "errorCode": "TIMEOUT"
+  }
+}
+```
 
 ## 設計判断
 
@@ -102,3 +149,9 @@ SRE プラクティスの「許容エラー率」(例: 99.9% SLO なら error bu
 既存の `ExternalSystemStep.timeoutMs` は deprecated として残す。新規定義では `StepBase.sla.timeoutMs` を使用する。
 
 外部システムステップで両方が指定された場合、`sla.timeoutMs` を優先する。旧データの読み込み・検証互換を維持するため、スキーマ上は `ExternalSystemStep.timeoutMs` も引き続き受け付ける。
+
+## 関連
+
+- スキーマ: `schemas/v3/process-flow.v3.schema.json` — `Sla` 型定義
+- `docs/spec/process-flow-external-system.md` — ExternalSystemStep 詳細
+- `docs/spec/process-flow-runtime-conventions.md` §3 — タイムアウトと TX / Saga の連鎖
