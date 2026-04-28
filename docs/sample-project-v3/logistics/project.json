@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "1136a684-c7b0-48b1-88c3-4676d404ab83",
+    "name": "v3 dogfood Round 5 — logistics (倉庫間転送)",
+    "description": "PR #536 (#535 Round 4) の Sonnet レビューで指摘された **approval-parallel / branch-merge の業務文脈未検証** に対応する Round 5 サンプル (#537)。物流業界 (倉庫間転送) で並行 semantics を持つ WorkflowPattern を実機検証。",
+    "version": "1.0.0",
+    "maturity": "draft",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "updatedAt": "2026-04-28T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [{ "namespace": "logistics", "version": ">=1.0.0" }],
+  "entities": {
+    "screens": [
+      { "id": "42f09728-910e-4ac1-9d8b-8f9d8223a439", "no": 1, "name": "倉庫間転送指示", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "form", "path": "/logistics/transfers/new", "hasDesign": false }
+    ],
+    "tables": [
+      { "id": "6f43ce95-a553-45bf-973b-7f46be57faa1", "no": 1, "name": "倉庫マスタ", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "physicalName": "warehouses", "category": "マスタ", "columnCount": 9 },
+      { "id": "a2e83031-be05-442e-b1f0-df7eab240269", "no": 2, "name": "転送注文", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "physicalName": "transfer_orders", "category": "トランザクション", "columnCount": 14 },
+      { "id": "1eed01d1-0077-4659-b4bc-bee9d2754742", "no": 3, "name": "転送明細", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "physicalName": "transfer_lines", "category": "トランザクション", "columnCount": 11 },
+      { "id": "08177ef8-9643-498b-bc43-d5922ed7d29a", "no": 4, "name": "出荷", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "physicalName": "shipments", "category": "トランザクション", "columnCount": 9 }
+    ],
+    "processFlows": [
+      { "id": "0fe7af80-0f0c-4075-a46f-9c921866a52b", "no": 1, "name": "倉庫間転送実行", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "screen", "screenId": "42f09728-910e-4ac1-9d8b-8f9d8223a439", "actionCount": 1 },
+      { "id": "ea579b99-4b83-4724-823e-d8e73e979266", "no": 2, "name": "配送状況照会", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 }
+    ]
+  }
+}

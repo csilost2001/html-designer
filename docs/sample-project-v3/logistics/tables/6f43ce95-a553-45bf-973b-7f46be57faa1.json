@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "6f43ce95-a553-45bf-973b-7f46be57faa1",
+  "name": "倉庫マスタ",
+  "description": "物流拠点 (倉庫) の情報。is_active=true の倉庫間で在庫転送を行う。manager_user_id は WorkflowStep.approvers の解決に使用。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "warehouses",
+  "category": "マスタ",
+  "comment": "倉庫マスタ。1 倉庫 = 1 マネージャー、転送承認時にマネージャーへ通知。",
+  "columns": [
+    { "id": "col-w01", "no": 1, "physicalName": "id", "name": "倉庫ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-w02", "no": 2, "physicalName": "warehouse_code", "name": "倉庫コード", "dataType": "VARCHAR", "length": 10, "notNull": true, "unique": true, "comment": "WH + 4 桁数字。" },
+    { "id": "col-w03", "no": 3, "physicalName": "name", "name": "倉庫名", "dataType": "VARCHAR", "length": 200, "notNull": true },
+    { "id": "col-w04", "no": 4, "physicalName": "address", "name": "所在地", "dataType": "VARCHAR", "length": 500, "notNull": true },
+    { "id": "col-w05", "no": 5, "physicalName": "manager_user_id", "name": "マネージャーID", "dataType": "VARCHAR", "length": 50, "notNull": true, "comment": "倉庫管理者の従業員 ID。" },
+    { "id": "col-w06", "no": 6, "physicalName": "capacity_pallets", "name": "収容能力(パレット)", "dataType": "INTEGER", "notNull": true },
+    { "id": "col-w07", "no": 7, "physicalName": "is_active", "name": "アクティブ", "dataType": "BOOLEAN", "notNull": true, "defaultValue": "true" },
+    { "id": "col-w08", "no": 8, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-w09", "no": 9, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-w01", "physicalName": "idx_warehouses_code", "columns": [{ "columnId": "col-w02" }], "unique": true }
+  ],
+  "constraints": [
+    {
+      "id": "chk-w01",
+      "kind": "check",
+      "physicalName": "chk_warehouses_code_pattern",
+      "expression": "warehouse_code ~ '^WH[0-9]{4}$'"
+    },
+    {
+      "id": "chk-w02",
+      "kind": "check",
+      "physicalName": "chk_warehouses_capacity_positive",
+      "expression": "capacity_pallets > 0"
+    }
+  ]
+}

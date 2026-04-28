@@ -1,0 +1,316 @@
+{
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "0fe7af80-0f0c-4075-a46f-9c921866a52b",
+    "name": "倉庫間転送実行",
+    "description": "倉庫 A → 倉庫 B の在庫転送を、(1) 転送元 + 転送先 + コーディネーターの 3 名並行承認 (approval-parallel)、(2) ピッキング + パッキング + 配送手配の 3 タスク並行実行 → merge (branch-merge) で出荷確定する。Round 5 で並行 semantics を実機検証する目的フロー。",
+    "version": "1.0.0",
+    "maturity": "committed",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "updatedAt": "2026-04-28T00:00:00.000Z",
+    "kind": "screen",
+    "screenId": "42f09728-910e-4ac1-9d8b-8f9d8223a439",
+    "apiVersion": "v1",
+    "mode": "upstream"
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "VALIDATION": { "httpStatus": 400, "defaultMessage": "入力値が不正です", "responseId": "400-validation" },
+        "WAREHOUSE_NOT_FOUND": { "httpStatus": 404, "defaultMessage": "倉庫が見つかりません", "responseId": "404-warehouse-not-found" },
+        "APPROVAL_REJECTED": { "httpStatus": 422, "defaultMessage": "並行承認で却下", "responseId": "422-approval-rejected" },
+        "PICKING_FAILED": { "httpStatus": 422, "defaultMessage": "ピッキングで在庫不足等の問題発生", "responseId": "422-picking-failed" },
+        "INTERNAL_ERROR": { "httpStatus": 500, "defaultMessage": "内部エラー", "responseId": "500-internal-error" }
+      },
+      "events": {
+        "logistics.transfer_order_created": {
+          "description": "転送注文作成",
+          "payload": { "type": "object", "required": ["orderNumber"], "properties": { "orderNumber": { "type": "string" } } }
+        },
+        "logistics.shipment_created": {
+          "description": "出荷確定",
+          "payload": { "type": "object", "required": ["shipmentNumber", "trackingNumber"], "properties": { "shipmentNumber": { "type": "string" }, "trackingNumber": { "type": "string" } } }
+        }
+      }
+    },
+    "ambientVariables": [
+      { "name": "requestId", "type": "string", "required": true },
+      { "name": "sessionUserId", "type": "string", "required": true }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "倉庫間転送実行",
+      "trigger": "submit",
+      "description": "転送注文作成 → 3 名並行承認 → ピッキング + パッキング + 配送手配 並行 → 出荷確定",
+      "maturity": "committed",
+      "httpRoute": { "method": "POST", "path": "/api/logistics/transfers", "auth": "required" },
+      "inputs": [
+        { "name": "sourceWarehouseCode", "label": "転送元倉庫", "type": "string", "required": true },
+        { "name": "destinationWarehouseCode", "label": "転送先倉庫", "type": "string", "required": true },
+        { "name": "shippingMethod", "label": "配送方法", "type": "string", "required": true },
+        { "name": "scheduledShipAt", "label": "出荷予定日時", "type": "datetime", "required": true },
+        { "name": "memo", "label": "メモ", "type": "string", "required": false }
+      ],
+      "outputs": [
+        { "name": "orderNumber", "label": "転送注文番号", "type": "string" },
+        { "name": "shipmentNumber", "label": "出荷番号", "type": "string" },
+        { "name": "trackingNumber", "label": "追跡番号", "type": "string" }
+      ],
+      "responses": [
+        { "id": "200-ok", "status": 200, "bodySchema": { "typeRef": "logistics:TransferOrderResponse" } },
+        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "logistics:ApiError" } },
+        { "id": "404-warehouse-not-found", "status": 404, "bodySchema": { "typeRef": "logistics:ApiError" } },
+        { "id": "422-approval-rejected", "status": 422, "bodySchema": { "typeRef": "logistics:ApiError" } },
+        { "id": "422-picking-failed", "status": 422, "bodySchema": { "typeRef": "logistics:ApiError" } },
+        { "id": "500-internal-error", "status": 500, "bodySchema": { "typeRef": "logistics:ApiError" } }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "kind": "validation",
+          "description": "入力検証",
+          "rules": [
+            { "field": "sourceWarehouseCode", "type": "regex", "severity": "error", "pattern": "^WH[0-9]{4}$", "message": "倉庫コード形式不正" },
+            { "field": "destinationWarehouseCode", "type": "regex", "severity": "error", "pattern": "^WH[0-9]{4}$", "message": "倉庫コード形式不正" },
+            { "field": "destinationWarehouseCode", "type": "custom", "severity": "error", "condition": "@inputs.sourceWarehouseCode == @inputs.destinationWarehouseCode", "message": "同一倉庫間転送は禁止" }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": [], "ng": [],
+            "ngResponseId": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-02",
+          "kind": "dbAccess",
+          "description": "転送元倉庫を取得",
+          "tableId": "6f43ce95-a553-45bf-973b-7f46be57faa1",
+          "operation": "SELECT",
+          "sql": "SELECT id, warehouse_code, name, manager_user_id FROM warehouses WHERE warehouse_code = @inputs.sourceWarehouseCode AND is_active = true",
+          "outputBinding": { "name": "sourceWarehouse" },
+          "lineage": { "reads": [{ "tableId": "6f43ce95-a553-45bf-973b-7f46be57faa1", "purpose": "lookup" }] }
+        },
+        {
+          "id": "step-03",
+          "kind": "dbAccess",
+          "description": "転送先倉庫を取得",
+          "tableId": "6f43ce95-a553-45bf-973b-7f46be57faa1",
+          "operation": "SELECT",
+          "sql": "SELECT id, warehouse_code, name, manager_user_id FROM warehouses WHERE warehouse_code = @inputs.destinationWarehouseCode AND is_active = true",
+          "outputBinding": { "name": "destinationWarehouse" },
+          "lineage": { "reads": [{ "tableId": "6f43ce95-a553-45bf-973b-7f46be57faa1", "purpose": "lookup" }] }
+        },
+        {
+          "id": "step-04",
+          "kind": "branch",
+          "description": "倉庫不在 → 404",
+          "branches": [
+            {
+              "id": "br-04-a", "code": "A", "label": "倉庫なし",
+              "condition": { "kind": "expression", "expression": "@sourceWarehouse == null || @destinationWarehouse == null" },
+              "steps": [
+                { "id": "step-04-a-01", "kind": "return", "description": "404 倉庫なし", "responseId": "404-warehouse-not-found", "bodyExpression": "{ code: 'WAREHOUSE_NOT_FOUND', message: '指定された倉庫が見つかりません' }" }
+              ]
+            }
+          ],
+          "elseBranch": { "id": "br-04-else", "code": "B", "label": "OK", "steps": [] }
+        },
+        {
+          "id": "step-05",
+          "kind": "dbAccess",
+          "description": "転送注文を pending_approval で INSERT",
+          "tableId": "a2e83031-be05-442e-b1f0-df7eab240269",
+          "operation": "INSERT",
+          "sql": "INSERT INTO transfer_orders (order_number, source_warehouse_id, destination_warehouse_id, shipping_method, status, scheduled_ship_at, requested_by_user_id, memo) VALUES (@conv.numbering.transferOrderNumber, @sourceWarehouse.id, @destinationWarehouse.id, @inputs.shippingMethod, 'pending_approval', @inputs.scheduledShipAt, @sessionUserId, @inputs.memo) RETURNING id, order_number",
+          "outputBinding": { "name": "createdOrder" },
+          "lineage": { "writes": [{ "tableId": "a2e83031-be05-442e-b1f0-df7eab240269", "purpose": "create" }] }
+        },
+        {
+          "id": "step-06",
+          "kind": "eventPublish",
+          "topic": "logistics.transfer_order_created",
+          "description": "転送注文作成イベント (各倉庫マネージャー通知)",
+          "payload": "{ orderNumber: @createdOrder.order_number }"
+        },
+        {
+          "id": "step-07-approval",
+          "kind": "workflow",
+          "description": "**WorkflowPattern approval-parallel**: 転送元倉庫マネージャー + 転送先倉庫マネージャー + 物流コーディネーターの 3 名が並行承認、全員 OK で進行 (1 名でも reject なら却下)",
+          "maturity": "committed",
+          "pattern": "approval-parallel",
+          "approvers": [
+            { "role": "@conv.role.logistics.source_warehouse_manager", "label": "転送元倉庫マネージャー", "order": 1 },
+            { "role": "@conv.role.logistics.destination_warehouse_manager", "label": "転送先倉庫マネージャー", "order": 1 },
+            { "role": "@conv.role.logistics.coordinator", "label": "物流コーディネーター", "order": 1 }
+          ],
+          "deadlineExpression": "@createdOrder.scheduled_ship_at - 24h",
+          "onApproved": [
+            {
+              "id": "step-07-app-01",
+              "kind": "dbAccess",
+              "description": "transfer_orders.status = 'approved'",
+              "tableId": "a2e83031-be05-442e-b1f0-df7eab240269",
+              "operation": "UPDATE",
+              "sql": "UPDATE transfer_orders SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = @createdOrder.id",
+              "lineage": { "writes": [{ "tableId": "a2e83031-be05-442e-b1f0-df7eab240269", "purpose": "status-update" }] }
+            }
+          ],
+          "onRejected": [
+            {
+              "id": "step-07-rej-01",
+              "kind": "dbAccess",
+              "description": "transfer_orders.status = 'cancelled'",
+              "tableId": "a2e83031-be05-442e-b1f0-df7eab240269",
+              "operation": "UPDATE",
+              "sql": "UPDATE transfer_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = @createdOrder.id",
+              "lineage": { "writes": [{ "tableId": "a2e83031-be05-442e-b1f0-df7eab240269", "purpose": "status-update" }] }
+            },
+            { "id": "step-07-rej-02", "kind": "return", "description": "422 並行承認で却下", "responseId": "422-approval-rejected", "bodyExpression": "{ code: 'APPROVAL_REJECTED', message: '並行承認で却下されました' }" }
+          ]
+        },
+        {
+          "id": "step-08-merge",
+          "kind": "workflow",
+          "description": "**WorkflowPattern branch-merge**: ピッキング担当 + パッキング担当 + 配送手配担当の 3 タスクが並行実行、3 タスク完了 (sign-off) で merge して進行。各担当の sign-off が並行 branch、merge 後に出荷確定へ。",
+          "maturity": "committed",
+          "pattern": "branch-merge",
+          "approvers": [
+            { "role": "@conv.role.logistics.picker", "label": "ピッキング担当", "order": 1 },
+            { "role": "@conv.role.logistics.packer", "label": "パッキング担当", "order": 1 },
+            { "role": "@conv.role.logistics.dispatcher", "label": "配送手配担当", "order": 1 }
+          ],
+          "onApproved": [
+            {
+              "id": "step-08-app-01",
+              "kind": "dbAccess",
+              "description": "transfer_orders.status = 'shipped' (3 タスク完了済)",
+              "tableId": "a2e83031-be05-442e-b1f0-df7eab240269",
+              "operation": "UPDATE",
+              "sql": "UPDATE transfer_orders SET status = 'shipped', shipped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = @createdOrder.id",
+              "lineage": { "writes": [{ "tableId": "a2e83031-be05-442e-b1f0-df7eab240269", "purpose": "status-update" }] }
+            },
+            {
+              "id": "step-08-app-02",
+              "kind": "dbAccess",
+              "description": "shipments に出荷情報 INSERT",
+              "tableId": "08177ef8-9643-498b-bc43-d5922ed7d29a",
+              "operation": "INSERT",
+              "sql": "INSERT INTO shipments (shipment_number, transfer_order_id, carrier_code, tracking_number, ship_status) VALUES (@conv.numbering.shipmentNumber, @createdOrder.id, @fn.selectCarrier(@inputs.shippingMethod), @fn.generateTrackingNumber(@createdOrder.order_number), 'in_transit') RETURNING id, shipment_number, tracking_number",
+              "outputBinding": { "name": "createdShipment" },
+              "lineage": { "writes": [{ "tableId": "08177ef8-9643-498b-bc43-d5922ed7d29a", "purpose": "create" }] }
+            }
+          ],
+          "onRejected": [
+            {
+              "id": "step-08-rej-01",
+              "kind": "dbAccess",
+              "description": "ピッキング/パッキング/配送のいずれかで問題 → status = 'cancelled'",
+              "tableId": "a2e83031-be05-442e-b1f0-df7eab240269",
+              "operation": "UPDATE",
+              "sql": "UPDATE transfer_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = @createdOrder.id"
+            },
+            { "id": "step-08-rej-02", "kind": "return", "description": "422 ピッキング失敗", "responseId": "422-picking-failed", "bodyExpression": "{ code: 'PICKING_FAILED', message: 'ピッキング/パッキング/配送のいずれかで問題発生' }" }
+          ]
+        },
+        {
+          "id": "step-09",
+          "kind": "audit",
+          "description": "出荷確定の監査ログ",
+          "action": "logistics.transfer.execute",
+          "resource": { "type": "transfer_order", "id": "@createdOrder.order_number" },
+          "result": "success"
+        },
+        {
+          "id": "step-10",
+          "kind": "eventPublish",
+          "topic": "logistics.shipment_created",
+          "description": "出荷確定イベント (受領倉庫通知 + キャリア API 連携起動)",
+          "payload": "{ shipmentNumber: @createdShipment.shipment_number, trackingNumber: @createdShipment.tracking_number }"
+        },
+        {
+          "id": "step-11",
+          "kind": "return",
+          "description": "200 OK",
+          "responseId": "200-ok",
+          "bodyExpression": "{ orderNumber: @createdOrder.order_number, status: 'shipped', shipmentNumber: @createdShipment.shipment_number, trackingNumber: @createdShipment.tracking_number }"
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-001",
+        "title": "approval-parallel + branch-merge を Round 5 で業務文脈実機検証",
+        "status": "accepted",
+        "context": "Round 4 まで使用していなかった並行 WorkflowPattern を、業務として並行処理が自然に発生する物流業界で検証する判断。",
+        "decision": "倉庫間転送業務は (a) 転送元/転送先/コーディネーターの 3 名並行承認、(b) ピッキング/パッキング/配送手配の 3 タスク並行実行 → merge という構造で、approval-parallel + branch-merge の 2 種を 1 ProcessFlow で連結使用できる。",
+        "consequences": "schema レベルで approval-parallel / branch-merge が業務的に自然に書けることを実証。Round 4 までの判定 (TS 同期着手可能) を補強。",
+        "date": "2026-04-28"
+      }
+    ],
+    "glossary": {
+      "ピッキング": {
+        "definition": "倉庫内で出荷対象品を棚から集める作業。複数品目があれば並行作業可能。",
+        "aliases": ["Picking"]
+      },
+      "パッキング": {
+        "definition": "ピックアップ済品目を出荷用ボックスに梱包する作業。ピッキング完了を前提とせず、並行で前倒し準備可能。",
+        "aliases": ["Packing"]
+      }
+    },
+    "testScenarios": [
+      {
+        "id": "happy-path-3-warehouse-approval",
+        "name": "3 倉庫マネージャー全員承認 + 3 タスク完了で出荷",
+        "given": [
+          { "kind": "sessionContext", "context": { "requestId": "req-001", "sessionUserId": "user-001" } },
+          {
+            "kind": "dbState",
+            "tableId": "6f43ce95-a553-45bf-973b-7f46be57faa1",
+            "rows": [
+              { "id": 1, "warehouse_code": "WH0001", "name": "東京倉庫", "manager_user_id": "mgr-001", "is_active": true },
+              { "id": 2, "warehouse_code": "WH0002", "name": "大阪倉庫", "manager_user_id": "mgr-002", "is_active": true }
+            ]
+          }
+        ],
+        "when": {
+          "actionId": "act-001",
+          "input": {
+            "sourceWarehouseCode": "WH0001",
+            "destinationWarehouseCode": "WH0002",
+            "shippingMethod": "ground",
+            "scheduledShipAt": "2026-05-01T10:00:00.000Z"
+          }
+        },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "output", "path": "$.status", "equals": "shipped" }
+        ],
+        "tags": ["happy", "parallel-approval", "branch-merge"]
+      },
+      {
+        "id": "same-warehouse-rejected",
+        "name": "同一倉庫間転送は 400",
+        "given": [{ "kind": "sessionContext", "context": { "requestId": "req-002", "sessionUserId": "user-001" } }],
+        "when": {
+          "actionId": "act-001",
+          "input": { "sourceWarehouseCode": "WH0001", "destinationWarehouseCode": "WH0001", "shippingMethod": "ground", "scheduledShipAt": "2026-05-01T10:00:00.000Z" }
+        },
+        "then": [{ "kind": "outcome", "expected": "400-validation" }],
+        "tags": ["error", "validation"]
+      }
+    ],
+    "notes": [
+      {
+        "id": "note-r5-01",
+        "kind": "assumption",
+        "body": "Round 5 dogfood (#537)。approval-parallel + branch-merge を 1 ProcessFlow で連結使用、業務文脈で並行 semantics を実機検証。Round 4 までの 11 種中 5 種実機検証 + Round 5 で 2 種追加 = 計 7 種の WorkflowPattern を業務文脈で検証完了。残 4 種 (approval-quorum / approval-escalation / sign-off [Round 4 で済] / discussion / ad-hoc) のうち sign-off は Round 4 で済んでいるため正味 3 種が依然 fixture のみ。",
+        "createdAt": "2026-04-28T00:00:00.000Z"
+      }
+    ]
+  }
+}
