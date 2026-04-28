@@ -1,5 +1,7 @@
 # 処理フローの成熟度・曖昧さ管理
 
+**改訂日: 2026-04-28 (v3 反映)**
+
 Issue: #152 (親トラッキング: #151)
 策定日: 2026-04-20
 ステータス: **v1.0 (凍結 2026-04-24)** — データモデル・UI 仕様確定。Phase 実装中は本書を改訂せず、追加仕様は新規ドキュメントに分離する
@@ -45,11 +47,26 @@ UI サンプル:
 
 ### 粒度 (どこに付くか)
 
+v3 では `meta.maturity` がフロー単位の成熟度を担う。
+
 - **ステップ単位** (`step.maturity`): ステップ全体の成熟度
 - **アクション単位** (`action.maturity`): アクションのまとまりとしての成熟度
-- **処理フロー単位** (`group.maturity`): フロー全体の成熟度
+- **処理フロー単位** (`meta.maturity`): フロー全体の成熟度
 
 v1 はアクション単位まで。フィールド粒度 (例: `step.inputs` だけ draft) は Phase 3。
+
+v3 形式の例:
+
+```json
+{
+  "meta": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "注文処理",
+    "maturity": "committed",
+    "mode": "upstream"
+  }
+}
+```
 
 ## 4. 付箋 (Notes)
 
@@ -89,12 +106,15 @@ interface StepBase {
 
 ## 5. モード (上流 / 下流)
 
-処理フローに `mode` を追加:
+v3 では `meta.mode` でモードを宣言する:
 
-```ts
-interface ProcessFlow {
-  // 既存
-  mode?: "upstream" | "downstream";  // 既定 "upstream"
+```json
+{
+  "meta": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "注文処理",
+    "mode": "upstream"
+  }
 }
 ```
 
@@ -144,15 +164,15 @@ interface ProcessFlow {
 
 ## 7. データモデル (後方互換)
 
-### 追加フィールド一覧
+### 追加フィールド一覧 (v3)
 
 | 型 | フィールド | 既定 | 後方互換 |
 |---|---|---|---|
 | `StepBase` | `maturity?: Maturity` | `"draft"` | 無しなら draft |
 | `StepBase` | `notes?: StepNote[]` | — | 旧 `note` を自動変換 |
 | `ActionDefinition` | `maturity?` | `"draft"` | 同上 |
-| `ProcessFlow` | `maturity?` | `"draft"` | 同上 |
-| `ProcessFlow` | `mode?: "upstream"\|"downstream"` | `"upstream"` | 同上 |
+| `ProcessFlow.meta` | `maturity?` | `"draft"` | 同上 |
+| `ProcessFlow.meta` | `mode?: "upstream"\|"downstream"` | `"upstream"` | 同上 |
 
 ### マイグレーション
 
@@ -192,11 +212,13 @@ interface ProcessFlow {
 
 ## 11. 関連仕様
 
-- `docs/spec/process-flow-variables.md` — 入出力・変数の構造化 (v1.0 凍結 2026-04-24)
-- `docs/spec/process-flow-extensions.md` — Phase B 以降のスキーマ拡張 (HTTP 契約 / TX / outcome / Saga / runIf / ReturnStep / ComputeStep 等 15 種)
+- スキーマ: `schemas/v3/process-flow.v3.schema.json` — `ProcessFlowMeta` / `StepBase` (maturity / notes)
+- `docs/spec/process-flow-variables.md` — 入出力・変数の構造化
+- `docs/spec/process-flow-extensions.md` — Phase B 以降のスキーマ拡張
 - `docs/spec/list-common.md` — 一覧系 UI 共通仕様 (変更なし、本仕様は独立)
 
 ## 12. 変更履歴
 
 - 2026-04-20: 初版ドラフト。ドッグフード結果 (別 AI セッション実装依頼) に基づき策定
 - 2026-04-24: v1.0 凍結。データモデル (maturity/notes/mode) と UI 仕様の設計は確定済と判定
+- 2026-04-28: v3 反映。`meta.maturity` / `meta.mode` の配置を v3 スキーマに整合
