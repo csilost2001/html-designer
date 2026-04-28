@@ -1,14 +1,26 @@
 # 処理フロースキーマ拡張 (Phase B 包括リファレンス)
 
-Issue: #182 (親: #151, #152)
+Issue: #182 (親: #151, #152) / **#539 で v3 反映**
 策定日: 2026-04-20
-ステータス: **初版** (ドッグフード 9 連続で 5.0/5 到達後に策定)
+**改訂日: 2026-04-28 (v3 schema v3.0.2 整合)**
+ステータス: **v3 整合性確保** (ドッグフード Round 1〜5 で 5 業界 50 sample 検証済、PR #534 R3 fix + PR #538 Round 5)
 
 本ドキュメントは、`docs/spec/process-flow-maturity.md` / `process-flow-variables.md` の Phase 1 ベースライン以降に追加されたスキーマ拡張を網羅する**リファレンス**。個別設計思想は各 PR (#155〜#181) に記載。
 
+**v3 反映の主な変更点**:
+- step の `type:` → `kind:` 全面 rename
+- catalog 階層化 (`errorCatalog` → `context.catalogs.errors` 等)
+- ValidationRule の `kind: "Error"` → `severity: "error"` (lowerCamelCase + フィールド名 rename)
+- `responseRef` → `responseId`
+- 拡張機構 10 ファイル → 1 ファイル統合 (`schemas/v3/extensions.v3.schema.json`)
+- `outputBinding` の string 短縮形廃止、`{ name: "..." }` 構造化のみ
+- IdentifierPath (#533 R3-1) で object field 参照可
+
 **UI 対応**: 各機能の実際の UI は [`docs/ui-screenshots/`](../ui-screenshots/README.md) を参照。
 
-**一次成果物 (機械可読)**: [`schemas/process-flow.schema.json`](../../schemas/process-flow.schema.json) — 外部 AI / CI からも参照可能な JSON Schema 2020-12。本ドキュメントの各節と 1:1 対応。
+**一次成果物 (機械可読)**: [`schemas/v3/process-flow.v3.schema.json`](../../schemas/v3/process-flow.v3.schema.json) — 外部 AI / CI からも参照可能な JSON Schema 2020-12。本ドキュメントの各節と 1:1 対応。
+
+**拡張定義の一次成果物**: [`schemas/v3/extensions.v3.schema.json`](../../schemas/v3/extensions.v3.schema.json) — 業界別 namespace (retail / finance / manufacturing / public-service / logistics 等) を 1 ファイル統合。
 
 ## 位置づけ
 
@@ -43,7 +55,7 @@ type BodySchemaRef =
   | { schema: object };           // 新: インライン JSON Schema (#253 v1.2)
 
 interface HttpResponseSpec {
-  id?: string;                     // ReturnStep.responseRef が参照する ID
+  id?: string;                     // ReturnStep.responseId が参照する ID
   status: number;                  // 201, 400, 409, ...
   contentType?: string;            // 既定 "application/json"
   bodySchema?: BodySchemaRef;      // 3 形式の union
@@ -73,7 +85,7 @@ UI: ![HTTP 契約パネル](../ui-screenshots/03-action-editor.png)
 
 ## 2. ステップの実行制御
 
-### 2.1 `StepBase.runIf`
+### 2.1 `StepBaseProps.runIf`
 
 ステップの**条件実行ガード**。式が偽の場合 skip。
 
@@ -87,7 +99,7 @@ PR: #179
 
 UI: ![runIf / outputBinding / 代入方式](../ui-screenshots/04-step-expanded.png)
 
-### 2.2 トランザクション境界 (`StepBase.txBoundary` / `transactional`)
+### 2.2 トランザクション境界 (`StepBaseProps.txBoundary` / `transactional`)
 
 同一 `txId` を持つステップ群が単一 TX 内で実行される想定。
 
@@ -102,7 +114,7 @@ transactional?: boolean;
 
 PR: #163
 
-### 2.3 Saga 補償 (`StepBase.compensatesFor`)
+### 2.3 Saga 補償 (`StepBaseProps.compensatesFor`)
 
 補償ステップから補償対象ステップへの**逆参照**。
 
@@ -116,7 +128,7 @@ PR: #163
 
 UI: ![詳細メタ情報パネル (TX境界 / Saga / 外部chain)](../ui-screenshots/07-notes-and-advanced-meta.png)
 
-### 2.4 外部呼出チェーン (`StepBase.externalChain`)
+### 2.4 外部呼出チェーン (`StepBaseProps.externalChain`)
 
 同一外部リソースを扱う複数ステップを束ねる。
 
@@ -255,7 +267,7 @@ step 側:
 
 ```json
 {
-  "type": "externalSystem",
+  "kind": "externalSystem",
   "systemName": "Stripe Japan",
   "systemRef": "stripe",
   "httpCall": {
@@ -314,8 +326,8 @@ PR: #159
   "failure": {
     "action": "continue",
     "sideEffects": [
-      { "type": "dbAccess", "operation": "UPDATE", "sql": "UPDATE orders SET status='payment_failed' WHERE id = @registeredOrder.id" },
-      { "type": "other", "description": "Sentry error 記録" }
+      { "kind": "dbAccess", "operation": "UPDATE", "sql": "UPDATE orders SET status='payment_failed' WHERE id = @registeredOrder.id" },
+      { "kind": "other", "description": "Sentry error 記録" }
     ]
   },
   "timeout": { "action": "continue", "sameAs": "failure" }
@@ -384,7 +396,7 @@ interface DbAccessStep extends StepBase {
 
 ```json
 {
-  "type": "dbAccess",
+  "kind": "dbAccess",
   "tableName": "purchase_order_items",
   "operation": "INSERT",
   "bulkValues": "@poItemValues",
@@ -422,7 +434,7 @@ interface ValidationRule {
 
 PR: #167
 
-UI: ![構造化 ValidationRule + A:OK/B:NG 分岐 + responseRef/bodyExpression](../ui-screenshots/09-validation-rules.png)
+UI: ![構造化 ValidationRule + A:OK/B:NG 分岐 + responseId/bodyExpression](../ui-screenshots/09-validation-rules.png)
 
 ### 5.2 `inlineBranch.ngResponseRef` / `ngBodyExpression`
 
@@ -453,7 +465,7 @@ interface ComputeStep extends StepBase {
 }
 ```
 
-用例: `{ "type": "compute", "expression": "Math.floor(@subtotal * 0.10)", "outputBinding": "taxAmount" }`
+用例: `{ "kind": "compute", "expression": "Math.floor(@subtotal * 0.10)", "outputBinding": "taxAmount" }`
 
 PR: #175
 
@@ -466,12 +478,12 @@ HTTP レスポンス返却を構造化。action.responses[] と突合する。
 ```ts
 interface ReturnStep extends StepBase {
   type: "return";
-  responseRef?: string;             // action.responses[].id 参照
+  responseId?: string;             // action.responses[].id 参照
   bodyExpression?: string;          // 返却 body 式
 }
 ```
 
-用例: `{ "type": "return", "responseRef": "409-stock-shortage", "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }" }`
+用例: `{ "kind": "return", "responseId": "409-stock-shortage", "bodyExpression": "{ code: 'STOCK_SHORTAGE', detail: @shortageList }" }`
 
 PR: #179
 
@@ -522,7 +534,7 @@ interface BranchStep extends StepBase {
 
 ```json
 {
-  "type": "branch",
+  "kind": "branch",
   "tryScope": ["step-db-insert", "step-inventory-update"],
   "branches": [
     { "condition": { "kind": "tryCatch", "errorCode": "DEADLOCK" }, "steps": [...] }
@@ -574,7 +586,7 @@ type OutputBinding = string | OutputBindingObject;
 
 PR: #169 / #255 (#253 v1.2)
 
-## 8.5 エラーカタログ (ProcessFlow.errorCatalog, #253 v1.2)
+## 8.5 エラーカタログ (ProcessFlow.context.catalogs.errors, #253 v1.2)
 
 同一 `errorCode` が `affectedRowsCheck.errorCode` / `BranchConditionVariant.errorCode` / `responses[].description` の複数箇所に散在する問題を解決するため、ProcessFlow 単位で 1 箇所に集約する。
 
@@ -582,30 +594,30 @@ PR: #169 / #255 (#253 v1.2)
 interface ErrorCatalogEntry {
   httpStatus?: number;          // 例: 409
   defaultMessage?: string;      // @conv.msg.* 参照も可
-  responseRef?: string;         // action.responses[].id への参照
+  responseId?: string;         // action.responses[].id への参照
   description?: string;
 }
 
 // ProcessFlow に追加
-errorCatalog?: Record<string, ErrorCatalogEntry>;
+context.catalogs.errors?: Record<string, ErrorCatalogEntry>;
 ```
 
 用例:
 
 ```json
-"errorCatalog": {
+"context.catalogs.errors": {
   "STOCK_SHORTAGE": {
     "httpStatus": 409,
     "defaultMessage": "在庫不足",
-    "responseRef": "409-stock-shortage",
+    "responseId": "409-stock-shortage",
     "description": "引当 UPDATE で rowCount=0"
   },
-  "VALIDATION": { "httpStatus": 400, "responseRef": "400-validation" },
-  "PAYMENT_FAILED": { "httpStatus": 402, "responseRef": "402-payment-failed" }
+  "VALIDATION": { "httpStatus": 400, "responseId": "400-validation" },
+  "PAYMENT_FAILED": { "httpStatus": 402, "responseId": "402-payment-failed" }
 }
 ```
 
-実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `errorCatalog.STOCK_SHORTAGE` を引いて httpStatus / responseRef / defaultMessage を 1 箇所で解決。
+実装時は: `affectedRowsCheck.errorCode == "STOCK_SHORTAGE"` → `context.catalogs.errors.STOCK_SHORTAGE` を引いて httpStatus / responseId / defaultMessage を 1 箇所で解決。
 
 ## 8.6 `StructuredField.format` と `ValidationRule.minRef/maxRef` (#253 v1.3)
 
@@ -711,7 +723,7 @@ domainRef?: string;   // domainsCatalog のキー参照 (例: "@conv.domain.Emai
   "Quantity": {
     "type": "number",
     "constraints": [
-      { "field": "quantity", "type": "range", "minRef": "@conv.limit.quantityMin", "maxRef": "@conv.limit.quantityMax", "kind": "Error" }
+      { "field": "quantity", "type": "range", "minRef": "@conv.limit.quantityMin", "maxRef": "@conv.limit.quantityMax", "severity": "error" }
     ],
     "uiHint": "number"
   }
@@ -767,7 +779,7 @@ interface ValidationRule {
 **`type` との関係**: `type` = **何を検証するか** (`required`, `range` 等)、`kind` = **違反時にどう振る舞うか**。両者を組み合わせて表現する。
 
 ```json
-{ "field": "quantity", "type": "range", "min": 1, "kind": "Error", "message": "1 以上を入力してください" }
+{ "field": "quantity", "type": "range", "min": 1, "severity": "error", "message": "1 以上を入力してください" }
 ```
 
 PR: #422
@@ -802,7 +814,7 @@ functionsCatalog?: Record<string, FunctionDef>;
 ```
 
 ```json
-{ "type": "compute", "expression": "@fn.formatCurrency(@subtotal, 'JPY')", "outputBinding": "displayAmount" }
+{ "kind": "compute", "expression": "@fn.formatCurrency(@subtotal, 'JPY')", "outputBinding": "displayAmount" }
 ```
 
 PR: #422
@@ -907,7 +919,7 @@ interface EventSubscribeStep extends StepBase {
 "steps": [
   {
     "id": "step-evt",
-    "type": "eventPublish",
+    "kind": "eventPublish",
     "description": "請求書発行完了イベントを発行",
     "topic": "invoice.issued",
     "eventRef": "invoice.issued",
@@ -934,7 +946,7 @@ lineage?: DataLineage;
 
 ```json
 {
-  "type": "dbAccess",
+  "kind": "dbAccess",
   "tableName": "invoices",
   "operation": "INSERT",
   "lineage": { "writes": ["invoices"] }
@@ -990,7 +1002,7 @@ cache?: CacheHint;
 
 ```json
 {
-  "type": "dbAccess",
+  "kind": "dbAccess",
   "tableName": "customers",
   "operation": "SELECT",
   "cache": {
@@ -1057,7 +1069,7 @@ apiVersion?: string;                  // step 単位の override
   "apiVersion": "v1",
   "actions": [{
     "steps": [{
-      "type": "externalSystem",
+      "kind": "externalSystem",
       "systemName": "新規 API",
       "apiVersion": "v2",
       "httpCall": { "method": "POST", "path": "/v2/resource" }
@@ -1115,10 +1127,10 @@ apiVersion?: string;                  // step 単位の override
 
 ```json
 // 推奨 (namespace 修飾、schema valid)
-{ "id": "step-match", "type": "securities:TradeMatchStep", "description": "約定マッチング" }
+{ "id": "step-match", "kind": "securities:TradeMatchStep", "description": "約定マッチング" }
 
 // 後方互換 (旧形式、schema valid)
-{ "id": "step-match", "type": "other", "description": "securities:TradeMatchStep — 約定マッチング" }
+{ "id": "step-match", "kind": "other", "description": "securities:TradeMatchStep — 約定マッチング" }
 ```
 
 ### §15.3 拡張定義の実利用必須
