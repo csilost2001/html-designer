@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Sequence, SequenceEntry, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
+import type { Sequence, SequenceEntry, SequenceId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { listSequences, createSequence, deleteSequence, loadSequence, saveSequence } from "../../store/sequenceStore";
+import { generateUUID } from "../../utils/uuid";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -143,17 +144,16 @@ export function SequenceListView() {
       const newPhysical = makeCopyPhysicalName(full.physicalName ?? full.name, existingPhysical);
       existingPhysical.add(newPhysical);
       const ts = new Date().toISOString() as Timestamp;
-      const dup = await createSequence(newPhysical as PhysicalName, full.name, full.description);
+      const newId = generateUUID() as SequenceId;
       const completed: Sequence = {
         ...full,
-        id: dup.id,
+        id: newId,
         physicalName: newPhysical as PhysicalName,
-        name: full.name,
         createdAt: ts,
         updatedAt: ts,
       };
       await saveSequence(completed);
-      newIds.push(dup.id);
+      newIds.push(newId);
     }
     await editor.reload();
     if (newIds.length > 0) selection.setSelectedIds(new Set<string>(newIds));

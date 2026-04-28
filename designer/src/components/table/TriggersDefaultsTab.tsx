@@ -317,9 +317,11 @@ function DefaultEditorCard({
               />
               {def.kind === "sequence" && (
                 <datalist id="td-sequence-list">
-                  {sequences.map((s) => (
-                    <option key={s.id} value={s.physicalName ?? s.id}>{s.name}</option>
-                  ))}
+                  {sequences
+                    .filter((s) => !!s.physicalName)
+                    .map((s) => (
+                      <option key={s.id} value={s.physicalName as string}>{s.name}</option>
+                    ))}
                 </datalist>
               )}
             </>

@@ -112,6 +112,8 @@ export async function reorderViews(orderedIds: string[]): Promise<void> {
   } else {
     const metas = await listViews();
     const map = new Map(metas.map((m) => [m.id, m]));
+    // localStorage 経由の orderedIds は plain string。Map の key は ViewId (Uuid 派生 brand) のため
+    // 二段階 cast (string → Uuid → ViewId) で brand を付け直す。
     const reordered = orderedIds
       .map((id) => map.get(id as Uuid as ViewId))
       .filter(Boolean) as ViewEntry[];

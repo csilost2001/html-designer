@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { View, ViewEntry, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
+import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { listViews, createView, deleteView, loadView, saveView, reorderViews } from "../../store/viewStore";
+import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { DataList, type DataListColumn } from "../common/DataList";
@@ -131,17 +132,16 @@ export function ViewListView() {
       const newPhysical = makeCopyPhysicalName(full.physicalName ?? full.name, existingPhysical);
       existingPhysical.add(newPhysical);
       const ts = new Date().toISOString() as Timestamp;
-      const dup = await createView(newPhysical as PhysicalName, full.name, full.description);
+      const newId = generateUUID() as ViewId;
       const completed: View = {
         ...full,
-        id: dup.id,
+        id: newId,
         physicalName: newPhysical as PhysicalName,
-        name: full.name,
         createdAt: ts,
         updatedAt: ts,
       };
       await saveView(completed);
-      newIds.push(dup.id);
+      newIds.push(newId);
     }
     await editor.reload();
     if (newIds.length > 0) selection.setSelectedIds(new Set<string>(newIds));
