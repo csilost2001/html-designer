@@ -421,7 +421,7 @@ export function ViewListView() {
     },
     {
       key: "maturity",
-      header: "謌千・蠎ｦ",
+      header: "成熟度",
       width: "80px",
       align: "center",
       sortable: true,
@@ -433,7 +433,7 @@ export function ViewListView() {
     },
     {
       key: "validation",
-      header: "讀懆ｨｼ",
+      header: "検証",
       width: "100px",
       align: "center",
       sortable: true,

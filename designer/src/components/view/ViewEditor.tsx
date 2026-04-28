@@ -181,6 +181,8 @@ export function ViewEditor() {
               </label>
               <label className="tbl-field">
                 <span>成熟度</span>
+                {/* draft-state ポリシー #5: maturity は全リソースで必須選択。
+                    既存データに maturity 欠落があれば "draft" として扱い、UI からは undefined に戻せない。 */}
                 <select
                   value={view.maturity ?? "draft"}
                   onChange={(e) =>
@@ -231,10 +233,12 @@ export function ViewEditor() {
 
           {/* SELECT 文 */}
           <section className="seq-editor-section">
-            <h3 className="seq-editor-section-title">SELECT 文</h3>
-            {selectStatementEmpty && (
-              <span className="view-editor-section-marker" style={{ color: "red", marginLeft: 6 }} title={"SELECT \u6587\u304c\u5fc5\u9808\u3067\u3059"}>{"\u26A0\uFE0F"}</span>
-            )}
+            <h3 className="seq-editor-section-title">
+              SELECT 文
+              {selectStatementEmpty && (
+                <span className="view-editor-section-marker" style={{ color: "red", marginLeft: 6 }} title="SELECT 文が必須です">⚠️</span>
+              )}
+            </h3>
             <textarea
               className="view-editor-select-stmt"
               value={view.selectStatement}

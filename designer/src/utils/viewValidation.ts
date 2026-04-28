@@ -1,6 +1,8 @@
 import type { View } from "../types/v3";
 import type { ValidationError } from "./actionValidation";
 
+// View 型は現状 namespace を持たないが、将来 plugin / namespace 分離で追加される想定 (#442)。
+// それまで physicalName 重複検証を namespace スコープで先行実装するため defensive cast。
 function viewNamespace(view: View): string {
   return ((view as View & { namespace?: string }).namespace ?? "").trim();
 }
@@ -31,7 +33,15 @@ export function validateView(view: View, allViews: View[]): ValidationError[] {
 
   const namespace = viewNamespace(view);
   const physicalName = view.physicalName?.trim();
-  if (physicalName) {
+  if (!physicalName) {
+    errors.push({
+      stepId,
+      severity: "error",
+      code: "view.physicalName.empty",
+      path: "physicalName",
+      message: "物理名が必須です",
+    });
+  } else {
     const duplicated = allViews.some((other) =>
       other.id !== view.id &&
       viewNamespace(other) === namespace &&

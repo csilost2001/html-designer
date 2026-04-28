@@ -44,6 +44,16 @@ describe("validateView", () => {
     }));
   });
 
+  it("physicalName empty → error", () => {
+    const errors = validateView(view({ physicalName: "  " as PhysicalName }), []);
+
+    expect(errors).toContainEqual(expect.objectContaining({
+      severity: "error",
+      code: "view.physicalName.empty",
+      message: "物理名が必須です",
+    }));
+  });
+
   it("physicalName duplicate within same namespace → error", () => {
     const target = view();
     const duplicate = view({
