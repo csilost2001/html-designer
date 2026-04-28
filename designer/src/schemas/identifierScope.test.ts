@@ -8,10 +8,8 @@ const samplesDir = resolve(__dirname, "../../../docs/sample-project/process-flow
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
-    id: "a", name: "x", type: "screen", description: "",
+    meta: { id: "a", name: "x", kind: "screen", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
     actions: [],
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
   } as ProcessFlow;
 }
@@ -23,7 +21,7 @@ describe("checkIdentifierScopes — inputs / outputs", () => {
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "userId", type: "number" }],
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@userId + 1", outputBinding: "doubled" },
+          { id: "s1", kind: "compute", description: "", expression: "@userId + 1", outputBinding: "doubled" },
         ],
       }],
     }));
@@ -36,7 +34,7 @@ describe("checkIdentifierScopes — inputs / outputs", () => {
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "items", type: { kind: "array", itemType: "number" } }],
         steps: [{
-          id: "s1", type: "loop", description: "",
+          id: "s1", kind: "loop", description: "",
           loopKind: "collection",
           collectionSource: "@inputs.items",
           collectionItemName: "item",
@@ -53,7 +51,7 @@ describe("checkIdentifierScopes — inputs / outputs", () => {
         id: "a1", name: "f", trigger: "click",
         outputs: [{ name: "result", type: "string" }],
         steps: [{
-          id: "s1", type: "compute", description: "",
+          id: "s1", kind: "compute", description: "",
           expression: "@outputs.result",
           outputBinding: "x",
         }],
@@ -67,7 +65,7 @@ describe("checkIdentifierScopes — inputs / outputs", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@unknownVar * 2", outputBinding: "r" },
+          { id: "s1", kind: "compute", description: "", expression: "@unknownVar * 2", outputBinding: "r" },
         ],
       }],
     }));
@@ -84,8 +82,8 @@ describe("checkIdentifierScopes — outputBinding が後続ステップで参照
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "x", type: "number" }],
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@x * 2", outputBinding: "doubled" },
-          { id: "s2", type: "compute", description: "", expression: "@doubled + 1", outputBinding: "r" },
+          { id: "s1", kind: "compute", description: "", expression: "@x * 2", outputBinding: "doubled" },
+          { id: "s2", kind: "compute", description: "", expression: "@doubled + 1", outputBinding: "r" },
         ],
       }],
     }));
@@ -100,7 +98,7 @@ describe("checkIdentifierScopes — ambient 変数", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", type: "externalSystem", description: "", systemName: "x",
+          { id: "s1", kind: "externalSystem", description: "", systemName: "x",
             idempotencyKey: "key-@requestId" },
         ],
       }],
@@ -117,11 +115,11 @@ describe("checkIdentifierScopes — ループ変数のスコープ", () => {
         inputs: [{ name: "items", type: "string" }],
         steps: [
           {
-            id: "lp", type: "loop", description: "",
+            id: "lp", kind: "loop", description: "",
             loopKind: "collection", collectionSource: "@items",
             collectionItemName: "item",
             steps: [
-              { id: "s1", type: "compute", description: "", expression: "@item.quantity", outputBinding: "q" },
+              { id: "s1", kind: "compute", description: "", expression: "@item.quantity", outputBinding: "q" },
             ],
           },
         ],
@@ -137,12 +135,12 @@ describe("checkIdentifierScopes — ループ変数のスコープ", () => {
         inputs: [{ name: "items", type: "string" }],
         steps: [
           {
-            id: "lp", type: "loop", description: "",
+            id: "lp", kind: "loop", description: "",
             loopKind: "collection", collectionSource: "@items",
             collectionItemName: "item",
             steps: [],
           },
-          { id: "s-after", type: "compute", description: "", expression: "@item.quantity", outputBinding: "q" },
+          { id: "s-after", kind: "compute", description: "", expression: "@item.quantity", outputBinding: "q" },
         ],
       }],
     }));
@@ -157,7 +155,7 @@ describe("checkIdentifierScopes — ValidationStep.fieldErrorsVar", () => {
         id: "a1", name: "f", trigger: "click",
         steps: [
           {
-            id: "s1", type: "validation", description: "", conditions: "",
+            id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "required" }],
             inlineBranch: { ok: "ok", ng: "ng", ngBodyExpression: "{ errors: @fieldErrors }" },
           },
@@ -173,12 +171,12 @@ describe("checkIdentifierScopes — ValidationStep.fieldErrorsVar", () => {
         id: "a1", name: "f", trigger: "click",
         steps: [
           {
-            id: "s1", type: "validation", description: "", conditions: "",
+            id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "required" }],
             fieldErrorsVar: "myErrors",
           },
           {
-            id: "s2", type: "return", description: "",
+            id: "s2", kind: "return", description: "",
             bodyExpression: "{ errors: @myErrors }",
           },
         ],
@@ -195,7 +193,7 @@ describe("checkIdentifierScopes — @conv.* は検査対象外", () => {
         id: "a1", name: "f", trigger: "click",
         steps: [
           {
-            id: "s1", type: "validation", description: "", conditions: "",
+            id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "custom", message: "@conv.msg.required" }],
           },
         ],
@@ -213,7 +211,7 @@ describe("checkIdentifierScopes — SQL 内の @identifier", () => {
         inputs: [{ name: "customerId", type: "number" }],
         steps: [
           {
-            id: "s1", type: "dbAccess", description: "",
+            id: "s1", kind: "dbAccess", description: "",
             tableName: "customers", operation: "SELECT",
             sql: "SELECT id FROM customers WHERE id = @customerId AND org_id = @unknownOrg",
           },
@@ -232,7 +230,7 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "amount", type: "number" }],
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@fn.calcTax(@amount)", outputBinding: "tax" },
+          { id: "s1", kind: "compute", description: "", expression: "@fn.calcTax(@amount)", outputBinding: "tax" },
         ],
       }],
     }));
@@ -244,7 +242,7 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@now.toISOString()", outputBinding: "ts" },
+          { id: "s1", kind: "compute", description: "", expression: "@now.toISOString()", outputBinding: "ts" },
         ],
       }],
     }));
@@ -256,7 +254,7 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@uuid", outputBinding: "id" },
+          { id: "s1", kind: "compute", description: "", expression: "@uuid", outputBinding: "id" },
         ],
       }],
     }));
@@ -268,7 +266,7 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@secret.token", outputBinding: "tok" },
+          { id: "s1", kind: "compute", description: "", expression: "@secret.token", outputBinding: "tok" },
         ],
       }],
     }));
@@ -281,7 +279,7 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "subtotal", type: "number" }],
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@subtotal * @conv.tax.standard.rate", outputBinding: "tax" },
+          { id: "s1", kind: "compute", description: "", expression: "@subtotal * @conv.tax.standard.rate", outputBinding: "tax" },
         ],
       }],
     }));
@@ -294,7 +292,7 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", type: "compute", description: "", expression: "@reallyUnknownVar + 1", outputBinding: "r" },
+          { id: "s1", kind: "compute", description: "", expression: "@reallyUnknownVar + 1", outputBinding: "r" },
         ],
       }],
     }));

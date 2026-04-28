@@ -8,10 +8,8 @@ const repoRoot = resolve(__dirname, "../../../");
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
-    id: "a", name: "x", type: "screen", description: "",
+    meta: { id: "a", name: "x", kind: "screen", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
     actions: [],
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
   } as ProcessFlow;
 }
@@ -21,7 +19,7 @@ describe("aggregateValidation — 統合テスト", () => {
     const errors = aggregateValidation(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
-        steps: [{ id: "s1", type: "loopBreak", description: "" }],
+        steps: [{ id: "s1", kind: "loopBreak", description: "" }],
       }],
     }));
     expect(errors.some((e) => e.severity === "error")).toBe(true);
@@ -33,7 +31,7 @@ describe("aggregateValidation — 統合テスト", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201", status: 201 }],
-        steps: [{ id: "s1", type: "return", description: "", responseRef: "404-missing" }],
+        steps: [{ id: "s1", kind: "return", description: "", responseRef: "404-missing" }],
       }],
     }));
     const w = errors.find((e) => e.code === "UNKNOWN_RESPONSE_REF");
@@ -47,7 +45,7 @@ describe("aggregateValidation — 統合テスト", () => {
     const errors = aggregateValidation(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
-        steps: [{ id: "s1", type: "compute", description: "", expression: "@unknownX * 2", outputBinding: "r" }],
+        steps: [{ id: "s1", kind: "compute", description: "", expression: "@unknownX * 2", outputBinding: "r" }],
       }],
     }));
     const w = errors.find((e) => e.code === "UNKNOWN_IDENTIFIER");
@@ -61,10 +59,10 @@ describe("aggregateValidation — 統合テスト", () => {
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201", status: 201 }],
         steps: [{
-          id: "branch1", type: "branch", description: "",
+          id: "branch1", kind: "branch", description: "",
           branches: [{
             id: "b1", code: "A", condition: "@flag",
-            steps: [{ id: "inner-return", type: "return", description: "", responseRef: "missing" }],
+            steps: [{ id: "inner-return", kind: "return", description: "", responseRef: "missing" }],
           }],
         }],
       }],
@@ -78,11 +76,11 @@ describe("aggregateValidation — 統合テスト", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "ext", type: "externalSystem", description: "", systemName: "x",
+          id: "ext", kind: "externalSystem", description: "", systemRef: "x",
           outcomes: {
             failure: {
               action: "continue",
-              sideEffects: [{ id: "se-unknown", type: "compute", description: "", expression: "@unknownVar", outputBinding: "r" }],
+              sideEffects: [{ id: "se-unknown", kind: "compute", description: "", expression: "@unknownVar", outputBinding: "r" }],
             },
           },
         }],
@@ -94,15 +92,17 @@ describe("aggregateValidation — 統合テスト", () => {
 
   it("UNKNOWN_SECRET_REF は catalog 階層なので stepId は空 ok", () => {
     const errors = aggregateValidation(makeGroup({
-      secretsCatalog: { k: { source: "env", name: "X" } },
-      externalSystemCatalog: {
-        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.unknown" } },
-      },
+      context: { catalogs: {
+        secrets: { k: { source: "env", name: "X" } },
+        externalSystems: {
+          stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.unknown" } },
+        },
+      } },
       actions: [],
     }));
     const w = errors.find((e) => e.code === "UNKNOWN_SECRET_REF");
     expect(w).toBeDefined();
-    expect(w?.path).toContain("externalSystemCatalog");
+    expect(w?.path).toContain("context.catalogs.externalSystems");
   });
 
   it("legacy サンプル 0005 は clean (structural error なし + warning 最小)", () => {
@@ -125,8 +125,8 @@ describe("aggregateValidation — 統合テスト", () => {
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "x", type: "number" }],
         steps: [{
-          id: "s1", type: "dbAccess", description: "",
-          tableName: "unknown_table", operation: "SELECT",
+          id: "s1", kind: "dbAccess", description: "",
+          tableId: "unknown-table-id", operation: "SELECT",
           sql: "SELECT never_existing_col FROM unknown_table WHERE id = @x",
         }],
       }],

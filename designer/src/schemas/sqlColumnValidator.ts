@@ -210,7 +210,7 @@ export function checkSqlColumns(
 
   group.actions.forEach((action, ai) => {
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
-      if (step.type === "dbAccess" && step.sql) {
+      if (step.kind === "dbAccess" && step.sql) {
         issues.push(...validateSql(step.sql, defsByName, `${path}.sql`));
       }
     });
@@ -224,17 +224,17 @@ function walkSteps(steps: Step[], basePath: string, visit: (s: Step, p: string) 
     const path = `${basePath}[${i}]`;
     visit(step, path);
     if ("subSteps" in step && step.subSteps) walkSteps(step.subSteps, `${path}.subSteps`, visit);
-    if (step.type === "branch") {
+    if (step.kind === "branch") {
       step.branches.forEach((b, bi) => walkSteps(b.steps, `${path}.branches[${bi}].steps`, visit));
       if (step.elseBranch) walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, visit);
     }
-    if (step.type === "loop") walkSteps(step.steps, `${path}.steps`, visit);
-    if (step.type === "transactionScope") {
+    if (step.kind === "loop") walkSteps(step.steps, `${path}.steps`, visit);
+    if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, visit);
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, visit);
       if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, visit);
     }
-    if (step.type === "externalSystem") {
+    if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, visit);
       });

@@ -914,15 +914,14 @@ export function StepCard({
                   <label className="form-label">テーブル</label>
                   <select
                     className="form-select form-select-sm"
-                    value={step.tableName}
+                    value={step.tableId ?? ""}
                     onChange={(e) => {
-                      const t = tables.find((t) => t.physicalName === e.target.value);
-                      onChange({ tableName: e.target.value, tableId: t?.id } as Partial<Step>);
+                      onChange({ tableId: e.target.value || undefined } as Partial<Step>);
                     }}
                   >
                     <option value="">（選択）</option>
                     {tables.map((t) => (
-                      <option key={t.id} value={t.physicalName}>{t.name}（{t.physicalName}）</option>
+                      <option key={t.id} value={t.id}>{t.name}（{t.physicalName}）</option>
                     ))}
                   </select>
                 </div>
@@ -1057,10 +1056,10 @@ export function StepCard({
                     <label className="form-label">接続先</label>
                     <input
                       className="form-control form-control-sm"
-                      value={step.systemName}
-                      onChange={(e) => onChange({ systemName: e.target.value } as Partial<Step>)}
+                      value={step.systemRef ?? ""}
+                      onChange={(e) => onChange({ systemRef: e.target.value } as Partial<Step>)}
                       onBlur={onCommit}
-                      placeholder="システム名"
+                      placeholder="システム名 (context.catalogs.externalSystems のキー)"
                     />
                   </div>
                   <div className="form-group">

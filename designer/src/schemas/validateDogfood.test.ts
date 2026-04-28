@@ -27,10 +27,8 @@ function resolveTsxPath(root: string): string {
 
 function makeFlow(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
-    id: "test-flow", name: "テストフロー", type: "screen", description: "",
+    meta: { id: "test-flow", name: "テストフロー", kind: "screen", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
     actions: [],
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
   } as ProcessFlow;
 }
@@ -43,7 +41,7 @@ describe("dogfood バリデータ — sqlColumnValidator", () => {
       actions: [{
         id: "act-1", name: "検索", trigger: "submit",
         steps: [{
-          id: "db-1", type: "dbAccess", description: "", operation: "select",
+          id: "db-1", kind: "dbAccess", description: "", operation: "select",
           sql: "SELECT nonexistent_column FROM orders WHERE id = @orderId",
           outputBinding: "dbResult",
         }],
@@ -64,7 +62,7 @@ describe("dogfood バリデータ — sqlColumnValidator", () => {
       actions: [{
         id: "act-1", name: "検索", trigger: "submit",
         steps: [{
-          id: "db-1", type: "dbAccess", description: "", operation: "select",
+          id: "db-1", kind: "dbAccess", description: "", operation: "select",
           sql: "SELECT id, status FROM orders WHERE id = @orderId",
           outputBinding: "dbResult",
         }],
@@ -85,7 +83,7 @@ describe("dogfood バリデータ — checkConventionReferences", () => {
       actions: [{
         id: "act-1", name: "登録", trigger: "submit",
         steps: [{
-          id: "v-1", type: "validation", description: "",
+          id: "v-1", kind: "validation", description: "",
           rules: [{ id: "r-1", condition: "@input > 0", message: "@conv.msg.UNDEFINED_KEY" }],
         }],
       }],
@@ -104,7 +102,7 @@ describe("dogfood バリデータ — checkReferentialIntegrity", () => {
         id: "act-1", name: "取得", trigger: "init",
         responses: [{ id: "200-ok", status: 200 }],
         steps: [
-          { id: "ret-1", type: "return", description: "", responseRef: "404-not-defined" },
+          { id: "ret-1", kind: "return", description: "", responseRef: "404-not-defined" },
         ],
       }],
     });
@@ -122,7 +120,7 @@ describe("dogfood バリデータ — checkIdentifierScopes", () => {
         inputs: [{ name: "amount", type: "number" }],
         steps: [
           {
-            id: "c-1", type: "compute", description: "",
+            id: "c-1", kind: "compute", description: "",
             expression: "@amount + @undeclaredVar",
             outputBinding: "result",
           },
