@@ -24,22 +24,35 @@ import { loadConventions } from "../../store/conventionsStore";
 import { checkScreenItemConventionReferences } from "../../schemas/conventionsValidator";
 import type { ConventionsCatalog, ConventionIssue } from "../../schemas/conventionsValidator";
 import { mcpBridge } from "../../mcp/mcpBridge";
-import type { ScreenItem, ScreenItemsFile, ValueSource } from "../../types/screenItem";
-import type { FieldType } from "../../types/action";
+import type {
+  ScreenItem,
+  ValueSource,
+  FieldType,
+  FieldTypePrimitive,
+  Identifier,
+  IdentifierPath,
+  TableId,
+  ViewId,
+  LocalId,
+  PhysicalName,
+  ProcessFlowId,
+  TableColumnRef,
+  ViewColumnRef,
+} from "../../types/v3";
+import type { ScreenItemsFile } from "../../store/screenItemsStore";
 import type { ProcessFlowMeta } from "../../types/action";
-import type { TableEntry } from "../../types/v3";
 import { listProcessFlows } from "../../store/processFlowStore";
-import { listTables } from "../../store/tableStore";
-import { listViews } from "../../store/viewStore";
-import type { ViewEntry } from "../../types/v3";
+import { listTables, loadTable } from "../../store/tableStore";
+import { listViews, loadView } from "../../store/viewStore";
+import type { Table, View } from "../../types/v3";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
 import { generateAutoId, getFieldTypePrefix } from "../../utils/screenItemNaming";
 import "../../styles/screen-items.css";
 
-const PRIMITIVE_TYPES: Array<"string" | "number" | "boolean" | "date"> =
-  ["string", "number", "boolean", "date"];
+const PRIMITIVE_TYPES: FieldTypePrimitive[] =
+  ["string", "number", "integer", "boolean", "date", "datetime", "json"];
 
 const DISPLAY_FORMAT_PRESETS = [
   "YYYY/MM/DD",
@@ -67,20 +80,32 @@ type OutputFieldsProps = {
   idx: number;
   onUpdate: (idx: number, patch: Partial<ScreenItem>) => void;
   onCommit: () => void;
+  tables: Table[];
+  views: View[];
 };
 
-function OutputFields({ item, idx, onUpdate, onCommit }: OutputFieldsProps) {
+function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFieldsProps) {
   const kind = item.valueFrom?.kind ?? "";
 
   const handleKindChange = (newKind: string) => {
     if (!newKind) {
       onUpdate(idx, { valueFrom: undefined });
     } else if (newKind === "flowVariable") {
-      onUpdate(idx, { valueFrom: { kind: "flowVariable", variableName: "" } });
+      onUpdate(idx, { valueFrom: { kind: "flowVariable", variableName: "" as IdentifierPath } });
     } else if (newKind === "tableColumn") {
-      onUpdate(idx, { valueFrom: { kind: "tableColumn", tableName: "", columnName: "" } });
+      onUpdate(idx, {
+        valueFrom: {
+          kind: "tableColumn",
+          ref: { tableId: "" as TableId, columnId: "" as LocalId },
+        },
+      });
     } else if (newKind === "viewColumn") {
-      onUpdate(idx, { valueFrom: { kind: "viewColumn", viewName: "", columnName: "" } });
+      onUpdate(idx, {
+        valueFrom: {
+          kind: "viewColumn",
+          ref: { viewId: "" as ViewId, columnPhysicalName: "" as PhysicalName },
+        },
+      });
     } else if (newKind === "expression") {
       onUpdate(idx, { valueFrom: { kind: "expression", expression: "" } });
     }
@@ -122,84 +147,147 @@ function OutputFields({ item, idx, onUpdate, onCommit }: OutputFieldsProps) {
               ))}
             </select>
           </label>
-          {kind === "flowVariable" && (
-            <>
-              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">処理フロー</span>
-                <input
-                  type="text"
-                  list="screen-items-process-flow-list"
-                  className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>).processFlowId ?? ""}
-                  onChange={(e) => handleValueFromPatch({ processFlowId: e.target.value || undefined } as Partial<ValueSource>)}
-                  onBlur={onCommit}
-                  placeholder="省略可"
-                />
-              </label>
-              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">変数名</span>
-                <input
-                  className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>).variableName}
-                  onChange={(e) => handleValueFromPatch({ variableName: e.target.value } as Partial<ValueSource>)}
-                  onBlur={onCommit}
-                  placeholder="result"
-                />
-              </label>
-            </>
-          )}
-          {kind === "tableColumn" && (
-            <>
-              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">テーブル名</span>
-                <input
-                  type="text"
-                  list="screen-items-table-list"
-                  className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>).tableName}
-                  onChange={(e) => handleValueFromPatch({ tableName: e.target.value } as Partial<ValueSource>)}
-                  onBlur={onCommit}
-                  placeholder="users"
-                />
-              </label>
-              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">列名</span>
-                <input
-                  className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>).columnName}
-                  onChange={(e) => handleValueFromPatch({ columnName: e.target.value } as Partial<ValueSource>)}
-                  onBlur={onCommit}
-                  placeholder="created_at"
-                />
-              </label>
-            </>
-          )}
-          {kind === "viewColumn" && (
-            <>
-              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">ビュー名</span>
-                <input
-                  type="text"
-                  list="screen-items-view-list"
-                  className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).viewName}
-                  onChange={(e) => handleValueFromPatch({ viewName: e.target.value } as Partial<ValueSource>)}
-                  onBlur={onCommit}
-                  placeholder="v_customer_summary"
-                />
-              </label>
-              <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
-                <span className="screen-items-detail-label">列名</span>
-                <input
-                  className="form-control form-control-sm"
-                  value={(item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>).columnName}
-                  onChange={(e) => handleValueFromPatch({ columnName: e.target.value } as Partial<ValueSource>)}
-                  onBlur={onCommit}
-                  placeholder="last_order_at"
-                />
-              </label>
-            </>
-          )}
+          {kind === "flowVariable" && (() => {
+            const vf = item.valueFrom as Extract<ValueSource, { kind: "flowVariable" }>;
+            return (
+              <>
+                <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                  <span className="screen-items-detail-label">処理フロー</span>
+                  <input
+                    type="text"
+                    list="screen-items-process-flow-list"
+                    className="form-control form-control-sm"
+                    value={vf.processFlowId ?? ""}
+                    onChange={(e) =>
+                      handleValueFromPatch({
+                        processFlowId: (e.target.value || undefined) as ProcessFlowId | undefined,
+                      } as Partial<ValueSource>)
+                    }
+                    onBlur={onCommit}
+                    placeholder="省略可"
+                  />
+                </label>
+                <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                  <span className="screen-items-detail-label">変数名</span>
+                  <input
+                    className="form-control form-control-sm"
+                    value={vf.variableName as string}
+                    onChange={(e) =>
+                      handleValueFromPatch({
+                        variableName: e.target.value as IdentifierPath,
+                      } as Partial<ValueSource>)
+                    }
+                    onBlur={onCommit}
+                    placeholder="createdOrder.order_number"
+                  />
+                </label>
+              </>
+            );
+          })()}
+          {kind === "tableColumn" && (() => {
+            const vf = item.valueFrom as Extract<ValueSource, { kind: "tableColumn" }>;
+            const selectedTable = tables.find((t) => t.id === vf.ref.tableId);
+            return (
+              <>
+                <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                  <span className="screen-items-detail-label">テーブル</span>
+                  <select
+                    className="form-select form-select-sm"
+                    value={vf.ref.tableId as string}
+                    onChange={(e) =>
+                      handleValueFromPatch({
+                        ref: {
+                          tableId: e.target.value as TableId,
+                          columnId: "" as LocalId,
+                        } as TableColumnRef,
+                      } as Partial<ValueSource>)
+                    }
+                    onBlur={onCommit}
+                  >
+                    <option value="">— テーブル選択 —</option>
+                    {tables.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                  <span className="screen-items-detail-label">列</span>
+                  <select
+                    className="form-select form-select-sm"
+                    value={vf.ref.columnId as string}
+                    onChange={(e) =>
+                      handleValueFromPatch({
+                        ref: {
+                          tableId: vf.ref.tableId,
+                          columnId: e.target.value as LocalId,
+                        } as TableColumnRef,
+                      } as Partial<ValueSource>)
+                    }
+                    onBlur={onCommit}
+                    disabled={!selectedTable}
+                  >
+                    <option value="">— 列選択 —</option>
+                    {selectedTable?.columns?.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name || c.physicalName}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            );
+          })()}
+          {kind === "viewColumn" && (() => {
+            const vf = item.valueFrom as Extract<ValueSource, { kind: "viewColumn" }>;
+            const selectedView = views.find((v) => v.id === vf.ref.viewId);
+            return (
+              <>
+                <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                  <span className="screen-items-detail-label">ビュー</span>
+                  <select
+                    className="form-select form-select-sm"
+                    value={vf.ref.viewId as string}
+                    onChange={(e) =>
+                      handleValueFromPatch({
+                        ref: {
+                          viewId: e.target.value as ViewId,
+                          columnPhysicalName: "" as PhysicalName,
+                        } as ViewColumnRef,
+                      } as Partial<ValueSource>)
+                    }
+                    onBlur={onCommit}
+                  >
+                    <option value="">— ビュー選択 —</option>
+                    {views.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
+                  <span className="screen-items-detail-label">列 (物理名)</span>
+                  <select
+                    className="form-select form-select-sm"
+                    value={vf.ref.columnPhysicalName as string}
+                    onChange={(e) =>
+                      handleValueFromPatch({
+                        ref: {
+                          viewId: vf.ref.viewId,
+                          columnPhysicalName: e.target.value as PhysicalName,
+                        } as ViewColumnRef,
+                      } as Partial<ValueSource>)
+                    }
+                    onBlur={onCommit}
+                    disabled={!selectedView}
+                  >
+                    <option value="">— 列選択 —</option>
+                    {selectedView?.outputColumns.map((c) => (
+                      <option key={c.physicalName} value={c.physicalName}>
+                        {c.name ?? c.physicalName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            );
+          })()}
           {kind === "expression" && (
             <label className="screen-items-detail-field" style={{ minWidth: "18em", flex: 2 }}>
               <span className="screen-items-detail-label">計算式</span>
@@ -242,8 +330,8 @@ export function ScreenItemsView() {
   const [expandedErrorRows, setExpandedErrorRows] = useState<Set<number>>(new Set());
   const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
   const [processFlows, setProcessFlows] = useState<ProcessFlowMeta[]>([]);
-  const [tables, setTables] = useState<TableEntry[]>([]);
-  const [views, setViews] = useState<ViewEntry[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [views, setViews] = useState<View[]>([]);
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -272,11 +360,21 @@ export function ScreenItemsView() {
     loadConventions().then(setConventions).catch(console.error);
   }, []);
 
-  // 処理フロー・テーブル・ビュー一覧をロード (valueFrom datalist 用)
+  // 処理フロー・テーブル・ビュー一覧をロード (valueFrom セレクタ用、列まで含む完全形)
   useEffect(() => {
     listProcessFlows().then(setProcessFlows).catch(console.error);
-    listTables().then(setTables).catch(console.error);
-    listViews().then(setViews).catch(console.error);
+    (async () => {
+      const tableMetas = await listTables();
+      const tablesFull = (await Promise.all(tableMetas.map((m) => loadTable(m.id))))
+        .filter((t): t is Table => t !== null);
+      setTables(tablesFull);
+    })().catch(console.error);
+    (async () => {
+      const viewMetas = await listViews();
+      const viewsFull = (await Promise.all(viewMetas.map((m) => loadView(m.id))))
+        .filter((v): v is View => v !== null);
+      setViews(viewsFull);
+    })().catch(console.error);
   }, []);
 
   // 画面一覧をロード (初回 + MCP 接続復帰時)
@@ -332,7 +430,7 @@ export function ScreenItemsView() {
   const handleAddItem = useCallback(() => {
     update((f) => {
       f.items.push({
-        id: "",
+        id: "" as Identifier,
         label: "",
         type: "string",
       });
@@ -379,9 +477,9 @@ export function ScreenItemsView() {
   const buildResets = useCallback((indices: number[]): Array<{ idx: number; oldId: string; newId: string }> => {
     if (!file) return [];
     const indicesSet = new Set(indices);
-    const pool = file.items
+    const pool: string[] = file.items
       .filter((_, i) => !indicesSet.has(i))
-      .map((item) => item.id)
+      .map((item) => item.id as string)
       .filter(Boolean);
 
     return indices.map((idx) => {
@@ -389,7 +487,7 @@ export function ScreenItemsView() {
       const prefix = item.direction === "output" ? "textDisplay" : getFieldTypePrefix(item.type);
       const newId = generateAutoId(prefix, pool);
       pool.push(newId);
-      return { idx, oldId: item.id, newId };
+      return { idx, oldId: item.id as string, newId };
     });
   }, [file]);
 
@@ -410,7 +508,7 @@ export function ScreenItemsView() {
     if (toLocalSet.length > 0) {
       updateSilent((f) => {
         for (const { idx, newId } of toLocalSet) {
-          f.items[idx].id = newId;
+          f.items[idx].id = newId as Identifier;
         }
       });
       commit();
@@ -454,7 +552,7 @@ export function ScreenItemsView() {
         // ローカル state も同期 (保存操作で古い ID が上書きされるのを防ぐ)
         updateSilent((f) => {
           for (const { idx, newId } of toRename) {
-            f.items[idx].id = newId;
+            f.items[idx].id = newId as Identifier;
           }
         });
         commit();
@@ -465,7 +563,7 @@ export function ScreenItemsView() {
       // MCP 未接続等: ローカルのみ更新
       updateSilent((f) => {
         for (const { idx, newId } of toRename) {
-          f.items[idx].id = newId;
+          f.items[idx].id = newId as Identifier;
         }
       });
       commit();
@@ -488,7 +586,7 @@ export function ScreenItemsView() {
       // ローカル state も同期 (保存操作で古い ID が上書きされるのを防ぐ)
       updateSilent((f) => {
         for (const { idx, newId } of resets) {
-          f.items[idx].id = newId;
+          f.items[idx].id = newId as Identifier;
         }
       });
       commit();
@@ -518,7 +616,7 @@ export function ScreenItemsView() {
     update((f) => {
       for (const c of cands) {
         f.items.push({
-          id: c.name || "",
+          id: (c.name || "") as Identifier,
           label: c.label || "",
           type: c.type,
           required: c.required,
@@ -544,7 +642,7 @@ export function ScreenItemsView() {
 
     // 空文字はリネーム不可 → 元の ID に戻す
     if (!newId) {
-      updateSilent((f) => { f.items[idx].id = originalId; });
+      updateSilent((f) => { f.items[idx].id = originalId as Identifier; });
       commit();
       return;
     }
@@ -552,7 +650,7 @@ export function ScreenItemsView() {
     // 無効な JS 識別子はバックエンドに送る前に弾く
     if (!JS_IDENTIFIER_RE.test(newId)) {
       alert(`"${newId}" は有効な ID ではありません。英字・_ ・$ で始まり、英数字・_ ・$ のみ使用できます。`);
-      updateSilent((f) => { f.items[idx].id = originalId; });
+      updateSilent((f) => { f.items[idx].id = originalId as Identifier; });
       commit();
       return;
     }
@@ -560,7 +658,7 @@ export function ScreenItemsView() {
     // 同画面内の他の項目との重複チェック
     if (file?.items.some((item, i) => i !== idx && item.id === newId)) {
       alert(`ID "${newId}" は既に同じ画面内で使用されています。`);
-      updateSilent((f) => { f.items[idx].id = originalId; });
+      updateSilent((f) => { f.items[idx].id = originalId as Identifier; });
       commit();
       return;
     }
@@ -605,7 +703,7 @@ export function ScreenItemsView() {
     } catch (e) {
       alert(`リネームに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
       // 失敗時はローカル状態を元に戻す
-      updateSilent((f) => { f.items[idx].id = oldId; });
+      updateSilent((f) => { f.items[idx].id = oldId as Identifier; });
       commit();
     }
   }, [pendingRename, selectedScreenId, updateSilent, commit]);
@@ -613,7 +711,7 @@ export function ScreenItemsView() {
   /** リネームキャンセル: ローカル状態を元に戻す */
   const handleCancelRename = useCallback(() => {
     if (!pendingRename) return;
-    updateSilent((f) => { f.items[pendingRename.idx].id = pendingRename.oldId; });
+    updateSilent((f) => { f.items[pendingRename.idx].id = pendingRename.oldId as Identifier; });
     commit();
     setPendingRename(null);
   }, [pendingRename, updateSilent, commit]);
@@ -827,7 +925,7 @@ export function ScreenItemsView() {
                       <input
                         className="form-control form-control-sm"
                         value={item.id}
-                        onChange={(e) => handleUpdateItem(i, { id: e.target.value })}
+                        onChange={(e) => handleUpdateItem(i, { id: e.target.value as Identifier })}
                         onFocus={(e) => idFocusVals.current.set(i, e.target.value)}
                         onBlur={(e) => handleIdBlur(i, e)}
                         placeholder="email"
@@ -849,9 +947,9 @@ export function ScreenItemsView() {
                         className="form-control form-control-sm"
                         value={typeof item.type === "string"
                           ? item.type
-                          : item.type.kind === "custom"
-                            ? item.type.label ?? ""
-                            : ""}
+                          : item.type.kind === "extension"
+                            ? item.type.extensionRef
+                            : item.type.kind}
                         onChange={(e) => {
                           const v = e.target.value;
                           if (v === "") {
@@ -859,7 +957,7 @@ export function ScreenItemsView() {
                           } else if ((PRIMITIVE_TYPES as string[]).includes(v)) {
                             handleUpdateItem(i, { type: v as FieldType });
                           } else {
-                            handleUpdateItem(i, { type: { kind: "custom", label: v } });
+                            handleUpdateItem(i, { type: { kind: "extension", extensionRef: v } });
                           }
                         }}
                         onBlur={commit}
@@ -1070,6 +1168,8 @@ export function ScreenItemsView() {
                             idx={i}
                             onUpdate={handleUpdateItem}
                             onCommit={commit}
+                            tables={tables}
+                            views={views}
                           />
                         )}
                       </td>
@@ -1136,12 +1236,6 @@ export function ScreenItemsView() {
             </datalist>
             <datalist id="screen-items-process-flow-list">
               {processFlows.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
-            </datalist>
-            <datalist id="screen-items-table-list">
-              {tables.map((t) => <option key={t.id} value={t.physicalName ?? ""}>{t.name}</option>)}
-            </datalist>
-            <datalist id="screen-items-view-list">
-              {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </datalist>
           </div>
           </>

@@ -9,7 +9,7 @@
  * ここでは出てくる全ての文字列断片を再帰的に連結して 1 つの HTML にし、
  * ブラウザの DOMParser で input/select/textarea を抽出する。
  */
-import type { FieldType } from "../types/action";
+import type { FieldType } from "../types/v3";
 
 export interface ExtractedCandidate {
   /** 元 HTML 要素の outerHTML (モーダルで表示するプレビュー用) */

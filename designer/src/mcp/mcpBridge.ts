@@ -53,9 +53,9 @@ import {
   loadScreenItems,
   setItemsInCache,
   setScreenItemsStorageBackend,
+  type ScreenItemsFile,
   type ScreenItemsStorageBackend,
 } from "../store/screenItemsStore";
-import type { ScreenItemsFile } from "../types/screenItem";
 import { loadTable } from "../store/tableStore";
 import {
   setSequenceStorageBackend,
@@ -1031,7 +1031,7 @@ class McpBridgeImpl {
                 let siHit = false;
                 if (siFile) {
                   const item = siFile.items.find((i) => i.id === oldId);
-                  if (item) { item.id = newId; siHit = true; }
+                  if (item) { item.id = newId as typeof item.id; siHit = true; }
                 }
                 if (domHits === 0 && !siHit) {
                   failed.push({ oldId, error: `id "${oldId}" が DOM にも screen-items にも見つかりません` });

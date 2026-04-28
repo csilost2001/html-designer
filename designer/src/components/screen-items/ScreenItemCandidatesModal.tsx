@@ -154,7 +154,11 @@ export function ScreenItemCandidatesModal({ open, screenId, screenName, existing
                         <td><span className="badge bg-light text-dark">{c.tag}</span></td>
                         <td>
                           <code>
-                            {typeof c.type === "string" ? c.type : c.type.kind === "custom" ? c.type.label : "?"}
+                            {typeof c.type === "string"
+                              ? c.type
+                              : c.type.kind === "extension"
+                                ? c.type.extensionRef
+                                : c.type.kind}
                           </code>
                         </td>
                         <td className="small">{c.label}</td>

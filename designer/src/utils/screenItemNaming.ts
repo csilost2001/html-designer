@@ -7,7 +7,7 @@
  *
  * それ以外 (userName, 郵便番号, etc.) は「命名済み」として上書き禁止。
  */
-import type { FieldType } from "../types/action";
+import type { FieldType } from "../types/v3";
 
 const OLD_AUTO_PATTERN = /^field_[0-9a-f]{8}$/;
 
@@ -58,9 +58,11 @@ export function generateAutoId(prefix: string, existing: string[]): string {
 export function getFieldTypePrefix(type: FieldType): string {
   if (typeof type !== "string") return "field";
   switch (type) {
-    case "number": return "numberInput";
+    case "number":
+    case "integer": return "numberInput";
     case "boolean": return "checkbox";
     case "date": return "dateInput";
+    case "datetime": return "datetimeInput";
     default: return "textInput";
   }
 }
