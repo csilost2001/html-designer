@@ -8,10 +8,10 @@
  * 讀懆ｨｼ縺吶ｋ隕冗ｴ・
  * 1. ReturnStep.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→
  * 2. ValidationStep.inlineBranch.ngResponseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→
- * 3. BranchConditionVariant.errorCode 縺ｯ ProcessFlow.errorCatalog 縺ｮ繧ｭ繝ｼ縺ｫ蟄伜惠縺吶ｋ縺薙→
- *    (errorCatalog 縺悟ｮ夂ｾｩ縺輔ｌ縺ｦ縺・ｋ蝣ｴ蜷医・縺ｿ)
+ * 3. BranchConditionVariant.errorCode 縺ｯ context.catalogs.errors 縺ｮ繧ｭ繝ｼ縺ｫ蟄伜惠縺吶ｋ縺薙→
+ *    (context.catalogs.errors 縺悟ｮ夂ｾｩ縺輔ｌ縺ｦ縺・ｋ蝣ｴ蜷医・縺ｿ)
  * 4. DbAccessStep.affectedRowsCheck.errorCode 繧ょ酔荳・
- * 5. ErrorCatalogEntry.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→ (errorCatalog 竊・responses)
+ * 5. ErrorCatalogEntry.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→ (context.catalogs.errors 竊・responses)
  */
 import type { ProcessFlow, Step } from "../types/action";
 import type { LoadedExtensions } from "./loadExtensions";
@@ -62,7 +62,7 @@ export function checkReferentialIntegrity(
               path: `context.catalogs.externalSystems.${k}.auth.tokenRef`,
               code: "UNKNOWN_SECRET_REF",
               value: `@secret.${m[1]}`,
-              message: `@secret.${m[1]} 縺・ProcessFlow.secretsCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+              message: `@secret.${m[1]} 縺・context.catalogs.secrets 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
             });
           }
         }
@@ -164,7 +164,7 @@ function checkStep(
         path: `${path}.systemRef`,
         code: "UNKNOWN_SYSTEM_REF",
         value: step.systemRef,
-        message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・ProcessFlow.externalSystemCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・context.catalogs.externalSystems 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
       });
     }
   }
@@ -179,7 +179,7 @@ function checkStep(
           path: `${path}.auth.tokenRef`,
           code: "UNKNOWN_SECRET_REF",
           value: `@secret.${m[1]}`,
-          message: `@secret.${m[1]} 縺・ProcessFlow.secretsCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `@secret.${m[1]} 縺・context.catalogs.secrets 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
         });
       }
     }
@@ -210,7 +210,7 @@ function checkStep(
         path: `${path}.affectedRowsCheck.errorCode`,
         code: "UNKNOWN_ERROR_CODE",
         value: e,
-        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" 縺・ProcessFlow.errorCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
       });
     }
   }
@@ -223,7 +223,7 @@ function checkStep(
             path: `${path}.branches[${bi}].condition.errorCode`,
             code: "UNKNOWN_ERROR_CODE",
             value: c.errorCode,
-            message: `BranchConditionVariant.errorCode "${c.errorCode}" 縺・ProcessFlow.errorCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+            message: `BranchConditionVariant.errorCode "${c.errorCode}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
           });
         }
       }
@@ -236,7 +236,7 @@ function checkStep(
           path: `${path}.rollbackOn[${ci}]`,
           code: "UNKNOWN_ERROR_CODE",
           value: code,
-          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" 縺・ProcessFlow.errorCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
         });
       }
     });
