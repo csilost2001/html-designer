@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { SequenceMeta } from "../../types/sequence";
-import type { SequenceDefinition } from "../../types/sequence";
+import type { Sequence, SequenceEntry, SequenceId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { listSequences, createSequence, deleteSequence, loadSequence, saveSequence } from "../../store/sequenceStore";
+import { generateUUID } from "../../utils/uuid";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -36,8 +36,9 @@ export function SequenceListView() {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
-  const [addId, setAddId] = useState("");
-  const [addDescription, setAddDescription] = useState("");
+  const [addPhysicalName, setAddPhysicalName] = useState("");
+  const [addName, setAddName] = useState("");
+  const [addPhysicalNameError, setAddPhysicalNameError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const loadSequences = useCallback(async () => {
@@ -46,7 +47,7 @@ export function SequenceListView() {
     return await listSequences();
   }, []);
 
-  const commitSequences = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: SequenceMeta[]; deletedIds: string[] }) => {
+  const commitSequences = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: SequenceEntry[]; deletedIds: string[] }) => {
     for (const id of deletedIds) {
       await deleteSequence(id);
     }
@@ -61,7 +62,7 @@ export function SequenceListView() {
     }
   }, []);
 
-  const editor = useListEditor<SequenceMeta>({
+  const editor = useListEditor<SequenceEntry>({
     getId: (s) => s.id,
     load: loadSequences,
     commit: commitSequences,
@@ -94,18 +95,18 @@ export function SequenceListView() {
       return;
     }
     filter.applyFilter((s) =>
-      s.id.toLowerCase().includes(q) ||
-      (s.conventionRef ?? "").toLowerCase().includes(q) ||
-      (s.description ?? "").toLowerCase().includes(q),
+      s.name.toLowerCase().includes(q) ||
+      (s.physicalName ?? "").toLowerCase().includes(q) ||
+      (s.conventionRef ?? "").toLowerCase().includes(q),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const sortAccessor = useCallback((s: SequenceMeta, key: string): string | number => {
+  const sortAccessor = useCallback((s: SequenceEntry, key: string): string | number => {
     switch (key) {
-      case "id": return s.id;
+      case "name": return s.name;
+      case "physicalName": return s.physicalName ?? "";
       case "conventionRef": return s.conventionRef ?? "";
-      case "description": return s.description ?? "";
       case "updatedAt": return s.updatedAt;
       default: return "";
     }
@@ -113,46 +114,49 @@ export function SequenceListView() {
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (s) => s.id);
-  const clipboard = useListClipboard<SequenceMeta>((s) => s.id);
+  const clipboard = useListClipboard<SequenceEntry>((s) => s.id);
 
-  const handleActivate = useCallback((s: SequenceMeta) => {
+  const handleActivate = useCallback((s: SequenceEntry) => {
     if (editor.isDeleted(s.id)) return;
     navigate(`/sequence/edit/${encodeURIComponent(s.id)}`);
   }, [navigate, editor]);
 
-  const handleDelete = (items: SequenceMeta[]) => {
+  const handleDelete = (items: SequenceEntry[]) => {
     editor.markDeleted(items.map((s) => s.id));
   };
 
-  const makeCopyId = (baseId: string, existingIds: Set<string>): string => {
-    let candidate = baseId + "_copy";
+  const makeCopyPhysicalName = (basePhysical: string, existing: Set<string>): string => {
+    let candidate = basePhysical + "_copy";
     let n = 2;
-    while (existingIds.has(candidate)) {
-      candidate = `${baseId}_copy_${n}`;
+    while (existing.has(candidate)) {
+      candidate = `${basePhysical}_copy_${n}`;
       n++;
     }
     return candidate;
   };
 
-  const handleDuplicate = async (items: SequenceMeta[]) => {
+  const handleDuplicate = async (items: SequenceEntry[]) => {
     const newIds: string[] = [];
-    const existingIds = new Set(editor.items.map((s) => s.id));
-    for (const s of items) {
-      const full = await loadSequence(s.id);
+    const existingPhysical = new Set<string>(editor.items.map((s) => s.physicalName ?? ""));
+    for (const m of items) {
+      const full = await loadSequence(m.id);
       if (!full) continue;
-      const newId = makeCopyId(s.id, existingIds);
-      existingIds.add(newId);
-      const dup: SequenceDefinition = {
+      const newPhysical = makeCopyPhysicalName(full.physicalName ?? full.name, existingPhysical);
+      existingPhysical.add(newPhysical);
+      const ts = new Date().toISOString() as Timestamp;
+      const newId = generateUUID() as SequenceId;
+      const completed: Sequence = {
         ...full,
         id: newId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        physicalName: newPhysical as PhysicalName,
+        createdAt: ts,
+        updatedAt: ts,
       };
-      await saveSequence(dup);
-      newIds.push(dup.id);
+      await saveSequence(completed);
+      newIds.push(newId);
     }
     await editor.reload();
-    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
+    if (newIds.length > 0) selection.setSelectedIds(new Set<string>(newIds));
   };
 
   const handlePaste = async (insertIdx: number | null) => {
@@ -161,12 +165,11 @@ export function SequenceListView() {
     if (!clipItems.length) return;
 
     if (mode === "cut") {
-      const cutIds = new Set(clipItems.map((c) => c.id));
+      const cutIds = new Set<string>(clipItems.map((c) => c.id));
       const selIds = selection.selectedIds;
       const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
       if (sameSet) return;
 
-      // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化される
       clipboard.consume();
       const moved = clipItems;
       const pos0 = insertIdx ?? editor.items.length;
@@ -178,27 +181,10 @@ export function SequenceListView() {
         next.splice(pos, 0, ...moved);
         return renumber(next);
       });
-      selection.setSelectedIds(new Set(moved.map((s) => s.id)));
+      selection.setSelectedIds(new Set<string>(moved.map((s) => s.id)));
     } else {
-      const newIds: string[] = [];
-      const existingIds = new Set(editor.items.map((s) => s.id));
-      for (const s of clipItems) {
-        const full = await loadSequence(s.id);
-        if (!full) continue;
-        const newId = makeCopyId(s.id, existingIds);
-        existingIds.add(newId);
-        const dup: SequenceDefinition = {
-          ...full,
-          id: newId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        await saveSequence(dup);
-        newIds.push(dup.id);
-      }
+      await handleDuplicate(clipItems);
       clipboard.consume();
-      await editor.reload();
-      selection.setSelectedIds(new Set(newIds));
     }
   };
 
@@ -213,7 +199,7 @@ export function SequenceListView() {
     editor.reorder(realFrom, realTo);
   };
 
-  const moveBlock = (items: SequenceMeta[], direction: "up" | "down") => {
+  const moveBlock = (items: SequenceEntry[], direction: "up" | "down") => {
     const ids = new Set(items.map((s) => s.id));
     const idxs = editor.items
       .map((s, i) => (ids.has(s.id) ? i : -1))
@@ -242,23 +228,29 @@ export function SequenceListView() {
   const sortActive = sort.sortKeys.length > 0;
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
-    id: "シーケンス名",
+    name: "表示名",
+    physicalName: "物理名",
     conventionRef: "規約参照",
-    description: "説明",
     updatedAt: "更新日",
   }), []);
 
   const handleAdd = async () => {
-    const id = addId.trim();
-    if (!id) return;
-    const seq = await createSequence(id, addDescription.trim() || undefined);
+    const physical = addPhysicalName.trim();
+    const name = addName.trim();
+    if (!physical || !name) return;
+    if (editor.items.some((s) => s.physicalName === physical)) {
+      setAddPhysicalNameError(`物理名 "${physical}" は既に存在します`);
+      return;
+    }
+    const seq = await createSequence(physical as PhysicalName, name as DisplayName);
     setShowAdd(false);
-    setAddId("");
-    setAddDescription("");
+    setAddPhysicalName("");
+    setAddName("");
+    setAddPhysicalNameError("");
     navigate(`/sequence/edit/${encodeURIComponent(seq.id)}`);
   };
 
-  const buildMenuItems = (target: SequenceMeta | null): ContextMenuItem[] => {
+  const buildMenuItems = (target: SequenceEntry | null): ContextMenuItem[] => {
     const hasSelection = selection.selectedIds.size > 0 || target !== null;
     const pasteBlocked = sortActive || !clipboard.hasContent;
     const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
@@ -300,7 +292,7 @@ export function SequenceListView() {
         disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
         onClick: () => {
           const ids = Array.from(selection.selectedIds);
-          const allIds = editor.items.map((s) => s.id);
+          const allIds: string[] = editor.items.map((s) => s.id);
           const insertIndex = ids.length > 0
             ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
             : null;
@@ -323,20 +315,20 @@ export function SequenceListView() {
     ];
   };
 
-  const handleContextMenu = (e: React.MouseEvent, target: SequenceMeta | null) => {
+  const handleContextMenu = (e: React.MouseEvent, target: SequenceEntry | null) => {
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
-  const handleContextMenuKey = (first: SequenceMeta | null, rect: DOMRect | null) => {
+  const handleContextMenuKey = (first: SequenceEntry | null, rect: DOMRect | null) => {
     if (first && !selection.isSelected(first.id)) {
-      selection.setSelectedIds(new Set([first.id]));
+      selection.setSelectedIds(new Set<string>([first.id]));
     }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });
   };
 
-  const handleRowDelete = (s: SequenceMeta) => {
+  const handleRowDelete = (s: SequenceEntry) => {
     handleDelete([s]);
   };
 
@@ -367,13 +359,22 @@ export function SequenceListView() {
     selection.clearSelection();
   };
 
-  const columns = useMemo<DataListColumn<SequenceMeta>[]>(() => [
+  const columns = useMemo<DataListColumn<SequenceEntry>[]>(() => [
     {
-      key: "id",
-      header: "シーケンス名",
+      key: "name",
+      header: "表示名",
       sortable: true,
-      sortAccessor: (s) => s.id,
-      render: (s) => <code className="seq-list-name-code">{s.id}</code>,
+      sortAccessor: (s) => s.name,
+      render: (s) => <span>{s.name}</span>,
+    },
+    {
+      key: "physicalName",
+      header: "物理名",
+      sortable: true,
+      sortAccessor: (s) => s.physicalName ?? "",
+      render: (s) => s.physicalName
+        ? <code className="seq-list-name-code">{s.physicalName}</code>
+        : null,
     },
     {
       key: "conventionRef",
@@ -385,13 +386,6 @@ export function SequenceListView() {
         : null,
     },
     {
-      key: "description",
-      header: "説明",
-      sortable: true,
-      sortAccessor: (s) => s.description ?? "",
-      render: (s) => <span className="seq-list-description">{s.description ?? ""}</span>,
-    },
-    {
       key: "updatedAt",
       header: "更新日",
       width: "120px",
@@ -401,13 +395,13 @@ export function SequenceListView() {
     },
   ], []);
 
-  const renderCard = (s: SequenceMeta) => (
+  const renderCard = (s: SequenceEntry) => (
     <div className="seq-card-content">
       <div className="seq-card-header">
-        <code className="seq-card-name">{s.id}</code>
+        <span className="seq-card-name">{s.name}</span>
       </div>
-      {s.description && (
-        <div className="seq-card-description">{s.description}</div>
+      {s.physicalName && (
+        <div className="seq-card-description"><code>{s.physicalName}</code></div>
       )}
       {s.conventionRef && (
         <div className="seq-card-conv-ref">
@@ -438,7 +432,7 @@ export function SequenceListView() {
               <i className="bi bi-search" />
               <input
                 type="text"
-                placeholder="名前・規約参照・説明で絞り込み..."
+                placeholder="表示名・物理名・規約参照で絞り込み..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -523,38 +517,40 @@ export function SequenceListView() {
         />
 
         {showAdd && (
-          <div className="tbl-modal-overlay" onClick={() => setShowAdd(false)}>
+          <div className="tbl-modal-overlay" onClick={() => { setShowAdd(false); setAddPhysicalNameError(""); }}>
             <div className="tbl-modal" onClick={(e) => e.stopPropagation()}>
               <div className="tbl-modal-title">シーケンス追加</div>
               <label className="tbl-field">
-                <span>シーケンス名 <small>(snake_case、例: po_number_seq)</small></span>
+                <span>物理名 <small>(snake_case、例: po_number_seq)</small></span>
                 <input
                   type="text"
-                  value={addId}
-                  onChange={(e) => setAddId(e.target.value)}
+                  value={addPhysicalName}
+                  onChange={(e) => { setAddPhysicalName(e.target.value); setAddPhysicalNameError(""); }}
                   placeholder="po_number_seq"
                   autoFocus
+                  className={addPhysicalNameError ? "input-error" : undefined}
                   onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
                 />
+                {addPhysicalNameError && <span className="tbl-field-error">{addPhysicalNameError}</span>}
               </label>
               <label className="tbl-field">
-                <span>説明</span>
+                <span>表示名</span>
                 <input
                   type="text"
-                  value={addDescription}
-                  onChange={(e) => setAddDescription(e.target.value)}
-                  placeholder="発注番号の採番"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="発注番号採番"
                   onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
                 />
               </label>
               <div className="tbl-modal-btns">
-                <button className="tbl-btn tbl-btn-ghost" onClick={() => setShowAdd(false)}>
+                <button className="tbl-btn tbl-btn-ghost" onClick={() => { setShowAdd(false); setAddPhysicalNameError(""); }}>
                   キャンセル
                 </button>
                 <button
                   className="tbl-btn tbl-btn-primary"
                   onClick={handleAdd}
-                  disabled={!addId.trim()}
+                  disabled={!addPhysicalName.trim() || !addName.trim()}
                 >
                   作成して編集
                 </button>

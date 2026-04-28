@@ -10,7 +10,7 @@ import type {
 import { addDefault, removeDefault, addTrigger, removeTrigger } from "../../store/tableStore";
 import { listSequences } from "../../store/sequenceStore";
 import { loadConventions } from "../../store/conventionsStore";
-import type { SequenceMeta } from "../../types/sequence";
+import type { SequenceEntry } from "../../types/v3";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 
 const DEFAULT_KIND_LABELS: Record<DefaultKind, string> = {
@@ -31,7 +31,7 @@ interface Props {
 export function TriggersDefaultsTab({ table, update }: Props) {
   const [editingDefaultCol, setEditingDefaultCol] = useState<string | null>(null);
   const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
-  const [sequences, setSequences] = useState<SequenceMeta[]>([]);
+  const [sequences, setSequences] = useState<SequenceEntry[]>([]);
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
 
   useEffect(() => {
@@ -234,7 +234,7 @@ function DefaultEditorCard({
   def: DefaultDefinition;
   colNames: string[];
   usedCols: Set<string>;
-  sequences: SequenceMeta[];
+  sequences: SequenceEntry[];
   numberingKeys: string[];
   onUpdate: (patch: Partial<DefaultDefinition>) => void;
   onClose: () => void;
@@ -317,7 +317,11 @@ function DefaultEditorCard({
               />
               {def.kind === "sequence" && (
                 <datalist id="td-sequence-list">
-                  {sequences.map((s) => <option key={s.id} value={s.id} />)}
+                  {sequences
+                    .filter((s) => !!s.physicalName)
+                    .map((s) => (
+                      <option key={s.id} value={s.physicalName as string}>{s.name}</option>
+                    ))}
                 </datalist>
               )}
             </>

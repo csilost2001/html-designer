@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { SequenceDefinition, SequenceUsedBy } from "../../types/sequence";
-import type { NumberingEntry } from "../../types/conventions";
+import type { Sequence, TableColumnRef, TableId, LocalId } from "../../types/v3";
 import { loadSequence, saveSequence } from "../../store/sequenceStore";
 import { loadConventions } from "../../store/conventionsStore";
 import { listTables, loadTable } from "../../store/tableStore";
@@ -12,11 +11,13 @@ import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } f
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { generateSequenceDdl } from "./generateSequenceDdl";
 import type { TableDefinition } from "../../types/table";
+import type { NumberingEntry } from "../../types/conventions";
 
 interface TableColumnOption {
   tableId: string;
   tableName: string;
-  columns: string[];
+  /** v1 TableColumn (id + name) を v3 TableColumnRef.columnId (LocalId) として保存。 */
+  columns: Array<{ id: string; name: string }>;
 }
 
 export function SequenceEditor() {
@@ -28,7 +29,7 @@ export function SequenceEditor() {
   const [numberingKeys, setNumberingKeys] = useState<Array<{ key: string; entry: NumberingEntry }>>([]);
   const [tableOptions, setTableOptions] = useState<TableColumnOption[]>([]);
   const [addUsedByTableId, setAddUsedByTableId] = useState("");
-  const [addUsedByColumn, setAddUsedByColumn] = useState("");
+  const [addUsedByColumnId, setAddUsedByColumnId] = useState("");
   const [addingUsedBy, setAddingUsedBy] = useState(false);
 
   const handleNotFound = useCallback(() => navigate("/sequence/list"), [navigate]);
@@ -37,7 +38,7 @@ export function SequenceEditor() {
     state: seq,
     isDirty, isSaving, serverChanged,
     update, handleSave, handleReset, dismissServerBanner,
-  } = useResourceEditor<SequenceDefinition>({
+  } = useResourceEditor<Sequence>({
     tabType: "sequence",
     mtimeKind: "sequence",
     draftKind: "sequence",
@@ -73,7 +74,7 @@ export function SequenceEditor() {
           opts.push({
             tableId: td.id,
             tableName: td.logicalName || td.name,
-            columns: td.columns.map((c) => c.name),
+            columns: td.columns.map((c) => ({ id: c.id, name: c.name })),
           });
         }
       }
@@ -89,14 +90,17 @@ export function SequenceEditor() {
   const ddl = generateSequenceDdl(seq);
 
   const addUsedBy = () => {
-    if (!addUsedByTableId || !addUsedByColumn) return;
-    const entry: SequenceUsedBy = { tableId: addUsedByTableId, columnName: addUsedByColumn };
+    if (!addUsedByTableId || !addUsedByColumnId) return;
+    const entry: TableColumnRef = {
+      tableId: addUsedByTableId as TableId,
+      columnId: addUsedByColumnId as LocalId,
+    };
     update((prev) => ({
       ...prev,
       usedBy: [...(prev.usedBy ?? []), entry],
     }));
     setAddUsedByTableId("");
-    setAddUsedByColumn("");
+    setAddUsedByColumnId("");
     setAddingUsedBy(false);
   };
 
@@ -107,7 +111,13 @@ export function SequenceEditor() {
     }));
   };
 
-  const selectedTableColumns = tableOptions.find((t) => t.tableId === addUsedByTableId)?.columns ?? [];
+  const selectedTable = tableOptions.find((t) => t.tableId === addUsedByTableId);
+  const selectedTableColumns = selectedTable?.columns ?? [];
+
+  const columnNameOf = (tableId: string, columnId: string): string => {
+    const tbl = tableOptions.find((t) => t.tableId === tableId);
+    return tbl?.columns.find((c) => c.id === columnId)?.name ?? columnId;
+  };
 
   return (
     <div className="table-editor-page">
@@ -115,7 +125,7 @@ export function SequenceEditor() {
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
       <EditorHeader
-        title={<><i className="bi bi-arrow-repeat" /> シーケンス編集: <code>{seq.id}</code></>}
+        title={<><i className="bi bi-arrow-repeat" /> シーケンス編集: <code>{seq.physicalName}</code></>}
         backLink={{
           label: "シーケンス一覧",
           onClick: () => navigate("/sequence/list"),
@@ -136,13 +146,22 @@ export function SequenceEditor() {
           <h3 className="seq-editor-section-title">基本設定</h3>
           <div className="seq-editor-grid">
             <label className="tbl-field">
-              <span>シーケンス名</span>
+              <span>物理名</span>
               <input
                 type="text"
-                value={seq.id}
+                value={seq.physicalName}
                 readOnly
                 className="seq-readonly"
-                title="シーケンス名は作成後変更できません"
+                title="物理名は作成後変更できません"
+              />
+            </label>
+            <label className="tbl-field">
+              <span>表示名</span>
+              <input
+                type="text"
+                value={seq.name}
+                onChange={(e) => update((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="発注番号採番"
               />
             </label>
             <label className="tbl-field">
@@ -150,7 +169,7 @@ export function SequenceEditor() {
               <input
                 type="text"
                 value={seq.description ?? ""}
-                onChange={(e) => update((prev) => ({ ...prev, description: e.target.value }))}
+                onChange={(e) => update((prev) => ({ ...prev, description: e.target.value || undefined }))}
                 placeholder="発注番号の採番 (ORD-YYYY-NNNN)"
               />
             </label>
@@ -268,11 +287,11 @@ export function SequenceEditor() {
               {(seq.usedBy ?? []).map((u, i) => {
                 const tbl = tableOptions.find((t) => t.tableId === u.tableId);
                 return (
-                  <div key={`${u.tableId}.${u.columnName}`} className="seq-used-by-row">
+                  <div key={`${u.tableId}.${u.columnId}`} className="seq-used-by-row">
                     <span className="seq-used-by-text">
                       <i className="bi bi-table" /> {tbl?.tableName ?? u.tableId}
                       <span className="seq-used-by-sep">.</span>
-                      <code>{u.columnName}</code>
+                      <code>{columnNameOf(u.tableId, u.columnId)}</code>
                     </span>
                     <button
                       className="seq-used-by-del"
@@ -290,7 +309,7 @@ export function SequenceEditor() {
             <div className="seq-used-by-add-form">
               <select
                 value={addUsedByTableId}
-                onChange={(e) => { setAddUsedByTableId(e.target.value); setAddUsedByColumn(""); }}
+                onChange={(e) => { setAddUsedByTableId(e.target.value); setAddUsedByColumnId(""); }}
               >
                 <option value="">テーブルを選択...</option>
                 {tableOptions.map((t) => (
@@ -298,25 +317,25 @@ export function SequenceEditor() {
                 ))}
               </select>
               <select
-                value={addUsedByColumn}
-                onChange={(e) => setAddUsedByColumn(e.target.value)}
+                value={addUsedByColumnId}
+                onChange={(e) => setAddUsedByColumnId(e.target.value)}
                 disabled={!addUsedByTableId}
               >
                 <option value="">列を選択...</option>
                 {selectedTableColumns.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
               <button
                 className="tbl-btn tbl-btn-primary"
                 onClick={addUsedBy}
-                disabled={!addUsedByTableId || !addUsedByColumn}
+                disabled={!addUsedByTableId || !addUsedByColumnId}
               >
                 追加
               </button>
               <button
                 className="tbl-btn tbl-btn-ghost"
-                onClick={() => { setAddingUsedBy(false); setAddUsedByTableId(""); setAddUsedByColumn(""); }}
+                onClick={() => { setAddingUsedBy(false); setAddUsedByTableId(""); setAddUsedByColumnId(""); }}
               >
                 キャンセル
               </button>

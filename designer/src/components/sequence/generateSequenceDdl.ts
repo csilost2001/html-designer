@@ -1,7 +1,8 @@
-import type { SequenceDefinition } from "../../types/sequence";
+import type { Sequence } from "../../types/v3";
 
-export function generateSequenceDdl(seq: SequenceDefinition): string {
-  const lines: string[] = [`CREATE SEQUENCE ${seq.id}`];
+export function generateSequenceDdl(seq: Sequence): string {
+  const physical = seq.physicalName || seq.id;
+  const lines: string[] = [`CREATE SEQUENCE ${physical}`];
 
   if (seq.startValue !== undefined && seq.startValue !== 1) {
     lines.push(`  START ${seq.startValue}`);
@@ -43,7 +44,7 @@ export function generateSequenceDdl(seq: SequenceDefinition): string {
   }
   if (seq.usedBy && seq.usedBy.length > 0) {
     for (const u of seq.usedBy) {
-      comments.push(`-- 使用先: ${u.tableId}.${u.columnName}`);
+      comments.push(`-- 使用先: ${u.tableId}.${u.columnId}`);
     }
   }
 

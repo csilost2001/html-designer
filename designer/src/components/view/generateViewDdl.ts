@@ -1,9 +1,10 @@
-import type { ViewDefinition } from "../../types/view";
+import type { View } from "../../types/v3";
 
-export function generateViewDdl(view: ViewDefinition): string {
+export function generateViewDdl(view: View): string {
   const lines: string[] = [];
+  const physical = view.physicalName || view.id;
 
-  lines.push(`CREATE OR REPLACE VIEW ${view.id} AS`);
+  lines.push(`CREATE OR REPLACE VIEW ${physical} AS`);
 
   if (view.selectStatement.trim()) {
     lines.push(view.selectStatement);
@@ -14,7 +15,7 @@ export function generateViewDdl(view: ViewDefinition): string {
   lines[lines.length - 1] = lines[lines.length - 1].trimEnd().replace(/;+$/, "") + ";";
 
   if (view.description) {
-    lines.push(`\nCOMMENT ON VIEW ${view.id} IS '${view.description.replace(/'/g, "''")}';`);
+    lines.push(`\nCOMMENT ON VIEW ${physical} IS '${view.description.replace(/'/g, "''")}';`);
   }
 
   return lines.join("\n");

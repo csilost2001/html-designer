@@ -1,4 +1,5 @@
-import type { SequenceDefinition, SequenceMeta } from "../types/sequence";
+import type { Sequence, SequenceEntry, SequenceId, PhysicalName, DisplayName, Timestamp } from "../types/v3";
+import { generateUUID } from "../utils/uuid";
 import { loadProject, saveProject } from "./flowStore";
 import { renumber, nextNo } from "../utils/listOrder";
 
@@ -20,53 +21,56 @@ export function setSequenceStorageBackend(b: SequenceStorageBackend | null): voi
 
 const SEQUENCE_PREFIX = "sequence-";
 
-function now(): string {
-  return new Date().toISOString();
+function nowTs(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** シーケンス一覧を取得（project.json のメタ情報） */
-export async function listSequences(): Promise<SequenceMeta[]> {
+/** シーケンス一覧を取得（project.json のメタ情報、v3 SequenceEntry[]） */
+export async function listSequences(): Promise<SequenceEntry[]> {
   const project = await loadProject();
   return project.sequences ?? [];
 }
 
 /** シーケンス定義を読み込み */
-export async function loadSequence(sequenceId: string): Promise<SequenceDefinition | null> {
-  const raw = await (async () => {
-    if (_backend) return (await _backend.loadSequence(sequenceId)) as SequenceDefinition | null;
-    const s = localStorage.getItem(`${SEQUENCE_PREFIX}${sequenceId}`);
-    if (!s) return null;
-    try { return JSON.parse(s) as SequenceDefinition; } catch { return null; }
-  })();
-  return raw;
+export async function loadSequence(sequenceId: string): Promise<Sequence | null> {
+  if (_backend) return (await _backend.loadSequence(sequenceId)) as Sequence | null;
+  const s = localStorage.getItem(`${SEQUENCE_PREFIX}${sequenceId}`);
+  if (!s) return null;
+  try { return JSON.parse(s) as Sequence; } catch { return null; }
 }
 
 /** シーケンス定義を保存（project.json のメタも同期） */
-export async function saveSequence(sequence: SequenceDefinition): Promise<void> {
-  sequence.updatedAt = now();
+export async function saveSequence(sequence: Sequence): Promise<void> {
+  const toSave: Sequence = { ...sequence, updatedAt: nowTs() };
 
   if (_backend) {
-    await _backend.saveSequence(sequence.id, sequence);
+    await _backend.saveSequence(toSave.id, toSave);
   } else {
-    localStorage.setItem(`${SEQUENCE_PREFIX}${sequence.id}`, JSON.stringify(sequence));
+    localStorage.setItem(`${SEQUENCE_PREFIX}${toSave.id}`, JSON.stringify(toSave));
   }
 
-  await syncSequenceMeta(sequence);
+  await syncSequenceMeta(toSave);
 }
 
 /** シーケンスを新規作成 */
-export async function createSequence(id: string, description?: string): Promise<SequenceDefinition> {
-  const ts = now();
-  const sequence: SequenceDefinition = {
-    id,
+export async function createSequence(
+  physicalName: PhysicalName,
+  name: DisplayName,
+  description?: string,
+): Promise<Sequence> {
+  const ts = nowTs();
+  const sequence: Sequence = {
+    id: generateUUID() as SequenceId,
+    name,
+    description,
+    physicalName,
     startValue: 1,
     increment: 1,
     cache: 1,
     cycle: false,
     usedBy: [],
-    description: description ?? "",
     createdAt: ts,
     updatedAt: ts,
   };
@@ -91,17 +95,19 @@ export async function deleteSequence(sequenceId: string): Promise<void> {
 
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
-async function syncSequenceMeta(sequence: SequenceDefinition): Promise<void> {
+async function syncSequenceMeta(sequence: Sequence): Promise<void> {
   const project = await loadProject();
   if (!project.sequences) project.sequences = [];
 
   const idx = project.sequences.findIndex((s) => s.id === sequence.id);
-  const meta: SequenceMeta = {
+  const meta: SequenceEntry = {
     id: sequence.id,
     no: idx >= 0 ? project.sequences[idx].no : nextNo(project.sequences),
+    name: sequence.name,
+    physicalName: sequence.physicalName,
     conventionRef: sequence.conventionRef,
-    description: sequence.description,
     updatedAt: sequence.updatedAt,
+    maturity: sequence.maturity,
   };
 
   if (idx >= 0) {

@@ -142,6 +142,6 @@ export interface FlowProject {
   edges: ScreenEdge[];
   tables?: TableMeta[];
   processFlows?: ProcessFlowMeta[];
-  sequences?: import("./sequence").SequenceMeta[];
+  sequences?: import("./v3").SequenceEntry[];
   updatedAt: string;
 }
