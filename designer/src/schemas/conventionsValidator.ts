@@ -3,9 +3,9 @@
  *
  * 処理フロー JSON 内の式・メッセージ中に現れる @conv.<category>.<key> が
  * conventions-catalog.json に存在するかを検査。
- * 画面項目定義 (ScreenItemsFile) の pattern / errorMessages.* も対象 (#351)。
+ * Screen.items の pattern / errorMessages.* も対象 (#351)。
  */
-import type { ScreenItemsFile } from "../store/screenItemsStore";
+import type { ScreenItemsDocument } from "../store/screenItemsStore";
 import type {
   ProcessFlow,
   Step,
@@ -333,7 +333,7 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
 
 /** 画面項目定義ファイル全体で @conv.* 参照を検査 (#351)。catalog が null なら skip */
 export function checkScreenItemConventionReferences(
-  file: ScreenItemsFile,
+  file: ScreenItemsDocument,
   catalog: ConventionsCatalog | null,
 ): ConventionIssue[] {
   if (!catalog) return [];

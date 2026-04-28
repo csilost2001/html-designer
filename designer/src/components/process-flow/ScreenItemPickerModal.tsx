@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { loadProject } from "../../store/flowStore";
-import { loadScreenItems, type ScreenItemsFile } from "../../store/screenItemsStore";
+import { loadScreenItems, type ScreenItemsDocument } from "../../store/screenItemsStore";
 import type { ScreenItem } from "../../types/v3";
 import type { ScreenItemPickResult } from "./StructuredFieldsEditor";
 import type { FieldType as V1FieldType } from "../../types/action";
@@ -40,7 +40,7 @@ function v3TypeToV1(type: ScreenItem["type"]): V1FieldType {
 export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
   const [screens, setScreens] = useState<ScreenMeta[]>([]);
   const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null);
-  const [itemsFile, setItemsFile] = useState<ScreenItemsFile | null>(null);
+  const [itemsFile, setItemsFile] = useState<ScreenItemsDocument | null>(null);
 
   useEffect(() => {
     if (!open) return;

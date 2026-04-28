@@ -10,6 +10,8 @@ import {
   writeProject,
   readScreen,
   writeScreen,
+  readScreenEntity,
+  writeScreenEntity,
   deleteScreen as deleteScreenFile,
   readCustomBlocks,
   writeCustomBlocks,
@@ -370,6 +372,20 @@ class WsBridge extends EventEmitter {
           }
           respond({ success: true });
           this.broadcast("screenChanged", { screenId }, clientId);
+          break;
+        }
+        case "loadScreenEntity": {
+          const { screenId } = (params ?? {}) as { screenId: string };
+          const data = await readScreenEntity(screenId);
+          respond(data);
+          break;
+        }
+        case "saveScreenEntity": {
+          const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
+          await writeScreenEntity(screenId, data);
+          respond({ success: true });
+          this.broadcast("screenEntityChanged", { screenId }, clientId);
+          this.broadcast("screenItemsChanged", { screenId }, clientId);
           break;
         }
         case "deleteScreen": {

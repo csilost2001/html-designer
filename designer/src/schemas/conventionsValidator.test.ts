@@ -8,8 +8,8 @@ import {
   type ConventionsCatalog,
 } from "./conventionsValidator";
 import type { ProcessFlow } from "../types/action";
-import type { ScreenItemsFile } from "../store/screenItemsStore";
-import type { Identifier, ScreenId, SemVer, Timestamp } from "../types/v3";
+import type { ScreenItemsDocument } from "../store/screenItemsStore";
+import type { Identifier, ScreenId, Timestamp } from "../types/v3";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
@@ -496,10 +496,9 @@ describe("checkConventionsCatalogIntegrity - i18n", () => {
   });
 });
 
-function makeScreenItemsFile(partial: Partial<ScreenItemsFile>): ScreenItemsFile {
+function makeScreenItemsDocument(partial: Partial<ScreenItemsDocument>): ScreenItemsDocument {
   return {
     screenId: "scr1" as ScreenId,
-    version: "0.1.0" as SemVer,
     updatedAt: "2026-01-01T00:00:00Z" as Timestamp,
     items: [],
     ...partial,
@@ -512,16 +511,16 @@ describe("checkScreenItemConventionReferences", () => {
   const catalog = loadCatalog();
 
   it("catalog が null なら空配列", () => {
-    const file = makeScreenItemsFile({ items: [{ id: id("email"), label: "メール", type: "string", pattern: "@conv.regex.email-simple" }] });
+    const file = makeScreenItemsDocument({ items: [{ id: id("email"), label: "メール", type: "string", pattern: "@conv.regex.email-simple" }] });
     expect(checkScreenItemConventionReferences(file, null)).toHaveLength(0);
   });
 
   it("items が空なら空配列", () => {
-    expect(checkScreenItemConventionReferences(makeScreenItemsFile({}), catalog)).toHaveLength(0);
+    expect(checkScreenItemConventionReferences(makeScreenItemsDocument({}), catalog)).toHaveLength(0);
   });
 
   it("pattern に実在する @conv.regex.* を書くとエラーなし", () => {
-    const file = makeScreenItemsFile({
+    const file = makeScreenItemsDocument({
       items: [{ id: id("phone"), label: "電話", type: "string", pattern: "@conv.regex.phone-jp" }],
     });
     const issues = checkScreenItemConventionReferences(file, catalog);
@@ -529,7 +528,7 @@ describe("checkScreenItemConventionReferences", () => {
   });
 
   it("pattern に存在しない @conv.regex を書くと UNKNOWN_CONV_REGEX", () => {
-    const file = makeScreenItemsFile({
+    const file = makeScreenItemsDocument({
       items: [{ id: id("f"), label: "F", type: "string", pattern: "@conv.regex.no-such-key" }],
     });
     const issues = checkScreenItemConventionReferences(file, catalog);
@@ -539,7 +538,7 @@ describe("checkScreenItemConventionReferences", () => {
   });
 
   it("errorMessages.required に存在しない @conv.msg を書くと UNKNOWN_CONV_MSG", () => {
-    const file = makeScreenItemsFile({
+    const file = makeScreenItemsDocument({
       items: [{ id: id("f"), label: "F", type: "string", errorMessages: { required: "@conv.msg.no-such-msg" } }],
     });
     const issues = checkScreenItemConventionReferences(file, catalog);
@@ -549,14 +548,14 @@ describe("checkScreenItemConventionReferences", () => {
   });
 
   it("pattern に @conv 参照なし (直接正規表現) はエラーなし", () => {
-    const file = makeScreenItemsFile({
+    const file = makeScreenItemsDocument({
       items: [{ id: id("f"), label: "F", type: "string", pattern: "^[0-9]+$" }],
     });
     expect(checkScreenItemConventionReferences(file, catalog)).toHaveLength(0);
   });
 
   it("複数 items に問題があれば全件返す", () => {
-    const file = makeScreenItemsFile({
+    const file = makeScreenItemsDocument({
       items: [
         { id: id("f1"), label: "F1", type: "string", pattern: "@conv.regex.bad1" },
         { id: id("f2"), label: "F2", type: "string", errorMessages: { maxLength: "@conv.msg.bad2" } },
