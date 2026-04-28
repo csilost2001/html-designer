@@ -196,7 +196,7 @@ function loadJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf-8")) as T;
 }
 
-describe("v3 TS 型 と sample-project-v3 JSON の compatibility", () => {
+describe("v3 TS 型 と sample-project-v3 JSON の compatibility (5 業界カバー)", () => {
   it("retail project.json を Project 型として parse できる", () => {
     const project = loadJson<Project>(join(samplesV3Dir, "project.json"));
     expect(project.schemaVersion).toBe("v3");
@@ -251,5 +251,33 @@ describe("v3 TS 型 と sample-project-v3 JSON の compatibility", () => {
     expect(workflowSteps.length).toBe(2); // approval-parallel + branch-merge
     expect(workflowSteps[0].pattern).toBe("approval-parallel");
     expect(workflowSteps[1].pattern).toBe("branch-merge");
+  });
+
+  it("finance 振込実行 (TX scope + Workflow approval-sequential) を ProcessFlow として parse", () => {
+    const flow = loadJson<ProcessFlow>(
+      join(samplesV3Dir, "finance/process-flows/a4d18f30-0524-4303-a656-1bf2390c386c.json"),
+    );
+    expect(flow.meta.kind).toBe("screen");
+    const txSteps = flow.actions[0].steps.filter(
+      (s): s is TransactionScopeStep => s.kind === "transactionScope",
+    );
+    expect(txSteps.length).toBeGreaterThanOrEqual(1);
+    expect(txSteps[0].isolationLevel).toBe("SERIALIZABLE");
+  });
+
+  it("public-service 建築確認申請 (5 段 workflow) を ProcessFlow として parse", () => {
+    const flow = loadJson<ProcessFlow>(
+      join(samplesV3Dir, "public-service/process-flows/1cd900ee-0d69-4e0a-a32b-bb329f9bc983.json"),
+    );
+    const workflowSteps = flow.actions[0].steps.filter(
+      (s): s is WorkflowStep => s.kind === "workflow",
+    );
+    expect(workflowSteps.length).toBe(5);
+    const patterns = workflowSteps.map((w) => w.pattern);
+    expect(patterns).toContain("acknowledge");
+    expect(patterns).toContain("review");
+    expect(patterns).toContain("sign-off");
+    expect(patterns).toContain("approval-veto");
+    expect(patterns).toContain("approval-sequential");
   });
 });

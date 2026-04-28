@@ -380,12 +380,16 @@ export type TestAssertion =
   | { kind: "errorMessage"; msgKey: string }
   | { kind: "screenItemValue"; screenId: ScreenId; items: Record<string, unknown> };
 
-/** Given-When-Then 形式のテストシナリオ 1 件。 */
+/**
+ * Given-When-Then 形式のテストシナリオ 1 件。
+ * schema (common.v3#/$defs/TestScenario) の required: ["id","name","given","when","then"] に従い
+ * given も required (空配列許容)。
+ */
 export interface TestScenario {
   id: LocalId;
   name: DisplayName;
   description?: Description;
-  given?: TestPrecondition[];
+  given: TestPrecondition[];
   when: TestInvocation;
   then: TestAssertion[];
   tags?: string[];

@@ -18,10 +18,12 @@ import type {
   ErrorCode,
   EventTopic,
   ExpressionString,
+  FieldType,
   Identifier,
   LocalId,
   Maturity,
   Mode,
+  Note,
   ProcessFlowId,
   ScreenId,
   StructuredField,
@@ -290,9 +292,6 @@ export interface HttpResponseSpec {
   when?: string;
 }
 
-// FieldType import is needed
-import type { FieldType } from "./common";
-
 /** Action 1 件の定義。 */
 export interface ActionDefinition {
   id: LocalId;
@@ -358,7 +357,7 @@ export interface DataLineage {
 export interface StepBaseProps {
   id: LocalId;
   description?: Description;
-  notes?: import("./common").Note[];
+  notes?: Note[];
   maturity?: Maturity;
   sla?: Sla;
   /** 実行条件式。false なら本 step を skip。 */
@@ -672,7 +671,8 @@ export type WorkflowPattern =
  *
  * `order` の semantics は `pattern` ごとに異なる (#539 R5-2):
  * - `approval-sequential`: 承認の**実行順序** (1, 2, 3 = 担当→課長→部長)
- * - `approval-parallel` / `branch-merge` / `approval-quorum` / `approval-veto`: 無視 (規約として全員 `order: 1`)
+ * - `approval-parallel` / `branch-merge` / `approval-quorum`: 無視 (規約として全員 `order: 1`)
+ * - `approval-veto`: 通常無視 (拒否権発動なので順序不要)。実装が「先着 1 reject で打ち切り」を採用するなら順序が意味を持つが、本 spec では順序非依存とする (全員 `order: 1` 推奨)
  * - `approval-escalation`: 通常 `order: 1` (escalateTo 経由で次層を表現)
  * - `review` / `sign-off` / `acknowledge`: 通常 1 名構成、`order: 1` 固定
  * - `discussion`: 無視 (議論順序を spec で固定しない)
