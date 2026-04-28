@@ -14,7 +14,8 @@ import type {
   ActionTrigger,
   ProcessFlowType,
 } from "../types/action";
-import type { FlowProject } from "../types/flow";
+import type { ProcessFlowId, ScreenId, Timestamp } from "../types/v3";
+import type { ProcessFlowMeta as FlowProcessFlowMeta } from "../types/flow";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
 import { migrateProcessFlow } from "../utils/actionMigration";
@@ -318,14 +319,14 @@ async function syncProcessFlowMeta(group: ProcessFlow): Promise<void> {
   if (!project.processFlows) project.processFlows = [];
 
   const idx = project.processFlows.findIndex((a) => a.id === group.id);
-  const meta: FlowProject["processFlows"] extends (infer T)[] | undefined ? T : never = {
-    id: group.id,
+  const meta: FlowProcessFlowMeta = {
+    id: group.id as ProcessFlowId,
     no: idx >= 0 ? project.processFlows[idx].no : nextNo(project.processFlows),
     name: group.name,
     type: group.type,
-    screenId: group.screenId,
+    screenId: group.screenId as ScreenId | undefined,
     actionCount: group.actions.length,
-    updatedAt: group.updatedAt as import("../types/v3").Timestamp,
+    updatedAt: group.updatedAt as Timestamp,
     maturity: group.maturity,
     notesCount: countGroupNotes(group),
   };

@@ -27,6 +27,10 @@ import type {
   Position,
   Timestamp,
   ScreenTransitionEntry,
+  Project,
+  ProjectId,
+  LocalId,
+  ProcessFlowId,
 } from "../types/v3";
 import { SCREEN_KIND_LABELS, TRIGGER_LABELS } from "../types/flow";
 import { generateUUID } from "../utils/uuid";
@@ -79,9 +83,11 @@ export function subscribeToFlowDraftSaves(cb: () => void): () => void {
 
 // ─── localStorage キー ───────────────────────────────────────────────────
 
-const FLOW_PROJECT_KEY = "flow-project";
+const FLOW_PROJECT_KEY = "v3-project";
+const LEGACY_FLOW_PROJECT_KEY = "flow-project";
 const SCREEN_DATA_PREFIX = "gjs-screen-";
 const LEGACY_KEY = "gjs-designer-project";
+const PROJECT_SCHEMA_REF = "../schemas/v3/project.v3.schema.json";
 
 export const DEFAULT_NODE_SIZE = { width: 200, height: 100 };
 
@@ -125,7 +131,7 @@ interface PersistedEdge {
   trigger: ScreenTransitionEntry["trigger"];
 }
 
-interface PersistedFlowProject {
+interface LegacyFlowProject {
   version: 1;
   name: string;
   screens: PersistedScreen[];
@@ -137,6 +143,8 @@ interface PersistedFlowProject {
   views?: FlowProject["views"];
   updatedAt: Timestamp;
 }
+
+type PersistedFlowProject = Project;
 
 // ─── 合成・分解 ─────────────────────────────────────────────────────────
 
@@ -154,32 +162,33 @@ function defaultGroupPosition(): Position {
 }
 
 /** Persisted project.json + screen-layout.json を UI 合成型 FlowProject に。 */
-function composeFlowProject(
-  persisted: PersistedFlowProject,
+export function composeFlowProject(
+  persisted: Project,
   layout: ScreenLayout,
 ): FlowProject {
-  const screens: ScreenNode[] = persisted.screens.map((s, i) => {
+  const entities = persisted.entities ?? {};
+  const screens: ScreenNode[] = (entities.screens ?? []).map((s, i) => {
     const pos = layout.positions[s.id] ?? defaultPositionFor(i);
     return {
       id: s.id,
       no: s.no,
       name: s.name,
-      kind: s.kind,
-      description: s.description,
-      path: s.path,
+      kind: (s.kind ?? "other") as ScreenKind,
+      description: "",
+      path: s.path ?? "",
       position: { x: pos.x, y: pos.y },
       size: {
         width: pos.width ?? DEFAULT_NODE_SIZE.width,
         height: pos.height ?? DEFAULT_NODE_SIZE.height,
       },
-      hasDesign: s.hasDesign,
+      hasDesign: s.hasDesign ?? false,
       groupId: s.groupId,
       thumbnail: pos.thumbnail,
-      createdAt: s.createdAt,
+      createdAt: s.updatedAt,
       updatedAt: s.updatedAt,
     };
   });
-  const groups: ScreenGroup[] = persisted.groups.map((g) => {
+  const groups: ScreenGroup[] = (entities.screenGroups ?? []).map((g) => {
     const pos = layout.positions[g.id] ?? defaultGroupPosition();
     return {
       id: g.id,
@@ -190,75 +199,89 @@ function composeFlowProject(
         width: pos.width ?? 360,
         height: pos.height ?? 280,
       },
-      createdAt: g.createdAt,
-      updatedAt: g.updatedAt,
+      createdAt: persisted.meta.createdAt,
+      updatedAt: persisted.meta.updatedAt,
     };
   });
-  const edges: ScreenEdge[] = persisted.edges.map((e) => {
+  const edges: ScreenEdge[] = (entities.screenTransitions ?? []).map((e) => {
     const tl = layout.transitions?.[e.id];
     return {
       id: e.id,
-      source: e.source,
-      target: e.target,
+      source: e.sourceScreenId,
+      target: e.targetScreenId,
       sourceHandle: tl?.sourceHandle,
       targetHandle: tl?.targetHandle,
-      label: e.label,
+      label: e.label ?? "",
       trigger: e.trigger,
     };
   });
   return {
     version: 1,
-    name: persisted.name,
+    name: persisted.meta.name,
     screens,
     groups,
     edges,
-    tables: persisted.tables,
-    processFlows: persisted.processFlows,
-    sequences: persisted.sequences,
-    views: persisted.views,
-    updatedAt: persisted.updatedAt,
+    tables: entities.tables,
+    processFlows: entities.processFlows?.map((f) => ({
+      ...f,
+      type: (f.kind ?? "other"),
+    })),
+    sequences: entities.sequences,
+    views: entities.views,
+    updatedAt: persisted.meta.updatedAt,
   };
 }
 
 /** UI 合成型 FlowProject を Persisted (project.json) と ScreenLayout に分解。 */
-function decomposeFlowProject(
+export function decomposeFlowProject(
   project: FlowProject,
   baseLayout: ScreenLayout,
-): { persisted: PersistedFlowProject; layout: ScreenLayout } {
-  const persisted: PersistedFlowProject = {
-    version: 1,
-    name: project.name,
-    screens: project.screens.map((s) => ({
+): { project: Project; layout: ScreenLayout } {
+  const ts = project.updatedAt || nowTs();
+  const persisted: Project = {
+    $schema: PROJECT_SCHEMA_REF,
+    schemaVersion: "v3",
+    meta: {
+      id: ("00000000-0000-4000-8000-000000000001" as ProjectId),
+      name: project.name,
+      createdAt: ts,
+      updatedAt: ts,
+      mode: "upstream",
+      maturity: "draft",
+    },
+    extensionsApplied: [],
+    entities: {
+      screens: project.screens.map((s) => ({
       id: s.id,
       no: s.no,
       name: s.name,
       kind: s.kind,
-      description: s.description,
       path: s.path,
       hasDesign: s.hasDesign,
       groupId: s.groupId,
-      createdAt: s.createdAt,
       updatedAt: s.updatedAt,
     })),
-    groups: project.groups.map((g) => ({
+      screenGroups: project.groups.map((g) => ({
       id: g.id,
       name: g.name,
       color: g.color,
-      createdAt: g.createdAt,
-      updatedAt: g.updatedAt,
     })),
-    edges: project.edges.map((e) => ({
+      screenTransitions: project.edges.map((e) => ({
       id: e.id,
-      source: e.source,
-      target: e.target,
-      label: e.label,
+      sourceScreenId: e.source,
+      targetScreenId: e.target,
+      ...(e.label ? { label: e.label } : {}),
       trigger: e.trigger,
     })),
-    tables: project.tables,
-    processFlows: project.processFlows,
-    sequences: project.sequences,
-    views: project.views,
-    updatedAt: project.updatedAt,
+      tables: project.tables,
+      processFlows: project.processFlows?.map(({ type: _type, kind: _kind, ...entry }) => ({
+        ...entry,
+        id: entry.id as ProcessFlowId,
+        screenId: entry.screenId as ScreenId | undefined,
+      })),
+      sequences: project.sequences,
+      views: project.views,
+    },
   };
 
   const positions: ScreenLayout["positions"] = {};
@@ -292,7 +315,7 @@ function decomposeFlowProject(
   }
 
   return {
-    persisted,
+    project: persisted,
     layout: {
       ...baseLayout,
       positions,
@@ -316,7 +339,7 @@ function createEmptyProject(): FlowProject {
 }
 
 /** v1 → 内部 PersistedFlowProject へ最低限の field 補完。 */
-function normalizePersisted(raw: unknown): PersistedFlowProject {
+function normalizeLegacyPersisted(raw: unknown): LegacyFlowProject {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const screensRaw = (obj.screens as Array<Record<string, unknown>> | undefined) ?? [];
   const groupsRaw = (obj.groups as Array<Record<string, unknown>> | undefined) ?? [];
@@ -356,12 +379,82 @@ function normalizePersisted(raw: unknown): PersistedFlowProject {
     screens,
     groups,
     edges,
-    tables: obj.tables as PersistedFlowProject["tables"],
+    tables: obj.tables as LegacyFlowProject["tables"],
     processFlows: obj.processFlows as ProcessFlowMeta[] | undefined,
-    sequences: obj.sequences as PersistedFlowProject["sequences"],
-    views: obj.views as PersistedFlowProject["views"],
+    sequences: obj.sequences as LegacyFlowProject["sequences"],
+    views: obj.views as LegacyFlowProject["views"],
     updatedAt: (obj.updatedAt as Timestamp) ?? nowTs(),
   };
+}
+
+function legacyToProject(legacy: LegacyFlowProject): Project {
+  return {
+    $schema: PROJECT_SCHEMA_REF,
+    schemaVersion: "v3",
+    meta: {
+      id: "00000000-0000-4000-8000-000000000001" as ProjectId,
+      name: legacy.name,
+      createdAt: legacy.updatedAt,
+      updatedAt: legacy.updatedAt,
+      mode: "upstream",
+      maturity: "draft",
+    },
+    extensionsApplied: [],
+    entities: {
+      screens: legacy.screens.map((s) => ({
+        id: s.id,
+        no: s.no,
+        name: s.name,
+        kind: s.kind,
+        path: s.path,
+        groupId: s.groupId,
+        hasDesign: s.hasDesign,
+        updatedAt: s.updatedAt,
+      })),
+      screenGroups: legacy.groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        color: g.color,
+      })),
+      screenTransitions: legacy.edges.map((e) => ({
+        id: e.id as LocalId,
+        sourceScreenId: e.source as ScreenId,
+        targetScreenId: e.target as ScreenId,
+        ...(e.label ? { label: e.label } : {}),
+        trigger: e.trigger,
+      })),
+      tables: legacy.tables,
+      processFlows: legacy.processFlows?.map(({ type: _type, ...entry }) => ({
+        ...entry,
+        id: entry.id as ProcessFlowId,
+        screenId: entry.screenId as ScreenId | undefined,
+      })),
+      sequences: legacy.sequences,
+      views: legacy.views,
+    },
+  };
+}
+
+/** v1/v3 persisted shape を v3 Project root に正規化する。 */
+function normalizePersisted(raw: unknown): PersistedFlowProject {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  if (obj.schemaVersion === "v3" && obj.meta && typeof obj.meta === "object") {
+    const project = obj as unknown as Project;
+    return {
+      ...project,
+      $schema: project.$schema ?? PROJECT_SCHEMA_REF,
+      entities: {
+        screens: project.entities?.screens ?? [],
+        screenGroups: project.entities?.screenGroups ?? [],
+        screenTransitions: project.entities?.screenTransitions ?? [],
+        tables: project.entities?.tables,
+        processFlows: project.entities?.processFlows,
+        sequences: project.entities?.sequences,
+        views: project.entities?.views,
+      },
+    };
+  }
+  return legacyToProject(normalizeLegacyPersisted(raw));
 }
 
 /** 旧 v1 (gjs-designer-project) → 新構造へマイグレーション。 */
@@ -381,7 +474,7 @@ function migrateLegacyLocalStorage(): PersistedFlowProject | null {
     updatedAt: nowTs(),
   };
   localStorage.setItem(`${SCREEN_DATA_PREFIX}${screenId}`, raw);
-  const project: PersistedFlowProject = {
+  const project: LegacyFlowProject = {
     version: 1,
     name: "マイプロジェクト",
     screens: [screen],
@@ -389,8 +482,9 @@ function migrateLegacyLocalStorage(): PersistedFlowProject | null {
     edges: [],
     updatedAt: nowTs(),
   };
-  localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
-  return project;
+  const migrated = legacyToProject(project);
+  localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(migrated));
+  return migrated;
 }
 
 function loadPersistedFromLocalStorage(): PersistedFlowProject | null {
@@ -399,6 +493,15 @@ function loadPersistedFromLocalStorage(): PersistedFlowProject | null {
     try {
       return normalizePersisted(JSON.parse(raw));
     } catch { /* 破損時は無視 */ }
+  }
+  const legacyRaw = localStorage.getItem(LEGACY_FLOW_PROJECT_KEY);
+  if (legacyRaw) {
+    try {
+      const migrated = normalizePersisted(JSON.parse(legacyRaw));
+      localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(migrated));
+      localStorage.removeItem(LEGACY_FLOW_PROJECT_KEY);
+      return migrated;
+    } catch { /* ignore */ }
   }
   return migrateLegacyLocalStorage();
 }
@@ -436,6 +539,14 @@ function ensureProjectDefaults(project: FlowProject): FlowProject {
   return project;
 }
 
+function hasPersistedData(project: Project | null | undefined): boolean {
+  const entities = project?.entities;
+  return !!entities &&
+    ((entities.screens?.length ?? 0) > 0 ||
+      (entities.tables?.length ?? 0) > 0 ||
+      (entities.processFlows?.length ?? 0) > 0);
+}
+
 /**
  * プロジェクトを読み込み (project.json + screen-layout.json 合成)。
  *
@@ -449,13 +560,16 @@ export async function loadProject(): Promise<FlowProject> {
     const data = await _backend.loadProject();
     if (data) {
       const persisted = normalizePersisted(data);
+      if (!((data as Record<string, unknown>).schemaVersion === "v3")) {
+        await _backend.saveProject(persisted);
+      }
       const layout = await loadScreenLayout();
       return ensureProjectDefaults(composeFlowProject(persisted, layout));
     }
     const local = loadPersistedFromLocalStorage();
     if (
       local &&
-      (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.processFlows?.length ?? 0) > 0)
+      hasPersistedData(local)
     ) {
       // localStorage 側に保存されている screen-layout も合わせて backend に migrate する。
       // 業務情報のみを backend に書き写し、座標を localStorage に置いたままにすると
@@ -485,7 +599,7 @@ export async function loadProject(): Promise<FlowProject> {
 
 async function persistFlowProject(project: FlowProject): Promise<void> {
   const baseLayout = await loadScreenLayout();
-  const { persisted, layout } = decomposeFlowProject(project, baseLayout);
+  const { project: persisted, layout } = decomposeFlowProject(project, baseLayout);
   if (_backend) {
     await _backend.saveProject(persisted);
   } else {
@@ -513,12 +627,9 @@ export async function saveProject(project: FlowProject): Promise<void> {
       (project.processFlows?.length ?? 0) === 0;
     if (isProjectEmpty) {
       try {
-        const current = (await _backend.loadProject()) as PersistedFlowProject | null;
-        const hasExistingData =
-          !!current &&
-          ((current.screens?.length ?? 0) > 0 ||
-            (current.tables?.length ?? 0) > 0 ||
-            (current.processFlows?.length ?? 0) > 0);
+        const currentRaw = await _backend.loadProject();
+        const current = currentRaw ? normalizePersisted(currentRaw) : null;
+        const hasExistingData = hasPersistedData(current);
         if (hasExistingData) {
           console.warn(
             "[flowStore] saveProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)",
@@ -543,12 +654,9 @@ export async function persistProject(project: FlowProject): Promise<void> {
       (project.processFlows?.length ?? 0) === 0;
     if (isProjectEmpty) {
       try {
-        const current = (await _backend.loadProject()) as PersistedFlowProject | null;
-        const hasExistingData =
-          !!current &&
-          ((current.screens?.length ?? 0) > 0 ||
-            (current.tables?.length ?? 0) > 0 ||
-            (current.processFlows?.length ?? 0) > 0);
+        const currentRaw = await _backend.loadProject();
+        const current = currentRaw ? normalizePersisted(currentRaw) : null;
+        const hasExistingData = hasPersistedData(current);
         if (hasExistingData) {
           console.warn(
             "[flowStore] persistProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)",
@@ -639,9 +747,9 @@ export async function addEdge(
   targetHandle?: string,
 ): Promise<ScreenEdge> {
   const edge: ScreenEdge = {
-    id: generateUUID(),
-    source,
-    target,
+    id: generateUUID() as LocalId,
+    source: source as ScreenId,
+    target: target as ScreenId,
     sourceHandle,
     targetHandle,
     label,

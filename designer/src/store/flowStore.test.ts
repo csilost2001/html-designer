@@ -1,20 +1,34 @@
-/**
- * flowStore データ消失ガードの回帰テスト (2026-04-22)。
- *
- * 2 つの destructive path をカバー:
- * 1. loadProject: backend が null を返した時、空 project を backend に書き戻さないこと
- * 2. saveProject / persistProject: 空 project で非空 backend を上書きしないこと
- */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { FlowStorageBackend } from "./flowStore";
 import {
+  composeFlowProject,
+  decomposeFlowProject,
   loadProject,
-  saveProject,
   persistProject,
-  setFlowStorageBackend,
+  saveProject,
   setFlowDraftMode,
+  setFlowStorageBackend,
 } from "./flowStore";
 import type { FlowProject } from "../types/flow";
+import type {
+  LocalId,
+  Position,
+  ProcessFlowId,
+  Project,
+  ProjectId,
+  ScreenGroupId,
+  ScreenId,
+  ScreenLayout,
+  Timestamp,
+} from "../types/v3";
+
+const TS = "2026-04-28T00:00:00.000Z" as Timestamp;
+const PROJECT_ID = "11111111-1111-4111-8111-111111111111" as ProjectId;
+const SCREEN_ID = "22222222-2222-4222-8222-222222222222" as ScreenId;
+const SCREEN_ID_2 = "33333333-3333-4333-8333-333333333333" as ScreenId;
+const GROUP_ID = "44444444-4444-4444-8444-444444444444" as ScreenGroupId;
+const EDGE_ID = "edge-01" as LocalId;
+const FLOW_ID = "55555555-5555-4555-8555-555555555555" as ProcessFlowId;
 
 function mkEmptyProject(): FlowProject {
   return {
@@ -23,21 +37,88 @@ function mkEmptyProject(): FlowProject {
     screens: [],
     groups: [],
     edges: [],
-    updatedAt: new Date().toISOString(),
-  } as FlowProject;
+    updatedAt: TS,
+  };
+}
+
+function mkPersistedProject(): Project {
+  return {
+    $schema: "../schemas/v3/project.v3.schema.json",
+    schemaVersion: "v3",
+    meta: {
+      id: PROJECT_ID,
+      name: "実プロジェクト",
+      createdAt: TS,
+      updatedAt: TS,
+      mode: "upstream",
+      maturity: "draft",
+    },
+    extensionsApplied: [],
+    entities: {
+      screens: [
+        {
+          id: SCREEN_ID,
+          no: 1,
+          name: "画面1",
+          kind: "list",
+          path: "/screens",
+          hasDesign: false,
+          groupId: GROUP_ID,
+          updatedAt: TS,
+        },
+        {
+          id: SCREEN_ID_2,
+          no: 2,
+          name: "画面2",
+          kind: "detail",
+          path: "/screens/:id",
+          hasDesign: true,
+          updatedAt: TS,
+        },
+      ],
+      screenGroups: [{ id: GROUP_ID, name: "グループ", color: "#0d6efd" }],
+      screenTransitions: [
+        {
+          id: EDGE_ID,
+          sourceScreenId: SCREEN_ID,
+          targetScreenId: SCREEN_ID_2,
+          label: "詳細へ",
+          trigger: "click",
+        },
+      ],
+      processFlows: [
+        {
+          id: FLOW_ID,
+          no: 1,
+          name: "処理",
+          screenId: SCREEN_ID,
+          actionCount: 1,
+          notesCount: 0,
+          updatedAt: TS,
+          maturity: "draft",
+        },
+      ],
+    },
+  };
+}
+
+function mkLayout(): ScreenLayout {
+  return {
+    $schema: "../schemas/v3/screen-layout.v3.schema.json",
+    positions: {
+      [SCREEN_ID]: { x: 10, y: 20, width: 200, height: 100 } satisfies Position,
+      [SCREEN_ID_2]: { x: 260, y: 20, width: 200, height: 100 } satisfies Position,
+      [GROUP_ID]: { x: 0, y: 0, width: 500, height: 300, color: "#0d6efd" } satisfies Position,
+    },
+    transitions: {
+      [EDGE_ID]: { sourceHandle: "right", targetHandle: "left" },
+    },
+    updatedAt: TS,
+  };
 }
 
 function mkNonEmptyProject(): FlowProject {
-  return {
-    version: 1,
-    name: "実プロジェクト",
-    screens: [
-      { id: "s1", no: 1, name: "画面1", type: "standard", description: "", path: "", position: { x: 0, y: 0 }, size: { w: 200, h: 100 }, hasDesign: false, createdAt: "", updatedAt: "" } as any,
-    ],
-    groups: [],
-    edges: [],
-    updatedAt: new Date().toISOString(),
-  } as FlowProject;
+  return composeFlowProject(mkPersistedProject(), mkLayout());
 }
 
 describe("flowStore データ消失ガード (2026-04-22)", () => {
@@ -47,7 +128,7 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
     localStorage.clear();
   });
 
-  it("loadProject: backend が null を返しても空 project を backend に書き戻さない", async () => {
+  it("loadProject: backend が null を返しても空 project を backend に書き込まない", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(null),
@@ -59,11 +140,10 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
     const result = await loadProject();
 
     expect(result.screens).toHaveLength(0);
-    // 重要: backend.saveProject が呼ばれていないこと
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  it("loadProject: backend null + localStorage 空でも backend には書き戻さない", async () => {
+  it("loadProject: backend null + localStorage 空でも backend には書き込まない", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(null),
@@ -71,16 +151,14 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
       deleteScreenData: vi.fn().mockResolvedValue(undefined),
     };
     setFlowStorageBackend(backend);
-    // localStorage も空
-    localStorage.removeItem("flow-project");
 
     const result = await loadProject();
 
-    expect(result.name).toBe("新規プロジェクト");
+    expect(result.screens).toHaveLength(0);
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  it("loadProject: localStorage に有意データがあれば backend に移行する", async () => {
+  it("loadProject: localStorage に有効データがあれば backend に v3 Project として移行する", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(null),
@@ -88,19 +166,36 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
       deleteScreenData: vi.fn().mockResolvedValue(undefined),
     };
     setFlowStorageBackend(backend);
-    localStorage.setItem("flow-project", JSON.stringify(mkNonEmptyProject()));
+    localStorage.setItem("v3-project", JSON.stringify(mkPersistedProject()));
 
     const result = await loadProject();
 
-    expect(result.screens).toHaveLength(1);
-    // 有意データがあるので backend 移行は走る
+    expect(result.screens).toHaveLength(2);
     expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(saveMock.mock.calls[0][0]).toMatchObject({ schemaVersion: "v3" });
+  });
+
+  it("loadProject: 旧 localStorage key flow-project を v3-project に rename する", async () => {
+    localStorage.setItem("flow-project", JSON.stringify({
+      version: 1,
+      name: "legacy",
+      screens: [],
+      groups: [],
+      edges: [],
+      updatedAt: TS,
+    }));
+
+    const result = await loadProject();
+
+    expect(result.name).toBe("legacy");
+    expect(localStorage.getItem("flow-project")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("v3-project") ?? "{}")).toMatchObject({ schemaVersion: "v3" });
   });
 
   it("saveProject: 空 project で非空 backend を上書きしない (data-loss guard)", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
-      loadProject: vi.fn().mockResolvedValue(mkNonEmptyProject()),
+      loadProject: vi.fn().mockResolvedValue(mkPersistedProject()),
       saveProject: saveMock,
       deleteScreenData: vi.fn().mockResolvedValue(undefined),
     };
@@ -108,11 +203,10 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
 
     await saveProject(mkEmptyProject());
 
-    // backend にデータがあるので空上書きは拒否される
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  it("saveProject: 空 project でも backend が空ならそのまま保存する (初回)", async () => {
+  it("saveProject: 空 project でも backend が空なら保存する (初回)", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(null),
@@ -123,14 +217,13 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
 
     await saveProject(mkEmptyProject());
 
-    // backend にデータなし → 書き込み成功
     expect(saveMock).toHaveBeenCalledTimes(1);
   });
 
-  it("saveProject: 非空 project はガードの影響を受けない (通常の保存)", async () => {
+  it("saveProject: 非空 project はガードの影響を受けない", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
-      loadProject: vi.fn().mockResolvedValue(mkNonEmptyProject()),
+      loadProject: vi.fn().mockResolvedValue(mkPersistedProject()),
       saveProject: saveMock,
       deleteScreenData: vi.fn().mockResolvedValue(undefined),
     };
@@ -138,14 +231,13 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
 
     await saveProject(mkNonEmptyProject());
 
-    // 非空 → 無条件保存
     expect(saveMock).toHaveBeenCalledTimes(1);
   });
 
   it("persistProject: 同じ data-loss guard が適用される", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
     const backend: FlowStorageBackend = {
-      loadProject: vi.fn().mockResolvedValue(mkNonEmptyProject()),
+      loadProject: vi.fn().mockResolvedValue(mkPersistedProject()),
       saveProject: saveMock,
       deleteScreenData: vi.fn().mockResolvedValue(undefined),
     };
@@ -154,5 +246,43 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
     await persistProject(mkEmptyProject());
 
     expect(saveMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("flowStore v3 compose/decompose", () => {
+  it("Project entities と ScreenLayout を FlowProject に合成し、保存 shape に戻せる", () => {
+    const project = mkPersistedProject();
+    const layout = mkLayout();
+
+    const flow = composeFlowProject(project, layout);
+
+    expect(flow.screens[0]).toMatchObject({
+      id: SCREEN_ID,
+      position: { x: 10, y: 20 },
+      size: { width: 200, height: 100 },
+      groupId: GROUP_ID,
+    });
+    expect(flow.edges[0]).toMatchObject({
+      id: EDGE_ID,
+      source: SCREEN_ID,
+      target: SCREEN_ID_2,
+      sourceHandle: "right",
+      targetHandle: "left",
+    });
+
+    const decomposed = decomposeFlowProject(flow, layout);
+
+    expect(decomposed.project).toMatchObject({
+      $schema: "../schemas/v3/project.v3.schema.json",
+      schemaVersion: "v3",
+      entities: {
+        screens: project.entities?.screens,
+        screenGroups: project.entities?.screenGroups,
+        screenTransitions: project.entities?.screenTransitions,
+        processFlows: project.entities?.processFlows,
+      },
+    });
+    expect(decomposed.layout.positions[SCREEN_ID]).toMatchObject({ x: 10, y: 20, width: 200, height: 100 });
+    expect(decomposed.layout.transitions?.[EDGE_ID]).toEqual({ sourceHandle: "right", targetHandle: "left" });
   });
 });

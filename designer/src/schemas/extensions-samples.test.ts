@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
 import addFormats from "ajv-formats";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
@@ -15,7 +15,8 @@ const schemasDir = resolve(repoRoot, "schemas");
  */
 function schemaPathForSample(fileName: string): string {
   const kind = basename(fileName, ".json"); // e.g. "field-types"
-  return join(schemasDir, `extensions-${kind}.schema.json`);
+  const rootPath = join(schemasDir, `extensions-${kind}.schema.json`);
+  return existsSync(rootPath) ? rootPath : join(schemasDir, "v1", `extensions-${kind}.schema.json`);
 }
 
 const sampleFiles = readdirSync(samplesDir, { recursive: true })

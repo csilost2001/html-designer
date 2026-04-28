@@ -8,6 +8,8 @@
  * 永続化境界 (flowStore / screenLayoutStore) で合成・分解する。
  */
 import type {
+  LocalId,
+  ProcessFlowEntry,
   ScreenGroupId,
   ScreenId,
   ScreenKind,
@@ -48,9 +50,9 @@ export interface ScreenGroup {
 
 /** UI 用 ScreenEdge: ScreenTransitionEntry + UI handle (ScreenLayout.transitions[id])。 */
 export interface ScreenEdge {
-  id: string;
-  source: string;
-  target: string;
+  id: LocalId;
+  source: ScreenId;
+  target: ScreenId;
   sourceHandle?: string;
   targetHandle?: string;
   label: string;
@@ -123,18 +125,24 @@ export interface FlowProject {
 /**
  * 処理フローメタ情報 (project.json 管理用、Phase 4 で v3 ProcessFlowEntry に統合予定)。
  */
-export interface ProcessFlowMeta {
-  id: string;
-  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
-  no: number;
-  name: string;
+export interface ProcessFlowMeta extends ProcessFlowEntry {
+  /** @deprecated Phase 4-gamma で kind に統合予定。本 Phase の project entries には保存しない。 */
   type: string;
-  screenId?: string;
-  actionCount: number;
-  updatedAt: Timestamp;
-  maturity?: "draft" | "provisional" | "committed";
-  notesCount?: number;
 }
+
+// legacy ProcessFlowMeta removed
+// export interface ProcessFlowMeta {
+//   id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+//   no: number;
+//   name: string;
+//   type: string;
+//   screenId?: string;
+//   actionCount: number;
+//   updatedAt: Timestamp;
+//   maturity?: "draft" | "provisional" | "committed";
+//   notesCount?: number;
+// }
 
 // ─── 後方互換 alias (Phase 4 で削除) ─────────────────────────────────
 //
