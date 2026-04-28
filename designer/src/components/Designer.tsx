@@ -250,8 +250,25 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     mcpBridge.setCurrentScreenId(screenId);
     mcpBridge.start(editor);
 
-    // 他タブ/クライアントで同じ画面が変更されたとき。
-    // dirty 中はバナー表示、clean なら即リロード。
+    // 他タブ/クライアントで同じ画面が変更されたとき (broadcast: screenChanged)。
+    // - dirty 中: ServerChangeBanner を表示してユーザー判断に委ねる
+    // - clean: editor.load() で即時リロード
+    //
+    // 設計差異 (#576): `useResourceEditor` を使う他の editor (TableEditor / ProcessFlowEditor 等) は
+    // 上記の broadcast 受信に加えて、MCP 再接続時 (`onStatusChange("connected")`) にも clean なら
+    // 自動 reload する。Designer はこれを意図的に行わない:
+    //   - GrapesJS は canvas DOM / undo stack / 選択中コンポーネント / scroll 位置 / 適用中テーマ等の
+    //     内部 state を多く保持しており、`editor.load()` 1 回で全てが silently swap される
+    //   - 再接続イベント自体ではサーバ側に変更が起きたとは限らず、無条件 reload は UX 上の不連続が大きい
+    //   - 「他クライアントによる明示的な変更通知 (broadcast)」だけを clean 時の即時反映トリガにする
+    //
+    // ServerChangeBanner が立つ経路は 2 つだけで、MCP 再接続イベント自体はそのトリガに含めない:
+    //   (a) broadcast (`screenChanged`) を dirty 中に受信したとき (本ハンドラ下 if 分岐)
+    //   (b) タブ再オープン時の初回マウント後 `useEffect` (`Designer.tsx:415-426`) が
+    //       `hasServerBeenUpdated` を呼び差分が見つかったとき
+    // 注意: タブを開いたまま切断 → 再接続した間に他クライアントが screen を編集した場合、
+    // broadcast は接続中しか届かないため取りこぼされ、再接続時点では検知できない。
+    // この trade-off (silent swap を避ける代わりに取りこぼしを許容) は明示的な選択。
     const unsubScreenChanged = mcpBridge.onBroadcast("screenChanged", (data) => {
       const d = data as { screenId?: string; deleted?: boolean };
       if (d.screenId !== screenId || d.deleted) return;
