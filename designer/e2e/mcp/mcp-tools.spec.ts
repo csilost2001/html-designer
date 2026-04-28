@@ -219,11 +219,11 @@ test.describe("wsBridge ファイル操作", () => {
       const tableId = "e2e-test-table-001";
       const testData = {
         id: tableId,
-        name: "test_users",
-        logicalName: "テストユーザー",
+        physicalName: "test_users",
+        name: "テストユーザー",
         description: "E2E 用",
         columns: [
-          { id: "c1", name: "id", logicalName: "ID", dataType: "INTEGER", notNull: true, primaryKey: true },
+          { id: "c1", physicalName: "id", name: "ID", dataType: "INTEGER", notNull: true, primaryKey: true },
         ],
         indexes: [],
         createdAt: new Date().toISOString(),

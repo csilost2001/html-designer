@@ -14,15 +14,15 @@ const TABLE_ID = "test-table-0001-4000-8000-000000000001";
 
 const dummyTable = {
   id: TABLE_ID,
-  name: "users",
-  logicalName: "ユーザーマスタ",
+  physicalName: "users",
+  name: "ユーザーマスタ",
   description: "",
   category: "マスタ",
   columns: [
     {
       id: "col-0001",
-      name: "id",
-      logicalName: "ユーザーID",
+      physicalName: "id",
+      name: "ユーザーID",
       dataType: "INTEGER",
       notNull: true,
       primaryKey: true,
@@ -44,8 +44,8 @@ const dummyProject = {
   tables: [
     {
       id: TABLE_ID,
-      name: "users",
-      logicalName: "ユーザーマスタ",
+      physicalName: "users",
+      name: "ユーザーマスタ",
       description: "",
       createdAt: dummyTable.createdAt,
       updatedAt: dummyTable.updatedAt,
@@ -67,7 +67,7 @@ async function setupTableEditor(page: Page) {
   await page.addInitScript(
     ({ project, table, tableId, tab }) => {
       localStorage.setItem("flow-project", JSON.stringify(project));
-      localStorage.setItem(`table-${tableId}`, JSON.stringify(table));
+      localStorage.setItem(`v3-table-${tableId}`, JSON.stringify(table));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));
       localStorage.setItem("designer-active-tab", tab.id);
       // 前回のテストの下書きを削除

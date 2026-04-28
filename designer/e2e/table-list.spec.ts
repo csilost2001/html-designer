@@ -12,9 +12,9 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const dummyTables = [
-  { id: "tbl-0001", name: "users", logicalName: "ユーザーマスタ", description: "", category: "マスタ", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "tbl-0002", name: "orders", logicalName: "注文", description: "", category: "トランザクション", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "tbl-0003", name: "products", logicalName: "商品マスタ", description: "", category: "マスタ", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "tbl-0001", physicalName: "users", name: "ユーザーマスタ", description: "", category: "マスタ", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "tbl-0002", physicalName: "orders", name: "注文", description: "", category: "トランザクション", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "tbl-0003", physicalName: "products", name: "商品マスタ", description: "", category: "マスタ", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 
 const dummyProject = {
@@ -31,7 +31,7 @@ async function setupTableList(page: Page) {
   await page.addInitScript(({ project, tables }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     for (const t of tables) {
-      localStorage.setItem(`table-${t.id}`, JSON.stringify({ ...t, columns: [], indexes: [] }));
+      localStorage.setItem(`v3-table-${t.id}`, JSON.stringify({ ...t, columns: [], indexes: [] }));
     }
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
@@ -157,12 +157,12 @@ test.describe("テーブル一覧 / ソート", () => {
     await setupTableList(page);
     await page.getByRole("button", { name: "表表示" }).click();
     // テーブル名列ヘッダをクリック
-    await page.locator(".data-list-th-sortable").filter({ hasText: "テーブル名" }).click();
+    await page.locator(".data-list-th-sortable").first().click();
     await expect(page.locator(".data-list-th-sorted")).toHaveCount(1);
     // 列ヘッダの icon だけ絞る (#148 SortBar にも同じ caret アイコンが出るため)
     await expect(page.locator(".data-list-sort-icon.bi-caret-up-fill")).toHaveCount(1);
     // 再クリックで降順
-    await page.locator(".data-list-th-sortable").filter({ hasText: "テーブル名" }).click();
+    await page.locator(".data-list-th-sortable").first().click();
     await expect(page.locator(".data-list-sort-icon.bi-caret-down-fill")).toHaveCount(1);
   });
 });
