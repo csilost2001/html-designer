@@ -5,7 +5,7 @@
  * conventions-catalog.json に存在するかを検査。
  * 画面項目定義 (ScreenItemsFile) の pattern / errorMessages.* も対象 (#351)。
  */
-import type { ScreenItemsFile } from "../types/screenItem";
+import type { ScreenItemsFile } from "../store/screenItemsStore";
 import type {
   ProcessFlow,
   Step,

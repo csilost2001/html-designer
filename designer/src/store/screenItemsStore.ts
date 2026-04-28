@@ -1,11 +1,37 @@
 /**
- * screenItemsStore.ts
- * 画面項目定義の永続化ストア (#318 プロトタイプ)。
+ * screenItemsStore.ts (v3 Phase 3-α、#559)
+ * 画面項目定義の永続化ストア。
  *
  * 正本は `data/screen-items/{screenId}.json`。wsBridge 経由で読み書きし、
  * ws 未接続時は localStorage にフォールバック。
+ *
+ * 注: v3 schema では ScreenItem は Screen.items に inline される設計。
+ * 本 store は Phase 3-α として ScreenItemsFile wrapper を維持しているが、
+ * Phase 3-β (Screen 自体の v3 化) で `data/screens/{id}.json` の `items` フィールドに
+ * 統合される予定。そのため $schema 属性は本 store では出力しない (wrapper schema 不在)。
  */
-import { createEmptyScreenItems, type ScreenItemsFile } from "../types/screenItem";
+import type { ScreenItem, SemVer, Timestamp, ScreenId } from "../types/v3";
+
+/** 画面項目定義の wrapper file (Phase 3-α 過渡形式)。 */
+export interface ScreenItemsFile {
+  /** 紐付く画面 ID。 */
+  screenId: ScreenId;
+  /** SemVer。 */
+  version: SemVer;
+  /** ISO 8601。 */
+  updatedAt: Timestamp;
+  items: ScreenItem[];
+}
+
+/** 画面項目定義ファイルの初期状態。 */
+export function createEmptyScreenItems(screenId: string): ScreenItemsFile {
+  return {
+    screenId: screenId as ScreenId,
+    version: "0.1.0" as SemVer,
+    updatedAt: new Date().toISOString() as Timestamp,
+    items: [],
+  };
+}
 
 export interface ScreenItemsStorageBackend {
   loadScreenItems(screenId: string): Promise<unknown>;
@@ -19,23 +45,25 @@ export function setScreenItemsStorageBackend(b: ScreenItemsStorageBackend | null
   _backend = b;
 }
 
-/** in-memory キャッシュ: applyRenameInBrowser でファイル未保存のまま id を更新するために使用 */
+/** in-memory キャッシュ: applyRenameInBrowser でファイル未保存のまま id を更新するために使用。 */
 const _cache = new Map<string, ScreenItemsFile>();
 
-/** in-memory キャッシュを更新する (ファイルには書かない) */
+/** in-memory キャッシュを更新する (ファイルには書かない)。 */
 export function setItemsInCache(file: ScreenItemsFile): void {
   _cache.set(file.screenId, { ...file });
 }
 
-/** in-memory キャッシュを削除する */
+/** in-memory キャッシュを削除する。 */
 export function clearItemsFromCache(screenId: string): void {
   _cache.delete(screenId);
 }
 
-const LS_PREFIX = "screen-items-";
+// ─── localStorage キー (v3 名前空間、#559) ───────────────────────────────
 
-function now(): string {
-  return new Date().toISOString();
+const LS_PREFIX = "v3-screen-items-";
+
+function nowTs(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
 export async function loadScreenItems(screenId: string): Promise<ScreenItemsFile> {
@@ -56,13 +84,13 @@ export async function loadScreenItems(screenId: string): Promise<ScreenItemsFile
 }
 
 export async function saveScreenItems(file: ScreenItemsFile): Promise<void> {
-  file.updatedAt = now();
-  _cache.delete(file.screenId);
+  const toSave: ScreenItemsFile = { ...file, updatedAt: nowTs() };
+  _cache.delete(toSave.screenId);
   if (_backend) {
-    await _backend.saveScreenItems(file.screenId, file);
+    await _backend.saveScreenItems(toSave.screenId, toSave);
     return;
   }
-  localStorage.setItem(`${LS_PREFIX}${file.screenId}`, JSON.stringify(file));
+  localStorage.setItem(`${LS_PREFIX}${toSave.screenId}`, JSON.stringify(toSave));
 }
 
 export async function deleteScreenItems(screenId: string): Promise<void> {

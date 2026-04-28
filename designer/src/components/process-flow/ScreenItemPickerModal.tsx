@@ -7,9 +7,10 @@
  */
 import { useEffect, useState } from "react";
 import { loadProject } from "../../store/flowStore";
-import { loadScreenItems } from "../../store/screenItemsStore";
-import type { ScreenItem, ScreenItemsFile } from "../../types/screenItem";
+import { loadScreenItems, type ScreenItemsFile } from "../../store/screenItemsStore";
+import type { ScreenItem } from "../../types/v3";
 import type { ScreenItemPickResult } from "./StructuredFieldsEditor";
+import type { FieldType as V1FieldType } from "../../types/action";
 
 interface Props {
   open: boolean;
@@ -18,6 +19,21 @@ interface Props {
 }
 
 type ScreenMeta = { id: string; name: string };
+
+/**
+ * v3 ScreenItem.type → v1 FieldType への暫定変換 (Phase 3-α 過渡形式)。
+ * v3 のみの primitive (integer/datetime/json) は v1 では string にマップ。
+ * Phase 4 で ProcessFlow も v3 化したら本関数は不要。
+ */
+function v3TypeToV1(type: ScreenItem["type"]): V1FieldType {
+  if (typeof type === "string") {
+    if (type === "string" || type === "number" || type === "boolean" || type === "date") return type;
+    return "string";
+  }
+  if (type.kind === "extension") return { kind: "custom", label: type.extensionRef };
+  if (type.kind === "domain") return { kind: "custom", label: type.domainKey };
+  return type as V1FieldType;
+}
 
 export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
   const [screens, setScreens] = useState<ScreenMeta[]>([]);
@@ -42,10 +58,10 @@ export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
     if (!selectedScreenId) return;
     onPick({
       screenId: selectedScreenId,
-      itemId: item.id,
-      name: item.id,
+      itemId: item.id as string,
+      name: item.id as string,
       label: item.label || undefined,
-      type: item.type,
+      type: v3TypeToV1(item.type),
       required: item.required || undefined,
       description: item.description || undefined,
     });
@@ -97,7 +113,11 @@ export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
                 <div className="screen-item-picker-item-meta">
                   {item.label && <span className="me-2">{item.label}</span>}
                   <span className="text-muted">
-                    {typeof item.type === "string" ? item.type : item.type.kind === "custom" ? item.type.label : "?"}
+                    {typeof item.type === "string"
+                      ? item.type
+                      : item.type.kind === "extension"
+                        ? item.type.extensionRef
+                        : item.type.kind}
                   </span>
                   {item.required && <span className="badge bg-danger ms-2" style={{ fontSize: "0.65rem" }}>必須</span>}
                 </div>

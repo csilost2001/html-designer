@@ -13,7 +13,7 @@
  * ユーザーが "先に定義してから配置する" 場合、ロード後の reconcile で削除されることに注意。
  */
 import type { Editor as GEditor, Component } from "grapesjs";
-import type { FieldType } from "../types/action";
+import type { FieldType, Identifier } from "../types/v3";
 import { loadScreenItems, saveScreenItems } from "../store/screenItemsStore";
 import { isNamableElement, walk } from "./dataItemId";
 
@@ -76,7 +76,7 @@ function syncAddComponent(screenId: string, cmp: Component): void {
     let changed = false;
     for (const { id, cmp: c } of toAdd) {
       if (file.items.some((i) => i.id === id)) continue;
-      file.items.push({ id, label: "", type: inferScreenItemType(c) });
+      file.items.push({ id: id as Identifier, label: "", type: inferScreenItemType(c) });
       changed = true;
     }
     if (changed) await saveScreenItems(file);
@@ -118,7 +118,7 @@ export function reconcileScreenItems(editor: GEditor, screenId: string): void {
     // canvas にあって screen-items にない → 追加
     for (const [id, cmp] of canvasIds) {
       if (!file.items.some((i) => i.id === id)) {
-        file.items.push({ id, label: "", type: inferScreenItemType(cmp) });
+        file.items.push({ id: id as Identifier, label: "", type: inferScreenItemType(cmp) });
         changed = true;
       }
     }

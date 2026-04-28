@@ -5,6 +5,7 @@ import { isNamableElement, getItemIdPrefix, getExistingNamesFromEditor } from ".
 import { generateAutoId } from "../utils/screenItemNaming";
 import { mcpBridge } from "../mcp/mcpBridge";
 import { loadScreenItems, saveScreenItems } from "../store/screenItemsStore";
+import type { Identifier } from "../types/v3";
 
 type TabId = "styles" | "traits" | "layers" | "a11y";
 
@@ -153,7 +154,7 @@ export function RightPanel({ screenId }: RightPanelProps) {
         const siFile = await loadScreenItems(screenId);
         const item = siFile.items.find((it) => it.id === selectedItemName);
         if (item) {
-          item.id = newId;
+          item.id = newId as Identifier;
           await saveScreenItems(siFile);
         }
       } catch {
