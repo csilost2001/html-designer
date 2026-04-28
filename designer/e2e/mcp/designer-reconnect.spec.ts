@@ -45,7 +45,7 @@ const project = {
     id: SCREEN_ID,
     no: 1,
     name: "Issue 578 Designer",
-    type: "standard",
+    kind: "standard",
     updatedAt: new Date("2026-04-29T00:00:00.000Z").toISOString(),
   }],
   groups: [],
