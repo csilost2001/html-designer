@@ -32,7 +32,6 @@ import {
   loadProject,
   saveProject,
   persistProject,
-  setFlowDraftMode,
   loadFlowDraft,
   clearFlowDraft,
   subscribeToFlowDraftSaves,
@@ -50,14 +49,13 @@ import {
   generateMermaid,
   generateFlowMarkdown,
 } from "../../store/flowStore";
-import { mcpBridge } from "../../mcp/mcpBridge";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { useFlowProjectSync } from "../../hooks/useFlowProjectSync";
 import { openTab, makeTabId } from "../../store/tabStore";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useErrorDialog } from "../common/ErrorDialogProvider";
-import { acknowledgeServerMtime, hasServerBeenUpdated } from "../../utils/serverMtime";
-import { hasDraft } from "../../utils/draftStorage";
+import { acknowledgeServerMtime } from "../../utils/serverMtime";
 import "../../styles/flow.css";
 
 const nodeTypes = {
@@ -133,7 +131,6 @@ function FlowEditorInner() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [serverChanged, setServerChanged] = useState(false);
   const isDirtyRef = useRef(false);
   const needsFitViewRef = useRef(false);
 
@@ -212,73 +209,17 @@ function FlowEditorInner() {
     }
   }, [isLoading, nodes, fitView]);
 
-  // MCP bridge + 初回ロード + ブロードキャスト受信
+  const { serverChanged, dismissServerBanner } = useFlowProjectSync({
+    reload: reloadProject,
+    isDirtyRef,
+    navigate,
+  });
+
   useEffect(() => {
-    let mounted = true;
-
-    // UI 起点の変更はドラフトに書き込む
-    setFlowDraftMode(true);
-
-    // draft 保存が発生したら isDirty を立てる
-    const unsubDraft = subscribeToFlowDraftSaves(() => {
+    return subscribeToFlowDraftSaves(() => {
       setIsDirty(true);
-      isDirtyRef.current = true;
     });
-
-    const handleExternalChange = () => {
-      if (!mounted) return;
-      if (isDirtyRef.current) {
-        // ユーザーに未保存編集があるのでバナー表示
-        setServerChanged(true);
-      } else {
-        reloadProject().catch(console.error);
-      }
-    };
-
-    mcpBridge.setNavigateHandler((path) => navigate(path));
-
-    // MCP 経由でフローが変更されたとき（addScreen 等）
-    mcpBridge.setFlowChangeHandler(handleExternalChange);
-
-    // 他タブ/ブラウザでプロジェクトが変更されたとき
-    const unsubProject = mcpBridge.onBroadcast("projectChanged", handleExternalChange);
-
-    // WS 接続完了時にファイルから再ロード（初回ロード時にバックエンドが未設定だった場合の補完）
-    const unsubStatus = mcpBridge.onStatusChange((status) => {
-      if (status === "connected" && mounted) {
-        if (isDirtyRef.current) {
-          setServerChanged(true);
-        } else {
-          reloadProject().catch(console.error);
-        }
-      }
-    });
-
-    // エディターなしで WebSocket 接続を維持
-    mcpBridge.startWithoutEditor();
-
-    // 初回ロード（WS 未接続時は localStorage フォールバック）
-    reloadProject().then(async () => {
-      // タブを開いた時点でサーバー側に新しい変更がないか確認
-      if (hasDraft("flow", "project")) {
-        if (await hasServerBeenUpdated("project")) {
-          if (mounted) setServerChanged(true);
-        }
-      } else {
-        await acknowledgeServerMtime("project");
-      }
-    }).catch(console.error);
-
-    return () => {
-      mounted = false;
-      setFlowDraftMode(false);
-      mcpBridge.setNavigateHandler(null);
-      mcpBridge.setFlowChangeHandler(null);
-      unsubDraft();
-      unsubProject();
-      unsubStatus();
-    };
-  }, [navigate, reloadProject]);
+  }, []);
 
   // Modals
   const [screenModal, setScreenModal] = useState<{
@@ -763,7 +704,7 @@ function FlowEditorInner() {
       await persistProject(projectRef.current);
       setIsDirty(false);
       isDirtyRef.current = false;
-      setServerChanged(false);
+      dismissServerBanner();
       await acknowledgeServerMtime("project");
     } catch (e) {
       console.error("[FlowEditor] save failed:", e);
@@ -774,7 +715,7 @@ function FlowEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, showError]);
+  }, [isSaving, showError, dismissServerBanner]);
 
   const handleReset = useCallback(async () => {
     clearFlowDraft();
@@ -783,9 +724,9 @@ function FlowEditorInner() {
     setCanUndo(false);
     setCanRedo(false);
     await reloadProject();
-    setServerChanged(false);
+    dismissServerBanner();
     await acknowledgeServerMtime("project");
-  }, [reloadProject]);
+  }, [reloadProject, dismissServerBanner]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving) handleSave();
@@ -799,7 +740,7 @@ function FlowEditorInner() {
       {serverChanged && (
         <ServerChangeBanner
           onReload={handleReset}
-          onDismiss={() => setServerChanged(false)}
+          onDismiss={dismissServerBanner}
         />
       )}
       <FlowSubToolbar
