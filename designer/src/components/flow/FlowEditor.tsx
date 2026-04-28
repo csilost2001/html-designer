@@ -27,6 +27,7 @@ import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
 import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup } from "../../types/flow";
 import { TRIGGER_LABELS } from "../../types/flow";
+import type { ScreenGroupId, ScreenKind, Timestamp } from "../../types/v3";
 import {
   loadProject,
   saveProject,
@@ -401,7 +402,7 @@ function FlowEditorInner() {
     if (screenModal.editId) {
       await updateScreen(projectRef.current, screenModal.editId, {
         name: data.name,
-        type: data.type,
+        kind: data.type as ScreenKind,
         path: data.path,
         description: data.description,
       });
@@ -411,7 +412,7 @@ function FlowEditorInner() {
         return { ...n, data: { ...screen } };
       }));
     } else {
-      const screen = await addScreen(projectRef.current, data.name, data.type, data.path);
+      const screen = await addScreen(projectRef.current, data.name, data.type as ScreenKind, data.path);
       screen.description = data.description;
       await saveProject(projectRef.current);
       setNodes((nds) => [...nds, {
@@ -463,7 +464,7 @@ function FlowEditorInner() {
       setScreenModal({
         open: true,
         editId: screen.id,
-        initial: { name: screen.name, type: screen.type, path: screen.path, description: screen.description },
+        initial: { name: screen.name, type: screen.kind, path: screen.path, description: screen.description },
       });
     }
     setContextMenu(null);
@@ -477,7 +478,7 @@ function FlowEditorInner() {
       const dup = await addScreen(
         projectRef.current,
         `${screen.name} (コピー)`,
-        screen.type,
+        screen.kind,
         screen.path,
         { x: screen.position.x + 30, y: screen.position.y + 30 },
       );
@@ -563,7 +564,7 @@ function FlowEditorInner() {
     setContextMenu(null);
   }, [contextMenu, setNodes]);
 
-  const handleAssignGroup = useCallback(async (groupId: string) => {
+  const handleAssignGroup = useCallback(async (groupId: ScreenGroupId) => {
     if (!contextMenu || !projectRef.current) return;
     const screen = projectRef.current.screens.find((s) => s.id === contextMenu.targetId);
     const group = (projectRef.current.groups ?? []).find((g) => g.id === groupId);
@@ -582,7 +583,7 @@ function FlowEditorInner() {
       y: Math.max(32, absPos.y - group.position.y),
     };
     screen.groupId = groupId;
-    screen.updatedAt = new Date().toISOString();
+    screen.updatedAt = new Date().toISOString() as Timestamp;
     await saveProject(projectRef.current);
     setNodes(toRFNodesWithGroups(projectRef.current.screens, projectRef.current.groups ?? []));
     setContextMenu(null);
@@ -600,7 +601,7 @@ function FlowEditorInner() {
       };
     }
     screen.groupId = undefined;
-    screen.updatedAt = new Date().toISOString();
+    screen.updatedAt = new Date().toISOString() as Timestamp;
     await saveProject(projectRef.current);
     setNodes(toRFNodesWithGroups(projectRef.current.screens, projectRef.current.groups ?? []));
     setContextMenu(null);

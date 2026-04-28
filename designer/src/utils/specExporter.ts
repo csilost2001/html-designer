@@ -167,7 +167,7 @@ export function generateSpecJson(
     relations: relations.map((r) => toSpecRelation(r)),
     screens: project.screens.map((s) => ({
       name: s.name,
-      type: s.type,
+      type: s.kind,
       path: s.path,
       description: s.description,
       hasDesign: s.hasDesign,

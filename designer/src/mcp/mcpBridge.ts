@@ -42,6 +42,10 @@ import {
   type ErLayoutStorageBackend,
 } from "../store/erLayoutStore";
 import {
+  setScreenLayoutStorageBackend,
+  type ScreenLayoutStorageBackend,
+} from "../store/screenLayoutStore";
+import {
   setProcessFlowStorageBackend,
   type ProcessFlowStorageBackend,
 } from "../store/processFlowStore";
@@ -337,6 +341,12 @@ class McpBridgeImpl {
     };
     setErLayoutStorageBackend(erLayoutBackend);
 
+    const screenLayoutBackend: ScreenLayoutStorageBackend = {
+      loadScreenLayout: () => this.request("loadScreenLayout"),
+      saveScreenLayout: (data) => this.request("saveScreenLayout", { data }).then(() => undefined),
+    };
+    setScreenLayoutStorageBackend(screenLayoutBackend);
+
     const actionBackend: ProcessFlowStorageBackend = {
       loadProcessFlow: (id) => this.request("loadProcessFlow", { id }),
       saveProcessFlow: (id, data) => this.request("saveProcessFlow", { id, data }).then(() => undefined),
@@ -379,6 +389,7 @@ class McpBridgeImpl {
     setCustomBlocksBackend(null);
     setTableStorageBackend(null);
     setErLayoutStorageBackend(null);
+    setScreenLayoutStorageBackend(null);
     setProcessFlowStorageBackend(null);
     setConventionsStorageBackend(null);
     setScreenItemsStorageBackend(null);
@@ -642,7 +653,7 @@ class McpBridgeImpl {
           const screens = project.screens.map((s) => ({
             id: s.id,
             name: s.name,
-            type: s.type,
+            kind: s.kind,
             path: s.path,
             hasDesign: s.hasDesign,
           }));

@@ -18,6 +18,8 @@ import {
   deleteTable as deleteTableFile,
   readErLayout,
   writeErLayout,
+  readScreenLayout,
+  writeScreenLayout,
   readProcessFlow,
   writeProcessFlow,
   deleteProcessFlow as deleteProcessFlowFile,
@@ -419,6 +421,18 @@ class WsBridge extends EventEmitter {
           await writeErLayout(data);
           respond({ success: true });
           this.broadcast("erLayoutChanged", {}, clientId);
+          break;
+        }
+        case "loadScreenLayout": {
+          const layoutData = await readScreenLayout();
+          respond(layoutData);
+          break;
+        }
+        case "saveScreenLayout": {
+          const { data } = (params ?? {}) as { data: unknown };
+          await writeScreenLayout(data);
+          respond({ success: true });
+          this.broadcast("screenLayoutChanged", {}, clientId);
           break;
         }
         case "loadProcessFlow": {

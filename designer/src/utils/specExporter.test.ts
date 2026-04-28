@@ -45,7 +45,7 @@ const emptyProject: FlowProject = {
   screens: [],
   groups: [],
   edges: [],
-  updatedAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString() as Timestamp,
 };
 
 const emptyErLayout: ErLayout = {

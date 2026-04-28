@@ -325,7 +325,7 @@ async function syncProcessFlowMeta(group: ProcessFlow): Promise<void> {
     type: group.type,
     screenId: group.screenId,
     actionCount: group.actions.length,
-    updatedAt: group.updatedAt,
+    updatedAt: group.updatedAt as import("../types/v3").Timestamp,
     maturity: group.maturity,
     notesCount: countGroupNotes(group),
   };

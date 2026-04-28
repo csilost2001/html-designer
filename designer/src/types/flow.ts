@@ -1,29 +1,64 @@
-/** 画面種別 */
-export type ScreenType =
-  | "login"      // ログイン
-  | "dashboard"  // ダッシュボード
-  | "list"       // 一覧
-  | "detail"     // 詳細
-  | "form"       // 入力フォーム
-  | "search"     // 検索
-  | "confirm"    // 確認
-  | "complete"   // 完了
-  | "error"      // エラー
-  | "modal"      // モーダル
-  | "other";     // その他
+/**
+ * 画面フロー UI で使う合成型 (Phase 3-β、#561)
+ *
+ * v3 では Screen (業務情報) と ScreenLayout.positions[id] (UI 座標) を分離保存する。
+ * UI 側 (FlowEditor / ScreenListView 等) では両者を合成した shape を扱うほうが扱いやすいため、
+ * 永続化は別系統だが React state として `ScreenNode` / `ScreenEdge` / `ScreenGroup` を保持する。
+ *
+ * 永続化境界 (flowStore / screenLayoutStore) で合成・分解する。
+ */
+import type {
+  ScreenGroupId,
+  ScreenId,
+  ScreenKind,
+  ScreenTransitionEntry,
+  Timestamp,
+} from "./v3";
 
-/** 遷移トリガー */
-export type TransitionTrigger =
-  | "click"      // ボタン/リンククリック
-  | "submit"     // フォーム送信
-  | "select"     // 行選択
-  | "cancel"     // キャンセル
-  | "auto"       // 自動遷移（リダイレクト等）
-  | "back"       // 戻る操作
-  | "other";     // その他
+/** UI 用 ScreenNode: v3 Screen 業務情報 + UI 座標 (ScreenLayout.positions[id])。 */
+export interface ScreenNode {
+  id: ScreenId;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
+  name: string;
+  kind: ScreenKind;
+  description: string;
+  path: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  hasDesign: boolean;
+  /** 所属グループ ID (Screen.groupId)。 */
+  groupId?: ScreenGroupId;
+  /** デザインのサムネイル (data:image/jpeg;base64,...、Position.thumbnail に格納)。 */
+  thumbnail?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
 
-/** 画面種別ラベル */
-export const SCREEN_TYPE_LABELS: Record<ScreenType, string> = {
+/** UI 用 ScreenGroup: ScreenGroupEntry + UI 座標 (ScreenLayout.positions[id])。 */
+export interface ScreenGroup {
+  id: ScreenGroupId;
+  name: string;
+  color?: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/** UI 用 ScreenEdge: ScreenTransitionEntry + UI handle (ScreenLayout.transitions[id])。 */
+export interface ScreenEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  label: string;
+  trigger: ScreenTransitionEntry["trigger"];
+}
+
+/** Screen 種別の表示ラベル (12 種、v3 BuiltinScreenKind に対応)。 */
+export const SCREEN_KIND_LABELS: Record<string, string> = {
   login: "ログイン",
   dashboard: "ダッシュボード",
   list: "一覧",
@@ -34,11 +69,12 @@ export const SCREEN_TYPE_LABELS: Record<ScreenType, string> = {
   complete: "完了",
   error: "エラー",
   modal: "モーダル",
+  wizard: "ウィザード",
   other: "その他",
 };
 
-/** 画面種別アイコン (Bootstrap Icons) */
-export const SCREEN_TYPE_ICONS: Record<ScreenType, string> = {
+/** Screen 種別アイコン (Bootstrap Icons)。 */
+export const SCREEN_KIND_ICONS: Record<string, string> = {
   login: "bi-box-arrow-in-right",
   dashboard: "bi-speedometer2",
   list: "bi-list-ul",
@@ -49,11 +85,12 @@ export const SCREEN_TYPE_ICONS: Record<ScreenType, string> = {
   complete: "bi-check2-all",
   error: "bi-exclamation-triangle",
   modal: "bi-window-stack",
+  wizard: "bi-magic",
   other: "bi-circle",
 };
 
-/** 遷移トリガーラベル */
-export const TRIGGER_LABELS: Record<TransitionTrigger, string> = {
+/** 遷移トリガーの表示ラベル (v3 ScreenTransitionEntry.trigger と同 union)。 */
+export const TRIGGER_LABELS: Record<ScreenTransitionEntry["trigger"], string> = {
   click: "クリック",
   submit: "フォーム送信",
   select: "行選択",
@@ -63,66 +100,14 @@ export const TRIGGER_LABELS: Record<TransitionTrigger, string> = {
   other: "その他",
 };
 
-/** 画面ノード */
-export interface ScreenNode {
-  id: string;
-  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
-  no: number;
-  name: string;
-  type: ScreenType;
-  description: string;
-  path: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  hasDesign: boolean;
-  /** 所属グループID */
-  groupId?: string;
-  /** デザインのサムネイル（data:image/jpeg;base64,...） */
-  thumbnail?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** 画面グループ */
-export interface ScreenGroup {
-  id: string;
-  name: string;
-  color?: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** 遷移エッジ */
-export interface ScreenEdge {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: string;
-  targetHandle?: string;
-  label: string;
-  trigger: TransitionTrigger;
-}
-
-/** 処理フローメタ情報（project.json 管理用） */
-export interface ProcessFlowMeta {
-  id: string;
-  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
-  no: number;
-  name: string;
-  type: string;
-  screenId?: string;
-  actionCount: number;
-  updatedAt: string;
-  /** 成熟度 (#186、docs/spec/process-flow-maturity.md §6.4)。未指定は "draft" として解釈 */
-  maturity?: "draft" | "provisional" | "committed";
-  /** グループ全体の付箋合計件数 (#228、一覧表示用) */
-  notesCount?: number;
-}
-
-/** プロジェクト全体 */
+/**
+ * UI で扱う集約型 (FlowEditor などで使う)。
+ *
+ * 永続化は project.json + data/screen-layout.json + data/screens/<id>.json に分離するが、
+ * UI 上は 1 つの React state として保持する。flowStore.loadProject() / saveProject() が境界で合成・分解する。
+ */
 export interface FlowProject {
+  /** UI 集約型のバージョン (Phase 3-β = 1)。 */
   version: 1;
   name: string;
   screens: ScreenNode[];
@@ -132,5 +117,35 @@ export interface FlowProject {
   processFlows?: ProcessFlowMeta[];
   sequences?: import("./v3").SequenceEntry[];
   views?: import("./v3").ViewEntry[];
-  updatedAt: string;
+  updatedAt: Timestamp;
 }
+
+/**
+ * 処理フローメタ情報 (project.json 管理用、Phase 4 で v3 ProcessFlowEntry に統合予定)。
+ */
+export interface ProcessFlowMeta {
+  id: string;
+  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
+  no: number;
+  name: string;
+  type: string;
+  screenId?: string;
+  actionCount: number;
+  updatedAt: Timestamp;
+  maturity?: "draft" | "provisional" | "committed";
+  notesCount?: number;
+}
+
+// ─── 後方互換 alias (Phase 4 で削除) ─────────────────────────────────
+//
+// Phase 3-α 以前は kind を `type` で参照していた箇所がある。Phase 3-β で名称統一するが、
+// 移行期間中は alias を提供する。
+
+/** @deprecated Phase 3-β で `ScreenKind` に統合。 */
+export type ScreenType = ScreenKind;
+/** @deprecated Phase 3-β で `SCREEN_KIND_LABELS` に rename。 */
+export const SCREEN_TYPE_LABELS = SCREEN_KIND_LABELS;
+/** @deprecated Phase 3-β で `SCREEN_KIND_ICONS` に rename。 */
+export const SCREEN_TYPE_ICONS = SCREEN_KIND_ICONS;
+/** @deprecated Phase 3-β で `ScreenTransitionEntry["trigger"]` に統合。 */
+export type TransitionTrigger = ScreenTransitionEntry["trigger"];
