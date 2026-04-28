@@ -20,8 +20,8 @@ const ACTIONS_DIR = path.join(DATA_DIR, "actions");
 const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
 const SEQUENCES_DIR = path.join(DATA_DIR, "sequences");
+const VIEWS_DIR = path.join(DATA_DIR, "views");
 export const EXTENSIONS_DIR = path.join(DATA_DIR, "extensions");
-export const VIEWS_FILE = path.join(DATA_DIR, "views.json");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
@@ -84,6 +84,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
   await fs.mkdir(SCREEN_ITEMS_DIR, { recursive: true });
   await fs.mkdir(SEQUENCES_DIR, { recursive: true });
+  await fs.mkdir(VIEWS_DIR, { recursive: true });
   await fs.mkdir(EXTENSIONS_DIR, { recursive: true });
 }
 
@@ -135,7 +136,7 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "processFlow": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
     case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
     case "sequence": return id ? path.join(SEQUENCES_DIR, `${id}.json`) : null;
-    case "view": return VIEWS_FILE;
+    case "view": return id ? path.join(VIEWS_DIR, `${id}.json`) : null;
     default: return null;
   }
 }
@@ -289,15 +290,22 @@ export async function deleteSequence(sequenceId: string): Promise<void> {
   } catch { /* file not found is OK */ }
 }
 
-/** views.json を読み込み (#376) */
-export async function readViewsFile(): Promise<unknown | null> {
-  return readJSON<unknown>(VIEWS_FILE);
+/** views/{viewId}.json を読み込み (v3 per-entity #549) */
+export async function readView(viewId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(VIEWS_DIR, `${viewId}.json`));
 }
 
-/** views.json を書き込み (#376) */
-export async function writeViewsFile(data: unknown): Promise<void> {
+/** views/{viewId}.json を書き込み (v3 per-entity #549) */
+export async function writeView(viewId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(VIEWS_FILE, data);
+  await writeJSON(path.join(VIEWS_DIR, `${viewId}.json`), data);
+}
+
+/** views/{viewId}.json を削除（存在しない場合は無視） (v3 per-entity #549) */
+export async function deleteView(viewId: string): Promise<void> {
+  try {
+    await fs.unlink(path.join(VIEWS_DIR, `${viewId}.json`));
+  } catch { /* file not found is OK */ }
 }
 
 /** actions/ ディレクトリ内の全処理フローを読み込み */

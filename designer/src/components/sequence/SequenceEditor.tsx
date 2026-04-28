@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { Sequence, TableColumnRef, TableId, LocalId } from "../../types/v3";
+import type { Sequence, TableColumnRef, TableId, LocalId, Maturity, SemVer } from "../../types/v3";
 import { loadSequence, saveSequence } from "../../store/sequenceStore";
 import { loadConventions } from "../../store/conventionsStore";
 import { listTables, loadTable } from "../../store/tableStore";
@@ -171,6 +171,38 @@ export function SequenceEditor() {
                 value={seq.description ?? ""}
                 onChange={(e) => update((prev) => ({ ...prev, description: e.target.value || undefined }))}
                 placeholder="発注番号の採番 (ORD-YYYY-NNNN)"
+              />
+            </label>
+            <label className="tbl-field">
+              <span>成熟度</span>
+              <select
+                value={seq.maturity ?? ""}
+                onChange={(e) =>
+                  update((prev) => ({
+                    ...prev,
+                    maturity: (e.target.value || undefined) as Maturity | undefined,
+                  }))
+                }
+              >
+                <option value="">（未指定）</option>
+                <option value="draft">draft（下書き）</option>
+                <option value="provisional">provisional（暫定）</option>
+                <option value="committed">committed（確定）</option>
+              </select>
+            </label>
+            <label className="tbl-field">
+              <span>バージョン</span>
+              <input
+                type="text"
+                value={seq.version ?? ""}
+                onChange={(e) =>
+                  update((prev) => ({
+                    ...prev,
+                    version: (e.target.value || undefined) as SemVer | undefined,
+                  }))
+                }
+                placeholder="1.0.0"
+                pattern="^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
               />
             </label>
           </div>
