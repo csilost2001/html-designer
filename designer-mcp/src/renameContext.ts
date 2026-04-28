@@ -176,7 +176,7 @@ export interface ApplyRenameMappingResult {
 
 // ── 公開 API ────────────────────────────────────────────────────────────────
 
-type ScreenItemsFileShape = {
+type ScreenItemsDocumentShape = {
   items: Array<{ id: string; type: string; label?: string; placeholder?: string }>;
 };
 
@@ -186,13 +186,13 @@ type ScreenItemsFileShape = {
  * 未接続の場合はファイルベースの fallback を使用する。
  */
 export async function getRenameContext(screenId: string): Promise<GetRenameContextResult> {
-  let siFile: ScreenItemsFileShape | null = null;
+  let siFile: ScreenItemsDocumentShape | null = null;
   let html: string;
 
   // ブラウザから live 状態を取得
   const snapshot = await wsBridge.tryCommand("getCanvasSnapshot", { screenId }) as {
     html: string;
-    screenItems: ScreenItemsFileShape | null;
+    screenItems: ScreenItemsDocumentShape | null;
   } | null;
 
   if (snapshot) {
@@ -200,7 +200,7 @@ export async function getRenameContext(screenId: string): Promise<GetRenameConte
     siFile = snapshot.screenItems;
   } else {
     // fallback: ファイルベース
-    siFile = (await readScreenItems(screenId)) as ScreenItemsFileShape | null;
+    siFile = (await readScreenItems(screenId)) as ScreenItemsDocumentShape | null;
     const screenDoc = await readScreen(screenId);
     html = screenToHtml(screenDoc);
   }

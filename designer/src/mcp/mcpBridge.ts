@@ -56,10 +56,12 @@ import {
 import {
   loadScreenItems,
   setItemsInCache,
-  setScreenItemsStorageBackend,
-  type ScreenItemsFile,
-  type ScreenItemsStorageBackend,
+  type ScreenItemsDocument,
 } from "../store/screenItemsStore";
+import {
+  setScreenStorageBackend,
+  type ScreenStorageBackend,
+} from "../store/screenStore";
 import { loadTable } from "../store/tableStore";
 import {
   setSequenceStorageBackend,
@@ -361,12 +363,11 @@ class McpBridgeImpl {
     };
     setConventionsStorageBackend(conventionsBackend);
 
-    const screenItemsBackend: ScreenItemsStorageBackend = {
-      loadScreenItems: (screenId) => this.request("loadScreenItems", { screenId }),
-      saveScreenItems: (screenId, data) => this.request("saveScreenItems", { screenId, data }).then(() => undefined),
-      deleteScreenItems: (screenId) => this.request("deleteScreenItems", { screenId }).then(() => undefined),
+    const screenBackend: ScreenStorageBackend = {
+      loadScreenEntity: (screenId) => this.request("loadScreenEntity", { screenId }),
+      saveScreenEntity: (screenId, data) => this.request("saveScreenEntity", { screenId, data }).then(() => undefined),
     };
-    setScreenItemsStorageBackend(screenItemsBackend);
+    setScreenStorageBackend(screenBackend);
 
     const sequenceBackend: SequenceStorageBackend = {
       loadSequence: (sequenceId) => this.request("loadSequence", { sequenceId }),
@@ -392,7 +393,7 @@ class McpBridgeImpl {
     setScreenLayoutStorageBackend(null);
     setProcessFlowStorageBackend(null);
     setConventionsStorageBackend(null);
-    setScreenItemsStorageBackend(null);
+    setScreenStorageBackend(null);
     setSequenceStorageBackend(null);
     setViewStorageBackend(null);
   }
@@ -1002,7 +1003,7 @@ class McpBridgeImpl {
             break;
           }
           const html = editor.getHtml();
-          let screenItems: ScreenItemsFile | null = null;
+          let screenItems: ScreenItemsDocument | null = null;
           try {
             screenItems = await loadScreenItems(reqScreenId);
           } catch { /* ignore */ }
@@ -1020,7 +1021,7 @@ class McpBridgeImpl {
             break;
           }
 
-          let siFile: ScreenItemsFile | null = null;
+          let siFile: ScreenItemsDocument | null = null;
           try {
             siFile = await loadScreenItems(reqScreenId);
           } catch (e) {

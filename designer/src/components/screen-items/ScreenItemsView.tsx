@@ -39,7 +39,7 @@ import type {
   TableColumnRef,
   ViewColumnRef,
 } from "../../types/v3";
-import type { ScreenItemsFile } from "../../store/screenItemsStore";
+import type { ScreenItemsDocument } from "../../store/screenItemsStore";
 import type { ProcessFlowMeta } from "../../types/action";
 import { listProcessFlows } from "../../store/processFlowStore";
 import { listTables, loadTable } from "../../store/tableStore";
@@ -310,11 +310,11 @@ const JS_IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
 type ScreenMeta = { id: string; name: string };
 
-/** useResourceEditor 互換のため ScreenItemsFile を読み書きする load/save ラッパー */
-async function loadFile(screenId: string): Promise<ScreenItemsFile | null> {
+/** useResourceEditor 互換のため画面項目を読み書きする load/save ラッパー */
+async function loadFile(screenId: string): Promise<ScreenItemsDocument | null> {
   return loadScreenItems(screenId);
 }
-async function saveFile(data: ScreenItemsFile): Promise<void> {
+async function saveFile(data: ScreenItemsDocument): Promise<void> {
   await saveScreenItems(data);
 }
 
@@ -408,7 +408,7 @@ export function ScreenItemsView() {
     update, updateSilent, commit,
     undo, redo, canUndo, canRedo,
     handleSave, handleReset, dismissServerBanner,
-  } = useResourceEditor<ScreenItemsFile>({
+  } = useResourceEditor<ScreenItemsDocument>({
     tabType: "screen-items",
     mtimeKind: "screenItems",
     draftKind: "screen-items",

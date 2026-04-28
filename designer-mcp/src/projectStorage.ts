@@ -40,6 +40,7 @@ export type ExtensionFileKind = keyof typeof EXTENSION_FILE_NAMES;
 
 /** スキーマルートディレクトリ: designer-mcp/src/ から 2 段上がって schemas/ */
 const SCHEMAS_DIR = path.resolve(import.meta.dirname, "../../schemas");
+const SCREEN_SCHEMA_REF = "../schemas/v3/screen.v3.schema.json";
 
 /** ExtensionFileKind → extensions-*.schema.json ファイル名スラグの変換 */
 function kindToSchemaSlug(kind: ExtensionFileKind): string {
@@ -140,7 +141,8 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "erLayout": return ER_LAYOUT_FILE;
     case "customBlocks": return CUSTOM_BLOCKS_FILE;
     case "conventions": return CONVENTIONS_FILE;
-    case "screen": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
+    case "screen": return id ? path.join(SCREENS_DIR, `${id}.design.json`) : null;
+    case "screenEntity": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
     case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
     case "processFlow": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
     case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
@@ -148,6 +150,99 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "view": return id ? path.join(VIEWS_DIR, `${id}.json`) : null;
     default: return null;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLegacyGrapesScreen(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Array.isArray(value.pages) || "frames" in value || "component" in value || "styles" in value;
+}
+
+function isScreenEntity(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return value.$schema === SCREEN_SCHEMA_REF || (
+    typeof value.kind === "string" &&
+    typeof value.path === "string" &&
+    ("items" in value || "design" in value || "id" in value)
+  );
+}
+
+function getScreenEntry(project: unknown, screenId: string): Record<string, unknown> | null {
+  if (!isRecord(project)) return null;
+  const entities = isRecord(project.entities) ? project.entities : null;
+  const v3Screens = Array.isArray(entities?.screens) ? entities.screens : null;
+  const legacyScreens = Array.isArray(project.screens) ? project.screens : null;
+  const screens = v3Screens ?? legacyScreens ?? [];
+  const found = screens.find((s) => isRecord(s) && s.id === screenId);
+  return isRecord(found) ? found : null;
+}
+
+function extractItems(value: unknown): unknown[] {
+  return isRecord(value) && Array.isArray(value.items) ? value.items : [];
+}
+
+function buildDefaultScreenEntity(
+  screenId: string,
+  entry: Record<string, unknown> | null,
+  items: unknown[],
+): Record<string, unknown> {
+  const ts = new Date().toISOString();
+  const updatedAt = typeof entry?.updatedAt === "string" ? entry.updatedAt : ts;
+  return {
+    $schema: SCREEN_SCHEMA_REF,
+    id: screenId,
+    name: typeof entry?.name === "string" && entry.name ? entry.name : screenId,
+    ...(typeof entry?.description === "string" && entry.description ? { description: entry.description } : {}),
+    ...(typeof entry?.maturity === "string" ? { maturity: entry.maturity } : {}),
+    createdAt: typeof entry?.createdAt === "string" ? entry.createdAt : updatedAt,
+    updatedAt,
+    kind: typeof entry?.kind === "string" && entry.kind ? entry.kind : "other",
+    path: typeof entry?.path === "string" ? entry.path : "",
+    ...(typeof entry?.groupId === "string" ? { groupId: entry.groupId } : {}),
+    items,
+    design: { designFileRef: `${screenId}.design.json` },
+  };
+}
+
+async function migrateScreenIfNeeded(screenId: string): Promise<Record<string, unknown> | null> {
+  await ensureDataDir();
+  const entityPath = path.join(SCREENS_DIR, `${screenId}.json`);
+  const designPath = path.join(SCREENS_DIR, `${screenId}.design.json`);
+  const legacyItemsPath = path.join(SCREEN_ITEMS_DIR, `${screenId}.json`);
+  const current = await readJSON<unknown>(entityPath);
+
+  if (isScreenEntity(current) && !isLegacyGrapesScreen(current)) {
+    return current as Record<string, unknown>;
+  }
+
+  if (isLegacyGrapesScreen(current)) {
+    try {
+      await fs.rename(entityPath, designPath);
+    } catch {
+      await writeJSON(designPath, current);
+    }
+    const project = await readProject();
+    const itemsFile = await readJSON<unknown>(legacyItemsPath);
+    const entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), extractItems(itemsFile));
+    await writeJSON(entityPath, entity);
+    try { await fs.unlink(legacyItemsPath); } catch { /* ignore */ }
+    return entity;
+  }
+
+  const design = await readJSON<unknown>(designPath);
+  const itemsFile = await readJSON<unknown>(legacyItemsPath);
+  if (design || itemsFile) {
+    const project = await readProject();
+    const entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), extractItems(itemsFile));
+    await writeJSON(entityPath, entity);
+    try { await fs.unlink(legacyItemsPath); } catch { /* ignore */ }
+    return entity;
+  }
+
+  return null;
 }
 
 /** data/extensions/*.json を生 JSON バンドルとして読み込み (#444) */
@@ -178,19 +273,66 @@ export async function writeExtensionsFile(
 
 /** screens/{screenId}.json を読み込み */
 export async function readScreen(screenId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(SCREENS_DIR, `${screenId}.json`));
+  await migrateScreenIfNeeded(screenId);
+  return readJSON<unknown>(path.join(SCREENS_DIR, `${screenId}.design.json`));
 }
 
 /** screens/{screenId}.json を書き込み */
 export async function writeScreen(screenId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(SCREENS_DIR, `${screenId}.json`), data);
+  let entity = await migrateScreenIfNeeded(screenId);
+  if (!entity) {
+    const project = await readProject();
+    entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), []);
+  }
+  entity = {
+    ...entity,
+    $schema: SCREEN_SCHEMA_REF,
+    updatedAt: new Date().toISOString(),
+    design: {
+      ...(isRecord(entity.design) ? entity.design : {}),
+      designFileRef: `${screenId}.design.json`,
+    },
+  };
+  await writeJSON(path.join(SCREENS_DIR, `${screenId}.json`), entity);
+  await writeJSON(path.join(SCREENS_DIR, `${screenId}.design.json`), data);
+}
+
+export async function readScreenEntity(screenId: string): Promise<unknown | null> {
+  return migrateScreenIfNeeded(screenId);
+}
+
+export async function writeScreenEntity(screenId: string, data: unknown): Promise<void> {
+  await ensureDataDir();
+  const current = isRecord(data) ? data : {};
+  const project = await readProject();
+  const entry = getScreenEntry(project, screenId);
+  const toSave = {
+    ...buildDefaultScreenEntity(screenId, entry, []),
+    ...current,
+    $schema: SCREEN_SCHEMA_REF,
+    id: typeof current.id === "string" ? current.id : screenId,
+    kind: typeof current.kind === "string" ? current.kind : (typeof entry?.kind === "string" ? entry.kind : "other"),
+    path: typeof current.path === "string" ? current.path : (typeof entry?.path === "string" ? entry.path : ""),
+    updatedAt: new Date().toISOString(),
+    design: {
+      ...(isRecord(current.design) ? current.design : {}),
+      designFileRef: `${screenId}.design.json`,
+    },
+  };
+  await writeJSON(path.join(SCREENS_DIR, `${screenId}.json`), toSave);
 }
 
 /** screens/{screenId}.json を削除（存在しない場合は無視） */
 export async function deleteScreen(screenId: string): Promise<void> {
   try {
     await fs.unlink(path.join(SCREENS_DIR, `${screenId}.json`));
+  } catch { /* file not found is OK */ }
+  try {
+    await fs.unlink(path.join(SCREENS_DIR, `${screenId}.design.json`));
+  } catch { /* file not found is OK */ }
+  try {
+    await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -276,17 +418,36 @@ export async function writeConventions(data: unknown): Promise<void> {
 
 /** screen-items/{screenId}.json を読み込み (#318) */
 export async function readScreenItems(screenId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
+  const screen = await readScreenEntity(screenId);
+  if (!isRecord(screen)) return null;
+  return {
+    screenId,
+    version: "0.1.0",
+    updatedAt: typeof screen.updatedAt === "string" ? screen.updatedAt : new Date().toISOString(),
+    items: Array.isArray(screen.items) ? screen.items : [],
+  };
 }
 
 /** screen-items/{screenId}.json を書き込み (#318) */
 export async function writeScreenItems(screenId: string, data: unknown): Promise<void> {
-  await ensureDataDir();
-  await writeJSON(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`), data);
+  const current = (await readScreenEntity(screenId)) as Record<string, unknown> | null;
+  const project = await readProject();
+  const items = extractItems(data);
+  const next = {
+    ...(current ?? buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), [])),
+    items,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeScreenEntity(screenId, next);
+  try { await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`)); } catch { /* ignore */ }
 }
 
 /** screen-items/{screenId}.json を削除 (#318) */
 export async function deleteScreenItems(screenId: string): Promise<void> {
+  const current = (await readScreenEntity(screenId)) as Record<string, unknown> | null;
+  if (current) {
+    await writeScreenEntity(screenId, { ...current, items: [] });
+  }
   try {
     await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
   } catch { /* file not found is OK */ }
