@@ -225,7 +225,7 @@ function resolveColumnPhysical(table: Table, columnId: string): string {
 
 function findFkForColumn(table: Table, columnId: string): ForeignKeyConstraint | undefined {
   return (table.constraints ?? []).find(
-    (c) => c.kind === "foreignKey" && c.columnIds.includes(columnId as never),
+    (c) => c.kind === "foreignKey" && (c.columnIds as readonly string[]).includes(columnId),
   ) as ForeignKeyConstraint | undefined;
 }
 
@@ -254,7 +254,7 @@ function toSpecTable(t: Table, allTables: Table[]): SpecTable {
       const fk = findFkForColumn(t, c.id);
       if (fk) {
         const refTable = tableIdMap.get(fk.referencedTableId);
-        const refColIdx = fk.columnIds.indexOf(c.id as never);
+        const refColIdx = (fk.columnIds as readonly string[]).indexOf(c.id);
         const refColId = fk.referencedColumnIds[refColIdx >= 0 ? refColIdx : 0];
         col.reference = {
           table: refTable?.physicalName ?? `<unknown:${String(fk.referencedTableId).slice(0, 8)}>`,

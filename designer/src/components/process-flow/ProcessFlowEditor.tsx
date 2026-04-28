@@ -190,9 +190,11 @@ export function ProcessFlowEditor() {
           const full = await loadTable(tm.id);
           if (!full) return null;
           return {
+            // sqlColumnValidator は物理名 (snake_case) で SQL 列を検証するため、
+            // v3 では table.physicalName / column.physicalName を渡す (v3 の name は表示名)。
             id: full.id,
-            name: full.name,
-            columns: (full.columns ?? []).map((c) => ({ name: c.name })),
+            name: full.physicalName,
+            columns: (full.columns ?? []).map((c) => ({ name: c.physicalName })),
           } as ValidatorTableDef;
         }),
       );

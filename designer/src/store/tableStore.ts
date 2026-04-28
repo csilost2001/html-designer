@@ -124,7 +124,7 @@ export async function deleteTable(tableId: string): Promise<void> {
   }
 }
 
-// ─── カラム操作 (TableDefinition mutate ヘルパー) ──────────────────────────
+// ─── カラム操作 (Table mutate ヘルパー) ──────────────────────────────────
 
 /** カラムを追加 (column.id は LocalId 形式で `col-NN` 採番) */
 export function addColumn(

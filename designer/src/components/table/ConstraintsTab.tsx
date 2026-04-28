@@ -50,6 +50,31 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
     if (editingId === id) setEditingId(null);
   };
 
+  /**
+   * 編集中の制約が schema 必須フィールドを満たしているか判定。
+   * - unique: columnIds が 1 件以上
+   * - check: expression が空でない
+   * - foreignKey: referencedTableId が UUID 形式 + columnIds / referencedColumnIds が 1 件以上
+   */
+  const isConstraintValid = (c: Constraint): boolean => {
+    if (c.kind === "unique") return c.columnIds.length > 0;
+    if (c.kind === "check") return c.expression.trim().length > 0;
+    // foreignKey
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    return c.columnIds.length > 0
+      && uuidRe.test(c.referencedTableId)
+      && c.referencedColumnIds.length > 0;
+  };
+
+  /** 編集を閉じる際、必須フィールドが空のままなら制約を自動削除 (#557 M-3 対応)。 */
+  const handleCloseEditor = (id: string) => {
+    const c = (table.constraints ?? []).find((x) => x.id === id);
+    if (c && !isConstraintValid(c)) {
+      update((t) => removeConstraint(t, id));
+    }
+    setEditingId(null);
+  };
+
   const handleUpdate = (id: string, patch: Partial<Constraint>) => {
     update((t) => {
       const c = (t.constraints ?? []).find((x) => x.id === id);
@@ -104,7 +129,7 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
                 table={table}
                 allTables={allTables}
                 onUpdate={(patch) => handleUpdate(c.id, patch)}
-                onClose={() => setEditingId(null)}
+                onClose={() => handleCloseEditor(c.id)}
                 onDelete={() => handleDelete(c.id)}
               />
             ) : (

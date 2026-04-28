@@ -129,9 +129,10 @@ export function ProcessFlowListView() {
           const full = await loadTable(tm.id);
           if (!full) return null;
           return {
+            // sqlColumnValidator は物理名で SQL 列を検証するため v3 では physicalName を渡す。
             id: full.id,
-            name: full.name,
-            columns: (full.columns ?? []).map((c) => ({ name: c.name })),
+            name: full.physicalName,
+            columns: (full.columns ?? []).map((c) => ({ name: c.physicalName })),
           } as ValidatorTableDef;
         }),
       );

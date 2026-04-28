@@ -15,7 +15,7 @@ import type { Table, NumberingEntry } from "../../types/v3";
 interface TableColumnOption {
   tableId: string;
   tableName: string;
-  /** v1 TableColumn (id + name) を v3 TableColumnRef.columnId (LocalId) として保存。 */
+  /** カラム選択用。id (LocalId) を TableColumnRef.columnId として保存、name (DisplayName) は表示用。 */
   columns: Array<{ id: string; name: string }>;
 }
 
