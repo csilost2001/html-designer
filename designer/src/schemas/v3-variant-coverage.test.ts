@@ -577,6 +577,42 @@ describe("v3 schema fix #533 R3-1: IdentifierPath で object field 参照 (#533)
     const ok = validateScreenItem(item);
     expect(ok).toBe(false);
   });
+
+  it("variableName='test_' (末尾 underscore) は reject (PR #534 N-1 で厳格化)", () => {
+    const item = {
+      id: "x",
+      label: "x",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "test_" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok).toBe(false);
+  });
+
+  it("variableName='user__name' (連続 underscore) は reject (PR #534 N-1 で厳格化)", () => {
+    const item = {
+      id: "x",
+      label: "x",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "user__name" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok).toBe(false);
+  });
+
+  it("variableName='user_id' (snake_case 1 セグメント) は pass", () => {
+    const item = {
+      id: "x",
+      label: "x",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "user_id" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok).toBe(true);
+  });
 });
 
 describe("v3 schema fix #533 R3-2: ClosingStep.cutoffAt pattern (#533)", () => {
