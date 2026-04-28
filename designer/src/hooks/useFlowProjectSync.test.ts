@@ -170,18 +170,41 @@ describe("MCP reconnect while clean - auto reloads", () => {
   });
 });
 
-describe("delete operations keep dirty flag set", () => {
-  it("keeps isDirtyRef true after screen, edge, and group deletes", async () => {
-    const { reload, isDirtyRef } = setup({ current: true });
+describe("delete operations mark dirty via flowDraft saves", () => {
+  it("storeRemoveEdge flips isDirtyRef from false to true", async () => {
+    const { reload, isDirtyRef } = setup({ current: false });
     await waitForInitialLoad(reload);
-    const project = createProject();
+    expect(isDirtyRef.current).toBe(false);
 
-    // Delete handlers live in FlowEditor; the hook only receives the dirty ref.
-    // The closest hook-level check is that store delete saves do not clear it.
+    const project = createProject();
     await act(async () => {
       await storeRemoveEdge(project, "edge-a");
+    });
+
+    expect(isDirtyRef.current).toBe(true);
+  });
+
+  it("storeRemoveGroup flips isDirtyRef from false to true", async () => {
+    const { reload, isDirtyRef } = setup({ current: false });
+    await waitForInitialLoad(reload);
+    expect(isDirtyRef.current).toBe(false);
+
+    const project = createProject();
+    await act(async () => {
       await storeRemoveGroup(project, "group-a");
-      await removeScreen(project, "screen-a");
+    });
+
+    expect(isDirtyRef.current).toBe(true);
+  });
+
+  it("removeScreen flips isDirtyRef from false to true", async () => {
+    const { reload, isDirtyRef } = setup({ current: false });
+    await waitForInitialLoad(reload);
+    expect(isDirtyRef.current).toBe(false);
+
+    const project = createProject();
+    await act(async () => {
+      await removeScreen(project, "screen-b");
     });
 
     expect(isDirtyRef.current).toBe(true);
