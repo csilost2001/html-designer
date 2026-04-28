@@ -75,7 +75,12 @@ export interface ScopeEntry extends DefaultableEntry {
 export interface CurrencyEntry extends DefaultableEntry {
   /** ISO 4217 通貨コード (例: 'JPY', 'USD')。 */
   code: string;
-  /** 小数点以下桁数。 */
+  /**
+   * 小数点以下桁数。
+   * schema 上は integer 制約 (`{ type: "integer", minimum: 0 }`)。
+   * TypeScript には integer 専用型がないため `number` で受ける。
+   * 値は UI 側 (`<input type="number" min={0}>`) と AJV で整数強制される前提。
+   */
   subunit?: number;
   roundingMode?: RoundingMode;
   description?: Description;
