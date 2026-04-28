@@ -25,8 +25,9 @@ import type {
   DbEntry,
   NumberingEntry,
   TxEntry,
-  ExternalOutcomeDefaultEntry,
-} from "../../types/conventions";
+  ExternalOutcomeEntry,
+  SemVer,
+} from "../../types/v3";
 import "../../styles/conventions.css";
 
 type Category =
@@ -195,7 +196,7 @@ export function ConventionsCatalogView() {
           type="text"
           className="form-control form-control-sm conventions-version-input"
           value={catalog.version ?? ""}
-          onChange={(e) => updateSilent((c) => { c.version = e.target.value; })}
+          onChange={(e) => updateSilent((c) => { c.version = e.target.value as SemVer; })}
           onBlur={commit}
           placeholder="1.0.0"
         />
@@ -318,7 +319,55 @@ export function ConventionsCatalogView() {
           />
         )}
       </div>
+
+      <ExtensionCategoriesPanel extensionCategories={catalog.extensionCategories} />
     </div>
+  );
+}
+
+/** 拡張カテゴリ表示 (read-only)。extensions.v3 の conventionCategories で定義された業界規約を一覧表示。 */
+function ExtensionCategoriesPanel({
+  extensionCategories,
+}: {
+  extensionCategories?: Record<string, Record<string, unknown>>;
+}) {
+  const entries = Object.entries(extensionCategories ?? {});
+  return (
+    <section className="conventions-extension-categories">
+      <h3 className="conventions-section-title">
+        <i className="bi bi-puzzle" /> 拡張カテゴリ
+        <small className="text-muted ms-2">
+          (extensions.v3 の conventionCategories で定義、`@conv.&lt;categoryName&gt;.&lt;key&gt;` で参照)
+        </small>
+      </h3>
+      {entries.length === 0 ? (
+        <div className="conventions-empty">拡張カテゴリは定義されていません。</div>
+      ) : (
+        <table className="conventions-table">
+          <thead>
+            <tr>
+              <th>カテゴリ名</th>
+              <th>エントリ数</th>
+              <th>キー一覧</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map(([catName, catEntries]) => {
+              const keys = Object.keys(catEntries ?? {});
+              return (
+                <tr key={catName}>
+                  <td><code className="conventions-key-badge">@conv.{catName}.*</code></td>
+                  <td>{keys.length}</td>
+                  <td className="text-muted">
+                    {keys.length > 0 ? keys.join(", ") : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 
@@ -633,6 +682,27 @@ function LimitEditor({
 
 // ── 新規 8 エディタ ─────────────────────────────────────────────────────
 
+function DefaultCell<T extends { default?: boolean }>({
+  entry, onUpdate, onCommit,
+}: {
+  entry: T;
+  onUpdate: (patch: Partial<T>) => void;
+  onCommit: () => void;
+}) {
+  return (
+    <td className="text-center" title="プロジェクト全体の ambient default として扱う">
+      <input
+        type="checkbox"
+        checked={entry.default ?? false}
+        onChange={(e) => {
+          onUpdate({ default: e.target.checked || undefined } as Partial<T>);
+          onCommit();
+        }}
+      />
+    </td>
+  );
+}
+
 function ScopeEditor({
   scope, onAdd, onUpdate, onCommit, onRemove,
 }: {
@@ -652,6 +722,7 @@ function ScopeEditor({
           <col style={{ width: "14em" }} />
           <col style={{ width: "16em" }} />
           <col />
+          <col style={{ width: "5em" }} />
           <col style={{ width: 28 }} />
         </colgroup>
         <thead>
@@ -659,6 +730,7 @@ function ScopeEditor({
             <th>key (@conv.scope.xxx)</th>
             <th>value</th>
             <th>description</th>
+            <th title="プロジェクト全体の ambient default として扱う">default</th>
             <th></th>
           </tr>
         </thead>
@@ -683,6 +755,11 @@ function ScopeEditor({
                   onBlur={onCommit}
                 />
               </td>
+              <DefaultCell
+                entry={entry}
+                onUpdate={(patch) => onUpdate(key, patch)}
+                onCommit={onCommit}
+              />
               <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
             </tr>
           ))}
@@ -722,6 +799,7 @@ function CurrencyEditor({
           <col style={{ width: "8em" }} />
           <col style={{ width: "10em" }} />
           <col />
+          <col style={{ width: "5em" }} />
           <col style={{ width: 28 }} />
         </colgroup>
         <thead>
@@ -731,6 +809,7 @@ function CurrencyEditor({
             <th>subunit</th>
             <th>roundingMode</th>
             <th>description</th>
+            <th title="プロジェクト全体の ambient default として扱う">default</th>
             <th></th>
           </tr>
         </thead>
@@ -778,6 +857,11 @@ function CurrencyEditor({
                   onBlur={onCommit}
                 />
               </td>
+              <DefaultCell
+                entry={entry}
+                onUpdate={(patch) => onUpdate(key, patch)}
+                onCommit={onCommit}
+              />
               <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
             </tr>
           ))}
@@ -815,6 +899,7 @@ function TaxEditor({
           <col style={{ width: "10em" }} />
           <col style={{ width: "10em" }} />
           <col />
+          <col style={{ width: "5em" }} />
           <col style={{ width: 28 }} />
         </colgroup>
         <thead>
@@ -824,6 +909,7 @@ function TaxEditor({
             <th>rate (0〜1)</th>
             <th>roundingMode</th>
             <th>description</th>
+            <th title="プロジェクト全体の ambient default として扱う">default</th>
             <th></th>
           </tr>
         </thead>
@@ -874,6 +960,11 @@ function TaxEditor({
                   onBlur={onCommit}
                 />
               </td>
+              <DefaultCell
+                entry={entry}
+                onUpdate={(patch) => onUpdate(key, patch)}
+                onCommit={onCommit}
+              />
               <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
             </tr>
           ))}
@@ -911,6 +1002,7 @@ function AuthEditor({
           <col style={{ width: "14em" }} />
           <col style={{ width: "14em" }} />
           <col />
+          <col style={{ width: "5em" }} />
           <col style={{ width: 28 }} />
         </colgroup>
         <thead>
@@ -920,6 +1012,7 @@ function AuthEditor({
             <th>sessionStorage</th>
             <th>passwordHash</th>
             <th>description</th>
+            <th title="プロジェクト全体の ambient default として扱う">default</th>
             <th></th>
           </tr>
         </thead>
@@ -962,6 +1055,11 @@ function AuthEditor({
                   onBlur={onCommit}
                 />
               </td>
+              <DefaultCell
+                entry={entry}
+                onUpdate={(patch) => onUpdate(key, patch)}
+                onCommit={onCommit}
+              />
               <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
             </tr>
           ))}
@@ -1000,6 +1098,7 @@ function DbEditor({
           <col style={{ width: "16em" }} />
           <col style={{ width: "12em" }} />
           <col />
+          <col style={{ width: "5em" }} />
           <col style={{ width: 28 }} />
         </colgroup>
         <thead>
@@ -1010,6 +1109,7 @@ function DbEditor({
             <th>timestampColumns (カンマ区切り)</th>
             <th>logicalDeleteColumn</th>
             <th>description</th>
+            <th title="プロジェクト全体の ambient default として扱う">default</th>
             <th></th>
           </tr>
         </thead>
@@ -1064,6 +1164,11 @@ function DbEditor({
                   onBlur={onCommit}
                 />
               </td>
+              <DefaultCell
+                entry={entry}
+                onUpdate={(patch) => onUpdate(key, patch)}
+                onCommit={onCommit}
+              />
               <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
             </tr>
           ))}
@@ -1224,16 +1329,16 @@ function TxEditor({
   );
 }
 
-const OUTCOME_OPTIONS: ExternalOutcomeDefaultEntry["outcome"][] = ["success", "failure", "timeout"];
-const ACTION_OPTIONS: ExternalOutcomeDefaultEntry["action"][] = ["continue", "abort", "compensate"];
+const OUTCOME_OPTIONS: ExternalOutcomeEntry["outcome"][] = ["success", "failure", "timeout"];
+const ACTION_OPTIONS: ExternalOutcomeEntry["action"][] = ["continue", "abort", "compensate"];
 const RETRY_OPTIONS = ["", "none", "fixed", "exponential"] as const;
 
 function ExternalOutcomeDefaultEditor({
   entries: entriesMap, onAdd, onUpdate, onCommit, onRemove,
 }: {
-  entries: Record<string, ExternalOutcomeDefaultEntry>;
+  entries: Record<string, ExternalOutcomeEntry>;
   onAdd: (key: string) => void;
-  onUpdate: (key: string, patch: Partial<ExternalOutcomeDefaultEntry>) => void;
+  onUpdate: (key: string, patch: Partial<ExternalOutcomeEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
 }) {
@@ -1269,7 +1374,7 @@ function ExternalOutcomeDefaultEditor({
                 <select
                   className="form-select form-select-sm"
                   value={entry.outcome}
-                  onChange={(e) => { onUpdate(key, { outcome: e.target.value as ExternalOutcomeDefaultEntry["outcome"] }); onCommit(); }}
+                  onChange={(e) => { onUpdate(key, { outcome: e.target.value as ExternalOutcomeEntry["outcome"] }); onCommit(); }}
                 >
                   {OUTCOME_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -1278,7 +1383,7 @@ function ExternalOutcomeDefaultEditor({
                 <select
                   className="form-select form-select-sm"
                   value={entry.action}
-                  onChange={(e) => { onUpdate(key, { action: e.target.value as ExternalOutcomeDefaultEntry["action"] }); onCommit(); }}
+                  onChange={(e) => { onUpdate(key, { action: e.target.value as ExternalOutcomeEntry["action"] }); onCommit(); }}
                 >
                   {ACTION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -1288,7 +1393,7 @@ function ExternalOutcomeDefaultEditor({
                   className="form-select form-select-sm"
                   value={entry.retry ?? ""}
                   onChange={(e) => {
-                    onUpdate(key, { retry: (e.target.value || undefined) as ExternalOutcomeDefaultEntry["retry"] });
+                    onUpdate(key, { retry: (e.target.value || undefined) as ExternalOutcomeEntry["retry"] });
                     onCommit();
                   }}
                 >

@@ -13,40 +13,13 @@ import type {
   ValidationStep,
   LoopStep,
 } from "../types/action";
-import type {
-  I18nConfig,
-  MessageTemplate,
-  ScopeEntry,
-  CurrencyEntry,
-  TaxEntry,
-  AuthEntry,
-  RoleEntry,
-  PermissionEntry,
-  DbEntry,
-  NumberingEntry,
-  TxEntry,
-  ExternalOutcomeDefaultEntry,
-} from "../types/conventions";
+import type { Conventions } from "../types/v3";
 
-export interface ConventionsCatalog {
-  version: string;
-  description?: string;
-  updatedAt?: string;
-  i18n?: I18nConfig;
-  msg?: Record<string, MessageTemplate>;
-  regex?: Record<string, { pattern: string; flags?: string; description?: string; exampleValid?: string[]; exampleInvalid?: string[] }>;
-  limit?: Record<string, { value: number; unit?: string; description?: string }>;
-  scope?: Record<string, ScopeEntry>;
-  currency?: Record<string, CurrencyEntry>;
-  tax?: Record<string, TaxEntry>;
-  auth?: Record<string, AuthEntry>;
-  role?: Record<string, RoleEntry>;
-  permission?: Record<string, PermissionEntry>;
-  db?: Record<string, DbEntry>;
-  numbering?: Record<string, NumberingEntry>;
-  tx?: Record<string, TxEntry>;
-  externalOutcomeDefaults?: Record<string, ExternalOutcomeDefaultEntry>;
-}
+/**
+ * 既存呼び出し側互換のため `ConventionsCatalog` 名で v3 `Conventions` を再エクスポート。
+ * 新規コードは `Conventions` (v3) を直接使うことを推奨。
+ */
+export type ConventionsCatalog = Conventions;
 
 export interface ConventionIssue {
   path: string;

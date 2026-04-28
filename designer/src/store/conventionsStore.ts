@@ -1,12 +1,12 @@
 /**
  * conventionsStore.ts
- * 横断規約カタログ (validation-rules / product-scope) の永続化ストア (#317)。
+ * 横断規約カタログの永続化ストア (v3)。
  *
- * 正本は `data/conventions/catalog.json`。wsBridge 経由で読み書きし、
- * ws 未接続時は localStorage にフォールバック。形状は
- * `schemas/conventions.schema.json` 準拠。
+ * 正本は `data/conventions/catalog.json` (単一ファイル、v3 schema は単一 root)。
+ * wsBridge 経由で読み書きし、ws 未接続時は localStorage にフォールバック。
+ * shape は `schemas/v3/conventions.v3.schema.json` に従う。
  */
-import type { ConventionsCatalog } from "../schemas/conventionsValidator";
+import type { Conventions, SemVer, Timestamp } from "../types/v3";
 
 export interface ConventionsStorageBackend {
   loadConventions(): Promise<unknown>;
@@ -19,18 +19,23 @@ export function setConventionsStorageBackend(b: ConventionsStorageBackend | null
   _backend = b;
 }
 
-const LS_KEY = "conventions-catalog";
+// ─── localStorage キー (v3 名前空間、#553) ───────────────────────────────
 
-function now(): string {
-  return new Date().toISOString();
+const LS_KEY = "v3-conventions-catalog";
+
+const CONVENTIONS_SCHEMA_REF = "../../schemas/v3/conventions.v3.schema.json";
+
+function nowTs(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
-/** 初期カタログ (空) */
-export function createEmptyCatalog(): ConventionsCatalog {
+/** 初期カタログ (空、msg / regex / limit / 5 標準カテゴリ + role / permission / numbering / tx / externalOutcomeDefaults を空 record で持つ)。 */
+export function createEmptyCatalog(): Conventions {
   return {
-    version: "1.0.0",
+    $schema: CONVENTIONS_SCHEMA_REF,
+    version: "1.0.0" as SemVer,
     description: "",
-    updatedAt: now(),
+    updatedAt: nowTs(),
     msg: {},
     regex: {},
     limit: {},
@@ -38,6 +43,8 @@ export function createEmptyCatalog(): ConventionsCatalog {
     currency: {},
     tax: {},
     auth: {},
+    role: {},
+    permission: {},
     db: {},
     numbering: {},
     tx: {},
@@ -45,17 +52,17 @@ export function createEmptyCatalog(): ConventionsCatalog {
   };
 }
 
-export async function loadConventions(): Promise<ConventionsCatalog | null> {
+export async function loadConventions(): Promise<Conventions | null> {
   // 1. wsBridge backend (data/conventions/catalog.json) が優先
   if (_backend) {
     const data = await _backend.loadConventions();
-    if (data) return data as ConventionsCatalog;
+    if (data) return data as Conventions;
   } else {
     // 2. ws 未接続なら localStorage フォールバック (テスト時の seed にも使う)
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw) as ConventionsCatalog;
+        return JSON.parse(raw) as Conventions;
       } catch { /* ignore */ }
     }
   }
@@ -63,16 +70,21 @@ export async function loadConventions(): Promise<ConventionsCatalog | null> {
   //    初回起動で data/conventions/catalog.json 未生成の場合にもデフォルト規約を返す
   try {
     const r = await fetch("/conventions-catalog.json");
-    if (r.ok) return await r.json() as ConventionsCatalog;
+    if (r.ok) return await r.json() as Conventions;
   } catch { /* ignore */ }
   return null;
 }
 
-export async function saveConventions(catalog: ConventionsCatalog): Promise<void> {
-  catalog.updatedAt = now();
+export async function saveConventions(catalog: Conventions): Promise<void> {
+  // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
+  const toSave: Conventions = {
+    ...catalog,
+    $schema: CONVENTIONS_SCHEMA_REF,
+    updatedAt: nowTs(),
+  };
   if (_backend) {
-    await _backend.saveConventions(catalog);
+    await _backend.saveConventions(toSave);
     return;
   }
-  localStorage.setItem(LS_KEY, JSON.stringify(catalog));
+  localStorage.setItem(LS_KEY, JSON.stringify(toSave));
 }

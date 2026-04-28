@@ -45,7 +45,8 @@ export async function loadSequence(sequenceId: string): Promise<Sequence | null>
 
 /** シーケンス定義を保存（project.json のメタも同期） */
 export async function saveSequence(sequence: Sequence): Promise<void> {
-  const toSave: Sequence = { $schema: SEQUENCE_SCHEMA_REF, ...sequence, updatedAt: nowTs() };
+  // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
+  const toSave: Sequence = { ...sequence, $schema: SEQUENCE_SCHEMA_REF, updatedAt: nowTs() };
 
   if (_backend) {
     await _backend.saveSequence(toSave.id, toSave);

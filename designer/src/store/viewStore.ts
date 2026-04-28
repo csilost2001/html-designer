@@ -45,7 +45,8 @@ export async function loadView(viewId: string): Promise<View | null> {
 
 /** ビュー定義を保存 (per-entity ファイル + project.json メタ同期) */
 export async function saveView(view: View): Promise<void> {
-  const toSave: View = { $schema: VIEW_SCHEMA_REF, ...view, updatedAt: nowTs() };
+  // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
+  const toSave: View = { ...view, $schema: VIEW_SCHEMA_REF, updatedAt: nowTs() };
 
   if (_backend) {
     await _backend.saveView(toSave.id, toSave);

@@ -11,7 +11,7 @@ import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } f
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { generateSequenceDdl } from "./generateSequenceDdl";
 import type { TableDefinition } from "../../types/table";
-import type { NumberingEntry } from "../../types/conventions";
+import type { NumberingEntry } from "../../types/v3";
 
 interface TableColumnOption {
   tableId: string;
