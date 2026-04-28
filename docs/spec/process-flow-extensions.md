@@ -176,7 +176,7 @@ interface ExternalHttpCall {
 }
 
 // ExternalSystemStep に追加
-systemRef?: string;                  // ProcessFlow.externalSystemCatalog のキー
+systemRef?: string;                  // ProcessFlow.context.catalogs.externalSystems のキー
 httpCall?: ExternalHttpCall;         // 旧 protocol の後継
 protocol?: string;                   // DEPRECATED: httpCall への移行推奨
 ```
@@ -229,7 +229,7 @@ response 側:
 
 参照整合性バリデータが `typeRef → extensions.responseTypes` 存在検査を行う。extensions 未指定時は後方互換で skip する。
 
-### 3.0b externalSystemCatalog (ProcessFlow レベル, #261 v1.3)
+### 3.0b context.catalogs.externalSystems (ProcessFlow レベル, #261 v1.3)
 
 同じ外部システム (Stripe, SendGrid 等) を使う複数ステップで **auth / baseUrl / timeoutMs / retryPolicy / headers** を 1 箇所に集約。drift 防止と DRY 化。
 
@@ -245,13 +245,13 @@ interface ExternalSystemCatalogEntry {
 }
 
 // ProcessFlow に追加
-externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
+context.catalogs.externalSystems?: Record<string, ExternalSystemCatalogEntry>;
 ```
 
 用例:
 
 ```json
-"externalSystemCatalog": {
+"context.catalogs.externalSystems": {
   "stripe": {
     "name": "Stripe Japan",
     "baseUrl": "https://api.stripe.com",
@@ -397,7 +397,7 @@ interface DbAccessStep extends StepBase {
 ```json
 {
   "kind": "dbAccess",
-  "tableName": "purchase_order_items",
+  "tableId": "11111111-1111-4111-8111-111111111111",
   "operation": "INSERT",
   "bulkValues": "@poItemValues",
   "sql": "INSERT INTO purchase_order_items (...) SELECT ... FROM (VALUES @poItemValues) AS v(...)"
@@ -710,16 +710,16 @@ interface DomainDef {
 }
 
 // ProcessFlow に追加
-domainsCatalog?: Record<string, DomainDef>;
+context.catalogs.domains?: Record<string, DomainDef>;
 
 // StructuredField に追加
-domainRef?: string;   // domainsCatalog のキー参照 (例: "@conv.domain.EmailAddress")
+domainRef?: string;   // context.catalogs.domains のキー参照 (例: "@conv.domain.EmailAddress")
 ```
 
-**参照形式**: `@conv.domain.<name>` (Convention 規約経由) または `domainsCatalog` キー直接。
+**参照形式**: `@conv.domain.<name>` (Convention 規約経由) または `context.catalogs.domains` キー直接。
 
 ```json
-"domainsCatalog": {
+"context.catalogs.domains": {
   "Quantity": {
     "type": "number",
     "constraints": [
@@ -756,27 +756,27 @@ computed?: string;  // direction="output" フィールドの計算式 (D-1)
 
 PR: #422
 
-### 9.3 Rules DSL 統一化 — ValidationRule.kind (P2-3 / GeneXus 由来)
+### 9.3 Rules DSL 統一化 — ValidationRule.severity (P2-3 / GeneXus 由来)
 
-既存の `type` (required/regex/range 等、**検証ルールの種類**) とは別に、**動作種別**を表す `kind` フィールドを追加。GeneXus の Rules DSL 由来の orthogonal な分類。
+**v3 で `kind` → `severity` にリネーム** (#525 R3 fix、Step.kind 等の discriminator と多義性回避のため、加えて lowerCamelCase 統一)。既存の `type` (required/regex/range 等、**検証ルールの種類**) とは別に、**動作種別**を表す `severity` フィールド。GeneXus の Rules DSL 由来の orthogonal な分類。
 
 ```ts
-type ValidationRuleKind = "Error" | "Msg" | "Noaccept" | "Default";
+type ValidationRuleSeverity = "error" | "msg" | "noaccept" | "default";
 
 interface ValidationRule {
   // ... 既存フィールド ...
-  kind?: ValidationRuleKind;   // 動作種別 (省略時: ランタイム既定 = "Error" 相当)
+  severity?: ValidationRuleSeverity;   // 動作種別 (省略時: ランタイム既定 = "error" 相当)
 }
 ```
 
-| kind | 意味 |
+| severity | 意味 |
 |---|---|
-| `Error` | エラー表示してブロック (既定) |
-| `Msg` | メッセージのみ表示、続行可 |
-| `Noaccept` | 値を受け付けない |
-| `Default` | 既定値を設定 |
+| `error` | エラー表示してブロック (既定) |
+| `msg` | メッセージのみ表示、続行可 |
+| `noaccept` | 値を受け付けない |
+| `default` | 既定値を設定 |
 
-**`type` との関係**: `type` = **何を検証するか** (`required`, `range` 等)、`kind` = **違反時にどう振る舞うか**。両者を組み合わせて表現する。
+**`type` との関係**: `type` = **何を検証するか** (`required`, `range` 等)、`severity` = **違反時にどう振る舞うか**。両者を組み合わせて表現する。
 
 ```json
 { "field": "quantity", "type": "range", "min": 1, "severity": "error", "message": "1 以上を入力してください" }
@@ -797,13 +797,13 @@ interface FunctionDef {
 }
 
 // ProcessFlow に追加
-functionsCatalog?: Record<string, FunctionDef>;
+context.catalogs.functions?: Record<string, FunctionDef>;
 ```
 
 **参照形式**: `@fn.<name>(<args>)` — 式の中で直接呼び出す。
 
 ```json
-"functionsCatalog": {
+"context.catalogs.functions": {
   "formatCurrency": {
     "signature": "formatCurrency(amount: number, currency: string): string",
     "returnType": "string",
@@ -866,7 +866,7 @@ Issue: #396 (Tier B) / #423 (実装)
 
 非同期メッセージング・イベント駆動アーキテクチャのための宣言サポート。
 
-#### ProcessFlow.eventsCatalog
+#### ProcessFlow.context.catalogs.events
 
 ```ts
 interface EventDef {
@@ -875,7 +875,7 @@ interface EventDef {
 }
 
 // ProcessFlow に追加
-eventsCatalog?: Record<string, EventDef>;  // キー: トピック名
+context.catalogs.events?: Record<string, EventDef>;  // キー: トピック名
 ```
 
 #### EventPublishStep (type: "eventPublish")
@@ -884,7 +884,7 @@ eventsCatalog?: Record<string, EventDef>;  // キー: トピック名
 interface EventPublishStep extends StepBase {
   type: "eventPublish";
   topic: string;                  // パブリッシュ先トピック名 (required)
-  eventRef?: string;              // eventsCatalog のキー参照
+  eventRef?: string;              // context.catalogs.events のキー参照
   payload?: string;               // 送信ペイロードの式
 }
 ```
@@ -895,7 +895,7 @@ interface EventPublishStep extends StepBase {
 interface EventSubscribeStep extends StepBase {
   type: "eventSubscribe";
   topic: string;                  // サブスクライブするトピック名 (required)
-  eventRef?: string;              // eventsCatalog のキー参照
+  eventRef?: string;              // context.catalogs.events のキー参照
   filter?: string;                // 受信フィルター条件の式
 }
 ```
@@ -903,7 +903,7 @@ interface EventSubscribeStep extends StepBase {
 用例:
 
 ```json
-"eventsCatalog": {
+"context.catalogs.events": {
   "invoice.issued": {
     "description": "請求書発行完了イベント",
     "payload": {
@@ -947,9 +947,9 @@ lineage?: DataLineage;
 ```json
 {
   "kind": "dbAccess",
-  "tableName": "invoices",
+  "tableId": "22222222-2222-4222-8222-222222222222",
   "operation": "INSERT",
-  "lineage": { "writes": ["invoices"] }
+  "lineage": { "writes": [{ "tableId": "22222222-2222-4222-8222-222222222222", "purpose": "create" }] }
 }
 ```
 
@@ -1003,7 +1003,7 @@ cache?: CacheHint;
 ```json
 {
   "kind": "dbAccess",
-  "tableName": "customers",
+  "tableId": "33333333-3333-4333-8333-333333333333",
   "operation": "SELECT",
   "cache": {
     "ttlSeconds": 300,
@@ -1084,7 +1084,7 @@ apiVersion?: string;                  // step 単位の override
 - 2026-04-24: `StructuredField.format`, `ValidationRule.minRef/maxRef` 追加 (#367 / #253 v1.3)。§5.1・§8.6 を更新。
 - 2026-04-24: `DbAccessStep.bulkValues`, `BranchStep.tryScope` 追加 (#368 / #253)。§4.3・§7.2 を新設。
 - 2026-04-24: `ProcessFlow.ambientOverrides` 追加 (#369)。§8.7 を新設。
-- 2026-04-25: P2+D 拡張 (#422)。§9 を新設。domainsCatalog / functionsCatalog / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
+- 2026-04-25: P2+D 拡張 (#422)。§9 を新設。context.catalogs.domains / context.catalogs.functions / StructuredField.domainRef / StructuredField.formula / ValidationRule.kind / ScreenItem.computed を追加。
 - 2026-04-25: Tier-B (#423) 全 6 項目追加。§13 を新設 (B-1〜B-6)。
 - 2026-04-26: 拡張実装ガイドライン追記 (#474)。§15 を新設。
 
@@ -1092,24 +1092,24 @@ apiVersion?: string;                  // step 単位の override
 
 シナリオ #2-#6 (PR #468-#472) 実装・レビュー時に判明した拡張定義の誤りパターン。拡張を新規追加・参照する前に確認すること。
 
-### §15.1 fieldType と domainsCatalog の使い分け
+### §15.1 fieldType と context.catalogs.domains の使い分け
 
 | 区別 | 使い所 | 例 |
 |---|---|---|
 | **拡張 fieldType** (`{kind: "orderId"}`) | 業界固有の**型カテゴリ自体**を追加する場合。inputs/outputs の `type` フィールドで `kind` 形式で参照 | `{ "name": "orderId", "type": { "kind": "orderId" } }` |
-| **domainsCatalog** (`OrderId: {type: "string", constraints: ...}`) | ドメイン**制約付きの型エイリアス**を定義する場合。`constraints` (range / pattern 等) を持つ | `"domainRef": "OrderId"` |
+| **context.catalogs.domains** (`OrderId: {type: "string", constraints: ...}`) | ドメイン**制約付きの型エイリアス**を定義する場合。`constraints` (range / pattern 等) を持つ | `"domainRef": "OrderId"` |
 
 **使い分け基準**:
-- 制約が付くなら `domainsCatalog`
+- 制約が付くなら `context.catalogs.domains`
 - 純粋な型カテゴリ追加なら拡張 `fieldType`
-- 両方使う場合は `domainsCatalog` の `type` で fieldType kind を参照する形が自然
+- 両方使う場合は `context.catalogs.domains` の `type` で fieldType kind を参照する形が自然
 
 ```json
 // 拡張 fieldType 定義 (plugin extensions)
 { "kind": "orderId", "label": "注文 ID", "baseType": "string" }
 
-// domainsCatalog で拡張 fieldType を参照
-"domainsCatalog": {
+// context.catalogs.domains で拡張 fieldType を参照
+"context.catalogs.domains": {
   "OrderId": {
     "type": { "kind": "orderId" },
     "constraints": [{ "field": "orderId", "type": "regex", "pattern": "^ORD-\\d{4}-\\d{6}$" }]
