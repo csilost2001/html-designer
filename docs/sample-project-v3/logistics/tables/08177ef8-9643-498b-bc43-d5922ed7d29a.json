@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "08177ef8-9643-498b-bc43-d5922ed7d29a",
+  "name": "出荷",
+  "description": "実際の出荷情報。1 転送注文 = 1 出荷 (本サンプル)。複数キャリア利用や分割出荷は v3.1 で拡張可能。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "shipments",
+  "category": "トランザクション",
+  "comment": "出荷情報。WorkflowStep branch-merge 後に INSERT、tracking_number で実配送追跡。",
+  "columns": [
+    { "id": "col-sh01", "no": 1, "physicalName": "id", "name": "出荷ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-sh02", "no": 2, "physicalName": "shipment_number", "name": "出荷番号", "dataType": "VARCHAR", "length": 24, "notNull": true, "unique": true, "comment": "SHP + YYYYMMDD + 連番13桁。" },
+    { "id": "col-sh03", "no": 3, "physicalName": "transfer_order_id", "name": "転送注文ID", "dataType": "BIGINT", "notNull": true, "unique": true },
+    { "id": "col-sh04", "no": 4, "physicalName": "carrier_code", "name": "キャリアコード", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "yamato / sagawa / fedex / dhl 等。" },
+    { "id": "col-sh05", "no": 5, "physicalName": "tracking_number", "name": "追跡番号", "dataType": "VARCHAR", "length": 50, "notNull": true },
+    { "id": "col-sh06", "no": 6, "physicalName": "ship_status", "name": "配送状態", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "scheduled / in_transit / delivered / lost。" },
+    { "id": "col-sh07", "no": 7, "physicalName": "shipped_at", "name": "出荷日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-sh08", "no": 8, "physicalName": "delivered_at", "name": "配送完了日時", "dataType": "TIMESTAMP" },
+    { "id": "col-sh09", "no": 9, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-sh01", "physicalName": "idx_shipments_number", "columns": [{ "columnId": "col-sh02" }], "unique": true },
+    { "id": "idx-sh02", "physicalName": "idx_shipments_tracking", "columns": [{ "columnId": "col-sh05" }] }
+  ],
+  "constraints": [
+    {
+      "id": "fk-sh01", "kind": "foreignKey", "physicalName": "fk_shipments_transfer_order", "columnIds": ["col-sh03"],
+      "referencedTableId": "a2e83031-be05-442e-b1f0-df7eab240269", "referencedColumnIds": ["col-to01"], "onDelete": "restrict", "onUpdate": "cascade"
+    },
+    {
+      "id": "uq-sh01", "kind": "unique", "physicalName": "uq_shipments_transfer_order",
+      "columnIds": ["col-sh03"],
+      "description": "1 転送注文 = 1 出荷 (本サンプルの制約、複数 carrier 分割は v3.1 拡張)。"
+    },
+    {
+      "id": "chk-sh01", "kind": "check", "physicalName": "chk_shipments_status",
+      "expression": "ship_status IN ('scheduled', 'in_transit', 'delivered', 'lost')"
+    }
+  ]
+}

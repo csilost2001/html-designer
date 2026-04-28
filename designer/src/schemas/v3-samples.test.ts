@@ -58,6 +58,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       join(samplesV3Dir, "finance", "project.json"),
       join(samplesV3Dir, "manufacturing", "project.json"),
       join(samplesV3Dir, "public-service", "project.json"),
+      join(samplesV3Dir, "logistics", "project.json"),
     ];
     for (const file of files) {
       const data = loadJson(file);
@@ -72,6 +73,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "finance", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "tables")),
+      ...listJsonRecursive(join(samplesV3Dir, "logistics", "tables")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -87,6 +89,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "finance", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "screens")),
+      ...listJsonRecursive(join(samplesV3Dir, "logistics", "screens")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -102,6 +105,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "finance", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "process-flows")),
+      ...listJsonRecursive(join(samplesV3Dir, "logistics", "process-flows")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -142,6 +146,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "finance", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "extensions")),
+      ...listJsonRecursive(join(samplesV3Dir, "logistics", "extensions")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
