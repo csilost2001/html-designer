@@ -17,6 +17,24 @@
     },
     "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
   },
+  "if": {
+    "properties": {
+      "meta": {
+        "type": "object",
+        "properties": { "kind": { "const": "scheduled" } },
+        "required": ["kind"]
+      }
+    },
+    "required": ["meta"]
+  },
+  "then": {
+    "description": "#533 R3-3: meta.kind='scheduled' のフローでは、cron 起動の定期実行であり HTTP ルートからは呼ばれないため、Action.httpRoute を禁止する。",
+    "properties": {
+      "actions": {
+        "items": { "not": { "required": ["httpRoute"] } }
+      }
+    }
+  },
 
   "$defs": {
 
@@ -1183,7 +1201,7 @@
             "kind": { "const": "closing" },
             "period": { "type": "string", "enum": ["daily", "monthly", "quarterly", "yearly", "custom"] },
             "customCron": { "type": "string" },
-            "cutoffAt": { "type": "string", "description": "締切時刻 (例: '23:59:59')。" },
+            "cutoffAt": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$", "description": "締切時刻 (HH:MM または HH:MM:SS、24 時間表記、timezone なし)。例: '23:59:59' / '23:59' / '00:00:00'。#533 R3-2 で pattern 追加 (\"99:99\" 等の不正値を reject)。format: \"time\" は ajv-formats では timezone 必須のため不採用。" },
             "idempotencyKey": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
             "rollbackOnFailure": { "type": "boolean" }
           }

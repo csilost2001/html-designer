@@ -79,7 +79,7 @@
           "properties": {
             "kind": { "const": "flowVariable" },
             "processFlowId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "省略時はカレント画面に紐付く ProcessFlow を解決する。" },
-            "variableName": { "$ref": "common.v3.schema.json#/$defs/Identifier" }
+            "variableName": { "$ref": "common.v3.schema.json#/$defs/IdentifierPath", "description": "ProcessFlow 変数名。Identifier 単独 (例: 'inventoryRows') または ドット区切りで object の field 参照 (例: 'createdOrder.order_number')。#533 R3-1 で IdentifierPath に変更し object field 参照を許容。" }
           }
         },
         {
