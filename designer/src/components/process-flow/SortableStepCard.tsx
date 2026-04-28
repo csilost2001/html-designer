@@ -10,7 +10,7 @@ interface SortableStepCardProps {
   index: number;
   label: string;
   allSteps: Step[];
-  tables: { id: string; name: string; logicalName: string }[];
+  tables: { id: string; physicalName: string; name: string }[];
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
   onChange: (changes: Partial<Step>) => void;

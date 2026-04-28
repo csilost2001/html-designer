@@ -152,7 +152,7 @@ export function ProcessFlowEditor() {
   const pickerResolveRef = useRef<((r: ScreenItemPickResult | null) => void) | null>(null);
   const [newActionName, setNewActionName] = useState("");
   const [newActionTrigger, setNewActionTrigger] = useState<ActionTrigger>("click");
-  const [tables, setTables] = useState<{ id: string; name: string; logicalName: string }[]>([]);
+  const [tables, setTables] = useState<{ id: string; physicalName: string; name: string }[]>([]);
   const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
   const [commonGroups, setCommonGroups] = useState<{ id: string; name: string }[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -184,7 +184,7 @@ export function ProcessFlowEditor() {
       setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
     listTables().then(async (metas) => {
-      setTables(metas.map((tm) => ({ id: tm.id, name: tm.physicalName ?? "", logicalName: tm.name })));
+      setTables(metas.map((tm) => ({ id: tm.id, physicalName: tm.physicalName ?? "", name: tm.name })));
       // SQL 列検査用に全テーブルの columns まで読む (#261 UI 統合)
       const defs = await Promise.all(
         metas.map(async (tm) => {
