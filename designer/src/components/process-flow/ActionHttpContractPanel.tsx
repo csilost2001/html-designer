@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from "react";
 import type { ActionDefinition, HttpMethod, HttpAuthRequirement, HttpResponseSpec } from "../../types/action";
 

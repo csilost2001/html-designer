@@ -204,7 +204,7 @@ describe("toSpecStep — step detail", () => {
   it("validation: conditions and optional inlineBranch", () => {
     const withInlineBranch = getStep({
       id: "v1",
-      type: "validation",
+      kind: "validation",
       description: "入力検証",
       conditions: "@amount > 0",
       inlineBranch: { ok: "ok", ng: "ng", ngJumpTo: "input-error" },
@@ -219,7 +219,7 @@ describe("toSpecStep — step detail", () => {
 
     const withoutInlineBranch = getStep({
       id: "v2",
-      type: "validation",
+      kind: "validation",
       description: "入力検証",
       conditions: "@name != ''",
     } as ValidationStep);
@@ -228,60 +228,59 @@ describe("toSpecStep — step detail", () => {
     expect(withoutInlineBranch.detail).not.toHaveProperty("inlineBranch");
   });
 
-  it("dbAccess: tableName and operation", () => {
+  it("dbAccess: tableId and operation (v3 vocabulary)", () => {
     const step = getStep({
       id: "db1",
-      type: "dbAccess",
+      kind: "dbAccess",
       description: "注文登録",
-      tableName: "orders",
+      tableId: "tbl-orders-uuid",
       operation: "INSERT",
     } as DbAccessStep);
 
     expect(step.detail).toMatchObject({
-      tableName: "orders",
+      tableId: "tbl-orders-uuid",
       operation: "INSERT",
     });
   });
 
-  it("externalSystem: systemName", () => {
+  it("externalSystem: systemRef (v3 vocabulary)", () => {
     const step = getStep({
       id: "ex1",
-      type: "externalSystem",
+      kind: "externalSystem",
       description: "外部決済",
-      systemName: "Stripe",
+      systemRef: "stripe",
     } as Step);
 
-    expect(step.detail.systemName).toBe("Stripe");
+    expect(step.detail.systemRef).toBe("stripe");
   });
 
-  it("commonProcess: refName", () => {
+  it("commonProcess: refId (v3 vocabulary、refName は廃止)", () => {
     const step = getStep({
       id: "cp1",
-      type: "commonProcess",
+      kind: "commonProcess",
       description: "共通処理",
       refId: "common-1",
-      refName: "在庫引当",
     } as Step);
 
-    expect(step.detail.refName).toBe("在庫引当");
     expect(step.detail.refId).toBe("common-1");
+    expect(step.detail).not.toHaveProperty("refName");
   });
 
-  it("screenTransition: targetScreenName", () => {
+  it("screenTransition: targetScreenId (v3 vocabulary)", () => {
     const step = getStep({
       id: "st1",
-      type: "screenTransition",
+      kind: "screenTransition",
       description: "完了画面へ遷移",
-      targetScreenName: "注文完了",
+      targetScreenId: "scr-uuid-completion",
     } as Step);
 
-    expect(step.detail.targetScreenName).toBe("注文完了");
+    expect(step.detail.targetScreenId).toBe("scr-uuid-completion");
   });
 
   it("displayUpdate: target", () => {
     const step = getStep({
       id: "du1",
-      type: "displayUpdate",
+      kind: "displayUpdate",
       description: "表示更新",
       target: "明細一覧",
     } as Step);
@@ -292,7 +291,7 @@ describe("toSpecStep — step detail", () => {
   it("branch: conditions in branches", () => {
     const step = getStep({
       id: "br1",
-      type: "branch",
+      kind: "branch",
       description: "条件分岐",
       branches: [
         {
@@ -313,7 +312,7 @@ describe("toSpecStep — step detail", () => {
   it("loop: count expression and nested steps", () => {
     const step = getStep({
       id: "lp1",
-      type: "loop",
+      kind: "loop",
       description: "3回繰り返し",
       loopKind: "count",
       countExpression: "3",
@@ -327,7 +326,7 @@ describe("toSpecStep — step detail", () => {
   it("jump: jumpTo label", () => {
     const step = getStep({
       id: "jp1",
-      type: "jump",
+      kind: "jump",
       description: "終了へ移動",
       jumpTo: "done",
     } as Step);
@@ -335,30 +334,32 @@ describe("toSpecStep — step detail", () => {
     expect(step.detail.jumpTo).toBe("done");
   });
 
-  it("transactionScope: steps sub-array", () => {
+  it("transactionScope: steps sub-array (v3 vocabulary)", () => {
     const step = getStep({
       id: "tx1",
-      type: "transactionScope",
+      kind: "transactionScope",
       description: "トランザクション",
+      isolationLevel: "READ_COMMITTED",
+      propagation: "REQUIRED",
       steps: [
         {
           id: "db1",
-          type: "dbAccess",
+          kind: "dbAccess",
           description: "注文登録",
-          tableName: "orders",
+          tableId: "tbl-orders-uuid",
           operation: "INSERT",
         } as DbAccessStep,
       ],
     } as Step);
 
     expect(step.detail.steps).toHaveLength(1);
-    expect((step.detail.steps as Array<{ type: string }>)[0].type).toBe("dbAccess");
+    expect((step.detail.steps as Array<{ kind: string }>)[0].kind).toBe("dbAccess");
   });
 
   it("closing: period and rollbackOnFailure false", () => {
     const step = getStep({
       id: "cl1",
-      type: "closing",
+      kind: "closing",
       description: "月次締め",
       period: "monthly",
       rollbackOnFailure: false,
@@ -368,18 +369,18 @@ describe("toSpecStep — step detail", () => {
     expect(step.detail.rollbackOnFailure).toBe(false);
   });
 
-  it("cdc: tables, captureMode, and destination", () => {
-    const destination = { type: "eventStream", target: "orders-topic" } as const;
+  it("cdc: tableIds, captureMode, and destination (v3 vocabulary)", () => {
+    const destination = { kind: "auditLog", auditAction: "insert" } as const;
     const step = getStep({
       id: "cdc1",
-      type: "cdc",
+      kind: "cdc",
       description: "注文変更通知",
-      tables: ["orders", "order_items"],
+      tableIds: ["tbl-orders-uuid", "tbl-order-items-uuid"],
       captureMode: "incremental",
       destination,
     } as CdcStep);
 
-    expect(step.detail.tables).toEqual(["orders", "order_items"]);
+    expect(step.detail.tableIds).toEqual(["tbl-orders-uuid", "tbl-order-items-uuid"]);
     expect(step.detail.captureMode).toBe("incremental");
     expect(step.detail.destination).toEqual(destination);
   });
@@ -387,7 +388,7 @@ describe("toSpecStep — step detail", () => {
   it("eventPublish: topic and optional payload", () => {
     const withPayload = getStep({
       id: "ep1",
-      type: "eventPublish",
+      kind: "eventPublish",
       description: "イベント発行",
       topic: "order.created",
       payload: "{ orderId: @orderId }",
@@ -398,7 +399,7 @@ describe("toSpecStep — step detail", () => {
 
     const withoutPayload = getStep({
       id: "ep2",
-      type: "eventPublish",
+      kind: "eventPublish",
       description: "イベント発行",
       topic: "order.created",
     } as EventPublishStep);
@@ -410,7 +411,7 @@ describe("toSpecStep — step detail", () => {
   it("eventSubscribe: topic and optional filter", () => {
     const withFilter = getStep({
       id: "es1",
-      type: "eventSubscribe",
+      kind: "eventSubscribe",
       description: "イベント購読",
       topic: "order.created",
       filter: "@event.region == 'jp'",
@@ -421,7 +422,7 @@ describe("toSpecStep — step detail", () => {
 
     const withoutFilter = getStep({
       id: "es2",
-      type: "eventSubscribe",
+      kind: "eventSubscribe",
       description: "イベント購読",
       topic: "order.created",
     } as EventSubscribeStep);
@@ -433,7 +434,7 @@ describe("toSpecStep — step detail", () => {
   it("loopBreak: detail は空オブジェクト", () => {
     const step = getStep({
       id: "lb1",
-      type: "loopBreak",
+      kind: "loopBreak",
       description: "ループ脱出",
     } as LoopBreakStep);
     expect(step.type).toBe("loopBreak");
@@ -443,7 +444,7 @@ describe("toSpecStep — step detail", () => {
   it("loopContinue: detail は空オブジェクト", () => {
     const step = getStep({
       id: "lc1",
-      type: "loopContinue",
+      kind: "loopContinue",
       description: "ループ継続",
     } as LoopContinueStep);
     expect(step.type).toBe("loopContinue");
@@ -453,66 +454,69 @@ describe("toSpecStep — step detail", () => {
   it("return: detail は空オブジェクト", () => {
     const step = getStep({
       id: "r1",
-      type: "return",
+      kind: "return",
       description: "レスポンス返却",
     } as ReturnStep);
     expect(step.type).toBe("return");
     expect(step.detail).toEqual({});
   });
 
-  it("log: detail は空オブジェクト", () => {
+  it("log: level and message in detail", () => {
     const step = getStep({
       id: "l1",
-      type: "log",
+      kind: "log",
       description: "ログ記録",
       level: "info",
       message: "処理完了",
     } as LogStep);
     expect(step.type).toBe("log");
-    expect(step.detail).toEqual({});
+    expect(step.detail.level).toBe("info");
+    expect(step.detail.message).toBe("処理完了");
   });
 
-  it("audit: detail は空オブジェクト", () => {
+  it("audit: action in detail", () => {
     const step = getStep({
       id: "au1",
-      type: "audit",
+      kind: "audit",
       description: "監査ログ",
       action: "order.create",
     } as AuditStep);
     expect(step.type).toBe("audit");
-    expect(step.detail).toEqual({});
+    expect(step.detail.action).toBe("order.create");
   });
 
-  it("workflow: detail は空オブジェクト", () => {
+  it("workflow: pattern, approvers, quorum in detail", () => {
     const step = getStep({
       id: "wf1",
-      type: "workflow",
+      kind: "workflow",
       description: "承認フロー",
       pattern: "approval-sequential",
       approvers: [{ role: "manager" }],
+      quorum: { type: "any" },
     } as WorkflowStep);
     expect(step.type).toBe("workflow");
-    expect(step.detail).toEqual({});
+    expect(step.detail.pattern).toBe("approval-sequential");
+    expect(step.detail.approvers).toEqual([{ role: "manager" }]);
   });
 
-  it("compute: detail は空オブジェクト", () => {
+  it("compute: expression in detail", () => {
     const step = getStep({
       id: "comp1",
-      type: "compute",
+      kind: "compute",
       description: "税額計算",
       expression: "@subtotal * 0.10",
     } as ComputeStep);
     expect(step.type).toBe("compute");
-    expect(step.detail).toEqual({});
+    expect(step.detail.expression).toBe("@subtotal * 0.10");
   });
 
-  it("other: detail は空オブジェクト", () => {
+  it("other (legacy:OtherStep): detail は空オブジェクト", () => {
     const step = getStep({
       id: "oth1",
-      type: "other",
+      kind: "legacy:OtherStep",
       description: "その他処理",
     } as OtherStep);
-    expect(step.type).toBe("other");
+    expect(step.type).toBe("legacy:OtherStep");
     expect(step.detail).toEqual({});
   });
 });

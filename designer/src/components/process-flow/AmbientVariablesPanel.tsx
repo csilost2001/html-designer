@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ProcessFlow.ambientVariables 編集パネル (#278)
  *

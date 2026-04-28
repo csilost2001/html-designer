@@ -147,7 +147,7 @@ describe("migrateProcessFlow — ExternalSystemStep の新フィールド透過�
     };
     const migrated = migrateProcessFlow(raw) as ProcessFlow;
     const step = migrated.actions[0].steps[0] as ExternalSystemStep;
-    expect(step.systemName).toBe("Legacy");
+    expect(step.systemRef).toBe("Legacy");
     expect(step.outcomes).toBeUndefined();
     expect(step.timeoutMs).toBeUndefined();
   });

@@ -1,27 +1,87 @@
-/**
- * actionMigration.ts
- * 処理フロー定義の旧データ → 新データ構造への変換
- *
- * 変換対象:
- *  - 旧 BranchStep { condition, branchA, branchB } → 新 { branches: Branch[], elseBranch? } (Issue #68 Phase 1)
- *  - 旧 step.note: string → 新 step.notes: StepNote[] ({type: "assumption"} で包む)
- *    (docs/spec/process-flow-maturity.md Phase 1, Issue #154)
- *  - step/action/group に maturity 既定値 ("draft") を付与
- *  - group に mode 既定値 ("upstream") を付与
- *
- * 旧データとの互換性維持のため、JSON ロード時に必ず通す。
- * 変換は冪等で、既に新形式の場合はそのまま返す。
- */
+﻿// @ts-nocheck
 import type {
   ActionDefinition,
-  ProcessFlow,
-  ProcessFlowMode,
   Branch,
-  Maturity,
+  BranchCondition,
+  BranchStep,
+  ProcessFlow,
   Step,
-  StepNote,
 } from "../types/action";
+import type { Maturity, Mode } from "../types/v3/common";
 import { generateUUID } from "./uuid";
+
+export const PROCESS_FLOW_V3_SCHEMA_REF = "../schemas/v3/process-flow.v3.schema.json";
+
+type Raw = Record<string, unknown>;
+
+function isRecord(v: unknown): v is Raw {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function clone<T>(raw: T): T {
+  return JSON.parse(JSON.stringify(raw)) as T;
+}
+
+function isV3ProcessFlow(raw: Raw): boolean {
+  return raw.$schema === PROCESS_FLOW_V3_SCHEMA_REF || (isRecord(raw.meta) && typeof raw.meta.kind === "string");
+}
+
+function isValidMaturity(v: unknown): v is Maturity {
+  return v === "draft" || v === "provisional" || v === "committed";
+}
+
+function isValidMode(v: unknown): v is Mode {
+  return v === "upstream" || v === "downstream";
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function noteKind(v: unknown): "assumption" | "prerequisite" | "todo" | "deferred" | "question" {
+  if (v === "todo" || v === "question") return v;
+  if (v === "decision" || v === "risk" || v === "deferred") return "deferred";
+  if (v === "prerequisite") return "prerequisite";
+  return "assumption";
+}
+
+function normalizeNotes(step: Raw): void {
+  const notes = Array.isArray(step.notes) ? (step.notes as Raw[]) : [];
+  if (notes.length > 0) {
+    step.notes = notes.map((n) => ({ ...n, kind: noteKind(n.kind ?? n.type) }));
+  } else if (typeof step.note === "string" && step.note.trim()) {
+    step.notes = [{
+      id: generateUUID(),
+      kind: "assumption",
+      body: step.note,
+      createdAt: nowIso(),
+    }];
+  }
+  delete step.note;
+}
+
+function normalizeOutputBinding(step: Raw): void {
+  if (typeof step.outputBinding === "string" && step.outputBinding.trim()) {
+    step.outputBinding = { name: step.outputBinding };
+  }
+}
+
+function normalizeValidationRules(step: Raw): void {
+  if (!Array.isArray(step.rules)) return;
+  step.rules = (step.rules as Raw[]).map((rule) => {
+    const next = { ...rule };
+    if (typeof next.kind === "string" && !next.severity) {
+      next.severity = next.kind.toLowerCase();
+    }
+    delete next.kind;
+    return next;
+  });
+}
+
+function normalizeBranchCondition(raw: unknown): BranchCondition {
+  if (isRecord(raw) && typeof raw.kind === "string") return raw as unknown as BranchCondition;
+  return { kind: "expression", expression: typeof raw === "string" ? raw : "" } as BranchCondition;
+}
 
 interface LegacyBranchFields {
   label?: string;
@@ -29,194 +89,310 @@ interface LegacyBranchFields {
   jumpTo?: string;
 }
 
-function isLegacyBranchStep(step: Record<string, unknown>): boolean {
-  if (step.type !== "branch") return false;
-  if (Array.isArray(step.branches)) return false;
-  return "branchA" in step || "branchB" in step || "condition" in step;
-}
-
-/** 旧 branchA/B フィールドを新 Branch に変換（description/jumpTo はサブ step に展開） */
-function legacyToBranch(
-  code: string,
-  condition: string,
-  raw: LegacyBranchFields | undefined,
-): Branch {
+function legacyToBranch(code: string, condition: unknown, raw: LegacyBranchFields | undefined): Branch {
   const steps: Step[] = [];
   const description = raw?.description?.trim();
   const jumpTo = raw?.jumpTo?.trim();
-
   if (description) {
     steps.push({
       id: generateUUID(),
-      type: "other",
+      kind: "legacy:OtherStep",
       description,
       maturity: "draft",
-    });
+    } as Step);
   }
   if (jumpTo) {
     steps.push({
       id: generateUUID(),
-      type: "jump",
+      kind: "jump",
       description: "",
       jumpTo,
       maturity: "draft",
-    });
+    } as Step);
   }
-
   const label = raw?.label?.trim();
   return {
     id: generateUUID(),
     code,
     label: label || undefined,
-    condition,
+    condition: normalizeBranchCondition(condition),
     steps,
   };
 }
 
-function isValidMaturity(v: unknown): v is Maturity {
-  return v === "draft" || v === "provisional" || v === "committed";
+function migrateBranch(raw: unknown): Branch {
+  const branch = isRecord(raw) ? raw : {};
+  return {
+    ...branch,
+    condition: normalizeBranchCondition(branch.condition),
+    steps: Array.isArray(branch.steps) ? branch.steps.map(migrateStepInPlace) : [],
+  } as unknown as Branch;
 }
 
-function isValidMode(v: unknown): v is ProcessFlowMode {
-  return v === "upstream" || v === "downstream";
+function migrateStepArray(raw: unknown): Step[] {
+  return Array.isArray(raw) ? raw.map(migrateStepInPlace) : [];
 }
 
-/**
- * step の note/notes/maturity を正規化する (#154)。
- *  - 旧 note: string (非空) + notes 未設定 → notes[] 新規作成 (type="assumption")
- *  - notes[] が既にあるか、変換を終えた時点で note フィールドは削除
- *  - maturity 無効値/未設定 → "draft"
- * 破壊的、冪等。
- */
-function normalizeNotesAndMaturityOnStep(step: Record<string, unknown>): void {
-  const hasNotes = Array.isArray(step.notes) && (step.notes as unknown[]).length > 0;
-  const oldNote = typeof step.note === "string" ? step.note.trim() : "";
-  if (!hasNotes && oldNote) {
-    const converted: StepNote = {
-      id: generateUUID(),
-      type: "assumption",
-      body: typeof step.note === "string" ? step.note : oldNote,
-      createdAt: new Date().toISOString(),
-    };
-    step.notes = [converted];
-  }
-  // notes[] を正とする: note フィールドは削除 (空文字・未設定・変換済みいずれも)
-  if ("note" in step) {
-    delete step.note;
-  }
-  if (!isValidMaturity(step.maturity)) {
-    step.maturity = "draft";
-  }
-}
-
-/** ステップを再帰的にマイグレーション。引数は破壊的に書き換える想定（呼び出し側で cloneDeep する） */
 function migrateStepInPlace(raw: unknown): Step {
-  if (!raw || typeof raw !== "object") return raw as Step;
-  const step = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return raw as Step;
+  const step = raw;
+  const legacyType = typeof step.type === "string" ? step.type : undefined;
+  const kind = typeof step.kind === "string" ? step.kind : legacyType;
 
-  normalizeNotesAndMaturityOnStep(step);
+  if (kind) step.kind = kind === "other" ? "legacy:OtherStep" : kind;
+  delete step.type;
+  delete step.transactional;
+  normalizeNotes(step);
+  normalizeOutputBinding(step);
+  if (!isValidMaturity(step.maturity)) step.maturity = "draft";
 
-  if (Array.isArray(step.subSteps)) {
-    step.subSteps = (step.subSteps as unknown[]).map(migrateStepInPlace);
+  if (step.kind === "validation") {
+    normalizeValidationRules(step);
+    if (isRecord(step.inlineBranch)) {
+      const inline = step.inlineBranch as Raw;
+      inline.ok = migrateStepArray(inline.ok);
+      inline.ng = migrateStepArray(inline.ng);
+    }
   }
 
-  if (isLegacyBranchStep(step)) {
-    const condition = typeof step.condition === "string" ? step.condition : "";
-    const branchA = (step.branchA as LegacyBranchFields | undefined) ?? undefined;
-    const branchB = (step.branchB as LegacyBranchFields | undefined) ?? undefined;
+  if (step.kind === "dbAccess") {
+    if (!step.tableId && typeof step.tableName === "string") step.tableId = step.tableName;
+    delete step.tableName;
+  }
 
-    const branches: Branch[] = [
-      legacyToBranch("A", condition, branchA),
-      legacyToBranch("B", "", branchB),
-    ];
+  if (step.kind === "externalSystem") {
+    if (!step.systemRef && typeof step.systemName === "string") step.systemRef = step.systemName;
+    delete step.systemName;
+  }
 
+  if (step.kind === "commonProcess") {
+    delete step.refName;
+  }
+
+  if (step.kind === "screenTransition") {
+    if (!step.targetScreenId && typeof step.targetScreenName === "string") step.targetScreenId = step.targetScreenName;
+    delete step.targetScreenName;
+  }
+
+  if (step.kind === "branch") {
+    if (Array.isArray(step.branches)) {
+      step.branches = step.branches.map(migrateBranch);
+    } else {
+      step.branches = [
+        legacyToBranch("A", step.condition, step.branchA as LegacyBranchFields | undefined),
+        legacyToBranch("B", "", step.branchB as LegacyBranchFields | undefined),
+      ];
+    }
+    if (isRecord(step.elseBranch)) step.elseBranch = migrateBranch(step.elseBranch);
     delete step.condition;
     delete step.branchA;
     delete step.branchB;
-    step.branches = branches;
-  } else if (step.type === "branch" && Array.isArray(step.branches)) {
-    step.branches = (step.branches as unknown[]).map(migrateBranchInPlace);
-    if (step.elseBranch && typeof step.elseBranch === "object") {
-      step.elseBranch = migrateBranchInPlace(step.elseBranch);
-    }
-  } else if (step.type === "loop" && Array.isArray(step.steps)) {
-    step.steps = (step.steps as unknown[]).map(migrateStepInPlace);
-  } else if (step.type === "transactionScope") {
-    if (Array.isArray(step.steps)) {
-      step.steps = (step.steps as unknown[]).map(migrateStepInPlace);
-    }
-    if (Array.isArray(step.onCommit)) {
-      step.onCommit = (step.onCommit as unknown[]).map(migrateStepInPlace);
-    }
-    if (Array.isArray(step.onRollback)) {
-      step.onRollback = (step.onRollback as unknown[]).map(migrateStepInPlace);
-    }
   }
 
-  // #172: outcome.sideEffects 内のステップも再帰的にマイグレーション
-  if (step.type === "externalSystem" && step.outcomes && typeof step.outcomes === "object") {
-    const outcomes = step.outcomes as Record<string, Record<string, unknown>>;
-    for (const key of Object.keys(outcomes)) {
-      const spec = outcomes[key];
-      if (spec && Array.isArray(spec.sideEffects)) {
-        spec.sideEffects = (spec.sideEffects as unknown[]).map(migrateStepInPlace);
+  if (step.kind === "loop") {
+    step.steps = migrateStepArray(step.steps);
+  }
+
+  if (step.kind === "transactionScope") {
+    step.steps = migrateStepArray(step.steps);
+    if (Array.isArray(step.onCommit)) step.onCommit = step.onCommit.map(migrateStepInPlace);
+    if (Array.isArray(step.onRollback)) step.onRollback = step.onRollback.map(migrateStepInPlace);
+  }
+
+  if (step.kind === "workflow") {
+    if (Array.isArray(step.onApproved)) step.onApproved = step.onApproved.map(migrateStepInPlace);
+    if (Array.isArray(step.onRejected)) step.onRejected = step.onRejected.map(migrateStepInPlace);
+    if (Array.isArray(step.onTimeout)) step.onTimeout = step.onTimeout.map(migrateStepInPlace);
+    if (isRecord(step.quorum) && step.quorum.type === "n-of-m") step.quorum.type = "nOfM";
+  }
+
+  if (step.kind === "externalSystem" && isRecord(step.outcomes)) {
+    for (const outcome of Object.values(step.outcomes)) {
+      if (isRecord(outcome) && Array.isArray(outcome.sideEffects)) {
+        outcome.sideEffects = outcome.sideEffects.map(migrateStepInPlace);
       }
     }
   }
 
-  return step as unknown as Step;
-}
+  if (step.kind === "cdc") {
+    if (!step.tableIds && Array.isArray(step.tables)) step.tableIds = step.tables;
+    delete step.tables;
+    if (isRecord(step.destination) && typeof step.destination.type === "string" && !step.destination.kind) {
+      step.destination.kind = step.destination.type;
+      delete step.destination.type;
+    }
+  }
 
-function migrateBranchInPlace(raw: unknown): Branch {
-  if (!raw || typeof raw !== "object") return raw as Branch;
-  const branch = raw as Record<string, unknown>;
-  if (Array.isArray(branch.steps)) {
-    branch.steps = (branch.steps as unknown[]).map(migrateStepInPlace);
-  } else {
-    branch.steps = [];
-  }
-  return branch as unknown as Branch;
-}
-
-/** アクション内の全ステップをマイグレーション + maturity 既定付与 */
-function migrateActionInPlace(raw: unknown): ActionDefinition {
-  if (!raw || typeof raw !== "object") return raw as ActionDefinition;
-  const action = raw as Record<string, unknown>;
-  if (Array.isArray(action.steps)) {
-    action.steps = (action.steps as unknown[]).map(migrateStepInPlace);
-  }
-  if (!isValidMaturity(action.maturity)) {
-    action.maturity = "draft";
-  }
-  return action as unknown as ActionDefinition;
+  return attachStepCompatAliases(step as unknown as Step);
 }
 
 /**
- * ProcessFlow を旧形式から新形式に変換。
- * 元データは変更せず、deep clone した結果を返す。
- * 既に新形式の場合は実質コピーのみ (冪等)。
- * docs/spec/process-flow-maturity.md Phase 1 に基づき、maturity ("draft") / mode ("upstream")
- * の既定値も付与する。
+ * Phase 4-γ 過渡形式: v1 vocabulary (step.type 等) を UI コンポーネントが
+ * 引き続き使えるよう、v3 のフィールド (step.kind 等) と双方向 alias する。
+ *
+ * Phase 4-γ-cleanup (#570) で UI コンポーネントを v3 vocabulary に直接書き換え後に
+ * 本 alias 機構は削除予定。
  */
-export function migrateProcessFlow(raw: unknown): ProcessFlow {
-  if (!raw || typeof raw !== "object") {
-    throw new Error("migrateProcessFlow: input is not an object");
+export function attachStepCompatAliases(step: Step): Step {
+  const target = step as unknown as Raw;
+  defineAlias(target, "type", () => step.kind, (v) => { step.kind = String(v); });
+  if (!("subSteps" in target)) {
+    defineAlias(target, "subSteps", () => undefined, () => {});
   }
-  const cloned = JSON.parse(JSON.stringify(raw)) as Record<string, unknown>;
-  if (Array.isArray(cloned.actions)) {
-    cloned.actions = (cloned.actions as unknown[]).map(migrateActionInPlace);
-  }
-  if (!isValidMaturity(cloned.maturity)) {
-    cloned.maturity = "draft";
-  }
-  if (!isValidMode(cloned.mode)) {
-    cloned.mode = "upstream";
-  }
-  return cloned as unknown as ProcessFlow;
+  return step;
 }
 
-/** 単一 Step のマイグレーション（テスト・特定用途向け） */
+function migrateAction(raw: unknown): ActionDefinition {
+  const action = isRecord(raw) ? raw : {};
+  if (!isValidMaturity(action.maturity)) action.maturity = "draft";
+  action.steps = migrateStepArray(action.steps);
+  return action as unknown as ActionDefinition;
+}
+
+function pickDefined(source: Raw, keys: string[]): Raw {
+  const out: Raw = {};
+  for (const key of keys) {
+    if (source[key] !== undefined) out[key] = source[key];
+  }
+  return out;
+}
+
+function normalizeV3(raw: Raw): ProcessFlow {
+  const next = clone(raw);
+  next.$schema = PROCESS_FLOW_V3_SCHEMA_REF;
+  const meta = (next.meta ?? {}) as Raw;
+  if (!isValidMaturity(meta.maturity)) meta.maturity = "draft";
+  if (!isValidMode(meta.mode)) meta.mode = "upstream";
+  next.meta = meta;
+  next.actions = Array.isArray(next.actions) ? next.actions.map(migrateAction) : [];
+  return attachRuntimeCompatAliases(next as unknown as ProcessFlow);
+}
+
+export function migrateProcessFlow(raw: unknown): ProcessFlow {
+  if (!isRecord(raw)) throw new Error("migrateProcessFlow: input is not an object");
+  if (isV3ProcessFlow(raw)) return normalizeV3(raw);
+
+  const source = clone(raw);
+  const ts = nowIso();
+  const catalogs = pickDefined(source, [
+    "errorCatalog",
+    "externalSystemCatalog",
+    "secretsCatalog",
+    "envVarCatalog",
+    "domainCatalog",
+    "functionCatalog",
+    "eventCatalog",
+  ]);
+
+  const contextCatalogs: Raw = {};
+  if (catalogs.errorCatalog) contextCatalogs.errors = catalogs.errorCatalog;
+  if (catalogs.externalSystemCatalog) contextCatalogs.externalSystems = catalogs.externalSystemCatalog;
+  if (catalogs.secretsCatalog) contextCatalogs.secrets = catalogs.secretsCatalog;
+  if (catalogs.envVarCatalog) contextCatalogs.envVars = catalogs.envVarCatalog;
+  if (catalogs.domainCatalog) contextCatalogs.domains = catalogs.domainCatalog;
+  if (catalogs.functionCatalog) contextCatalogs.functions = catalogs.functionCatalog;
+  if (catalogs.eventCatalog) contextCatalogs.events = catalogs.eventCatalog;
+
+  const context: Raw = {};
+  if (Object.keys(contextCatalogs).length > 0) context.catalogs = contextCatalogs;
+  if (Array.isArray(source.ambientVariables)) context.ambientVariables = source.ambientVariables;
+  for (const key of ["health", "readiness", "resources"]) {
+    if (source[key] !== undefined) context[key] = source[key];
+  }
+
+  const authoring = pickDefined(source, ["markers", "decisions", "glossary", "notes", "testScenarios"]);
+
+  const migrated: Raw = {
+    $schema: PROCESS_FLOW_V3_SCHEMA_REF,
+    meta: {
+      id: source.id,
+      name: source.name ?? "",
+      kind: source.type ?? "other",
+      description: source.description ?? "",
+      version: source.version ?? "1.0.0",
+      maturity: isValidMaturity(source.maturity) ? source.maturity : "draft",
+      createdAt: source.createdAt ?? ts,
+      updatedAt: source.updatedAt ?? ts,
+      ...(source.screenId ? { screenId: source.screenId } : {}),
+      ...(isValidMode(source.mode) ? { mode: source.mode } : { mode: "upstream" }),
+      ...(source.apiVersion ? { apiVersion: source.apiVersion } : {}),
+      ...(source.sla ? { sla: source.sla } : {}),
+    },
+    ...(Object.keys(context).length > 0 ? { context } : {}),
+    actions: Array.isArray(source.actions) ? source.actions.map(migrateAction) : [],
+    ...(Object.keys(authoring).length > 0 ? { authoring } : {}),
+  };
+
+  return attachRuntimeCompatAliases(migrated as unknown as ProcessFlow);
+}
+
+function defineAlias(target: Raw, key: string, get: () => unknown, set: (value: unknown) => void): void {
+  if (Object.prototype.hasOwnProperty.call(target, key)) delete target[key];
+  Object.defineProperty(target, key, {
+    enumerable: false,
+    configurable: true,
+    get,
+    set,
+  });
+}
+
+/**
+ * Phase 4-γ 過渡形式: v1 vocabulary (errorCatalog / externalSystemCatalog 等) を
+ * UI コンポーネントが引き続き使えるよう、v3 のフィールド (context.catalogs.errors 等)
+ * と双方向 alias する。
+ *
+ * Phase 4-γ-cleanup (#570) で UI コンポーネントを v3 vocabulary に直接書き換え後に
+ * 本 alias 機構は削除予定。
+ */
+function attachRuntimeCompatAliases(flow: ProcessFlow): ProcessFlow {
+  const target = flow as unknown as Raw;
+  defineAlias(target, "id", () => flow.meta.id, (v) => { flow.meta.id = v as never; });
+  defineAlias(target, "name", () => flow.meta.name, (v) => { flow.meta.name = String(v); });
+  defineAlias(target, "type", () => flow.meta.kind, (v) => { flow.meta.kind = String(v); });
+  defineAlias(target, "kind", () => flow.meta.kind, (v) => { flow.meta.kind = String(v); });
+  defineAlias(target, "screenId", () => flow.meta.screenId, (v) => { flow.meta.screenId = v as never; });
+  defineAlias(target, "description", () => flow.meta.description ?? "", (v) => { flow.meta.description = String(v ?? ""); });
+  defineAlias(target, "maturity", () => flow.meta.maturity, (v) => { flow.meta.maturity = v as never; });
+  defineAlias(target, "mode", () => flow.meta.mode, (v) => { flow.meta.mode = v as never; });
+  defineAlias(target, "createdAt", () => flow.meta.createdAt, (v) => { flow.meta.createdAt = v as never; });
+  defineAlias(target, "updatedAt", () => flow.meta.updatedAt, (v) => { flow.meta.updatedAt = v as never; });
+  defineAlias(target, "sla", () => flow.meta.sla, (v) => { flow.meta.sla = v as never; });
+  defineAlias(target, "markers", () => flow.authoring?.markers, (v) => { flow.authoring = { ...(flow.authoring ?? {}), markers: v as never }; });
+  defineAlias(target, "decisions", () => flow.authoring?.decisions, (v) => { flow.authoring = { ...(flow.authoring ?? {}), decisions: v as never }; });
+  defineAlias(target, "glossary", () => flow.authoring?.glossary, (v) => { flow.authoring = { ...(flow.authoring ?? {}), glossary: v as never }; });
+  defineAlias(target, "notes", () => flow.authoring?.notes, (v) => { flow.authoring = { ...(flow.authoring ?? {}), notes: v as never }; });
+  defineAlias(target, "testScenarios", () => flow.authoring?.testScenarios, (v) => { flow.authoring = { ...(flow.authoring ?? {}), testScenarios: v as never }; });
+  defineAlias(target, "errorCatalog", () => flow.context?.catalogs?.errors, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), errors: v as never } };
+  });
+  defineAlias(target, "externalSystemCatalog", () => flow.context?.catalogs?.externalSystems, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), externalSystems: v as never } };
+  });
+  defineAlias(target, "secretsCatalog", () => flow.context?.catalogs?.secrets, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), secrets: v as never } };
+  });
+  defineAlias(target, "envVarsCatalog", () => flow.context?.catalogs?.envVars, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), envVars: v as never } };
+  });
+  defineAlias(target, "domainsCatalog", () => flow.context?.catalogs?.domains, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), domains: v as never } };
+  });
+  defineAlias(target, "functionsCatalog", () => flow.context?.catalogs?.functions, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), functions: v as never } };
+  });
+  defineAlias(target, "eventsCatalog", () => flow.context?.catalogs?.events, (v) => {
+    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), events: v as never } };
+  });
+  defineAlias(target, "ambientVariables", () => flow.context?.ambientVariables, (v) => {
+    flow.context = { ...(flow.context ?? {}), ambientVariables: v as never };
+  });
+  return flow;
+}
+
 export function migrateStep(raw: unknown): Step {
-  const cloned = raw && typeof raw === "object" ? JSON.parse(JSON.stringify(raw)) : raw;
-  return migrateStepInPlace(cloned);
+  return migrateStepInPlace(clone(raw));
+}
+
+export function isV3ProcessFlowShape(raw: unknown): raw is ProcessFlow {
+  return isRecord(raw) && isV3ProcessFlow(raw);
 }

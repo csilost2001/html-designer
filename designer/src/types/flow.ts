@@ -125,10 +125,7 @@ export interface FlowProject {
 /**
  * 処理フローメタ情報 (project.json 管理用、Phase 4 で v3 ProcessFlowEntry に統合予定)。
  */
-export interface ProcessFlowMeta extends ProcessFlowEntry {
-  /** @deprecated Phase 4-gamma で kind に統合予定。本 Phase の project entries には保存しない。 */
-  type: string;
-}
+export type ProcessFlowMeta = ProcessFlowEntry;
 
 
 // ─── 後方互換 alias (Phase 4 で削除) ─────────────────────────────────

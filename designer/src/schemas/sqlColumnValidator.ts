@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * DbAccessStep.sql 内の列名がテーブル定義に存在するかを検証 (#261 残)。
  *

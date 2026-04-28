@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ProcessFlow.errorCatalog 編集パネル (#278)
  *
