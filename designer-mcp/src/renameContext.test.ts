@@ -77,7 +77,6 @@ describe("getRenameContext", () => {
   it("items が空配列 → 空リスト", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [],
     };
@@ -89,7 +88,6 @@ describe("getRenameContext", () => {
   it("全て命名済み → unnamedItems 空、namedCount = 項目数", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [
         { id: "userName",   label: "氏名",     type: "string" },
@@ -104,7 +102,6 @@ describe("getRenameContext", () => {
   it("全て未命名 → unnamedItems に全件", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [
         { id: "textInput1",  label: "氏名",   type: "string" },
@@ -119,7 +116,6 @@ describe("getRenameContext", () => {
   it("命名済みと未命名が混在 → 未命名のみ返す", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [
         { id: "textInput1",  label: "氏名",     type: "string" },  // 未命名
@@ -136,7 +132,6 @@ describe("getRenameContext", () => {
   it("HTML 断片: 画面 HTML が文字列の場合、周辺 HTML を返す", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [{ id: "textInput1", label: "氏名", type: "string" }],
     };
@@ -158,7 +153,6 @@ describe("getRenameContext", () => {
   it("HTML 断片: 画面 HTML がコンポーネントオブジェクトの場合も抽出できる", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [{ id: "textInput1", label: "氏名", type: "string" }],
     };
@@ -187,7 +181,6 @@ describe("getRenameContext", () => {
   it("画面ファイルなし → htmlFragment/headingContext が空でも正常終了", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [{ id: "textInput1", label: "氏名", type: "string" }],
     };
@@ -201,7 +194,6 @@ describe("getRenameContext", () => {
   it("validation-input (tagName なし) の htmlFragment が取得できる (#357)", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [{ id: "textInput1", label: "氏名", type: "string" }],
     };
@@ -233,7 +225,6 @@ describe("getRenameContext", () => {
   it("validation-select / validation-textarea も HTML 断片に含まれる (#357)", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [
         { id: "select1",   label: "種別",     type: "string" },
@@ -264,7 +255,6 @@ describe("getRenameContext", () => {
   it("label / placeholder が screen-items から引き継がれる", async () => {
     store.screenItems[SCREEN_ID] = {
       screenId: SCREEN_ID,
-      version: "0.1.0",
       updatedAt: "2026-01-01T00:00:00.000Z",
       items: [{ id: "textInput1", label: "郵便番号", type: "string", placeholder: "例: 123-4567" }],
     };
@@ -279,7 +269,6 @@ describe("getRenameContext", () => {
 describe("applyRenameMapping", () => {
   const BASE_ITEMS = () => ({
     screenId: SCREEN_ID,
-    version: "0.1.0",
     updatedAt: "2026-01-01T00:00:00.000Z",
     items: [
       { id: "textInput1", label: "氏名",   type: "string" },

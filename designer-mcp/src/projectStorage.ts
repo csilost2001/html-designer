@@ -84,7 +84,7 @@ export async function ensureDataDir(): Promise<void> {
   await fs.mkdir(TABLES_DIR, { recursive: true });
   await fs.mkdir(ACTIONS_DIR, { recursive: true });
   await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
-  await fs.mkdir(SCREEN_ITEMS_DIR, { recursive: true });
+  // screen-items/ は Phase 4-β migration 後に廃止済み — 再作成しない
   await fs.mkdir(SEQUENCES_DIR, { recursive: true });
   await fs.mkdir(VIEWS_DIR, { recursive: true });
   await fs.mkdir(EXTENSIONS_DIR, { recursive: true });
@@ -207,7 +207,10 @@ function buildDefaultScreenEntity(
   };
 }
 
-async function migrateScreenIfNeeded(screenId: string): Promise<Record<string, unknown> | null> {
+/** per-screenId の in-flight migration を 1 つに集約する Promise キャッシュ */
+const _inflightMigrations = new Map<string, Promise<Record<string, unknown> | null>>();
+
+async function _migrateScreenCore(screenId: string): Promise<Record<string, unknown> | null> {
   await ensureDataDir();
   const entityPath = path.join(SCREENS_DIR, `${screenId}.json`);
   const designPath = path.join(SCREENS_DIR, `${screenId}.design.json`);
@@ -243,6 +246,17 @@ async function migrateScreenIfNeeded(screenId: string): Promise<Record<string, u
   }
 
   return null;
+}
+
+async function migrateScreenIfNeeded(screenId: string): Promise<Record<string, unknown> | null> {
+  const existing = _inflightMigrations.get(screenId);
+  if (existing) return existing;
+
+  const promise = _migrateScreenCore(screenId).finally(() => {
+    _inflightMigrations.delete(screenId);
+  });
+  _inflightMigrations.set(screenId, promise);
+  return promise;
 }
 
 /** data/extensions/*.json を生 JSON バンドルとして読み込み (#444) */
@@ -422,7 +436,6 @@ export async function readScreenItems(screenId: string): Promise<unknown | null>
   if (!isRecord(screen)) return null;
   return {
     screenId,
-    version: "0.1.0",
     updatedAt: typeof screen.updatedAt === "string" ? screen.updatedAt : new Date().toISOString(),
     items: Array.isArray(screen.items) ? screen.items : [],
   };

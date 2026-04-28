@@ -410,7 +410,7 @@ export function ScreenItemsView() {
     handleSave, handleReset, dismissServerBanner,
   } = useResourceEditor<ScreenItemsDocument>({
     tabType: "screen-items",
-    mtimeKind: "screenItems",
+    mtimeKind: "screenEntity",
     draftKind: "screen-items",
     id: selectedScreenId,
     load: loadFile,
