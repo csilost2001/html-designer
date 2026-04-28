@@ -111,6 +111,14 @@ export async function readProject(): Promise<unknown | null> {
 /** project.json を書き込み */
 export async function writeProject(project: unknown): Promise<void> {
   await ensureDataDir();
+  const next = project as Record<string, unknown>;
+  if (next.schemaVersion === "v3") {
+    const current = await readJSON<Record<string, unknown>>(PROJECT_FILE);
+    if (current && current.schemaVersion !== "v3") {
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      await fs.copyFile(PROJECT_FILE, `${PROJECT_FILE}.bak.${ts}`);
+    }
+  }
   await writeJSON(PROJECT_FILE, project);
 }
 
