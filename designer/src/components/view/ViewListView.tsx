@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
-import { listViews, createView, deleteView, loadView, saveView } from "../../store/viewStore";
+import { listViews, createView, deleteView, loadView, saveView, loadViewValidationMap } from "../../store/viewStore";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
+import { MaturityBadge } from "../process-flow/MaturityBadge";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
@@ -19,9 +20,15 @@ import { useListSort } from "../../hooks/useListSort";
 import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { renumber } from "../../utils/listOrder";
+import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:view-list";
 const TAB_ID = makeTabId("view-list", "main");
+
+interface ValidationSummary {
+  errors: number;
+  warnings: number;
+}
 
 function formatDate(iso: string): string {
   try {
@@ -40,6 +47,7 @@ export function ViewListView() {
   const [addName, setAddName] = useState("");
   const [addPhysicalNameError, setAddPhysicalNameError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
 
   const loadViews = useCallback(async () => {
     mcpBridge.startWithoutEditor();
@@ -86,6 +94,36 @@ export function ViewListView() {
   }, []);
 
   const allViews = editor.items;
+
+  useEffect(() => {
+    if (allViews.length === 0) {
+      setValidationMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    loadViewValidationMap()
+      .then((map) => {
+        if (cancelled) return;
+        const next = new Map<string, ValidationSummary>();
+        for (const [id, errors] of map) {
+          next.set(id, {
+            errors: errors.filter((e) => e.severity === "error").length,
+            warnings: errors.filter((e) => e.severity === "warning").length,
+          });
+        }
+        setValidationMap(next);
+      })
+      .catch(console.error);
+    return () => { cancelled = true; };
+  }, [allViews]);
+
+  const getErrorPriority = useCallback((id: string): number => {
+    const v = validationMap.get(id);
+    if (!v) return 0;
+    if (v.errors > 0) return 2;
+    if (v.warnings > 0) return 1;
+    return 0;
+  }, [validationMap]);
 
   const filter = useListFilter(allViews);
   useEffect(() => {
@@ -381,21 +419,64 @@ export function ViewListView() {
       sortAccessor: (v) => v.updatedAt,
       render: (v) => <span className="seq-list-date">{formatDate(v.updatedAt)}</span>,
     },
-  ], []);
+    {
+      key: "maturity",
+      header: "成熟度",
+      width: "80px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (v) => {
+        const order: Record<string, number> = { draft: 0, provisional: 1, committed: 2 };
+        return order[v.maturity ?? "draft"] ?? 0;
+      },
+      render: (v) => <MaturityBadge maturity={v.maturity} />,
+    },
+    {
+      key: "validation",
+      header: "検証",
+      width: "100px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (v) => getErrorPriority(v.id),
+      render: (v) => {
+        const validation = validationMap.get(v.id);
+        if (!validation) return null;
+        if (validation.errors > 0) {
+          return <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{validation.errors}</span>;
+        }
+        if (validation.warnings > 0) {
+          return <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{validation.warnings}</span>;
+        }
+        return <i className="bi bi-check-lg view-validation-ok" title="問題なし" />;
+      },
+    },
+  ], [getErrorPriority, validationMap]);
 
-  const renderCard = (v: ViewEntry) => (
-    <div className="seq-card-content">
-      <div className="seq-card-header">
-        <span className="seq-card-name">{v.name}</span>
+  const renderCard = (v: ViewEntry) => {
+    const validation = validationMap.get(v.id);
+    const hasError = (validation?.errors ?? 0) > 0;
+    const hasWarning = (validation?.warnings ?? 0) > 0;
+    return (
+      <div className={`seq-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
+        <div className="seq-card-header">
+          <MaturityBadge maturity={v.maturity} />
+          <span className="seq-card-name">{v.name}</span>
+          {validation && (hasError || hasWarning) && (
+            <span className="view-validation-badges">
+              {hasError && <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{validation.errors}</span>}
+              {hasWarning && <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{validation.warnings}</span>}
+            </span>
+          )}
+        </div>
+        {v.physicalName && (
+          <div className="seq-card-description"><code>{v.physicalName}</code></div>
+        )}
+        <div className="seq-card-meta">
+          <span className="seq-card-date">{formatDate(v.updatedAt)}</span>
+        </div>
       </div>
-      {v.physicalName && (
-        <div className="seq-card-description"><code>{v.physicalName}</code></div>
-      )}
-      <div className="seq-card-meta">
-        <span className="seq-card-date">{formatDate(v.updatedAt)}</span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const selectedCount = selection.selectedIds.size;
   const deletedCount = editor.deletedIds.size;

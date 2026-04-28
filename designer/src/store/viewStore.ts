@@ -1,5 +1,7 @@
 import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp } from "../types/v3";
 import { generateUUID } from "../utils/uuid";
+import { validateView } from "../utils/viewValidation";
+import type { ValidationError } from "../utils/actionValidation";
 import { loadProject, saveProject } from "./flowStore";
 import { renumber, nextNo } from "../utils/listOrder";
 
@@ -41,6 +43,18 @@ export async function loadView(viewId: string): Promise<View | null> {
   const s = localStorage.getItem(`${VIEW_PREFIX}${viewId}`);
   if (!s) return null;
   try { return JSON.parse(s) as View; } catch { return null; }
+}
+
+export async function loadViewValidationMap(): Promise<Map<ViewId, ValidationError[]>> {
+  const entries = await listViews();
+  const views = (await Promise.all(entries.map((entry) => loadView(entry.id)))).filter((v): v is View => v !== null);
+  const validationMap = new Map<ViewId, ValidationError[]>();
+
+  for (const view of views) {
+    validationMap.set(view.id, validateView(view, views));
+  }
+
+  return validationMap;
 }
 
 /** ビュー定義を保存 (per-entity ファイル + project.json メタ同期) */
