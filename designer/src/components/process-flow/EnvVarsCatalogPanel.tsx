@@ -1,5 +1,5 @@
 /**
- * ProcessFlow.envVarsCatalog 編集パネル (#414)。
+ * ProcessFlow.context.catalogs.envVars 編集パネル (#414 / #570 v3 移行)。
  *
  * Power Platform Environment Variables 由来。
  * - type (string / number / boolean)
@@ -191,24 +191,27 @@ export function EnvVarsCatalogPanel({
     onExpandedChange?.(next);
   };
   const [newKey, setNewKey] = useState("");
-  const catalog = group.envVarsCatalog ?? {};
+  const catalog = group.context?.catalogs?.envVars ?? {};
   const keys = Object.keys(catalog);
 
+  const setCatalog = (next: Record<string, EnvVarEntry> | undefined) => {
+    onChange({ ...group, context: { ...(group.context ?? {}), catalogs: { ...(group.context?.catalogs ?? {}), envVars: next } } });
+  };
+
   const updateEntry = (key: string, patch: Partial<EnvVarEntry>) => {
-    const next = { ...catalog, [key]: { ...catalog[key], ...patch } };
-    onChange({ ...group, envVarsCatalog: next });
+    setCatalog({ ...catalog, [key]: { ...catalog[key], ...patch } });
   };
 
   const removeEntry = (key: string) => {
     const next = { ...catalog };
     delete next[key];
-    onChange({ ...group, envVarsCatalog: Object.keys(next).length > 0 ? next : undefined });
+    setCatalog(Object.keys(next).length > 0 ? next : undefined);
   };
 
   const addEntry = () => {
     const key = newKey.trim();
     if (!key || catalog[key]) return;
-    onChange({ ...group, envVarsCatalog: { ...catalog, [key]: { type: "string" } } });
+    setCatalog({ ...catalog, [key]: { type: "string" } });
     setNewKey("");
   };
 
@@ -225,20 +228,20 @@ export function EnvVarsCatalogPanel({
         >
           <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
           <i className="bi bi-sliders" />
-          {" "}環境変数 (envVarsCatalog: {keys.length} 件)
+          {" "}環境変数 (envVars: {keys.length} 件)
         </button>
       )}
       {showBody && (
         <div className="catalog-panel-body">
           <div className="catalog-help">
             環境別 (dev/staging/prod) の設定値。<code>@env.&lt;KEY&gt;</code> で式から参照。
-            秘匿値は <strong>secretsCatalog</strong> 側で扱う。
+            秘匿値は <strong>secrets</strong> カタログ側で扱う。
           </div>
           {keys.length === 0 && <div className="catalog-empty">まだエントリがありません。</div>}
           {keys.map((k) => {
             const e = catalog[k];
             return (
-              <div className="catalog-row" key={k} data-field-path={`envVarsCatalog.${k}`}>
+              <div className="catalog-row" key={k} data-field-path={`context.catalogs.envVars.${k}`}>
                 <div className="catalog-row-header">
                   <span className="catalog-key-badge">{k}</span>
                   <button
@@ -256,7 +259,7 @@ export function EnvVarsCatalogPanel({
                     <select
                       className="form-select form-select-sm"
                       value={e.type}
-                      data-field-path={`envVarsCatalog.${k}.type`}
+                      data-field-path={`context.catalogs.envVars.${k}.type`}
                       onChange={(ev) => {
                         const nextType = ev.target.value as EnvVarEntry["type"];
                         // type 変更時は default / values を新型に強制しない (ユーザーが直す)。
@@ -274,7 +277,7 @@ export function EnvVarsCatalogPanel({
                     <input
                       className="form-control form-control-sm"
                       value={e.description ?? ""}
-                      data-field-path={`envVarsCatalog.${k}.description`}
+                      data-field-path={`context.catalogs.envVars.${k}.description`}
                       onChange={(ev) => updateEntry(k, { description: ev.target.value || undefined })}
                     />
                   </label>
@@ -284,7 +287,7 @@ export function EnvVarsCatalogPanel({
                       <select
                         className="form-select form-select-sm"
                         value={e.default === undefined ? "" : (e.default ? "true" : "false")}
-                        data-field-path={`envVarsCatalog.${k}.default`}
+                        data-field-path={`context.catalogs.envVars.${k}.default`}
                         onChange={(ev) => {
                           const v = ev.target.value;
                           if (v === "") updateEntry(k, { default: undefined });
@@ -299,7 +302,7 @@ export function EnvVarsCatalogPanel({
                       <input
                         className="form-control form-control-sm"
                         value={primitiveToInput(e.default as Primitive | undefined)}
-                        data-field-path={`envVarsCatalog.${k}.default`}
+                        data-field-path={`context.catalogs.envVars.${k}.default`}
                         placeholder={e.type === "number" ? "0" : "https://api.example.com 等"}
                         onChange={(ev) => {
                           const parsed = parsePrimitive(ev.target.value, e.type);
@@ -316,7 +319,7 @@ export function EnvVarsCatalogPanel({
                       type={e.type}
                       values={e.values as Record<string, Primitive> | undefined}
                       onChange={(nextValues) => updateEntry(k, { values: nextValues })}
-                      fieldPathPrefix={`envVarsCatalog.${k}`}
+                      fieldPathPrefix={`context.catalogs.envVars.${k}`}
                     />
                   </div>
                 </div>

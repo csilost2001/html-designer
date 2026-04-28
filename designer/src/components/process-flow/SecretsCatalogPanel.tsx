@@ -1,5 +1,5 @@
 /**
- * ProcessFlow.secretsCatalog 編集パネル (#278 / #414 で values 編集対応)。
+ * ProcessFlow.context.catalogs.secrets 編集パネル (#278 / #414 values 編集対応 / #570 v3 移行)。
  *
  * - source / name / rotationDays / lastRotatedAt / description は従来通り。
  * - values: 環境別の参照式 (vault:// / env:// / k8s-secret://) を編集可能 (#414)。
@@ -131,24 +131,27 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
     onExpandedChange?.(next);
   };
   const [newKey, setNewKey] = useState("");
-  const catalog = group.secretsCatalog ?? {};
+  const catalog = group.context?.catalogs?.secrets ?? {};
   const keys = Object.keys(catalog);
 
+  const setCatalog = (next: Record<string, SecretRef> | undefined) => {
+    onChange({ ...group, context: { ...(group.context ?? {}), catalogs: { ...(group.context?.catalogs ?? {}), secrets: next } } });
+  };
+
   const updateEntry = (key: string, patch: Partial<SecretRef>) => {
-    const next = { ...catalog, [key]: { ...catalog[key], ...patch } };
-    onChange({ ...group, secretsCatalog: next });
+    setCatalog({ ...catalog, [key]: { ...catalog[key], ...patch } });
   };
 
   const removeEntry = (key: string) => {
     const next = { ...catalog };
     delete next[key];
-    onChange({ ...group, secretsCatalog: Object.keys(next).length > 0 ? next : undefined });
+    setCatalog(Object.keys(next).length > 0 ? next : undefined);
   };
 
   const addEntry = () => {
     const key = newKey.trim();
     if (!key || catalog[key]) return;
-    onChange({ ...group, secretsCatalog: { ...catalog, [key]: { source: "env", name: "" } } });
+    setCatalog({ ...catalog, [key]: { source: "env", name: "" } });
     setNewKey("");
   };
 
@@ -164,7 +167,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
         >
           <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
           <i className="bi bi-key" />
-          {" "}Secrets (secretsCatalog: {keys.length} 件)
+          {" "}Secrets (secrets: {keys.length} 件)
         </button>
       )}
       {showBody && (
@@ -178,7 +181,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
           {keys.map((k) => {
             const e = catalog[k];
             return (
-              <div className="catalog-row" key={k} data-field-path={`secretsCatalog.${k}`}>
+              <div className="catalog-row" key={k} data-field-path={`context.catalogs.secrets.${k}`}>
                 <div className="catalog-row-header">
                   <span className="catalog-key-badge">{k}</span>
                   <button
@@ -196,7 +199,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
                     <select
                       className="form-select form-select-sm"
                       value={e.source}
-                      data-field-path={`secretsCatalog.${k}.source`}
+                      data-field-path={`context.catalogs.secrets.${k}.source`}
                       onChange={(ev) => updateEntry(k, { source: ev.target.value as SecretRef["source"] })}
                     >
                       <option value="env">env (環境変数)</option>
@@ -209,7 +212,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
                     <input
                       className="form-control form-control-sm"
                       value={e.name}
-                      data-field-path={`secretsCatalog.${k}.name`}
+                      data-field-path={`context.catalogs.secrets.${k}.name`}
                       onChange={(ev) => updateEntry(k, { name: ev.target.value })}
                       placeholder={e.source === "env" ? "STRIPE_SECRET_KEY" : e.source === "vault" ? "secret/stripe/api-key" : "/etc/secrets/dev.pem"}
                     />
@@ -220,7 +223,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
                       type="number"
                       className="form-control form-control-sm"
                       value={e.rotationDays ?? ""}
-                      data-field-path={`secretsCatalog.${k}.rotationDays`}
+                      data-field-path={`context.catalogs.secrets.${k}.rotationDays`}
                       min={1}
                       onChange={(ev) => updateEntry(k, { rotationDays: ev.target.value === "" ? undefined : Number(ev.target.value) })}
                     />
@@ -231,7 +234,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
                       type="datetime-local"
                       className="form-control form-control-sm"
                       value={e.lastRotatedAt ? e.lastRotatedAt.slice(0, 16) : ""}
-                      data-field-path={`secretsCatalog.${k}.lastRotatedAt`}
+                      data-field-path={`context.catalogs.secrets.${k}.lastRotatedAt`}
                       onChange={(ev) => updateEntry(k, { lastRotatedAt: ev.target.value ? new Date(ev.target.value).toISOString() : undefined })}
                     />
                   </label>
@@ -240,7 +243,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
                     <input
                       className="form-control form-control-sm"
                       value={e.description ?? ""}
-                      data-field-path={`secretsCatalog.${k}.description`}
+                      data-field-path={`context.catalogs.secrets.${k}.description`}
                       onChange={(ev) => updateEntry(k, { description: ev.target.value || undefined })}
                     />
                   </label>
@@ -251,7 +254,7 @@ export function SecretsCatalogPanel({ group, onChange, expanded: expandedProp, o
                     <ValuesEditor
                       values={e.values}
                       onChange={(nextValues) => updateEntry(k, { values: nextValues })}
-                      fieldPathPrefix={`secretsCatalog.${k}`}
+                      fieldPathPrefix={`context.catalogs.secrets.${k}`}
                     />
                   </div>
                 </div>

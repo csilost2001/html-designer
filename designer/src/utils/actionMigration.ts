@@ -223,23 +223,7 @@ function migrateStepInPlace(raw: unknown): Step {
     }
   }
 
-  return attachStepCompatAliases(step as unknown as Step);
-}
-
-/**
- * Phase 4-γ 過渡形式: v1 vocabulary (step.type 等) を UI コンポーネントが
- * 引き続き使えるよう、v3 のフィールド (step.kind 等) と双方向 alias する。
- *
- * Phase 4-γ-cleanup (#570) で UI コンポーネントを v3 vocabulary に直接書き換え後に
- * 本 alias 機構は削除予定。
- */
-export function attachStepCompatAliases(step: Step): Step {
-  const target = step as unknown as Raw;
-  defineAlias(target, "type", () => step.kind, (v) => { step.kind = String(v); });
-  if (!("subSteps" in target)) {
-    defineAlias(target, "subSteps", () => undefined, () => {});
-  }
-  return step;
+  return step as unknown as Step;
 }
 
 function migrateAction(raw: unknown): ActionDefinition {
@@ -265,7 +249,7 @@ function normalizeV3(raw: Raw): ProcessFlow {
   if (!isValidMode(meta.mode)) meta.mode = "upstream";
   next.meta = meta;
   next.actions = Array.isArray(next.actions) ? next.actions.map(migrateAction) : [];
-  return attachRuntimeCompatAliases(next as unknown as ProcessFlow);
+  return next as unknown as ProcessFlow;
 }
 
 export function migrateProcessFlow(raw: unknown): ProcessFlow {
@@ -323,70 +307,7 @@ export function migrateProcessFlow(raw: unknown): ProcessFlow {
     ...(Object.keys(authoring).length > 0 ? { authoring } : {}),
   };
 
-  return attachRuntimeCompatAliases(migrated as unknown as ProcessFlow);
-}
-
-function defineAlias(target: Raw, key: string, get: () => unknown, set: (value: unknown) => void): void {
-  if (Object.prototype.hasOwnProperty.call(target, key)) delete target[key];
-  Object.defineProperty(target, key, {
-    enumerable: false,
-    configurable: true,
-    get,
-    set,
-  });
-}
-
-/**
- * Phase 4-γ 過渡形式: v1 vocabulary (errorCatalog / externalSystemCatalog 等) を
- * UI コンポーネントが引き続き使えるよう、v3 のフィールド (context.catalogs.errors 等)
- * と双方向 alias する。
- *
- * Phase 4-γ-cleanup (#570) で UI コンポーネントを v3 vocabulary に直接書き換え後に
- * 本 alias 機構は削除予定。
- */
-function attachRuntimeCompatAliases(flow: ProcessFlow): ProcessFlow {
-  const target = flow as unknown as Raw;
-  defineAlias(target, "id", () => flow.meta.id, (v) => { flow.meta.id = v as never; });
-  defineAlias(target, "name", () => flow.meta.name, (v) => { flow.meta.name = String(v); });
-  defineAlias(target, "type", () => flow.meta.kind, (v) => { flow.meta.kind = String(v); });
-  defineAlias(target, "kind", () => flow.meta.kind, (v) => { flow.meta.kind = String(v); });
-  defineAlias(target, "screenId", () => flow.meta.screenId, (v) => { flow.meta.screenId = v as never; });
-  defineAlias(target, "description", () => flow.meta.description ?? "", (v) => { flow.meta.description = String(v ?? ""); });
-  defineAlias(target, "maturity", () => flow.meta.maturity, (v) => { flow.meta.maturity = v as never; });
-  defineAlias(target, "mode", () => flow.meta.mode, (v) => { flow.meta.mode = v as never; });
-  defineAlias(target, "createdAt", () => flow.meta.createdAt, (v) => { flow.meta.createdAt = v as never; });
-  defineAlias(target, "updatedAt", () => flow.meta.updatedAt, (v) => { flow.meta.updatedAt = v as never; });
-  defineAlias(target, "sla", () => flow.meta.sla, (v) => { flow.meta.sla = v as never; });
-  defineAlias(target, "markers", () => flow.authoring?.markers, (v) => { flow.authoring = { ...(flow.authoring ?? {}), markers: v as never }; });
-  defineAlias(target, "decisions", () => flow.authoring?.decisions, (v) => { flow.authoring = { ...(flow.authoring ?? {}), decisions: v as never }; });
-  defineAlias(target, "glossary", () => flow.authoring?.glossary, (v) => { flow.authoring = { ...(flow.authoring ?? {}), glossary: v as never }; });
-  defineAlias(target, "notes", () => flow.authoring?.notes, (v) => { flow.authoring = { ...(flow.authoring ?? {}), notes: v as never }; });
-  defineAlias(target, "testScenarios", () => flow.authoring?.testScenarios, (v) => { flow.authoring = { ...(flow.authoring ?? {}), testScenarios: v as never }; });
-  defineAlias(target, "errorCatalog", () => flow.context?.catalogs?.errors, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), errors: v as never } };
-  });
-  defineAlias(target, "externalSystemCatalog", () => flow.context?.catalogs?.externalSystems, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), externalSystems: v as never } };
-  });
-  defineAlias(target, "secretsCatalog", () => flow.context?.catalogs?.secrets, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), secrets: v as never } };
-  });
-  defineAlias(target, "envVarsCatalog", () => flow.context?.catalogs?.envVars, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), envVars: v as never } };
-  });
-  defineAlias(target, "domainsCatalog", () => flow.context?.catalogs?.domains, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), domains: v as never } };
-  });
-  defineAlias(target, "functionsCatalog", () => flow.context?.catalogs?.functions, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), functions: v as never } };
-  });
-  defineAlias(target, "eventsCatalog", () => flow.context?.catalogs?.events, (v) => {
-    flow.context = { ...(flow.context ?? {}), catalogs: { ...(flow.context?.catalogs ?? {}), events: v as never } };
-  });
-  defineAlias(target, "ambientVariables", () => flow.context?.ambientVariables, (v) => {
-    flow.context = { ...(flow.context ?? {}), ambientVariables: v as never };
-  });
-  return flow;
+  return migrated as unknown as ProcessFlow;
 }
 
 export function migrateStep(raw: unknown): Step {

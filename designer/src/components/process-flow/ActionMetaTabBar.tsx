@@ -42,12 +42,12 @@ function countMaturity(group: ProcessFlow): {
       acc.total++;
       acc.notes += s.notes?.length ?? 0;
       if (s.subSteps) visit(s.subSteps);
-      if (s.type === "branch") {
+      if (s.kind === "branch") {
         for (const b of s.branches) visit(b.steps);
         if (s.elseBranch) visit(s.elseBranch.steps);
       }
-      if (s.type === "loop") visit(s.steps);
-      if (s.type === "transactionScope") {
+      if (s.kind === "loop") visit(s.steps);
+      if (s.kind === "transactionScope") {
         visit(s.steps);
         if (s.onCommit) visit(s.onCommit);
         if (s.onRollback) visit(s.onRollback);
@@ -70,12 +70,12 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
 
   const handleInfoChange = (field: string, value: string) => {
     updateGroupSilent((g) => {
-      (g as unknown as Record<string, string>)[field] = value;
+      g.meta = { ...(g.meta ?? {}), [field]: value };
     });
   };
   const handleSlaChange = (sla: ProcessFlow["sla"]) => {
     updateGroupSilent((g) => {
-      g.sla = sla;
+      g.meta = { ...(g.meta ?? {}), sla };
     });
   };
 
@@ -84,22 +84,22 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
 
   // MarkerPanel / 各カタログパネルへの onChange を 1 箇所でまとめる
   const onMarkersChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.markers = next.markers; });
+    updateGroup((g) => { g.authoring = { ...(g.authoring ?? {}), markers: next.authoring?.markers }; });
   };
   const onErrorCatalogChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.errorCatalog = next.errorCatalog; });
+    updateGroup((g) => { g.context = { ...(g.context ?? {}), catalogs: { ...(g.context?.catalogs ?? {}), errors: next.context?.catalogs?.errors } }; });
   };
   const onAmbientChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.ambientVariables = next.ambientVariables; });
+    updateGroup((g) => { g.context = { ...(g.context ?? {}), ambientVariables: next.context?.ambientVariables }; });
   };
   const onSecretsChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.secretsCatalog = next.secretsCatalog; });
+    updateGroup((g) => { g.context = { ...(g.context ?? {}), catalogs: { ...(g.context?.catalogs ?? {}), secrets: next.context?.catalogs?.secrets } }; });
   };
   const onEnvVarsChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.envVarsCatalog = next.envVarsCatalog; });
+    updateGroup((g) => { g.context = { ...(g.context ?? {}), catalogs: { ...(g.context?.catalogs ?? {}), envVars: next.context?.catalogs?.envVars } }; });
   };
   const onExternalChange = (next: ProcessFlow) => {
-    updateGroup((g) => { g.externalSystemCatalog = next.externalSystemCatalog; });
+    updateGroup((g) => { g.context = { ...(g.context ?? {}), catalogs: { ...(g.context?.catalogs ?? {}), externalSystems: next.context?.catalogs?.externalSystems } }; });
   };
 
   return (
@@ -171,7 +171,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
         <div className="action-meta-tabbar-inline">
           <span className="action-meta-maturity-label">成熟度</span>
           <MaturityBadge
-            maturity={group.maturity}
+            maturity={group.meta?.maturity}
             size="md"
             onChange={(next) => handleInfoChange("maturity", next)}
           />
@@ -195,7 +195,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
       </div>
 
       {/* 下流モード未確定警告 (常時表示) */}
-      {group.mode === "downstream" && unfinished > 0 && (
+      {group.meta?.mode === "downstream" && unfinished > 0 && (
         <div className="alert alert-warning py-1 px-2 mb-0 small d-flex align-items-center gap-2" role="alert">
           <i className="bi bi-exclamation-triangle-fill" />
           <strong>下流モードで未確定ステップあり:</strong>
@@ -215,7 +215,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
               <label className="form-label small fw-semibold">名前</label>
               <input
                 className="form-control form-control-sm"
-                value={group.name}
+                value={group.meta?.name ?? ""}
                 onChange={(e) => handleInfoChange("name", e.target.value)}
               />
             </div>
@@ -223,8 +223,8 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
               <label className="form-label small fw-semibold">種別</label>
               <select
                 className="form-select form-select-sm"
-                value={group.type}
-                onChange={(e) => handleInfoChange("type", e.target.value)}
+                value={group.meta?.kind ?? "other"}
+                onChange={(e) => handleInfoChange("kind", e.target.value)}
               >
                 {(["screen", "batch", "scheduled", "system", "common", "other"] as ProcessFlowType[]).map((t) => (
                   <option key={t} value={t}>{PROCESS_FLOW_TYPE_LABELS[t]}</option>
@@ -235,7 +235,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
               <label className="form-label small fw-semibold">説明</label>
               <input
                 className="form-control form-control-sm"
-                value={group.description}
+                value={group.meta?.description ?? ""}
                 onChange={(e) => handleInfoChange("description", e.target.value)}
                 placeholder="処理フローの概要"
               />
@@ -246,7 +246,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
             <div className="btn-group btn-group-sm" role="group" aria-label="モード切替">
               <button
                 type="button"
-                className={`btn btn-outline-secondary${(group.mode ?? "upstream") === "upstream" ? " active" : ""}`}
+                className={`btn btn-outline-secondary${(group.meta?.mode ?? "upstream") === "upstream" ? " active" : ""}`}
                 onClick={() => handleInfoChange("mode", "upstream")}
                 title="上流モード: 書きかけ・曖昧を許容"
               >
@@ -254,7 +254,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
               </button>
               <button
                 type="button"
-                className={`btn btn-outline-secondary${group.mode === "downstream" ? " active" : ""}`}
+                className={`btn btn-outline-secondary${group.meta?.mode === "downstream" ? " active" : ""}`}
                 onClick={() => handleInfoChange("mode", "downstream")}
                 title="下流モード: AI 実装用に確定"
               >
@@ -264,7 +264,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
           </div>
           <SlaPanel
             label="フロー SLA / Timeout"
-            sla={group.sla}
+            sla={group.meta?.sla}
             onChange={handleSlaChange}
           />
         </div>

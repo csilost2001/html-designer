@@ -7,12 +7,12 @@ describe("ComputeStep (#174)", () => {
   it("税額計算の典型パターンを表現できる", () => {
     const step: ComputeStep = {
       id: "s-tax",
-      type: "compute",
+      kind: "compute",
       description: "税額計算 (外税 10% 切り捨て)",
       expression: "Math.floor(@subtotal * 0.10)",
       outputBinding: "taxAmount",
     };
-    expect(step.type).toBe("compute");
+    expect(step.kind).toBe("compute");
     expect(step.expression).toBe("Math.floor(@subtotal * 0.10)");
     expect(step.outputBinding).toBe("taxAmount");
   });
@@ -77,7 +77,7 @@ describe("migrateProcessFlow — ComputeStep 透過保持 (#174)", () => {
     const twice = migrateProcessFlow(once);
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     const step = once.actions[0].steps[0] as ComputeStep;
-    expect(step.type).toBe("compute");
+    expect(step.kind).toBe("compute");
     expect(step.expression).toBe("Math.floor(@subtotal * 0.10)");
     // maturity 既定が付与される
     expect(step.maturity).toBe("draft");
@@ -120,7 +120,7 @@ describe("migrateProcessFlow — ComputeStep 透過保持 (#174)", () => {
       elseBranch: { steps: Step[] };
     };
     const compute = br.elseBranch.steps[0] as ComputeStep;
-    expect(compute.type).toBe("compute");
+    expect(compute.kind).toBe("compute");
     expect(compute.maturity).toBe("draft");
   });
 });

@@ -59,12 +59,12 @@ describe("ReturnStep (#178)", () => {
   it("responseRef + bodyExpression で返却を構造化できる", () => {
     const step: ReturnStep = {
       id: "s-ret",
-      type: "return",
+      kind: "return",
       description: "在庫不足レスポンス",
       responseRef: "409-stock-shortage",
       bodyExpression: "{ code: 'STOCK_SHORTAGE', detail: @shortageList }",
     };
-    expect(step.type).toBe("return");
+    expect(step.kind).toBe("return");
     expect(step.responseRef).toBe("409-stock-shortage");
     expect(step.bodyExpression).toContain("@shortageList");
   });
@@ -151,7 +151,7 @@ describe("migrateProcessFlow — runIf / ReturnStep / responses[].id 透過保�
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
 
     const step = once.actions[0].steps[0] as ReturnStep;
-    expect(step.type).toBe("return");
+    expect(step.kind).toBe("return");
     expect(step.responseRef).toBe("409-stock-shortage");
     expect(step.maturity).toBe("draft");
 

@@ -166,7 +166,7 @@ export function ProcessFlowListView() {
           });
           return next;
         });
-        const openMarkers = (group.markers ?? []).filter((m) => !m.resolvedAt);
+        const openMarkers = (group.authoring?.markers ?? []).filter((m) => !m.resolvedAt);
         const summary: MarkerSummary = {
           todo: openMarkers.filter((m) => m.kind === "todo").length,
           question: openMarkers.filter((m) => m.kind === "question").length,
@@ -374,7 +374,7 @@ export function ProcessFlowListView() {
     setAddType("screen");
     setAddScreenId("");
     setAddDescription("");
-    navigate(`/process-flow/edit/${group.id}`);
+    navigate(`/process-flow/edit/${group.meta?.id ?? group.id}`);
   };
 
   // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築

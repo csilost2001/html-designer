@@ -572,7 +572,7 @@ export function ProcessFlowEditor() {
       // 実 step ID ではないため、Marker.stepId / fieldPath にはコピーしない
       // (shape.anchorStepId 側に残るので DrawingOverlay の位置追従は効く)。
       const isMetaTabAnchor = shape.anchorStepId?.startsWith("__meta-tab-") ?? false;
-      g.markers = [...(g.markers ?? []), {
+      g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), {
         id: generateUUID(),
         kind: "todo",
         body: body.trim(),
@@ -581,14 +581,14 @@ export function ProcessFlowEditor() {
         fieldPath: isMetaTabAnchor ? undefined : shape.anchorFieldPath,
         author: "human",
         createdAt: new Date().toISOString(),
-      }];
+      }] };
     });
     setDrawingMode(false);
   };
 
   const handleEraseMarker = (markerId: string) => {
     updateGroup((g) => {
-      g.markers = (g.markers ?? []).filter((m) => m.id !== markerId);
+      g.authoring = { ...(g.authoring ?? {}), markers: (g.authoring?.markers ?? []).filter((m) => m.id !== markerId) };
     });
   };
 
@@ -621,7 +621,7 @@ export function ProcessFlowEditor() {
           <div className="process-flow-editor-breadcrumb">
             <Link to="/process-flow/list">処理フロー一覧</Link>
             <span className="mx-2">/</span>
-            <span className="fw-semibold text-dark">{group.name}</span>
+            <span className="fw-semibold text-dark">{group.meta?.name ?? ""}</span>
           </div>
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
@@ -680,7 +680,7 @@ export function ProcessFlowEditor() {
               onClick={() => {
                 // 全警告をまとめて marker 化 (既に起票済のものは skip)
                 if (!group) return;
-                const existingKeys = new Set((group.markers ?? [])
+                const existingKeys = new Set((group.authoring?.markers ?? [])
                   .filter((m) => !m.resolvedAt && m.kind === "todo")
                   .map((m) => `${m.code ?? ""}|${m.path ?? ""}`));
                 const newMarkers = validationErrors
@@ -701,7 +701,7 @@ export function ProcessFlowEditor() {
                   return;
                 }
                 updateGroup((g) => {
-                  g.markers = [...(g.markers ?? []), ...newMarkers];
+                  g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), ...newMarkers] };
                 });
                 window.alert(`${newMarkers.length} 件の警告を marker として起票しました。/designer-work で処理できます。`);
               }}
@@ -721,7 +721,7 @@ export function ProcessFlowEditor() {
             {validationErrors
               .filter((e) => e.severity === "warning")
               .map((e, i) => {
-                const isMarked = (group?.markers ?? [])
+                const isMarked = (group?.authoring?.markers ?? [])
                   .some((m) => !m.resolvedAt && m.kind === "todo"
                     && m.code === e.code && m.path === e.path);
                 return (
@@ -746,7 +746,7 @@ export function ProcessFlowEditor() {
                           createdAt: new Date().toISOString(),
                         };
                         updateGroup((g) => {
-                          g.markers = [...(g.markers ?? []), newMarker];
+                          g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), newMarker] };
                         });
                       }}
                     >
@@ -924,7 +924,7 @@ export function ProcessFlowEditor() {
                   <div className="step-list" ref={stepListRef}>
                     {activeAction.steps.map((step, index) => {
                       // この step に紐付いた未解決 marker 件数
-                      const stepMarkers = (group.markers ?? []).filter(
+                      const stepMarkers = (group.authoring?.markers ?? []).filter(
                         (m) => !m.resolvedAt && m.stepId === step.id,
                       );
                       const markerCount = stepMarkers.length;
@@ -980,7 +980,7 @@ export function ProcessFlowEditor() {
                                 author: "human" as const,
                                 createdAt: new Date().toISOString(),
                               };
-                              g.markers = [...(g.markers ?? []), m];
+                              g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), m] };
                             });
                           }}
                           markerCount={markerCount}
@@ -1104,7 +1104,7 @@ export function ProcessFlowEditor() {
       )}
       {/* 赤線マーカー描画オーバーレイ (#261) */}
       <DrawingOverlay
-        markers={group.markers ?? []}
+        markers={group.authoring?.markers ?? []}
         drawing={drawingMode}
         onCommitStrokes={handleCommitStrokes}
         onEraseMarker={handleEraseMarker}
