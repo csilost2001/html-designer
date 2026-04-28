@@ -130,19 +130,6 @@ export interface ProcessFlowMeta extends ProcessFlowEntry {
   type: string;
 }
 
-// legacy ProcessFlowMeta removed
-// export interface ProcessFlowMeta {
-//   id: string;
-  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
-//   no: number;
-//   name: string;
-//   type: string;
-//   screenId?: string;
-//   actionCount: number;
-//   updatedAt: Timestamp;
-//   maturity?: "draft" | "provisional" | "committed";
-//   notesCount?: number;
-// }
 
 // ─── 後方互換 alias (Phase 4 で削除) ─────────────────────────────────
 //

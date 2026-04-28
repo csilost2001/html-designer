@@ -319,6 +319,7 @@ async function syncProcessFlowMeta(group: ProcessFlow): Promise<void> {
   if (!project.processFlows) project.processFlows = [];
 
   const idx = project.processFlows.findIndex((a) => a.id === group.id);
+  // TODO: Phase 4-γ (#565) で type → kind に切替予定
   const meta: FlowProcessFlowMeta = {
     id: group.id as ProcessFlowId,
     no: idx >= 0 ? project.processFlows[idx].no : nextNo(project.processFlows),
