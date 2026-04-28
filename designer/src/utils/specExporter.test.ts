@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateSpecJson, type SpecStep } from "./specExporter";
-import type { TableDefinition } from "../types/table";
+import type { Table, TableId, LocalId, PhysicalName, DisplayName, Timestamp, ErLayout } from "../types/v3";
 import type { FlowProject } from "../types/flow";
-import type { ErLayout } from "../types/table";
 import type {
   AuditStep,
   CdcStep,
@@ -41,35 +40,61 @@ function getStep(stepDef: Step): SpecStep {
 }
 
 const emptyProject: FlowProject = {
+  version: 1,
   name: "テストプロジェクト",
   screens: [],
+  groups: [],
   edges: [],
+  updatedAt: new Date().toISOString(),
 };
 
 const emptyErLayout: ErLayout = {
   positions: {},
-  updatedAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString() as Timestamp,
 };
 
-function makeTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
+const customersTable: Table = {
+  id: "t-customers" as TableId,
+  name: "顧客" as DisplayName,
+  physicalName: "customers" as PhysicalName,
+  description: "",
+  createdAt: new Date().toISOString() as Timestamp,
+  updatedAt: new Date().toISOString() as Timestamp,
+  columns: [
+    {
+      id: "cust-id" as LocalId, no: 1, physicalName: "id" as PhysicalName, name: "ID" as DisplayName,
+      dataType: "INTEGER", notNull: true, primaryKey: true, unique: false,
+    },
+  ],
+};
+
+function makeTable(overrides: Partial<Table> = {}): Table {
   return {
-    id: "t1",
-    name: "orders",
-    logicalName: "注文",
+    id: "t1" as TableId,
+    name: "注文" as DisplayName,
+    physicalName: "orders" as PhysicalName,
     description: "注文テーブル",
+    createdAt: new Date().toISOString() as Timestamp,
+    updatedAt: new Date().toISOString() as Timestamp,
     columns: [
       {
-        id: "c1", no: 1, name: "id", logicalName: "ID",
+        id: "c1" as LocalId, no: 1, physicalName: "id" as PhysicalName, name: "ID" as DisplayName,
         dataType: "INTEGER", notNull: true, primaryKey: true, unique: false, autoIncrement: true,
       },
       {
-        id: "c2", no: 2, name: "customer_id", logicalName: "顧客ID",
+        id: "c2" as LocalId, no: 2, physicalName: "customer_id" as PhysicalName, name: "顧客ID" as DisplayName,
         dataType: "INTEGER", notNull: true, primaryKey: false, unique: false,
+      },
+      {
+        id: "c3" as LocalId, no: 3, physicalName: "created_at" as PhysicalName, name: "作成日時" as DisplayName,
+        dataType: "TIMESTAMP", notNull: false, primaryKey: false, unique: false,
+      },
+      {
+        id: "c4" as LocalId, no: 4, physicalName: "status" as PhysicalName, name: "ステータス" as DisplayName,
+        dataType: "VARCHAR", length: 20, notNull: false, primaryKey: false, unique: false,
       },
     ],
     indexes: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -83,63 +108,74 @@ describe("generateSpecJson — SpecTable", () => {
     expect(t.triggers).toBeUndefined();
   });
 
-  it("UNIQUE 制約が出力に含まれる", () => {
+  it("UNIQUE 制約が出力に含まれる (v3 columnIds → SpecTable では原構造を維持)", () => {
     const table = makeTable({
       constraints: [
-        { id: "uq1", kind: "unique", columns: ["customer_id"], description: "顧客IDは一意" },
+        { id: "uq1" as LocalId, kind: "unique", physicalName: "uq_customer" as PhysicalName, columnIds: ["c2" as LocalId], description: "顧客IDは一意" },
       ],
     });
     const spec = generateSpecJson(emptyProject, [table], emptyErLayout);
     const t = spec.tables[0];
     expect(t.constraints).toHaveLength(1);
-    expect(t.constraints![0]).toMatchObject({ kind: "unique", columns: ["customer_id"] });
+    expect(t.constraints![0]).toMatchObject({ kind: "unique", columnIds: ["c2"] });
   });
 
   it("CHECK 制約が出力に含まれる", () => {
     const table = makeTable({
       constraints: [
-        { id: "ck1", kind: "check", expression: "amount > 0", description: "金額は正の値" },
+        { id: "ck1" as LocalId, kind: "check", physicalName: "ck_amount" as PhysicalName, expression: "amount > 0", description: "金額は正の値" },
       ],
     });
     const spec = generateSpecJson(emptyProject, [table], emptyErLayout);
     expect(spec.tables[0].constraints![0]).toMatchObject({ kind: "check", expression: "amount > 0" });
   });
 
-  it("FOREIGN KEY 制約が出力に含まれる", () => {
+  it("FOREIGN KEY 制約が出力に含まれる (referencedTableId UUID は allTables から物理名解決)", () => {
     const table = makeTable({
       constraints: [
         {
-          id: "fk1", kind: "foreignKey",
-          columns: ["customer_id"], referencedTable: "customers", referencedColumns: ["id"],
-          onDelete: "CASCADE",
+          id: "fk1" as LocalId,
+          kind: "foreignKey",
+          physicalName: "fk_orders_customer" as PhysicalName,
+          columnIds: ["c2" as LocalId],
+          referencedTableId: customersTable.id,
+          referencedColumnIds: ["cust-id" as LocalId],
+          onDelete: "cascade",
         },
       ],
     });
-    const spec = generateSpecJson(emptyProject, [table], emptyErLayout);
+    const spec = generateSpecJson(emptyProject, [table, customersTable], emptyErLayout);
     expect(spec.tables[0].constraints![0]).toMatchObject({
-      kind: "foreignKey", referencedTable: "customers", onDelete: "CASCADE",
+      kind: "foreignKey", onDelete: "cascade",
+    });
+    // SpecColumn.reference で参照先テーブル / カラムが物理名解決されること
+    const customerCol = spec.tables[0].columns.find((c) => c.name === "customer_id");
+    expect(customerCol?.reference).toEqual({
+      table: "customers",
+      column: "id",
+      type: "physical",
     });
   });
 
-  it("DEFAULT 定義が出力に含まれる", () => {
+  it("DEFAULT 定義が v3 columnId 参照で出力される", () => {
     const table = makeTable({
       defaults: [
-        { column: "created_at", kind: "function", value: "NOW()", description: "作成日時自動設定" },
-        { column: "status", kind: "literal", value: "'active'" },
+        { columnId: "c3" as LocalId, kind: "function", value: "NOW()", description: "作成日時自動設定" },
+        { columnId: "c4" as LocalId, kind: "literal", value: "'active'" },
       ],
     });
     const spec = generateSpecJson(emptyProject, [table], emptyErLayout);
     const t = spec.tables[0];
     expect(t.defaults).toHaveLength(2);
-    expect(t.defaults![0]).toMatchObject({ column: "created_at", kind: "function", value: "NOW()" });
-    expect(t.defaults![1]).toMatchObject({ column: "status", kind: "literal" });
+    expect(t.defaults![0]).toMatchObject({ columnId: "c3", kind: "function", value: "NOW()" });
+    expect(t.defaults![1]).toMatchObject({ columnId: "c4", kind: "literal" });
   });
 
   it("トリガー定義が出力に含まれる", () => {
     const table = makeTable({
       triggers: [
         {
-          id: "tr1", timing: "BEFORE", events: ["INSERT", "UPDATE"],
+          id: "tr1" as LocalId, physicalName: "trg_audit" as PhysicalName, timing: "BEFORE", events: ["INSERT", "UPDATE"],
           body: "SET NEW.updated_at = NOW();", description: "更新日時自動セット",
         },
       ],
@@ -152,9 +188,9 @@ describe("generateSpecJson — SpecTable", () => {
 
   it("constraints / defaults / triggers が混在しても全て出力される", () => {
     const table = makeTable({
-      constraints: [{ id: "uq1", kind: "unique", columns: ["customer_id"] }],
-      defaults: [{ column: "status", kind: "literal", value: "'active'" }],
-      triggers: [{ id: "tr1", timing: "AFTER", events: ["INSERT"], body: "..." }],
+      constraints: [{ id: "uq1" as LocalId, kind: "unique", physicalName: "uq1" as PhysicalName, columnIds: ["c2" as LocalId] }],
+      defaults: [{ columnId: "c4" as LocalId, kind: "literal", value: "'active'" }],
+      triggers: [{ id: "tr1" as LocalId, physicalName: "trg_t" as PhysicalName, timing: "AFTER", events: ["INSERT"], body: "..." }],
     });
     const spec = generateSpecJson(emptyProject, [table], emptyErLayout);
     const t = spec.tables[0];

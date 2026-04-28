@@ -168,6 +168,8 @@ export interface TriggerDefinition {
 
 /** Table entity 本体。EntityMeta + 物理名 + カラム + 制約 + インデックス + 等。 */
 export interface Table extends EntityMeta {
+  /** Sequence / View と同じく id を TableId に narrow (compile-time 識別)。schema 上は Uuid。 */
+  id: TableId;
   $schema?: string;
   /** DB 物理名 (snake_case)。例: `users`, `order_items` */
   physicalName: PhysicalName;

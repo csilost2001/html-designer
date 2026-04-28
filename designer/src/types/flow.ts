@@ -105,18 +105,6 @@ export interface ScreenEdge {
   trigger: TransitionTrigger;
 }
 
-/** テーブルメタ情報（project.json 管理用） */
-export interface TableMeta {
-  id: string;
-  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
-  no: number;
-  name: string;
-  logicalName: string;
-  category?: string;
-  columnCount: number;
-  updatedAt: string;
-}
-
 /** 処理フローメタ情報（project.json 管理用） */
 export interface ProcessFlowMeta {
   id: string;
@@ -140,7 +128,7 @@ export interface FlowProject {
   screens: ScreenNode[];
   groups: ScreenGroup[];
   edges: ScreenEdge[];
-  tables?: TableMeta[];
+  tables?: import("./v3").TableEntry[];
   processFlows?: ProcessFlowMeta[];
   sequences?: import("./v3").SequenceEntry[];
   views?: import("./v3").ViewEntry[];

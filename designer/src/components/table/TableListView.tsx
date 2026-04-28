@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { TableMeta } from "../../types/flow";
-import type { TableDefinition, SqlDialect } from "../../types/table";
-import { SQL_DIALECT_LABELS } from "../../types/table";
+import type { Table, TableEntry, TableId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
+import { type SqlDialect, SQL_DIALECT_LABELS } from "../../utils/ddlGenerator";
 import { listTables, createTable, deleteTable, loadTable, saveTable } from "../../store/tableStore";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { generateAllDdl, generateAllTableMarkdown } from "../../utils/ddlGenerator";
@@ -56,7 +55,7 @@ export function TableListView() {
     return await listTables();
   }, []);
 
-  const commitTables = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: TableMeta[]; deletedIds: string[] }) => {
+  const commitTables = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: TableEntry[]; deletedIds: string[] }) => {
     // 1. 削除対象を削除
     for (const id of deletedIds) {
       await deleteTable(id);
@@ -73,7 +72,7 @@ export function TableListView() {
     }
   }, []);
 
-  const editor = useListEditor<TableMeta>({
+  const editor = useListEditor<TableEntry>({
     getId: (t) => t.id,
     load: loadTables,
     commit: commitTables,
@@ -104,18 +103,18 @@ export function TableListView() {
     }
     filter.applyFilter((t) =>
       t.name.toLowerCase().includes(q) ||
-      t.logicalName.toLowerCase().includes(q) ||
+      (t.physicalName ?? "").toLowerCase().includes(q) ||
       (t.category ?? "").toLowerCase().includes(q),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const sortAccessor = useCallback((t: TableMeta, key: string): string | number => {
+  const sortAccessor = useCallback((t: TableEntry, key: string): string | number => {
     switch (key) {
       case "name": return t.name;
-      case "logicalName": return t.logicalName;
+      case "physicalName": return t.physicalName ?? "";
       case "category": return t.category ?? "";
-      case "columnCount": return t.columnCount;
+      case "columnCount": return t.columnCount ?? 0;
       case "updatedAt": return t.updatedAt;
       default: return "";
     }
@@ -123,14 +122,14 @@ export function TableListView() {
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (t) => t.id);
-  const clipboard = useListClipboard<TableMeta>((t) => t.id);
+  const clipboard = useListClipboard<TableEntry>((t) => t.id);
 
-  const handleActivate = useCallback((t: TableMeta) => {
+  const handleActivate = useCallback((t: TableEntry) => {
     if (editor.isDeleted(t.id)) return; // 削除マーク中は編集画面に遷移しない
     navigate(`/table/edit/${t.id}`);
   }, [navigate, editor]);
 
-  const handleDelete = (items: TableMeta[]) => {
+  const handleDelete = (items: TableEntry[]) => {
     // ghost 方式: マークするだけ
     editor.markDeleted(items.map((t) => t.id));
   };
@@ -148,7 +147,7 @@ export function TableListView() {
     editor.reorder(realFrom, realTo);
   };
 
-  const moveBlock = (items: TableMeta[], direction: "up" | "down") => {
+  const moveBlock = (items: TableEntry[], direction: "up" | "down") => {
     // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化されており
     // ここには到達しない想定
     const ids = new Set(items.map((t) => t.id));
@@ -176,27 +175,29 @@ export function TableListView() {
     }
   };
 
-  const handleDuplicate = async (items: TableMeta[]) => {
-    // 複製は新規エンティティ生成 → 即永続化。Save フローには乗せない。
+  const handleDuplicate = async (items: TableEntry[]) => {
+    // 複製は新規エンティティ生成 → 即永続化。Column.id (LocalId) は元のまま保持。
     const newIds: string[] = [];
     for (const t of items) {
       const full = await loadTable(t.id);
       if (!full) continue;
-      const dup: TableDefinition = {
+      const ts = new Date().toISOString() as Timestamp;
+      const dup: Table = {
         ...full,
-        id: generateUUID(),
-        name: full.name + "_copy",
-        logicalName: full.logicalName + " (コピー)",
-        columns: full.columns.map((c) => ({ ...c, id: generateUUID() })),
-        indexes: full.indexes.map((i) => ({ ...i, id: generateUUID() })),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        id: generateUUID() as TableId,
+        physicalName: (full.physicalName + "_copy") as PhysicalName,
+        name: (full.name + " (コピー)") as DisplayName,
+        // Column.id (LocalId) は内部参照に使われているので維持。新規 Table 内では再衝突しない
+        columns: full.columns.map((c) => ({ ...c })),
+        indexes: (full.indexes ?? []).map((i) => ({ ...i })),
+        createdAt: ts,
+        updatedAt: ts,
       };
       await saveTable(dup);
       newIds.push(dup.id);
     }
     await editor.reload();
-    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
+    if (newIds.length > 0) selection.setSelectedIds(new Set<string>(newIds));
   };
 
   const handlePaste = async (insertIdx: number | null) => {
@@ -206,7 +207,7 @@ export function TableListView() {
 
     if (mode === "cut") {
       // No-op: 貼り付け対象自身が選択中
-      const cutIds = new Set(clipItems.map((c) => c.id));
+      const cutIds = new Set<string>(clipItems.map((c) => c.id));
       const selIds = selection.selectedIds;
       const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
       if (sameSet) return;
@@ -232,40 +233,41 @@ export function TableListView() {
       for (const t of clipItems) {
         const full = await loadTable(t.id);
         if (!full) continue;
-        const dup: TableDefinition = {
+        const ts = new Date().toISOString() as Timestamp;
+        const dup: Table = {
           ...full,
-          id: generateUUID(),
-          name: full.name + "_copy",
-          logicalName: full.logicalName + " (コピー)",
-          columns: full.columns.map((c) => ({ ...c, id: generateUUID() })),
-          indexes: full.indexes.map((i) => ({ ...i, id: generateUUID() })),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          id: generateUUID() as TableId,
+          physicalName: (full.physicalName + "_copy") as PhysicalName,
+          name: (full.name + " (コピー)") as DisplayName,
+          columns: full.columns.map((c) => ({ ...c })),
+          indexes: (full.indexes ?? []).map((i) => ({ ...i })),
+          createdAt: ts,
+          updatedAt: ts,
         };
         await saveTable(dup);
         newIds.push(dup.id);
       }
       clipboard.consume();
       await editor.reload();
-      selection.setSelectedIds(new Set(newIds));
+      selection.setSelectedIds(new Set<string>(newIds));
     }
   };
 
   const sortActive = sort.sortKeys.length > 0;
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
-    name: "テーブル名",
-    logicalName: "論理名",
+    physicalName: "物理名",
+    name: "表示名",
     category: "カテゴリ",
     columnCount: "カラム",
     updatedAt: "更新日",
   }), []);
 
   const handleAdd = async () => {
-    const name = addName.trim();
-    const logical = addLogical.trim();
-    if (!name || !logical) return;
-    const table = await createTable(name, logical, "", addCategory || undefined);
+    const physical = addName.trim();
+    const display = addLogical.trim();
+    if (!physical || !display) return;
+    const table = await createTable(physical as PhysicalName, display as DisplayName, "", addCategory || undefined);
     setShowAdd(false);
     setAddName("");
     setAddLogical("");
@@ -274,7 +276,7 @@ export function TableListView() {
   };
 
   // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築
-  const buildMenuItems = (target: TableMeta | null): ContextMenuItem[] => {
+  const buildMenuItems = (target: TableEntry | null): ContextMenuItem[] => {
     const hasSelection = selection.selectedIds.size > 0 || target !== null;
     const pasteBlocked = sortActive || !clipboard.hasContent;
     const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
@@ -316,7 +318,7 @@ export function TableListView() {
         disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
         onClick: () => {
           const ids = Array.from(selection.selectedIds);
-          const allIds = editor.items.map((t) => t.id);
+          const allIds: string[] = editor.items.map((t) => t.id);
           const insertIndex = ids.length > 0
             ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
             : null;
@@ -339,20 +341,20 @@ export function TableListView() {
     ];
   };
 
-  const handleContextMenu = (e: React.MouseEvent, target: TableMeta | null) => {
+  const handleContextMenu = (e: React.MouseEvent, target: TableEntry | null) => {
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
-  const handleContextMenuKey = (first: TableMeta | null, rect: DOMRect | null) => {
+  const handleContextMenuKey = (first: TableEntry | null, rect: DOMRect | null) => {
     if (first && !selection.isSelected(first.id)) {
-      selection.setSelectedIds(new Set([first.id]));
+      selection.setSelectedIds(new Set<string>([first.id]));
     }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });
   };
 
-  const handleRowDelete = (t: TableMeta) => {
+  const handleRowDelete = (t: TableEntry) => {
     handleDelete([t]);
   };
 
@@ -373,7 +375,7 @@ export function TableListView() {
   });
 
   const handleExportDdl = async () => {
-    const defs: TableDefinition[] = [];
+    const defs: Table[] = [];
     for (const t of allTables) {
       if (editor.isDeleted(t.id)) continue;
       const td = await loadTable(t.id);
@@ -385,7 +387,7 @@ export function TableListView() {
   };
 
   const handleExportMarkdown = async () => {
-    const defs: TableDefinition[] = [];
+    const defs: Table[] = [];
     for (const t of allTables) {
       if (editor.isDeleted(t.id)) continue;
       const td = await loadTable(t.id);
@@ -406,20 +408,20 @@ export function TableListView() {
     selection.clearSelection();
   };
 
-  const columns = useMemo<DataListColumn<TableMeta>[]>(() => [
+  const columns = useMemo<DataListColumn<TableEntry>[]>(() => [
     {
-      key: "name",
-      header: "テーブル名",
+      key: "physicalName",
+      header: "物理名",
       sortable: true,
-      sortAccessor: (t) => t.name,
-      render: (t) => <code className="table-list-name-code">{t.name}</code>,
+      sortAccessor: (t) => t.physicalName ?? "",
+      render: (t) => <code className="table-list-name-code">{t.physicalName ?? ""}</code>,
     },
     {
-      key: "logicalName",
-      header: "論理名",
+      key: "name",
+      header: "表示名",
       sortable: true,
-      sortAccessor: (t) => t.logicalName,
-      render: (t) => t.logicalName,
+      sortAccessor: (t) => t.name,
+      render: (t) => t.name,
     },
     {
       key: "category",
@@ -435,8 +437,8 @@ export function TableListView() {
       width: "80px",
       align: "right",
       sortable: true,
-      sortAccessor: (t) => t.columnCount,
-      render: (t) => <span className="table-list-col-count">{t.columnCount}</span>,
+      sortAccessor: (t) => t.columnCount ?? 0,
+      render: (t) => <span className="table-list-col-count">{t.columnCount ?? 0}</span>,
     },
     {
       key: "updatedAt",
@@ -448,15 +450,15 @@ export function TableListView() {
     },
   ], []);
 
-  const renderCard = (t: TableMeta) => (
+  const renderCard = (t: TableEntry) => (
     <div className="table-card-content">
       <div className="table-card-header">
-        <span className="table-card-name">{t.name}</span>
+        <span className="table-card-name">{t.physicalName ?? ""}</span>
         {t.category && <span className="table-card-category">{t.category}</span>}
       </div>
-      <div className="table-card-logical">{t.logicalName}</div>
+      <div className="table-card-logical">{t.name}</div>
       <div className="table-card-meta">
-        <span><i className="bi bi-columns-gap" /> {t.columnCount} カラム</span>
+        <span><i className="bi bi-columns-gap" /> {t.columnCount ?? 0} カラム</span>
         <span className="table-card-date">{formatDate(t.updatedAt)}</span>
       </div>
     </div>
@@ -480,7 +482,7 @@ export function TableListView() {
               <i className="bi bi-search" />
               <input
                 type="text"
-                placeholder="名前・論理名・カテゴリで絞り込み..."
+                placeholder="表示名・物理名・カテゴリで絞り込み..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -580,7 +582,7 @@ export function TableListView() {
             <div className="tbl-modal" onClick={(e) => e.stopPropagation()}>
               <div className="tbl-modal-title">テーブル追加</div>
               <label className="tbl-field">
-                <span>テーブル名 <small>(snake_case)</small></span>
+                <span>物理名 <small>(snake_case)</small></span>
                 <input
                   type="text"
                   value={addName}
@@ -591,7 +593,7 @@ export function TableListView() {
                 />
               </label>
               <label className="tbl-field">
-                <span>論理名</span>
+                <span>表示名</span>
                 <input
                   type="text"
                   value={addLogical}

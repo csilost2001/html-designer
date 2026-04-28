@@ -1,20 +1,29 @@
 import { useState } from "react";
 import type {
-  TableDefinition,
-  ConstraintDefinition,
+  Table,
+  Constraint,
   UniqueConstraint,
   CheckConstraint,
   ForeignKeyConstraint,
   FkAction,
-} from "../../types/table";
+  LocalId,
+  TableId,
+} from "../../types/v3";
 import { addConstraint, removeConstraint } from "../../store/tableStore";
 
-const FK_ACTIONS: FkAction[] = ["CASCADE", "SET NULL", "SET DEFAULT", "RESTRICT", "NO ACTION"];
+const FK_ACTIONS: FkAction[] = ["cascade", "setNull", "setDefault", "restrict", "noAction"];
+const FK_ACTION_LABELS: Record<FkAction, string> = {
+  cascade: "CASCADE",
+  setNull: "SET NULL",
+  setDefault: "SET DEFAULT",
+  restrict: "RESTRICT",
+  noAction: "NO ACTION",
+};
 
 interface Props {
-  table: TableDefinition;
-  update: (fn: (t: TableDefinition) => void) => void;
-  allTables: TableDefinition[];
+  table: Table;
+  update: (fn: (t: Table) => void) => void;
+  allTables: Table[];
 }
 
 type ConstraintKind = "unique" | "check" | "foreignKey";
@@ -27,13 +36,12 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
 
   const handleAdd = (kind: ConstraintKind) => {
     setAddMenuOpen(false);
-    let newId = "";
+    let newId: string = "";
     update((t) => {
-      const base = buildDefault(kind, t.name);
+      const base = buildDefault(kind);
       const c = addConstraint(t, base);
       newId = c.id;
     });
-    // Open editor for the new constraint
     setTimeout(() => setEditingId(newId), 0);
   };
 
@@ -42,7 +50,32 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
     if (editingId === id) setEditingId(null);
   };
 
-  const handleUpdate = (id: string, patch: Partial<ConstraintDefinition>) => {
+  /**
+   * 編集中の制約が schema 必須フィールドを満たしているか判定。
+   * - unique: columnIds が 1 件以上
+   * - check: expression が空でない
+   * - foreignKey: referencedTableId が UUID 形式 + columnIds / referencedColumnIds が 1 件以上
+   */
+  const isConstraintValid = (c: Constraint): boolean => {
+    if (c.kind === "unique") return c.columnIds.length > 0;
+    if (c.kind === "check") return c.expression.trim().length > 0;
+    // foreignKey
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    return c.columnIds.length > 0
+      && uuidRe.test(c.referencedTableId)
+      && c.referencedColumnIds.length > 0;
+  };
+
+  /** 編集を閉じる際、必須フィールドが空のままなら制約を自動削除 (#557 M-3 対応)。 */
+  const handleCloseEditor = (id: string) => {
+    const c = (table.constraints ?? []).find((x) => x.id === id);
+    if (c && !isConstraintValid(c)) {
+      update((t) => removeConstraint(t, id));
+    }
+    setEditingId(null);
+  };
+
+  const handleUpdate = (id: string, patch: Partial<Constraint>) => {
     update((t) => {
       const c = (t.constraints ?? []).find((x) => x.id === id);
       if (c) Object.assign(c, patch);
@@ -96,7 +129,7 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
                 table={table}
                 allTables={allTables}
                 onUpdate={(patch) => handleUpdate(c.id, patch)}
-                onClose={() => setEditingId(null)}
+                onClose={() => handleCloseEditor(c.id)}
                 onDelete={() => handleDelete(c.id)}
               />
             ) : (
@@ -104,6 +137,7 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
                 key={c.id}
                 constraint={c}
                 table={table}
+                allTables={allTables}
                 onEdit={() => setEditingId(c.id)}
                 onDelete={() => handleDelete(c.id)}
               />
@@ -118,21 +152,22 @@ export function ConstraintsTab({ table, update, allTables }: Props) {
 // ── 一覧行（折りたたみ状態） ─────────────────────────────────────────────────
 
 function ConstraintRow({
-  constraint, table, onEdit, onDelete,
+  constraint, table, allTables, onEdit, onDelete,
 }: {
-  constraint: ConstraintDefinition;
-  table: TableDefinition;
+  constraint: Constraint;
+  table: Table;
+  allTables: Table[];
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const badge = kindBadge(constraint.kind);
-  const summary = constraintSummary(constraint, table);
+  const summary = constraintSummary(constraint, table, allTables);
 
   return (
     <div className="constraint-row">
       <div className="constraint-row-main">
         <span className={`constraint-kind-badge constraint-kind-badge--${constraint.kind}`}>{badge}</span>
-        <code className="constraint-id">{constraint.id}</code>
+        <code className="constraint-id">{constraint.physicalName ?? constraint.id}</code>
         {constraint.description && (
           <span className="constraint-desc-inline">{constraint.description}</span>
         )}
@@ -155,10 +190,10 @@ function ConstraintRow({
 function ConstraintEditor({
   constraint, table, allTables, onUpdate, onClose, onDelete,
 }: {
-  constraint: ConstraintDefinition;
-  table: TableDefinition;
-  allTables: TableDefinition[];
-  onUpdate: (patch: Partial<ConstraintDefinition>) => void;
+  constraint: Constraint;
+  table: Table;
+  allTables: Table[];
+  onUpdate: (patch: Partial<Constraint>) => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
@@ -169,12 +204,14 @@ function ConstraintEditor({
           {kindBadge(constraint.kind)}
         </span>
         <div className="constraint-editor-id-wrap">
-          <label className="constraint-editor-label">制約名</label>
+          <label className="constraint-editor-label">制約物理名 (任意)</label>
           <input
             className="constraint-id-input"
-            value={constraint.id}
-            onChange={(e) => onUpdate({ id: e.target.value } as Partial<ConstraintDefinition>)}
-            placeholder="constraint_name"
+            value={constraint.physicalName ?? ""}
+            onChange={(e) =>
+              onUpdate({ physicalName: (e.target.value || undefined) as never } as Partial<Constraint>)
+            }
+            placeholder="constraint_physical_name"
           />
         </div>
         <button className="tbl-btn-icon" onClick={onClose} title="閉じる">
@@ -199,7 +236,7 @@ function ConstraintEditor({
             type="text"
             value={constraint.description ?? ""}
             onChange={(e) =>
-              onUpdate({ description: e.target.value || undefined } as Partial<ConstraintDefinition>)
+              onUpdate({ description: e.target.value || undefined } as Partial<Constraint>)
             }
             placeholder="制約の目的・理由"
           />
@@ -224,14 +261,14 @@ function UniqueEditor({
   c, table, onUpdate,
 }: {
   c: UniqueConstraint;
-  table: TableDefinition;
-  onUpdate: (patch: Partial<ConstraintDefinition>) => void;
+  table: Table;
+  onUpdate: (patch: Partial<Constraint>) => void;
 }) {
-  const toggle = (colName: string) => {
-    const cols = c.columns.includes(colName)
-      ? c.columns.filter((x) => x !== colName)
-      : [...c.columns, colName];
-    onUpdate({ columns: cols } as Partial<UniqueConstraint>);
+  const toggle = (colId: LocalId) => {
+    const cols = c.columnIds.includes(colId)
+      ? c.columnIds.filter((x) => x !== colId)
+      : [...c.columnIds, colId];
+    onUpdate({ columnIds: cols } as Partial<UniqueConstraint>);
   };
 
   return (
@@ -241,14 +278,14 @@ function UniqueEditor({
         {table.columns.map((col) => (
           <label
             key={col.id}
-            className={`constraint-col-chip${c.columns.includes(col.name) ? " selected" : ""}`}
+            className={`constraint-col-chip${c.columnIds.includes(col.id) ? " selected" : ""}`}
           >
             <input
               type="checkbox"
-              checked={c.columns.includes(col.name)}
-              onChange={() => toggle(col.name)}
+              checked={c.columnIds.includes(col.id)}
+              onChange={() => toggle(col.id)}
             />
-            {col.name}
+            {col.physicalName}
           </label>
         ))}
       </div>
@@ -262,7 +299,7 @@ function CheckEditor({
   c, onUpdate,
 }: {
   c: CheckConstraint;
-  onUpdate: (patch: Partial<ConstraintDefinition>) => void;
+  onUpdate: (patch: Partial<Constraint>) => void;
 }) {
   return (
     <label className="constraint-editor-field">
@@ -284,24 +321,24 @@ function FkEditor({
   c, table, allTables, onUpdate,
 }: {
   c: ForeignKeyConstraint;
-  table: TableDefinition;
-  allTables: TableDefinition[];
-  onUpdate: (patch: Partial<ConstraintDefinition>) => void;
+  table: Table;
+  allTables: Table[];
+  onUpdate: (patch: Partial<Constraint>) => void;
 }) {
-  const refTable = allTables.find((t) => t.name === c.referencedTable);
+  const refTable = allTables.find((t) => t.id === c.referencedTableId);
 
-  const toggleSrcCol = (colName: string) => {
-    const cols = c.columns.includes(colName)
-      ? c.columns.filter((x) => x !== colName)
-      : [...c.columns, colName];
-    onUpdate({ columns: cols } as Partial<ForeignKeyConstraint>);
+  const toggleSrcCol = (colId: LocalId) => {
+    const cols = c.columnIds.includes(colId)
+      ? c.columnIds.filter((x) => x !== colId)
+      : [...c.columnIds, colId];
+    onUpdate({ columnIds: cols } as Partial<ForeignKeyConstraint>);
   };
 
-  const toggleRefCol = (colName: string) => {
-    const cols = c.referencedColumns.includes(colName)
-      ? c.referencedColumns.filter((x) => x !== colName)
-      : [...c.referencedColumns, colName];
-    onUpdate({ referencedColumns: cols } as Partial<ForeignKeyConstraint>);
+  const toggleRefCol = (colId: LocalId) => {
+    const cols = c.referencedColumnIds.includes(colId)
+      ? c.referencedColumnIds.filter((x) => x !== colId)
+      : [...c.referencedColumnIds, colId];
+    onUpdate({ referencedColumnIds: cols } as Partial<ForeignKeyConstraint>);
   };
 
   return (
@@ -312,14 +349,14 @@ function FkEditor({
           {table.columns.map((col) => (
             <label
               key={col.id}
-              className={`constraint-col-chip${c.columns.includes(col.name) ? " selected" : ""}`}
+              className={`constraint-col-chip${c.columnIds.includes(col.id) ? " selected" : ""}`}
             >
               <input
                 type="checkbox"
-                checked={c.columns.includes(col.name)}
-                onChange={() => toggleSrcCol(col.name)}
+                checked={c.columnIds.includes(col.id)}
+                onChange={() => toggleSrcCol(col.id)}
               />
-              {col.name}
+              {col.physicalName}
             </label>
           ))}
         </div>
@@ -328,15 +365,18 @@ function FkEditor({
       <label className="constraint-editor-field">
         <span>参照先テーブル</span>
         <select
-          value={c.referencedTable}
+          value={c.referencedTableId ?? ""}
           onChange={(e) =>
-            onUpdate({ referencedTable: e.target.value, referencedColumns: [] } as Partial<ForeignKeyConstraint>)
+            onUpdate({
+              referencedTableId: (e.target.value || "") as TableId,
+              referencedColumnIds: [],
+            } as Partial<ForeignKeyConstraint>)
           }
         >
           <option value="">テーブルを選択...</option>
           {allTables.map((t) => (
-            <option key={t.id} value={t.name}>
-              {t.name}（{t.logicalName}）
+            <option key={t.id} value={t.id}>
+              {t.physicalName}（{t.name}）
             </option>
           ))}
         </select>
@@ -349,14 +389,14 @@ function FkEditor({
             {refTable.columns.map((col) => (
               <label
                 key={col.id}
-                className={`constraint-col-chip${c.referencedColumns.includes(col.name) ? " selected" : ""}`}
+                className={`constraint-col-chip${c.referencedColumnIds.includes(col.id) ? " selected" : ""}`}
               >
                 <input
                   type="checkbox"
-                  checked={c.referencedColumns.includes(col.name)}
-                  onChange={() => toggleRefCol(col.name)}
+                  checked={c.referencedColumnIds.includes(col.id)}
+                  onChange={() => toggleRefCol(col.id)}
                 />
-                {col.name}
+                {col.physicalName}
                 {col.primaryKey && <i className="bi bi-key-fill" style={{ marginLeft: 3, fontSize: 10 }} />}
               </label>
             ))}
@@ -374,7 +414,7 @@ function FkEditor({
             }
           >
             <option value="">(指定なし)</option>
-            {FK_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            {FK_ACTIONS.map((a) => <option key={a} value={a}>{FK_ACTION_LABELS[a]}</option>)}
           </select>
         </label>
         <label className="constraint-editor-field">
@@ -386,8 +426,18 @@ function FkEditor({
             }
           >
             <option value="">(指定なし)</option>
-            {FK_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            {FK_ACTIONS.map((a) => <option key={a} value={a}>{FK_ACTION_LABELS[a]}</option>)}
           </select>
+        </label>
+        <label className="constraint-editor-field constraint-fk-noconstraint">
+          <span>論理 FK (DDL に出力しない)</span>
+          <input
+            type="checkbox"
+            checked={c.noConstraint ?? false}
+            onChange={(e) =>
+              onUpdate({ noConstraint: e.target.checked || undefined } as Partial<ForeignKeyConstraint>)
+            }
+          />
         </label>
       </div>
     </>
@@ -396,27 +446,26 @@ function FkEditor({
 
 // ── ヘルパー ──────────────────────────────────────────────────────────────────
 
-function buildDefault(kind: ConstraintKind, _tableName: string): Omit<ConstraintDefinition, "id"> {
+function buildDefault(kind: ConstraintKind): Omit<Constraint, "id"> {
   switch (kind) {
     case "unique":
-      return { kind, columns: [], description: "" } as Omit<UniqueConstraint, "id">;
+      return { kind, columnIds: [], description: "" } as Omit<UniqueConstraint, "id">;
     case "check":
       return { kind, expression: "", description: "" } as Omit<CheckConstraint, "id">;
     case "foreignKey":
       return {
         kind,
-        columns: [],
-        referencedTable: "",
-        referencedColumns: [],
+        columnIds: [],
+        referencedTableId: "" as TableId,
+        referencedColumnIds: [],
         description: "",
       } as Omit<ForeignKeyConstraint, "id">;
   }
-  // unreachable — satisfies exhaustiveness check
   const _never: never = kind;
   return _never;
 }
 
-function kindBadge(kind: ConstraintDefinition["kind"]): string {
+function kindBadge(kind: Constraint["kind"]): string {
   switch (kind) {
     case "unique": return "UNIQUE";
     case "check": return "CHECK";
@@ -424,18 +473,30 @@ function kindBadge(kind: ConstraintDefinition["kind"]): string {
   }
 }
 
-function constraintSummary(c: ConstraintDefinition, _table: TableDefinition): string {
+function colPhysical(table: Table, columnId: string): string {
+  return table.columns.find((c) => c.id === columnId)?.physicalName ?? columnId;
+}
+
+function constraintSummary(c: Constraint, table: Table, allTables: Table[]): string {
   switch (c.kind) {
     case "unique":
-      return c.columns.length > 0 ? `列: ${c.columns.join(", ")}` : "(列未選択)";
+      return c.columnIds.length > 0
+        ? `列: ${c.columnIds.map((id) => colPhysical(table, id)).join(", ")}`
+        : "(列未選択)";
     case "check":
       return c.expression ? `式: ${c.expression}` : "(式未設定)";
     case "foreignKey": {
-      const srcCols = c.columns.join(", ") || "(列未選択)";
-      const refCols = c.referencedColumns.join(", ") || "?";
-      const ref = c.referencedTable ? `${c.referencedTable}(${refCols})` : "(参照先未設定)";
-      return `${srcCols} → ${ref}${c.onDelete ? ` ON DELETE ${c.onDelete}` : ""}`;
+      const srcCols = c.columnIds.length > 0
+        ? c.columnIds.map((id) => colPhysical(table, id)).join(", ")
+        : "(列未選択)";
+      const refTable = allTables.find((t) => t.id === c.referencedTableId);
+      const refTableName = refTable?.physicalName ?? "(参照先未設定)";
+      const refCols = refTable && c.referencedColumnIds.length > 0
+        ? c.referencedColumnIds.map((id) => colPhysical(refTable, id)).join(", ")
+        : "?";
+      const ref = refTable ? `${refTableName}(${refCols})` : refTableName;
+      const onDelete = c.onDelete ? ` ON DELETE ${FK_ACTION_LABELS[c.onDelete]}` : "";
+      return `${srcCols} → ${ref}${onDelete}`;
     }
   }
 }
-

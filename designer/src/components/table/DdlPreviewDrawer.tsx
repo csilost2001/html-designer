@@ -1,6 +1,5 @@
 import { useState } from "react";
-import type { SqlDialect } from "../../types/table";
-import { SQL_DIALECT_LABELS } from "../../types/table";
+import { type SqlDialect, SQL_DIALECT_LABELS } from "../../utils/ddlGenerator";
 
 interface Props {
   ddl: string;
@@ -36,7 +35,7 @@ export function DdlPreviewDrawer({ ddl, dialect, onDialectChange, defaultOpen = 
               className="ddl-dialect-select"
             >
               {Object.entries(SQL_DIALECT_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
+                <option key={k} value={k}>{String(v)}</option>
               ))}
             </select>
             <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" onClick={handleCopy}>

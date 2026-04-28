@@ -10,13 +10,12 @@ import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { generateSequenceDdl } from "./generateSequenceDdl";
-import type { TableDefinition } from "../../types/table";
-import type { NumberingEntry } from "../../types/v3";
+import type { Table, NumberingEntry } from "../../types/v3";
 
 interface TableColumnOption {
   tableId: string;
   tableName: string;
-  /** v1 TableColumn (id + name) を v3 TableColumnRef.columnId (LocalId) として保存。 */
+  /** カラム選択用。id (LocalId) を TableColumnRef.columnId として保存、name (DisplayName) は表示用。 */
   columns: Array<{ id: string; name: string }>;
 }
 
@@ -69,12 +68,12 @@ export function SequenceEditor() {
       const metas = await listTables();
       const opts: TableColumnOption[] = [];
       for (const m of metas) {
-        const td: TableDefinition | null = await loadTable(m.id);
+        const td: Table | null = await loadTable(m.id);
         if (td) {
           opts.push({
             tableId: td.id,
-            tableName: td.logicalName || td.name,
-            columns: td.columns.map((c) => ({ id: c.id, name: c.name })),
+            tableName: td.name || td.physicalName,
+            columns: td.columns.map((c) => ({ id: c.id, name: c.name || c.physicalName })),
           });
         }
       }

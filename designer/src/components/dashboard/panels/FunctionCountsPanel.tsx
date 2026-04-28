@@ -26,13 +26,13 @@ async function fetchCounts(): Promise<Counts> {
   const tableMetas = await listTables();
   const tables = tableMetas.length;
 
-  // FK 数は各テーブル定義の columns を舐める必要あり
+  // FK 数は各テーブル定義の Constraint.foreignKey を集計 (v3 で Column.foreignKey は廃止)
   let foreignKeys = 0;
   for (const m of tableMetas) {
     const td = await loadTable(m.id);
     if (!td) continue;
-    for (const col of td.columns ?? []) {
-      if (col.foreignKey?.tableId && col.foreignKey?.columnName) foreignKeys++;
+    for (const c of td.constraints ?? []) {
+      if (c.kind === "foreignKey") foreignKeys += c.columnIds.length;
     }
   }
 

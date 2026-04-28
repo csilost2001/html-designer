@@ -1,12 +1,26 @@
 /**
- * tableStore.ts
- * テーブル設計書の永続化ストア
+ * tableStore.ts (v3, #556)
+ * テーブル設計書の永続化ストア。
  *
- * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
- * - 未接続の場合: localStorage にフォールバック
+ * - data/tables/<UUID>.json (per-entity ファイル)
+ * - $schema 属性で v3 schema 参照を保存
+ * - localStorage キー prefix: v3-table-
+ * - project.json の entities.tables (互換的に project.tables[]) で v3 TableEntry を管理
  */
-import type { TableDefinition, TableMeta, TableColumn, IndexDefinition, ConstraintDefinition, TriggerDefinition, DefaultDefinition } from "../types/table";
-import type { FlowProject } from "../types/flow";
+import type {
+  Table,
+  TableEntry,
+  TableId,
+  Column,
+  Index,
+  Constraint,
+  TriggerDefinition,
+  DefaultDefinition,
+  PhysicalName,
+  DisplayName,
+  LocalId,
+  Timestamp,
+} from "../types/v3";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
 import { renumber, nextNo } from "../utils/listOrder";
@@ -25,79 +39,66 @@ export function setTableStorageBackend(b: TableStorageBackend | null): void {
   _backend = b;
 }
 
-// ─── localStorage キー ───────────────────────────────────────────────────
+// ─── localStorage キー (v3 名前空間、#556) ───────────────────────────────
 
-const TABLE_PREFIX = "table-";
+const TABLE_PREFIX = "v3-table-";
 
-function now(): string {
-  return new Date().toISOString();
+const TABLE_SCHEMA_REF = "../../schemas/v3/table.v3.schema.json";
+
+function nowTs(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** テーブル一覧を取得（project.json のメタ情報） */
-export async function listTables(): Promise<TableMeta[]> {
+/** テーブル一覧を取得 (project.json の TableEntry[]) */
+export async function listTables(): Promise<TableEntry[]> {
   const project = await loadProject();
   return project.tables ?? [];
 }
 
-/** テーブル定義を読み込み (columns の no を補完) */
-export async function loadTable(tableId: string): Promise<TableDefinition | null> {
+/** テーブル定義を読み込み (columns の no を配列順で補完) */
+export async function loadTable(tableId: string): Promise<Table | null> {
   const raw = await (async () => {
-    if (_backend) return (await _backend.loadTable(tableId)) as TableDefinition | null;
+    if (_backend) return (await _backend.loadTable(tableId)) as Table | null;
     const s = localStorage.getItem(`${TABLE_PREFIX}${tableId}`);
     if (!s) return null;
-    try { return JSON.parse(s) as TableDefinition; } catch { return null; }
+    try { return JSON.parse(s) as Table; } catch { return null; }
   })();
   if (!raw) return null;
   // docs/spec/list-common.md §3.10: 読み込み時に no を配列順で補完
   raw.columns = renumber(raw.columns ?? []);
-  // β-3 移行: 旧 TableIndex 形式 { name, columns: string[] } → IndexDefinition 形式
-  raw.indexes = (raw.indexes ?? []).map((idx) => {
-    const i = idx as unknown as Record<string, unknown>;
-    if (typeof i.name === "string" && Array.isArray(i.columns) && (i.columns.length === 0 || typeof i.columns[0] === "string")) {
-      return {
-        id: i.name as string,
-        columns: (i.columns as string[]).map((colId) => {
-          const col = raw.columns.find((c) => c.id === colId);
-          return { name: col ? col.name : colId };
-        }),
-        unique: (i.unique as boolean | undefined) ?? false,
-      } as IndexDefinition;
-    }
-    return idx;
-  });
   return raw;
 }
 
-/** テーブル定義を保存（project.json のメタも同期） */
-export async function saveTable(table: TableDefinition): Promise<void> {
-  table.updatedAt = now();
+/** テーブル定義を保存 (project.json の TableEntry も同期) */
+export async function saveTable(table: Table): Promise<void> {
+  // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
+  const toSave: Table = { ...table, $schema: TABLE_SCHEMA_REF, updatedAt: nowTs() };
 
   if (_backend) {
-    await _backend.saveTable(table.id, table);
+    await _backend.saveTable(toSave.id, toSave);
   } else {
-    localStorage.setItem(`${TABLE_PREFIX}${table.id}`, JSON.stringify(table));
+    localStorage.setItem(`${TABLE_PREFIX}${toSave.id}`, JSON.stringify(toSave));
   }
 
-  // project.json のテーブルメタを同期
-  await syncTableMeta(table);
+  await syncTableMeta(toSave);
 }
 
 /** テーブルを新規作成 */
 export async function createTable(
-  name: string,
-  logicalName: string,
+  physicalName: PhysicalName,
+  name: DisplayName,
   description?: string,
   category?: string,
-): Promise<TableDefinition> {
-  const id = generateUUID();
-  const ts = now();
-  const table: TableDefinition = {
-    id,
+): Promise<Table> {
+  const ts = nowTs();
+  const table: Table = {
+    $schema: TABLE_SCHEMA_REF,
+    id: generateUUID() as TableId,
     name,
-    logicalName,
-    description: description ?? "",
+    description,
+    physicalName,
     category,
     columns: [],
     indexes: [],
@@ -108,7 +109,7 @@ export async function createTable(
   return table;
 }
 
-/** テーブルを削除 */
+/** テーブルを削除 (per-file 削除 + project.json メタ削除) */
 export async function deleteTable(tableId: string): Promise<void> {
   if (_backend) {
     await _backend.deleteTable(tableId);
@@ -116,7 +117,6 @@ export async function deleteTable(tableId: string): Promise<void> {
     localStorage.removeItem(`${TABLE_PREFIX}${tableId}`);
   }
 
-  // project.json からメタを削除
   const project = await loadProject();
   if (project.tables) {
     project.tables = renumber(project.tables.filter((t) => t.id !== tableId));
@@ -124,25 +124,27 @@ export async function deleteTable(tableId: string): Promise<void> {
   }
 }
 
-/** カラムを追加 */
+// ─── カラム操作 (Table mutate ヘルパー) ──────────────────────────────────
+
+/** カラムを追加 (column.id は LocalId 形式で `col-NN` 採番) */
 export function addColumn(
-  table: TableDefinition,
-  partial?: Partial<TableColumn>,
-): TableColumn {
-  const col: TableColumn = {
-    id: generateUUID(),
+  table: Table,
+  partial?: Partial<Column>,
+): Column {
+  const n = table.columns.length + 1;
+  const col: Column = {
+    id: (partial?.id ?? `col-${String(n).padStart(2, "0")}`) as LocalId,
     no: nextNo(table.columns),
-    name: partial?.name ?? "new_column",
-    logicalName: partial?.logicalName ?? "新規カラム",
+    physicalName: (partial?.physicalName ?? "new_column") as PhysicalName,
+    name: (partial?.name ?? "新規カラム") as DisplayName,
     dataType: partial?.dataType ?? "VARCHAR",
     length: partial?.length,
     scale: partial?.scale,
-    notNull: partial?.notNull ?? false,
-    primaryKey: partial?.primaryKey ?? false,
-    unique: partial?.unique ?? false,
+    notNull: partial?.notNull,
+    primaryKey: partial?.primaryKey,
+    unique: partial?.unique,
     defaultValue: partial?.defaultValue,
     autoIncrement: partial?.autoIncrement,
-    foreignKey: partial?.foreignKey,
     comment: partial?.comment,
   };
   table.columns.push(col);
@@ -150,79 +152,86 @@ export function addColumn(
   return col;
 }
 
-/** カラムを削除 */
-export function removeColumn(table: TableDefinition, columnId: string): void {
-  const removedName = table.columns.find((c) => c.id === columnId)?.name;
+/** カラムを削除 (Index / Constraint / Default の columnId 参照も連動削除) */
+export function removeColumn(table: Table, columnId: string): void {
   const idx = table.columns.findIndex((c) => c.id === columnId);
-  if (idx >= 0) {
-    table.columns.splice(idx, 1);
-    table.columns = renumber(table.columns);
-    // インデックスからも参照を削除 (列名で照合)
-    if (removedName) {
-      for (const index of table.indexes) {
-        index.columns = index.columns.filter((ic) => ic.name !== removedName);
+  if (idx < 0) return;
+  table.columns.splice(idx, 1);
+  table.columns = renumber(table.columns);
+  // Index の columnId 参照を削除、空 Index は削除
+  table.indexes = (table.indexes ?? [])
+    .map((i) => ({ ...i, columns: i.columns.filter((ic) => ic.columnId !== columnId) }))
+    .filter((i) => i.columns.length > 0);
+  // Constraint の columnIds 参照を削除、空 Constraint は削除
+  table.constraints = (table.constraints ?? [])
+    .map((c) => {
+      if (c.kind === "unique" || c.kind === "foreignKey") {
+        return { ...c, columnIds: c.columnIds.filter((id) => id !== columnId) };
       }
-      table.indexes = table.indexes.filter((idx) => idx.columns.length > 0);
-    }
-  }
+      return c;
+    })
+    .filter((c) => c.kind === "check" || c.columnIds.length > 0) as Constraint[];
+  // Default の columnId が一致するものを削除
+  table.defaults = (table.defaults ?? []).filter((d) => d.columnId !== columnId);
 }
 
-/** インデックスを追加 */
-export function addIndex(
-  table: TableDefinition,
-  partial?: Partial<IndexDefinition>,
-): IndexDefinition {
-  const idx: IndexDefinition = {
-    id: partial?.id ?? `idx_${table.name}_${table.indexes.length + 1}`,
+// ─── インデックス操作 ───────────────────────────────────────────────────
+
+export function addIndex(table: Table, partial?: Partial<Index>): Index {
+  const n = (table.indexes ?? []).length + 1;
+  const idx: Index = {
+    id: (partial?.id ?? `idx-${String(n).padStart(2, "0")}`) as LocalId,
+    physicalName: (partial?.physicalName ?? `idx_${table.physicalName}_${n}`) as PhysicalName,
     columns: partial?.columns ?? [],
-    unique: partial?.unique ?? false,
+    unique: partial?.unique,
     method: partial?.method,
     where: partial?.where,
     description: partial?.description,
   };
-  table.indexes.push(idx);
+  table.indexes = [...(table.indexes ?? []), idx];
   return idx;
 }
 
-/** インデックスを削除 */
-export function removeIndex(table: TableDefinition, indexId: string): void {
-  const idx = table.indexes.findIndex((i) => i.id === indexId);
-  if (idx >= 0) table.indexes.splice(idx, 1);
+export function removeIndex(table: Table, indexId: string): void {
+  table.indexes = (table.indexes ?? []).filter((i) => i.id !== indexId);
 }
 
-/** 制約を追加 */
+// ─── 制約操作 ───────────────────────────────────────────────────────────
+
 export function addConstraint(
-  table: TableDefinition,
-  constraint: Omit<ConstraintDefinition, "id">,
-): ConstraintDefinition {
+  table: Table,
+  constraint: Omit<Constraint, "id">,
+): Constraint {
   const n = (table.constraints ?? []).length + 1;
-  const c = { id: `con_${table.name}_${n}`, ...constraint } as ConstraintDefinition;
+  const c = { id: `con-${String(n).padStart(2, "0")}` as LocalId, ...constraint } as Constraint;
   table.constraints = [...(table.constraints ?? []), c];
   return c;
 }
 
-/** 制約を削除 */
-export function removeConstraint(table: TableDefinition, constraintId: string): void {
+export function removeConstraint(table: Table, constraintId: string): void {
   table.constraints = (table.constraints ?? []).filter((c) => c.id !== constraintId);
 }
 
-/** DEFAULT 値定義を追加 */
-export function addDefault(table: TableDefinition, def: DefaultDefinition): void {
+// ─── DEFAULT 値操作 ─────────────────────────────────────────────────────
+
+export function addDefault(table: Table, def: DefaultDefinition): void {
   table.defaults = [...(table.defaults ?? []), def];
 }
 
-/** DEFAULT 値定義を削除 */
-export function removeDefault(table: TableDefinition, column: string): void {
-  table.defaults = (table.defaults ?? []).filter((d) => d.column !== column);
+export function removeDefault(table: Table, columnId: string): void {
+  table.defaults = (table.defaults ?? []).filter((d) => d.columnId !== columnId);
 }
 
-/** トリガーを追加 */
+// ─── トリガー操作 ───────────────────────────────────────────────────────
+
 export function addTrigger(
-  table: TableDefinition,
+  table: Table,
   partial?: Partial<TriggerDefinition>,
 ): TriggerDefinition {
+  const n = (table.triggers ?? []).length + 1;
   const t: TriggerDefinition = {
-    id: partial?.id ?? `trg_${table.name}_${(table.triggers ?? []).length + 1}`,
+    id: (partial?.id ?? `trg-${String(n).padStart(2, "0")}`) as LocalId,
+    physicalName: (partial?.physicalName ?? `trg_${table.physicalName}_${n}`) as PhysicalName,
     timing: partial?.timing ?? "BEFORE",
     events: partial?.events ?? ["INSERT"],
     whenCondition: partial?.whenCondition,
@@ -233,12 +242,13 @@ export function addTrigger(
   return t;
 }
 
-/** トリガーを削除 */
-export function removeTrigger(table: TableDefinition, triggerId: string): void {
+export function removeTrigger(table: Table, triggerId: string): void {
   table.triggers = (table.triggers ?? []).filter((t) => t.id !== triggerId);
 }
 
-/** テーブル一覧の並び順を変更する (project.tables の物理順) */
+// ─── 並び替え ───────────────────────────────────────────────────────────
+
+/** テーブル一覧の並び順を変更 (project.tables の物理順) */
 export async function reorderTables(fromIndex: number, toIndex: number): Promise<void> {
   const project = await loadProject();
   if (!project.tables) return;
@@ -253,20 +263,21 @@ export async function reorderTables(fromIndex: number, toIndex: number): Promise
 
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
-/** project.json のテーブルメタを同期 */
-async function syncTableMeta(table: TableDefinition): Promise<void> {
+/** project.json の TableEntry を同期 */
+async function syncTableMeta(table: Table): Promise<void> {
   const project = await loadProject();
   if (!project.tables) project.tables = [];
 
   const idx = project.tables.findIndex((t) => t.id === table.id);
-  const meta: FlowProject["tables"] extends (infer T)[] | undefined ? T : never = {
+  const meta: TableEntry = {
     id: table.id,
     no: idx >= 0 ? project.tables[idx].no : nextNo(project.tables),
     name: table.name,
-    logicalName: table.logicalName,
+    physicalName: table.physicalName,
     category: table.category,
     columnCount: table.columns.length,
     updatedAt: table.updatedAt,
+    maturity: table.maturity,
   };
 
   if (idx >= 0) {

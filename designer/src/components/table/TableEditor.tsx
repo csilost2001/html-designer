@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { TableDefinition, TableColumn, SqlDialect, ColumnTemplate } from "../../types/table";
-import { DATA_TYPE_LABELS, COLUMN_TEMPLATES, DATA_TYPES_WITH_LENGTH, DATA_TYPES_WITH_SCALE, TABLE_CATEGORIES } from "../../types/table";
-import type { DataType } from "../../types/table";
+import type { Table, Column, BuiltinDataType, PhysicalName, DisplayName, LocalId, Maturity, SemVer } from "../../types/v3";
+import {
+  DATA_TYPE_LABELS,
+  COLUMN_TEMPLATES,
+  DATA_TYPES_WITH_LENGTH,
+  DATA_TYPES_WITH_SCALE,
+  TABLE_CATEGORIES,
+  type ColumnTemplate,
+} from "./tableConstants";
+import type { SqlDialect } from "../../utils/ddlGenerator";
 import { loadTable, saveTable, addColumn, removeColumn } from "../../store/tableStore";
 import { listTables } from "../../store/tableStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
@@ -22,7 +29,6 @@ import { DdlPreviewDrawer } from "./DdlPreviewDrawer";
 import { ConstraintsTab } from "./ConstraintsTab";
 import { IndexesTab } from "./IndexesTab";
 import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
-import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import "../../styles/table.css";
 
@@ -36,7 +42,7 @@ export function TableEditor() {
   // FHD (≤1920) は閉じた状態、WQHD (2560+) は開いた状態で初期化
   const ddlOpen = window.innerWidth >= 2560;
   const [editingMeta, setEditingMeta] = useState(false);
-  const [allTables, setAllTables] = useState<TableDefinition[]>([]);
+  const [allTables, setAllTables] = useState<Table[]>([]);
 
   const handleNotFound = useCallback(() => navigate("/table/list"), [navigate]);
 
@@ -45,7 +51,7 @@ export function TableEditor() {
     isDirty, isSaving, serverChanged,
     update, undo, redo, canUndo, canRedo,
     handleSave, handleReset, dismissServerBanner,
-  } = useResourceEditor<TableDefinition>({
+  } = useResourceEditor<Table>({
     tabType: "table",
     mtimeKind: "table",
     draftKind: "table",
@@ -66,7 +72,7 @@ export function TableEditor() {
     mcpBridge.startWithoutEditor();
     (async () => {
       const tl = await listTables();
-      const allTds: TableDefinition[] = [];
+      const allTds: Table[] = [];
       for (const m of tl) {
         const td = await loadTable(m.id);
         if (td) allTds.push(td);
@@ -79,7 +85,7 @@ export function TableEditor() {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
   }
 
-  const ddl = generateDdl(table, ddlDialect);
+  const ddl = generateDdl(table, ddlDialect, allTables);
 
   return (
     <div className="table-editor-page">
@@ -102,8 +108,8 @@ export function TableEditor() {
             />
           ) : (
             <div className="table-editor-title" onClick={() => setEditingMeta(true)} title="クリックして編集">
-              <span className="table-name-display">{table.name}</span>
-              <span className="table-logical-display">{table.logicalName}</span>
+              <span className="table-name-display">{table.physicalName}</span>
+              <span className="table-logical-display">{table.name}</span>
               {table.category && <span className="table-category-badge">{table.category}</span>}
               <i className="bi bi-pencil table-edit-icon" />
             </div>
@@ -137,7 +143,7 @@ export function TableEditor() {
           )}
         </button>
         <button className={tab === "indexes" ? "active" : ""} onClick={() => setTab("indexes")}>
-          <i className="bi bi-lightning" /> インデックス <span className="tab-count">{table.indexes.length}</span>
+          <i className="bi bi-lightning" /> インデックス <span className="tab-count">{table.indexes?.length ?? 0}</span>
         </button>
         <button className={tab === "triggers" ? "active" : ""} onClick={() => setTab("triggers")}>
           <i className="bi bi-play-btn" /> トリガー/DEFAULT
@@ -154,7 +160,7 @@ export function TableEditor() {
       <div className="table-editor-content-area">
         <div className="table-editor-body">
           {tab === "columns" && (
-            <ColumnsTab table={table} update={update} allTables={allTables} />
+            <ColumnsTab table={table} update={update} />
           )}
           {tab === "constraints" && (
             <ConstraintsTab table={table} update={update} allTables={allTables} />
@@ -186,29 +192,31 @@ export function TableEditor() {
 function TableMetaEditor({
   table, onSave, onCancel,
 }: {
-  table: TableDefinition;
-  onSave: (patch: Partial<TableDefinition>) => void;
+  table: Table;
+  onSave: (patch: Partial<Table>) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(table.name);
-  const [logicalName, setLogicalName] = useState(table.logicalName);
-  const [description, setDescription] = useState(table.description);
-  const [category, setCategory] = useState(table.category ?? "");
+  const [physicalName, setPhysicalName] = useState<string>(table.physicalName);
+  const [name, setName] = useState<string>(table.name);
+  const [description, setDescription] = useState<string>(table.description ?? "");
+  const [category, setCategory] = useState<string>(table.category ?? "");
+  const [maturity, setMaturity] = useState<string>(table.maturity ?? "");
+  const [version, setVersion] = useState<string>(table.version ?? "");
 
   return (
     <div className="table-meta-editor">
       <input
         className="table-meta-input name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="テーブル名"
+        value={physicalName}
+        onChange={(e) => setPhysicalName(e.target.value)}
+        placeholder="物理名 (snake_case)"
         autoFocus
       />
       <input
         className="table-meta-input"
-        value={logicalName}
-        onChange={(e) => setLogicalName(e.target.value)}
-        placeholder="論理名"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="表示名"
       />
       <input
         className="table-meta-input"
@@ -222,12 +230,34 @@ function TableMetaEditor({
           <option key={c} value={c}>{c}</option>
         ))}
       </select>
+      <select className="table-meta-input" value={maturity} onChange={(e) => setMaturity(e.target.value)}>
+        <option value="">成熟度: 未指定</option>
+        <option value="draft">draft（下書き）</option>
+        <option value="provisional">provisional（暫定）</option>
+        <option value="committed">committed（確定）</option>
+      </select>
+      <input
+        className="table-meta-input"
+        value={version}
+        onChange={(e) => setVersion(e.target.value)}
+        placeholder="バージョン (SemVer 例: 1.0.0)"
+        pattern="^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+      />
       <div className="table-meta-btns">
         <button className="tbl-btn tbl-btn-ghost tbl-btn-sm" onClick={onCancel}>キャンセル</button>
         <button
           className="tbl-btn tbl-btn-primary tbl-btn-sm"
-          onClick={() => onSave({ name: name.trim(), logicalName: logicalName.trim(), description, category: category || undefined })}
-          disabled={!name.trim() || !logicalName.trim()}
+          onClick={() =>
+            onSave({
+              physicalName: physicalName.trim() as PhysicalName,
+              name: name.trim() as DisplayName,
+              description: description || undefined,
+              category: category || undefined,
+              maturity: (maturity || undefined) as Maturity | undefined,
+              version: (version || undefined) as SemVer | undefined,
+            })
+          }
+          disabled={!physicalName.trim() || !name.trim()}
         >
           保存
         </button>
@@ -239,20 +269,19 @@ function TableMetaEditor({
 // ── カラムタブ ────────────────────────────────────────────────────────────────
 
 function ColumnsTab({
-  table, update, allTables,
+  table, update,
 }: {
-  table: TableDefinition;
-  update: (fn: (t: TableDefinition) => void) => void;
-  allTables: TableDefinition[];
+  table: Table;
+  update: (fn: (t: Table) => void) => void;
 }) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   const [activeColId, setActiveColId] = useState<string | null>(null);
 
-  const sortAccessor = useCallback((col: TableColumn, key: string): string | number => {
+  const sortAccessor = useCallback((col: Column, key: string): string | number => {
     switch (key) {
+      case "physicalName": return col.physicalName;
       case "name": return col.name;
-      case "logicalName": return col.logicalName;
       case "dataType": return col.dataType;
       case "length": return col.length ?? 0;
       case "notNull": return col.notNull ? 1 : 0;
@@ -266,9 +295,20 @@ function ColumnsTab({
 
   const sort = useListSort(table.columns, sortAccessor);
   const selection = useListSelection(sort.sorted, (c) => c.id);
-  const clipboard = useListClipboard<TableColumn>((c) => c.id);
+  const clipboard = useListClipboard<Column>((c) => c.id);
 
-  const handleUpdateCol = useCallback((colId: string, patch: Partial<TableColumn>) => {
+  // FK column id 集合 (ColumnsTab で FK アイコン表示用)
+  const fkColumnIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of table.constraints ?? []) {
+      if (c.kind === "foreignKey") {
+        for (const id of c.columnIds) set.add(id);
+      }
+    }
+    return set;
+  }, [table.constraints]);
+
+  const handleUpdateCol = useCallback((colId: string, patch: Partial<Column>) => {
     update((t) => {
       const col = t.columns.find((c) => c.id === colId);
       if (col) Object.assign(col, patch);
@@ -276,45 +316,42 @@ function ColumnsTab({
   }, [update]);
 
   const handleAddBlank = () => {
-    // docs/spec/list-common.md §3.9: ソート中は新規作成ボタン disabled 済
-    let newColId = "";
+    let newColId: string = "";
     update((t) => { newColId = addColumn(t).id; });
-    selection.setSelectedIds(new Set([newColId]));
+    selection.setSelectedIds(new Set<string>([newColId]));
     setActiveColId(newColId);
   };
 
   const handleAddFromTemplate = (tpl: ColumnTemplate) => {
-    let newColId = "";
+    let newColId: string = "";
     update((t) => { newColId = addColumn(t, { ...tpl.column }).id; });
-    selection.setSelectedIds(new Set([newColId]));
+    selection.setSelectedIds(new Set<string>([newColId]));
     setActiveColId(newColId);
     setShowTemplates(false);
   };
 
-  const handleDelete = (cols: TableColumn[]) => {
+  const handleDelete = (cols: Column[]) => {
     const ids = new Set(cols.map((c) => c.id));
     update((t) => {
       for (const id of ids) removeColumn(t, id);
     });
     selection.clearSelection();
-    if (activeColId && ids.has(activeColId)) setActiveColId(null);
+    if (activeColId && ids.has(activeColId as LocalId)) setActiveColId(null);
   };
 
-  const handleDuplicate = (cols: TableColumn[]) => {
-    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+D が無効化される
+  const handleDuplicate = (cols: Column[]) => {
     const newIds: string[] = [];
     update((t) => {
       for (const src of cols) {
         const cur = t.columns.find((c) => c.id === src.id);
         if (!cur) continue;
-        newIds.push(addColumn(t, { ...cur, name: cur.name + "_copy" }).id);
+        newIds.push(addColumn(t, { ...cur, physicalName: (cur.physicalName + "_copy") as PhysicalName }).id);
       }
     });
-    selection.setSelectedIds(new Set(newIds));
+    selection.setSelectedIds(new Set<string>(newIds));
   };
 
-  const moveBlock = (cols: TableColumn[], direction: "up" | "down") => {
-    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Alt+↑↓ が無効化される
+  const moveBlock = (cols: Column[], direction: "up" | "down") => {
     const ids = new Set(cols.map((c) => c.id));
     update((t) => {
       const idxs = t.columns
@@ -336,7 +373,6 @@ function ColumnsTab({
   };
 
   const handleReorder = (fromIdx: number, toIdx: number) => {
-    // docs/spec/list-common.md §3.9: ソート中は DataList 側で D&D が無効化される
     update((t) => {
       const [moved] = t.columns.splice(fromIdx, 1);
       t.columns.splice(toIdx, 0, moved);
@@ -349,16 +385,14 @@ function ColumnsTab({
     const clipItems = clipboard.clipboard.items;
     if (!clipItems.length) return;
 
-    // No-op: 貼り付け対象自身が選択中
     if (mode === "cut") {
       const cutIds = new Set(clipItems.map((c) => c.id));
       const selIds = selection.selectedIds;
       const sameSet = selIds.size === cutIds.size &&
-        [...selIds].every((id) => cutIds.has(id));
+        [...selIds].every((id) => cutIds.has(id as LocalId));
       if (sameSet) return;
     }
 
-    // docs/spec/list-common.md §3.9: ソート中は useListKeyboard 側で Ctrl+V が無効化される
     const consumed = clipboard.consume();
     const newIds: string[] = [];
 
@@ -372,20 +406,25 @@ function ColumnsTab({
         t.columns.splice(pos, 0, ...consumed);
         newIds.push(...consumed.map((c) => c.id));
       } else {
-        const copies = consumed.map((c) => ({ ...c, id: generateUUID() }));
-        const pos = Math.min(t.columns.length, insertIdx ?? t.columns.length);
-        t.columns.splice(pos, 0, ...copies);
-        newIds.push(...copies.map((c) => c.id));
+        // copy: 新規 LocalId を採番 (col-NN は addColumn ヘルパに任せる方が安全)
+        for (const src of consumed) {
+          const inserted = addColumn(t, { ...src });
+          newIds.push(inserted.id);
+        }
+        // 挿入位置は addColumn が末尾に置くため、ここで insertIdx に並べ替える
+        if (insertIdx != null && insertIdx < t.columns.length) {
+          const moved = t.columns.splice(t.columns.length - newIds.length, newIds.length);
+          t.columns.splice(insertIdx, 0, ...moved);
+        }
       }
       t.columns = renumber(t.columns);
     });
-    selection.setSelectedIds(new Set(newIds));
+    selection.setSelectedIds(new Set<string>(newIds));
   };
 
   const sortActive = sort.sortKeys.length > 0;
 
-  // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築 (カラム一覧は上へ/下へも含む)
-  const buildMenuItems = (target: TableColumn | null): ContextMenuItem[] => {
+  const buildMenuItems = (target: Column | null): ContextMenuItem[] => {
     const hasSelection = selection.selectedIds.size > 0 || target !== null;
     const pasteBlocked = sortActive || !clipboard.hasContent;
     const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
@@ -437,7 +476,7 @@ function ColumnsTab({
         disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
         onClick: () => {
           const ids = Array.from(selection.selectedIds);
-          const allIds = (table?.columns ?? []).map((c) => c.id);
+          const allIds = (table?.columns ?? []).map((c) => c.id as string);
           const insertIndex = ids.length > 0
             ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
             : null;
@@ -445,7 +484,6 @@ function ColumnsTab({
         },
       },
       { key: "sep2", separator: true },
-      // docs/spec/list-common.md §4.6: [移動] | [複製] | [削除] のグルーピング
       {
         key: "moveUp", label: "上へ移動", icon: "bi-chevron-up", shortcut: "Alt+↑",
         disabled: !hasSelection || sortActive,
@@ -474,20 +512,20 @@ function ColumnsTab({
     ];
   };
 
-  const handleContextMenu = (e: React.MouseEvent, target: TableColumn | null) => {
+  const handleContextMenu = (e: React.MouseEvent, target: Column | null) => {
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
-  const handleContextMenuKey = (first: TableColumn | null, rect: DOMRect | null) => {
+  const handleContextMenuKey = (first: Column | null, rect: DOMRect | null) => {
     if (first && !selection.isSelected(first.id)) {
-      selection.setSelectedIds(new Set([first.id]));
+      selection.setSelectedIds(new Set<string>([first.id]));
     }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });
   };
 
-  const handleRowDelete = (c: TableColumn) => {
+  const handleRowDelete = (c: Column) => {
     handleDelete([c]);
   };
 
@@ -508,8 +546,8 @@ function ColumnsTab({
   });
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
-    name: "カラム名",
-    logicalName: "論理名",
+    physicalName: "物理名",
+    name: "表示名",
     dataType: "データ型",
     length: "長さ",
     notNull: "NN",
@@ -519,12 +557,11 @@ function ColumnsTab({
     defaultValue: "デフォルト",
   }), []);
 
-  // Esc で詳細パネルを閉じる (開いていれば選択解除より優先)
+  // Esc で詳細パネルを閉じる
   useEffect(() => {
     if (!activeColId) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      // docs/spec/list-common.md §3.11: コンテキストメニュー表示中はそちらの Esc を優先
       if (document.querySelector(".list-context-menu")) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
@@ -538,7 +575,6 @@ function ColumnsTab({
     return () => window.removeEventListener("keydown", handler, { capture: true });
   }, [activeColId]);
 
-  // activeColId のカラムが消えたら閉じる
   useEffect(() => {
     if (activeColId && !table.columns.some((c) => c.id === activeColId)) {
       setActiveColId(null);
@@ -547,21 +583,21 @@ function ColumnsTab({
 
   const detailCol = activeColId ? table.columns.find((c) => c.id === activeColId) ?? null : null;
 
-  const columns = useMemo<DataListColumn<TableColumn>[]>(() => [
+  const columns = useMemo<DataListColumn<Column>[]>(() => [
     {
-      key: "name",
-      header: "カラム名",
+      key: "physicalName",
+      header: "物理名",
       width: "18%",
       sortable: true,
-      sortAccessor: (c) => c.name,
+      sortAccessor: (c) => c.physicalName,
       render: (c) => (
         <>
-          <code className="col-name-code">{c.name}</code>
-          {c.foreignKey && <i className="bi bi-link-45deg col-fk-icon" title="外部キー" />}
+          <code className="col-name-code">{c.physicalName}</code>
+          {fkColumnIds.has(c.id) && <i className="bi bi-link-45deg col-fk-icon" title="外部キー (Constraint で定義)" />}
         </>
       ),
     },
-    { key: "logicalName", header: "論理名", width: "18%", sortable: true, sortAccessor: (c) => c.logicalName, render: (c) => c.logicalName },
+    { key: "name", header: "表示名", width: "18%", sortable: true, sortAccessor: (c) => c.name, render: (c) => c.name },
     {
       key: "dataType",
       header: "データ型",
@@ -584,9 +620,8 @@ function ColumnsTab({
     { key: "unique", header: "UK", width: "44px", align: "center", sortable: true, sortAccessor: (c) => (c.unique ? 1 : 0), render: (c) => (c.unique ? <i className="bi bi-check-lg" /> : null) },
     { key: "autoIncrement", header: "AI", width: "44px", align: "center", sortable: true, sortAccessor: (c) => (c.autoIncrement ? 1 : 0), render: (c) => (c.autoIncrement ? <i className="bi bi-check-lg" /> : null) },
     { key: "defaultValue", header: "デフォルト", width: "14%", sortable: true, sortAccessor: (c) => c.defaultValue ?? "", render: (c) => <code className="col-default-code">{c.defaultValue ?? ""}</code> },
-  ], []);
+  ], [fkColumnIds]);
 
-  // Group templates by category
   const templateCategories = COLUMN_TEMPLATES.reduce<Record<string, ColumnTemplate[]>>((acc, tpl) => {
     (acc[tpl.category] ??= []).push(tpl);
     return acc;
@@ -597,7 +632,6 @@ function ColumnsTab({
 
   return (
     <div className="columns-tab">
-      {/* 選択操作バー */}
       <div className="columns-selection-bar">
         <span className="columns-selection-count">
           {anySelected ? `${selectedCount} 件選択中 (ダブルクリック/Enter で編集)` : "クリックで選択、ダブルクリックで編集"}
@@ -635,12 +669,11 @@ function ColumnsTab({
 
       <SortBar sort={sort} columnLabels={columnLabels} />
 
-      {/* Column list */}
       <DataList
         items={sort.sorted}
         columns={columns}
         getId={(c) => c.id}
-        getNo={(c) => c.no}
+        getNo={(c) => c.no ?? 0}
         onRowDelete={handleRowDelete}
         onContextMenu={handleContextMenu}
         selection={selection}
@@ -654,13 +687,12 @@ function ColumnsTab({
         emptyMessage={<p>カラムがまだありません。テンプレートから追加するか、空のカラムを追加してください。</p>}
       />
 
-      {/* Detail panel: ダブルクリック/Enter/F2 で開く。Esc または ✕ で閉じる */}
       {detailCol && (
         <div className="column-detail">
           <div className="column-detail-header">
             <span className="column-detail-title">
-              <i className="bi bi-pencil-square" /> 編集中: <code>{detailCol.name}</code>
-              <span className="column-detail-hint">(Esc で閉じる)</span>
+              <i className="bi bi-pencil-square" /> 編集中: <code>{detailCol.physicalName}</code>
+              <span className="column-detail-hint">(Esc で閉じる、外部キーは「制約」タブで管理)</span>
             </span>
             <button className="tbl-btn-icon" onClick={() => setActiveColId(null)} title="閉じる">
               <i className="bi bi-x-lg" />
@@ -669,14 +701,12 @@ function ColumnsTab({
           <ColumnDetailEditor
             col={detailCol}
             onUpdate={(patch) => handleUpdateCol(detailCol.id, patch)}
-            allTables={allTables}
-            showLength={DATA_TYPES_WITH_LENGTH.includes(detailCol.dataType)}
-            showScale={DATA_TYPES_WITH_SCALE.includes(detailCol.dataType)}
+            showLength={DATA_TYPES_WITH_LENGTH.includes(detailCol.dataType as BuiltinDataType)}
+            showScale={DATA_TYPES_WITH_SCALE.includes(detailCol.dataType as BuiltinDataType)}
           />
         </div>
       )}
 
-      {/* Add column actions */}
       <div className="columns-add-bar">
         <button
           className="tbl-btn tbl-btn-primary"
@@ -705,7 +735,6 @@ function ColumnsTab({
         />
       )}
 
-      {/* Template panel */}
       {showTemplates && (
         <div className="column-templates">
           <div className="column-templates-title">
@@ -724,7 +753,7 @@ function ColumnsTab({
                       key={tpl.id}
                       className="template-item"
                       onClick={() => handleAddFromTemplate(tpl)}
-                      title={`${tpl.column.name} (${tpl.column.dataType})`}
+                      title={`${tpl.column.physicalName} (${tpl.column.dataType})`}
                     >
                       <i className={`bi ${tpl.icon}`} />
                       <span>{tpl.label}</span>
@@ -740,14 +769,13 @@ function ColumnsTab({
   );
 }
 
-// ── カラム詳細編集 ────────────────────────────────────────────────────────────
+// ── カラム詳細編集 (FK は ConstraintsTab で管理) ────────────────────────────
 
 function ColumnDetailEditor({
-  col, onUpdate, allTables, showLength, showScale,
+  col, onUpdate, showLength, showScale,
 }: {
-  col: TableColumn;
-  onUpdate: (patch: Partial<TableColumn>) => void;
-  allTables: TableDefinition[];
+  col: Column;
+  onUpdate: (patch: Partial<Column>) => void;
   showLength: boolean;
   showScale: boolean;
 }) {
@@ -755,20 +783,20 @@ function ColumnDetailEditor({
     <div className="column-detail">
       <div className="column-detail-grid">
         <label className="tbl-field">
-          <span>カラム名</span>
+          <span>物理名</span>
           <input
             type="text"
-            value={col.name}
-            onChange={(e) => onUpdate({ name: e.target.value })}
+            value={col.physicalName}
+            onChange={(e) => onUpdate({ physicalName: e.target.value as PhysicalName })}
             placeholder="column_name"
           />
         </label>
         <label className="tbl-field">
-          <span>論理名</span>
+          <span>表示名</span>
           <input
             type="text"
-            value={col.logicalName}
-            onChange={(e) => onUpdate({ logicalName: e.target.value })}
+            value={col.name}
+            onChange={(e) => onUpdate({ name: e.target.value as DisplayName })}
             placeholder="カラムの日本語名"
           />
         </label>
@@ -776,7 +804,7 @@ function ColumnDetailEditor({
           <span>データ型</span>
           <select
             value={col.dataType}
-            onChange={(e) => onUpdate({ dataType: e.target.value as DataType })}
+            onChange={(e) => onUpdate({ dataType: e.target.value })}
           >
             {Object.entries(DATA_TYPE_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -820,15 +848,19 @@ function ColumnDetailEditor({
 
       <div className="column-detail-flags">
         <label className="column-flag-label">
-          <input type="checkbox" checked={col.notNull} onChange={(e) => onUpdate({ notNull: e.target.checked })} />
+          <input type="checkbox" checked={col.notNull ?? false} onChange={(e) => onUpdate({ notNull: e.target.checked })} />
           NOT NULL
         </label>
         <label className="column-flag-label">
-          <input type="checkbox" checked={col.primaryKey} onChange={(e) => onUpdate({ primaryKey: e.target.checked, notNull: e.target.checked ? true : col.notNull })} />
+          <input
+            type="checkbox"
+            checked={col.primaryKey ?? false}
+            onChange={(e) => onUpdate({ primaryKey: e.target.checked, notNull: e.target.checked ? true : col.notNull })}
+          />
           PRIMARY KEY
         </label>
         <label className="column-flag-label">
-          <input type="checkbox" checked={col.unique} onChange={(e) => onUpdate({ unique: e.target.checked })} />
+          <input type="checkbox" checked={col.unique ?? false} onChange={(e) => onUpdate({ unique: e.target.checked })} />
           UNIQUE
         </label>
         <label className="column-flag-label">
@@ -848,104 +880,21 @@ function ColumnDetailEditor({
           />
         </label>
 
-        <ForeignKeyEditor col={col} allTables={allTables} onUpdate={onUpdate} />
+        <div className="column-fk-hint">
+          <i className="bi bi-info-circle" /> 外部キー (FK) は「制約」タブで定義します。v3 では FK が Column ではなく Constraint に集約されました。
+        </div>
       </div>
     </div>
   );
 }
-
-// ── FK入力コンポーネント ──────────────────────────────────────────────────────
-
-function ForeignKeyEditor({
-  col, allTables, onUpdate,
-}: {
-  col: TableColumn;
-  allTables: TableDefinition[];
-  onUpdate: (patch: Partial<TableColumn>) => void;
-}) {
-  const hasFk = !!col.foreignKey;
-  const refTable = allTables.find((t) => t.name === col.foreignKey?.tableId);
-
-  const handleTableChange = (tableName: string) => {
-    const table = allTables.find((t) => t.name === tableName);
-    // PKカラムを自動選択
-    const pkCol = table?.columns.find((c) => c.primaryKey);
-    onUpdate({
-      foreignKey: {
-        tableId: tableName,
-        columnName: pkCol?.name ?? "",
-      },
-    });
-  };
-
-  return (
-    <div className="column-fk-section">
-      <label className="column-flag-label">
-        <input
-          type="checkbox"
-          checked={hasFk}
-          onChange={(e) => {
-            if (e.target.checked) {
-              onUpdate({ foreignKey: { tableId: "", columnName: "" } });
-            } else {
-              onUpdate({ foreignKey: undefined });
-            }
-          }}
-        />
-        外部キー (FK)
-      </label>
-      {hasFk && (
-        <div className="column-fk-fields">
-          <select
-            value={col.foreignKey?.tableId ?? ""}
-            onChange={(e) => handleTableChange(e.target.value)}
-          >
-            <option value="">参照先テーブル...</option>
-            {allTables.map((t) => (
-              <option key={t.id} value={t.name}>
-                {t.name}（{t.logicalName}）
-              </option>
-            ))}
-          </select>
-          <select
-            value={col.foreignKey?.columnName ?? ""}
-            onChange={(e) => onUpdate({ foreignKey: { ...col.foreignKey!, columnName: e.target.value } })}
-            disabled={!refTable}
-          >
-            <option value="">参照先カラム...</option>
-            {refTable?.columns.map((c) => {
-              const icon = c.primaryKey ? "🔑 " : c.unique ? "✦ " : "";
-              return (
-                <option key={c.id} value={c.name}>
-                  {icon}{c.name}（{c.logicalName}）— {c.dataType}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      )}
-      {hasFk && col.foreignKey?.tableId && (
-        <label className="column-flag-label fk-no-constraint">
-          <input
-            type="checkbox"
-            checked={col.foreignKey?.noConstraint ?? false}
-            onChange={(e) => onUpdate({ foreignKey: { ...col.foreignKey!, noConstraint: e.target.checked } })}
-          />
-          論理FKのみ（DDLにFOREIGN KEY制約を出力しない）
-        </label>
-      )}
-    </div>
-  );
-}
-
 
 // ── コメントタブ ──────────────────────────────────────────────────────────────
 
 function CommentTab({
   table, update,
 }: {
-  table: TableDefinition;
-  update: (fn: (t: TableDefinition) => void) => void;
+  table: Table;
+  update: (fn: (t: Table) => void) => void;
 }) {
   return (
     <div className="comment-tab">
@@ -960,7 +909,7 @@ function CommentTab({
         />
       </label>
       <p className="comment-tab-hint">
-        <i className="bi bi-info-circle" /> PostgreSQL では <code>COMMENT ON TABLE {table.name} IS &#39;...&#39;;</code> として DDL に出力されます。
+        <i className="bi bi-info-circle" /> PostgreSQL では <code>COMMENT ON TABLE {table.physicalName} IS &#39;...&#39;;</code> として DDL に出力されます。
       </p>
     </div>
   );

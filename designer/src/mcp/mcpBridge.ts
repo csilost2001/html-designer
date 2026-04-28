@@ -872,7 +872,7 @@ class McpBridgeImpl {
           } else if (tTableId) {
             const table = await loadTable(tTableId);
             if (!table) { respondError(`テーブルが見つかりません: ${tTableId}`); break; }
-            openTab({ id: makeTabId("table", tTableId), type: "table", resourceId: tTableId, label: table.logicalName ?? table.name });
+            openTab({ id: makeTabId("table", tTableId), type: "table", resourceId: tTableId, label: table.name ?? table.physicalName });
             if (this.navigateHandler) this.navigateHandler(`/table/edit/${tTableId}`);
           } else {
             respondError("screenId または tableId が必要です");

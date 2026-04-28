@@ -1,15 +1,28 @@
 /**
- * specExporter.ts
- * AIエージェント向け統合JSON仕様書の生成
+ * specExporter.ts (v3, #556)
+ * AI エージェント向け統合 JSON 仕様書の生成。
  *
- * PG工程のAIが正確に解釈可能な構造化フォーマットで、
- * テーブル定義・リレーション（物理/論理）・画面情報を統合出力する。
+ * v3 schema 整合:
+ * - Table: physicalName / name (display) を使用
+ * - Column: physicalName / name (display) を使用
+ * - FK は Constraint.foreignKey から導出 (Column.foreignKey は廃止)
+ * - referencedTableId (Uuid) は allTables から physicalName へ逆引き
+ * - Index は IndexColumn.columnId → physicalName 解決
+ *
+ * 出力 JSON の SpecXXX 型は下流 (PG 工程 AI) との contract のためフィールド名は維持。
+ * 値の意味は v3 source から正しくマッピングする (e.g. SpecColumn.name = Column.physicalName)。
  */
-import type { TableDefinition, ConstraintDefinition, DefaultDefinition, TriggerDefinition } from "../types/table";
-import type { ErRelation, ErLayout } from "../types/table";
+import type {
+  Table,
+  Constraint,
+  ForeignKeyConstraint,
+  DefaultDefinition,
+  TriggerDefinition,
+} from "../types/v3";
+import type { ErLayout } from "../types/v3";
 import type { FlowProject } from "../types/flow";
 import type { ProcessFlow, Step } from "../types/action";
-import { getAllRelations } from "./erUtils";
+import { getAllRelations, type ErRelation } from "./erUtils";
 import { getStepLabel } from "./actionUtils";
 import { fieldsToText } from "./actionFields";
 
@@ -20,7 +33,7 @@ export interface SpecJson {
   generatedAt: string;
   /** テーブル定義 */
   tables: SpecTable[];
-  /** リレーション一覧（物理FK + 論理FK） */
+  /** リレーション一覧（物理 FK + 論理 FK） */
   relations: SpecRelation[];
   /** 画面一覧（フロー図の情報） */
   screens: SpecScreen[];
@@ -33,19 +46,23 @@ export interface SpecJson {
 }
 
 export interface SpecTable {
+  /** DB 物理名 (snake_case)。v3 Table.physicalName に対応。 */
   name: string;
+  /** 表示名。v3 Table.name (DisplayName) に対応。 */
   logicalName: string;
   description: string;
   category?: string;
   columns: SpecColumn[];
   indexes: SpecIndex[];
-  constraints?: ConstraintDefinition[];
+  constraints?: Constraint[];
   defaults?: DefaultDefinition[];
   triggers?: TriggerDefinition[];
 }
 
 export interface SpecColumn {
+  /** カラム物理名 (snake_case)。v3 Column.physicalName。 */
   name: string;
+  /** カラム表示名。v3 Column.name (DisplayName)。 */
   logicalName: string;
   dataType: string;
   length?: number;
@@ -56,28 +73,32 @@ export interface SpecColumn {
   autoIncrement?: boolean;
   defaultValue?: string;
   comment?: string;
-  /** FK参照情報（物理/論理どちらも含む） */
+  /** FK 参照情報 (物理 / 論理どちらも含む) */
   reference?: {
+    /** 参照先テーブル物理名 */
     table: string;
+    /** 参照先カラム物理名 */
     column: string;
-    /** "physical" = DDLにFOREIGN KEY出力, "logical" = アプリ層で制御 */
+    /** "physical" = DDL に FOREIGN KEY 出力, "logical" = アプリ層で制御 */
     type: "physical" | "logical";
     memo?: string;
   };
 }
 
 export interface SpecIndex {
+  /** インデックス物理名 */
   name: string;
+  /** カラム物理名の配列 */
   columns: string[];
   unique: boolean;
 }
 
 export interface SpecRelation {
-  /** "orders.customer_id → customers.id" 形式 */
+  /** "orders.customer_id → customers.id" 形式の出力用、from は ".table" or "table.column" */
   from: string;
   to: string;
   cardinality: string;
-  /** "physical" = DB制約あり, "logical" = アプリ層で制御, "conceptual" = カラム未定 */
+  /** "physical" = DB 制約あり, "logical" = アプリ層で制御, "conceptual" = カラム未定 */
   constraintType: "physical" | "logical" | "conceptual";
   memo?: string;
 }
@@ -127,25 +148,22 @@ export interface SpecCommonProcess {
   steps: SpecStep[];
 }
 
-/**
- * 統合JSON仕様書を生成
- */
+/** 統合 JSON 仕様書を生成 */
 export function generateSpecJson(
   project: FlowProject,
-  tables: TableDefinition[],
+  tables: Table[],
   erLayout: ErLayout | null,
   processFlows?: ProcessFlow[],
 ): SpecJson {
   const relations = getAllRelations(tables, erLayout);
 
-  // 共通処理とそれ以外を分離
   const commonGroups = (processFlows ?? []).filter((g) => g.type === "common");
   const nonCommonGroups = (processFlows ?? []).filter((g) => g.type !== "common");
 
   const result: SpecJson = {
     projectName: project.name,
     generatedAt: new Date().toISOString(),
-    tables: tables.map((t) => toSpecTable(t)),
+    tables: tables.map((t) => toSpecTable(t, tables)),
     relations: relations.map((r) => toSpecRelation(r)),
     screens: project.screens.map((s) => ({
       name: s.name,
@@ -201,38 +219,56 @@ export function generateSpecJson(
   return result;
 }
 
-function toSpecTable(t: TableDefinition): SpecTable {
+function resolveColumnPhysical(table: Table, columnId: string): string {
+  return table.columns.find((c) => c.id === columnId)?.physicalName ?? columnId;
+}
+
+function findFkForColumn(table: Table, columnId: string): ForeignKeyConstraint | undefined {
+  return (table.constraints ?? []).find(
+    (c) => c.kind === "foreignKey" && (c.columnIds as readonly string[]).includes(columnId),
+  ) as ForeignKeyConstraint | undefined;
+}
+
+function toSpecTable(t: Table, allTables: Table[]): SpecTable {
+  const tableIdMap = new Map(allTables.map((tbl) => [tbl.id, tbl]));
   return {
-    name: t.name,
-    logicalName: t.logicalName,
-    description: t.description,
+    name: t.physicalName,
+    logicalName: t.name,
+    description: t.description ?? "",
     category: t.category,
     columns: t.columns.map((c) => {
       const col: SpecColumn = {
-        name: c.name,
-        logicalName: c.logicalName,
+        name: c.physicalName,
+        logicalName: c.name,
         dataType: c.dataType,
         length: c.length,
         scale: c.scale,
-        notNull: c.notNull,
-        primaryKey: c.primaryKey,
-        unique: c.unique,
+        notNull: c.notNull ?? false,
+        primaryKey: c.primaryKey ?? false,
+        unique: c.unique ?? false,
         autoIncrement: c.autoIncrement || undefined,
         defaultValue: c.defaultValue,
         comment: c.comment,
       };
-      if (c.foreignKey) {
+      // FK は Constraint.foreignKey から探索 (Column.foreignKey は v3 で廃止)
+      const fk = findFkForColumn(t, c.id);
+      if (fk) {
+        const refTable = tableIdMap.get(fk.referencedTableId);
+        const refColIdx = (fk.columnIds as readonly string[]).indexOf(c.id);
+        const refColId = fk.referencedColumnIds[refColIdx >= 0 ? refColIdx : 0];
         col.reference = {
-          table: c.foreignKey.tableId,
-          column: c.foreignKey.columnName,
-          type: c.foreignKey.noConstraint ? "logical" : "physical",
+          table: refTable?.physicalName ?? `<unknown:${String(fk.referencedTableId).slice(0, 8)}>`,
+          column: refTable && refColId
+            ? resolveColumnPhysical(refTable, refColId)
+            : (refColId ?? ""),
+          type: fk.noConstraint ? "logical" : "physical",
         };
       }
       return col;
     }),
-    indexes: t.indexes.map((idx) => ({
-      name: idx.id,
-      columns: idx.columns.map((ic) => ic.name),
+    indexes: (t.indexes ?? []).map((idx) => ({
+      name: idx.physicalName,
+      columns: idx.columns.map((ic) => resolveColumnPhysical(t, ic.columnId)),
       unique: idx.unique ?? false,
     })),
     ...(t.constraints && t.constraints.length > 0 ? { constraints: t.constraints } : {}),

@@ -183,16 +183,18 @@ export function ProcessFlowEditor() {
       setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
     listTables().then(async (metas) => {
-      setTables(metas.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
+      setTables(metas.map((tm) => ({ id: tm.id, name: tm.physicalName ?? "", logicalName: tm.name })));
       // SQL 列検査用に全テーブルの columns まで読む (#261 UI 統合)
       const defs = await Promise.all(
         metas.map(async (tm) => {
           const full = await loadTable(tm.id);
           if (!full) return null;
           return {
+            // sqlColumnValidator は物理名 (snake_case) で SQL 列を検証するため、
+            // v3 では table.physicalName / column.physicalName を渡す (v3 の name は表示名)。
             id: full.id,
-            name: full.name,
-            columns: (full.columns ?? []).map((c) => ({ name: c.name })),
+            name: full.physicalName,
+            columns: (full.columns ?? []).map((c) => ({ name: c.physicalName })),
           } as ValidatorTableDef;
         }),
       );

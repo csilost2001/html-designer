@@ -1,43 +1,65 @@
 import { describe, it, expect } from "vitest";
 import { generateDdl } from "./ddlGenerator";
-import type { TableDefinition } from "../types/table";
+import type { Table, TableId, LocalId, PhysicalName, DisplayName, Timestamp } from "../types/v3";
 
-function baseTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
+function baseTable(overrides: Partial<Table> = {}): Table {
   return {
-    id: "t1",
-    name: "orders",
-    logicalName: "受注",
+    id: "t1" as TableId,
+    name: "受注" as DisplayName,
+    physicalName: "orders" as PhysicalName,
     description: "",
+    createdAt: "2026-01-01T00:00:00Z" as Timestamp,
+    updatedAt: "2026-01-01T00:00:00Z" as Timestamp,
     columns: [
       {
-        id: "c1", no: 1, name: "id", logicalName: "ID",
+        id: "c1" as LocalId, no: 1, physicalName: "id" as PhysicalName, name: "ID" as DisplayName,
         dataType: "INTEGER", notNull: true, primaryKey: true, unique: false, autoIncrement: true,
       },
       {
-        id: "c2", no: 2, name: "amount", logicalName: "金額",
+        id: "c2" as LocalId, no: 2, physicalName: "amount" as PhysicalName, name: "金額" as DisplayName,
         dataType: "DECIMAL", length: 12, scale: 2, notNull: true, primaryKey: false, unique: false,
       },
       {
-        id: "c3", no: 3, name: "supplier_id", logicalName: "仕入先ID",
+        id: "c3" as LocalId, no: 3, physicalName: "supplier_id" as PhysicalName, name: "仕入先ID" as DisplayName,
         dataType: "INTEGER", notNull: true, primaryKey: false, unique: false,
       },
       {
-        id: "c4", no: 4, name: "po_number", logicalName: "発注番号",
+        id: "c4" as LocalId, no: 4, physicalName: "po_number" as PhysicalName, name: "発注番号" as DisplayName,
         dataType: "VARCHAR", length: 50, notNull: true, primaryKey: false, unique: false,
+      },
+      {
+        id: "c5" as LocalId, no: 5, physicalName: "created_at" as PhysicalName, name: "作成日時" as DisplayName,
+        dataType: "TIMESTAMP", notNull: false, primaryKey: false, unique: false,
       },
     ],
     indexes: [],
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
 
-describe("generateDdl — constraints (β-2)", () => {
+// 参照先 suppliers テーブル (FK テスト用)
+function suppliersTable(): Table {
+  return {
+    id: "t-suppliers" as TableId,
+    name: "仕入先" as DisplayName,
+    physicalName: "suppliers" as PhysicalName,
+    description: "",
+    createdAt: "2026-01-01T00:00:00Z" as Timestamp,
+    updatedAt: "2026-01-01T00:00:00Z" as Timestamp,
+    columns: [
+      {
+        id: "s1" as LocalId, no: 1, physicalName: "id" as PhysicalName, name: "ID" as DisplayName,
+        dataType: "INTEGER", notNull: true, primaryKey: true, unique: false,
+      },
+    ],
+  };
+}
+
+describe("generateDdl — constraints (v3)", () => {
   it("UNIQUE 制約が ALTER TABLE ... ADD CONSTRAINT ... UNIQUE として出力される", () => {
     const table = baseTable({
       constraints: [
-        { id: "uq_po_number", kind: "unique", columns: ["po_number"] },
+        { id: "uq-1" as LocalId, kind: "unique", physicalName: "uq_po_number" as PhysicalName, columnIds: ["c4" as LocalId] },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -47,7 +69,7 @@ describe("generateDdl — constraints (β-2)", () => {
   it("CHECK 制約が ALTER TABLE ... ADD CONSTRAINT ... CHECK として出力される", () => {
     const table = baseTable({
       constraints: [
-        { id: "chk_amount_positive", kind: "check", expression: "amount > 0" },
+        { id: "chk-1" as LocalId, kind: "check", physicalName: "chk_amount_positive" as PhysicalName, expression: "amount > 0" },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -55,56 +77,62 @@ describe("generateDdl — constraints (β-2)", () => {
   });
 
   it("FOREIGN KEY 制約が ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY として出力される", () => {
+    const suppliers = suppliersTable();
     const table = baseTable({
       constraints: [
         {
-          id: "fk_orders_supplier",
+          id: "fk-1" as LocalId,
           kind: "foreignKey",
-          columns: ["supplier_id"],
-          referencedTable: "suppliers",
-          referencedColumns: ["id"],
-          onDelete: "RESTRICT",
+          physicalName: "fk_orders_supplier" as PhysicalName,
+          columnIds: ["c3" as LocalId],
+          referencedTableId: suppliers.id,
+          referencedColumnIds: ["s1" as LocalId],
+          onDelete: "restrict",
         },
       ],
     });
-    const ddl = generateDdl(table, "postgresql");
+    const ddl = generateDdl(table, "postgresql", [suppliers]);
     expect(ddl).toContain("ALTER TABLE orders ADD CONSTRAINT fk_orders_supplier");
     expect(ddl).toContain("FOREIGN KEY (supplier_id) REFERENCES suppliers(id)");
     expect(ddl).toContain("ON DELETE RESTRICT");
   });
 
-  it("FK に onUpdate が指定された場合は ON UPDATE も出力される", () => {
+  it("FK に onUpdate が指定された場合は ON UPDATE も出力される (lowerCamelCase → UPPER 変換)", () => {
+    const suppliers = suppliersTable();
     const table = baseTable({
       constraints: [
         {
-          id: "fk_cascade",
+          id: "fk-2" as LocalId,
           kind: "foreignKey",
-          columns: ["supplier_id"],
-          referencedTable: "suppliers",
-          referencedColumns: ["id"],
-          onDelete: "CASCADE",
-          onUpdate: "CASCADE",
+          physicalName: "fk_cascade" as PhysicalName,
+          columnIds: ["c3" as LocalId],
+          referencedTableId: suppliers.id,
+          referencedColumnIds: ["s1" as LocalId],
+          onDelete: "cascade",
+          onUpdate: "cascade",
         },
       ],
     });
-    const ddl = generateDdl(table, "postgresql");
+    const ddl = generateDdl(table, "postgresql", [suppliers]);
     expect(ddl).toContain("ON DELETE CASCADE");
     expect(ddl).toContain("ON UPDATE CASCADE");
   });
 
-  it("FK に onDelete / onUpdate が未指定の場合は ON DELETE / ON UPDATE を出力しない", () => {
+  it("FK に onDelete / onUpdate が未指定の場合は出力しない", () => {
+    const suppliers = suppliersTable();
     const table = baseTable({
       constraints: [
         {
-          id: "fk_bare",
+          id: "fk-3" as LocalId,
           kind: "foreignKey",
-          columns: ["supplier_id"],
-          referencedTable: "suppliers",
-          referencedColumns: ["id"],
+          physicalName: "fk_bare" as PhysicalName,
+          columnIds: ["c3" as LocalId],
+          referencedTableId: suppliers.id,
+          referencedColumnIds: ["s1" as LocalId],
         },
       ],
     });
-    const ddl = generateDdl(table, "postgresql");
+    const ddl = generateDdl(table, "postgresql", [suppliers]);
     expect(ddl).not.toContain("ON DELETE");
     expect(ddl).not.toContain("ON UPDATE");
   });
@@ -118,8 +146,8 @@ describe("generateDdl — constraints (β-2)", () => {
   it("複数制約が順序通り出力される", () => {
     const table = baseTable({
       constraints: [
-        { id: "uq_po_number", kind: "unique", columns: ["po_number"] },
-        { id: "chk_amount", kind: "check", expression: "amount > 0" },
+        { id: "uq-1" as LocalId, kind: "unique", physicalName: "uq_po_number" as PhysicalName, columnIds: ["c4" as LocalId] },
+        { id: "chk-1" as LocalId, kind: "check", physicalName: "chk_amount" as PhysicalName, expression: "amount > 0" },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -133,19 +161,38 @@ describe("generateDdl — constraints (β-2)", () => {
   it("MySQL でも同じ ALTER TABLE 構文が出力される", () => {
     const table = baseTable({
       constraints: [
-        { id: "uq_po", kind: "unique", columns: ["po_number"] },
+        { id: "uq-1" as LocalId, kind: "unique", physicalName: "uq_po" as PhysicalName, columnIds: ["c4" as LocalId] },
       ],
     });
     const ddl = generateDdl(table, "mysql");
     expect(ddl).toContain("ALTER TABLE orders ADD CONSTRAINT uq_po UNIQUE (po_number);");
   });
+
+  it("FK noConstraint=true は DDL に出力しない (論理 FK のみ)", () => {
+    const suppliers = suppliersTable();
+    const table = baseTable({
+      constraints: [
+        {
+          id: "fk-logical" as LocalId,
+          kind: "foreignKey",
+          physicalName: "fk_logical" as PhysicalName,
+          columnIds: ["c3" as LocalId],
+          referencedTableId: suppliers.id,
+          referencedColumnIds: ["s1" as LocalId],
+          noConstraint: true,
+        },
+      ],
+    });
+    const ddl = generateDdl(table, "postgresql", [suppliers]);
+    expect(ddl).not.toContain("FOREIGN KEY");
+  });
 });
 
-describe("generateDdl — indexes (β-3)", () => {
+describe("generateDdl — indexes (v3)", () => {
   it("シンプルなインデックスが CREATE INDEX として出力される", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_orders_created_at", columns: [{ name: "created_at" }] },
+        { id: "idx-1" as LocalId, physicalName: "idx_orders_created_at" as PhysicalName, columns: [{ columnId: "c5" as LocalId }] },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -155,7 +202,7 @@ describe("generateDdl — indexes (β-3)", () => {
   it("UNIQUE インデックスが CREATE UNIQUE INDEX として出力される", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_uq_po_number", columns: [{ name: "po_number" }], unique: true },
+        { id: "idx-2" as LocalId, physicalName: "idx_uq_po_number" as PhysicalName, columns: [{ columnId: "c4" as LocalId }], unique: true },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -166,8 +213,9 @@ describe("generateDdl — indexes (β-3)", () => {
     const table = baseTable({
       indexes: [
         {
-          id: "idx_supplier_status",
-          columns: [{ name: "supplier_id" }, { name: "amount" }],
+          id: "idx-3" as LocalId,
+          physicalName: "idx_supplier_status" as PhysicalName,
+          columns: [{ columnId: "c3" as LocalId }, { columnId: "c2" as LocalId }],
         },
       ],
     });
@@ -178,7 +226,7 @@ describe("generateDdl — indexes (β-3)", () => {
   it("DESC 列が DESC 付きで出力される", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_amount_desc", columns: [{ name: "amount", order: "desc" }] },
+        { id: "idx-4" as LocalId, physicalName: "idx_amount_desc" as PhysicalName, columns: [{ columnId: "c2" as LocalId, order: "desc" }] },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -188,7 +236,7 @@ describe("generateDdl — indexes (β-3)", () => {
   it("ASC 列は何も付かない", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_amount_asc", columns: [{ name: "amount", order: "asc" }] },
+        { id: "idx-5" as LocalId, physicalName: "idx_amount_asc" as PhysicalName, columns: [{ columnId: "c2" as LocalId, order: "asc" }] },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -200,8 +248,9 @@ describe("generateDdl — indexes (β-3)", () => {
     const table = baseTable({
       indexes: [
         {
-          id: "idx_partial",
-          columns: [{ name: "supplier_id" }],
+          id: "idx-6" as LocalId,
+          physicalName: "idx_partial" as PhysicalName,
+          columns: [{ columnId: "c3" as LocalId }],
           where: "amount > 0",
         },
       ],
@@ -213,7 +262,7 @@ describe("generateDdl — indexes (β-3)", () => {
   it("PostgreSQL + hash メソッドが USING HASH として出力される", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_hash", columns: [{ name: "po_number" }], method: "hash" },
+        { id: "idx-7" as LocalId, physicalName: "idx_hash" as PhysicalName, columns: [{ columnId: "c4" as LocalId }], method: "hash" },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -223,7 +272,7 @@ describe("generateDdl — indexes (β-3)", () => {
   it("btree メソッドは USING 句を出力しない", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_btree", columns: [{ name: "amount" }], method: "btree" },
+        { id: "idx-8" as LocalId, physicalName: "idx_btree" as PhysicalName, columns: [{ columnId: "c2" as LocalId }], method: "btree" },
       ],
     });
     const ddl = generateDdl(table, "postgresql");
@@ -233,7 +282,7 @@ describe("generateDdl — indexes (β-3)", () => {
   it("MySQL では USING を出力しない (btree 以外でも)", () => {
     const table = baseTable({
       indexes: [
-        { id: "idx_hash_mysql", columns: [{ name: "amount" }], method: "hash" },
+        { id: "idx-9" as LocalId, physicalName: "idx_hash_mysql" as PhysicalName, columns: [{ columnId: "c2" as LocalId }], method: "hash" },
       ],
     });
     const ddl = generateDdl(table, "mysql");
@@ -247,10 +296,10 @@ describe("generateDdl — indexes (β-3)", () => {
   });
 });
 
-describe("generateDdl — defaults (β-4)", () => {
+describe("generateDdl — defaults (v3)", () => {
   it("literal DEFAULT が ALTER TABLE SET DEFAULT として出力される", () => {
     const table = baseTable({
-      defaults: [{ column: "amount", kind: "literal", value: "0" }],
+      defaults: [{ columnId: "c2" as LocalId, kind: "literal", value: "0" }],
     });
     const ddl = generateDdl(table, "postgresql");
     expect(ddl).toContain("ALTER TABLE orders ALTER COLUMN amount SET DEFAULT 0;");
@@ -258,7 +307,7 @@ describe("generateDdl — defaults (β-4)", () => {
 
   it("function DEFAULT が ALTER TABLE SET DEFAULT として出力される", () => {
     const table = baseTable({
-      defaults: [{ column: "created_at", kind: "function", value: "NOW()" }],
+      defaults: [{ columnId: "c5" as LocalId, kind: "function", value: "NOW()" }],
     });
     const ddl = generateDdl(table, "postgresql");
     expect(ddl).toContain("ALTER TABLE orders ALTER COLUMN created_at SET DEFAULT NOW();");
@@ -266,15 +315,15 @@ describe("generateDdl — defaults (β-4)", () => {
 
   it("sequence DEFAULT が PostgreSQL で nextval() を使用する", () => {
     const table = baseTable({
-      defaults: [{ column: "id", kind: "sequence", value: "orders_id_seq" }],
+      defaults: [{ columnId: "c1" as LocalId, kind: "sequence", value: "orders_id_seq" }],
     });
     const ddl = generateDdl(table, "postgresql");
     expect(ddl).toContain("SET DEFAULT nextval('orders_id_seq');");
   });
 
-  it("conventionRef DEFAULT が DEFAULT NULL /* @conv.* */ として出力される", () => {
+  it("convention DEFAULT が DEFAULT NULL /* @conv.* */ として出力される (旧 conventionRef → convention)", () => {
     const table = baseTable({
-      defaults: [{ column: "po_number", kind: "conventionRef", value: "@conv.numbering.orderNumber" }],
+      defaults: [{ columnId: "c4" as LocalId, kind: "convention", value: "@conv.numbering.orderNumber" }],
     });
     const ddl = generateDdl(table, "postgresql");
     expect(ddl).toContain("SET DEFAULT NULL /* @conv.numbering.orderNumber */;");
@@ -287,11 +336,12 @@ describe("generateDdl — defaults (β-4)", () => {
   });
 });
 
-describe("generateDdl — triggers (β-4)", () => {
+describe("generateDdl — triggers (v3)", () => {
   it("PostgreSQL トリガーが CREATE FUNCTION + CREATE TRIGGER として出力される", () => {
     const table = baseTable({
       triggers: [{
-        id: "trg_po_number",
+        id: "trg-1" as LocalId,
+        physicalName: "trg_po_number" as PhysicalName,
         timing: "BEFORE",
         events: ["INSERT"],
         body: "NEW.po_number := 'ORD-001';",
@@ -308,7 +358,8 @@ describe("generateDdl — triggers (β-4)", () => {
   it("複数イベントが OR 区切りで出力される", () => {
     const table = baseTable({
       triggers: [{
-        id: "trg_audit",
+        id: "trg-2" as LocalId,
+        physicalName: "trg_audit" as PhysicalName,
         timing: "AFTER",
         events: ["INSERT", "UPDATE"],
         body: "-- audit",
@@ -321,7 +372,8 @@ describe("generateDdl — triggers (β-4)", () => {
   it("WHEN 句が指定された場合は WHEN (条件) として出力される", () => {
     const table = baseTable({
       triggers: [{
-        id: "trg_cond",
+        id: "trg-3" as LocalId,
+        physicalName: "trg_cond" as PhysicalName,
         timing: "BEFORE",
         events: ["UPDATE"],
         whenCondition: "NEW.status IS DISTINCT FROM OLD.status",
@@ -335,7 +387,8 @@ describe("generateDdl — triggers (β-4)", () => {
   it("MySQL ではシンプルな CREATE TRIGGER を出力する", () => {
     const table = baseTable({
       triggers: [{
-        id: "trg_simple",
+        id: "trg-4" as LocalId,
+        physicalName: "trg_simple" as PhysicalName,
         timing: "BEFORE",
         events: ["INSERT"],
         body: "SET NEW.created_at = NOW();",
@@ -351,5 +404,19 @@ describe("generateDdl — triggers (β-4)", () => {
     const table = baseTable();
     const ddl = generateDdl(table, "postgresql");
     expect(ddl).not.toContain("CREATE TRIGGER");
+  });
+
+  it("INSTEAD_OF / TRUNCATE が v3 で対応", () => {
+    const table = baseTable({
+      triggers: [{
+        id: "trg-5" as LocalId,
+        physicalName: "trg_io" as PhysicalName,
+        timing: "INSTEAD_OF",
+        events: ["TRUNCATE"],
+        body: "-- block truncate",
+      }],
+    });
+    const ddl = generateDdl(table, "postgresql");
+    expect(ddl).toContain("INSTEAD OF TRUNCATE ON orders");
   });
 });

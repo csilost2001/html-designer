@@ -54,7 +54,7 @@ export function ViewEditor() {
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     listTables().then((metas) => {
-      setTableOptions(metas.map((m) => ({ id: m.id, name: m.logicalName || m.name || m.id })));
+      setTableOptions(metas.map((m) => ({ id: m.id, name: m.name || m.physicalName || m.id })));
     });
   }, [viewId]);
 
