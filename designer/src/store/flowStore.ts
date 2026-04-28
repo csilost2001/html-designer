@@ -457,13 +457,19 @@ export async function loadProject(): Promise<FlowProject> {
       local &&
       (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.processFlows?.length ?? 0) > 0)
     ) {
+      // localStorage 側に保存されている screen-layout も合わせて backend に migrate する。
+      // 業務情報のみを backend に書き写し、座標を localStorage に置いたままにすると
+      // 次回ロード時に backend layout (空) で localStorage layout を上書きしてしまうため。
+      const layout = await loadScreenLayout();
       try {
         await _backend.saveProject(local);
-        console.log("[flowStore] Migrated project from localStorage to file");
+        if (Object.keys(layout.positions).length > 0 || Object.keys(layout.transitions ?? {}).length > 0) {
+          await saveScreenLayout(layout);
+        }
+        console.log("[flowStore] Migrated project (and screen-layout) from localStorage to file");
       } catch (e) {
         console.warn("[flowStore] migration save failed, returning local without persist", e);
       }
-      const layout = await loadScreenLayout();
       return ensureProjectDefaults(composeFlowProject(local, layout));
     }
     return createEmptyProject();
