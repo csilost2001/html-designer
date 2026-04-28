@@ -1,10 +1,11 @@
 # 画面項目定義 (Screen Items)
 
-**ステータス**: v1.1 (凍結)
+**ステータス**: v3 整合 (schema v3.0.2 確定済)
 **策定開始**: 2026-04-22
 **凍結日 v1.0**: 2026-04-23
 **更新 v1.1**: 2026-04-24 — 出力項目の `displayFormat` / `valueFrom` 追加 (#377)
-**関連 issue**: #318 #354 #377
+**改訂日: 2026-04-28 (v3 反映)**: schema を `schemas/v3/screen-item.v3.schema.json` に整合、`FieldType` を v3 確定形 (custom 廃止 / integer / datetime / json / domain / file / extension 追加)、`ValueSource.flowVariable.variableName` を `IdentifierPath` (#533 R3-1)、`tableColumn` / `viewColumn` を `TableColumnRef` / `ViewColumnRef` (Pattern B 複合参照、物理名直書き廃止)
+**関連 issue**: #318 #354 #377 #533 (R3-1) #539 (spec v3 反映)
 
 本書は画面項目定義 (画面 UI のフォーム項目に宣言的にバリデーション・ラベル・表示制御を紐付ける設計書) の仕様を定める。
 
@@ -44,79 +45,111 @@
 
 → **(A-1a) 独立ファイル案**
 
-#### (A-2) 項目 1 件のスキーマ
+#### (A-2) 項目 1 件のスキーマ (v3)
+
+一次成果物: [`schemas/v3/screen-item.v3.schema.json`](../../schemas/v3/screen-item.v3.schema.json)
 
 ```typescript
+// v3 確定形 (designer/src/types/v3/screen-item.ts と一致)
 interface ScreenItem {
-  /** 業務識別子 (実装コードのフィールド名 / API キー, e.g. userName, postalCode).
-   *  GrapesJS data-item-id と #331 以降で一致させる想定 (#330 で name から改称). */
-  id: string;
-  /** 日本語表示名 (ラベル、エラーメッセージの {label} に使われる) */
-  label: string;
-  /** 型 (処理フロー FieldType と同一、datalist + 自由入力) */
-  type: FieldType;  // "string" | "number" | "boolean" | "date" | { kind: "custom", label: string }
-  /** フォーム制御 */
+  /** 業務識別子 (Identifier、camelCase 強制、JS 識別子に直接使用可)。
+   *  例: userName, postalCode、GrapesJS data-item-id と一致させる (#331 以降)。
+   *  pattern: ^[a-z][a-zA-Z0-9]*$、maxLength: 64 */
+  id: Identifier;
+  /** 日本語表示名 (ラベル、エラーメッセージの {label} に使われる)。 */
+  label: DisplayName;
+  /** 型 (処理フロー FieldType と同一、common.v3 の FieldType $defs と整合)。 */
+  type: FieldType;
+  /** フォーム制御。 */
   required?: boolean;
   readonly?: boolean;
   disabled?: boolean;
-  /** 文字列系制約 */
+  /** 文字列系制約。 */
   minLength?: number;
   maxLength?: number;
-  /** 正規表現 (規約参照 @conv.regex.* または直接パターン) */
+  /** 正規表現 (規約参照 `@conv.regex.*` または直接パターン)。 */
   pattern?: string;
-  /** 数値系制約 */
+  /** 数値系制約。 */
   min?: number;
   max?: number;
   step?: number;
-  /** 選択系 */
-  options?: Array<{ value: string; label: string }>;
-  /** 規定値・プレースホルダ・ヘルプ */
-  defaultValue?: string | number | boolean;
+  /** 選択系 (静的マスタ)。 */
+  options?: Array<{ value: string; label: DisplayName }>;
+  /** 規定値・プレースホルダ・ヘルプ。 */
+  defaultValue?: string | number | boolean | null;
   placeholder?: string;
   helperText?: string;
-  /** エラーメッセージ (規約参照推奨) */
-  errorMessages?: {
-    required?: string;       // "@conv.msg.required" 推奨
-    maxLength?: string;      // "@conv.msg.maxLength"
-    invalidFormat?: string;  // "@conv.msg.invalidFormat"
-    outOfRange?: string;     // "@conv.msg.outOfRange"
-    [code: string]: string | undefined;
-  };
-  /** 表示制御 (式言語、docs/spec/process-flow-expression-language.md と共有) */
-  visibleWhen?: string;
-  enabledWhen?: string;
-  /** 画面上での役割 (デフォルト: "input") */
+  /** エラーメッセージ (`@conv.msg.<key>` 参照推奨)。
+   *  キー: required / minLength / maxLength / invalidFormat / outOfRange / 任意のカスタムコード。 */
+  errorMessages?: Record<string, string>;
+  /** 表示制御 (式言語、`docs/spec/process-flow-expression-language.md` と共有)。 */
+  visibleWhen?: ExpressionString;
+  enabledWhen?: ExpressionString;
+  /** 画面上での役割 (デフォルト: "input")。 */
   direction?: "input" | "output";
-  /** 表示書式 (direction="output" 専用, 例: "YYYY/MM/DD", "¥#,##0") — #377 */
+  /** 表示書式 (direction="output" 専用、例: "YYYY/MM/DD", "¥#,##0", "0.00%") — #377 */
   displayFormat?: string;
-  /** バインド元 (direction="output" 専用) — #377 */
+  /** バインド元 (direction="output" 専用) — #377、ValueSource は v3 で Pattern B 複合参照に変更。 */
   valueFrom?: ValueSource;
-  /** 備考 */
-  description?: string;
+  /** 派生計算式 (= で始まる)。output 項目用。 */
+  formula?: ExpressionString;
+  /** 備考。 */
+  description?: Description;
 }
 
 /**
- * 出力項目のバインド元 (4 種別) — #377
+ * v3 FieldType (common.v3 の $defs)。
+ * - プリミティブ 7 種 (string / number / integer / boolean / date / datetime / json) — v3 で integer / datetime / json 追加
+ * - 構造化型 (array / object / tableRow / tableList / screenInput / domain / file / extension) — v3 で domain / file / extension 追加、custom 廃止
+ */
+type FieldType =
+  | "string" | "number" | "integer" | "boolean" | "date" | "datetime" | "json"
+  | { kind: "array"; itemType: FieldType }
+  | { kind: "object"; fields: StructuredField[] }
+  | { kind: "tableRow"; tableId: Uuid }
+  | { kind: "tableList"; tableId: Uuid }
+  | { kind: "screenInput"; screenId: Uuid }
+  | { kind: "domain"; domainKey: string }              // PascalCase、context.catalogs.domains 参照
+  | { kind: "file"; format?: string }
+  | { kind: "extension"; extensionRef: string };       // namespace:fieldType 形式
+
+/**
+ * 出力項目のバインド元 (組み込み 4 種 + 拡張 1) — v3 で Pattern B 複合参照に変更。
+ * - flowVariable.variableName は **IdentifierPath** (#533 R3-1) でドット区切り object field 参照可
+ * - tableColumn / viewColumn は **TableColumnRef / ViewColumnRef** (Pattern B、物理名直書き廃止)
  */
 type ValueSource =
-  | { kind: "flowVariable"; processFlowId?: string; variableName: string }
-  | { kind: "tableColumn"; tableName: string; columnName: string }   // tableName は物理名
-  | { kind: "viewColumn"; viewName: string; columnName: string }     // viewName は物理名
-  | { kind: "expression"; expression: string };
-
-interface ScreenItemsFile {
-  $schema?: string;
-  screenId: string;
-  version: string;  // SemVer
-  updatedAt: string;
-  items: ScreenItem[];
-}
+  | {
+      kind: "flowVariable";
+      processFlowId?: Uuid;            // 省略時はカレント画面に紐付く ProcessFlow を解決
+      variableName: IdentifierPath;    // 例: 'inventoryRows' / 'createdOrder.order_number' (#533 R3-1)
+    }
+  | { kind: "tableColumn"; ref: TableColumnRef }   // { tableId: Uuid, columnId: LocalId }
+  | { kind: "viewColumn"; ref: ViewColumnRef }     // { viewId: Uuid, columnPhysicalName: PhysicalName }
+  | { kind: "expression"; expression: ExpressionString }
+  | {
+      // 拡張 ValueSource (extensions.v3.valueSourceKinds で定義)
+      kind: string;                    // namespace:identifier 形式 (例: 'retail:cartCalculation')
+      config?: Record<string, unknown>;
+    };
 ```
+
+**v3 ファイル配置**:
+
+ScreenItem は v3 schema 上は **Screen entity の `items[]` として埋め込み** (`schemas/v3/screen.v3.schema.json` の `Screen.items[]`)。
+
+ただし運用上は **独立ファイル** (`data/screen-items/{screenId}.json`) として保持し、loader が Screen 読み込み時に items[] として合成する 2 通りを許容。本仕様の (A-1a) 案は維持。
 
 **決定済み** (#330):
 - `ScreenItem.name` は廃止。`id` が業務識別子 (実装コードのフィールド名) を兼ねる。
 - `ScreenItem.id` (旧 UUID 識別子) は廃止。業務識別子を直接 id とする。
 - `options` のようなマスタ依存項目 → **MVP は静的、後続でテーブル参照サポート**
+
+**v3 で確定** (#525 / #533 / #539):
+- `id` は **`Identifier`** (camelCase 強制、common.v3) としてブランド型化
+- `valueFrom.flowVariable.variableName` は **`IdentifierPath`** (#533 R3-1) で object field 参照 (`createdOrder.order_number` 等) を schema 上許容
+- `valueFrom.tableColumn` / `viewColumn` は **Pattern B 複合参照** に統一 (物理名直書き廃止)、`TableColumnRef` / `ViewColumnRef` ($defs in common.v3)
+- `FieldType` の `kind: "custom"` は v3 で廃止、`extension` (namespace:identifier) で代替
 
 ---
 
@@ -124,22 +157,29 @@ interface ScreenItemsFile {
 
 処理フローの `inputs: StructuredField[]` と画面項目定義は重複する可能性がある。どう整合するか。
 
-**✅ 採用: 案 B-1 処理フロー inputs が画面項目を参照** (PR #321 で実装):
-- `StructuredField.screenItemRef?: { screenId: string; itemId: string }` を追加
+**✅ 採用: 案 B-1 処理フロー inputs が画面項目を参照** (PR #321 で実装、v3 で `ScreenItemRef` 型に確定):
+- `StructuredField.screenItemRef?: ScreenItemRef` を追加 (v3: `{ screenId: Uuid, itemId: Identifier }`、common.v3 $defs)
 - ProcessFlowEditor の入出力テーブルに「画面項目から追加」ボタン + `ScreenItemPickerModal`
-- 参照時は ScreenItem から name/label/type/required/description を一回コピー (一方向)
+- 参照時は ScreenItem から id/label/type/required/description を一回コピー (一方向)
 - 参照解除ボタンで `screenItemRef` のみ削除、フィールドは残る
 - **TODO (別 issue)**: 参照整合性バリデータ (UNKNOWN_SCREEN_ITEM)、参照後の画面項目更新を自動反映する双方向同期
 
 (以降の代替案は履歴として残す)
 
-**案 B-1 処理フロー inputs が画面項目を参照 (推奨)**:
+**案 B-1 処理フロー inputs が画面項目を参照 (推奨、v3 確定形)**:
 ```json
 {
   "action": {
     "name": "登録",
     "inputs": [
-      { "name": "email", "screenItemRef": "screen-login/email" }
+      {
+        "name": "email",
+        "type": "string",
+        "screenItemRef": {
+          "screenId": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
+          "itemId": "email"
+        }
+      }
     ]
   }
 }
@@ -386,11 +426,12 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 ## 決定事項 (v1.0 確定内容)
 
 ### (A) データモデル
-- **A-1**: 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用
-- **A-2**: `ScreenItem` スキーマは上記の通り。`direction?: "input" | "output"` を追加 (#359 連動)
+- **A-1**: 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用 (v3 schema 上は `Screen.items[]` 埋め込み、loader が合成)
+- **A-2**: `ScreenItem` スキーマは上記の通り。一次成果物は `schemas/v3/screen-item.v3.schema.json`。`direction?: "input" | "output"` を追加 (#359 連動)
 - **A-3 (v1.1)**: `displayFormat?: string` / `valueFrom?: ValueSource` を追加 (#377)。`direction="output"` のときのみ使用。
   - `displayFormat`: 自由記述 + datalist 補完 (日付 / 数値 / 金額 / パーセント プリセット)
-  - `valueFrom`: `flowVariable` / `tableColumn` / `viewColumn` / `expression` の 4 種別。入力項目 (`direction="input"` または未設定) ではエディタに表示されない
+  - `valueFrom`: `flowVariable` / `tableColumn` / `viewColumn` / `expression` の組み込み 4 種 + 拡張 1 (`namespace:identifier`)。入力項目 (`direction="input"` または未設定) ではエディタに表示されない
+- **A-4 (v3 反映)**: `id` を `Identifier` (camelCase) ブランド型化、`valueFrom.flowVariable.variableName` を `IdentifierPath` (#533 R3-1) で object field 参照可、`tableColumn` / `viewColumn` を Pattern B 複合参照 (`TableColumnRef` / `ViewColumnRef`) に統一、`FieldType.kind: "custom"` 廃止 → `extension` (namespace:identifier) で代替
 - `name` は廃止、`id` が業務識別子を兼ねる (#330)
 
 ### (B) 処理フローとの関係
