@@ -11,13 +11,13 @@ const tableId = "tbl-for-test";
 
 const tableDef = {
   id: tableId,
-  name: "customers",
-  logicalName: "顧客",
+  physicalName: "customers",
+  name: "顧客",
   description: "",
   category: "",
   columns: [
-    { id: "c1", name: "id", logicalName: "ID", dataType: "INTEGER", notNull: true, primaryKey: true, unique: false, autoIncrement: true },
-    { id: "c2", name: "email", logicalName: "メール", dataType: "VARCHAR", length: 255, notNull: true, primaryKey: false, unique: true },
+    { id: "c1", physicalName: "id", name: "ID", dataType: "INTEGER", notNull: true, primaryKey: true, unique: false, autoIncrement: true },
+    { id: "c2", physicalName: "email", name: "メール", dataType: "VARCHAR", length: 255, notNull: true, primaryKey: false, unique: true },
   ],
   indexes: [],
   createdAt: "2026-01-01T00:00:00Z",
@@ -67,7 +67,7 @@ const project = {
   screens: [],
   groups: [],
   edges: [],
-  tables: [{ id: tableId, no: 1, name: "customers", logicalName: "顧客", columnCount: 2, updatedAt: tableDef.updatedAt }],
+  tables: [{ id: tableId, no: 1, physicalName: "customers", name: "顧客", columnCount: 2, updatedAt: tableDef.updatedAt }],
   processFlows: [{
     id: groupId, no: 1, name: group.name, type: group.type, actionCount: 1, updatedAt: group.updatedAt, maturity: "draft",
   }],
@@ -78,7 +78,7 @@ async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group, tableDef, groupId, tableId }) => {
     localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.setItem(`process-flow-${groupId}`, JSON.stringify(group));
-    localStorage.setItem(`table-${tableId}`, JSON.stringify(tableDef));
+    localStorage.setItem(`v3-table-${tableId}`, JSON.stringify(tableDef));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
   }, { project, group, tableDef, groupId, tableId });
