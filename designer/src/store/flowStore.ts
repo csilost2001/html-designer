@@ -1,20 +1,45 @@
 /**
- * flowStore.ts
- * フロープロジェクトの永続化ストア
+ * flowStore.ts (v3 Phase 3-β、#561)
+ * フロープロジェクトの永続化ストア。
  *
- * - wsBridge が接続済みの場合: サーバー側ファイルに保存（mcpBridge 経由）
- * - 未接続の場合: localStorage にフォールバック
+ * 永続化境界 (v3):
+ * - 業務情報: data/project.json (FlowProject の v1 inline shape は維持、Phase 4 で entities ネスト化)
+ * - UI 座標: data/screen-layout.json (Phase 3-β で新設、screenLayoutStore 経由)
  *
- * NOTE: I/O バックエンドは mcpBridge.ts が setFlowStorageBackend() で差し替える。
- *       循環依存を避けるため flowStore は mcpBridge をインポートしない。
+ * UI 側は ScreenNode / ScreenEdge / ScreenGroup (types/flow) で合成型を扱う。
+ * load 時に両方を merge、save 時に書き分ける。
+ *
+ * - wsBridge が接続済み: サーバー側ファイルに保存 (mcpBridge 経由)
+ * - 未接続: localStorage にフォールバック
  */
-import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup, ScreenType, TransitionTrigger } from "../types/flow";
-import { SCREEN_TYPE_LABELS, TRIGGER_LABELS } from "../types/flow";
+import type {
+  FlowProject,
+  ScreenNode,
+  ScreenEdge,
+  ScreenGroup,
+  ProcessFlowMeta,
+} from "../types/flow";
+import type {
+  ScreenId,
+  ScreenGroupId,
+  ScreenKind,
+  ScreenLayout,
+  Position,
+  Timestamp,
+  ScreenTransitionEntry,
+} from "../types/v3";
+import { SCREEN_KIND_LABELS, TRIGGER_LABELS } from "../types/flow";
 import { generateUUID } from "../utils/uuid";
 import { saveDraft, clearDraft, loadDraft } from "../utils/draftStorage";
 import { renumber, nextNo } from "../utils/listOrder";
+import {
+  loadScreenLayout,
+  saveScreenLayout,
+  removePosition as layoutRemovePosition,
+  removeTransitionLayout as layoutRemoveTransition,
+} from "./screenLayoutStore";
 
-// ─── ストレージバックエンドインターフェース ────────────────────────────────
+// ─── ストレージバックエンド ──────────────────────────────────────────────
 
 export interface FlowStorageBackend {
   loadProject(): Promise<unknown>;
@@ -24,47 +49,35 @@ export interface FlowStorageBackend {
 
 let _backend: FlowStorageBackend | null = null;
 
-/** mcpBridge が接続時にセット、切断時に null をセット */
 export function setFlowStorageBackend(b: FlowStorageBackend | null): void {
   _backend = b;
 }
 
-// ─── ドラフトモード（UI 起点の編集を localStorage ドラフトに流す） ─────────
-//
-// FlowEditor のような明示的保存画面で setDraftMode(true) を呼ぶと、
-// saveProject() は backend へ書かず draft-flow-project に書き込むようになる。
-// persistProject() を呼ぶと draft をクリアして backend に永続化する。
+// ─── ドラフトモード ──────────────────────────────────────────────────────
 
 const FLOW_DRAFT_KIND = "flow";
 const FLOW_DRAFT_ID = "project";
-
 let _draftMode = false;
-
 const _draftSaveListeners: Set<() => void> = new Set();
 
 export function setFlowDraftMode(enabled: boolean): void {
   _draftMode = enabled;
 }
-
 export function isFlowDraftMode(): boolean {
   return _draftMode;
 }
-
 export function loadFlowDraft(): FlowProject | null {
   return loadDraft<FlowProject>(FLOW_DRAFT_KIND, FLOW_DRAFT_ID);
 }
-
 export function clearFlowDraft(): void {
   clearDraft(FLOW_DRAFT_KIND, FLOW_DRAFT_ID);
 }
-
-/** draft モード中に saveProject が呼ばれると通知される（FlowEditor の isDirty 検知用） */
 export function subscribeToFlowDraftSaves(cb: () => void): () => void {
   _draftSaveListeners.add(cb);
   return () => _draftSaveListeners.delete(cb);
 }
 
-// ─── localStorage キー ────────────────────────────────────────────────────
+// ─── localStorage キー ───────────────────────────────────────────────────
 
 const FLOW_PROJECT_KEY = "flow-project";
 const SCREEN_DATA_PREFIX = "gjs-screen-";
@@ -72,11 +85,224 @@ const LEGACY_KEY = "gjs-designer-project";
 
 export const DEFAULT_NODE_SIZE = { width: 200, height: 100 };
 
-function now(): string {
-  return new Date().toISOString();
+function nowTs(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
-// ─── ローカルユーティリティ ───────────────────────────────────────────────
+// ─── 業務情報のみの永続化 shape (project.json 用) ──────────────────────
+//
+// Phase 3-β: 業務情報のみで永続化する。座標 (position/size/thumbnail) は
+// screen-layout.json に分離する。Phase 4 で v3 Project (entities ネスト) に
+// 完全移行する際に、本 shape は ScreenEntry / ScreenGroupEntry / ScreenTransitionEntry の
+// project.entities ネスト構造へ再編する。
+
+interface PersistedScreen {
+  id: ScreenId;
+  no: number;
+  name: string;
+  kind: ScreenKind;
+  description: string;
+  path: string;
+  hasDesign: boolean;
+  groupId?: ScreenGroupId;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+interface PersistedGroup {
+  id: ScreenGroupId;
+  name: string;
+  color?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+interface PersistedEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  trigger: ScreenTransitionEntry["trigger"];
+}
+
+interface PersistedFlowProject {
+  version: 1;
+  name: string;
+  screens: PersistedScreen[];
+  groups: PersistedGroup[];
+  edges: PersistedEdge[];
+  tables?: FlowProject["tables"];
+  processFlows?: ProcessFlowMeta[];
+  sequences?: FlowProject["sequences"];
+  views?: FlowProject["views"];
+  updatedAt: Timestamp;
+}
+
+// ─── 合成・分解 ─────────────────────────────────────────────────────────
+
+function defaultPositionFor(index: number): Position {
+  return {
+    x: 100 + index * 250,
+    y: 150,
+    width: DEFAULT_NODE_SIZE.width,
+    height: DEFAULT_NODE_SIZE.height,
+  };
+}
+
+function defaultGroupPosition(): Position {
+  return { x: 0, y: 0, width: 360, height: 280 };
+}
+
+/** Persisted project.json + screen-layout.json を UI 合成型 FlowProject に。 */
+function composeFlowProject(
+  persisted: PersistedFlowProject,
+  layout: ScreenLayout,
+): FlowProject {
+  const screens: ScreenNode[] = persisted.screens.map((s, i) => {
+    const pos = layout.positions[s.id] ?? defaultPositionFor(i);
+    return {
+      id: s.id,
+      no: s.no,
+      name: s.name,
+      kind: s.kind,
+      description: s.description,
+      path: s.path,
+      position: { x: pos.x, y: pos.y },
+      size: {
+        width: pos.width ?? DEFAULT_NODE_SIZE.width,
+        height: pos.height ?? DEFAULT_NODE_SIZE.height,
+      },
+      hasDesign: s.hasDesign,
+      groupId: s.groupId,
+      thumbnail: pos.thumbnail,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    };
+  });
+  const groups: ScreenGroup[] = persisted.groups.map((g) => {
+    const pos = layout.positions[g.id] ?? defaultGroupPosition();
+    return {
+      id: g.id,
+      name: g.name,
+      color: g.color ?? pos.color,
+      position: { x: pos.x, y: pos.y },
+      size: {
+        width: pos.width ?? 360,
+        height: pos.height ?? 280,
+      },
+      createdAt: g.createdAt,
+      updatedAt: g.updatedAt,
+    };
+  });
+  const edges: ScreenEdge[] = persisted.edges.map((e) => {
+    const tl = layout.transitions?.[e.id];
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: tl?.sourceHandle,
+      targetHandle: tl?.targetHandle,
+      label: e.label,
+      trigger: e.trigger,
+    };
+  });
+  return {
+    version: 1,
+    name: persisted.name,
+    screens,
+    groups,
+    edges,
+    tables: persisted.tables,
+    processFlows: persisted.processFlows,
+    sequences: persisted.sequences,
+    views: persisted.views,
+    updatedAt: persisted.updatedAt,
+  };
+}
+
+/** UI 合成型 FlowProject を Persisted (project.json) と ScreenLayout に分解。 */
+function decomposeFlowProject(
+  project: FlowProject,
+  baseLayout: ScreenLayout,
+): { persisted: PersistedFlowProject; layout: ScreenLayout } {
+  const persisted: PersistedFlowProject = {
+    version: 1,
+    name: project.name,
+    screens: project.screens.map((s) => ({
+      id: s.id,
+      no: s.no,
+      name: s.name,
+      kind: s.kind,
+      description: s.description,
+      path: s.path,
+      hasDesign: s.hasDesign,
+      groupId: s.groupId,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    })),
+    groups: project.groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      color: g.color,
+      createdAt: g.createdAt,
+      updatedAt: g.updatedAt,
+    })),
+    edges: project.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      label: e.label,
+      trigger: e.trigger,
+    })),
+    tables: project.tables,
+    processFlows: project.processFlows,
+    sequences: project.sequences,
+    views: project.views,
+    updatedAt: project.updatedAt,
+  };
+
+  const positions: ScreenLayout["positions"] = {};
+  for (const s of project.screens) {
+    positions[s.id] = {
+      x: s.position.x,
+      y: s.position.y,
+      width: s.size.width,
+      height: s.size.height,
+      thumbnail: s.thumbnail,
+    };
+  }
+  for (const g of project.groups) {
+    positions[g.id] = {
+      x: g.position.x,
+      y: g.position.y,
+      width: g.size.width,
+      height: g.size.height,
+      color: g.color,
+    };
+  }
+
+  const transitions: ScreenLayout["transitions"] = {};
+  for (const e of project.edges) {
+    if (e.sourceHandle || e.targetHandle) {
+      transitions[e.id] = {
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+      };
+    }
+  }
+
+  return {
+    persisted,
+    layout: {
+      ...baseLayout,
+      positions,
+      transitions,
+      updatedAt: nowTs(),
+    },
+  };
+}
+
+// ─── ローカルユーティリティ ─────────────────────────────────────────────
 
 function createEmptyProject(): FlowProject {
   return {
@@ -85,172 +311,225 @@ function createEmptyProject(): FlowProject {
     screens: [],
     groups: [],
     edges: [],
-    updatedAt: now(),
+    updatedAt: nowTs(),
   };
 }
 
-/** 旧データ (gjs-designer-project) から新構造へマイグレーション */
-function migrateLegacyLocalStorage(): FlowProject | null {
+/** v1 → 内部 PersistedFlowProject へ最低限の field 補完。 */
+function normalizePersisted(raw: unknown): PersistedFlowProject {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const screensRaw = (obj.screens as Array<Record<string, unknown>> | undefined) ?? [];
+  const groupsRaw = (obj.groups as Array<Record<string, unknown>> | undefined) ?? [];
+  const edgesRaw = (obj.edges as Array<Record<string, unknown>> | undefined) ?? [];
+
+  // v1 互換: type → kind rename (まだ project.json に type が残っていた場合の救済)
+  const screens: PersistedScreen[] = screensRaw.map((s, i) => ({
+    id: (s.id as ScreenId) ?? (generateUUID() as ScreenId),
+    no: typeof s.no === "number" ? s.no : i + 1,
+    name: String(s.name ?? ""),
+    kind: ((s.kind as ScreenKind) ?? (s.type as ScreenKind) ?? "other") as ScreenKind,
+    description: String(s.description ?? ""),
+    path: String(s.path ?? ""),
+    hasDesign: !!s.hasDesign,
+    groupId: (s.groupId as ScreenGroupId | undefined) ?? undefined,
+    createdAt: (s.createdAt as Timestamp) ?? nowTs(),
+    updatedAt: (s.updatedAt as Timestamp) ?? nowTs(),
+  }));
+  const groups: PersistedGroup[] = groupsRaw.map((g) => ({
+    id: (g.id as ScreenGroupId) ?? (generateUUID() as ScreenGroupId),
+    name: String(g.name ?? ""),
+    color: (g.color as string | undefined) ?? undefined,
+    createdAt: (g.createdAt as Timestamp) ?? nowTs(),
+    updatedAt: (g.updatedAt as Timestamp) ?? nowTs(),
+  }));
+  const edges: PersistedEdge[] = edgesRaw.map((e) => ({
+    id: String(e.id ?? generateUUID()),
+    source: String(e.source ?? ""),
+    target: String(e.target ?? ""),
+    label: String(e.label ?? ""),
+    trigger: (e.trigger as ScreenTransitionEntry["trigger"]) ?? "click",
+  }));
+
+  return {
+    version: 1,
+    name: String(obj.name ?? "新規プロジェクト"),
+    screens,
+    groups,
+    edges,
+    tables: obj.tables as PersistedFlowProject["tables"],
+    processFlows: obj.processFlows as ProcessFlowMeta[] | undefined,
+    sequences: obj.sequences as PersistedFlowProject["sequences"],
+    views: obj.views as PersistedFlowProject["views"],
+    updatedAt: (obj.updatedAt as Timestamp) ?? nowTs(),
+  };
+}
+
+/** 旧 v1 (gjs-designer-project) → 新構造へマイグレーション。 */
+function migrateLegacyLocalStorage(): PersistedFlowProject | null {
   const raw = localStorage.getItem(LEGACY_KEY);
   if (!raw) return null;
-
-  const screenId = generateUUID();
-  const screen: ScreenNode = {
+  const screenId = generateUUID() as ScreenId;
+  const screen: PersistedScreen = {
     id: screenId,
     no: 1,
     name: "メイン画面",
-    type: "other",
+    kind: "other",
     description: "既存デザインから移行",
     path: "/",
-    position: { x: 250, y: 150 },
-    size: { ...DEFAULT_NODE_SIZE },
     hasDesign: true,
-    createdAt: now(),
-    updatedAt: now(),
+    createdAt: nowTs(),
+    updatedAt: nowTs(),
   };
   localStorage.setItem(`${SCREEN_DATA_PREFIX}${screenId}`, raw);
-
-  const project: FlowProject = {
+  const project: PersistedFlowProject = {
     version: 1,
     name: "マイプロジェクト",
     screens: [screen],
     groups: [],
     edges: [],
-    updatedAt: now(),
+    updatedAt: nowTs(),
   };
   localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
   return project;
 }
 
-/** localStorage からプロジェクトを読み込む（ファイルが存在しない場合の初期化用） */
-export function loadProjectFromLocalStorage(): FlowProject | null {
+function loadPersistedFromLocalStorage(): PersistedFlowProject | null {
   const raw = localStorage.getItem(FLOW_PROJECT_KEY);
   if (raw) {
     try {
-      return JSON.parse(raw) as FlowProject;
+      return normalizePersisted(JSON.parse(raw));
     } catch { /* 破損時は無視 */ }
   }
-  const migrated = migrateLegacyLocalStorage();
-  if (migrated) return migrated;
-  return null;
+  return migrateLegacyLocalStorage();
 }
 
-// ─── 公開 API（非同期）────────────────────────────────────────────────────
+/** localStorage からプロジェクトを読み込む (UI 合成型)。 */
+export function loadProjectFromLocalStorage(): FlowProject | null {
+  const persisted = loadPersistedFromLocalStorage();
+  if (!persisted) return null;
 
-/** 旧プロジェクトデータに不足フィールドを補完 */
+  // localStorage の screen-layout も同様に読む。
+  let layout: ScreenLayout = {
+    positions: {},
+    transitions: {},
+    updatedAt: nowTs(),
+  };
+  const layoutRaw = localStorage.getItem("v3-screen-layout");
+  if (layoutRaw) {
+    try {
+      layout = JSON.parse(layoutRaw) as ScreenLayout;
+    } catch { /* ignore */ }
+  }
+  return composeFlowProject(persisted, layout);
+}
+
+// ─── 公開 API ────────────────────────────────────────────────────────────
+
 function ensureProjectDefaults(project: FlowProject): FlowProject {
   if (!project.groups) project.groups = [];
   for (const s of project.screens) {
     if (s.groupId === undefined) s.groupId = undefined;
   }
-  // docs/spec/list-common.md §3.10: no フィールド欠落時は配列順で初期採番し、
-  // 連番 1..N になるよう保証する (既に正しければ renumber は冪等)
   project.screens = renumber(project.screens);
   if (project.tables) project.tables = renumber(project.tables);
   if (project.processFlows) project.processFlows = renumber(project.processFlows);
   return project;
 }
 
-/** プロジェクトを読み込み
+/**
+ * プロジェクトを読み込み (project.json + screen-layout.json 合成)。
  *
  * !!! データ消失バグ修正 (2026-04-22) !!!
- *
  * 以前は backend.loadProject() が null を返した場合、createEmptyProject() を
- * 即座に backend に書き戻していた。これが Playwright テスト並行実行や
- * designer-mcp 一瞬不通などの race condition で backend が誤って null を
- * 返した際に、既存の data/project.json を空で上書きしてデータ消失を引き起
- * こしていた (ユーザー報告で検知: 画面作成ダイアログ閉じたら画面一覧
- * が空になった現象)。
- *
- * 今後は null を受け取っても backend への書き戻しは行わない。最初の
- * 明示的な saveProject / persistProject が走るまで backend は触らない。
- * localStorage 側のみ（接続なし時のフォールバック）は従来通り。
+ * 即座に backend に書き戻していた。これが race condition でデータ消失を引き起こしていたため
+ * 今後は null を受け取っても backend への書き戻しは行わない。
  */
 export async function loadProject(): Promise<FlowProject> {
   if (_backend) {
     const data = await _backend.loadProject();
-    if (data) return ensureProjectDefaults(data as FlowProject);
-    // backend にファイルが存在しない (or readProject が一時的に null を返した)
-    // → localStorage に有意義なデータがあればそれを使う、なければメモリのみの空 project
-    const local = loadProjectFromLocalStorage();
-    if (local && (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.processFlows?.length ?? 0) > 0)) {
-      // localStorage に意味のあるデータがある場合のみ、backend への移行を試みる。
-      // 空 localStorage をきっかけに既存 backend を上書きする事態を避ける。
+    if (data) {
+      const persisted = normalizePersisted(data);
+      const layout = await loadScreenLayout();
+      return ensureProjectDefaults(composeFlowProject(persisted, layout));
+    }
+    const local = loadPersistedFromLocalStorage();
+    if (
+      local &&
+      (local.screens.length > 0 || (local.tables?.length ?? 0) > 0 || (local.processFlows?.length ?? 0) > 0)
+    ) {
       try {
         await _backend.saveProject(local);
         console.log("[flowStore] Migrated project from localStorage to file");
       } catch (e) {
         console.warn("[flowStore] migration save failed, returning local without persist", e);
       }
-      return local;
+      const layout = await loadScreenLayout();
+      return ensureProjectDefaults(composeFlowProject(local, layout));
     }
-    // 空 localStorage + null backend → メモリ上で空プロジェクトを返すだけに留める。
-    // backend へ書き込むと既存ファイルを壊す race condition になり得る。
-    // 本当に新規プロジェクトなら、ユーザーの最初の操作 (画面追加 → save) で
-    // persistProject 経由で backend に初めて書き込まれる。
     return createEmptyProject();
   }
   // localStorage フォールバック
   return loadProjectFromLocalStorage() ?? (() => {
     const empty = createEmptyProject();
-    localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(empty));
+    const persisted = normalizePersisted(empty);
+    localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(persisted));
     return empty;
   })();
 }
 
-/** プロジェクトを保存（draftMode 有効時は localStorage のドラフトに書き込む）
+async function persistFlowProject(project: FlowProject): Promise<void> {
+  const baseLayout = await loadScreenLayout();
+  const { persisted, layout } = decomposeFlowProject(project, baseLayout);
+  if (_backend) {
+    await _backend.saveProject(persisted);
+  } else {
+    localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(persisted));
+  }
+  await saveScreenLayout(layout);
+}
+
+/**
+ * プロジェクトを保存 (draftMode 有効時は localStorage の draft に書き込む)。
  *
  * !!! データ消失防止ガード (2026-04-22) !!!
- *
- * 書き込み前に backend の既存データと比較し、「既存に有意義なデータ
- * (screens/tables/processFlows が 1 件以上) があるのに空プロジェクトで
- * 上書きしようとしている」ケースを検知したらキャンセル + warning ログ。
- * 普通の編集フロー (screen 削除 → 0 件に) は一旦有意義だった後に空に
- * なるので、このガードは「0 件で始まるセッションから 0 件のまま書き込む」
- * race conditionケースのみを弾く意図。
  */
 export async function saveProject(project: FlowProject): Promise<void> {
-  project.updatedAt = now();
+  project.updatedAt = nowTs();
   if (_draftMode) {
     saveDraft(FLOW_DRAFT_KIND, FLOW_DRAFT_ID, project);
     _draftSaveListeners.forEach((cb) => cb());
     return;
   }
   if (_backend) {
-    // データ消失防止ガード: 空プロジェクトで非空ファイルを上書きしないかチェック
     const isProjectEmpty =
       (project.screens?.length ?? 0) === 0 &&
       (project.tables?.length ?? 0) === 0 &&
       (project.processFlows?.length ?? 0) === 0;
     if (isProjectEmpty) {
       try {
-        const current = await _backend.loadProject() as FlowProject | null;
-        const hasExistingData = !!current && (
-          (current.screens?.length ?? 0) > 0 ||
-          (current.tables?.length ?? 0) > 0 ||
-          (current.processFlows?.length ?? 0) > 0
-        );
+        const current = (await _backend.loadProject()) as PersistedFlowProject | null;
+        const hasExistingData =
+          !!current &&
+          ((current.screens?.length ?? 0) > 0 ||
+            (current.tables?.length ?? 0) > 0 ||
+            (current.processFlows?.length ?? 0) > 0);
         if (hasExistingData) {
-          console.warn("[flowStore] saveProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)");
+          console.warn(
+            "[flowStore] saveProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)",
+          );
           return;
         }
       } catch {
-        // read 失敗は書き込みを続行 (backend 一時不通等で loadProject が 500 等の場合、
-        // write は成功する可能性があるので試す)
+        /* read 失敗は書き込みを続行 */
       }
     }
-    await _backend.saveProject(project);
-    return;
   }
-  localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
+  await persistFlowProject(project);
 }
 
-/** ドラフトを介さず必ず永続化する（明示的保存ボタン用）
- *
- * saveProject と同じデータ消失ガードを適用 (2026-04-22)。
- */
+/** ドラフトを介さず必ず永続化する (明示的保存ボタン用)。 */
 export async function persistProject(project: FlowProject): Promise<void> {
-  project.updatedAt = now();
+  project.updatedAt = nowTs();
   if (_backend) {
     const isProjectEmpty =
       (project.screens?.length ?? 0) === 0 &&
@@ -258,48 +537,48 @@ export async function persistProject(project: FlowProject): Promise<void> {
       (project.processFlows?.length ?? 0) === 0;
     if (isProjectEmpty) {
       try {
-        const current = await _backend.loadProject() as FlowProject | null;
-        const hasExistingData = !!current && (
-          (current.screens?.length ?? 0) > 0 ||
-          (current.tables?.length ?? 0) > 0 ||
-          (current.processFlows?.length ?? 0) > 0
-        );
+        const current = (await _backend.loadProject()) as PersistedFlowProject | null;
+        const hasExistingData =
+          !!current &&
+          ((current.screens?.length ?? 0) > 0 ||
+            (current.tables?.length ?? 0) > 0 ||
+            (current.processFlows?.length ?? 0) > 0);
         if (hasExistingData) {
-          console.warn("[flowStore] persistProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)");
+          console.warn(
+            "[flowStore] persistProject canceled: refusing to overwrite non-empty file with empty project (data-loss guard)",
+          );
           return;
         }
       } catch {
-        // read 失敗は書き込みを続行
+        /* read 失敗は書き込みを続行 */
       }
     }
-    await _backend.saveProject(project);
-  } else {
-    localStorage.setItem(FLOW_PROJECT_KEY, JSON.stringify(project));
   }
+  await persistFlowProject(project);
   clearDraft(FLOW_DRAFT_KIND, FLOW_DRAFT_ID);
 }
 
-/** 画面を追加 */
+/** 画面を追加。 */
 export async function addScreen(
   project: FlowProject,
   name: string,
-  type: ScreenType,
+  kind: ScreenKind,
   path?: string,
   position?: { x: number; y: number },
 ): Promise<ScreenNode> {
-  const id = generateUUID();
+  const id = generateUUID() as ScreenId;
   const screen: ScreenNode = {
     id,
     no: nextNo(project.screens),
     name,
-    type,
+    kind,
     description: "",
     path: path ?? "",
     position: position ?? { x: 100 + project.screens.length * 250, y: 150 },
     size: { ...DEFAULT_NODE_SIZE },
     hasDesign: false,
-    createdAt: now(),
-    updatedAt: now(),
+    createdAt: nowTs(),
+    updatedAt: nowTs(),
   };
   project.screens.push(screen);
   project.screens = renumber(project.screens);
@@ -307,45 +586,49 @@ export async function addScreen(
   return screen;
 }
 
-/** 画面メタを更新 */
+/** 画面メタを更新。 */
 export async function updateScreen(
   project: FlowProject,
   screenId: string,
-  patch: Partial<Pick<ScreenNode, "name" | "type" | "description" | "path" | "position" | "size">>,
+  patch: Partial<Pick<ScreenNode, "name" | "kind" | "description" | "path" | "position" | "size">>,
 ): Promise<ScreenNode | null> {
   const screen = project.screens.find((s) => s.id === screenId);
   if (!screen) return null;
-  Object.assign(screen, patch, { updatedAt: now() });
+  Object.assign(screen, patch, { updatedAt: nowTs() });
   await saveProject(project);
   return screen;
 }
 
-/** 画面を削除（関連エッジ + デザインデータも削除） */
+/** 画面を削除 (関連エッジ + デザインデータ + screen-layout.positions も削除)。 */
 export async function removeScreen(project: FlowProject, screenId: string): Promise<boolean> {
   const idx = project.screens.findIndex((s) => s.id === screenId);
   if (idx === -1) return false;
   project.screens.splice(idx, 1);
   project.screens = renumber(project.screens);
-  project.edges = project.edges.filter(
-    (e) => e.source !== screenId && e.target !== screenId,
-  );
-  // デザインデータを削除
+  project.edges = project.edges.filter((e) => e.source !== screenId && e.target !== screenId);
   if (_backend) {
     await _backend.deleteScreenData(screenId);
   } else {
     localStorage.removeItem(`${SCREEN_DATA_PREFIX}${screenId}`);
   }
   await saveProject(project);
+  // 念のため screen-layout 側からも明示削除 (project.screens にもう存在しないので
+  // decomposeFlowProject で positions[id] は再構築されないが、過去 layout の残骸を確実に消す)
+  const baseLayout = await loadScreenLayout();
+  const cleared = layoutRemovePosition(baseLayout, screenId);
+  if (cleared !== baseLayout) {
+    await saveScreenLayout(cleared);
+  }
   return true;
 }
 
-/** エッジを追加 */
+/** エッジを追加。 */
 export async function addEdge(
   project: FlowProject,
   source: string,
   target: string,
   label: string,
-  trigger: TransitionTrigger = "click",
+  trigger: ScreenTransitionEntry["trigger"] = "click",
   sourceHandle?: string,
   targetHandle?: string,
 ): Promise<ScreenEdge> {
@@ -363,7 +646,7 @@ export async function addEdge(
   return edge;
 }
 
-/** エッジを更新 */
+/** エッジを更新。 */
 export async function updateEdge(
   project: FlowProject,
   edgeId: string,
@@ -376,16 +659,21 @@ export async function updateEdge(
   return edge;
 }
 
-/** エッジを削除 */
+/** エッジを削除。 */
 export async function removeEdge(project: FlowProject, edgeId: string): Promise<boolean> {
   const idx = project.edges.findIndex((e) => e.id === edgeId);
   if (idx === -1) return false;
   project.edges.splice(idx, 1);
   await saveProject(project);
+  const baseLayout = await loadScreenLayout();
+  const cleared = layoutRemoveTransition(baseLayout, edgeId);
+  if (cleared !== baseLayout) {
+    await saveScreenLayout(cleared);
+  }
   return true;
 }
 
-/** 画面のサムネイルを更新 */
+/** 画面のサムネイルを更新 (ScreenLayout.positions[id].thumbnail に格納)。 */
 export async function updateScreenThumbnail(
   project: FlowProject,
   screenId: string,
@@ -394,11 +682,11 @@ export async function updateScreenThumbnail(
   const screen = project.screens.find((s) => s.id === screenId);
   if (!screen) return;
   screen.thumbnail = thumbnail;
-  screen.updatedAt = now();
+  screen.updatedAt = nowTs();
   await saveProject(project);
 }
 
-/** 画面のデザインデータ有無を更新 */
+/** 画面のデザインデータ有無を更新。 */
 export async function markScreenHasDesign(
   project: FlowProject,
   screenId: string,
@@ -411,38 +699,38 @@ export async function markScreenHasDesign(
   }
 }
 
-/** 画面のストレージキー（localStorage フォールバック用） */
+/** 画面のストレージキー (localStorage フォールバック用)。 */
 export function screenStorageKey(screenId: string): string {
   return `${SCREEN_DATA_PREFIX}${screenId}`;
 }
 
-/** 画面が存在するか */
+/** 画面が存在するか。 */
 export function screenExists(project: FlowProject, screenId: string): boolean {
   return project.screens.some((s) => s.id === screenId);
 }
 
-// ─── グループ操作 ─────────────────────────────────────────────────────────
+// ─── グループ操作 ──────────────────────────────────────────────────────
 
-/** グループを追加 */
+/** グループを追加。 */
 export async function addGroup(
   project: FlowProject,
   name: string,
   position: { x: number; y: number },
 ): Promise<ScreenGroup> {
   const group: ScreenGroup = {
-    id: generateUUID(),
+    id: generateUUID() as ScreenGroupId,
     name,
     position,
     size: { width: 360, height: 280 },
-    createdAt: now(),
-    updatedAt: now(),
+    createdAt: nowTs(),
+    updatedAt: nowTs(),
   };
   project.groups.push(group);
   await saveProject(project);
   return group;
 }
 
-/** グループを更新 */
+/** グループを更新。 */
 export async function updateGroup(
   project: FlowProject,
   groupId: string,
@@ -450,56 +738,54 @@ export async function updateGroup(
 ): Promise<ScreenGroup | null> {
   const group = project.groups.find((g) => g.id === groupId);
   if (!group) return null;
-  Object.assign(group, patch, { updatedAt: now() });
+  Object.assign(group, patch, { updatedAt: nowTs() });
   await saveProject(project);
   return group;
 }
 
-/** グループを削除（所属画面は ungrouped に戻す） */
-export async function removeGroup(
-  project: FlowProject,
-  groupId: string,
-): Promise<boolean> {
+/** グループを削除 (所属画面は ungrouped に戻す)。 */
+export async function removeGroup(project: FlowProject, groupId: string): Promise<boolean> {
   const idx = project.groups.findIndex((g) => g.id === groupId);
   if (idx === -1) return false;
   project.groups.splice(idx, 1);
-  // 所属画面の groupId をクリア
   for (const s of project.screens) {
-    if (s.groupId === groupId) {
+    if ((s.groupId as string | undefined) === groupId) {
       s.groupId = undefined;
     }
   }
   await saveProject(project);
+  const baseLayout = await loadScreenLayout();
+  const cleared = layoutRemovePosition(baseLayout, groupId);
+  if (cleared !== baseLayout) {
+    await saveScreenLayout(cleared);
+  }
   return true;
 }
 
-/** 画面をグループに割り当て（null でグループ解除） */
+/** 画面をグループに割り当て (undefined でグループ解除)。 */
 export async function assignScreenGroup(
   project: FlowProject,
   screenId: string,
-  groupId: string | undefined,
+  groupId: ScreenGroupId | undefined,
 ): Promise<void> {
   const screen = project.screens.find((s) => s.id === screenId);
   if (!screen) return;
   screen.groupId = groupId;
-  screen.updatedAt = now();
+  screen.updatedAt = nowTs();
   await saveProject(project);
 }
 
-// ─── エクスポート / インポート ────────────────────────────────────────────
+// ─── エクスポート / インポート ──────────────────────────────────────────
 
-/** JSON エクスポート */
 export function exportProjectJSON(project: FlowProject): string {
   return JSON.stringify(project, null, 2);
 }
 
-/** JSON インポート: バリデーション + 保存 */
 export async function importProjectJSON(json: string): Promise<FlowProject> {
   const parsed = JSON.parse(json) as FlowProject;
   if (parsed.version !== 1 || !Array.isArray(parsed.screens) || !Array.isArray(parsed.edges)) {
     throw new Error("不正なプロジェクトファイルです");
   }
-  // 既存の画面デザインデータをクリア
   const current = await loadProject();
   for (const s of current.screens) {
     if (_backend) {
@@ -512,7 +798,7 @@ export async function importProjectJSON(json: string): Promise<FlowProject> {
   return parsed;
 }
 
-// ─── Mermaid 生成 ─────────────────────────────────────────────────────────
+// ─── Mermaid 生成 ───────────────────────────────────────────────────────
 
 function mermaidEscape(text: string): string {
   return text.replace(/"/g, "#quot;").replace(/[[\](){}]/g, "");
@@ -529,8 +815,8 @@ export function generateMermaid(project: FlowProject): string {
     const sid = idMap.get(s.id)!;
     const label = mermaidEscape(s.name);
     const sub = s.path ? `<br/>${mermaidEscape(s.path)}` : "";
-    const typeLabel = SCREEN_TYPE_LABELS[s.type] ?? s.type;
-    lines.push(`    ${sid}["${label}${sub}<br/><small>${typeLabel}</small>"]`);
+    const kindLabel = SCREEN_KIND_LABELS[s.kind] ?? s.kind;
+    lines.push(`    ${sid}["${label}${sub}<br/><small>${kindLabel}</small>"]`);
   }
   for (const e of project.edges) {
     const src = idMap.get(e.source);
@@ -549,9 +835,9 @@ export function generateMermaid(project: FlowProject): string {
 export function generateFlowMarkdown(project: FlowProject): string {
   const mermaid = generateMermaid(project);
   const screenRows = project.screens.map((s) => {
-    const type = SCREEN_TYPE_LABELS[s.type] ?? s.type;
+    const kind = SCREEN_KIND_LABELS[s.kind] ?? s.kind;
     const desc = s.description.replace(/\|/g, "\\|").replace(/\n/g, " ");
-    return `| ${s.name} | ${type} | ${s.path || "—"} | ${desc || "—"} | ${s.hasDesign ? "✓" : "—"} |`;
+    return `| ${s.name} | ${kind} | ${s.path || "—"} | ${desc || "—"} | ${s.hasDesign ? "✓" : "—"} |`;
   });
   const edgeRows = project.edges.map((e) => {
     const src = project.screens.find((s) => s.id === e.source)?.name ?? e.source;

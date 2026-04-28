@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ScreenNode } from "../../types/flow";
-import { SCREEN_TYPE_LABELS, SCREEN_TYPE_ICONS } from "../../types/flow";
+import { SCREEN_KIND_LABELS, SCREEN_KIND_ICONS } from "../../types/flow";
+import type { ScreenId, ScreenKind, Timestamp } from "../../types/v3";
 import { loadProject, saveProject, addScreen, removeScreen, DEFAULT_NODE_SIZE } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -98,7 +99,7 @@ export function ScreenListView() {
     filter.applyFilter((s) =>
       s.name.toLowerCase().includes(q) ||
       (s.path || "").toLowerCase().includes(q) ||
-      (SCREEN_TYPE_LABELS[s.type] || "").toLowerCase().includes(q),
+      (SCREEN_KIND_LABELS[s.kind] || "").toLowerCase().includes(q),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
@@ -106,7 +107,7 @@ export function ScreenListView() {
   const sortAccessor = useCallback((s: ScreenNode, key: string): string | number => {
     switch (key) {
       case "name": return s.name;
-      case "type": return SCREEN_TYPE_LABELS[s.type] ?? "";
+      case "type": return SCREEN_KIND_LABELS[s.kind] ?? "";
       case "path": return s.path ?? "";
       case "hasDesign": return s.hasDesign ? 1 : 0;
       case "updatedAt": return s.updatedAt;
@@ -172,15 +173,15 @@ export function ScreenListView() {
     if (!s) return null;
     const dup: ScreenNode = {
       ...s,
-      id: generateUUID(),
+      id: generateUUID() as ScreenId,
       // no は renumber() で振り直されるため、...s 由来の値のままで良い (即上書き)
       name: s.name + " (コピー)",
       position: { x: s.position.x + 40, y: s.position.y + 40 },
       size: { ...DEFAULT_NODE_SIZE },
       hasDesign: false,
       thumbnail: undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString() as Timestamp,
+      updatedAt: new Date().toISOString() as Timestamp,
     };
     project.screens.push(dup);
     project.screens = renumber(project.screens);
@@ -204,7 +205,7 @@ export function ScreenListView() {
     if (!clipItems.length) return;
 
     if (mode === "cut") {
-      const cutIds = new Set(clipItems.map((c) => c.id));
+      const cutIds = new Set<string>(clipItems.map((c) => c.id));
       const selIds = selection.selectedIds;
       const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
       if (sameSet) return;
@@ -292,7 +293,7 @@ export function ScreenListView() {
         disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
         onClick: () => {
           const ids = Array.from(selection.selectedIds);
-          const allIds = editor.items.map((s) => s.id);
+          const allIds: string[] = editor.items.map((s) => s.id as string);
           const insertIndex = ids.length > 0
             ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
             : null;
@@ -355,14 +356,14 @@ export function ScreenListView() {
       const s = project.screens.find((sc) => sc.id === screenModal.editId);
       if (s) {
         s.name = data.name;
-        s.type = data.type;
+        s.kind = data.type as ScreenKind;
         s.path = data.path;
         s.description = data.description;
-        s.updatedAt = new Date().toISOString();
+        s.updatedAt = new Date().toISOString() as Timestamp;
         await saveProject(project);
       }
     } else {
-      const screen = await addScreen(project, data.name, data.type, data.path);
+      const screen = await addScreen(project, data.name, data.type as ScreenKind, data.path);
       screen.description = data.description;
       await saveProject(project);
     }
@@ -389,7 +390,7 @@ export function ScreenListView() {
       sortAccessor: (s) => s.name,
       render: (s) => (
         <span className="screen-table-name">
-          <i className={`bi ${SCREEN_TYPE_ICONS[s.type] ?? "bi-circle"} screen-table-icon`} />
+          <i className={`bi ${SCREEN_KIND_ICONS[s.kind] ?? "bi-circle"} screen-table-icon`} />
           {s.name}
         </span>
       ),
@@ -399,8 +400,8 @@ export function ScreenListView() {
       header: "種別",
       width: "120px",
       sortable: true,
-      sortAccessor: (s) => SCREEN_TYPE_LABELS[s.type] ?? "",
-      render: (s) => <span className="screen-type-badge">{SCREEN_TYPE_LABELS[s.type] ?? s.type}</span>,
+      sortAccessor: (s) => SCREEN_KIND_LABELS[s.kind] ?? "",
+      render: (s) => <span className="screen-type-badge">{SCREEN_KIND_LABELS[s.kind] ?? s.kind}</span>,
     },
     {
       key: "path",
@@ -435,9 +436,9 @@ export function ScreenListView() {
   const renderCard = (s: ScreenNode) => (
     <div className="screen-card-content">
       <div className="screen-card-head">
-        <i className={`bi ${SCREEN_TYPE_ICONS[s.type] ?? "bi-circle"} screen-card-icon`} />
+        <i className={`bi ${SCREEN_KIND_ICONS[s.kind] ?? "bi-circle"} screen-card-icon`} />
         <span className="screen-card-name">{s.name}</span>
-        <span className="screen-type-badge">{SCREEN_TYPE_LABELS[s.type] ?? s.type}</span>
+        <span className="screen-type-badge">{SCREEN_KIND_LABELS[s.kind] ?? s.kind}</span>
       </div>
       {s.path && <div className="screen-card-path">{s.path}</div>}
       <div className="screen-card-meta">

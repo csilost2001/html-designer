@@ -25,6 +25,7 @@ export const EXTENSIONS_DIR = path.join(DATA_DIR, "extensions");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
 export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
+export const SCREEN_LAYOUT_FILE = path.join(DATA_DIR, "screen-layout.json");
 export const CONVENTIONS_FILE = path.join(CONVENTIONS_DIR, "catalog.json");
 
 const EXTENSION_FILE_NAMES = {
@@ -205,6 +206,17 @@ export async function readErLayout(): Promise<unknown | null> {
 export async function writeErLayout(data: unknown): Promise<void> {
   await ensureDataDir();
   await writeJSON(ER_LAYOUT_FILE, data);
+}
+
+/** screen-layout.json を読み込み (Phase 3-β、#561) */
+export async function readScreenLayout(): Promise<unknown | null> {
+  return readJSON<unknown>(SCREEN_LAYOUT_FILE);
+}
+
+/** screen-layout.json を書き込み (Phase 3-β、#561) */
+export async function writeScreenLayout(data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(SCREEN_LAYOUT_FILE, data);
 }
 
 /** tables/{tableId}.json を読み込み */

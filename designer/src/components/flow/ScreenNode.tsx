@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { ScreenNode as ScreenNodeData } from "../../types/flow";
-import { SCREEN_TYPE_LABELS, SCREEN_TYPE_ICONS } from "../../types/flow";
+import { SCREEN_KIND_LABELS, SCREEN_KIND_ICONS } from "../../types/flow";
 
 type ScreenNodeProps = NodeProps & {
   data: ScreenNodeData;
@@ -9,8 +9,8 @@ type ScreenNodeProps = NodeProps & {
 };
 
 function ScreenNodeComponent({ data, selected }: ScreenNodeProps) {
-  const icon = SCREEN_TYPE_ICONS[data.type] ?? "bi-circle";
-  const typeLabel = SCREEN_TYPE_LABELS[data.type] ?? data.type;
+  const icon = SCREEN_KIND_ICONS[data.kind] ?? "bi-circle";
+  const kindLabel = SCREEN_KIND_LABELS[data.kind] ?? data.kind;
 
   return (
     <>
@@ -28,7 +28,7 @@ function ScreenNodeComponent({ data, selected }: ScreenNodeProps) {
         ) : (
           <div className="screen-node-body">
             <span className="screen-node-type">
-              {typeLabel}
+              {kindLabel}
             </span>
             {data.path && (
               <div className="screen-node-path">{data.path}</div>
