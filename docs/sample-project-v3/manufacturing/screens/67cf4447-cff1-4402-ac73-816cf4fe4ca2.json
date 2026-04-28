@@ -49,8 +49,8 @@
       "label": "指示番号",
       "type": "string",
       "direction": "output",
-      "valueFrom": { "kind": "expression", "expression": "@createdOrder.order_number" },
-      "helperText": "登録後に自動採番されます (createdOrder.order_number への field 参照は flowVariable.variableName が Identifier 制約のため expression 形式で記述、#529 Round 3 finding R3-1)。"
+      "valueFrom": { "kind": "flowVariable", "variableName": "createdOrder.order_number" },
+      "helperText": "登録後に自動採番されます (#533 R3-1 fix で valueFrom.flowVariable.variableName が IdentifierPath になり、createdOrder.order_number のような object field 参照が直接書けるようになった)。"
     },
     {
       "id": "estimatedComponentCount",

@@ -41,6 +41,14 @@
       "maxLength": 63
     },
 
+    "IdentifierPath": {
+      "description": "識別子のドット区切りパス。object 型変数の特定 field を参照する箇所 (例: ScreenItem.valueFrom.flowVariable.variableName で 'createdOrder.order_number' のように object の field を指す) で使用。各セグメントは小文字始まり + 英数字 + underscore (camelCase 変数名と DB カラム名 snake_case の両方をカバー)。array index は非対応 (response.data[0].name 等は expression 形式を使う)。例: userId, createdOrder.order_number, response.data.items。#533 R3-1 で追加。",
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9_]*(\\.[a-z][a-zA-Z0-9_]*)*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+
     "EnvVarKey": {
       "description": "環境変数キー。OS / 12-factor 慣習に従い UPPER_SNAKE_CASE。例: STRIPE_API_BASE, MAX_RETRY_ATTEMPTS",
       "type": "string",

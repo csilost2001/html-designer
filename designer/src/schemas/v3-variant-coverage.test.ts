@@ -514,3 +514,143 @@ describe("v3 variant fixture coverage — Negative tests (discriminator 機能�
     expectFail(flow, "WorkflowQuorum nOfM requires n");
   });
 });
+
+// ─── #533 R3-1/R3-2/R3-3 schema fix の機能検証 ──────────────────────────
+
+import Ajv2020Default, { type ValidateFunction as VF2 } from "ajv/dist/2020";
+import addFormatsDefault from "ajv-formats";
+
+let validateScreenItem: VF2;
+
+beforeAll(() => {
+  const ajv2 = new Ajv2020Default({ allErrors: true, strict: false, discriminator: true });
+  addFormatsDefault(ajv2);
+  ajv2.addSchema(loadJson(join(v3Dir, "common.v3.schema.json")) as object);
+  validateScreenItem = ajv2.compile(loadJson(join(v3Dir, "screen-item.v3.schema.json")) as object);
+});
+
+describe("v3 schema fix #533 R3-1: IdentifierPath で object field 参照 (#533)", () => {
+  it("variableName='createdOrder.order_number' (ドット区切り) は pass する", () => {
+    const item = {
+      id: "orderNumber",
+      label: "指示番号",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "createdOrder.order_number" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok, ok ? "" : (validateScreenItem.errors ?? []).map((e) => e.message).join("\n")).toBe(true);
+  });
+
+  it("variableName='inventoryRows' (Identifier 単独) も依然 pass する", () => {
+    const item = {
+      id: "items",
+      label: "items",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "inventoryRows" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok).toBe(true);
+  });
+
+  it("variableName='Foo.bar' (大文字始まり) は依然 reject (IdentifierPath 規範: 各セグメント小文字始まり)", () => {
+    const item = {
+      id: "x",
+      label: "x",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "Foo.bar" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok).toBe(false);
+  });
+
+  it("variableName='response.data[0].name' (array index 含む) は reject (expression 形式を使う)", () => {
+    const item = {
+      id: "x",
+      label: "x",
+      type: "string",
+      direction: "output",
+      valueFrom: { kind: "flowVariable", variableName: "response.data[0].name" },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok).toBe(false);
+  });
+});
+
+describe("v3 schema fix #533 R3-2: ClosingStep.cutoffAt pattern (#533)", () => {
+  function closingFlow(cutoffAt: string) {
+    return makeFlow([
+      {
+        id: "step-01",
+        kind: "closing",
+        description: "closing fixture",
+        period: "monthly",
+        cutoffAt,
+      },
+    ]);
+  }
+
+  it("cutoffAt='23:59:59' (HH:MM:SS) は pass", () => {
+    expectPass(closingFlow("23:59:59"), "cutoffAt HH:MM:SS");
+  });
+
+  it("cutoffAt='23:59' (HH:MM) も pass", () => {
+    expectPass(closingFlow("23:59"), "cutoffAt HH:MM");
+  });
+
+  it("cutoffAt='00:00:00' は pass", () => {
+    expectPass(closingFlow("00:00:00"), "cutoffAt min");
+  });
+
+  it("cutoffAt='99:99' は reject", () => {
+    expectFail(closingFlow("99:99"), "cutoffAt 99:99 should reject");
+  });
+
+  it("cutoffAt='25:00:00' (時 24+) は reject", () => {
+    expectFail(closingFlow("25:00:00"), "cutoffAt 25:00:00 should reject");
+  });
+});
+
+describe("v3 schema fix #533 R3-3: scheduled + httpRoute 不整合 reject (#533)", () => {
+  it("kind=scheduled + Action に httpRoute なし → pass", () => {
+    const flow = makeFlow(
+      [{ id: "step-01", kind: "log", description: "ok", level: "info", message: "ok" }],
+      { metaOverride: { kind: "scheduled" } },
+    );
+    expectPass(flow, "scheduled + no httpRoute");
+  });
+
+  it("kind=screen + Action に httpRoute あり → 従来通り pass", () => {
+    const flow = {
+      meta: { ...META_BASE, kind: "screen" },
+      actions: [
+        {
+          id: "act-001",
+          name: "fixture",
+          trigger: "submit",
+          httpRoute: { method: "POST", path: "/api/x" },
+          steps: [{ id: "step-01", kind: "log", description: "ok", level: "info", message: "ok" }],
+        },
+      ],
+    };
+    expectPass(flow, "screen + httpRoute should pass");
+  });
+
+  it("kind=scheduled + Action に httpRoute あり → reject (R3-3 if/then)", () => {
+    const flow = {
+      meta: { ...META_BASE, kind: "scheduled" },
+      actions: [
+        {
+          id: "act-001",
+          name: "fixture",
+          trigger: "auto",
+          httpRoute: { method: "POST", path: "/api/x" },
+          steps: [{ id: "step-01", kind: "log", description: "ok", level: "info", message: "ok" }],
+        },
+      ],
+    };
+    expectFail(flow, "scheduled + httpRoute should reject");
+  });
+});
