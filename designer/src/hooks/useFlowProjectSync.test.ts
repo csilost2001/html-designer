@@ -49,9 +49,14 @@ async function emitStatus(status: string) {
   (m.mcpBridge as unknown as { _emitStatus: (s: string) => void })._emitStatus(status);
 }
 
-function setup(isDirtyRef = { current: false }) {
+function setup(
+  isDirtyRef = { current: false },
+  options: { navigate?: (path: string) => void } = {},
+) {
   const reload = vi.fn(async () => undefined);
-  const hook = renderHook(() => useFlowProjectSync({ reload, isDirtyRef }));
+  const hook = renderHook(() =>
+    useFlowProjectSync({ reload, isDirtyRef, navigate: options.navigate }),
+  );
   return { hook, reload, isDirtyRef };
 }
 
@@ -119,6 +124,7 @@ function createProject(): FlowProject {
 
 beforeEach(() => {
   localStorage.clear();
+  vi.clearAllMocks();
 });
 
 describe("broadcast received while dirty - shows banner, does not reload", () => {
@@ -208,5 +214,54 @@ describe("delete operations mark dirty via flowDraft saves", () => {
     });
 
     expect(isDirtyRef.current).toBe(true);
+  });
+});
+
+describe("cleanup behavior", () => {
+  it("startWithoutEditor is invoked exactly once per mount", async () => {
+    const { reload } = setup();
+    await waitForInitialLoad(reload);
+
+    const m = await import("../mcp/mcpBridge");
+    expect(m.mcpBridge.startWithoutEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it("setFlowChangeHandler is reset to null on unmount", async () => {
+    const { hook, reload } = setup();
+    await waitForInitialLoad(reload);
+
+    const m = await import("../mcp/mcpBridge");
+    const setFlowChangeHandler = m.mcpBridge.setFlowChangeHandler as ReturnType<typeof vi.fn>;
+    expect(setFlowChangeHandler).toHaveBeenLastCalledWith(expect.any(Function));
+
+    hook.unmount();
+
+    expect(setFlowChangeHandler).toHaveBeenLastCalledWith(null);
+  });
+
+  it("setNavigateHandler is reset to null on unmount when navigate was provided", async () => {
+    const navigate = vi.fn();
+    const { hook, reload } = setup({ current: false }, { navigate });
+    await waitForInitialLoad(reload);
+
+    const m = await import("../mcp/mcpBridge");
+    const setNavigateHandler = m.mcpBridge.setNavigateHandler as ReturnType<typeof vi.fn>;
+    expect(setNavigateHandler).toHaveBeenLastCalledWith(expect.any(Function));
+
+    hook.unmount();
+
+    expect(setNavigateHandler).toHaveBeenLastCalledWith(null);
+  });
+
+  it("broadcast and status events after unmount do not trigger reload or banner", async () => {
+    const { hook, reload } = setup({ current: false });
+    await waitForInitialLoad(reload);
+
+    hook.unmount();
+
+    await act(async () => emitBroadcast("projectChanged", {}));
+    await act(async () => emitStatus("connected"));
+
+    expect(reload).not.toHaveBeenCalled();
   });
 });
