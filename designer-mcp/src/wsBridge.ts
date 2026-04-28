@@ -30,8 +30,9 @@ import {
   readSequence,
   writeSequence,
   deleteSequence as deleteSequenceFile,
-  readViewsFile,
-  writeViewsFile,
+  readView,
+  writeView,
+  deleteView as deleteViewFile,
   getFileMtime,
   readExtensionsBundle,
   writeExtensionsFile,
@@ -505,52 +506,24 @@ class WsBridge extends EventEmitter {
           this.broadcast("sequenceChanged", { sequenceId, deleted: true }, clientId);
           break;
         }
-        case "loadViewsFile": {
-          const data = await readViewsFile();
-          respond(data);
-          break;
-        }
         case "loadView": {
           const { viewId } = (params ?? {}) as { viewId: string };
-          const file = (await readViewsFile()) as { views?: { id: string }[] } | null;
-          const view = file?.views?.find((v) => v.id === viewId) ?? null;
-          respond(view);
+          const data = await readView(viewId);
+          respond(data);
           break;
         }
         case "saveView": {
           const { viewId, data } = (params ?? {}) as { viewId: string; data: unknown };
-          const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
-          const views: unknown[] = existing?.views ? [...existing.views] : [];
-          const idx = views.findIndex((v) => (v as { id: string }).id === viewId);
-          if (idx >= 0) { views[idx] = data; } else { views.push(data); }
-          await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views });
+          await writeView(viewId, data);
           respond({ success: true });
           this.broadcast("viewChanged", { viewId }, clientId);
           break;
         }
         case "deleteView": {
           const { viewId } = (params ?? {}) as { viewId: string };
-          const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
-          const views = (existing?.views ?? []).filter((v) => (v as { id: string }).id !== viewId);
-          await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views });
+          await deleteViewFile(viewId);
           respond({ success: true });
           this.broadcast("viewChanged", { viewId, deleted: true }, clientId);
-          break;
-        }
-        case "reorderViews": {
-          const { orderedIds } = (params ?? {}) as { orderedIds: string[] };
-          const existing = (await readViewsFile()) as { version?: string; updatedAt?: string; views?: unknown[] } | null;
-          const existingViews = existing?.views ?? [];
-          const viewsMap = new Map(existingViews.map((v) => [(v as { id: string }).id, v]));
-          const knownIds = new Set(orderedIds);
-          const unknownViews = existingViews.filter((v) => !knownIds.has((v as { id: string }).id));
-          const reordered = [
-            ...orderedIds.map((id) => viewsMap.get(id)).filter(Boolean),
-            ...unknownViews,
-          ];
-          await writeViewsFile({ version: "1.0.0", updatedAt: new Date().toISOString(), views: reordered });
-          respond({ success: true });
-          this.broadcast("viewChanged", { reordered: true }, clientId);
           break;
         }
         case "getFileMtime": {

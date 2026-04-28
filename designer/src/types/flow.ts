@@ -143,5 +143,6 @@ export interface FlowProject {
   tables?: TableMeta[];
   processFlows?: ProcessFlowMeta[];
   sequences?: import("./v3").SequenceEntry[];
+  views?: import("./v3").ViewEntry[];
   updatedAt: string;
 }

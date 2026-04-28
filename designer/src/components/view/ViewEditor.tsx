@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { View, OutputColumn, PhysicalName, Uuid } from "../../types/v3";
+import type { View, OutputColumn, PhysicalName, Uuid, Maturity, SemVer } from "../../types/v3";
 import { loadView, saveView } from "../../store/viewStore";
 import { listTables } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -176,6 +176,54 @@ export function ViewEditor() {
                   placeholder="顧客に最終購入日を結合した表示用ビュー"
                 />
               </label>
+              <label className="tbl-field">
+                <span>成熟度</span>
+                <select
+                  value={view.maturity ?? ""}
+                  onChange={(e) =>
+                    update((prev) => ({
+                      ...prev,
+                      maturity: (e.target.value || undefined) as Maturity | undefined,
+                    }))
+                  }
+                >
+                  <option value="">（未指定）</option>
+                  <option value="draft">draft（下書き）</option>
+                  <option value="provisional">provisional（暫定）</option>
+                  <option value="committed">committed（確定）</option>
+                </select>
+              </label>
+              <label className="tbl-field">
+                <span>バージョン</span>
+                <input
+                  type="text"
+                  value={view.version ?? ""}
+                  onChange={(e) =>
+                    update((prev) => ({
+                      ...prev,
+                      version: (e.target.value || undefined) as SemVer | undefined,
+                    }))
+                  }
+                  placeholder="1.0.0"
+                  pattern="^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$"
+                />
+              </label>
+              <label className="tbl-field seq-field-checkbox">
+                <span>マテリアライズドビュー</span>
+                <label className="seq-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={view.materialized ?? false}
+                    onChange={(e) =>
+                      update((prev) => ({
+                        ...prev,
+                        materialized: e.target.checked || undefined,
+                      }))
+                    }
+                  />
+                  実体テーブルとして保持 (CREATE MATERIALIZED VIEW)
+                </label>
+              </label>
             </div>
           </section>
 
@@ -346,7 +394,7 @@ export function ViewEditor() {
             onClick={() => setDdlOpen((v) => !v)}
           >
             <i className={`bi bi-chevron-${ddlOpen ? "down" : "right"}`} />
-            DDL プレビュー (CREATE OR REPLACE VIEW)
+            DDL プレビュー ({view.materialized ? "CREATE MATERIALIZED VIEW" : "CREATE OR REPLACE VIEW"})
           </button>
           {ddlOpen && (
             <pre className="seq-ddl-preview">{ddl}</pre>

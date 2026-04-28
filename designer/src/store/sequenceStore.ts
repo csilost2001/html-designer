@@ -17,9 +17,11 @@ export function setSequenceStorageBackend(b: SequenceStorageBackend | null): voi
   _backend = b;
 }
 
-// ─── localStorage キー ───────────────────────────────────────────────────
+// ─── localStorage キー (v3 名前空間、#549) ───────────────────────────────
 
-const SEQUENCE_PREFIX = "sequence-";
+const SEQUENCE_PREFIX = "v3-sequence-";
+
+const SEQUENCE_SCHEMA_REF = "../../schemas/v3/sequence.v3.schema.json";
 
 function nowTs(): Timestamp {
   return new Date().toISOString() as Timestamp;
@@ -43,7 +45,7 @@ export async function loadSequence(sequenceId: string): Promise<Sequence | null>
 
 /** シーケンス定義を保存（project.json のメタも同期） */
 export async function saveSequence(sequence: Sequence): Promise<void> {
-  const toSave: Sequence = { ...sequence, updatedAt: nowTs() };
+  const toSave: Sequence = { $schema: SEQUENCE_SCHEMA_REF, ...sequence, updatedAt: nowTs() };
 
   if (_backend) {
     await _backend.saveSequence(toSave.id, toSave);
@@ -62,6 +64,7 @@ export async function createSequence(
 ): Promise<Sequence> {
   const ts = nowTs();
   const sequence: Sequence = {
+    $schema: SEQUENCE_SCHEMA_REF,
     id: generateUUID() as SequenceId,
     name,
     description,

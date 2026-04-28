@@ -1,5 +1,6 @@
-import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp, Uuid } from "../types/v3";
+import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp } from "../types/v3";
 import { generateUUID } from "../utils/uuid";
+import { loadProject, saveProject } from "./flowStore";
 import { renumber, nextNo } from "../utils/listOrder";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
@@ -8,8 +9,6 @@ export interface ViewStorageBackend {
   loadView(viewId: string): Promise<unknown>;
   saveView(viewId: string, data: unknown): Promise<void>;
   deleteView(viewId: string): Promise<void>;
-  loadViewsFile(): Promise<unknown>;
-  reorderViews(orderedIds: string[]): Promise<void>;
 }
 
 let _backend: ViewStorageBackend | null = null;
@@ -18,69 +17,43 @@ export function setViewStorageBackend(b: ViewStorageBackend | null): void {
   _backend = b;
 }
 
-// ─── localStorage キー ───────────────────────────────────────────────────
+// ─── localStorage キー (v3 名前空間、#549) ───────────────────────────────
 
-const LS_PREFIX = "view-";
-const LS_META_KEY = "views-meta";
+const VIEW_PREFIX = "v3-view-";
+
+const VIEW_SCHEMA_REF = "../../schemas/v3/view.v3.schema.json";
 
 function nowTs(): Timestamp {
   return new Date().toISOString() as Timestamp;
 }
 
-/** views.json ファイル構造 (v3 shape, 一覧 + 完全データ)。 */
-export interface ViewsFile {
-  $schema?: string;
-  version: string;
-  updatedAt: Timestamp;
-  views: View[];
-}
-
-function makeEmptyFile(): ViewsFile {
-  return { version: "1.0.0", updatedAt: nowTs(), views: [] };
-}
-
-function toEntry(v: View, no: number): ViewEntry {
-  return {
-    id: v.id,
-    no,
-    name: v.name,
-    physicalName: v.physicalName,
-    updatedAt: v.updatedAt,
-    maturity: v.maturity,
-  };
-}
-
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** ビュー一覧を取得 (v3 ViewEntry[]) */
+/** ビュー一覧を取得 (project.json の views エントリ、v3 ViewEntry[]) */
 export async function listViews(): Promise<ViewEntry[]> {
-  if (_backend) {
-    const file = (await _backend.loadViewsFile()) as ViewsFile | null;
-    if (!file?.views) return [];
-    return file.views.map((v, i) => toEntry(v, i + 1));
-  }
-  const raw = localStorage.getItem(LS_META_KEY);
-  if (!raw) return [];
-  try { return JSON.parse(raw) as ViewEntry[]; } catch { return []; }
+  const project = await loadProject();
+  return project.views ?? [];
 }
 
-/** ビュー定義を読み込み */
+/** ビュー定義を読み込み (per-entity ファイル) */
 export async function loadView(viewId: string): Promise<View | null> {
   if (_backend) return (await _backend.loadView(viewId)) as View | null;
-  const s = localStorage.getItem(`${LS_PREFIX}${viewId}`);
+  const s = localStorage.getItem(`${VIEW_PREFIX}${viewId}`);
   if (!s) return null;
   try { return JSON.parse(s) as View; } catch { return null; }
 }
 
-/** ビュー定義を保存 */
+/** ビュー定義を保存 (per-entity ファイル + project.json メタ同期) */
 export async function saveView(view: View): Promise<void> {
-  const toSave: View = { ...view, updatedAt: nowTs() };
+  const toSave: View = { $schema: VIEW_SCHEMA_REF, ...view, updatedAt: nowTs() };
+
   if (_backend) {
     await _backend.saveView(toSave.id, toSave);
   } else {
-    localStorage.setItem(`${LS_PREFIX}${toSave.id}`, JSON.stringify(toSave));
-    await _syncLocalMeta(toSave);
+    localStorage.setItem(`${VIEW_PREFIX}${toSave.id}`, JSON.stringify(toSave));
   }
+
+  await syncViewMeta(toSave);
 }
 
 /** ビューを新規作成 */
@@ -91,6 +64,7 @@ export async function createView(
 ): Promise<View> {
   const ts = nowTs();
   const view: View = {
+    $schema: VIEW_SCHEMA_REF,
     id: generateUUID() as ViewId,
     name,
     description,
@@ -105,62 +79,42 @@ export async function createView(
   return view;
 }
 
-/** ビューの並び順を永続化 */
-export async function reorderViews(orderedIds: string[]): Promise<void> {
-  if (_backend) {
-    await _backend.reorderViews(orderedIds);
-  } else {
-    const metas = await listViews();
-    const map = new Map(metas.map((m) => [m.id, m]));
-    // localStorage 経由の orderedIds は plain string。Map の key は ViewId (Uuid 派生 brand) のため
-    // 二段階 cast (string → Uuid → ViewId) で brand を付け直す。
-    const reordered = orderedIds
-      .map((id) => map.get(id as Uuid as ViewId))
-      .filter(Boolean) as ViewEntry[];
-    localStorage.setItem(LS_META_KEY, JSON.stringify(renumber(reordered)));
-  }
-}
-
-/** ビューを削除 */
+/** ビューを削除 (per-entity ファイル + project.json メタ削除) */
 export async function deleteView(viewId: string): Promise<void> {
   if (_backend) {
     await _backend.deleteView(viewId);
   } else {
-    localStorage.removeItem(`${LS_PREFIX}${viewId}`);
-    const metas = await listViews();
-    const filtered = renumber(metas.filter((v) => v.id !== viewId));
-    localStorage.setItem(LS_META_KEY, JSON.stringify(filtered));
+    localStorage.removeItem(`${VIEW_PREFIX}${viewId}`);
+  }
+
+  const project = await loadProject();
+  if (project.views) {
+    project.views = renumber(project.views.filter((v) => v.id !== viewId));
+    await saveProject(project);
   }
 }
 
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
-async function _syncLocalMeta(view: View): Promise<void> {
-  const metas = await listViews();
-  const idx = metas.findIndex((v) => v.id === view.id);
+async function syncViewMeta(view: View): Promise<void> {
+  const project = await loadProject();
+  if (!project.views) project.views = [];
+
+  const idx = project.views.findIndex((v) => v.id === view.id);
   const meta: ViewEntry = {
     id: view.id,
-    no: idx >= 0 ? metas[idx].no : nextNo(metas),
+    no: idx >= 0 ? project.views[idx].no : nextNo(project.views),
     name: view.name,
     physicalName: view.physicalName,
     updatedAt: view.updatedAt,
     maturity: view.maturity,
   };
-  if (idx >= 0) metas[idx] = meta;
-  else metas.push(meta);
-  localStorage.setItem(LS_META_KEY, JSON.stringify(renumber(metas)));
-}
 
-/** views.json の全内容をロード（MCP ツール用・エクスポート用） */
-export async function loadViewsFile(): Promise<ViewsFile> {
-  if (_backend) {
-    return ((await _backend.loadViewsFile()) as ViewsFile | null) ?? makeEmptyFile();
+  if (idx >= 0) {
+    project.views[idx] = meta;
+  } else {
+    project.views.push(meta);
   }
-  const metas = await listViews();
-  const views: View[] = [];
-  for (const m of metas) {
-    const v = await loadView(m.id);
-    if (v) views.push(v);
-  }
-  return { version: "1.0.0", updatedAt: nowTs(), views };
+  project.views = renumber(project.views);
+  await saveProject(project);
 }

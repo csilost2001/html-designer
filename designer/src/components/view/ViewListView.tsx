@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
-import { listViews, createView, deleteView, loadView, saveView, reorderViews } from "../../store/viewStore";
+import { listViews, createView, deleteView, loadView, saveView } from "../../store/viewStore";
+import { loadProject, saveProject } from "../../store/flowStore";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -42,6 +43,7 @@ export function ViewListView() {
 
   const loadViews = useCallback(async () => {
     mcpBridge.startWithoutEditor();
+    await loadProject();
     return await listViews();
   }, []);
 
@@ -49,9 +51,14 @@ export function ViewListView() {
     for (const id of deletedIds) {
       await deleteView(id);
     }
-    const remainingIds = itemsInOrder.filter((v) => !deletedIds.includes(v.id)).map((v) => v.id);
-    if (remainingIds.length > 0) {
-      await reorderViews(remainingIds);
+    const project = await loadProject();
+    if (project.views) {
+      const deletedSet = new Set(deletedIds);
+      const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
+      project.views = project.views
+        .filter((v) => !deletedSet.has(v.id))
+        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+      await saveProject(project);
     }
   }, []);
 
@@ -71,7 +78,10 @@ export function ViewListView() {
     const unsubView = mcpBridge.onBroadcast("viewChanged", () => {
       if (!editor.isDirty) editor.reload();
     });
-    return () => { unsubStatus(); unsubView(); };
+    const unsubProj = mcpBridge.onBroadcast("projectChanged", () => {
+      if (!editor.isDirty) editor.reload();
+    });
+    return () => { unsubStatus(); unsubView(); unsubProj(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
