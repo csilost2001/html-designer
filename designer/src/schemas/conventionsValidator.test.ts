@@ -25,10 +25,8 @@ function loadCatalog(): ConventionsCatalog {
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
-    id: "a", name: "x", type: "screen", description: "",
+    meta: { id: "a", name: "x", kind: "screen", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
     actions: [],
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
   } as ProcessFlow;
 }
@@ -55,7 +53,7 @@ describe("checkConventionReferences", () => {
         actions: [{
           id: "a1", name: "f", trigger: "click",
           steps: [{
-            id: "s1", type: "validation", description: "", conditions: "",
+            id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "required", message: "@conv.msg.required" }],
           }],
         }],
@@ -71,7 +69,7 @@ describe("checkConventionReferences", () => {
         actions: [{
           id: "a1", name: "f", trigger: "click",
           steps: [{
-            id: "s1", type: "validation", description: "", conditions: "",
+            id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "required", message: "@conv.msg.unknownKey" }],
           }],
         }],
@@ -88,7 +86,7 @@ describe("checkConventionReferences", () => {
         actions: [{
           id: "a1", name: "f", trigger: "click",
           steps: [{
-            id: "s1", type: "validation", description: "", conditions: "@conv.regex.email-simple",
+            id: "s1", kind: "validation", description: "", conditions: "@conv.regex.email-simple",
             rules: [],
           }],
         }],
@@ -104,7 +102,7 @@ describe("checkConventionReferences", () => {
         actions: [{
           id: "a1", name: "f", trigger: "click",
           steps: [{
-            id: "s1", type: "validation", description: "", conditions: "@conv.regex.unknownPattern",
+            id: "s1", kind: "validation", description: "", conditions: "@conv.regex.unknownPattern",
             rules: [],
           }],
         }],
@@ -327,7 +325,7 @@ describe("checkConventionReferences", () => {
         actions: [{
           id: "a1", name: "f", trigger: "click",
           steps: [{
-            id: "s1", type: "validation", description: "", conditions: "",
+            id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "required", message: "@conv.msg.anything" }],
           }],
         }],

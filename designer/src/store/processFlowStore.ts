@@ -9,7 +9,7 @@ import type {
 } from "../types/action";
 import type { ProcessFlowId, ScreenId, Timestamp } from "../types/v3";
 import type { ProcessFlowMeta as FlowProcessFlowMeta } from "../types/flow";
-import { migrateProcessFlow, attachStepCompatAliases, PROCESS_FLOW_V3_SCHEMA_REF } from "../utils/actionMigration";
+import { migrateProcessFlow, PROCESS_FLOW_V3_SCHEMA_REF } from "../utils/actionMigration";
 import { generateUUID } from "../utils/uuid";
 import { nextNo, renumber } from "../utils/listOrder";
 import { loadProject, saveProject } from "./flowStore";
@@ -241,7 +241,7 @@ export function createDefaultStep(type: StepType): Step {
     case "extension":
       step = { ...base, kind: "legacy:OtherStep", config: {} } as Step; break;
   }
-  return attachStepCompatAliases(step);
+  return step;
 }
 
 function countGroupNotes(group: ProcessFlow): number {

@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * ProcessFlow.errorCatalog 編集パネル (#278)
+ * ProcessFlow.context.catalogs.errors 編集パネル (#278 / #570 v3 移行)
  *
  * errorCode → { httpStatus, defaultMessage, responseRef, description } のマップ編集。
  * キー追加・削除、各フィールドの行編集。
@@ -25,7 +25,7 @@ export function ErrorCatalogPanel({ group, onChange, expanded: expandedProp, onE
     onExpandedChange?.(next);
   };
   const [newKey, setNewKey] = useState("");
-  const catalog = group.errorCatalog ?? {};
+  const catalog = group.context?.catalogs?.errors ?? {};
   const keys = Object.keys(catalog);
 
   // ProcessFlow 内の全 response ID を収集 (responseRef ドロップダウン用)
@@ -33,21 +33,24 @@ export function ErrorCatalogPanel({ group, onChange, expanded: expandedProp, onE
     group.actions.flatMap((a) => (a.responses ?? []).map((r) => r.id).filter((x): x is string => !!x)),
   ));
 
+  const setCatalog = (next: Record<string, ErrorCatalogEntry> | undefined) => {
+    onChange({ ...group, context: { ...(group.context ?? {}), catalogs: { ...(group.context?.catalogs ?? {}), errors: next } } });
+  };
+
   const updateEntry = (key: string, patch: Partial<ErrorCatalogEntry>) => {
-    const next = { ...catalog, [key]: { ...catalog[key], ...patch } };
-    onChange({ ...group, errorCatalog: next });
+    setCatalog({ ...catalog, [key]: { ...catalog[key], ...patch } });
   };
 
   const removeEntry = (key: string) => {
     const next = { ...catalog };
     delete next[key];
-    onChange({ ...group, errorCatalog: Object.keys(next).length > 0 ? next : undefined });
+    setCatalog(Object.keys(next).length > 0 ? next : undefined);
   };
 
   const addEntry = () => {
     const key = newKey.trim();
     if (!key || catalog[key]) return;
-    onChange({ ...group, errorCatalog: { ...catalog, [key]: {} } });
+    setCatalog({ ...catalog, [key]: {} });
     setNewKey("");
   };
 
@@ -63,7 +66,7 @@ export function ErrorCatalogPanel({ group, onChange, expanded: expandedProp, onE
         >
           <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
           <i className="bi bi-exclamation-diamond" />
-          {" "}エラーカタログ (errorCatalog: {keys.length} 件)
+          {" "}エラーカタログ (errors: {keys.length} 件)
         </button>
       )}
       {showBody && (

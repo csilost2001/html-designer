@@ -8,10 +8,10 @@
  * 讀懆ｨｼ縺吶ｋ隕冗ｴ・
  * 1. ReturnStep.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→
  * 2. ValidationStep.inlineBranch.ngResponseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→
- * 3. BranchConditionVariant.errorCode 縺ｯ ProcessFlow.errorCatalog 縺ｮ繧ｭ繝ｼ縺ｫ蟄伜惠縺吶ｋ縺薙→
- *    (errorCatalog 縺悟ｮ夂ｾｩ縺輔ｌ縺ｦ縺・ｋ蝣ｴ蜷医・縺ｿ)
+ * 3. BranchConditionVariant.errorCode 縺ｯ context.catalogs.errors 縺ｮ繧ｭ繝ｼ縺ｫ蟄伜惠縺吶ｋ縺薙→
+ *    (context.catalogs.errors 縺悟ｮ夂ｾｩ縺輔ｌ縺ｦ縺・ｋ蝣ｴ蜷医・縺ｿ)
  * 4. DbAccessStep.affectedRowsCheck.errorCode 繧ょ酔荳・
- * 5. ErrorCatalogEntry.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→ (errorCatalog 竊・responses)
+ * 5. ErrorCatalogEntry.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→ (context.catalogs.errors 竊・responses)
  */
 import type { ProcessFlow, Step } from "../types/action";
 import type { LoadedExtensions } from "./loadExtensions";
@@ -41,28 +41,28 @@ export function checkReferentialIntegrity(
   extensions?: LoadedExtensions,
 ): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
-  const errorCodes = new Set(Object.keys(group.errorCatalog ?? {}));
+  const errorCodes = new Set(Object.keys(group.context?.catalogs?.errors ?? {}));
   const hasErrorCatalog = errorCodes.size > 0;
-  const systemIds = new Set(Object.keys(group.externalSystemCatalog ?? {}));
+  const systemIds = new Set(Object.keys(group.context?.catalogs?.externalSystems ?? {}));
   const hasSystemCatalog = systemIds.size > 0;
   const typeIds = new Set(Object.keys(extensions?.responseTypes ?? {}));
   const hasExtensions = extensions !== undefined && typeIds.size > 0;
-  const secretKeys = new Set(Object.keys(group.secretsCatalog ?? {}));
+  const secretKeys = new Set(Object.keys(group.context?.catalogs?.secrets ?? {}));
   const hasSecretsCatalog = secretKeys.size > 0;
 
-  // externalSystemCatalog.*.auth.tokenRef 蜀・・ @secret.* 蜿ら・繧呈､懈渊
+  // context.catalogs.externalSystems.*.auth.tokenRef 蜀・・ @secret.* 蜿ら・繧呈､懈渊
   if (hasSecretsCatalog) {
-    Object.entries(group.externalSystemCatalog ?? {}).forEach(([k, entry]) => {
+    Object.entries(group.context?.catalogs?.externalSystems ?? {}).forEach(([k, entry]) => {
       const tok = entry.auth?.tokenRef;
       if (tok) {
         let m: RegExpExecArray | null;
         while ((m = SECRET_RE.exec(tok)) !== null) {
           if (!secretKeys.has(m[1])) {
             issues.push({
-              path: `externalSystemCatalog.${k}.auth.tokenRef`,
+              path: `context.catalogs.externalSystems.${k}.auth.tokenRef`,
               code: "UNKNOWN_SECRET_REF",
               value: `@secret.${m[1]}`,
-              message: `@secret.${m[1]} 縺・ProcessFlow.secretsCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+              message: `@secret.${m[1]} 縺・context.catalogs.secrets 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
             });
           }
         }
@@ -91,14 +91,14 @@ export function checkReferentialIntegrity(
       checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues, secretKeys, hasSecretsCatalog);
     });
 
-    // errorCatalog 竊・responses 蜿ら・
-    Object.entries(group.errorCatalog ?? {}).forEach(([key, entry]) => {
+    // context.catalogs.errors -> responses 蜿ら・
+    Object.entries(group.context?.catalogs?.errors ?? {}).forEach(([key, entry]) => {
       if (entry.responseRef && !responseIds.has(entry.responseRef)) {
         issues.push({
-          path: `errorCatalog.${key}.responseRef (actions[${ai}])`,
+          path: `context.catalogs.errors.${key}.responseRef (actions[${ai}])`,
           code: "UNKNOWN_RESPONSE_REF",
           value: entry.responseRef,
-          message: `errorCatalog.${key}.responseRef "${entry.responseRef}" 縺・action "${action.name}" 縺ｮ responses[].id 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `context.catalogs.errors.${key}.responseRef "${entry.responseRef}" 縺・action "${action.name}" 縺ｮ responses[].id 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
         });
       }
     });
@@ -119,7 +119,7 @@ function walkSteps(
     if ("subSteps" in step && step.subSteps) {
       walkSteps(step.subSteps, `${path}.subSteps`, visit);
     }
-    if (step.type === "branch") {
+    if (step.kind === "branch") {
       step.branches.forEach((b, bi) => {
         walkSteps(b.steps, `${path}.branches[${bi}].steps`, visit);
       });
@@ -127,15 +127,15 @@ function walkSteps(
         walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, visit);
       }
     }
-    if (step.type === "loop") {
+    if (step.kind === "loop") {
       walkSteps(step.steps, `${path}.steps`, visit);
     }
-    if (step.type === "transactionScope") {
+    if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, visit);
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, visit);
       if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, visit);
     }
-    if (step.type === "externalSystem") {
+    if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {
           walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, visit);
@@ -157,19 +157,19 @@ function checkStep(
   secretKeys?: Set<string>,
   hasSecretsCatalog?: boolean,
 ): void {
-  if (step.type === "externalSystem" && step.systemRef && hasSystemCatalog) {
+  if (step.kind === "externalSystem" && step.systemRef && hasSystemCatalog) {
     // systemRef に @ を含む場合は動的式 (@identifier による切替) のためスキップ
     if (!step.systemRef.includes("@") && !systemIds.has(step.systemRef)) {
       issues.push({
         path: `${path}.systemRef`,
         code: "UNKNOWN_SYSTEM_REF",
         value: step.systemRef,
-        message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・ProcessFlow.externalSystemCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・context.catalogs.externalSystems 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
       });
     }
   }
   // step 蛛ｴ auth.tokenRef 縺ｮ @secret.* 蜿ら・繧呈､懈渊
-  if (step.type === "externalSystem" && step.auth?.tokenRef && hasSecretsCatalog && secretKeys) {
+  if (step.kind === "externalSystem" && step.auth?.tokenRef && hasSecretsCatalog && secretKeys) {
     const tok = step.auth.tokenRef;
     const re = /@secret\.([a-zA-Z_][\w-]*)/g;
     let m: RegExpExecArray | null;
@@ -179,12 +179,12 @@ function checkStep(
           path: `${path}.auth.tokenRef`,
           code: "UNKNOWN_SECRET_REF",
           value: `@secret.${m[1]}`,
-          message: `@secret.${m[1]} 縺・ProcessFlow.secretsCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `@secret.${m[1]} 縺・context.catalogs.secrets 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
         });
       }
     }
   }
-  if (step.type === "return" && step.responseRef && !responseIds.has(step.responseRef)) {
+  if (step.kind === "return" && step.responseRef && !responseIds.has(step.responseRef)) {
     issues.push({
       path: `${path}.responseRef`,
       code: "UNKNOWN_RESPONSE_REF",
@@ -192,7 +192,7 @@ function checkStep(
       message: `ReturnStep.responseRef "${step.responseRef}" 縺・action.responses[].id 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
     });
   }
-  if (step.type === "validation" && step.inlineBranch?.ngResponseRef) {
+  if (step.kind === "validation" && step.inlineBranch?.ngResponseRef) {
     const r = step.inlineBranch.ngResponseRef;
     if (!responseIds.has(r)) {
       issues.push({
@@ -203,18 +203,18 @@ function checkStep(
       });
     }
   }
-  if (step.type === "dbAccess" && step.affectedRowsCheck?.errorCode && hasErrorCatalog) {
+  if (step.kind === "dbAccess" && step.affectedRowsCheck?.errorCode && hasErrorCatalog) {
     const e = step.affectedRowsCheck.errorCode;
     if (!errorCodes.has(e)) {
       issues.push({
         path: `${path}.affectedRowsCheck.errorCode`,
         code: "UNKNOWN_ERROR_CODE",
         value: e,
-        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" 縺・ProcessFlow.errorCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
       });
     }
   }
-  if (step.type === "branch") {
+  if (step.kind === "branch") {
     step.branches.forEach((b, bi) => {
       const c = b.condition;
       if (typeof c === "object" && c.kind === "tryCatch" && hasErrorCatalog) {
@@ -223,20 +223,20 @@ function checkStep(
             path: `${path}.branches[${bi}].condition.errorCode`,
             code: "UNKNOWN_ERROR_CODE",
             value: c.errorCode,
-            message: `BranchConditionVariant.errorCode "${c.errorCode}" 縺・ProcessFlow.errorCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+            message: `BranchConditionVariant.errorCode "${c.errorCode}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
           });
         }
       }
     });
   }
-  if (step.type === "transactionScope" && step.rollbackOn && hasErrorCatalog) {
+  if (step.kind === "transactionScope" && step.rollbackOn && hasErrorCatalog) {
     step.rollbackOn.forEach((code, ci) => {
       if (!errorCodes.has(code)) {
         issues.push({
           path: `${path}.rollbackOn[${ci}]`,
           code: "UNKNOWN_ERROR_CODE",
           value: code,
-          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" 縺・ProcessFlow.errorCatalog 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
         });
       }
     });

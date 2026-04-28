@@ -26,21 +26,25 @@ export function AmbientVariablesPanel({ group, onChange, expanded: expandedProp,
     if (!isControlled) setExpandedState(next);
     onExpandedChange?.(next);
   };
-  const vars = group.ambientVariables ?? [];
+  const vars = group.context?.ambientVariables ?? [];
+
+  const setVars = (next: StructuredField[] | undefined) => {
+    onChange({ ...group, context: { ...(group.context ?? {}), ambientVariables: next } });
+  };
 
   const update = (idx: number, patch: Partial<StructuredField>) => {
     const next = vars.map((v, i) => (i === idx ? { ...v, ...patch } : v));
-    onChange({ ...group, ambientVariables: next });
+    setVars(next);
   };
 
   const add = () => {
     const next: StructuredField[] = [...vars, { name: "", type: "string" }];
-    onChange({ ...group, ambientVariables: next });
+    setVars(next);
   };
 
   const remove = (idx: number) => {
     const next = vars.filter((_, i) => i !== idx);
-    onChange({ ...group, ambientVariables: next.length > 0 ? next : undefined });
+    setVars(next.length > 0 ? next : undefined);
   };
 
   const showToggle = render !== "bodyOnly";

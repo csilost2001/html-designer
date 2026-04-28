@@ -48,12 +48,12 @@ function walkSteps(steps: Step[], visit: (step: Step) => void): void {
   for (const step of steps) {
     visit(step);
     if (step.subSteps) walkSteps(step.subSteps, visit);
-    if (step.type === "branch") {
+    if (step.kind === "branch") {
       for (const br of step.branches) walkSteps(br.steps, visit);
       if (step.elseBranch) walkSteps(step.elseBranch.steps, visit);
     }
-    if (step.type === "loop") walkSteps(step.steps, visit);
-    if (step.type === "transactionScope") {
+    if (step.kind === "loop") walkSteps(step.steps, visit);
+    if (step.kind === "transactionScope") {
       walkSteps(step.steps, visit);
       if (step.onCommit) walkSteps(step.onCommit, visit);
       if (step.onRollback) walkSteps(step.onRollback, visit);
@@ -71,10 +71,10 @@ export function updateJumpReferences(
   newId: string,
 ): void {
   walkSteps(steps, (step) => {
-    if (step.type === "jump" && step.jumpTo === oldId) {
+    if (step.kind === "jump" && step.jumpTo === oldId) {
       step.jumpTo = newId;
     }
-    if (step.type === "validation" && step.inlineBranch?.ngJumpTo === oldId) {
+    if (step.kind === "validation" && step.inlineBranch?.ngJumpTo === oldId) {
       step.inlineBranch.ngJumpTo = newId;
     }
   });
@@ -85,10 +85,10 @@ export function updateJumpReferences(
  */
 export function clearJumpReferences(steps: Step[], deletedId: string): void {
   walkSteps(steps, (step) => {
-    if (step.type === "jump" && step.jumpTo === deletedId) {
+    if (step.kind === "jump" && step.jumpTo === deletedId) {
       step.jumpTo = "";
     }
-    if (step.type === "validation" && step.inlineBranch?.ngJumpTo === deletedId) {
+    if (step.kind === "validation" && step.inlineBranch?.ngJumpTo === deletedId) {
       step.inlineBranch.ngJumpTo = undefined;
     }
   });
@@ -108,7 +108,7 @@ export function getJumpTargetOptions(
     options.push({
       id: step.id,
       label: `[${labelMap.get(step.id) ?? "?"}]`,
-      description: step.description || step.type,
+      description: step.description || step.kind,
     });
   }
   return options;

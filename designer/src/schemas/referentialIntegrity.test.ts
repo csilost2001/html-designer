@@ -9,10 +9,8 @@ const samplesDir = resolve(__dirname, "../../../docs/sample-project/process-flow
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
-    id: "a", name: "x", type: "screen", description: "",
+    meta: { id: "a", name: "x", kind: "screen", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
     actions: [],
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...partial,
   } as ProcessFlow;
 }
@@ -24,7 +22,7 @@ describe("checkReferentialIntegrity — responseRef", () => {
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201-ok", status: 201 }],
         steps: [
-          { id: "s1", type: "return", description: "", responseRef: "999-missing" },
+          { id: "s1", kind: "return", description: "", responseRef: "999-missing" },
         ],
       }],
     }));
@@ -38,7 +36,7 @@ describe("checkReferentialIntegrity — responseRef", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201-ok", status: 201 }],
-        steps: [{ id: "s1", type: "return", description: "", responseRef: "201-ok" }],
+        steps: [{ id: "s1", kind: "return", description: "", responseRef: "201-ok" }],
       }],
     }));
     expect(issues).toHaveLength(0);
@@ -50,7 +48,7 @@ describe("checkReferentialIntegrity — responseRef", () => {
         id: "a1", name: "f", trigger: "click",
         responses: [],
         steps: [{
-          id: "s1", type: "validation", description: "", conditions: "",
+          id: "s1", kind: "validation", description: "", conditions: "",
           inlineBranch: { ok: "ok", ng: "ng", ngResponseRef: "400-not-defined" },
         }],
       }],
@@ -60,9 +58,9 @@ describe("checkReferentialIntegrity — responseRef", () => {
 
   it("errorCatalog.responseRef も検査", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      errorCatalog: {
+      context: { catalogs: { errors: {
         STOCK_SHORTAGE: { responseRef: "409-missing" },
-      },
+      } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "409-stock-shortage", status: 409 }],
@@ -76,12 +74,12 @@ describe("checkReferentialIntegrity — responseRef", () => {
 describe("checkReferentialIntegrity — errorCode", () => {
   it("errorCatalog 定義時、未登録 errorCode を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      errorCatalog: { STOCK_SHORTAGE: { httpStatus: 409 } },
+      context: { catalogs: { errors: { STOCK_SHORTAGE: { httpStatus: 409 } } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "s1", type: "dbAccess", description: "",
-          tableName: "t", operation: "UPDATE",
+          id: "s1", kind: "dbAccess", description: "",
+          tableId: "t", operation: "UPDATE",
           affectedRowsCheck: { operator: ">", expected: 0, onViolation: "throw", errorCode: "UNKNOWN_CODE" },
         }],
       }],
@@ -94,8 +92,8 @@ describe("checkReferentialIntegrity — errorCode", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "s1", type: "dbAccess", description: "",
-          tableName: "t", operation: "UPDATE",
+          id: "s1", kind: "dbAccess", description: "",
+          tableId: "t", operation: "UPDATE",
           affectedRowsCheck: { operator: ">", expected: 0, onViolation: "throw", errorCode: "ANY" },
         }],
       }],
@@ -105,11 +103,11 @@ describe("checkReferentialIntegrity — errorCode", () => {
 
   it("BranchConditionVariant.errorCode も検査", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      errorCatalog: { STOCK_SHORTAGE: {} },
+      context: { catalogs: { errors: { STOCK_SHORTAGE: {} } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "s1", type: "branch", description: "",
+          id: "s1", kind: "branch", description: "",
           branches: [{
             id: "b1", code: "A",
             condition: { kind: "tryCatch", errorCode: "NOT_REGISTERED" },
@@ -129,8 +127,8 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "200-ok", status: 200 }],
         steps: [{
-          id: "lp", type: "loop", description: "", loopKind: "count",
-          steps: [{ id: "ret", type: "return", description: "", responseRef: "missing" }],
+          id: "lp", kind: "loop", description: "", loopKind: "count",
+          steps: [{ id: "ret", kind: "return", description: "", responseRef: "missing" }],
         }],
       }],
     }));
@@ -144,12 +142,12 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
         id: "a1", name: "f", trigger: "click",
         responses: [],
         steps: [{
-          id: "ext", type: "externalSystem", description: "", systemName: "s",
+          id: "ext", kind: "externalSystem", description: "", systemRef: "s",
           outcomes: {
             failure: {
               action: "continue",
               sideEffects: [
-                { id: "ret", type: "return", description: "", responseRef: "missing" },
+                { id: "ret", kind: "return", description: "", responseRef: "missing" },
               ],
             },
           },
@@ -163,10 +161,12 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
 describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
   it("secretsCatalog 定義時、未登録 @secret を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
-      externalSystemCatalog: {
-        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.unknown" } },
-      },
+      context: { catalogs: {
+        secrets: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+        externalSystems: {
+          stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.unknown" } },
+        },
+      } },
       actions: [],
     }));
     expect(issues.some((i) => i.code === "UNKNOWN_SECRET_REF")).toBe(true);
@@ -174,10 +174,12 @@ describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
 
   it("catalog にある @secret は OK", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
-      externalSystemCatalog: {
-        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.stripeKey" } },
-      },
+      context: { catalogs: {
+        secrets: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+        externalSystems: {
+          stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.stripeKey" } },
+        },
+      } },
       actions: [],
     }));
     expect(issues).toHaveLength(0);
@@ -185,12 +187,12 @@ describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
 
   it("step 側 auth.tokenRef の @secret も検査", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      secretsCatalog: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } },
+      context: { catalogs: { secrets: { stripeKey: { source: "env", name: "STRIPE_SECRET_KEY" } } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "s1", type: "externalSystem", description: "",
-          systemName: "Stripe",
+          id: "s1", kind: "externalSystem", description: "",
+          systemRef: "stripe",
           auth: { kind: "bearer", tokenRef: "@secret.unknownKey" },
         }],
       }],
@@ -200,9 +202,9 @@ describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
 
   it("secretsCatalog 未定義時は @secret 検査をスキップ (後方互換)", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      externalSystemCatalog: {
+      context: { catalogs: { externalSystems: {
         stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "@secret.anything" } },
-      },
+      } } },
       actions: [],
     }));
     expect(issues).toHaveLength(0);
@@ -210,10 +212,12 @@ describe("checkReferentialIntegrity — @secret.* (#261 v1.6)", () => {
 
   it("ENV: / SECRET: 規約文字列は @secret と無関係で後方互換", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      secretsCatalog: { k: { source: "env", name: "X" } },
-      externalSystemCatalog: {
-        stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "ENV:STRIPE_SECRET_KEY" } },
-      },
+      context: { catalogs: {
+        secrets: { k: { source: "env", name: "X" } },
+        externalSystems: {
+          stripe: { name: "Stripe", auth: { kind: "bearer", tokenRef: "ENV:STRIPE_SECRET_KEY" } },
+        },
+      } },
       actions: [],
     }));
     expect(issues).toHaveLength(0);
@@ -267,12 +271,12 @@ describe("checkReferentialIntegrity — typeRef (#261)", () => {
 describe("checkReferentialIntegrity — systemRef (#261)", () => {
   it("externalSystemCatalog 定義時、未登録 systemRef を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
-      externalSystemCatalog: { stripe: { name: "Stripe" } },
+      context: { catalogs: { externalSystems: { stripe: { name: "Stripe" } } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "s1", type: "externalSystem", description: "",
-          systemName: "SendGrid", systemRef: "sendgrid",
+          id: "s1", kind: "externalSystem", description: "",
+          systemRef: "sendgrid",
         }],
       }],
     }));
@@ -284,8 +288,8 @@ describe("checkReferentialIntegrity — systemRef (#261)", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [{
-          id: "s1", type: "externalSystem", description: "",
-          systemName: "Stripe", systemRef: "any",
+          id: "s1", kind: "externalSystem", description: "",
+          systemRef: "any",
         }],
       }],
     }));

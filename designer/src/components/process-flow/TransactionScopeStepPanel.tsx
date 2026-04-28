@@ -23,7 +23,7 @@ interface Props {
   step: TransactionScopeStep;
   onChange: (patch: Partial<TransactionScopeStep>) => void;
   onCommit?: () => void;
-  /** errorCatalog (rollbackOn の候補取得用) */
+  /** context.catalogs.errors (rollbackOn の候補取得用) */
   group?: ProcessFlow | null;
   /** 子ステップ描画用 */
   allSteps: Step[];
@@ -70,7 +70,7 @@ interface InlineStepListProps {
   onNavigateCommon: (refId: string) => void;
   validationErrors?: ValidationError[];
   conventions?: ConventionsCatalog | null;
-  /** ネストした transactionScope 等で errorCatalog を参照するために必要 (#415) */
+  /** ネストした transactionScope 等で context.catalogs.errors を参照するために必要 (#415) */
   group?: ProcessFlow | null;
 }
 
@@ -190,8 +190,8 @@ export function TransactionScopeStepPanel({
   const [onCommitOpen, setOnCommitOpen] = useState((step.onCommit ?? []).length > 0);
   const [onRollbackOpen, setOnRollbackOpen] = useState((step.onRollback ?? []).length > 0);
 
-  // errorCatalog の key 候補
-  const errorCodes = Object.keys(group?.errorCatalog ?? {});
+  // context.catalogs.errors の key 候補
+  const errorCodes = Object.keys(group?.context?.catalogs?.errors ?? {});
   const selectedErrorCodes = new Set(step.rollbackOn ?? []);
 
   const toggleRollbackCode = (code: string) => {
@@ -274,12 +274,12 @@ export function TransactionScopeStepPanel({
             <i className="bi bi-arrow-counterclockwise me-1" />
             rollback トリガー (rollbackOn)
             <span className="text-muted ms-1" style={{ fontSize: "0.75rem" }}>
-              — errorCatalog の key を選択。未選択は「すべての例外で rollback」
+              — errors カタログの key を選択。未選択は「すべての例外で rollback」
             </span>
           </label>
           {errorCodes.length === 0 ? (
             <div className="text-muted small">
-              ProcessFlow.errorCatalog にエントリがありません。errorCatalog タブで先に定義してください。
+              エラーカタログにエントリがありません。エラーカタログタブで先に定義してください。
             </div>
           ) : (
             <div className="d-flex flex-wrap gap-2">
@@ -303,13 +303,13 @@ export function TransactionScopeStepPanel({
               })}
             </div>
           )}
-          {/* errorCatalog に無い不明な rollbackOn コードがあれば警告表示 */}
+          {/* エラーカタログに無い不明な rollbackOn コードがあれば警告表示 */}
           {(step.rollbackOn ?? [])
             .filter((c) => !errorCodes.includes(c))
             .map((c) => (
               <div key={c} className="text-danger small mt-1">
                 <i className="bi bi-exclamation-triangle me-1" />
-                未知の errorCode: <code>{c}</code> (errorCatalog に追加してください)
+                未知の errorCode: <code>{c}</code> (エラーカタログに追加してください)
                 <button
                   type="button"
                   className="btn btn-sm btn-link text-danger p-0 ms-2"

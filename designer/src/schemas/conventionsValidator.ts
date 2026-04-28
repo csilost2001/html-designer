@@ -259,17 +259,17 @@ function walkSteps(
     checkStep(step, path, catalog, issues);
 
     if ("subSteps" in step && step.subSteps) walkSteps(step.subSteps, `${path}.subSteps`, catalog, issues);
-    if (step.type === "branch") {
+    if (step.kind === "branch") {
       step.branches.forEach((b, bi) => walkSteps(b.steps, `${path}.branches[${bi}].steps`, catalog, issues));
       if (step.elseBranch) walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, catalog, issues);
     }
-    if (step.type === "loop") walkSteps((step as LoopStep).steps, `${path}.steps`, catalog, issues);
-    if (step.type === "transactionScope") {
+    if (step.kind === "loop") walkSteps((step as LoopStep).steps, `${path}.steps`, catalog, issues);
+    if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, catalog, issues);
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, catalog, issues);
       if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, catalog, issues);
     }
-    if (step.type === "externalSystem") {
+    if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, catalog, issues);
       });
@@ -305,9 +305,9 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
   if (step.description) texts.push({ src: step.description, field: "description" });
   if (step.runIf) texts.push({ src: step.runIf, field: "runIf" });
 
-  if (step.type === "compute") texts.push({ src: step.expression, field: "expression" });
-  if (step.type === "return" && step.bodyExpression) texts.push({ src: step.bodyExpression, field: "bodyExpression" });
-  if (step.type === "validation") {
+  if (step.kind === "compute") texts.push({ src: step.expression, field: "expression" });
+  if (step.kind === "return" && step.bodyExpression) texts.push({ src: step.bodyExpression, field: "bodyExpression" });
+  if (step.kind === "validation") {
     const vStep = step as ValidationStep;
     if (vStep.conditions) texts.push({ src: vStep.conditions, field: "conditions" });
     (vStep.rules ?? []).forEach((r, ri) => {
@@ -319,10 +319,10 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
       texts.push({ src: vStep.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
     }
   }
-  if (step.type === "dbAccess") {
+  if (step.kind === "dbAccess") {
     if (step.sql) texts.push({ src: step.sql, field: "sql" });
   }
-  if (step.type === "externalSystem") {
+  if (step.kind === "externalSystem") {
     if (step.protocol) texts.push({ src: step.protocol, field: "protocol" });
     if (step.httpCall?.body) texts.push({ src: step.httpCall.body, field: "httpCall.body" });
   }

@@ -1,5 +1,5 @@
 /**
- * ProcessFlow.externalSystemCatalog 編集パネル (#278)
+ * ProcessFlow.context.catalogs.externalSystems 編集パネル (#278 / #570 v3 移行)
  */
 import { useState } from "react";
 import type { ProcessFlow, ExternalSystemCatalogEntry, ExternalAuthKind } from "../../types/action";
@@ -27,27 +27,30 @@ export function ExternalSystemCatalogPanel({ group, onChange, expanded: expanded
     onExpandedChange?.(next);
   };
   const [newKey, setNewKey] = useState("");
-  const catalog = group.externalSystemCatalog ?? {};
+  const catalog = group.context?.catalogs?.externalSystems ?? {};
   const keys = Object.keys(catalog);
 
-  // secretsCatalog のキー一覧 (tokenRef ドロップダウン用)
-  const secretKeys = Object.keys(group.secretsCatalog ?? {});
+  // secrets のキー一覧 (tokenRef ドロップダウン用)
+  const secretKeys = Object.keys(group.context?.catalogs?.secrets ?? {});
+
+  const setCatalog = (next: Record<string, ExternalSystemCatalogEntry> | undefined) => {
+    onChange({ ...group, context: { ...(group.context ?? {}), catalogs: { ...(group.context?.catalogs ?? {}), externalSystems: next } } });
+  };
 
   const updateEntry = (key: string, patch: Partial<ExternalSystemCatalogEntry>) => {
-    const next = { ...catalog, [key]: { ...catalog[key], ...patch } };
-    onChange({ ...group, externalSystemCatalog: next });
+    setCatalog({ ...catalog, [key]: { ...catalog[key], ...patch } });
   };
 
   const removeEntry = (key: string) => {
     const next = { ...catalog };
     delete next[key];
-    onChange({ ...group, externalSystemCatalog: Object.keys(next).length > 0 ? next : undefined });
+    setCatalog(Object.keys(next).length > 0 ? next : undefined);
   };
 
   const addEntry = () => {
     const key = newKey.trim();
     if (!key || catalog[key]) return;
-    onChange({ ...group, externalSystemCatalog: { ...catalog, [key]: { name: key } } });
+    setCatalog({ ...catalog, [key]: { name: key } });
     setNewKey("");
   };
 
@@ -63,7 +66,7 @@ export function ExternalSystemCatalogPanel({ group, onChange, expanded: expanded
         >
           <i className={`bi bi-chevron-${expanded ? "down" : "right"}`} />
           <i className="bi bi-cloud" />
-          {" "}外部システム (externalSystemCatalog: {keys.length} 件)
+          {" "}外部システム (externalSystems: {keys.length} 件)
         </button>
       )}
       {showBody && (

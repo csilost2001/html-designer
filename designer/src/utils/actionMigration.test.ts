@@ -254,7 +254,7 @@ describe("migrateProcessFlow — ProcessFlow 全体", () => {
 
     const migrated = migrateProcessFlow(sample) as ProcessFlow;
 
-    // v3: id / name / type は meta に移動し、compat alias で参照可能
+    // v3: id / name / type は meta に移動 (v3 vocabulary に直接アクセス)
     expect(migrated.meta.id).toBe(sample.id);
     expect(migrated.meta.kind).toBe("common");
     expect(migrated.actions).toHaveLength(1);
@@ -481,7 +481,7 @@ describe("migrateProcessFlow — v3 root 4 セクション化 + maturity / mode 
       updatedAt: "",
     };
     const migrated = migrateProcessFlow(raw);
-    // v3: compat alias で meta.maturity / meta.mode にアクセス
+    // v3: meta.maturity / meta.mode に直接アクセス
     expect(migrated.meta.maturity).toBe("draft");
     expect(migrated.meta.mode).toBe("upstream");
   });
@@ -755,7 +755,7 @@ describe("migrateStep — 22 variant 全カバー (v1 type → v3 kind 変換)",
     expect(v3.kind).toBe("legacy:OtherStep");
   });
 
-  it("全 variant で compat alias step.type が step.kind と同値を返す", () => {
+  it("全 variant で v1 type → v3 kind に変換され step.kind が正しく設定される (#570 shim 削除後)", () => {
     const kinds = [
       "validation", "dbAccess", "externalSystem", "commonProcess",
       "screenTransition", "displayUpdate", "branch", "loop",
@@ -785,9 +785,9 @@ describe("migrateStep — 22 variant 全カバー (v1 type → v3 kind 変換)",
       if (kind === "closing") v1.period = "monthly";
       if (kind === "cdc") { v1.tableIds = []; v1.captureMode = "incremental"; v1.destination = { kind: "auditLog", auditAction: "" }; }
       const v3 = migrateStep(v1) as any;
+      // v3 vocabulary: step.kind に変換、step.type は削除される
       expect(v3.kind).toBe(kind);
-      // compat alias: step.type は step.kind に委譲
-      expect(v3.type).toBe(kind);
+      expect(v3.type).toBeUndefined();
     }
   });
 });

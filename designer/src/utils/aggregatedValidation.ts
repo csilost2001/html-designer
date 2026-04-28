@@ -114,14 +114,14 @@ function stepIdFromPath(path: string, group: ProcessFlow): string | null {
     if (!sm) break;
     if (sm[1] !== undefined && sm[2] !== undefined) {
       // branches[b].steps[s]
-      if (currentStep.type !== "branch") return currentStep.id;
+      if (currentStep.kind !== "branch") return currentStep.id;
       const branch = currentStep.branches[+sm[1]];
       if (!branch) return currentStep.id;
       const next = branch.steps[+sm[2]];
       if (!next) return currentStep.id;
       currentStep = next;
     } else if (sm[3] !== undefined) {
-      if (currentStep.type !== "branch" || !currentStep.elseBranch) return currentStep.id;
+      if (currentStep.kind !== "branch" || !currentStep.elseBranch) return currentStep.id;
       const next = currentStep.elseBranch.steps[+sm[3]];
       if (!next) return currentStep.id;
       currentStep = next;
@@ -131,12 +131,12 @@ function stepIdFromPath(path: string, group: ProcessFlow): string | null {
       if (!next) return currentStep.id;
       currentStep = next;
     } else if (sm[5] !== undefined) {
-      if (currentStep.type !== "loop") return currentStep.id;
+      if (currentStep.kind !== "loop") return currentStep.id;
       const next = currentStep.steps[+sm[5]];
       if (!next) return currentStep.id;
       currentStep = next;
     } else if (sm[6] !== undefined && sm[7] !== undefined) {
-      if (currentStep.type !== "externalSystem") return currentStep.id;
+      if (currentStep.kind !== "externalSystem") return currentStep.id;
       const outcome = currentStep.outcomes?.[sm[6] as "success" | "failure" | "timeout"];
       if (!outcome?.sideEffects) return currentStep.id;
       const next = outcome.sideEffects[+sm[7]];

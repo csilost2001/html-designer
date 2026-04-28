@@ -20,17 +20,17 @@ function collectStepIds(group: ProcessFlow): Set<string> {
     for (const s of steps) {
       ids.add(s.id);
       if (s.subSteps) visit(s.subSteps);
-      if (s.type === "branch") {
+      if (s.kind === "branch") {
         for (const b of s.branches) visit(b.steps);
         if (s.elseBranch) visit(s.elseBranch.steps);
       }
-      if (s.type === "loop") visit(s.steps);
-      if (s.type === "transactionScope") {
+      if (s.kind === "loop") visit(s.steps);
+      if (s.kind === "transactionScope") {
         visit(s.steps);
         if (s.onCommit) visit(s.onCommit);
         if (s.onRollback) visit(s.onRollback);
       }
-      if (s.type === "externalSystem" && s.outcomes) {
+      if (s.kind === "externalSystem" && s.outcomes) {
         for (const oc of Object.values(s.outcomes)) {
           if (oc?.sideEffects) visit(oc.sideEffects);
         }
@@ -80,7 +80,7 @@ export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpande
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [resolveNote, setResolveNote] = useState("");
 
-  const markers = group.markers ?? [];
+  const markers = group.authoring?.markers ?? [];
   const displayed = showResolved ? markers : markers.filter((m) => !m.resolvedAt);
   const unresolved = markers.filter((m) => !m.resolvedAt).length;
   // anchor の追跡先 step が現存するかを判定するために step id セットを memo 化
@@ -104,13 +104,13 @@ export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpande
       author: "human",
       createdAt: new Date().toISOString(),
     };
-    onChange({ ...group, markers: [...markers, next] });
+    onChange({ ...group, authoring: { ...(group.authoring ?? {}), markers: [...markers, next] } });
     setNewBody("");
   };
 
   const removeMarker = (id: string) => {
     const next = markers.filter((m) => m.id !== id);
-    onChange({ ...group, markers: next.length > 0 ? next : undefined });
+    onChange({ ...group, authoring: { ...(group.authoring ?? {}), markers: next.length > 0 ? next : undefined } });
   };
 
   const startResolve = (id: string) => {
@@ -134,7 +134,7 @@ export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpande
           }
         : m
     ));
-    onChange({ ...group, markers: next });
+    onChange({ ...group, authoring: { ...(group.authoring ?? {}), markers: next } });
     setResolvingId(null);
     setResolveNote("");
   };
@@ -143,7 +143,7 @@ export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpande
     const next = markers.map((m) => (
       m.id === id ? { ...m, resolvedAt: undefined, resolution: undefined } : m
     ));
-    onChange({ ...group, markers: next });
+    onChange({ ...group, authoring: { ...(group.authoring ?? {}), markers: next } });
   };
 
   const showToggle = render !== "bodyOnly";

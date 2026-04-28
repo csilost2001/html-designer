@@ -125,7 +125,7 @@ function walkSteps(
     const bindName = getBindingName(step.outputBinding);
     if (bindName) known.add(bindName);
     // ValidationStep の fieldErrorsVar も known に
-    if (step.type === "validation") {
+    if (step.kind === "validation") {
       const vStep = step as ValidationStep;
       if (vStep.fieldErrorsVar) known.add(vStep.fieldErrorsVar);
       else known.add("fieldErrors"); // 既定
@@ -139,7 +139,7 @@ function walkSteps(
     if ("subSteps" in step && step.subSteps) {
       walkSteps(step.subSteps, `${path}.subSteps`, known, loopItems, issues);
     }
-    if (step.type === "branch") {
+    if (step.kind === "branch") {
       step.branches.forEach((b, bi) => {
         walkSteps(b.steps, `${path}.branches[${bi}].steps`, known, loopItems, issues);
       });
@@ -147,19 +147,19 @@ function walkSteps(
         walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, known, loopItems, issues);
       }
     }
-    if (step.type === "loop") {
+    if (step.kind === "loop") {
       const loopStep = step as LoopStep;
       const childLoopItems = loopStep.collectionItemName
         ? [...loopItems, loopStep.collectionItemName]
         : loopItems;
       walkSteps(loopStep.steps, `${path}.steps`, known, childLoopItems, issues);
     }
-    if (step.type === "transactionScope") {
+    if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, known, loopItems, issues);
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, known, loopItems, issues);
       if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, known, loopItems, issues);
     }
-    if (step.type === "externalSystem") {
+    if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {
           walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, known, loopItems, issues);
@@ -174,7 +174,7 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
   // ValidationStep は自分自身の rules[] 評価結果 fieldErrors を同じ step の ngBodyExpression
   // で使う (同時に可視) ので、available に足してから式チェック
   const available = new Set(availableIn);
-  if (step.type === "validation") {
+  if (step.kind === "validation") {
     const vStep = step as ValidationStep;
     available.add(vStep.fieldErrorsVar ?? "fieldErrors");
   }
@@ -183,13 +183,13 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
 
   if (step.runIf) expressions.push({ src: step.runIf, field: "runIf" });
 
-  if (step.type === "compute") {
+  if (step.kind === "compute") {
     expressions.push({ src: step.expression, field: "expression" });
   }
-  if (step.type === "return") {
+  if (step.kind === "return") {
     if (step.bodyExpression) expressions.push({ src: step.bodyExpression, field: "bodyExpression" });
   }
-  if (step.type === "validation") {
+  if (step.kind === "validation") {
     if (step.conditions) expressions.push({ src: step.conditions, field: "conditions" });
     (step.rules ?? []).forEach((r, ri) => {
       if (r.condition) expressions.push({ src: r.condition, field: `rules[${ri}].condition` });
@@ -199,23 +199,23 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
       expressions.push({ src: step.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
     }
   }
-  if (step.type === "branch") {
+  if (step.kind === "branch") {
     step.branches.forEach((b, bi) => {
       if (typeof b.condition === "string") {
         expressions.push({ src: b.condition, field: `branches[${bi}].condition` });
       }
     });
   }
-  if (step.type === "loop") {
+  if (step.kind === "loop") {
     if (step.countExpression) expressions.push({ src: step.countExpression, field: "countExpression" });
     if (step.conditionExpression) expressions.push({ src: step.conditionExpression, field: "conditionExpression" });
     if (step.collectionSource) expressions.push({ src: step.collectionSource, field: "collectionSource" });
   }
-  if (step.type === "dbAccess") {
+  if (step.kind === "dbAccess") {
     if (step.sql) expressions.push({ src: step.sql, field: "sql" });
     if (step.fields) expressions.push({ src: step.fields, field: "fields" });
   }
-  if (step.type === "externalSystem") {
+  if (step.kind === "externalSystem") {
     if (step.protocol) expressions.push({ src: step.protocol, field: "protocol" });
     if (step.idempotencyKey) expressions.push({ src: step.idempotencyKey, field: "idempotencyKey" });
     if (step.httpCall?.path) expressions.push({ src: step.httpCall.path, field: "httpCall.path" });
@@ -232,7 +232,7 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
       },
     );
   }
-  if (step.type === "commonProcess" && step.argumentMapping) {
+  if (step.kind === "commonProcess" && step.argumentMapping) {
     Object.entries(step.argumentMapping).forEach(([k, v]) => {
       expressions.push({ src: v, field: `argumentMapping.${k}` });
     });

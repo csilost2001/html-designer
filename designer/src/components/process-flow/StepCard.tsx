@@ -204,7 +204,7 @@ interface StepCardProps {
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
   conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
-  /** TX スコープ等で errorCatalog を参照するために必要 (#415) */
+  /** TX スコープ等で context.catalogs.errors を参照するために必要 (#415) */
   group?: ProcessFlow | null;
   onChange: (changes: Partial<Step>) => void;
   onCommit?: () => void;
@@ -281,24 +281,24 @@ export function StepCard({
   const [collapsedBranchIds, setCollapsedBranchIds] = useState<Set<string>>(new Set());
   const [loopBodyCollapsed, setLoopBodyCollapsed] = useState(false);
 
-  const color = STEP_TYPE_COLORS[step.type];
+  const color = STEP_TYPE_COLORS[step.kind];
   const subSteps = step.subSteps ?? [];
   const myErrors = validationErrors.filter((e) => e.stepId === step.id);
   const hasError = myErrors.some((e) => e.severity === "error");
   const hasWarning = myErrors.some((e) => e.severity === "warning");
 
   const summaryText = (): string => {
-    switch (step.type) {
+    switch (step.kind) {
       case "validation":
         return step.conditions || step.description || "バリデーション";
       case "dbAccess":
-        return `${step.tableName || "?"} ${DB_OPERATION_LABELS[step.operation] ?? step.operation}${step.description ? ` - ${step.description}` : ""}`;
+        return `${step.tableId || "?"} ${DB_OPERATION_LABELS[step.operation] ?? step.operation}${step.description ? ` - ${step.description}` : ""}`;
       case "externalSystem":
-        return `${step.systemName || "?"}${step.protocol ? ` (${step.protocol})` : ""}${step.description ? ` - ${step.description}` : ""}`;
+        return `${step.systemRef || "?"}${step.protocol ? ` (${step.protocol})` : ""}${step.description ? ` - ${step.description}` : ""}`;
       case "commonProcess":
-        return step.refName || step.description || "共通処理";
+        return step.refId || step.description || "共通処理";
       case "screenTransition":
-        return `${step.targetScreenName || "?"}${step.description ? ` - ${step.description}` : ""}`;
+        return `${step.targetScreenId || "?"}${step.description ? ` - ${step.description}` : ""}`;
       case "displayUpdate":
         return step.target || step.description || "表示更新";
       case "branch":
@@ -367,14 +367,14 @@ export function StepCard({
   };
 
   const setBranchAt = (idx: number, next: Branch) => {
-    if (step.type !== "branch") return;
+    if (step.kind !== "branch") return;
     const branches = step.branches.slice();
     branches[idx] = next;
     onChange({ branches } as Partial<Step>);
   };
 
   const moveBranchUp = (idx: number) => {
-    if (step.type !== "branch" || idx <= 0) return;
+    if (step.kind !== "branch" || idx <= 0) return;
     const branches = step.branches.map((b) => ({ ...b }));
     [branches[idx - 1], branches[idx]] = [branches[idx], branches[idx - 1]];
     branches.forEach((b, i) => { b.code = String.fromCharCode(65 + i); });
@@ -383,7 +383,7 @@ export function StepCard({
   };
 
   const moveBranchDown = (idx: number) => {
-    if (step.type !== "branch") return;
+    if (step.kind !== "branch") return;
     const branches = step.branches.map((b) => ({ ...b }));
     if (idx >= branches.length - 1) return;
     [branches[idx], branches[idx + 1]] = [branches[idx + 1], branches[idx]];
@@ -393,7 +393,7 @@ export function StepCard({
   };
 
   const deleteBranch = (idx: number) => {
-    if (step.type !== "branch" || step.branches.length <= 1) return;
+    if (step.kind !== "branch" || step.branches.length <= 1) return;
     const branches = step.branches.filter((_, i) => i !== idx).map((b, i) => ({
       ...b,
       code: String.fromCharCode(65 + i),
@@ -403,7 +403,7 @@ export function StepCard({
   };
 
   const addBranch = () => {
-    if (step.type !== "branch") return;
+    if (step.kind !== "branch") return;
     const code = String.fromCharCode(65 + step.branches.length);
     const newBranch: Branch = { id: generateUUID(), code, condition: "", steps: [] };
     onChange({ branches: [...step.branches, newBranch] } as Partial<Step>);
@@ -411,7 +411,7 @@ export function StepCard({
   };
 
   const addElseBranch = () => {
-    if (step.type !== "branch") return;
+    if (step.kind !== "branch") return;
     const elseBranch: Branch = { id: generateUUID(), code: "ELSE", condition: "", steps: [] };
     onChange({ elseBranch } as Partial<Step>);
     onCommit?.();
@@ -458,8 +458,8 @@ export function StepCard({
             </span>
           )}
           <span className="step-card-number">{label}</span>
-          <i className={`step-card-icon ${STEP_TYPE_ICONS[step.type]}`} style={{ color }} />
-          <span className="step-card-type-label">{STEP_TYPE_LABELS[step.type]}</span>
+          <i className={`step-card-icon ${STEP_TYPE_ICONS[step.kind]}`} style={{ color }} />
+          <span className="step-card-type-label">{STEP_TYPE_LABELS[step.kind]}</span>
           <MaturityBadge
             maturity={step.maturity}
             onChange={(next) => onChange({ maturity: next } as Partial<Step>)}
@@ -563,7 +563,7 @@ export function StepCard({
               <i className="bi bi-link-45deg" />
             </button>
           )}
-          {step.type === "dbAccess" && step.affectedRowsCheck && (
+          {step.kind === "dbAccess" && step.affectedRowsCheck && (
             <button
               type="button"
               className="btn btn-link p-0"
@@ -574,7 +574,7 @@ export function StepCard({
               <i className="bi bi-shield-check" />
             </button>
           )}
-          {step.type === "externalSystem" && step.outcomes && Object.keys(step.outcomes).length > 0 && (
+          {step.kind === "externalSystem" && step.outcomes && Object.keys(step.outcomes).length > 0 && (
             <button
               type="button"
               className="btn btn-link p-0"
@@ -585,12 +585,12 @@ export function StepCard({
               <i className="bi bi-diagram-3" />
             </button>
           )}
-          {step.type === "externalSystem" && step.fireAndForget && (
+          {step.kind === "externalSystem" && step.fireAndForget && (
             <span title="fire-and-forget" style={{ color: "#eab308", fontSize: 11, flexShrink: 0 }}>
               <i className="bi bi-fire" />
             </span>
           )}
-          {step.type === "workflow" && (
+          {step.kind === "workflow" && (
             <span
               className="badge"
               title={step.pattern}
@@ -605,7 +605,7 @@ export function StepCard({
             </span>
           )}
           <span className="step-card-description">{summaryText()}</span>
-          {step.type === "commonProcess" && step.refId && (
+          {step.kind === "commonProcess" && step.refId && (
             <button
               className="btn btn-link btn-sm p-0 text-success"
               onClick={(e) => { e.stopPropagation(); onNavigateCommon(step.refId); }}
@@ -799,7 +799,7 @@ export function StepCard({
             />
 
             {/* ── バリデーション ───────────────────────────────── */}
-            {step.type === "validation" && (
+            {step.kind === "validation" && (
               <>
                 <div className="row g-2 mb-2" data-field-path="conditions">
                   <div className="col-12">
@@ -908,21 +908,20 @@ export function StepCard({
             )}
 
             {/* ── DB操作 ──────────────────────────────────────── */}
-            {step.type === "dbAccess" && (
+            {step.kind === "dbAccess" && (
               <>
                 <div className="form-group">
                   <label className="form-label">テーブル</label>
                   <select
                     className="form-select form-select-sm"
-                    value={step.tableName}
+                    value={step.tableId ?? ""}
                     onChange={(e) => {
-                      const t = tables.find((t) => t.physicalName === e.target.value);
-                      onChange({ tableName: e.target.value, tableId: t?.id } as Partial<Step>);
+                      onChange({ tableId: e.target.value || undefined } as Partial<Step>);
                     }}
                   >
                     <option value="">（選択）</option>
                     {tables.map((t) => (
-                      <option key={t.id} value={t.physicalName}>{t.name}（{t.physicalName}）</option>
+                      <option key={t.id} value={t.id}>{t.name}（{t.physicalName}）</option>
                     ))}
                   </select>
                 </div>
@@ -1050,17 +1049,17 @@ export function StepCard({
             )}
 
             {/* ── 外部システム ─────────────────────────────────── */}
-            {step.type === "externalSystem" && (
+            {step.kind === "externalSystem" && (
               <>
                 <div className="form-row-pair">
                   <div className="form-group">
                     <label className="form-label">接続先</label>
                     <input
                       className="form-control form-control-sm"
-                      value={step.systemName}
-                      onChange={(e) => onChange({ systemName: e.target.value } as Partial<Step>)}
+                      value={step.systemRef ?? ""}
+                      onChange={(e) => onChange({ systemRef: e.target.value } as Partial<Step>)}
                       onBlur={onCommit}
-                      placeholder="システム名"
+                      placeholder="システム名 (context.catalogs.externalSystems のキー)"
                     />
                   </div>
                   <div className="form-group">
@@ -1229,7 +1228,7 @@ export function StepCard({
             )}
 
             {/* ── 共通処理 ─────────────────────────────────────── */}
-            {step.type === "commonProcess" && (
+            {step.kind === "commonProcess" && (
               <>
                 <div className="row g-2 mb-2">
                   <div className="col-12">
@@ -1280,7 +1279,7 @@ export function StepCard({
             )}
 
             {/* ── 計算ステップ (ComputeStep) ───────────────────── */}
-            {step.type === "compute" && (
+            {step.kind === "compute" && (
               <div className="row g-2 mb-2" data-field-path="expression">
                 <div className="col-12">
                   <label className="form-label">
@@ -1301,7 +1300,7 @@ export function StepCard({
             )}
 
             {/* ── 返却ステップ (ReturnStep) ────────────────────── */}
-            {step.type === "return" && (
+            {step.kind === "return" && (
               <>
                 <div className="row g-2 mb-2">
                   <div className="col-6">
@@ -1335,7 +1334,7 @@ export function StepCard({
             )}
 
             {/* ── 画面遷移 ─────────────────────────────────────── */}
-            {step.type === "screenTransition" && (
+            {step.kind === "screenTransition" && (
               <div className="row g-2 mb-2">
                 <div className="col-12">
                   <label className="form-label">遷移先画面</label>
@@ -1364,7 +1363,7 @@ export function StepCard({
             )}
 
             {/* ── 表示更新 ─────────────────────────────────────── */}
-            {step.type === "displayUpdate" && (
+            {step.kind === "displayUpdate" && (
               <div className="row g-2 mb-2">
                 <div className="col-12">
                   <label className="form-label">更新対象</label>
@@ -1380,7 +1379,7 @@ export function StepCard({
             )}
 
             {/* ── 条件分岐 (Phase 3) ───────────────────────────── */}
-            {step.type === "branch" && (
+            {step.kind === "branch" && (
               <div className="branch-sections">
                 {step.branches.map((br, bi) => {
                   const isCollapsed = collapsedBranchIds.has(br.id);
@@ -1562,7 +1561,7 @@ export function StepCard({
             )}
 
             {/* ── ループ (Phase 4) ─────────────────────────────── */}
-            {step.type === "loop" && (
+            {step.kind === "loop" && (
               <div>
                 <div className="loop-kind-radios">
                   {(["count", "condition", "collection"] as LoopKind[]).map((k) => (
@@ -1684,7 +1683,7 @@ export function StepCard({
             )}
 
             {/* ── ログ出力 (#402) ──────────────────────────────── */}
-            {step.type === "log" && (
+            {step.kind === "log" && (
               <LogStepPanel
                 step={step}
                 onChange={(patch) => onChange(patch as Partial<Step>)}
@@ -1694,7 +1693,7 @@ export function StepCard({
             )}
 
             {/* ── 監査ログ (#402) ──────────────────────────────── */}
-            {step.type === "audit" && (
+            {step.kind === "audit" && (
               <AuditStepPanel
                 step={step}
                 onChange={(patch) => onChange(patch as Partial<Step>)}
@@ -1704,7 +1703,7 @@ export function StepCard({
             )}
 
             {/* ── TX スコープ (#415) ────────────────────────────── */}
-            {step.type === "transactionScope" && (
+            {step.kind === "transactionScope" && (
               <TransactionScopeStepPanel
                 step={step}
                 onChange={(patch) => onChange(patch as Partial<Step>)}
@@ -1721,7 +1720,7 @@ export function StepCard({
             )}
 
             {/* ── ジャンプ (Phase 5) ───────────────────────────── */}
-            {step.type === "jump" && (
+            {step.kind === "jump" && (
               <div className="row g-2 mb-2">
                 <div className="col-12">
                   <label className="form-label">ジャンプ先</label>
@@ -1736,7 +1735,7 @@ export function StepCard({
               </div>
             )}
 
-            {step.type === "workflow" && (
+            {step.kind === "workflow" && (
               <WorkflowStepPanel
                 step={step}
                 allSteps={allSteps}
