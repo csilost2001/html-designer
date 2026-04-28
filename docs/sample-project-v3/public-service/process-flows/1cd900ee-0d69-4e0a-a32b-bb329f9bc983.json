@@ -1,0 +1,467 @@
+{
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "1cd900ee-0d69-4e0a-a32b-bb329f9bc983",
+    "name": "建築確認申請審査 (5 段 workflow)",
+    "description": "建築確認申請 (建築基準法) を 5 段階の WorkflowStep で審査する。受付 (acknowledge) → 一次審査 (review) → 公示期間 (sign-off, 14 日 deadline) → 異議申立対応 (approval-veto) → 最終決裁 (approval-sequential)。Round 4 で WorkflowPattern 4 種を業務文脈で実機検証する目的。",
+    "version": "1.0.0",
+    "maturity": "committed",
+    "createdAt": "2026-04-28T00:00:00.000Z",
+    "updatedAt": "2026-04-28T00:00:00.000Z",
+    "kind": "screen",
+    "screenId": "f9de5853-db95-4dc5-aefc-ca03b482cfd9",
+    "apiVersion": "v1",
+    "mode": "upstream"
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "VALIDATION": { "httpStatus": 400, "defaultMessage": "入力値が不正です", "responseId": "400-validation" },
+        "APPLICANT_NOT_FOUND": { "httpStatus": 404, "defaultMessage": "申請者が見つかりません", "responseId": "404-applicant-not-found" },
+        "REVIEW_REJECTED": { "httpStatus": 422, "defaultMessage": "一次審査で却下されました", "responseId": "422-review-rejected" },
+        "OBJECTION_REJECTED": { "httpStatus": 422, "defaultMessage": "異議申立により却下されました", "responseId": "422-objection-rejected" },
+        "FINAL_REJECTED": { "httpStatus": 422, "defaultMessage": "最終決裁で却下されました", "responseId": "422-final-rejected" },
+        "INTERNAL_ERROR": { "httpStatus": 500, "defaultMessage": "内部エラー", "responseId": "500-internal-error" }
+      },
+      "events": {
+        "public.application_received": {
+          "description": "申請受付完了時。担当者通知。",
+          "payload": { "type": "object", "required": ["applicationNumber"], "properties": { "applicationNumber": { "type": "string" } } }
+        },
+        "public.application_under_public_notice": {
+          "description": "公示期間に遷移時。市民向け公示掲示板に表示。",
+          "payload": { "type": "object", "required": ["applicationNumber", "publicNoticeStartAt", "publicNoticeEndAt"], "properties": { "applicationNumber": { "type": "string" }, "publicNoticeStartAt": { "type": "string" }, "publicNoticeEndAt": { "type": "string" } } }
+        },
+        "public.application_approved": {
+          "description": "最終決裁完了時。",
+          "payload": { "type": "object", "required": ["applicationNumber"], "properties": { "applicationNumber": { "type": "string" } } }
+        },
+        "public.application_rejected": {
+          "description": "却下時 (一次審査 / 異議申立 / 最終決裁のいずれか)。",
+          "payload": { "type": "object", "required": ["applicationNumber", "stage", "reason"], "properties": { "applicationNumber": { "type": "string" }, "stage": { "type": "string" }, "reason": { "type": "string" } } }
+        }
+      }
+    },
+    "ambientVariables": [
+      { "name": "requestId", "type": "string", "required": true },
+      { "name": "sessionUserId", "type": "string", "required": true }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "建築確認申請の審査",
+      "trigger": "submit",
+      "description": "申請受付から最終決裁までを 1 ProcessFlow で連結。5 段階 workflow を順次実行、却下時は途中終了。",
+      "maturity": "committed",
+      "httpRoute": { "method": "POST", "path": "/api/public/building-applications", "auth": "required" },
+      "requiredPermissions": ["@conv.permission.application.submit"],
+      "inputs": [
+        { "name": "applicantCode", "label": "申請者コード", "type": "string", "required": true },
+        { "name": "siteAddress", "label": "建築地", "type": "string", "required": true },
+        { "name": "buildingUse", "label": "建物用途", "type": "string", "required": true },
+        { "name": "totalFloorAreaSqm", "label": "延床面積", "type": "number", "required": true }
+      ],
+      "outputs": [
+        { "name": "applicationNumber", "label": "申請番号", "type": "string" },
+        { "name": "status", "label": "ステータス", "type": "string" }
+      ],
+      "responses": [
+        { "id": "200-ok", "status": 200, "bodySchema": { "typeRef": "public-service:ApplicationResponse" }, "when": "申請受付完了 (審査は別フローで非同期)" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "public-service:ApiError" } },
+        { "id": "404-applicant-not-found", "status": 404, "bodySchema": { "typeRef": "public-service:ApiError" } },
+        { "id": "422-review-rejected", "status": 422, "bodySchema": { "typeRef": "public-service:ApiError" } },
+        { "id": "422-objection-rejected", "status": 422, "bodySchema": { "typeRef": "public-service:ApiError" } },
+        { "id": "422-final-rejected", "status": 422, "bodySchema": { "typeRef": "public-service:ApiError" } },
+        { "id": "500-internal-error", "status": 500, "bodySchema": { "typeRef": "public-service:ApiError" } }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "kind": "validation",
+          "description": "入力検証",
+          "rules": [
+            { "field": "applicantCode", "type": "regex", "severity": "error", "pattern": "^AP[0-9]{8}$", "message": "@conv.msg.applicantCode.invalid" },
+            { "field": "totalFloorAreaSqm", "type": "range", "severity": "error", "min": 1, "message": "延床面積は 1㎡ 以上" }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": [], "ng": [],
+            "ngResponseId": "400-validation",
+            "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', fieldErrors: @fieldErrors }"
+          }
+        },
+        {
+          "id": "step-02",
+          "kind": "dbAccess",
+          "description": "申請者を applicants から取得",
+          "tableId": "5ebdcbd7-0a49-463d-af3b-226ba1e3e36c",
+          "operation": "SELECT",
+          "sql": "SELECT id, applicant_code, name FROM applicants WHERE applicant_code = @inputs.applicantCode",
+          "outputBinding": { "name": "applicant" },
+          "lineage": { "reads": [{ "tableId": "5ebdcbd7-0a49-463d-af3b-226ba1e3e36c", "purpose": "lookup" }] }
+        },
+        {
+          "id": "step-03",
+          "kind": "branch",
+          "description": "申請者なし → 404",
+          "branches": [
+            {
+              "id": "br-03-a", "code": "A", "label": "申請者なし",
+              "condition": { "kind": "expression", "expression": "@applicant == null" },
+              "steps": [
+                { "id": "step-03-a-01", "kind": "return", "description": "404", "responseId": "404-applicant-not-found", "bodyExpression": "{ code: 'APPLICANT_NOT_FOUND', message: '申請者が登録されていません' }" }
+              ]
+            }
+          ],
+          "elseBranch": { "id": "br-03-else", "code": "B", "label": "OK", "steps": [] }
+        },
+        {
+          "id": "step-04",
+          "kind": "dbAccess",
+          "description": "applications に INSERT (status='received'、application_number 自動採番)",
+          "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+          "operation": "INSERT",
+          "sql": "INSERT INTO applications (application_number, applicant_id, site_address, building_use, total_floor_area_sqm, status, submitted_at) VALUES (@conv.numbering.applicationNumber, @applicant.id, @inputs.siteAddress, @inputs.buildingUse, @inputs.totalFloorAreaSqm, 'received', CURRENT_TIMESTAMP) RETURNING id, application_number",
+          "outputBinding": { "name": "createdApplication" },
+          "lineage": { "writes": [{ "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb", "purpose": "create" }] }
+        },
+        {
+          "id": "step-05",
+          "kind": "audit",
+          "description": "申請受付を監査ログ (個人情報処理のため sensitive=true)",
+          "action": "public.application.submit",
+          "resource": { "type": "application", "id": "@createdApplication.application_number" },
+          "result": "success",
+          "sensitive": true
+        },
+        {
+          "id": "step-06",
+          "kind": "eventPublish",
+          "topic": "public.application_received",
+          "description": "申請受付イベント発行",
+          "payload": "{ applicationNumber: @createdApplication.application_number }"
+        },
+        {
+          "id": "step-stage-1",
+          "kind": "workflow",
+          "description": "Stage 1 受付確認 (acknowledge): 受付担当者が申請を受領したことを記録、決定権なし",
+          "maturity": "committed",
+          "pattern": "acknowledge",
+          "approvers": [
+            { "role": "@conv.role.public.clerk", "label": "受付担当", "order": 1 }
+          ],
+          "onApproved": [
+            {
+              "id": "step-stage-1-app-01",
+              "kind": "dbAccess",
+              "description": "application_approvals に受付確認履歴を INSERT",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'received_acknowledge', 'acknowledged', @sessionUserId, 'clerk')",
+              "lineage": { "writes": [{ "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13", "purpose": "create" }] }
+            },
+            {
+              "id": "step-stage-1-app-02",
+              "kind": "dbAccess",
+              "description": "applications.status = 'under_review'",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'under_review', review_started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id",
+              "lineage": { "writes": [{ "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb", "purpose": "status-update" }] }
+            }
+          ]
+        },
+        {
+          "id": "step-stage-2",
+          "kind": "workflow",
+          "description": "Stage 2 一次審査 (review): 担当者が建築基準法・条例適合性を判断。却下なら return。",
+          "maturity": "committed",
+          "pattern": "review",
+          "approvers": [
+            { "role": "@conv.role.public.reviewer", "label": "審査担当", "order": 1 }
+          ],
+          "onApproved": [
+            {
+              "id": "step-stage-2-app-01",
+              "kind": "dbAccess",
+              "description": "application_approvals に一次審査履歴 (approved)",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'first_review', 'approved', @sessionUserId, 'staff')"
+            },
+            {
+              "id": "step-stage-2-app-02",
+              "kind": "dbAccess",
+              "description": "applications.status = 'under_public_notice' + 公示開始/終了日時を設定 (14 日)",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'under_public_notice', public_notice_start_at = CURRENT_TIMESTAMP, public_notice_end_at = CURRENT_TIMESTAMP + INTERVAL '14 days', updated_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            }
+          ],
+          "onRejected": [
+            {
+              "id": "step-stage-2-rej-01",
+              "kind": "dbAccess",
+              "description": "application_approvals に rejected 履歴",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'first_review', 'rejected', @sessionUserId, 'staff')"
+            },
+            {
+              "id": "step-stage-2-rej-02",
+              "kind": "dbAccess",
+              "description": "applications.status = 'rejected'",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'rejected', rejection_reason = '一次審査で建築基準不適合', decided_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            },
+            { "id": "step-stage-2-rej-03", "kind": "eventPublish", "topic": "public.application_rejected", "description": "却下イベント", "payload": "{ applicationNumber: @createdApplication.application_number, stage: 'first_review', reason: 'review' }" },
+            { "id": "step-stage-2-rej-04", "kind": "return", "description": "422 一次審査却下", "responseId": "422-review-rejected", "bodyExpression": "{ code: 'REVIEW_REJECTED', message: '一次審査で却下されました' }" }
+          ]
+        },
+        {
+          "id": "step-stage-3",
+          "kind": "workflow",
+          "description": "Stage 3 公示期間 (sign-off): 14 日間の法定公示。公示終了後に書記が sign-off で次段階へ。",
+          "maturity": "committed",
+          "pattern": "sign-off",
+          "approvers": [
+            { "role": "@conv.role.public.clerk", "label": "書記", "order": 1 }
+          ],
+          "deadlineExpression": "@createdApplication.public_notice_end_at",
+          "onApproved": [
+            {
+              "id": "step-stage-3-app-01",
+              "kind": "eventPublish",
+              "topic": "public.application_under_public_notice",
+              "description": "公示開始イベント (公示掲示板へ表示)",
+              "payload": "{ applicationNumber: @createdApplication.application_number, publicNoticeStartAt: @createdApplication.public_notice_start_at, publicNoticeEndAt: @createdApplication.public_notice_end_at }"
+            },
+            {
+              "id": "step-stage-3-app-02",
+              "kind": "dbAccess",
+              "description": "application_approvals に signed_off 履歴",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'public_notice', 'signed_off', @sessionUserId, 'clerk')"
+            },
+            {
+              "id": "step-stage-3-app-03",
+              "kind": "dbAccess",
+              "description": "applications.status = 'objection_review'",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'objection_review', updated_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            }
+          ]
+        },
+        {
+          "id": "step-stage-4",
+          "kind": "workflow",
+          "description": "Stage 4 異議申立対応 (approval-veto): 利害関係者 (近隣住民等) が異議を出せる。1 件でも veto なら却下。",
+          "maturity": "committed",
+          "pattern": "approval-veto",
+          "approvers": [
+            { "role": "@conv.role.public.neighbor", "label": "近隣住民代表", "order": 1 },
+            { "role": "@conv.role.public.environment", "label": "環境担当", "order": 2 }
+          ],
+          "onApproved": [
+            {
+              "id": "step-stage-4-app-01",
+              "kind": "dbAccess",
+              "description": "application_approvals に異議申立対応 approved 履歴",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'objection_response', 'approved', @sessionUserId, 'staff')"
+            },
+            {
+              "id": "step-stage-4-app-02",
+              "kind": "dbAccess",
+              "description": "applications.status = 'final_decision'",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'final_decision', updated_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            }
+          ],
+          "onRejected": [
+            {
+              "id": "step-stage-4-rej-01",
+              "kind": "dbAccess",
+              "description": "application_approvals に rejected 履歴",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'objection_response', 'rejected', @sessionUserId, 'staff')"
+            },
+            {
+              "id": "step-stage-4-rej-02",
+              "kind": "dbAccess",
+              "description": "applications.status = 'rejected'",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'rejected', rejection_reason = '異議申立により却下', decided_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            },
+            { "id": "step-stage-4-rej-03", "kind": "eventPublish", "topic": "public.application_rejected", "description": "却下イベント", "payload": "{ applicationNumber: @createdApplication.application_number, stage: 'objection_response', reason: 'veto' }" },
+            { "id": "step-stage-4-rej-04", "kind": "return", "description": "422 異議申立却下", "responseId": "422-objection-rejected", "bodyExpression": "{ code: 'OBJECTION_REJECTED', message: '異議申立により却下されました' }" }
+          ]
+        },
+        {
+          "id": "step-stage-5",
+          "kind": "workflow",
+          "description": "Stage 5 最終決裁 (approval-sequential): 担当→課長→部長 の 3 段承認。Round 1〜3 で実機使用済の再現性確認。",
+          "maturity": "committed",
+          "pattern": "approval-sequential",
+          "approvers": [
+            { "role": "@conv.role.public.staff", "label": "担当", "order": 1 },
+            { "role": "@conv.role.public.manager", "label": "課長", "order": 2 },
+            { "role": "@conv.role.public.director", "label": "部長", "order": 3 }
+          ],
+          "onApproved": [
+            {
+              "id": "step-stage-5-app-01",
+              "kind": "dbAccess",
+              "description": "applications.status = 'approved' + decided_at",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'approved', decided_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            },
+            {
+              "id": "step-stage-5-app-02",
+              "kind": "dbAccess",
+              "description": "application_approvals に最終決裁 approved 履歴",
+              "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+              "operation": "INSERT",
+              "sql": "INSERT INTO application_approvals (application_id, stage, decision, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'final_decision', 'approved', @sessionUserId, 'director')"
+            }
+          ],
+          "onRejected": [
+            {
+              "id": "step-stage-5-rej-01",
+              "kind": "dbAccess",
+              "description": "applications.status = 'rejected'",
+              "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+              "operation": "UPDATE",
+              "sql": "UPDATE applications SET status = 'rejected', rejection_reason = '最終決裁で却下', decided_at = CURRENT_TIMESTAMP WHERE id = @createdApplication.id"
+            },
+            { "id": "step-stage-5-rej-02", "kind": "eventPublish", "topic": "public.application_rejected", "description": "却下イベント", "payload": "{ applicationNumber: @createdApplication.application_number, stage: 'final_decision', reason: 'final' }" },
+            { "id": "step-stage-5-rej-03", "kind": "return", "description": "422 最終決裁却下", "responseId": "422-final-rejected", "bodyExpression": "{ code: 'FINAL_REJECTED', message: '最終決裁で却下されました' }" }
+          ]
+        },
+        {
+          "id": "step-99-audit",
+          "kind": "audit",
+          "description": "最終決裁完了の監査ログ (個人情報処理の重要操作)",
+          "action": "public.application.approve",
+          "resource": { "type": "application", "id": "@createdApplication.application_number" },
+          "result": "success",
+          "sensitive": true
+        },
+        {
+          "id": "step-99-event",
+          "kind": "eventPublish",
+          "topic": "public.application_approved",
+          "description": "最終承認イベント発行",
+          "payload": "{ applicationNumber: @createdApplication.application_number }"
+        },
+        {
+          "id": "step-99-return",
+          "kind": "return",
+          "description": "200 OK 申請完了",
+          "responseId": "200-ok",
+          "bodyExpression": "{ applicationNumber: @createdApplication.application_number, status: 'approved', decidedAt: @now }"
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-001",
+        "title": "5 段 workflow を 1 ProcessFlow 内で連結する",
+        "status": "accepted",
+        "context": "建築確認申請の 5 段審査を、(A) 1 ProcessFlow に WorkflowStep を 5 つ並べる か (B) 5 つの ProcessFlow に分割しイベント駆動で連携する かの選択。",
+        "decision": "本サンプルは (A) を採用。schema レベルで多段 WorkflowStep 連結が表現可能か実機検証することが目的。実運用では (B) の方が deadline 待ちで HTTP TX を切らずに済むため現実的だが、本ラウンドの dogfood 趣旨は schema 検証。",
+        "consequences": "1 ProcessFlow が肥大化 (15+ step + 5 workflow)。可読性は下がるが、各 stage 間のデータフローが見える利点あり。",
+        "date": "2026-04-28"
+      }
+    ],
+    "glossary": {
+      "公示期間": {
+        "definition": "建築基準法に定められた 14 日間の公衆閲覧期間。利害関係者がこの期間内に異議を申し立てられる。",
+        "aliases": ["Public Notice Period"]
+      },
+      "異議申立": {
+        "definition": "公示期間中に近隣住民や環境担当が建築計画に対して提出する反対意見。1 件でも認められれば申請は却下 (approval-veto)。",
+        "aliases": ["Objection"]
+      }
+    },
+    "testScenarios": [
+      {
+        "id": "happy-path-full-approval",
+        "name": "全 5 段階を承認、最終的に approved になる",
+        "given": [
+          { "kind": "sessionContext", "context": { "requestId": "req-001", "sessionUserId": "user-001" } },
+          {
+            "kind": "dbState",
+            "tableId": "5ebdcbd7-0a49-463d-af3b-226ba1e3e36c",
+            "rows": [{ "id": 1, "applicant_code": "AP00000001", "name": "山田建設", "is_corporate": true }]
+          }
+        ],
+        "when": {
+          "actionId": "act-001",
+          "input": {
+            "applicantCode": "AP00000001",
+            "siteAddress": "東京都新宿区西新宿 1-1-1",
+            "buildingUse": "commercial",
+            "totalFloorAreaSqm": 1500.5
+          }
+        },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "output", "path": "$.status", "equals": "approved" },
+          { "kind": "dbRow", "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb", "match": { "status": "approved" }, "count": 1 },
+          { "kind": "dbRow", "tableId": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13", "match": { "application_id": 1 }, "count": 5 },
+          { "kind": "auditLog", "action": "public.application.submit", "result": "success" },
+          { "kind": "auditLog", "action": "public.application.approve", "result": "success" }
+        ],
+        "tags": ["happy", "5-stage-workflow"]
+      },
+      {
+        "id": "first-review-rejected",
+        "name": "一次審査で却下 → 422",
+        "given": [
+          { "kind": "sessionContext", "context": { "requestId": "req-002", "sessionUserId": "user-001" } },
+          { "kind": "dbState", "tableId": "5ebdcbd7-0a49-463d-af3b-226ba1e3e36c", "rows": [{ "id": 1, "applicant_code": "AP00000001", "name": "テスト" }] }
+        ],
+        "when": { "actionId": "act-001", "input": { "applicantCode": "AP00000001", "siteAddress": "違反建築地", "buildingUse": "industrial", "totalFloorAreaSqm": 500 } },
+        "then": [{ "kind": "outcome", "expected": "422-review-rejected" }],
+        "tags": ["error", "first-review"]
+      },
+      {
+        "id": "objection-veto",
+        "name": "異議申立で veto → 422",
+        "given": [
+          { "kind": "sessionContext", "context": { "requestId": "req-003", "sessionUserId": "user-001" } },
+          { "kind": "dbState", "tableId": "5ebdcbd7-0a49-463d-af3b-226ba1e3e36c", "rows": [{ "id": 1, "applicant_code": "AP00000001", "name": "テスト" }] }
+        ],
+        "when": { "actionId": "act-001", "input": { "applicantCode": "AP00000001", "siteAddress": "近隣異議地", "buildingUse": "commercial", "totalFloorAreaSqm": 800 } },
+        "then": [{ "kind": "outcome", "expected": "422-objection-rejected" }],
+        "tags": ["error", "objection-veto"]
+      }
+    ],
+    "notes": [
+      {
+        "id": "note-r4-01",
+        "kind": "assumption",
+        "body": "Round 4 dogfood (#535)。WorkflowPattern 4 種 (acknowledge / review / sign-off / approval-veto) を 1 ProcessFlow 内に連結することで業務文脈での schema 妥当性を実機検証する。Round 1〜3 で実機使用したのは approval-sequential のみ、本フローで残り 4 種をカバー。",
+        "createdAt": "2026-04-28T00:00:00.000Z"
+      },
+      {
+        "id": "note-r4-02",
+        "kind": "deferred",
+        "body": "approval-quorum / approval-escalation / approval-parallel / branch-merge / discussion / ad-hoc は依然 fixture のみで業務文脈未検証。本サンプルでは出番がないため後続 Round で再評価 (もしくは fixture 検証で容認)。",
+        "createdAt": "2026-04-28T00:00:00.000Z"
+      }
+    ]
+  }
+}
