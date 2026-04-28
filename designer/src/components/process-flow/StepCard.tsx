@@ -82,7 +82,7 @@ interface InlineStepListProps {
   steps: Step[];
   parentLabel: string;
   allSteps: Step[];
-  tables: { id: string; name: string; logicalName: string }[];
+  tables: { id: string; physicalName: string; name: string }[];
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
   onChange: (steps: Step[]) => void;
@@ -200,7 +200,7 @@ interface StepCardProps {
   index: number;
   label: string;
   allSteps: Step[];
-  tables: { id: string; name: string; logicalName: string }[];
+  tables: { id: string; physicalName: string; name: string }[];
   screens: { id: string; name: string }[];
   commonGroups: { id: string; name: string }[];
   conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
@@ -916,13 +916,13 @@ export function StepCard({
                     className="form-select form-select-sm"
                     value={step.tableName}
                     onChange={(e) => {
-                      const t = tables.find((t) => t.name === e.target.value);
+                      const t = tables.find((t) => t.physicalName === e.target.value);
                       onChange({ tableName: e.target.value, tableId: t?.id } as Partial<Step>);
                     }}
                   >
                     <option value="">（選択）</option>
                     {tables.map((t) => (
-                      <option key={t.id} value={t.name}>{t.name}（{t.logicalName}）</option>
+                      <option key={t.id} value={t.physicalName}>{t.name}（{t.physicalName}）</option>
                     ))}
                   </select>
                 </div>
