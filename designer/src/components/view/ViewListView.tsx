@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ViewMeta } from "../../types/view";
-import type { ViewDefinition } from "../../types/view";
+import type { View, ViewEntry, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { listViews, createView, deleteView, loadView, saveView, reorderViews } from "../../store/viewStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -35,9 +34,9 @@ export function ViewListView() {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
-  const [addId, setAddId] = useState("");
-  const [addDescription, setAddDescription] = useState("");
-  const [addIdError, setAddIdError] = useState("");
+  const [addPhysicalName, setAddPhysicalName] = useState("");
+  const [addName, setAddName] = useState("");
+  const [addPhysicalNameError, setAddPhysicalNameError] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
 
   const loadViews = useCallback(async () => {
@@ -45,7 +44,7 @@ export function ViewListView() {
     return await listViews();
   }, []);
 
-  const commitViews = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ViewMeta[]; deletedIds: string[] }) => {
+  const commitViews = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ViewEntry[]; deletedIds: string[] }) => {
     for (const id of deletedIds) {
       await deleteView(id);
     }
@@ -55,7 +54,7 @@ export function ViewListView() {
     }
   }, []);
 
-  const editor = useListEditor<ViewMeta>({
+  const editor = useListEditor<ViewEntry>({
     getId: (v) => v.id,
     load: loadViews,
     commit: commitViews,
@@ -85,16 +84,16 @@ export function ViewListView() {
       return;
     }
     filter.applyFilter((v) =>
-      v.id.toLowerCase().includes(q) ||
-      (v.description ?? "").toLowerCase().includes(q),
+      v.name.toLowerCase().includes(q) ||
+      (v.physicalName ?? "").toLowerCase().includes(q),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const sortAccessor = useCallback((v: ViewMeta, key: string): string | number => {
+  const sortAccessor = useCallback((v: ViewEntry, key: string): string | number => {
     switch (key) {
-      case "id": return v.id;
-      case "description": return v.description ?? "";
+      case "name": return v.name;
+      case "physicalName": return v.physicalName ?? "";
       case "updatedAt": return v.updatedAt;
       default: return "";
     }
@@ -102,46 +101,50 @@ export function ViewListView() {
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (v) => v.id);
-  const clipboard = useListClipboard<ViewMeta>((v) => v.id);
+  const clipboard = useListClipboard<ViewEntry>((v) => v.id);
 
-  const handleActivate = useCallback((v: ViewMeta) => {
+  const handleActivate = useCallback((v: ViewEntry) => {
     if (editor.isDeleted(v.id)) return;
     navigate(`/view/edit/${encodeURIComponent(v.id)}`);
   }, [navigate, editor]);
 
-  const handleDelete = (items: ViewMeta[]) => {
+  const handleDelete = (items: ViewEntry[]) => {
     editor.markDeleted(items.map((v) => v.id));
   };
 
-  const makeCopyId = (baseId: string, existingIds: Set<string>): string => {
-    let candidate = baseId + "_copy";
+  const makeCopyPhysicalName = (basePhysical: string, existing: Set<string>): string => {
+    let candidate = basePhysical + "_copy";
     let n = 2;
-    while (existingIds.has(candidate)) {
-      candidate = `${baseId}_copy_${n}`;
+    while (existing.has(candidate)) {
+      candidate = `${basePhysical}_copy_${n}`;
       n++;
     }
     return candidate;
   };
 
-  const handleDuplicate = async (items: ViewMeta[]) => {
+  const handleDuplicate = async (items: ViewEntry[]) => {
     const newIds: string[] = [];
-    const existingIds = new Set(editor.items.map((v) => v.id));
+    const existingPhysical = new Set<string>(editor.items.map((v) => v.physicalName ?? ""));
     for (const m of items) {
       const full = await loadView(m.id);
       if (!full) continue;
-      const newId = makeCopyId(m.id, existingIds);
-      existingIds.add(newId);
-      const dup: ViewDefinition = {
+      const newPhysical = makeCopyPhysicalName(full.physicalName ?? full.name, existingPhysical);
+      existingPhysical.add(newPhysical);
+      const ts = new Date().toISOString() as Timestamp;
+      const dup = await createView(newPhysical as PhysicalName, full.name, full.description);
+      const completed: View = {
         ...full,
-        id: newId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        id: dup.id,
+        physicalName: newPhysical as PhysicalName,
+        name: full.name,
+        createdAt: ts,
+        updatedAt: ts,
       };
-      await saveView(dup);
+      await saveView(completed);
       newIds.push(dup.id);
     }
     await editor.reload();
-    if (newIds.length > 0) selection.setSelectedIds(new Set(newIds));
+    if (newIds.length > 0) selection.setSelectedIds(new Set<string>(newIds));
   };
 
   const handlePaste = async (insertIdx: number | null) => {
@@ -150,7 +153,7 @@ export function ViewListView() {
     if (!clipItems.length) return;
 
     if (mode === "cut") {
-      const cutIds = new Set(clipItems.map((c) => c.id));
+      const cutIds = new Set<string>(clipItems.map((c) => c.id));
       const selIds = selection.selectedIds;
       const sameSet = selIds.size === cutIds.size && [...selIds].every((id) => cutIds.has(id));
       if (sameSet) return;
@@ -166,27 +169,10 @@ export function ViewListView() {
         next.splice(pos, 0, ...moved);
         return renumber(next);
       });
-      selection.setSelectedIds(new Set(moved.map((v) => v.id)));
+      selection.setSelectedIds(new Set<string>(moved.map((v) => v.id)));
     } else {
-      const newIds: string[] = [];
-      const existingIds = new Set(editor.items.map((v) => v.id));
-      for (const m of clipItems) {
-        const full = await loadView(m.id);
-        if (!full) continue;
-        const newId = makeCopyId(m.id, existingIds);
-        existingIds.add(newId);
-        const dup: ViewDefinition = {
-          ...full,
-          id: newId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        await saveView(dup);
-        newIds.push(dup.id);
-      }
+      await handleDuplicate(clipItems);
       clipboard.consume();
-      await editor.reload();
-      selection.setSelectedIds(new Set(newIds));
     }
   };
 
@@ -201,7 +187,7 @@ export function ViewListView() {
     editor.reorder(realFrom, realTo);
   };
 
-  const moveBlock = (items: ViewMeta[], direction: "up" | "down") => {
+  const moveBlock = (items: ViewEntry[], direction: "up" | "down") => {
     const ids = new Set(items.map((v) => v.id));
     const idxs = editor.items
       .map((v, i) => (ids.has(v.id) ? i : -1))
@@ -230,27 +216,28 @@ export function ViewListView() {
   const sortActive = sort.sortKeys.length > 0;
 
   const columnLabels = useMemo<Record<string, string>>(() => ({
-    id: "ビュー名",
-    description: "説明",
+    name: "表示名",
+    physicalName: "物理名",
     updatedAt: "更新日",
   }), []);
 
   const handleAdd = async () => {
-    const id = addId.trim();
-    if (!id) return;
-    if (editor.items.some((v) => v.id === id)) {
-      setAddIdError(`ビュー名 "${id}" は既に存在します`);
+    const physical = addPhysicalName.trim();
+    const name = addName.trim();
+    if (!physical || !name) return;
+    if (editor.items.some((v) => v.physicalName === physical)) {
+      setAddPhysicalNameError(`物理名 "${physical}" は既に存在します`);
       return;
     }
-    const v = await createView(id, addDescription.trim() || undefined);
+    const v = await createView(physical as PhysicalName, name as DisplayName);
     setShowAdd(false);
-    setAddId("");
-    setAddDescription("");
-    setAddIdError("");
+    setAddPhysicalName("");
+    setAddName("");
+    setAddPhysicalNameError("");
     navigate(`/view/edit/${encodeURIComponent(v.id)}`);
   };
 
-  const buildMenuItems = (target: ViewMeta | null): ContextMenuItem[] => {
+  const buildMenuItems = (target: ViewEntry | null): ContextMenuItem[] => {
     const hasSelection = selection.selectedIds.size > 0 || target !== null;
     const pasteBlocked = sortActive || !clipboard.hasContent;
     const pasteReason = sortActive ? "ソート中は無効 (ソート解除で利用可能)" : "クリップボードが空";
@@ -292,7 +279,7 @@ export function ViewListView() {
         disabled: pasteBlocked, disabledReason: pasteBlocked && sortActive ? sortReason : pasteReason,
         onClick: () => {
           const ids = Array.from(selection.selectedIds);
-          const allIds = editor.items.map((v) => v.id);
+          const allIds: string[] = editor.items.map((v) => v.id);
           const insertIndex = ids.length > 0
             ? Math.max(...ids.map((id) => allIds.indexOf(id))) + 1
             : null;
@@ -315,20 +302,20 @@ export function ViewListView() {
     ];
   };
 
-  const handleContextMenu = (e: React.MouseEvent, target: ViewMeta | null) => {
+  const handleContextMenu = (e: React.MouseEvent, target: ViewEntry | null) => {
     setContextMenu({ x: e.clientX, y: e.clientY, items: buildMenuItems(target) });
   };
 
-  const handleContextMenuKey = (first: ViewMeta | null, rect: DOMRect | null) => {
+  const handleContextMenuKey = (first: ViewEntry | null, rect: DOMRect | null) => {
     if (first && !selection.isSelected(first.id)) {
-      selection.setSelectedIds(new Set([first.id]));
+      selection.setSelectedIds(new Set<string>([first.id]));
     }
     const x = rect ? rect.left : 100;
     const y = rect ? rect.bottom : 100;
     setContextMenu({ x, y, items: buildMenuItems(first) });
   };
 
-  const handleRowDelete = (v: ViewMeta) => {
+  const handleRowDelete = (v: ViewEntry) => {
     handleDelete([v]);
   };
 
@@ -359,20 +346,22 @@ export function ViewListView() {
     selection.clearSelection();
   };
 
-  const columns = useMemo<DataListColumn<ViewMeta>[]>(() => [
+  const columns = useMemo<DataListColumn<ViewEntry>[]>(() => [
     {
-      key: "id",
-      header: "ビュー名",
+      key: "name",
+      header: "表示名",
       sortable: true,
-      sortAccessor: (v) => v.id,
-      render: (v) => <code className="seq-list-name-code">{v.id}</code>,
+      sortAccessor: (v) => v.name,
+      render: (v) => <span>{v.name}</span>,
     },
     {
-      key: "description",
-      header: "説明",
+      key: "physicalName",
+      header: "物理名",
       sortable: true,
-      sortAccessor: (v) => v.description ?? "",
-      render: (v) => <span className="seq-list-description">{v.description ?? ""}</span>,
+      sortAccessor: (v) => v.physicalName ?? "",
+      render: (v) => v.physicalName
+        ? <code className="seq-list-name-code">{v.physicalName}</code>
+        : null,
     },
     {
       key: "updatedAt",
@@ -384,13 +373,13 @@ export function ViewListView() {
     },
   ], []);
 
-  const renderCard = (v: ViewMeta) => (
+  const renderCard = (v: ViewEntry) => (
     <div className="seq-card-content">
       <div className="seq-card-header">
-        <code className="seq-card-name">{v.id}</code>
+        <span className="seq-card-name">{v.name}</span>
       </div>
-      {v.description && (
-        <div className="seq-card-description">{v.description}</div>
+      {v.physicalName && (
+        <div className="seq-card-description"><code>{v.physicalName}</code></div>
       )}
       <div className="seq-card-meta">
         <span className="seq-card-date">{formatDate(v.updatedAt)}</span>
@@ -416,7 +405,7 @@ export function ViewListView() {
               <i className="bi bi-search" />
               <input
                 type="text"
-                placeholder="名前・説明で絞り込み..."
+                placeholder="表示名・物理名で絞り込み..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -501,40 +490,40 @@ export function ViewListView() {
         />
 
         {showAdd && (
-          <div className="tbl-modal-overlay" onClick={() => { setShowAdd(false); setAddIdError(""); }}>
+          <div className="tbl-modal-overlay" onClick={() => { setShowAdd(false); setAddPhysicalNameError(""); }}>
             <div className="tbl-modal" onClick={(e) => e.stopPropagation()}>
               <div className="tbl-modal-title">ビュー追加</div>
               <label className="tbl-field">
-                <span>ビュー名 <small>(snake_case、例: v_customer_with_last_order)</small></span>
+                <span>物理名 <small>(snake_case、例: v_customer_with_last_order)</small></span>
                 <input
                   type="text"
-                  value={addId}
-                  onChange={(e) => { setAddId(e.target.value); setAddIdError(""); }}
+                  value={addPhysicalName}
+                  onChange={(e) => { setAddPhysicalName(e.target.value); setAddPhysicalNameError(""); }}
                   placeholder="v_customer_with_last_order"
                   autoFocus
-                  className={addIdError ? "input-error" : undefined}
+                  className={addPhysicalNameError ? "input-error" : undefined}
                   onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
                 />
-                {addIdError && <span className="tbl-field-error">{addIdError}</span>}
+                {addPhysicalNameError && <span className="tbl-field-error">{addPhysicalNameError}</span>}
               </label>
               <label className="tbl-field">
-                <span>説明</span>
+                <span>表示名</span>
                 <input
                   type="text"
-                  value={addDescription}
-                  onChange={(e) => setAddDescription(e.target.value)}
-                  placeholder="顧客に最終購入日を結合した表示用ビュー"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="顧客最終購入日ビュー"
                   onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
                 />
               </label>
               <div className="tbl-modal-btns">
-                <button className="tbl-btn tbl-btn-ghost" onClick={() => { setShowAdd(false); setAddIdError(""); }}>
+                <button className="tbl-btn tbl-btn-ghost" onClick={() => { setShowAdd(false); setAddPhysicalNameError(""); }}>
                   キャンセル
                 </button>
                 <button
                   className="tbl-btn tbl-btn-primary"
                   onClick={handleAdd}
-                  disabled={!addId.trim()}
+                  disabled={!addPhysicalName.trim() || !addName.trim()}
                 >
                   作成して編集
                 </button>

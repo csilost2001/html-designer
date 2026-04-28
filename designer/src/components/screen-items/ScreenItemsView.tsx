@@ -31,7 +31,7 @@ import type { TableMeta } from "../../types/table";
 import { listProcessFlows } from "../../store/processFlowStore";
 import { listTables } from "../../store/tableStore";
 import { listViews } from "../../store/viewStore";
-import type { ViewMeta } from "../../types/view";
+import type { ViewEntry } from "../../types/v3";
 import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
@@ -243,7 +243,7 @@ export function ScreenItemsView() {
   const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
   const [processFlows, setProcessFlows] = useState<ProcessFlowMeta[]>([]);
   const [tables, setTables] = useState<TableMeta[]>([]);
-  const [views, setViews] = useState<ViewMeta[]>([]);
+  const [views, setViews] = useState<ViewEntry[]>([]);
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -1141,7 +1141,7 @@ export function ScreenItemsView() {
               {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
             </datalist>
             <datalist id="screen-items-view-list">
-              {views.map((v) => <option key={v.id} value={v.id}>{v.description}</option>)}
+              {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </datalist>
           </div>
           </>

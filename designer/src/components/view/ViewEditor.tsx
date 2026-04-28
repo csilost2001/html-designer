@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { ViewDefinition, ViewOutputColumn } from "../../types/view";
+import type { View, OutputColumn, PhysicalName, Uuid } from "../../types/v3";
 import { loadView, saveView } from "../../store/viewStore";
 import { listTables } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -10,16 +10,22 @@ import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } f
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { generateViewDdl } from "./generateViewDdl";
 
+interface TableOption {
+  id: string;
+  name: string;
+}
+
 export function ViewEditor() {
   const { viewId: rawId } = useParams<{ viewId: string }>();
   const viewId = rawId ? decodeURIComponent(rawId) : rawId;
   const navigate = useNavigate();
 
   const [ddlOpen, setDdlOpen] = useState(false);
-  const [tableIds, setTableIds] = useState<string[]>([]);
-  const [addDepInput, setAddDepInput] = useState("");
+  const [tableOptions, setTableOptions] = useState<TableOption[]>([]);
+  const [addDepId, setAddDepId] = useState("");
+  const [addColPhysical, setAddColPhysical] = useState("");
   const [addColName, setAddColName] = useState("");
-  const [addColType, setAddColType] = useState("");
+  const [addColDataType, setAddColDataType] = useState("");
   const [addColDesc, setAddColDesc] = useState("");
   const [addingCol, setAddingCol] = useState(false);
 
@@ -29,7 +35,7 @@ export function ViewEditor() {
     state: view,
     isDirty, isSaving, serverChanged,
     update, updateSilent, commit, handleSave, handleReset, dismissServerBanner,
-  } = useResourceEditor<ViewDefinition>({
+  } = useResourceEditor<View>({
     tabType: "view",
     mtimeKind: "view",
     draftKind: "view",
@@ -48,7 +54,7 @@ export function ViewEditor() {
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     listTables().then((metas) => {
-      setTableIds(metas.map((m) => m.id));
+      setTableOptions(metas.map((m) => ({ id: m.id, name: m.logicalName || m.name || m.id })));
     });
   }, [viewId]);
 
@@ -59,14 +65,17 @@ export function ViewEditor() {
   const ddl = generateViewDdl(view);
 
   const addDependency = () => {
-    const dep = addDepInput.trim();
+    const dep = addDepId.trim();
     if (!dep) return;
-    if ((view.dependencies ?? []).includes(dep)) return;
-    update((prev) => ({ ...prev, dependencies: [...(prev.dependencies ?? []), dep] }));
-    setAddDepInput("");
+    if ((view.dependencies ?? []).includes(dep as Uuid)) return;
+    update((prev) => ({
+      ...prev,
+      dependencies: [...(prev.dependencies ?? []), dep as Uuid],
+    }));
+    setAddDepId("");
   };
 
-  const removeDependency = (dep: string) => {
+  const removeDependency = (dep: Uuid) => {
     update((prev) => ({
       ...prev,
       dependencies: (prev.dependencies ?? []).filter((d) => d !== dep),
@@ -74,15 +83,17 @@ export function ViewEditor() {
   };
 
   const addOutputColumn = () => {
-    if (!addColName.trim() || !addColType.trim()) return;
-    const col: ViewOutputColumn = {
-      name: addColName.trim(),
-      type: addColType.trim(),
+    if (!addColPhysical.trim() || !addColDataType.trim()) return;
+    const col: OutputColumn = {
+      physicalName: addColPhysical.trim() as PhysicalName,
+      name: addColName.trim() || undefined,
+      dataType: addColDataType.trim(),
       description: addColDesc.trim() || undefined,
     };
     update((prev) => ({ ...prev, outputColumns: [...prev.outputColumns, col] }));
+    setAddColPhysical("");
     setAddColName("");
-    setAddColType("");
+    setAddColDataType("");
     setAddColDesc("");
     setAddingCol(false);
   };
@@ -94,14 +105,21 @@ export function ViewEditor() {
     }));
   };
 
-  const updateOutputColumn = (idx: number, field: keyof ViewOutputColumn, value: string) => {
+  const updateOutputColumn = (idx: number, field: keyof OutputColumn, value: string) => {
     update((prev) => ({
       ...prev,
-      outputColumns: prev.outputColumns.map((c, i) =>
-        i === idx ? { ...c, [field]: value || undefined } : c,
-      ),
+      outputColumns: prev.outputColumns.map((c, i) => {
+        if (i !== idx) return c;
+        if (field === "physicalName") return { ...c, physicalName: (value || "") as PhysicalName };
+        if (field === "name") return { ...c, name: value || undefined };
+        if (field === "dataType") return { ...c, dataType: value };
+        if (field === "description") return { ...c, description: value || undefined };
+        return c;
+      }),
     }));
   };
+
+  const tableNameOf = (id: string): string => tableOptions.find((t) => t.id === id)?.name ?? id;
 
   return (
     <div className="table-editor-page">
@@ -109,7 +127,7 @@ export function ViewEditor() {
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
       <EditorHeader
-        title={<><i className="bi bi-eye" /> ビュー編集: <code>{view.id}</code></>}
+        title={<><i className="bi bi-eye" /> ビュー編集: <code>{view.physicalName}</code></>}
         backLink={{
           label: "ビュー一覧",
           onClick: () => navigate("/view/list"),
@@ -131,13 +149,22 @@ export function ViewEditor() {
             <h3 className="seq-editor-section-title">基本設定</h3>
             <div className="seq-editor-grid">
               <label className="tbl-field">
-                <span>ビュー名</span>
+                <span>物理名</span>
                 <input
                   type="text"
-                  value={view.id}
+                  value={view.physicalName}
                   readOnly
                   className="seq-readonly"
-                  title="ビュー名は作成後変更できません"
+                  title="物理名は作成後変更できません"
+                />
+              </label>
+              <label className="tbl-field">
+                <span>表示名</span>
+                <input
+                  type="text"
+                  value={view.name}
+                  onChange={(e) => update((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="顧客最終購入日ビュー"
                 />
               </label>
               <label className="tbl-field">
@@ -145,7 +172,7 @@ export function ViewEditor() {
                 <input
                   type="text"
                   value={view.description ?? ""}
-                  onChange={(e) => update((prev) => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) => update((prev) => ({ ...prev, description: e.target.value || undefined }))}
                   placeholder="顧客に最終購入日を結合した表示用ビュー"
                 />
               </label>
@@ -174,7 +201,7 @@ export function ViewEditor() {
                 {(view.dependencies ?? []).map((dep) => (
                   <div key={dep} className="seq-used-by-row">
                     <span className="seq-used-by-text">
-                      <i className="bi bi-table" /> {dep}
+                      <i className="bi bi-table" /> {tableNameOf(dep)}
                     </span>
                     <button
                       className="seq-used-by-del"
@@ -188,24 +215,22 @@ export function ViewEditor() {
               </div>
             )}
             <div className="view-editor-dep-add">
-              <input
-                type="text"
-                list="dep-table-ids"
-                value={addDepInput}
-                onChange={(e) => setAddDepInput(e.target.value)}
-                placeholder="テーブル名を入力..."
-                onKeyDown={(e) => { if (e.key === "Enter") addDependency(); }}
+              <select
+                value={addDepId}
+                onChange={(e) => setAddDepId(e.target.value)}
                 className="view-editor-dep-input"
-              />
-              <datalist id="dep-table-ids">
-                {tableIds.map((id) => (
-                  <option key={id} value={id} />
-                ))}
-              </datalist>
+              >
+                <option value="">テーブルを選択...</option>
+                {tableOptions
+                  .filter((t) => !(view.dependencies ?? []).includes(t.id as Uuid))
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+              </select>
               <button
                 className="tbl-btn tbl-btn-ghost"
                 onClick={addDependency}
-                disabled={!addDepInput.trim()}
+                disabled={!addDepId}
               >
                 <i className="bi bi-plus-lg" /> 追加
               </button>
@@ -230,16 +255,23 @@ export function ViewEditor() {
                   <div key={i} className="view-editor-col-row">
                     <input
                       type="text"
-                      value={col.name}
-                      onChange={(e) => updateOutputColumn(i, "name", e.target.value)}
-                      placeholder="列名"
+                      value={col.physicalName}
+                      onChange={(e) => updateOutputColumn(i, "physicalName", e.target.value)}
+                      placeholder="物理名 (snake_case)"
                       className="view-editor-col-name"
                     />
                     <input
                       type="text"
-                      value={col.type}
-                      onChange={(e) => updateOutputColumn(i, "type", e.target.value)}
-                      placeholder="型"
+                      value={col.name ?? ""}
+                      onChange={(e) => updateOutputColumn(i, "name", e.target.value)}
+                      placeholder="表示名（省略可）"
+                      className="view-editor-col-name"
+                    />
+                    <input
+                      type="text"
+                      value={col.dataType}
+                      onChange={(e) => updateOutputColumn(i, "dataType", e.target.value)}
+                      placeholder="データ型 (例: VARCHAR, INTEGER)"
                       className="view-editor-col-type"
                     />
                     <input
@@ -265,16 +297,22 @@ export function ViewEditor() {
               <div className="view-editor-col-add-form">
                 <input
                   type="text"
-                  value={addColName}
-                  onChange={(e) => setAddColName(e.target.value)}
-                  placeholder="列名 (例: customer_id)"
+                  value={addColPhysical}
+                  onChange={(e) => setAddColPhysical(e.target.value)}
+                  placeholder="物理名 (例: customer_id)"
                   autoFocus
                 />
                 <input
                   type="text"
-                  value={addColType}
-                  onChange={(e) => setAddColType(e.target.value)}
-                  placeholder="型 (例: uuid, string, timestamp)"
+                  value={addColName}
+                  onChange={(e) => setAddColName(e.target.value)}
+                  placeholder="表示名（省略可）"
+                />
+                <input
+                  type="text"
+                  value={addColDataType}
+                  onChange={(e) => setAddColDataType(e.target.value)}
+                  placeholder="データ型 (例: VARCHAR, INTEGER, TIMESTAMP)"
                 />
                 <input
                   type="text"
@@ -285,13 +323,13 @@ export function ViewEditor() {
                 <button
                   className="tbl-btn tbl-btn-primary"
                   onClick={addOutputColumn}
-                  disabled={!addColName.trim() || !addColType.trim()}
+                  disabled={!addColPhysical.trim() || !addColDataType.trim()}
                 >
                   追加
                 </button>
                 <button
                   className="tbl-btn tbl-btn-ghost"
-                  onClick={() => { setAddingCol(false); setAddColName(""); setAddColType(""); setAddColDesc(""); }}
+                  onClick={() => { setAddingCol(false); setAddColPhysical(""); setAddColName(""); setAddColDataType(""); setAddColDesc(""); }}
                 >
                   キャンセル
                 </button>
