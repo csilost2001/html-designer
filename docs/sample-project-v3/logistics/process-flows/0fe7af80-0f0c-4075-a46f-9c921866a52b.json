@@ -165,7 +165,8 @@
               "description": "transfer_orders.status = 'cancelled'",
               "tableId": "a2e83031-be05-442e-b1f0-df7eab240269",
               "operation": "UPDATE",
-              "sql": "UPDATE transfer_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = @createdOrder.id"
+              "sql": "UPDATE transfer_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = @createdOrder.id",
+              "lineage": { "writes": [{ "tableId": "a2e83031-be05-442e-b1f0-df7eab240269", "purpose": "status-update" }] }
             },
             { "id": "step-07-rej-02", "kind": "return", "description": "422 並行承認で却下", "responseId": "422-approval-rejected", "bodyExpression": "{ code: 'APPROVAL_REJECTED', message: '並行承認で却下されました' }" }
           ]
