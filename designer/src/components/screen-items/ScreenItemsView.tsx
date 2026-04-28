@@ -27,7 +27,7 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import type { ScreenItem, ScreenItemsFile, ValueSource } from "../../types/screenItem";
 import type { FieldType } from "../../types/action";
 import type { ProcessFlowMeta } from "../../types/action";
-import type { TableMeta } from "../../types/table";
+import type { TableEntry } from "../../types/v3";
 import { listProcessFlows } from "../../store/processFlowStore";
 import { listTables } from "../../store/tableStore";
 import { listViews } from "../../store/viewStore";
@@ -242,7 +242,7 @@ export function ScreenItemsView() {
   const [expandedErrorRows, setExpandedErrorRows] = useState<Set<number>>(new Set());
   const [expandedDetailRows, setExpandedDetailRows] = useState<Set<number>>(new Set());
   const [processFlows, setProcessFlows] = useState<ProcessFlowMeta[]>([]);
-  const [tables, setTables] = useState<TableMeta[]>([]);
+  const [tables, setTables] = useState<TableEntry[]>([]);
   const [views, setViews] = useState<ViewEntry[]>([]);
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
@@ -1138,7 +1138,7 @@ export function ScreenItemsView() {
               {processFlows.map((ag) => <option key={ag.id} value={ag.id}>{ag.name}</option>)}
             </datalist>
             <datalist id="screen-items-table-list">
-              {tables.map((t) => <option key={t.id} value={t.name}>{t.logicalName}</option>)}
+              {tables.map((t) => <option key={t.id} value={t.physicalName ?? ""}>{t.name}</option>)}
             </datalist>
             <datalist id="screen-items-view-list">
               {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}

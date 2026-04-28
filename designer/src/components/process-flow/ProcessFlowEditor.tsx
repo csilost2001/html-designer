@@ -183,7 +183,7 @@ export function ProcessFlowEditor() {
       setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
     listTables().then(async (metas) => {
-      setTables(metas.map((tm) => ({ id: tm.id, name: tm.name, logicalName: tm.logicalName })));
+      setTables(metas.map((tm) => ({ id: tm.id, name: tm.physicalName ?? "", logicalName: tm.name })));
       // SQL 列検査用に全テーブルの columns まで読む (#261 UI 統合)
       const defs = await Promise.all(
         metas.map(async (tm) => {

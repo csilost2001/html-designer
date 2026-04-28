@@ -20,8 +20,8 @@ import "@xyflow/react/dist/style.css";
 
 import ErTableNodeComponent, { type ErTableNodeData } from "./ErTableNode";
 import { TableSubToolbar } from "./TableSubToolbar";
-import type { TableDefinition, ErLayout, ErLogicalRelation, ErCardinality } from "../../types/table";
-import { CARDINALITY_LABELS } from "../../types/table";
+import type { Table, ErLayout, LogicalRelation, PhysicalName, DisplayName, LocalId, TableId } from "../../types/v3";
+import { CARDINALITY_LABELS, type ErCardinality } from "../../utils/erUtils";
 import { listTables, loadTable, createTable } from "../../store/tableStore";
 import { loadErLayout, saveErLayout } from "../../store/erLayoutStore";
 import { loadProject } from "../../store/flowStore";
@@ -41,7 +41,7 @@ function ErDiagramInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
   const [projectName, setProjectName] = useState("プロジェクト");
-  const [tables, setTables] = useState<TableDefinition[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
   const [layout, setLayout] = useState<ErLayout | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddRelation, setShowAddRelation] = useState(false);
@@ -103,7 +103,7 @@ function ErDiagramInner() {
       const p = await loadProject();
       setProjectName(p.name);
       const metas = await listTables();
-      const allTables: TableDefinition[] = [];
+      const allTables: Table[] = [];
       for (const m of metas) {
         const td = await loadTable(m.id);
         if (td) allTables.push(td);
@@ -136,8 +136,8 @@ function ErDiagramInner() {
       position: finalPositions[t.id] ?? { x: 0, y: 0 },
       data: {
         tableId: t.id,
+        physicalName: t.physicalName,
         name: t.name,
-        logicalName: t.logicalName,
         category: t.category,
         columns: t.columns,
       } satisfies ErTableNodeData,
@@ -186,7 +186,7 @@ function ErDiagramInner() {
 
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
     dragStartedRef.current = false;
-    const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: "" };
+    const ly = layoutRef.current ?? { positions: {} as Record<string, { x: number; y: number }>, logicalRelations: [] as LogicalRelation[], updatedAt: new Date().toISOString() as never };
     ly.positions[node.id] = { x: Math.round(node.position.x), y: Math.round(node.position.y) };
     layoutRef.current = ly;
     setLayout({ ...ly });
@@ -214,7 +214,7 @@ function ErDiagramInner() {
     pushLayoutUndo();
     const relations = getAllRelations(tables, layout);
     const autoPos = autoLayout(tables, relations);
-    const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: "" };
+    const ly = layoutRef.current ?? { positions: {} as Record<string, { x: number; y: number }>, logicalRelations: [] as LogicalRelation[], updatedAt: new Date().toISOString() as never };
     ly.positions = autoPos;
     layoutRef.current = ly;
     setLayout({ ...ly });
@@ -228,11 +228,13 @@ function ErDiagramInner() {
   }, [tables, layout, setNodes, fitView, debouncedSave]);
 
   // Add logical relation
-  const handleAddLogicalRelation = useCallback((rel: Omit<ErLogicalRelation, "id">) => {
+  const handleAddLogicalRelation = useCallback((rel: Omit<LogicalRelation, "id">) => {
     pushLayoutUndo();
-    const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: "" };
+    const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: new Date().toISOString() as never };
     if (!ly.logicalRelations) ly.logicalRelations = [];
-    ly.logicalRelations.push({ ...rel, id: `lr-${generateUUID()}` });
+    // LocalId pattern: 開始は英数字、内部は - / _ 可。"lr-<short>" 形式で採番。
+    const short = generateUUID().split("-")[0];
+    ly.logicalRelations.push({ ...rel, id: `lr-${short}` as LocalId });
     layoutRef.current = ly;
     setLayout({ ...ly });
     debouncedSave(ly);
@@ -251,8 +253,8 @@ function ErDiagramInner() {
   }, [debouncedSave]);
 
   // Add table from ER diagram
-  const handleAddTable = useCallback(async (name: string, logicalName: string, category?: string) => {
-    const table = await createTable(name, logicalName, "", category);
+  const handleAddTable = useCallback(async (physicalName: string, displayName: string, category?: string) => {
+    const table = await createTable(physicalName as PhysicalName, displayName as DisplayName, "", category);
     const newTable = await loadTable(table.id);
     if (newTable) {
       setTables((prev) => [...prev, newTable]);
@@ -448,20 +450,20 @@ export function ErDiagram() {
 function AddRelationModal({
   tables, initialSourceTableId, initialTargetTableId, onAdd, onClose,
 }: {
-  tables: TableDefinition[];
+  tables: Table[];
   initialSourceTableId?: string;
   initialTargetTableId?: string;
-  onAdd: (rel: Omit<ErLogicalRelation, "id">) => void;
+  onAdd: (rel: Omit<LogicalRelation, "id">) => void;
   onClose: () => void;
 }) {
   const [srcTableId, setSrcTableId] = useState(initialSourceTableId ?? "");
-  const [srcCol, setSrcCol] = useState("");
+  const [srcColId, setSrcColId] = useState("");
   const [tgtTableId, setTgtTableId] = useState(initialTargetTableId ?? "");
-  const [tgtCol, setTgtCol] = useState(() => {
+  const [tgtColId, setTgtColId] = useState(() => {
     if (initialTargetTableId) {
       const tgt = tables.find((t) => t.id === initialTargetTableId);
       const pk = tgt?.columns.find((c) => c.primaryKey);
-      return pk?.name ?? "";
+      return pk?.id ?? "";
     }
     return "";
   });
@@ -475,10 +477,10 @@ function AddRelationModal({
   const handleSubmit = () => {
     if (!srcTableId || !tgtTableId) return;
     onAdd({
-      sourceTableId: srcTableId,
-      sourceColumnName: srcCol || undefined,
-      targetTableId: tgtTableId,
-      targetColumnName: tgtCol || undefined,
+      sourceTableId: srcTableId as TableId,
+      sourceColumnId: (srcColId || undefined) as LocalId | undefined,
+      targetTableId: tgtTableId as TableId,
+      targetColumnId: (tgtColId || undefined) as LocalId | undefined,
       cardinality,
       label: label.trim() || undefined,
     });
@@ -511,17 +513,17 @@ function AddRelationModal({
           <div style={{ flex: 1 }}>
             <label className="tbl-field">
               <span>参照元テーブル（多側 / FK側）</span>
-              <select value={srcTableId} onChange={(e) => { setSrcTableId(e.target.value); setSrcCol(""); }}>
+              <select value={srcTableId} onChange={(e) => { setSrcTableId(e.target.value); setSrcColId(""); }}>
                 <option value="">選択...</option>
-                {tables.map((t) => <option key={t.id} value={t.id}>{t.name}（{t.logicalName}）</option>)}
+                {tables.map((t) => <option key={t.id} value={t.id}>{t.physicalName}（{t.name}）</option>)}
               </select>
             </label>
             {hasColumns && (
               <label className="tbl-field">
                 <span>参照元カラム <small style={{ color: "#666" }}>（任意）</small></span>
-                <select value={srcCol} onChange={(e) => setSrcCol(e.target.value)}>
+                <select value={srcColId} onChange={(e) => setSrcColId(e.target.value)}>
                   <option value="">（未定）</option>
-                  {srcTable?.columns.map((c) => <option key={c.id} value={c.name}>{c.name}（{c.logicalName}）</option>)}
+                  {srcTable?.columns.map((c) => <option key={c.id} value={c.id}>{c.physicalName}（{c.name}）</option>)}
                 </select>
               </label>
             )}
@@ -530,19 +532,19 @@ function AddRelationModal({
           <div style={{ flex: 1 }}>
             <label className="tbl-field">
               <span>参照先テーブル（1側）</span>
-              <select value={tgtTableId} onChange={(e) => { setTgtTableId(e.target.value); setTgtCol(""); }}>
+              <select value={tgtTableId} onChange={(e) => { setTgtTableId(e.target.value); setTgtColId(""); }}>
                 <option value="">選択...</option>
-                {tables.map((t) => <option key={t.id} value={t.id}>{t.name}（{t.logicalName}）</option>)}
+                {tables.map((t) => <option key={t.id} value={t.id}>{t.physicalName}（{t.name}）</option>)}
               </select>
             </label>
             {hasColumns && (
               <label className="tbl-field">
                 <span>参照先カラム <small style={{ color: "#666" }}>（任意）</small></span>
-                <select value={tgtCol} onChange={(e) => setTgtCol(e.target.value)}>
+                <select value={tgtColId} onChange={(e) => setTgtColId(e.target.value)}>
                   <option value="">（未定）</option>
                   {tgtTable?.columns.map((c) => {
                     const icons = c.primaryKey ? "🔑 " : c.unique ? "🔗 " : "";
-                    return <option key={c.id} value={c.name}>{icons}{c.name}（{c.logicalName}）</option>;
+                    return <option key={c.id} value={c.id}>{icons}{c.physicalName}（{c.name}）</option>;
                   })}
                 </select>
               </label>
@@ -579,11 +581,11 @@ function AddRelationModal({
 function AddTableFromErModal({
   onAdd, onClose,
 }: {
-  onAdd: (name: string, logicalName: string, category?: string) => void;
+  onAdd: (physicalName: string, displayName: string, category?: string) => void;
   onClose: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [logicalName, setLogicalName] = useState("");
+  const [physicalName, setPhysicalName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [category, setCategory] = useState("");
 
   return (
@@ -593,24 +595,24 @@ function AddTableFromErModal({
           <i className="bi bi-plus-lg" /> エンティティ（テーブル）追加
         </div>
         <label className="tbl-field">
-          <span>テーブル名 <small>(snake_case)</small></span>
+          <span>物理名 <small>(snake_case)</small></span>
           <input
             type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={physicalName}
+            onChange={(e) => setPhysicalName(e.target.value)}
             placeholder="customers"
             autoFocus
-            onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && logicalName.trim()) onAdd(name.trim(), logicalName.trim(), category || undefined); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && physicalName.trim() && displayName.trim()) onAdd(physicalName.trim(), displayName.trim(), category || undefined); }}
           />
         </label>
         <label className="tbl-field">
-          <span>論理名</span>
+          <span>表示名</span>
           <input
             type="text"
-            value={logicalName}
-            onChange={(e) => setLogicalName(e.target.value)}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
             placeholder="顧客マスタ"
-            onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && logicalName.trim()) onAdd(name.trim(), logicalName.trim(), category || undefined); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && physicalName.trim() && displayName.trim()) onAdd(physicalName.trim(), displayName.trim(), category || undefined); }}
           />
         </label>
         <label className="tbl-field">
@@ -629,8 +631,8 @@ function AddTableFromErModal({
           <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
           <button
             className="tbl-btn tbl-btn-primary"
-            onClick={() => onAdd(name.trim(), logicalName.trim(), category || undefined)}
-            disabled={!name.trim() || !logicalName.trim()}
+            onClick={() => onAdd(physicalName.trim(), displayName.trim(), category || undefined)}
+            disabled={!physicalName.trim() || !displayName.trim()}
           >
             追加
           </button>

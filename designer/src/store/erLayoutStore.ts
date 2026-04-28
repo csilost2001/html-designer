@@ -1,10 +1,12 @@
 /**
- * erLayoutStore.ts
- * ER図レイアウトの永続化ストア
+ * erLayoutStore.ts (v3, #556)
+ * ER 図レイアウトの永続化ストア。
+ *
+ * - data/er-layout.json (単一ファイル、v3 schema 準拠)
+ * - $schema 属性で v3 schema 参照を保存
+ * - localStorage キー prefix: v3-er-layout
  */
-import type { ErLayout } from "../types/table";
-
-// ─── ストレージバックエンド ──────────────────────────────────────────────
+import type { ErLayout, Timestamp } from "../types/v3";
 
 export interface ErLayoutStorageBackend {
   loadErLayout(): Promise<unknown>;
@@ -17,16 +19,23 @@ export function setErLayoutStorageBackend(b: ErLayoutStorageBackend | null): voi
   _backend = b;
 }
 
-// ─── localStorage キー ───────────────────────────────────────────────────
+// ─── localStorage キー (v3 名前空間、#556) ───────────────────────────────
 
-const ER_LAYOUT_KEY = "er-layout";
+const ER_LAYOUT_KEY = "v3-er-layout";
 
-function now(): string {
-  return new Date().toISOString();
+const ER_LAYOUT_SCHEMA_REF = "../schemas/v3/er-layout.v3.schema.json";
+
+function nowTs(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
 function createEmptyLayout(): ErLayout {
-  return { positions: {}, logicalRelations: [], updatedAt: now() };
+  return {
+    $schema: ER_LAYOUT_SCHEMA_REF,
+    positions: {},
+    logicalRelations: [],
+    updatedAt: nowTs(),
+  };
 }
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
@@ -47,10 +56,11 @@ export async function loadErLayout(): Promise<ErLayout> {
 }
 
 export async function saveErLayout(layout: ErLayout): Promise<void> {
-  layout.updatedAt = now();
+  // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
+  const toSave: ErLayout = { ...layout, $schema: ER_LAYOUT_SCHEMA_REF, updatedAt: nowTs() };
   if (_backend) {
-    await _backend.saveErLayout(layout);
+    await _backend.saveErLayout(toSave);
     return;
   }
-  localStorage.setItem(ER_LAYOUT_KEY, JSON.stringify(layout));
+  localStorage.setItem(ER_LAYOUT_KEY, JSON.stringify(toSave));
 }

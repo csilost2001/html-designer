@@ -140,7 +140,7 @@ export interface FlowProject {
   screens: ScreenNode[];
   groups: ScreenGroup[];
   edges: ScreenEdge[];
-  tables?: TableMeta[];
+  tables?: import("./v3").TableEntry[];
   processFlows?: ProcessFlowMeta[];
   sequences?: import("./v3").SequenceEntry[];
   views?: import("./v3").ViewEntry[];

@@ -124,7 +124,7 @@ export function AppShell() {
       } else {
         loadTable(tableId).then((table) => {
           if (table) {
-            openTab({ id: tabId, type: "table", resourceId: tableId, label: table.logicalName ?? table.name });
+            openTab({ id: tabId, type: "table", resourceId: tableId, label: table.name ?? table.physicalName });
           } else {
             fallbackToDashboard("テーブル", tableId);
           }

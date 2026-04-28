@@ -45,7 +45,7 @@ async function fetchAll(): Promise<RecentItem[]> {
 
   const resources: Array<{ kind: MtimeKind; id: string; name: string; displayKind: RecentItem["kind"] }> = [
     ...project.screens.map((s) => ({ kind: "screen" as MtimeKind, id: s.id, name: s.name, displayKind: "screen" as RecentItem["kind"] })),
-    ...tables.map((t) => ({ kind: "table" as MtimeKind, id: t.id, name: t.logicalName ?? t.name, displayKind: "table" as RecentItem["kind"] })),
+    ...tables.map((t) => ({ kind: "table" as MtimeKind, id: t.id, name: t.name ?? t.physicalName ?? t.id, displayKind: "table" as RecentItem["kind"] })),
     ...(project.processFlows ?? []).map((a) => ({ kind: "processFlow" as MtimeKind, id: a.id, name: a.name, displayKind: "processFlow" as RecentItem["kind"] })),
   ];
 

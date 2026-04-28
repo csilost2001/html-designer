@@ -1,21 +1,22 @@
 import { useState } from "react";
-import type { TableDefinition, IndexDefinition, IndexMethod } from "../../types/table";
+import type { Table, Index, LocalId, PhysicalName } from "../../types/v3";
 import { addIndex, removeIndex } from "../../store/tableStore";
 
+type IndexMethod = "btree" | "hash" | "gin" | "gist";
 const INDEX_METHODS: IndexMethod[] = ["btree", "hash", "gin", "gist"];
 
 interface Props {
-  table: TableDefinition;
-  update: (fn: (t: TableDefinition) => void) => void;
+  table: Table;
+  update: (fn: (t: Table) => void) => void;
 }
 
 export function IndexesTab({ table, update }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const indexes = table.indexes;
+  const indexes = table.indexes ?? [];
 
   const handleAdd = () => {
-    let newId = "";
+    let newId: string = "";
     update((t) => {
       const idx = addIndex(t);
       newId = idx.id;
@@ -28,9 +29,9 @@ export function IndexesTab({ table, update }: Props) {
     if (editingId === id) setEditingId(null);
   };
 
-  const handleUpdate = (id: string, patch: Partial<IndexDefinition>) => {
+  const handleUpdate = (id: string, patch: Partial<Index>) => {
     update((t) => {
-      const idx = t.indexes.find((i) => i.id === id);
+      const idx = (t.indexes ?? []).find((i) => i.id === id);
       if (idx) Object.assign(idx, patch);
     });
   };
@@ -67,6 +68,7 @@ export function IndexesTab({ table, update }: Props) {
               <IndexRow
                 key={idx.id}
                 idx={idx}
+                table={table}
                 onEdit={() => setEditingId(idx.id)}
                 onDelete={() => handleDelete(idx.id)}
               />
@@ -78,17 +80,22 @@ export function IndexesTab({ table, update }: Props) {
   );
 }
 
+function colPhysical(table: Table, columnId: string): string {
+  return table.columns.find((c) => c.id === columnId)?.physicalName ?? columnId;
+}
+
 // ── 一覧行 ────────────────────────────────────────────────────────────────────
 
 function IndexRow({
-  idx, onEdit, onDelete,
+  idx, table, onEdit, onDelete,
 }: {
-  idx: IndexDefinition;
+  idx: Index;
+  table: Table;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const colSummary = idx.columns.length > 0
-    ? idx.columns.map((ic) => `${ic.name}${ic.order === "desc" ? " DESC" : ""}`).join(", ")
+    ? idx.columns.map((ic) => `${colPhysical(table, ic.columnId)}${ic.order === "desc" ? " DESC" : ""}`).join(", ")
     : "(列未選択)";
 
   return (
@@ -98,7 +105,7 @@ function IndexRow({
         {idx.method && idx.method !== "btree" && (
           <span className="index-method-badge">{idx.method.toUpperCase()}</span>
         )}
-        <code className="index-row-id">{idx.id}</code>
+        <code className="index-row-id">{idx.physicalName}</code>
         {idx.description && <span className="index-row-desc">{idx.description}</span>}
       </div>
       <div className="index-row-summary">
@@ -122,17 +129,15 @@ function IndexRow({
 function IndexEditorCard({
   idx, table, onUpdate, onClose, onDelete,
 }: {
-  idx: IndexDefinition;
-  table: TableDefinition;
-  onUpdate: (patch: Partial<IndexDefinition>) => void;
+  idx: Index;
+  table: Table;
+  onUpdate: (patch: Partial<Index>) => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
-  const colNames = table.columns.map((c) => c.name);
-
-  const handleColNameChange = (i: number, name: string) => {
+  const handleColIdChange = (i: number, columnId: string) => {
     const cols = [...idx.columns];
-    cols[i] = { ...cols[i], name };
+    cols[i] = { ...cols[i], columnId: columnId as LocalId };
     onUpdate({ columns: cols });
   };
 
@@ -148,18 +153,18 @@ function IndexEditorCard({
   };
 
   const handleColAdd = () => {
-    onUpdate({ columns: [...idx.columns, { name: "" }] });
+    onUpdate({ columns: [...idx.columns, { columnId: "" as LocalId }] });
   };
 
   return (
     <div className="index-editor-card">
       <div className="index-editor-header">
         <div className="index-editor-name-wrap">
-          <label className="index-editor-label">インデックス名</label>
+          <label className="index-editor-label">インデックス物理名</label>
           <input
             className="index-name-input2"
-            value={idx.id}
-            onChange={(e) => onUpdate({ id: e.target.value })}
+            value={idx.physicalName}
+            onChange={(e) => onUpdate({ physicalName: e.target.value as PhysicalName })}
             placeholder="idx_tablename_column"
           />
         </div>
@@ -176,13 +181,13 @@ function IndexEditorCard({
             {idx.columns.map((ic, i) => (
               <div key={i} className="index-col-row">
                 <select
-                  value={ic.name}
-                  onChange={(e) => handleColNameChange(i, e.target.value)}
+                  value={ic.columnId}
+                  onChange={(e) => handleColIdChange(i, e.target.value)}
                   className="index-col-select"
                 >
                   <option value="">列を選択...</option>
-                  {colNames.map((n) => (
-                    <option key={n} value={n}>{n}</option>
+                  {table.columns.map((c) => (
+                    <option key={c.id} value={c.id}>{c.physicalName}</option>
                   ))}
                 </select>
                 <select

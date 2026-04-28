@@ -1,35 +1,42 @@
 import { useState, useEffect, useMemo } from "react";
 import type {
-  TableDefinition,
+  Table,
+  Column,
   DefaultDefinition,
-  DefaultKind,
   TriggerDefinition,
-  TriggerTiming,
-  TriggerEvent,
-} from "../../types/table";
+  SequenceEntry,
+  LocalId,
+  PhysicalName,
+} from "../../types/v3";
 import { addDefault, removeDefault, addTrigger, removeTrigger } from "../../store/tableStore";
 import { listSequences } from "../../store/sequenceStore";
 import { loadConventions } from "../../store/conventionsStore";
-import type { SequenceEntry } from "../../types/v3";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+
+// v3 DefaultDefinition.kind: literal / function / sequence / convention (旧 conventionRef → convention)
+type DefaultKind = DefaultDefinition["kind"];
 
 const DEFAULT_KIND_LABELS: Record<DefaultKind, string> = {
   literal: "リテラル (例: 0, 'active')",
   function: "関数 (例: NOW(), UUID())",
   sequence: "シーケンス (nextval)",
-  conventionRef: "規約参照 (@conv.numbering.*)",
+  convention: "規約参照 (@conv.numbering.*)",
 };
 
-const TRIGGER_TIMINGS: TriggerTiming[] = ["BEFORE", "AFTER"];
-const TRIGGER_EVENTS: TriggerEvent[] = ["INSERT", "UPDATE", "DELETE"];
+// v3 TriggerDefinition.timing: BEFORE / AFTER / INSTEAD_OF (拡張)
+type TriggerTiming = TriggerDefinition["timing"];
+type TriggerEvent = TriggerDefinition["events"][number];
+
+const TRIGGER_TIMINGS: TriggerTiming[] = ["BEFORE", "AFTER", "INSTEAD_OF"];
+const TRIGGER_EVENTS: TriggerEvent[] = ["INSERT", "UPDATE", "DELETE", "TRUNCATE"];
 
 interface Props {
-  table: TableDefinition;
-  update: (fn: (t: TableDefinition) => void) => void;
+  table: Table;
+  update: (fn: (t: Table) => void) => void;
 }
 
 export function TriggersDefaultsTab({ table, update }: Props) {
-  const [editingDefaultCol, setEditingDefaultCol] = useState<string | null>(null);
+  const [editingDefaultColId, setEditingDefaultColId] = useState<string | null>(null);
   const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
   const [sequences, setSequences] = useState<SequenceEntry[]>([]);
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
@@ -46,39 +53,42 @@ export function TriggersDefaultsTab({ table, update }: Props) {
 
   const defaults = table.defaults ?? [];
   const triggers = table.triggers ?? [];
-  const colNames = table.columns.map((c) => c.name);
+  const columns = table.columns;
+
+  const colPhysicalById = (colId: string) =>
+    columns.find((c) => c.id === colId)?.physicalName ?? colId;
 
   // ── DEFAULT 値 ──────────────────────────────────────────────────────────
 
   const handleAddDefault = () => {
-    const availableCols = colNames.filter((n) => !defaults.some((d) => d.column === n));
-    const col = availableCols[0] ?? colNames[0] ?? "";
+    const usedIds = new Set(defaults.map((d) => d.columnId));
+    const availableCol: Column | undefined = columns.find((c) => !usedIds.has(c.id));
+    const col: Column | undefined = availableCol ?? columns[0];
     if (!col) return;
-    const def: DefaultDefinition = { column: col, kind: "literal", value: "" };
+    const def: DefaultDefinition = { columnId: col.id, kind: "literal", value: "" };
     update((t) => addDefault(t, def));
-    setEditingDefaultCol(col);
+    setEditingDefaultColId(col.id);
   };
 
-  const handleDeleteDefault = (col: string) => {
-    update((t) => removeDefault(t, col));
-    if (editingDefaultCol === col) setEditingDefaultCol(null);
+  const handleDeleteDefault = (colId: string) => {
+    update((t) => removeDefault(t, colId));
+    if (editingDefaultColId === colId) setEditingDefaultColId(null);
   };
 
-  const handleUpdateDefault = (col: string, patch: Partial<DefaultDefinition>) => {
+  const handleUpdateDefault = (colId: string, patch: Partial<DefaultDefinition>) => {
     update((t) => {
-      const d = (t.defaults ?? []).find((x) => x.column === col);
+      const d = (t.defaults ?? []).find((x) => x.columnId === colId);
       if (d) Object.assign(d, patch);
     });
-    // if column name changed, update editing key
-    if (patch.column && patch.column !== col) {
-      setEditingDefaultCol(patch.column);
+    if (patch.columnId && patch.columnId !== colId) {
+      setEditingDefaultColId(patch.columnId);
     }
   };
 
   // ── トリガー ─────────────────────────────────────────────────────────────
 
   const handleAddTrigger = () => {
-    let newId = "";
+    let newId: string = "";
     update((t) => {
       const trg = addTrigger(t);
       newId = trg.id;
@@ -109,8 +119,8 @@ export function TriggersDefaultsTab({ table, update }: Props) {
           <button
             className="tbl-btn tbl-btn-primary tbl-btn-sm"
             onClick={handleAddDefault}
-            disabled={colNames.length === 0}
-            title={colNames.length === 0 ? "列を先に追加してください" : undefined}
+            disabled={columns.length === 0}
+            title={columns.length === 0 ? "列を先に追加してください" : undefined}
           >
             <i className="bi bi-plus-lg" /> 追加
           </button>
@@ -125,24 +135,25 @@ export function TriggersDefaultsTab({ table, update }: Props) {
         ) : (
           <div className="td-list">
             {defaults.map((def) =>
-              editingDefaultCol === def.column ? (
+              editingDefaultColId === def.columnId ? (
                 <DefaultEditorCard
-                  key={def.column}
+                  key={def.columnId}
                   def={def}
-                  colNames={colNames}
-                  usedCols={new Set(defaults.map((d) => d.column).filter((c) => c !== def.column))}
+                  columns={columns}
+                  usedColIds={new Set(defaults.map((d) => d.columnId).filter((id) => id !== def.columnId))}
                   sequences={sequences}
                   numberingKeys={numberingKeys}
-                  onUpdate={(patch) => handleUpdateDefault(def.column, patch)}
-                  onClose={() => setEditingDefaultCol(null)}
-                  onDelete={() => handleDeleteDefault(def.column)}
+                  onUpdate={(patch) => handleUpdateDefault(def.columnId, patch)}
+                  onClose={() => setEditingDefaultColId(null)}
+                  onDelete={() => handleDeleteDefault(def.columnId)}
                 />
               ) : (
                 <DefaultRow
-                  key={def.column}
+                  key={def.columnId}
                   def={def}
-                  onEdit={() => setEditingDefaultCol(def.column)}
-                  onDelete={() => handleDeleteDefault(def.column)}
+                  colPhysicalById={colPhysicalById}
+                  onEdit={() => setEditingDefaultColId(def.columnId)}
+                  onDelete={() => handleDeleteDefault(def.columnId)}
                 />
               ),
             )}
@@ -196,9 +207,10 @@ export function TriggersDefaultsTab({ table, update }: Props) {
 // ── DEFAULT 値 一覧行 ────────────────────────────────────────────────────────
 
 function DefaultRow({
-  def, onEdit, onDelete,
+  def, colPhysicalById, onEdit, onDelete,
 }: {
   def: DefaultDefinition;
+  colPhysicalById: (colId: string) => string;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -206,9 +218,9 @@ function DefaultRow({
     <div className="td-row">
       <div className="td-row-main">
         <span className={`td-kind-badge td-kind-badge--${def.kind}`}>
-          {def.kind === "conventionRef" ? "規約参照" : def.kind}
+          {def.kind === "convention" ? "規約参照" : def.kind}
         </span>
-        <code className="td-row-col">{def.column}</code>
+        <code className="td-row-col">{colPhysicalById(def.columnId)}</code>
         {def.description && <span className="td-row-desc">{def.description}</span>}
       </div>
       <div className="td-row-summary">
@@ -229,18 +241,18 @@ function DefaultRow({
 // ── DEFAULT 値 編集カード ─────────────────────────────────────────────────────
 
 function DefaultEditorCard({
-  def, colNames, usedCols, sequences, numberingKeys, onUpdate, onClose, onDelete,
+  def, columns, usedColIds, sequences, numberingKeys, onUpdate, onClose, onDelete,
 }: {
   def: DefaultDefinition;
-  colNames: string[];
-  usedCols: Set<string>;
+  columns: Column[];
+  usedColIds: Set<string>;
   sequences: SequenceEntry[];
   numberingKeys: string[];
   onUpdate: (patch: Partial<DefaultDefinition>) => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
-  const isConventionRef = def.kind === "conventionRef";
+  const isConvention = def.kind === "convention";
 
   return (
     <div className="td-editor-card">
@@ -255,12 +267,12 @@ function DefaultEditorCard({
         <label className="td-editor-field">
           <span>対象列</span>
           <select
-            value={def.column}
-            onChange={(e) => onUpdate({ column: e.target.value })}
+            value={def.columnId}
+            onChange={(e) => onUpdate({ columnId: e.target.value as LocalId })}
           >
-            {colNames.map((n) => (
-              <option key={n} value={n} disabled={usedCols.has(n)}>
-                {n}{usedCols.has(n) ? " (使用中)" : ""}
+            {columns.map((c) => (
+              <option key={c.id} value={c.id} disabled={usedColIds.has(c.id)}>
+                {c.physicalName}{usedColIds.has(c.id) ? " (使用中)" : ""}
               </option>
             ))}
           </select>
@@ -269,14 +281,14 @@ function DefaultEditorCard({
         <div className="td-editor-field">
           <span>種別</span>
           <div className="td-kind-radios">
-            {(["literal", "function", "sequence", "conventionRef"] as DefaultKind[]).map((k) => (
+            {(["literal", "function", "sequence", "convention"] as DefaultKind[]).map((k) => (
               <label key={k} className="td-kind-radio">
                 <input
                   type="radio"
-                  name={`default-kind-${def.column}`}
+                  name={`default-kind-${def.columnId}`}
                   value={k}
                   checked={def.kind === k}
-                  onChange={() => onUpdate({ kind: k, value: k === "conventionRef" ? "@conv.numbering." : "" })}
+                  onChange={() => onUpdate({ kind: k, value: k === "convention" ? "@conv.numbering." : "" })}
                 />
                 {DEFAULT_KIND_LABELS[k]}
               </label>
@@ -285,8 +297,8 @@ function DefaultEditorCard({
         </div>
 
         <label className="td-editor-field">
-          <span>{isConventionRef ? "規約参照キー" : "値"}</span>
-          {isConventionRef ? (
+          <span>{isConvention ? "規約参照キー" : "値"}</span>
+          {isConvention ? (
             <>
               <input
                 type="text"
@@ -365,7 +377,7 @@ function TriggerRow({
       <div className="td-row-main">
         <span className="td-timing-badge">{trg.timing}</span>
         <span className="td-events-badge">{trg.events.join(" | ")}</span>
-        <code className="td-row-col">{trg.id}</code>
+        <code className="td-row-col">{trg.physicalName}</code>
         {trg.description && <span className="td-row-desc">{trg.description}</span>}
       </div>
       {trg.body && (
@@ -413,11 +425,11 @@ function TriggerEditorCard({
 
       <div className="td-editor-body">
         <label className="td-editor-field">
-          <span>トリガー名</span>
+          <span>トリガー物理名</span>
           <input
             type="text"
-            value={trg.id}
-            onChange={(e) => onUpdate({ id: e.target.value })}
+            value={trg.physicalName}
+            onChange={(e) => onUpdate({ physicalName: e.target.value as PhysicalName })}
             placeholder="trg_tablename_action"
             className="td-trigger-name-input"
           />
