@@ -160,7 +160,7 @@ export function StepAdvancedMetadataPanel({ step, onChange, onCommit }: Props) {
           onCommit?.();
         }}
       />
-      {step.type === "externalSystem" && (
+      {step.kind === "externalSystem" && (
         <div className="text-muted small" style={{ marginTop: 4 }}>
           ExternalSystemStep の旧 timeoutMs は後方互換用です。sla.timeoutMs が指定されている場合はそちらを優先します。
         </div>

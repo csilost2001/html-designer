@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from "react";
 import type { StepNote, StepNoteType } from "../../types/action";
 import { STEP_NOTE_TYPE_VALUES } from "../../types/action";

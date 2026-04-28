@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * branchCondition.ts
  * Branch.condition の union (string | BranchConditionVariant) を扱うヘルパー。

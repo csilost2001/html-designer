@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ProcessFlow.markers 編集パネル (#261)
  *

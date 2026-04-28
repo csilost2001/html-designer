@@ -166,7 +166,7 @@ describe("migrateProcessFlow — TX/Saga/externalChain 透過保持 (#162)", () 
     const steps = once.actions[0].steps;
     expect((steps[0] as ExternalSystemStep).externalChain?.phase).toBe("authorize");
     expect((steps[1] as DbAccessStep).txBoundary?.role).toBe("begin");
-    expect((steps[2] as DbAccessStep).transactional).toBe(true);
+    expect((steps[2] as DbAccessStep).txBoundary?.role).toBe("member");
     expect((steps[5] as ExternalSystemStep).compensatesFor).toBe("auth");
   });
 

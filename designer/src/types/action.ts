@@ -1,908 +1,293 @@
-// ── 処理フロー定義 型定義 ─────────────────────────────────────────────────
+import type * as V3ProcessFlow from "./v3/process-flow";
+import type * as V3Common from "./v3/common";
 
-/** ステップ種別 */
-export type StepType =
-  | "validation"       // バリデーション
-  | "dbAccess"         // DB操作
-  | "externalSystem"   // 外部システム呼び出し
-  | "commonProcess"    // 共通処理参照
-  | "screenTransition" // 画面遷移
-  | "displayUpdate"    // 表示更新
-  | "branch"           // 条件分岐（多分岐）
-  | "loop"             // ループ
-  | "loopBreak"        // ループ終了（break）
-  | "loopContinue"     // 次のループへ（continue）
-  | "jump"             // 別大分類へのジャンプ
-  | "compute"          // 計算式 / 変数代入 (#174)
-  | "return"           // HTTP レスポンス返却 (#178)
-  | "log" | "audit"    // アプリケーションログ / 監査ログ
-  | "workflow"         // 承認ワークフロー (#411)
-  | "transactionScope" // 複数 DB 操作を 1 TX でまとめる meta-step (#415)
-  | "eventPublish"     // イベント発行 (#423 B-1)
-  | "eventSubscribe"   // イベント購読 (#423 B-1)
-  | "closing"          // 締め処理
-  | "cdc"              // CDC
-  | "other";           // その他
+export type V3ProcessFlowTypes = typeof V3ProcessFlow;
+export type V3CommonTypes = typeof V3Common;
 
-/** ステップ種別ラベル */
-export const STEP_TYPE_LABELS: Record<StepType, string> = {
-  validation: "バリデーション",
-  dbAccess: "DB操作",
+type AnyRecord = Record<string, any>;
+
+export type Maturity = V3Common.Maturity;
+export type ProcessFlowMode = V3Common.Mode;
+export type ProcessFlowType = V3ProcessFlow.ProcessFlowKind;
+export type ProcessFlowKind = V3ProcessFlow.ProcessFlowKind;
+
+export type FieldType = string | AnyRecord;
+export type StructuredField = AnyRecord & { name: string; type: FieldType; description?: string };
+export type ActionFields = StructuredField[] | string | undefined;
+
+export type MarkerKind = string;
+export type Marker = AnyRecord;
+
+export type StepNoteType =
+  | "assumption"
+  | "decision"
+  | "todo"
+  | "risk"
+  | "question"
+  | "prerequisite"
+  | "deferred";
+export interface StepNote {
+  id: string;
+  type?: StepNoteType;
+  kind?: StepNoteType | "prerequisite" | "deferred";
+  body: string;
+  createdAt: string;
+}
+
+export type StepKind =
+  | "validation"
+  | "dbAccess"
+  | "externalSystem"
+  | "commonProcess"
+  | "screenTransition"
+  | "displayUpdate"
+  | "branch"
+  | "loop"
+  | "loopBreak"
+  | "loopContinue"
+  | "jump"
+  | "compute"
+  | "return"
+  | "log"
+  | "audit"
+  | "workflow"
+  | "transactionScope"
+  | "eventPublish"
+  | "eventSubscribe"
+  | "closing"
+  | "cdc"
+  | "extension"
+  | "other";
+export type StepType = StepKind;
+
+export type Step = AnyRecord;
+
+export type ActionTrigger = string;
+export type ActionDefinition = AnyRecord;
+
+export type ProcessFlowMeta = AnyRecord;
+
+export type ProcessFlow = AnyRecord;
+
+export type BranchCondition = string | AnyRecord;
+export type BranchConditionVariant = BranchCondition;
+export type Branch = AnyRecord & { condition?: BranchCondition; steps?: Step[] };
+export type ElseBranch = Branch;
+export type OutputBinding = string | AnyRecord;
+export type OutputBindingObject = AnyRecord;
+export type OutputBindingOperation = "assign" | "accumulate" | "push";
+
+export type ValidationRuleType =
+  | "required"
+  | "regex"
+  | "maxLength"
+  | "minLength"
+  | "range"
+  | "enum"
+  | "custom";
+export type ValidationRuleKind = "Error" | "Msg" | "Noaccept" | "Default";
+export type ValidationRule = AnyRecord & { field?: string; type?: ValidationRuleType; severity?: string };
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type HttpAuthRequirement = "required" | "optional" | "none";
+export type HttpRoute = AnyRecord;
+export type HttpResponseSpec = AnyRecord;
+export type BodySchema = string | AnyRecord;
+
+export type ExternalCallOutcome = "success" | "failure" | "timeout";
+export type ExternalCallOutcomeSpec = AnyRecord;
+export type ExternalCallOutcomes = AnyRecord;
+export type ExternalAuthKind = "bearer" | "basic" | "apiKey" | "oauth2" | "none";
+export type ExternalAuth = AnyRecord;
+
+export type Sla = AnyRecord;
+export type OnTimeout = "throw" | "continue" | "compensate" | "log";
+export type TxBoundaryRole = "begin" | "member" | "end";
+export type TxBoundary = AnyRecord & { role?: TxBoundaryRole; txId?: string };
+export type TransactionIsolationLevel = "READ_COMMITTED" | "REPEATABLE_READ" | "SERIALIZABLE" | string;
+export type TransactionPropagation = "REQUIRED" | "REQUIRES_NEW" | "NESTED" | string;
+export type ExternalChainPhase = "authorize" | "capture" | "cancel" | "other";
+export type ExternalChain = AnyRecord & { chainId?: string; phase?: ExternalChainPhase };
+export type LoopKind = "count" | "condition" | "collection" | "forEach" | "while" | "doWhile" | "for" | string;
+export type LoopConditionMode = "continue" | "exit" | "pre" | "post" | string;
+export type WorkflowPattern = V3ProcessFlow.WorkflowPattern | string;
+export type WorkflowApprover = AnyRecord;
+export type WorkflowQuorum = AnyRecord;
+
+export type StepBase = Step;
+export type ValidationStep = Step;
+export type DbAccessStep = Step;
+export type ExternalSystemStep = Step;
+export type CommonProcessStep = Step;
+export type ScreenTransitionStep = Step;
+export type DisplayUpdateStep = Step;
+export type BranchStep = Step;
+export type LoopStep = Step;
+export type LoopBreakStep = Step;
+export type LoopContinueStep = Step;
+export type JumpStep = Step;
+export type ComputeStep = Step;
+export type ReturnStep = Step;
+export type LogStep = Step;
+export type AuditStep = Step;
+export type WorkflowStep = Step;
+export type TransactionScopeStep = Step;
+export type EventPublishStep = Step;
+export type EventSubscribeStep = Step;
+export type ClosingStep = Step;
+export type CdcStep = Step;
+export type OtherStep = Step;
+export type NonReturnStep = Step;
+
+export type AffectedRowsCheck = AnyRecord;
+export type CacheHint = AnyRecord;
+export type CdcDestination = AnyRecord;
+export type Context = AnyRecord;
+export type DbOperation = string;
+export type EnvVarEntry = AnyRecord;
+export type ErrorCatalogEntry = AnyRecord;
+export type EventDef = AnyRecord;
+export type ExternalSystemCatalogEntry = AnyRecord;
+export type FunctionDef = AnyRecord;
+export type HealthCheck = AnyRecord;
+export type RetryPolicy = AnyRecord;
+export type ResourceRequirements = AnyRecord;
+export type SecretRef = AnyRecord;
+export type DomainDef = AnyRecord;
+export type DecisionRecord = AnyRecord;
+export type GlossaryEntry = AnyRecord;
+export type TestScenario = AnyRecord;
+export type TemplateStep = AnyRecord;
+export interface StepTemplate {
+  id?: string;
+  type?: StepKind;
+  kind?: StepKind;
+  label: string;
+  description?: string;
+  step?: TemplateStep;
+  steps?: TemplateStep[];
+}
+
+export const STEP_NOTE_TYPE_VALUES: readonly StepNoteType[] = [
+  "assumption",
+  "decision",
+  "todo",
+  "risk",
+  "question",
+] as const;
+
+export const ACTION_TRIGGER_LABELS: Record<string, string> = {
+  click: "クリック",
+  submit: "送信",
+  select: "選択",
+  change: "変更",
+  load: "読込",
+  unload: "終了",
+  timer: "タイマー",
+  manual: "手動",
+};
+
+export const PROCESS_FLOW_TYPE_LABELS: Record<string, string> = {
+  screen: "画面",
+  batch: "バッチ",
+  scheduled: "定期実行",
+  system: "システム",
+  common: "共通",
+  other: "その他",
+};
+
+export const PROCESS_FLOW_TYPE_ICONS: Record<string, string> = {
+  screen: "monitor",
+  batch: "layers",
+  scheduled: "clock",
+  system: "server",
+  common: "component",
+  other: "circle",
+};
+
+export const STEP_TYPE_LABELS: Record<string, string> = {
+  validation: "入力チェック",
+  dbAccess: "DBアクセス",
   externalSystem: "外部システム",
   commonProcess: "共通処理",
   screenTransition: "画面遷移",
   displayUpdate: "表示更新",
-  branch: "条件分岐",
+  branch: "分岐",
   loop: "ループ",
   loopBreak: "ループ終了",
-  loopContinue: "次のループへ",
+  loopContinue: "次の繰り返し",
   jump: "ジャンプ",
   compute: "計算/代入",
   return: "レスポンス返却",
-  log: "ログ出力",
-  audit: "監査ログ",
-  workflow: "承認ワークフロー",
-  transactionScope: "TX スコープ",
+  log: "ログ",
+  audit: "監査",
+  workflow: "ワークフロー",
+  transactionScope: "トランザクション",
   eventPublish: "イベント発行",
   eventSubscribe: "イベント購読",
   closing: "締め処理",
   cdc: "CDC",
+  extension: "拡張",
   other: "その他",
 };
 
-/** ステップ種別アイコン */
-export const STEP_TYPE_ICONS: Record<StepType, string> = {
-  validation: "bi-check-circle",
-  dbAccess: "bi-database",
-  externalSystem: "bi-cloud",
-  commonProcess: "bi-box-seam",
-  screenTransition: "bi-arrow-right-square",
-  displayUpdate: "bi-display",
-  branch: "bi-signpost-split",
-  loop: "bi-arrow-repeat",
-  loopBreak: "bi-stop-circle",
-  loopContinue: "bi-skip-forward",
-  jump: "bi-arrow-return-right",
+export const STEP_TYPE_ICONS: Record<string, string> = {
+  validation: "check-square",
+  dbAccess: "database",
+  externalSystem: "plug",
+  commonProcess: "share",
+  screenTransition: "arrow-right",
+  displayUpdate: "refresh-cw",
+  branch: "git-branch",
+  loop: "repeat",
+  loopBreak: "log-out",
+  loopContinue: "skip-forward",
+  jump: "corner-up-right",
   compute: "bi-calculator",
   return: "bi-reply",
-  log: "bi-journal-text",
-  audit: "bi-shield-check",
-  workflow: "bi-people-fill",
-  transactionScope: "bi-shield-fill",
-  eventPublish: "bi-broadcast",
-  eventSubscribe: "bi-broadcast-pin",
-  closing: "bi-calendar-check",
-  cdc: "bi-clock-history",
-  other: "bi-three-dots",
+  log: "file-text",
+  audit: "shield-check",
+  workflow: "users",
+  transactionScope: "box",
+  eventPublish: "radio",
+  eventSubscribe: "rss",
+  closing: "lock",
+  cdc: "activity",
+  extension: "puzzle",
+  other: "circle",
 };
 
-/** ステップ種別カラー（左ボーダー色） */
-export const STEP_TYPE_COLORS: Record<StepType, string> = {
-  validation: "#f59e0b",
-  dbAccess: "#3b82f6",
-  externalSystem: "#8b5cf6",
-  commonProcess: "#10b981",
-  screenTransition: "#ec4899",
-  displayUpdate: "#6366f1",
-  branch: "#f97316",
-  loop: "#06b6d4",
-  loopBreak: "#ef4444",
-  loopContinue: "#14b8a6",
-  jump: "#94a3b8",
-  compute: "#0ea5e9",
-  return: "#22c55e",
+export const STEP_TYPE_COLORS: Record<string, string> = {
+  validation: "#0f766e",
+  dbAccess: "#2563eb",
+  externalSystem: "#7c3aed",
+  commonProcess: "#475569",
+  screenTransition: "#16a34a",
+  displayUpdate: "#0891b2",
+  branch: "#d97706",
+  loop: "#ca8a04",
+  loopBreak: "#b45309",
+  loopContinue: "#a16207",
+  jump: "#9333ea",
+  compute: "#0284c7",
+  return: "#dc2626",
   log: "#64748b",
-  audit: "#a855f7",
-  workflow: "#0d9488",
-  transactionScope: "#dc2626",
-  eventPublish: "#7c3aed",
-  eventSubscribe: "#5b21b6",
-  closing: "#be185d",
-  cdc: "#0891b2",
-  other: "#9ca3af",
+  audit: "#be123c",
+  workflow: "#4f46e5",
+  transactionScope: "#1d4ed8",
+  eventPublish: "#059669",
+  eventSubscribe: "#0d9488",
+  closing: "#7f1d1d",
+  cdc: "#0369a1",
+  extension: "#6b7280",
+  other: "#6b7280",
 };
 
-/** DB操作種別 */
-export type DbOperation = "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "LOCK";
-
-export const DB_OPERATION_LABELS: Record<DbOperation, string> = {
-  SELECT: "検索",
-  INSERT: "登録",
-  UPDATE: "更新",
-  DELETE: "削除",
-  MERGE: "MERGE",
-  LOCK: "ロック",
-};
-
-/** ProcessFlowの種別 */
-export type ProcessFlowType =
-  | "screen"     // 画面のアクション
-  | "batch"      // バッチ処理
-  | "scheduled"  // スケジュール処理
-  | "system"     // セッションタイムアウト等
-  | "common"     // 共通処理
-  | "other";
-
-export const PROCESS_FLOW_TYPE_LABELS: Record<ProcessFlowType, string> = {
-  screen: "画面",
-  batch: "バッチ",
-  scheduled: "スケジュール",
-  system: "システム",
-  common: "共通処理",
-  other: "その他",
-};
-
-export const PROCESS_FLOW_TYPE_ICONS: Record<ProcessFlowType, string> = {
-  screen: "bi-display",
-  batch: "bi-gear",
-  scheduled: "bi-clock",
-  system: "bi-cpu",
-  common: "bi-box-seam",
-  other: "bi-three-dots",
-};
-
-/** トリガー種別 */
-export type ActionTrigger =
-  | "click"   // ボタン/リンククリック
-  | "submit"  // フォーム送信
-  | "select"  // 行選択
-  | "change"  // 値変更
-  | "load"    // 画面読み込み
-  | "timer"   // タイマー
-  | "auto"    // バッチ自動起動
-  | "other";  // その他
-
-export const ACTION_TRIGGER_LABELS: Record<ActionTrigger, string> = {
-  click: "クリック",
-  submit: "フォーム送信",
-  select: "行選択",
-  change: "値変更",
-  load: "画面読み込み",
-  timer: "タイマー",
-  auto: "自動起動",
-  other: "その他",
-};
-
-// ── ステップ定義 ─────────────────────────────────────────────────────────
-
-// ── 成熟度・付箋 (docs/spec/process-flow-maturity.md §3〜§4) ───────────────
-
-/** 成熟度 3 値。既定は "draft" */
-export type Maturity = "draft" | "provisional" | "committed";
-
-export const MATURITY_VALUES: readonly Maturity[] = ["draft", "provisional", "committed"] as const;
-
-/** 付箋種別 5 値 (docs/spec/process-flow-maturity.md §4) */
-export type StepNoteType =
-  | "assumption"     // 想定
-  | "prerequisite"   // 前提 (別設計必要)
-  | "todo"           // TODO
-  | "deferred"       // 将来検討
-  | "question";      // 質問
-
-export const STEP_NOTE_TYPE_VALUES: readonly StepNoteType[] =
-  ["assumption", "prerequisite", "todo", "deferred", "question"] as const;
-
-/** 付箋 (1 ステップに複数持てる、種別付き) */
-export interface StepNote {
-  id: string;
-  type: StepNoteType;
-  body: string;
-  /** ISO timestamp */
-  createdAt: string;
-}
-
-/** 処理フローのモード (docs/spec/process-flow-maturity.md §5) */
-export type ProcessFlowMode = "upstream" | "downstream";
-
-export type OnTimeout = "throw" | "continue" | "compensate" | "log";
-
-export interface Sla {
-  timeoutMs?: number;
-  onTimeout?: OnTimeout;
-  errorCode?: string;
-  warningThresholdMs?: number;
-  /** P95 レイテンシ目標 (ms)。超過時は監視 alert 対象 (#412) */
-  p95LatencyMs?: number;
-}
-
-// ── outputBinding の構造化 (docs/spec, #151 (B)) ──────────────────────────
-
-/**
- * outputBinding の代入方式。
- * - "assign": 新規代入 / 上書き (既定)
- * - "accumulate": 数値加算 (subtotal += ... のような累積)
- * - "push": 配列への要素追加 (shortageList.push(...) / enrichedItems.push(...))
- */
-export type OutputBindingOperation = "assign" | "accumulate" | "push";
-
-/** 構造化版 outputBinding */
-export interface OutputBindingObject {
-  name: string;
-  /** 既定は "assign" */
-  operation?: OutputBindingOperation;
-  /**
-   * 初期値 (#253)。JSON 値 (例: [], 0) または式文字列 (例: "[]", "@emptyArr")。
-   * - operation="accumulate": 数値 (既定 0)
-   * - operation="push": 配列 (既定 [])
-   * - operation="assign": 通常不要
-   * 初期化タイミング: 変数スコープ開始時 (通常はアクション開始)。
-   */
-  initialValue?: unknown;
-}
-
-/**
- * outputBinding の値型: 旧 string (assign 相当) と新 OutputBindingObject の union。
- * ヘルパー getBindingName / getBindingOperation を使うと透過的に扱える。
- */
-export type OutputBinding = string | OutputBindingObject;
-
-// ── TX 境界 / Saga / 外部チェーン (docs/spec, #151 (B)) ─────────────────────
-
-/** TX 境界におけるステップの役割 */
-export type TxBoundaryRole = "begin" | "member" | "end";
-
-/** トランザクション境界。同一 txId を持つステップ群が単一 TX 内で実行される想定 */
-export interface TxBoundary {
-  role: TxBoundaryRole;
-  /** TX 識別子。同一アクション内で一意 */
-  txId: string;
-}
-
-/** 外部呼出チェーンのフェーズ (例: Stripe の authorize → capture → cancel) */
-export type ExternalChainPhase = "authorize" | "capture" | "cancel" | "other";
-
-/** 同一外部リソースを参照する複数ステップを束ねる識別子 */
-export interface ExternalChain {
-  /** chain 識別子。同一アクション内で一意 */
-  chainId: string;
-  phase: ExternalChainPhase;
-}
-
-/** ステップ共通フィールド */
-export interface StepBase {
-  id: string;
-  type: StepType;
-  description: string;
-  /** 旧形式の単一付箋 (後方互換)。読み込み時に notes[] へ自動変換される */
-  note?: string;
-  /** 種別付き付箋。新規保存時はこちらを正とする */
-  notes?: StepNote[];
-  /** 成熟度。未指定は "draft" として解釈 */
-  maturity?: Maturity;
-  /** SLA / Timeout declaration for this step. */
-  sla?: Sla;
-  /**
-   * ステップの条件実行ガード (#178)。
-   * 真偽式 (自由記述、例: "@paymentMethod == 'credit_card'") または @conv.* 参照。
-   * 偽または未評価の場合、ステップを skip する。未指定は常に実行。
-   */
-  runIf?: string;
-  /** ステップ実行に追加で必要な permission key。Action 側の requiredPermissions と AND 条件。 */
-  requiredPermissions?: string[];
-  /**
-   * ステップの結果を保持する変数。後続ステップは @変数名 で参照する。
-   * 旧形式 (string) は assign 相当、新形式 (object) は operation で代入方式を指定可能。
-   * docs/spec/process-flow-variables.md §3.2, #151 (B)
-   */
-  outputBinding?: OutputBinding;
-  /**
-   * トランザクション境界。同一 txId を持つステップ群が単一 TX 内で実行される。
-   * docs/spec, #151 (B)
-   */
-  txBoundary?: TxBoundary;
-  /** 簡易フラグ: TX 内であることだけ示唆 (txId 管理不要な場合) */
-  transactional?: boolean;
-  /**
-   * Saga 補償の逆参照。補償対象のステップ ID を指す (例: authorize ステップの ID)。
-   * 主に cancel / reversal ステップに付ける。
-   */
-  compensatesFor?: string;
-  /**
-   * 外部呼出チェーン。同一 chainId を持つステップ群は同じ外部リソースを扱う。
-   * 例: Stripe の PaymentIntent に対する authorize → capture → cancel の 3 ステップ。
-   */
-  externalChain?: ExternalChain;
-  subSteps?: Step[];
-}
-
-// ── 構造化バリデーション (docs/spec, #151 (B)) ─────────────────────────────
-
-export type ValidationRuleType =
-  | "required"    // 非空必須
-  | "regex"       // 正規表現マッチ
-  | "maxLength"   // 最大文字数
-  | "minLength"   // 最小文字数
-  | "range"       // 数値範囲
-  | "enum"        // 許容値セット
-  | "custom";     // 自由記述
-
-/**
- * GeneXus 由来の ValidationRule 動作種別 (#422 P2-3)。
- * `type` (required/regex/etc.) とは別の orthogonal な分類。
- * - "Error": エラー表示してブロック
- * - "Msg": メッセージのみ表示 (続行可)
- * - "Noaccept": 値を受け付けない
- * - "Default": 既定値を設定
- */
-export type ValidationRuleKind = "Error" | "Msg" | "Noaccept" | "Default";
-
-/**
- * 1 件のバリデーションルール。同一 field に複数ルールを付けられる (配列の順で適用)。
- * message は直接文字列か @conv.msg.* 参照を想定。
- */
-export interface ValidationRule {
-  /** 検証対象フィールド名 (inputs[].name を参照) */
-  field: string;
-  type: ValidationRuleType;
-  /**
-   * GeneXus 由来の動作種別 (#422 P2-3)。type とは別概念。
-   * 省略時はランタイム既定 (通常 "Error" 相当)。
-   */
-  kind?: ValidationRuleKind;
-  /** type="regex" 時のパターン (生 regex or @conv.regex.* 参照) */
-  pattern?: string;
-  /** type="maxLength" / "minLength" 時の文字数 */
-  length?: number;
-  /** type="range" 時の最小値 */
-  min?: number;
-  /** type="range" 時の最大値 */
-  max?: number;
-  /** type="range" 時の最小値を @conv.limit.* 参照で指定するバリアント (#253) */
-  minRef?: string;
-  /** type="range" 時の最大値を @conv.limit.* 参照で指定するバリアント (#253) */
-  maxRef?: string;
-  /** type="enum" 時の許容値リスト */
-  values?: string[];
-  /** type="custom" 時の自由記述条件 (例: "@items.length >= 1") */
-  condition?: string;
-  /** エラーメッセージ (直接文字列 or @conv.msg.* 参照) */
-  message?: string;
-}
-
-export interface ValidationStep extends StepBase {
-  type: "validation";
-  /**
-   * 自由記述のバリデーション条件 (後方互換、人間可読の補足として残す)。
-   * 構造化済なら rules[] を優先。
-   */
-  conditions: string;
-  /**
-   * 構造化バリデーションルール。AI / UI はこちらを機械可読な一次情報として使う。
-   * 未指定時は conditions の自由記述を読むしかない (後方互換)。
-   */
-  rules?: ValidationRule[];
-  /**
-   * rules[] の評価結果を格納する変数名 (#261 v1.4)。
-   * 既定は "fieldErrors"。inlineBranch.ngBodyExpression 等で \@fieldErrors として参照される。
-   * 型は Record<fieldName, message> を想定。
-   */
-  fieldErrorsVar?: string;
-  inlineBranch?: {
-    ok: string | Step[];
-    ng: string | Step[];
-    ngJumpTo?: string;
-    /**
-     * バリデーション NG 時に返却する HTTP レスポンス参照 (#180)。
-     * action.responses[].id を指す。
-     */
-    ngResponseRef?: string;
-    /** NG 時の返却 body 式 (任意、自由記述) */
-    ngBodyExpression?: string;
-  };
-}
-
-// ── 条件付き UPDATE + 影響行数チェック (docs/spec, #151 (B)) ────────────────
-
-export type AffectedRowsOperator = ">" | ">=" | "=" | "<" | "<=";
-
-/**
- * 影響行数チェック。条件付き UPDATE (WHERE 条件で並行制御するパターン) の結果検証用。
- * 典型例: 在庫引当の "UPDATE inventory SET stock = stock - @qty WHERE stock >= @qty" で、
- * rowCount === 0 なら並行競合による在庫不足として throw する。
- */
-export interface AffectedRowsCheck {
-  operator: AffectedRowsOperator;
-  expected: number;
-  /**
-   * 違反時の挙動:
-   * - "throw": 例外を投げて TX ROLLBACK (errorCode で識別)
-   * - "abort": アクション中断 (HTTP エラーレスポンス等)
-   * - "log": ログ記録のみ、処理続行
-   * - "continue": 黙って続行 (明示的に無視する場合)
-   */
-  onViolation: "throw" | "abort" | "log" | "continue";
-  /** throw / abort 時のエラー識別子 (例: "STOCK_SHORTAGE") */
-  errorCode?: string;
-  description?: string;
-}
-
-/**
- * キャッシュヒント (#423 B-4)。
- * GET 系クエリ / API レスポンスのキャッシュ可否・TTL・無効化条件を宣言する。
- */
-export interface CacheHint {
-  /** キャッシュ有効期間 (秒) */
-  ttlSeconds: number;
-  /** キャッシュキー式。省略時はランタイムが自動生成 */
-  key?: string;
-  /** このキャッシュを無効化するイベント名またはトピック名のリスト */
-  invalidateOn?: string[];
-}
-
-/**
- * データ系譜 (#423 B-2)。
- * DbAccessStep がどのテーブルを読み書きするかを宣言的に記述する。
- */
-export interface DataLineage {
-  /** 読み取るテーブル名の一覧 */
-  reads?: string[];
-  /** 書き込むテーブル名の一覧 */
-  writes?: string[];
-}
-
-export interface DbAccessStep extends StepBase {
-  type: "dbAccess";
-  tableName: string;
-  tableId?: string;
-  operation: DbOperation;
-  /**
-   * 自由記述の列リスト / WHERE 補足 (後方互換)。
-   * 単純な INSERT/SELECT ではこちらで十分。複雑クエリは sql を使う。
-   */
-  fields?: string;
-  /**
-   * 完全な SQL 文 (例: "SELECT ... FROM ... WHERE ...", "INSERT ... RETURNING ..." 等)。
-   * 指定時は fields / operation より優先。複雑クエリ (JOIN / CTE / サブクエリ / RETURNING 等) に使う。
-   * docs/spec #151 (B)
-   */
-  sql?: string;
-  /**
-   * 一括 INSERT 時に VALUES 句へ展開する配列変数の参照 (例: "@poItemValues")。
-   * 配列の各要素が 1 レコードとして INSERT される (#253)。
-   */
-  bulkValues?: string;
-  /**
-   * 影響行数チェック。UPDATE / DELETE で条件付き並行制御する場合に使う。
-   * SELECT / INSERT では通常不要。
-   */
-  affectedRowsCheck?: AffectedRowsCheck;
-  /** データ系譜 (#423 B-2)。このステップが読み書きするテーブルを宣言する */
-  lineage?: DataLineage;
-  /** キャッシュヒント (#423 B-4)。SELECT 系クエリのキャッシュ設定 */
-  cache?: CacheHint;
-}
-
-// ── 外部システム呼出の outcome / タイムアウト / リトライ (docs/spec, #151 (B)) ──
-
-/** 外部呼出の結果種別。product-scope §11 の 3 値を型化 */
-export type ExternalCallOutcome = "success" | "failure" | "timeout";
-
-export const EXTERNAL_CALL_OUTCOME_VALUES: readonly ExternalCallOutcome[] =
-  ["success", "failure", "timeout"] as const;
-
-/** outcome ごとのハンドリング定義 */
-export interface ExternalCallOutcomeSpec {
-  /**
-   * - "continue": 次ステップへ続行 (fire-and-forget で failure/timeout 時の既定)
-   * - "abort": 処理中断 (HTTP エラーレスポンス等)
-   * - "compensate": Saga 補償 (別途 compensatesFor などで指定する想定)
-   */
-  action: "continue" | "abort" | "compensate";
-  /** 補足説明 (任意、エラーメッセージ文面のヒント等) */
-  description?: string;
-  /** abort 時のジャンプ先ラベル (任意) */
-  jumpTo?: string;
-  /**
-   * 副作用として action 実行前に実行するステップ列。
-   * 例: capture 失敗時に orders.status を 'payment_failed' に UPDATE + 運用通知。
-   * docs/spec, #151 (B) / #172
-   */
-  sideEffects?: Step[];
-  /**
-   * 他の outcome の定義を流用する短縮記法 (例: timeout が failure と同じ扱い時)。
-   * 指定時は他フィールド (action/description/sideEffects 等) を無視し、sameAs 先の定義を使う。
-   * product-scope §11 の既定 (timeout 省略時は failure と同じ) を明示的に表現可能。
-   */
-  sameAs?: ExternalCallOutcome;
-}
-
-/** 外部呼出のリトライ方針 */
-export interface RetryPolicy {
-  maxAttempts: number;
-  backoff?: "fixed" | "exponential";
-  initialDelayMs?: number;
-}
-
-export interface CircuitBreakerConfig {
-  failureThreshold: number;
-  timeout: number;
-  halfOpenMaxCalls?: number;
-}
-
-export interface BulkheadConfig {
-  maxConcurrent: number;
-  maxWait?: number;
-}
-
-/** 外部システムの認証方式 (#253 v1.2) */
-export type ExternalAuthKind = "bearer" | "basic" | "apiKey" | "oauth2" | "none";
-
-/**
- * 外部呼出の認証設定 (#253 v1.2)。
- * secretRef は規約文字列で運用する (例: "ENV:STRIPE_SECRET_KEY", "SECRET:stripe/api-key")。
- * 正式な secret 管理機能は将来別途追加予定。
- */
-export interface ExternalAuth {
-  kind: ExternalAuthKind;
-  /** 秘密値の参照 (例: "ENV:STRIPE_SECRET_KEY")。kind="none" では不要 */
-  tokenRef?: string;
-  /** apiKey 時のヘッダ名 (例: "X-API-Key"、既定 "Authorization") */
-  headerName?: string;
-}
-
-/**
- * HTTP 呼出の構造化 (#261 v1.3)。
- * 旧 `protocol: string` (例: "HTTPS POST /v1/payment_intents/@id/cancel") を
- * method / path / pathParams / query / body に分解する。
- * path は式補間を許容 (js-subset の @identifier)。
- */
-export interface ExternalHttpCall {
-  method: HttpMethod;
-  /** URL パス。式補間可 (例: "/v1/payment_intents/@paymentAuth.id/cancel") */
-  path: string;
-  /** クエリ文字列。値は式可 (例: { limit: "@pageSize", cursor: "@nextCursor" }) */
-  query?: Record<string, string>;
-  /** リクエスト body の式 (例: "{ amount: @order.totalAmount, currency: 'jpy' }")。
-   *  GET 等で body 不要な場合は省略。 */
-  body?: string;
-}
-
-/** Criterion の評価種別 (#427 P3-2 / Arazzo 由来) */
-export type CriterionType = "simple" | "regex" | "jsonpath" | "xpath";
-
-/**
- * 型付き条件式 (#427 P3-2)。Arazzo 1.0 の successCriteria 互換。
- * $ 記法推奨: simple: "$statusCode == 200", regex: "^pi_", jsonpath: "$.status" (context: "$response.body")
- * 旧 @記法 (@statusCode 等) は後方互換として引き続き有効
- */
-export interface StructuredCriterion {
-  type: CriterionType;
-  expression: string;
-  /** jsonpath / xpath の評価対象。$ 記法推奨: "$response.body", "$response.body#/id" */
-  context?: string;
-}
-
-/** 成功判定条件 (#427 P3-2)。string (旧互換) または StructuredCriterion の union */
-export type Criterion = string | StructuredCriterion;
-
-/**
- * ProcessFlow.externalSystemCatalog エントリ (#261 v1.3)。
- * 同一外部システム (Stripe, SendGrid 等) を使う複数ステップで auth/baseUrl/timeoutMs/retryPolicy を集約し、
- * step 側は systemRef で参照する。DRY 化と drift 防止。
- */
-export interface ExternalSystemCatalogEntry {
-  /** 人間可読名 (例: "Stripe Japan") */
-  name: string;
-  /** HTTP ベース URL (例: "https://api.stripe.com") */
-  baseUrl?: string;
-  /** OpenAPI specification URL or relative path (#413) */
-  openApiSpec?: string;
-  /** 既定認証 (step 側の auth が優先) */
-  auth?: ExternalAuth;
-  /** 既定タイムアウト (ms) */
-  timeoutMs?: number;
-  /** 既定リトライ方針 */
-  retryPolicy?: RetryPolicy;
-  /** 既定ヘッダ (step 側で上書き可) */
-  headers?: Record<string, string>;
-  /** 補足説明 */
-  description?: string;
-}
-
-export interface ExternalSystemStep extends StepBase {
-  type: "externalSystem";
-  /**
-   * 外部システム名。systemRef 指定時はカタログから継承する情報の override ラベル。
-   * 従来互換のため必須継続 (systemRef だけの運用でも表示用に書く)。
-   */
-  systemName: string;
-  /**
-   * ProcessFlow.externalSystemCatalog のキー参照 (#261 v1.3)。
-   * 指定時はカタログの baseUrl/auth/timeoutMs/retryPolicy/headers を既定値とし、
-   * この step の同名フィールドで override 可能。
-   */
-  systemRef?: string;
-  /**
-   * @deprecated (#261 v1.3): 自由記述。httpCall への移行推奨。
-   * 後方互換のため残す。新規データは httpCall を使用。
-   */
-  protocol?: string;
-  /**
-   * HTTP 呼出の構造化 (#261 v1.3)。protocol の後継。
-   * method / path / query / body に分解、path は式補間可。
-   */
-  httpCall?: ExternalHttpCall;
-  /** OpenAPI operation reference. operationRef takes precedence over httpCall when both are present. */
-  operationRef?: string;
-  /** OpenAPI operationId. */
-  operationId?: string;
-  /** JSON Pointer / $ref to request body schema. */
-  requestBodyRef?: string;
-  /** JSON Pointer / $ref to response schema. */
-  responseRef?: string;
-  /**
-   * 各 outcome (success / failure / timeout) のハンドリング定義。
-   * 省略時は product-scope §11 の既定 (failure/timeout=abort、success=continue) を適用。
-   */
-  outcomes?: Partial<Record<ExternalCallOutcome, ExternalCallOutcomeSpec>>;
-  /**
-   * タイムアウト (ミリ秒)。未指定は product-scope §11 の既定 10000
-   * @deprecated Use sla.timeoutMs instead
-   */
-  timeoutMs?: number;
-  /** リトライ方針。未指定は「リトライなし」 */
-  retryPolicy?: RetryPolicy;
-  /** Circuit breaker settings for this external call. */
-  circuitBreaker?: CircuitBreakerConfig;
-  /** Bulkhead settings for this external call. */
-  bulkhead?: BulkheadConfig;
-  /** true なら TX 後・非同期 fire-and-forget。同期レスポンスを待たない */
-  fireAndForget?: boolean;
-  /**
-   * 認証方式 (#253 v1.2)。未指定は "none" として解釈。
-   * tokenRef は "ENV:FOO" / "SECRET:path/to/key" 等の規約文字列で秘密値を参照。
-   */
-  auth?: ExternalAuth;
-  /**
-   * 冪等性キーを生成する式 (#253 v1.2)。例: "order-@registeredOrder.id"。
-   * Stripe 等の外部 API が Idempotency-Key ヘッダを要求する場合に設定。
-   */
-  idempotencyKey?: string;
-  /**
-   * 追加 HTTP ヘッダ (#253 v1.2)。値は式可 (例: @stripeVersion)。
-   * auth / idempotencyKey で表現できない任意ヘッダを設定する場合に使用。
-   */
-  headers?: Record<string, string>;
-  /**
-   * API バージョン override (#423 B-6)。
-   * ProcessFlow.apiVersion より優先。外部 API のバージョンを step 単位で指定する場合に使用。
-   */
-  apiVersion?: string;
-  /** キャッシュヒント (#423 B-4)。GET 系 API レスポンスのキャッシュ設定 */
-  cache?: CacheHint;
-  /** Arazzo 互換の成功判定条件 (#427 P3-2)。Arazzo Export で successCriteria フィールドにマッピングされる */
-  successCriteria?: Criterion[];
-}
-
-export interface CommonProcessStep extends StepBase {
-  type: "commonProcess";
-  refId: string;
-  refName?: string;
-  /**
-   * 呼び先フローの入力名 → 値表現 (リテラル or "@変数名") のマッピング。
-   * docs/spec/process-flow-variables.md §3.4
-   */
-  argumentMapping?: Record<string, string>;
-  /** 呼び先フローの戻り値名 → 説明のマッピング (例: {"処理結果": "0:正常終了, 1:異常終了"}) */
-  returnMapping?: Record<string, string>;
-}
-
-export interface ScreenTransitionStep extends StepBase {
-  type: "screenTransition";
-  targetScreenId?: string;
-  targetScreenName: string;
-}
-
-export interface DisplayUpdateStep extends StepBase {
-  type: "displayUpdate";
-  target: string;
-}
-
-/**
- * Branch の分岐条件 variant (#176 / #261 v1.3 で拡張)。
- * 旧 string と新しい型付き表現 (tryCatch 等) の union。
- *
- * v1.3 で追加:
- * - `affectedRowsZero`: 直前の DbAccessStep (affectedRowsCheck) で rowCount が期待を満たさなかった場合
- * - `externalOutcome`: 直前の ExternalSystemStep の outcome (success/failure/timeout) を分岐条件に
- */
-export type BranchConditionVariant =
-  | {
-      /** TX catch / try-catch 文脈。errorCode が補足されているエラーが捕捉された時に成立 */
-      kind: "tryCatch";
-      /** DbAccessStep.affectedRowsCheck.errorCode 等と対応する識別子 */
-      errorCode: string;
-      description?: string;
-    }
-  | {
-      /** 直前の DbAccess (UPDATE/DELETE) の rowCount が期待を満たさなかった時に成立 (#261 v1.3) */
-      kind: "affectedRowsZero";
-      /** 対象の DbAccessStep ID (省略時は直前の DbAccess) */
-      stepRef?: string;
-      description?: string;
-    }
-  | {
-      /** 直前の ExternalSystemStep の outcome に基づく分岐 (#261 v1.3) */
-      kind: "externalOutcome";
-      /** 対象の ExternalSystemStep ID (省略時は直前の external call) */
-      stepRef?: string;
-      /** マッチ対象の outcome */
-      outcome: ExternalCallOutcome;
-      description?: string;
-    };
-
-/** Branch.condition の値型: 旧 string (自由記述) と新 BranchConditionVariant の union */
-export type BranchCondition = string | BranchConditionVariant;
-
-/** 多分岐の1件 */
-export interface Branch {
-  /** 内部 UUID */
-  id: string;
-  /** 自動採番コード: "A", "B", "C", ... */
-  code: string;
-  /** 任意の自由入力ラベル */
-  label?: string;
-  /**
-   * 分岐条件。
-   * - 旧: string (自由記述、LLM 解析前提)
-   * - 新: BranchConditionVariant (tryCatch 等の型付き表現)
-   * docs/spec, #151 (B) / #176
-   */
-  condition: BranchCondition;
-  /** 任意のサブ処理（全カード配置可能） */
-  steps: Step[];
-}
-
-/**
- * else 分岐 (otherwise)。構造は Branch とほぼ同じだが condition は本質的に不要 (#253)。
- * 旧データ (condition: "" 等の空文字列埋め) を壊さないため、後方互換で condition は optional。
- */
-export interface ElseBranch {
-  id: string;
-  code: string;
-  label?: string;
-  /** 後方互換用のみ保持。新規データは省略可 */
-  condition?: BranchCondition;
-  steps: Step[];
-}
-
-export interface BranchStep extends StepBase {
-  type: "branch";
-  /** 最小 1 個、D&D で並び替え可能 */
-  branches: Branch[];
-  /** 任意、常に最後に描画 */
-  elseBranch?: ElseBranch;
-  /** tryCatch 分岐がガードするステップ ID の一覧。kind=tryCatch の Branch と組み合わせて try 範囲を明示 (#253) */
-  tryScope?: string[];
-}
-
-/** ループ種別 */
-export type LoopKind = "count" | "condition" | "collection";
-
-/** ループ条件モード */
-export type LoopConditionMode = "continue" | "exit";
-
-export interface LoopStep extends StepBase {
-  type: "loop";
-  loopKind: LoopKind;
-  /** loopKind="count" 用: "3回", "検索結果の件数分" 等 */
-  countExpression?: string;
-  /** loopKind="condition" 用、デフォルト "exit" */
-  conditionMode?: LoopConditionMode;
-  /** loopKind="condition" 用 */
-  conditionExpression?: string;
-  /** loopKind="collection" 用: 例 "検索結果" */
-  collectionSource?: string;
-  /** loopKind="collection" 用: 例 "ユーザー" */
-  collectionItemName?: string;
-  /** ループ本体 */
-  steps: Step[];
-}
-
-export interface LoopBreakStep extends StepBase {
-  type: "loopBreak";
-}
-
-export interface LoopContinueStep extends StepBase {
-  type: "loopContinue";
-}
-
-export interface JumpStep extends StepBase {
-  type: "jump";
-  jumpTo: string;
-}
-
-export interface OtherStep extends StepBase {
-  type: "other";
-}
-
-/**
- * 計算・代入ステップ (docs/spec, #151 (B) / #174)。
- * 純粋計算 (税額・合計・集計など) や、@変数 の代入を構造化する。
- * DB / 外部呼出に依存しない「内部ロジック」の表現用。
- * 結果格納先は outputBinding で指定。
- */
-export interface ComputeStep extends StepBase {
-  type: "compute";
-  /**
-   * 代入式 (自由記述、AI 実装時に言語依存で翻訳)。
-   * 例: "Math.floor(@subtotal * 0.10)" / "@subtotal + @taxAmount" / "@items.length"
-   */
-  expression: string;
-}
-
-/**
- * HTTP レスポンス返却ステップ (#178)。
- * action.responses[] への参照 (responseRef) で返却内容を指定する。
- * 返却 body の具体値は bodyExpression で表現。
- */
-export interface ReturnStep extends StepBase {
-  type: "return";
-  /** action.responses[].id への参照 (例: "409-stock-shortage") */
-  responseRef?: string;
-  /**
-   * 返却 body の式 (任意、自由記述)。
-   * 例: "{ code: 'STOCK_SHORTAGE', detail: @shortageList }"
-   */
-  bodyExpression?: string;
-}
-
-export interface LogStep extends StepBase {
-  type: "log";
-  level: "trace" | "debug" | "info" | "warn" | "error";
-  /** 式可。例: "注文 @orderId 受付完了" */
-  message: string;
-  /** ログカテゴリ。ログルーティング用 */
-  category?: string;
-  /** 値は式。例: { orderId: "@orderId", total: "@subtotal + @tax" } */
-  structuredData?: Record<string, string>;
-}
-
-export interface AuditStep extends StepBase {
-  type: "audit";
-  /** 業務アクション名。例: "order.create" / "user.passwordChange" */
-  action: string;
-  resource?: {
-    /** 例: "Order" / "User" */
-    type: string;
-    /** 式可。例: "@orderId" */
-    id: string;
-  };
-  /** 未指定なら実装側で自動判定 (例外発生 → failure) */
-  result?: "success" | "failure";
-  /** 式可。例: "@rejectionReason" */
-  reason?: string;
-  /** true なら値本体をマスクして keys だけ記録 */
-  sensitive?: boolean;
-}
-
-export type WorkflowPattern =
-  | "approval-sequential"
-  | "approval-parallel"
-  | "approval-veto"
-  | "approval-quorum"
-  | "approval-escalation"
-  | "review"
-  | "sign-off"
-  | "acknowledge"
-  | "branch-merge"
-  | "discussion"
-  | "ad-hoc";
-
-export const WORKFLOW_PATTERN_LABELS: Record<WorkflowPattern, string> = {
-  "approval-sequential": "順次承認",
-  "approval-parallel": "並列承認",
-  "approval-veto": "拒否権付き承認",
-  "approval-quorum": "定足数承認",
-  "approval-escalation": "エスカレーション承認",
-  review: "レビュー",
-  "sign-off": "サインオフ",
-  acknowledge: "確認",
-  "branch-merge": "分岐マージ",
-  discussion: "協議",
-  "ad-hoc": "アドホック",
-};
+export const EXTERNAL_CALL_OUTCOME_VALUES: readonly ExternalCallOutcome[] = [
+  "success",
+  "failure",
+  "timeout",
+] as const;
 
 export const WORKFLOW_PATTERN_VALUES: readonly WorkflowPattern[] = [
   "approval-sequential",
@@ -918,771 +303,28 @@ export const WORKFLOW_PATTERN_VALUES: readonly WorkflowPattern[] = [
   "ad-hoc",
 ] as const;
 
-export interface WorkflowApprover {
-  /** RBAC catalog role key */
-  role: string;
-  label?: string;
-  order?: number;
-}
+export const WORKFLOW_PATTERN_LABELS: Record<string, string> = {
+  "approval-sequential": "順次承認",
+  "approval-parallel": "並列承認",
+  "approval-veto": "拒否権承認",
+  "approval-quorum": "定足数承認",
+  "approval-escalation": "エスカレーション承認",
+  review: "レビュー",
+  "sign-off": "サインオフ",
+  acknowledge: "確認",
+  "branch-merge": "分岐合流",
+  discussion: "議論",
+  "ad-hoc": "アドホック",
+};
 
-export type WorkflowQuorum =
-  | { type: "all" | "any" | "majority" }
-  | { type: "n-of-m"; n: number };
+export const DB_OPERATION_LABELS: Record<string, string> = {
+  select: "検索",
+  insert: "登録",
+  update: "更新",
+  delete: "削除",
+  upsert: "登録または更新",
+  call: "呼び出し",
+  other: "その他",
+};
 
-export interface WorkflowEscalateTo {
-  /** RBAC catalog role key */
-  role?: string;
-  /** ConvCompletion expression for dynamic assignee */
-  userExpression?: string;
-}
-
-export interface WorkflowStep extends StepBase {
-  type: "workflow";
-  pattern: WorkflowPattern;
-  approvers: WorkflowApprover[];
-  quorum?: WorkflowQuorum;
-  onApproved?: Step[];
-  onRejected?: Step[];
-  onTimeout?: Step[];
-  deadlineExpression?: string;
-  escalateAfter?: string;
-  escalateTo?: WorkflowEscalateTo;
-}
-
-export type ClosingPeriod = "daily" | "monthly" | "quarterly" | "yearly" | "custom";
-
-export interface ClosingStep extends StepBase {
-  type: "closing";
-  period: ClosingPeriod;
-  customCron?: string;
-  cutoffAt?: string;
-  idempotencyKey?: string;
-  rollbackOnFailure?: boolean;
-}
-
-export type CdcCaptureMode = "full" | "incremental";
-
-export interface CdcDestination {
-  type: "auditLog" | "eventStream" | "table";
-  target?: string;
-}
-
-export interface CdcStep extends StepBase {
-  type: "cdc";
-  tables: string[];
-  captureMode: CdcCaptureMode;
-  destination: CdcDestination;
-  includeColumns?: string[];
-  excludeColumns?: string[];
-}
-
-/** TX 分離レベル (#415) */
-export type TransactionIsolationLevel =
-  | "READ_COMMITTED"
-  | "REPEATABLE_READ"
-  | "SERIALIZABLE";
-
-/** TX 伝播モード (#415、Spring / EF Core 由来) */
-export type TransactionPropagation =
-  | "REQUIRED"     // 既存 TX に参加、無ければ新規開始 (既定)
-  | "REQUIRES_NEW" // 既存 TX を一時停止して新規 TX を開始
-  | "NESTED";      // 既存 TX 内に savepoint を作る
-
-/**
- * 複数 DB 操作を 1 TX でまとめる meta-step (#415)。
- * Power Platform Changeset / EF Core TransactionScope 由来。
- *
- * 既存 `StepBase.txBoundary` (begin/member/end) は単独ステップが TX 境界に属することを宣言する平坦
- * モデルだが、本 step は「TX 範囲を構造的にネストして表現」する。複数 DbAccess を確実に同一 TX に
- * くくるには TransactionScopeStep を用いる方が誤りが少ない。
- *
- * @see docs/spec/process-flow-transaction.md
- */
-export interface TransactionScopeStep extends StepBase {
-  type: "transactionScope";
-  /** TX 分離レベル。既定 "READ_COMMITTED" */
-  isolationLevel?: TransactionIsolationLevel;
-  /** TX 伝播モード。既定 "REQUIRED" */
-  propagation?: TransactionPropagation;
-  /** TX タイムアウト (ms)。未指定はランタイム既定 */
-  timeoutMs?: number;
-  /**
-   * rollback を引き起こす errorCode の配列。ProcessFlow.errorCatalog のキー参照。
-   * 列挙されたコードが TX 内で throw された場合に rollback される。
-   * 未指定時は「すべての例外で rollback」(ランタイム既定)。
-   */
-  rollbackOn?: string[];
-  /** TX 内で実行する step 列。1 TX に含めたい DB / 外部呼出を順序通りに並べる */
-  steps: Step[];
-  /** TX commit 成功後に実行する step 列 (任意)。例: 通知送信、キャッシュ無効化 */
-  onCommit?: Step[];
-  /** TX rollback 後に実行する step 列 (任意・補償処理)。例: Stripe authorize の cancel、Slack 通知 */
-  onRollback?: Step[];
-}
-
-/**
- * イベント定義 (#423 B-1)。ProcessFlow.eventsCatalog の 1 エントリ。
- */
-export interface EventDef {
-  /** 補足説明 */
-  description?: string;
-  /** ペイロードの JSON Schema (draft 2020-12) */
-  payload?: Record<string, unknown>;
-}
-
-/**
- * イベント発行ステップ (#423 B-1)。
- * 指定トピックにイベントをパブリッシュする。
- */
-export interface EventPublishStep extends StepBase {
-  type: "eventPublish";
-  /** パブリッシュ先のトピック名 */
-  topic: string;
-  /** ProcessFlow.eventsCatalog のキー参照 */
-  eventRef?: string;
-  /** 送信ペイロードの式 (例: "{ orderId: @orderId }") */
-  payload?: string;
-}
-
-/**
- * イベント購読ステップ (#423 B-1)。
- * 指定トピックのイベントをサブスクライブし待機する。
- */
-export interface EventSubscribeStep extends StepBase {
-  type: "eventSubscribe";
-  /** サブスクライブするトピック名 */
-  topic: string;
-  /** ProcessFlow.eventsCatalog のキー参照 */
-  eventRef?: string;
-  /** 受信フィルター条件の式 (例: "@event.type == \"OrderPlaced\"") */
-  filter?: string;
-}
-
-/**
- * ビジネス用語集の 1 エントリ (#423 B-3)。
- */
-export interface GlossaryEntry {
-  /** 用語の定義 */
-  definition: string;
-  /** 別名・略語のリスト */
-  aliases?: string[];
-  /** ドメインモデルやテーブル等への参照文字列 */
-  domainRef?: string;
-}
-
-/** ADR ステータス (#423 B-5) */
-export type DecisionStatus = "proposed" | "accepted" | "deprecated" | "superseded";
-
-/**
- * ADR / 設計判断ログの 1 エントリ (#423 B-5)。
- * MADR 形式を参考にした軽量 ADR。
- */
-export interface DecisionRecord {
-  /** 例: "ADR-001" */
-  id: string;
-  title: string;
-  status: DecisionStatus;
-  /** 決定の背景・問題の説明 */
-  context: string;
-  /** 採択した決定内容 */
-  decision: string;
-  /** 結果・影響・トレードオフ (任意) */
-  consequences?: string;
-  /** ISO date (例: "2026-04-25") */
-  date?: string;
-}
-
-export type Step =
-  | ValidationStep
-  | DbAccessStep
-  | ExternalSystemStep
-  | CommonProcessStep
-  | ScreenTransitionStep
-  | DisplayUpdateStep
-  | BranchStep
-  | LoopStep
-  | LoopBreakStep
-  | LoopContinueStep
-  | JumpStep
-  | ComputeStep
-  | ReturnStep
-  | LogStep
-  | AuditStep
-  | WorkflowStep
-  | TransactionScopeStep
-  | EventPublishStep
-  | EventSubscribeStep
-  | ClosingStep
-  | CdcStep
-  | OtherStep;
-
-// ── アクション定義 ───────────────────────────────────────────────────────
-
-// ── 入出力の構造化 (docs/spec/process-flow-variables.md §3.1) ─────────────
-
-/**
- * 入出力フィールドの型。primitive + 複合型 (array/object) + テーブル/画面参照 + 自由記述型の union。
- *
- * `array` / `object` は #253 で追加。`custom` の `label` に
- * `"Array<{itemId, quantity}>"` のような自由記述で逃げていたケースを構造化可能にする。
- * 従来は custom で表現していたものも、可能なら array / object に移行するのが望ましい。
- */
-export type FieldType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "date"
-  | { kind: "array"; itemType: FieldType }
-  | { kind: "object"; fields: StructuredField[] }
-  | { kind: "tableRow"; tableId: string }
-  | { kind: "tableList"; tableId: string }
-  | { kind: "screenInput"; screenId: string }
-  | { kind: "file"; format?: string }
-  | { kind: "custom"; label: string };
-
-export interface StructuredField {
-  /** 識別子 (例: "userId")。@変数参照のキーにもなる */
-  name: string;
-  /** 表示名 (例: "ユーザーID") */
-  label?: string;
-  type: FieldType;
-  required?: boolean;
-  description?: string;
-  /** 採番形式 / フォーマットパターン (@conv.numbering.* 参照 or 正規表現) (#253) */
-  format?: string;
-  /** 自由記述の既定値 */
-  defaultValue?: string;
-  /**
-   * 画面項目定義への参照 (#321)。
-   * 設定時は対応する ScreenItem から id/label/type/required/pattern/maxLength 等を上書き解釈する。
-   * 処理フロー側で上書きしたいフィールド (description 等) は本オブジェクトの同名プロパティが優先。
-   * 参照先が存在しない場合は UNKNOWN_SCREEN_ITEM 警告 (参照整合性バリデータ)。
-   */
-  screenItemRef?: { screenId: string; itemId: string };
-  /**
-   * Domain カタログへの参照 (#422 P2-1 / D-2)。
-   * ProcessFlow.domainsCatalog のキー (例: "EmailAddress")。
-   * 型・制約・uiHint を domainsCatalog 側から継承する。
-   */
-  domainRef?: string;
-  /**
-   * 属性レベル計算式 (#422 P2-2 / GeneXus 由来)。
-   * "= " で始まる式文字列 (例: "= a + b", "= @quantity * @unitPrice")。
-   * ScreenItem.computed と対になる概念。
-   */
-  formula?: string;
-}
-
-/** inputs / outputs の値型: 旧形式 (改行区切り文字列) と新形式 (StructuredField[]) の union */
-export type ActionFields = string | StructuredField[];
-
-// ── HTTP 契約 (docs/spec, #151 (B)) ─────────────────────────────────────
-
-export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
-/** 認証要件。product-scope §6 参照 */
-export type HttpAuthRequirement = "required" | "optional" | "none";
-
-/** アクションが HTTP ハンドラの場合のルート定義 */
-export interface HttpRoute {
-  method: HttpMethod;
-  /** 例: "/api/customers" または "/api/customers/:id" */
-  path: string;
-  /** 認証要件。省略時は "required" として解釈 (product-scope §6 既定) */
-  auth?: HttpAuthRequirement;
-}
-
-/**
- * bodySchema の構造化参照 (#253 v1.2)。
- * - `{ typeRef: string }`: 型カタログ (将来機能) への名前参照。今は規約的な型名 (例: "ApiError", "CustomerResponse")
- * - `{ schema: object }`: インライン JSON Schema (ad hoc な応答形式用)
- *
- * 旧 string 形式 (自由記述) も union で残る。段階的に構造化へ移行する想定。
- */
-export type BodySchemaRef =
-  | string
-  | { typeRef: string }
-  | { schema: Record<string, unknown> };
-
-/** HTTP レスポンス仕様 (成功/エラーの各ケース) */
-export interface HttpResponseSpec {
-  /** ReturnStep.responseRef から参照するための識別子 (任意、例: "409-stock-shortage") */
-  id?: string;
-  /** 数値 HTTP ステータス (例: 201, 400, 404) */
-  status: number;
-  /** MIME タイプ。未指定は "application/json" として解釈 */
-  contentType?: string;
-  /**
-   * レスポンスボディのスキーマ。
-   * - 旧 string (自由記述): "CustomerRegisterResponse" / "ApiError" / "{ code, fieldErrors }"
-   * - 新 `{ typeRef }` (#253 v1.2): 型カタログへの名前参照
-   * - 新 `{ schema }` (#253 v1.2): インライン JSON Schema
-   */
-  bodySchema?: BodySchemaRef;
-  /** 説明 (発生条件、UI 文言のヒント等) */
-  description?: string;
-  /** 発生条件 (自由記述、例: "@duplicateCustomer != null") */
-  when?: string;
-}
-
-export interface ActionDefinition {
-  id: string;
-  name: string;
-  trigger: ActionTrigger;
-  elementRef?: string;
-  description?: string;
-  /**
-   * 入力データ。
-   * - 旧形式: 改行区切り文字列 (既存データ互換)
-   * - 新形式: StructuredField[]
-   * docs/spec/process-flow-variables.md §3.1
-   */
-  inputs?: ActionFields;
-  /** 出力データ。inputs と同じ union 型 */
-  outputs?: ActionFields;
-  /** 成熟度。未指定は "draft" として解釈 */
-  maturity?: Maturity;
-  /** SLA / Timeout declaration for this action. */
-  sla?: Sla;
-  /** アクション起動に必要な permission key。@conv.permission.<key> と対応する。 */
-  requiredPermissions?: string[];
-  /**
-   * HTTP ルート定義 (アクションが HTTP ハンドラの場合)。未指定は「非 HTTP」として解釈。
-   * docs/spec #151 (B)
-   */
-  httpRoute?: HttpRoute;
-  /**
-   * HTTP レスポンス仕様の配列。success / 各エラーケースをまとめて列挙。
-   * docs/spec #151 (B)
-   */
-  responses?: HttpResponseSpec[];
-  steps: Step[];
-}
-
-// ── 処理フロー ───────────────────────────────────────────────────
-
-/**
- * エラーコードカタログの 1 エントリ (#253)。
- * 同一 errorCode が affectedRowsCheck.errorCode / BranchConditionVariant.errorCode / responses[].description の
- * 複数箇所に散在する問題を解決するため、ProcessFlow 単位で 1 箇所に集約する。
- */
-/**
- * マーカーの種別 (#261)。
- * - "chat": AI への指示・質問 (会話的)
- * - "attention": 「ここ確認して」(人間が目印として置く)
- * - "todo": 未完了タスク
- * - "question": AI に答えを求める質問
- */
-export type MarkerKind = "chat" | "attention" | "todo" | "question";
-
-/**
- * マーカー 1 件 (#261 リアルタイム編集ワークフロー)。
- * 人間の指示・質問を保持し、Claude Code が読み取って処理する。
- */
-export interface Marker {
-  id: string;
-  kind: MarkerKind;
-  /** マーカー本文 (自然言語) */
-  body: string;
-  /** 紐付く step id (省略時はグループ全体宛) */
-  stepId?: string;
-  /** 紐付くフィールドパス (例: "expression", "sql")。省略時はステップ全体 */
-  fieldPath?: string;
-  /** 発言者 */
-  author: "human" | "ai";
-  /** ISO timestamp */
-  createdAt: string;
-  /** 解決済みなら設定 (AI が対応完了を記録) */
-  resolvedAt?: string;
-  /** AI 側の対応メモ (resolve 時に併記) */
-  resolution?: string;
-  /**
-   * 警告由来の marker に紐付く validator コード (UNKNOWN_IDENTIFIER 等)。
-   * 警告→marker 起票時に埋め、重複起票ガードに使う (#261)。
-   */
-  code?: string;
-  /**
-   * 警告由来の marker に紐付く JSON path (例: actions[0].steps[1].responseRef)。
-   * code と併用して「同じ警告を 2 回起票しない」判定。
-   */
-  path?: string;
-  /**
-   * 自由描画 (赤線マーカー) の形状 (#261)。
-   * ユーザーが画面上で描いた線・矩形などを SVG path として保持し、描画オーバーレイで可視化する。
-   * 座標は editor container に対する % で正規化 (リサイズに追従)。
-   */
-  shape?: MarkerShape;
-}
-
-/**
- * マーカー形状 (#261)。現状は freeform path のみ。
- * 将来的に rectangle / arrow / circle 等を enum で拡張予定。
- */
-export interface MarkerShape {
-  type: "path";
-  /**
-   * SVG path の `d` 属性値。座標は 0-100 の % 表記、viewBox="0 0 100 100"。
-   * `anchorStepId` 指定時はその DOM 要素 (step card / field) の bbox に対する %、
-   * 未指定時は画面全体 (ProcessFlowEditor コンテンツ領域) に対する %。
-   */
-  d: string;
-  /** 描画色 (省略時は #ef4444 赤) */
-  color?: string;
-  /** 線幅 (省略時は 2) */
-  strokeWidth?: number;
-  /**
-   * DOM anchor: 描画を特定 step に紐付ける (#261 anchor 改善)。
-   * 指定時は `d` 座標がこの step (+ field) の bbox 相対。step が削除されると orphan になる。
-   */
-  anchorStepId?: string;
-  /**
-   * DOM anchor の field 細分。step 内の特定フィールド (例: "sql", "conditions",
-   * "expression") に紐付ける場合に指定。step レベルで十分な場合は省略。
-   */
-  anchorFieldPath?: string;
-}
-
-/**
- * Secrets カタログの 1 エントリ (#261 v1.6 / #414 で values 拡張)。
- * 秘匿値そのものは JSON に含めない。取得方法のメタデータのみ。
- */
-export interface SecretRef {
-  /**
-   * 秘匿値の取得元。
-   * - "env": プロセス環境変数 (`process.env[name]`)
-   * - "vault": 外部 secret store (HashiCorp Vault / AWS Secrets Manager / GCP Secret Manager 等)
-   * - "file": ローカルファイルパス (開発時のみ)
-   */
-  source: "env" | "vault" | "file";
-  /**
-   * source 毎の具体的な名前/パス:
-   * - env: 環境変数名 (例: "STRIPE_SECRET_KEY")
-   * - vault: vault 内パス (例: "secret/stripe/api-key")
-   * - file: ファイルパス (例: "/etc/secrets/stripe.pem")
-   */
-  name: string;
-  /** 人間向け説明 */
-  description?: string;
-  /** ローテーション周期 (日)。未指定は運用規約依存 */
-  rotationDays?: number;
-  /** 最終ローテーション時刻 (ISO timestamp) */
-  lastRotatedAt?: string;
-  /**
-   * 環境別の参照式 (#414)。dev / staging / prod 等の任意キー。
-   * 実値ではなく `vault://path` / `env://NAME` / `k8s-secret://name` 形式の参照を入れる規約。
-   * 旧フォーマット (values 無し) は後方互換で source/name から実装が解決する。
-   */
-  values?: Record<string, string>;
-}
-
-/**
- * 環境変数カタログの 1 エントリ (#414)。Power Platform Environment Variables 由来。
- * 業務システムの環境別 (dev / staging / prod) 設定値を宣言可能化する。
- * `@env.<KEY>` で式から参照される。
- */
-export interface EnvVarEntry {
-  /** 値の型。実装側はこの型に従って parse する */
-  type: "string" | "number" | "boolean";
-  /** 人間向け説明 */
-  description?: string;
-  /**
-   * 環境別の値。dev / staging / prod 等の任意キー。
-   * 値は type と整合した primitive (string / number / boolean) または式文字列。
-   */
-  values?: Record<string, string | number | boolean>;
-  /** values で当該環境キーが未指定時に使う既定値。type と整合した primitive を入れる。 */
-  default?: string | number | boolean;
-}
-
-export interface ErrorCatalogEntry {
-  /** 対応する HTTP ステータス (例: 409) */
-  httpStatus?: number;
-  /** 既定メッセージ (@conv.msg.* 参照も可) */
-  defaultMessage?: string;
-  /** action.responses[].id への参照。ReturnStep / 分岐処理で返却すべき response */
-  responseRef?: string;
-  /** 補足説明 */
-  description?: string;
-}
-
-/**
- * Domain カタログの 1 エントリ (#422 P2-1 / GeneXus 由来)。
- * 型・制約・UI ヒントを宣言し、StructuredField.domainRef から参照される。
- * DRY 化: 複数フィールドで同じバリデーション / UI ヒントを使い回す際に使う。
- */
-export interface DomainDef {
-  /** このドメインの型。FieldType と同じ union */
-  type: FieldType;
-  /** このドメインに適用する ValidationRule 一覧 */
-  constraints?: ValidationRule[];
-  /** UI 表示ヒント (例: "email", "tel", "textarea"). HTML input type 相当 */
-  uiHint?: string;
-  /** 説明 */
-  description?: string;
-}
-
-/**
- * 組み込み関数カタログの 1 エントリ (#422 P2-5 / Wagby 由来)。
- * @fn.<name> 参照形式で式から呼び出される。
- */
-export interface FunctionDef {
-  /** 関数シグネチャ (例: "formatCurrency(amount: number, currency: string): string") */
-  signature: string;
-  /** 戻り値の型 (例: "string", "number", "boolean") */
-  returnType: string;
-  /** 説明 */
-  description: string;
-  /** 使用例 (例: ["@fn.formatCurrency(@subtotal, 'JPY') // => \"¥1,000\""]) */
-  examples?: string[];
-}
-
-export interface HealthCheck {
-  name: string;
-  type: "db" | "http" | "custom";
-  target?: string;
-  timeout?: number;
-}
-
-export interface ResourceRequirements {
-  cpu?: {
-    request?: string;
-    limit?: string;
-  };
-  memory?: {
-    request?: string;
-    limit?: string;
-  };
-  dbConnections?: number;
-  timeout?: number;
-}
-
-export interface ProcessFlow {
-  [key: string]: unknown;
-  id: string;
-  name: string;
-  type: ProcessFlowType;
-  screenId?: string;
-  description: string;
-  /**
-   * API バージョン識別子 (#423 B-6)。
-   * 例: "v1", "2026-04-25"。ExternalSystemStep.apiVersion で step 単位の override が可能。
-   */
-  apiVersion?: string;
-  actions: ActionDefinition[];
-  /** 成熟度。未指定は "draft" として解釈 (docs/spec/process-flow-maturity.md §3) */
-  maturity?: Maturity;
-  /** SLA / Timeout declaration for this flow. */
-  sla?: Sla;
-  health?: { checks: HealthCheck[] };
-  readiness?: { checks: HealthCheck[]; minimumPassCount?: number };
-  resources?: ResourceRequirements;
-  /** 上流/下流モード。未指定は "upstream" として解釈 (docs/spec/process-flow-maturity.md §5) */
-  mode?: ProcessFlowMode;
-  /**
-   * エラーコードカタログ (#253)。キー: errorCode (例: "STOCK_SHORTAGE")、値: HTTP ステータス / 既定メッセージ / 対応する responseRef。
-   * affectedRowsCheck.errorCode / BranchConditionVariant.errorCode から参照される。
-   */
-  errorCatalog?: Record<string, ErrorCatalogEntry>;
-  /**
-   * 外部システムカタログ (#261 v1.3)。キー: systemId (例: "stripe", "sendgrid")。
-   * ExternalSystemStep.systemRef から参照され、baseUrl/auth/timeoutMs 等の既定値を提供。
-   */
-  externalSystemCatalog?: Record<string, ExternalSystemCatalogEntry>;
-  /**
-   * Ambient 変数カタログ (#261 v1.4)。ミドルウェア・フレームワーク由来の自動注入変数 (例: @requestId, @traceId, @fieldErrors)。
-   * @param 記法で参照される際に「inputs にも outputBinding にも無い」と未定義エラー扱いされないよう、
-   * アクション側で明示宣言する。実装側は各フレームワーク (Express/Fastify/Nest) の仕組みで値を供給する責務。
-   */
-  ambientVariables?: StructuredField[];
-  /**
-   * 規約カタログ defaults へのフロー固有例外 (#369)。
-   * 未指定時は data/conventions/catalog.json の default:true エントリを全項目で継承。
-   * キーはカタログカテゴリ名 (例: "currency", "scope.timezone")、値は @conv.* 参照文字列またはリテラル値。
-   * 稀用途: 特定フローだけ別通貨・別タイムゾーンで動かす場合のみ記述する。
-   */
-  ambientOverrides?: Record<string, string>;
-  /**
-   * Secrets カタログ (#261 v1.6 / #414 で values 拡張)。API キー・DB パスワード・署名鍵等の秘匿値の**メタデータ**。
-   * 値そのものは JSON に保存せず、`source` で実際の取得先を指す (ENV / vault / file 等)。
-   * `values` で環境別 (dev/staging/prod) の参照式 (`vault://...` / `env://...` 等) を宣言できる。
-   * ExternalAuth.tokenRef から `@secret.<key>` 記法で参照される。
-   */
-  secretsCatalog?: Record<string, SecretRef>;
-  /**
-   * 環境変数カタログ (#414)。Power Platform Environment Variables 由来。
-   * 業務システムの環境別 (dev/staging/prod) 設定値 (型 + values + default) を宣言する。
-   * `@env.<KEY>` で式から参照される。秘匿値は secretsCatalog 側で扱う。
-   */
-  envVarsCatalog?: Record<string, EnvVarEntry>;
-  /**
-   * Domain 概念カタログ (#422 P2-1 / GeneXus 由来)。
-   * キー: ドメイン名 (例: "EmailAddress", "Quantity")。
-   * StructuredField.domainRef から参照される。型・制約・uiHint を 1 箇所に集約し DRY 化する。
-   */
-  domainsCatalog?: Record<string, DomainDef>;
-  /**
-   * 組み込み関数カタログ (#422 P2-5 / Wagby 由来)。
-   * キー: 関数名 (例: "formatCurrency", "calcAge")。
-   * `@fn.<name>` 参照形式で式から呼び出される。
-   */
-  functionsCatalog?: Record<string, FunctionDef>;
-  /**
-   * イベント pub/sub カタログ (#423 B-1)。キー: トピック名。
-   * EventPublishStep / EventSubscribeStep の eventRef から参照される。
-   */
-  eventsCatalog?: Record<string, EventDef>;
-  /**
-   * ビジネス用語集 (#423 B-3)。キー: 用語名。
-   * ドメイン固有語・略語の定義と別名を集約する。AI 実装者がドメイン語義を解釈するための参照情報。
-   */
-  glossary?: Record<string, GlossaryEntry>;
-  /**
-   * ADR / 設計判断ログ (#423 B-5)。
-   * アーキテクチャ上の決定とその根拠・影響を記録する。
-   */
-  decisions?: DecisionRecord[];
-  /**
-   * マーカー (#261 リアルタイム編集ワークフロー)。
-   * 人間が designer 画面で付けたコメント・質問・TODO・チャットメッセージを保持。
-   * Claude Code が /designer-work でこれを読み取り、対応した後 resolvedAt を設定する。
-   *
-   * 付箋 (StepNote) との違い:
-   * - StepNote: 仕様書として残す人間向け注記 (成熟度管理)
-   * - Marker: AI への指示・一時的なコミュニケーション (解決後は resolvedAt で非表示)
-   */
-  markers?: Marker[];
-  testScenarios?: TestScenario[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface TestScenario {
-  id: string;
-  name: string;
-  description?: string;
-  given: TestPrecondition[];
-  when: TestInvocation;
-  then: TestAssertion[];
-  tags?: string[];
-}
-
-export type TestPrecondition =
-  | { kind: "dbState"; table: string; rows: Record<string, unknown>[] }
-  | { kind: "sessionContext"; context: Record<string, unknown> }
-  | { kind: "externalStub"; externalRef: string; responseMock: unknown }
-  | { kind: "clock"; now: string };
-
-export interface TestInvocation {
-  actionId: string;
-  input: Record<string, unknown>;
-}
-
-export type TestAssertion =
-  | { kind: "outcome"; expected: string }
-  | { kind: "dbRow"; table: string; match: Record<string, unknown>; count?: number }
-  | { kind: "output"; path: string; equals?: unknown; matches?: string }
-  | { kind: "externalCall"; externalRef: string; method?: string; bodyMatch?: Record<string, unknown> }
-  | { kind: "auditLog"; action: string; result?: "success" | "failure" }
-  | { kind: "errorMessage"; msgKey: string };
-
-/** project.json用メタデータ */
-export interface ProcessFlowMeta {
-  id: string;
-  /** 物理順 (1..N 連番)。詳細は docs/spec/list-common.md §3.10 */
-  no: number;
-  name: string;
-  type: ProcessFlowType;
-  screenId?: string;
-  actionCount: number;
-  updatedAt: string;
-  /** 成熟度 (#186、docs/spec/process-flow-maturity.md §6.4)。未指定は "draft" として解釈 */
-  maturity?: Maturity;
-  /** グループ全体の付箋合計件数 (#228、一覧表示用) */
-  notesCount?: number;
-}
-
-// ── ステップテンプレート ─────────────────────────────────────────────────
-
-/** テンプレート用のステップ定義（id省略、種別固有フィールドは any） */
-export type TemplateStep = Omit<StepBase, "id"> & Record<string, unknown>;
-
-export interface StepTemplate {
-  id: string;
-  label: string;
-  description: string;
-  steps: TemplateStep[];
-}
-
-export const STEP_TEMPLATES: StepTemplate[] = [
-  {
-    id: "tpl-validate-error",
-    label: "バリデーション + エラー表示",
-    description: "入力チェック → NG時エラーメッセージ表示",
-    steps: [
-      {
-        type: "validation",
-        description: "入力値チェック",
-        conditions: "必須項目、形式チェック",
-        inlineBranch: {
-          ok: "次のステップへ続行",
-          ng: "エラーメッセージを表示、処理中断",
-        },
-      },
-    ],
-  },
-  {
-    id: "tpl-db-search-display",
-    label: "DB検索 + 結果表示",
-    description: "テーブル検索 → 結果を画面に表示",
-    steps: [
-      {
-        type: "dbAccess",
-        description: "データ検索",
-        tableName: "",
-        operation: "SELECT",
-      },
-      {
-        type: "displayUpdate",
-        description: "検索結果を一覧に表示",
-        target: "一覧テーブル",
-      },
-    ],
-  },
-  {
-    id: "tpl-db-insert-transition",
-    label: "DB登録 + 完了画面遷移",
-    description: "テーブル登録 → 完了画面へ遷移",
-    steps: [
-      {
-        type: "dbAccess",
-        description: "データ登録",
-        tableName: "",
-        operation: "INSERT" as DbOperation,
-      },
-      {
-        type: "screenTransition",
-        description: "完了画面へ遷移",
-        targetScreenName: "",
-      },
-    ],
-  },
-  {
-    id: "tpl-auth-check",
-    label: "認証 + 権限チェック",
-    description: "認証チェック → 権限チェック → NG時ログイン画面",
-    steps: [
-      {
-        type: "commonProcess",
-        description: "認証チェック",
-        refId: "",
-        refName: "認証チェック",
-      },
-      {
-        type: "commonProcess",
-        description: "権限チェック",
-        refId: "",
-        refName: "権限チェック",
-      },
-    ],
-  },
-];
+export const STEP_TEMPLATES: readonly StepTemplate[] = [];

@@ -274,7 +274,7 @@ export function decomposeFlowProject(
         trigger: e.trigger,
       })),
       tables: project.tables,
-      processFlows: project.processFlows?.map(({ type: _type, ...entry }) => ({
+      processFlows: project.processFlows?.map((entry) => ({
         ...entry,
         id: entry.id as ProcessFlowId,
         screenId: entry.screenId as ScreenId | undefined,
@@ -424,7 +424,7 @@ function legacyToProject(legacy: LegacyFlowProject): Project {
         trigger: e.trigger,
       })),
       tables: legacy.tables,
-      processFlows: legacy.processFlows?.map(({ type: _type, ...entry }) => ({
+      processFlows: legacy.processFlows?.map((entry) => ({
         ...entry,
         id: entry.id as ProcessFlowId,
         screenId: entry.screenId as ScreenId | undefined,

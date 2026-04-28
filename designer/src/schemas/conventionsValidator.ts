@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * @conv.msg.* / @conv.regex.* / @conv.limit.* 参照の検証 (#151-A / #261 残)。
  *

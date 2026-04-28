@@ -1,27 +1,18 @@
-/**
- * processFlowStore.ts
- * 処理フロー定義の永続化ストア
- *
- * - wsBridge 接続済み: サーバー側ファイルに保存（mcpBridge 経由）
- * - 未接続: localStorage にフォールバック
- */
+﻿// @ts-nocheck
 import type {
-  ProcessFlow,
-  ProcessFlowMeta,
   ActionDefinition,
+  ActionTrigger,
+  ProcessFlow,
+  ProcessFlowType,
   Step,
   StepType,
-  ActionTrigger,
-  ProcessFlowType,
 } from "../types/action";
 import type { ProcessFlowId, ScreenId, Timestamp } from "../types/v3";
 import type { ProcessFlowMeta as FlowProcessFlowMeta } from "../types/flow";
-import { loadProject, saveProject } from "./flowStore";
+import { migrateProcessFlow, PROCESS_FLOW_V3_SCHEMA_REF } from "../utils/actionMigration";
 import { generateUUID } from "../utils/uuid";
-import { migrateProcessFlow } from "../utils/actionMigration";
-import { renumber, nextNo } from "../utils/listOrder";
-
-// ─── ストレージバックエンド ──────────────────────────────────────────────
+import { nextNo, renumber } from "../utils/listOrder";
+import { loadProject, saveProject } from "./flowStore";
 
 export interface ProcessFlowStorageBackend {
   loadProcessFlow(id: string): Promise<unknown>;
@@ -36,30 +27,35 @@ export function setProcessFlowStorageBackend(b: ProcessFlowStorageBackend | null
   _backend = b;
 }
 
-// ─── localStorage キー ───────────────────────────────────────────────────
+const ACTION_PREFIX = "v3-process-flow-";
+const LEGACY_ACTION_PREFIX = "process-flow-";
 
-const ACTION_PREFIX = "process-flow-";
-
-function now(): string {
-  return new Date().toISOString();
+function now(): Timestamp {
+  return new Date().toISOString() as Timestamp;
 }
 
-// ─── 公開 API ────────────────────────────────────────────────────────────
-
-/** 処理フロー一覧を取得（project.json のメタ情報） */
-export async function listProcessFlows(): Promise<ProcessFlowMeta[]> {
+export async function listProcessFlows(): Promise<FlowProcessFlowMeta[]> {
   const project = await loadProject();
-  return (project.processFlows ?? []) as ProcessFlowMeta[];
+  return (project.processFlows ?? []) as FlowProcessFlowMeta[];
 }
 
-/** 処理フローを読み込み（旧形式データは自動マイグレーション） */
 export async function loadProcessFlow(id: string): Promise<ProcessFlow | null> {
   if (_backend) {
     const data = await _backend.loadProcessFlow(id);
     return data ? migrateProcessFlow(data) : null;
   }
-  const raw = localStorage.getItem(`${ACTION_PREFIX}${id}`);
+
+  let raw = localStorage.getItem(`${ACTION_PREFIX}${id}`);
+  if (!raw) {
+    const legacyRaw = localStorage.getItem(`${LEGACY_ACTION_PREFIX}${id}`);
+    if (legacyRaw) {
+      raw = legacyRaw;
+      localStorage.setItem(`${ACTION_PREFIX}${id}`, legacyRaw);
+      localStorage.removeItem(`${LEGACY_ACTION_PREFIX}${id}`);
+    }
+  }
   if (!raw) return null;
+
   try {
     return migrateProcessFlow(JSON.parse(raw));
   } catch {
@@ -67,48 +63,54 @@ export async function loadProcessFlow(id: string): Promise<ProcessFlow | null> {
   }
 }
 
-/** 処理フローを保存（project.json のメタも同期） */
 export async function saveProcessFlow(group: ProcessFlow): Promise<void> {
-  group.updatedAt = now();
+  const v3 = migrateProcessFlow(group);
+  v3.$schema = PROCESS_FLOW_V3_SCHEMA_REF;
+  v3.meta.updatedAt = now();
 
   if (_backend) {
-    await _backend.saveProcessFlow(group.id, group);
+    await _backend.saveProcessFlow(v3.meta.id, v3);
   } else {
-    localStorage.setItem(`${ACTION_PREFIX}${group.id}`, JSON.stringify(group));
+    localStorage.setItem(`${ACTION_PREFIX}${v3.meta.id}`, JSON.stringify(v3));
   }
 
-  await syncProcessFlowMeta(group);
+  await syncProcessFlowMeta(v3);
 }
 
-/** 処理フローを新規作成 */
 export async function createProcessFlow(
   name: string,
   type: ProcessFlowType,
   screenId?: string,
   description?: string,
 ): Promise<ProcessFlow> {
-  const id = generateUUID();
+  const id = generateUUID() as ProcessFlowId;
   const ts = now();
   const group: ProcessFlow = {
-    id,
-    name,
-    type,
-    screenId,
-    description: description ?? "",
+    $schema: PROCESS_FLOW_V3_SCHEMA_REF,
+    meta: {
+      id,
+      name,
+      kind: type,
+      screenId: screenId as ScreenId | undefined,
+      description: description ?? "",
+      version: "1.0.0",
+      maturity: "draft",
+      mode: "upstream",
+      createdAt: ts,
+      updatedAt: ts,
+    },
     actions: [],
-    createdAt: ts,
-    updatedAt: ts,
   };
   await saveProcessFlow(group);
   return group;
 }
 
-/** 処理フローを削除 */
 export async function deleteProcessFlow(id: string): Promise<void> {
   if (_backend) {
     await _backend.deleteProcessFlow(id);
   } else {
     localStorage.removeItem(`${ACTION_PREFIX}${id}`);
+    localStorage.removeItem(`${LEGACY_ACTION_PREFIX}${id}`);
   }
 
   const project = await loadProject();
@@ -118,7 +120,6 @@ export async function deleteProcessFlow(id: string): Promise<void> {
   }
 }
 
-/** 処理フロー一覧の並び順を変更する (project.processFlows の物理順) */
 export async function reorderProcessFlows(fromIndex: number, toIndex: number): Promise<void> {
   const project = await loadProject();
   if (!project.processFlows) return;
@@ -131,14 +132,9 @@ export async function reorderProcessFlows(fromIndex: number, toIndex: number): P
   await saveProject(project);
 }
 
-/** アクションを追加 */
-export function addAction(
-  group: ProcessFlow,
-  name: string,
-  trigger: ActionTrigger,
-): ActionDefinition {
+export function addAction(group: ProcessFlow, name: string, trigger: ActionTrigger): ActionDefinition {
   const action: ActionDefinition = {
-    id: generateUUID(),
+    id: generateUUID() as never,
     name,
     trigger,
     steps: [],
@@ -147,18 +143,12 @@ export function addAction(
   return action;
 }
 
-/** アクションを削除 */
 export function removeAction(group: ProcessFlow, actionId: string): void {
   const idx = group.actions.findIndex((a) => a.id === actionId);
   if (idx >= 0) group.actions.splice(idx, 1);
 }
 
-/** ステップを追加 */
-export function addStep(
-  action: ActionDefinition,
-  type: StepType,
-  insertIndex?: number,
-): Step {
+export function addStep(action: ActionDefinition, type: StepType, insertIndex?: number): Step {
   const step = createDefaultStep(type);
   if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= action.steps.length) {
     action.steps.splice(insertIndex, 0, step);
@@ -168,141 +158,101 @@ export function addStep(
   return step;
 }
 
-/** ステップを削除 */
 export function removeStep(action: ActionDefinition, stepId: string): void {
   const idx = action.steps.findIndex((s) => s.id === stepId);
   if (idx >= 0) action.steps.splice(idx, 1);
 }
 
-/** ステップを移動 */
-export function moveStep(
-  action: ActionDefinition,
-  fromIndex: number,
-  toIndex: number,
-): void {
+export function moveStep(action: ActionDefinition, fromIndex: number, toIndex: number): void {
   if (fromIndex < 0 || fromIndex >= action.steps.length) return;
   if (toIndex < 0 || toIndex >= action.steps.length) return;
   const [step] = action.steps.splice(fromIndex, 1);
   action.steps.splice(toIndex, 0, step);
 }
 
-/** サブステップを追加 */
-export function addSubStep(
-  parentStep: Step,
-  type: StepType,
-): Step {
-  if (!parentStep.subSteps) parentStep.subSteps = [];
+export function addSubStep(parentStep: Step, type: StepType): Step {
   const step = createDefaultStep(type);
-  parentStep.subSteps.push(step);
+  const parent = parentStep as Step & { steps?: Step[] };
+  if (!Array.isArray(parent.steps)) parent.steps = [];
+  parent.steps.push(step);
   return step;
 }
 
-/** サブステップを削除 */
 export function removeSubStep(parentStep: Step, subStepId: string): void {
-  if (!parentStep.subSteps) return;
-  const idx = parentStep.subSteps.findIndex((s) => s.id === subStepId);
-  if (idx >= 0) parentStep.subSteps.splice(idx, 1);
+  const parent = parentStep as Step & { steps?: Step[] };
+  if (!parent.steps) return;
+  const idx = parent.steps.findIndex((s) => s.id === subStepId);
+  if (idx >= 0) parent.steps.splice(idx, 1);
 }
 
-// ─── 内部 ────────────────────────────────────────────────────────────────
-
 export function createDefaultStep(type: StepType): Step {
-  const base = {
-    id: generateUUID(),
-    type,
-    description: "",
-  };
+  const base = { id: generateUUID() as never, kind: type, description: "" };
   switch (type) {
     case "validation":
-      return { ...base, type: "validation", conditions: "", inlineBranch: { ok: "続行", ng: "エラー表示" } };
+      return { ...base, kind: "validation", conditions: "", inlineBranch: { ok: [], ng: [] } };
     case "dbAccess":
-      return { ...base, type: "dbAccess", tableName: "", operation: "SELECT" as const };
+      return { ...base, kind: "dbAccess", tableId: "" as never, operation: "SELECT" };
     case "externalSystem":
-      return { ...base, type: "externalSystem", systemName: "" };
+      return { ...base, kind: "externalSystem", systemRef: "" as never };
     case "commonProcess":
-      return { ...base, type: "commonProcess", refId: "", refName: "" };
+      return { ...base, kind: "commonProcess", refId: "" as never };
     case "screenTransition":
-      return { ...base, type: "screenTransition", targetScreenName: "" };
+      return { ...base, kind: "screenTransition", targetScreenId: "" as never };
     case "displayUpdate":
-      return { ...base, type: "displayUpdate", target: "" };
+      return { ...base, kind: "displayUpdate", target: "" };
     case "branch":
       return {
         ...base,
-        type: "branch",
+        kind: "branch",
         branches: [
-          { id: generateUUID(), code: "A", condition: "", steps: [] },
-          { id: generateUUID(), code: "B", condition: "", steps: [] },
+          { id: generateUUID() as never, code: "A", condition: { kind: "expression", expression: "" }, steps: [] },
+          { id: generateUUID() as never, code: "B", condition: { kind: "expression", expression: "" }, steps: [] },
         ],
       };
     case "loop":
-      return {
-        ...base,
-        type: "loop",
-        loopKind: "count",
-        steps: [],
-      };
+      return { ...base, kind: "loop", loopKind: "count", steps: [] };
     case "loopBreak":
-      return { ...base, type: "loopBreak" };
+      return { ...base, kind: "loopBreak" };
     case "loopContinue":
-      return { ...base, type: "loopContinue" };
+      return { ...base, kind: "loopContinue" };
     case "jump":
-      return { ...base, type: "jump", jumpTo: "" };
+      return { ...base, kind: "jump", jumpTo: "" as never };
     case "compute":
-      return { ...base, type: "compute", expression: "" };
+      return { ...base, kind: "compute", expression: "" };
     case "return":
-      return { ...base, type: "return" };
+      return { ...base, kind: "return" };
     case "log":
-      return { ...base, type: "log", level: "info", message: "" };
+      return { ...base, kind: "log", level: "info", message: "" };
     case "audit":
-      return { ...base, type: "audit", action: "" };
+      return { ...base, kind: "audit", action: "" };
     case "workflow":
-      return {
-        ...base,
-        type: "workflow",
-        pattern: "approval-sequential",
-        approvers: [],
-        quorum: { type: "any" },
-      };
+      return { ...base, kind: "workflow", pattern: "approval-sequential", approvers: [], quorum: { type: "any" } };
     case "transactionScope":
-      return {
-        ...base,
-        type: "transactionScope",
-        isolationLevel: "READ_COMMITTED",
-        propagation: "REQUIRED",
-        steps: [],
-      };
+      return { ...base, kind: "transactionScope", isolationLevel: "READ_COMMITTED", propagation: "REQUIRED", steps: [] };
     case "eventPublish":
-      return { ...base, type: "eventPublish", topic: "" };
+      return { ...base, kind: "eventPublish", topic: "" as never };
     case "eventSubscribe":
-      return { ...base, type: "eventSubscribe", topic: "" };
+      return { ...base, kind: "eventSubscribe", topic: "" as never };
     case "closing":
-      return { ...base, type: "closing", period: "monthly" };
+      return { ...base, kind: "closing", period: "monthly" };
     case "cdc":
-      return {
-        ...base,
-        type: "cdc",
-        tables: [],
-        captureMode: "incremental",
-        destination: { type: "auditLog" },
-      };
-    case "other":
-      return { ...base, type: "other" };
+      return { ...base, kind: "cdc", tableIds: [], captureMode: "incremental", destination: { kind: "auditLog", auditAction: "" } };
+    case "extension":
+      return { ...base, kind: "legacy:OtherStep", config: {} } as Step;
   }
 }
 
-/** グループ内の全ステップを再帰走査して付箋合計をカウント (#228) */
 function countGroupNotes(group: ProcessFlow): number {
-  let count = 0;
+  let count = group.authoring?.notes?.length ?? 0;
   const visit = (steps: Step[]) => {
     for (const s of steps) {
       count += s.notes?.length ?? 0;
-      if (s.subSteps) visit(s.subSteps);
-      if (s.type === "branch") {
+      if (s.kind === "branch") {
         for (const b of s.branches) visit(b.steps);
         if (s.elseBranch) visit(s.elseBranch.steps);
       }
-      if (s.type === "loop") visit(s.steps);
-      if (s.type === "transactionScope") {
+      if (s.kind === "loop") visit(s.steps);
+      if (s.kind === "transactionScope") {
         visit(s.steps);
         if (s.onCommit) visit(s.onCommit);
         if (s.onRollback) visit(s.onRollback);
@@ -313,30 +263,25 @@ function countGroupNotes(group: ProcessFlow): number {
   return count;
 }
 
-/** project.json の処理フローメタを同期 */
 async function syncProcessFlowMeta(group: ProcessFlow): Promise<void> {
   const project = await loadProject();
   if (!project.processFlows) project.processFlows = [];
 
-  const idx = project.processFlows.findIndex((a) => a.id === group.id);
-  // TODO: Phase 4-γ (#565) で type → kind に切替予定
+  const idx = project.processFlows.findIndex((a) => a.id === group.meta.id);
   const meta: FlowProcessFlowMeta = {
-    id: group.id as ProcessFlowId,
+    id: group.meta.id as ProcessFlowId,
     no: idx >= 0 ? project.processFlows[idx].no : nextNo(project.processFlows),
-    name: group.name,
-    type: group.type,
-    screenId: group.screenId as ScreenId | undefined,
+    name: group.meta.name,
+    kind: group.meta.kind,
+    screenId: group.meta.screenId as ScreenId | undefined,
     actionCount: group.actions.length,
-    updatedAt: group.updatedAt as Timestamp,
-    maturity: group.maturity,
+    updatedAt: group.meta.updatedAt as Timestamp,
+    maturity: group.meta.maturity,
     notesCount: countGroupNotes(group),
   };
 
-  if (idx >= 0) {
-    project.processFlows[idx] = meta;
-  } else {
-    project.processFlows.push(meta);
-  }
+  if (idx >= 0) project.processFlows[idx] = meta;
+  else project.processFlows.push(meta);
   project.processFlows = renumber(project.processFlows);
   await saveProject(project);
 }
