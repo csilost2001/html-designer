@@ -261,8 +261,14 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     //     内部 state を多く保持しており、`editor.load()` 1 回で全てが silently swap される
     //   - 再接続イベント自体ではサーバ側に変更が起きたとは限らず、無条件 reload は UX 上の不連続が大きい
     //   - 「他クライアントによる明示的な変更通知 (broadcast)」だけを clean 時の即時反映トリガにする
-    //   - 再接続時にサーバ側で実際に変更があった場合は、初回マウント後の `useEffect` で
-    //     `hasServerBeenUpdated` を呼んで ServerChangeBanner を立てるため、ユーザー判断のチャンスは保たれる
+    //
+    // ServerChangeBanner が立つ経路は 2 つだけで、MCP 再接続イベント自体はそのトリガに含めない:
+    //   (a) broadcast (`screenChanged`) を dirty 中に受信したとき (本ハンドラ下 if 分岐)
+    //   (b) タブ再オープン時の初回マウント後 `useEffect` (`Designer.tsx:415-426`) が
+    //       `hasServerBeenUpdated` を呼び差分が見つかったとき
+    // 注意: タブを開いたまま切断 → 再接続した間に他クライアントが screen を編集した場合、
+    // broadcast は接続中しか届かないため取りこぼされ、再接続時点では検知できない。
+    // この trade-off (silent swap を避ける代わりに取りこぼしを許容) は明示的な選択。
     const unsubScreenChanged = mcpBridge.onBroadcast("screenChanged", (data) => {
       const d = data as { screenId?: string; deleted?: boolean };
       if (d.screenId !== screenId || d.deleted) return;
