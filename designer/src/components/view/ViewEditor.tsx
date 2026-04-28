@@ -9,6 +9,7 @@ import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { generateViewDdl } from "./generateViewDdl";
+import "../../styles/table.css";
 
 interface TableOption {
   id: string;
@@ -63,6 +64,8 @@ export function ViewEditor() {
   }
 
   const ddl = generateViewDdl(view);
+  const selectStatementEmpty = !view.selectStatement?.trim();
+  const outputColumnsEmpty = view.outputColumns.length === 0;
 
   const addDependency = () => {
     const dep = addDepId.trim();
@@ -179,15 +182,14 @@ export function ViewEditor() {
               <label className="tbl-field">
                 <span>成熟度</span>
                 <select
-                  value={view.maturity ?? ""}
+                  value={view.maturity ?? "draft"}
                   onChange={(e) =>
                     update((prev) => ({
                       ...prev,
-                      maturity: (e.target.value || undefined) as Maturity | undefined,
+                      maturity: e.target.value as Maturity,
                     }))
                   }
                 >
-                  <option value="">（未指定）</option>
                   <option value="draft">draft（下書き）</option>
                   <option value="provisional">provisional（暫定）</option>
                   <option value="committed">committed（確定）</option>
@@ -230,6 +232,9 @@ export function ViewEditor() {
           {/* SELECT 文 */}
           <section className="seq-editor-section">
             <h3 className="seq-editor-section-title">SELECT 文</h3>
+            {selectStatementEmpty && (
+              <span className="view-editor-section-marker" style={{ color: "red", marginLeft: 6 }} title={"SELECT \u6587\u304c\u5fc5\u9808\u3067\u3059"}>{"\u26A0\uFE0F"}</span>
+            )}
             <textarea
               className="view-editor-select-stmt"
               value={view.selectStatement}
@@ -289,6 +294,9 @@ export function ViewEditor() {
           <section className="seq-editor-section">
             <h3 className="seq-editor-section-title">
               出力列
+              {outputColumnsEmpty && (
+                <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title={"\u51fa\u529b\u5217\u304c\u672a\u5b9a\u7fa9\u3067\u3059"}>{"\u26A0\uFE0F"}</span>
+              )}
               <button
                 className="tbl-btn tbl-btn-ghost view-editor-col-add-btn"
                 onClick={() => setAddingCol(true)}
