@@ -1,0 +1,51 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "79cfcc11-ed1d-45f8-b76e-6cf7b1133d13",
+  "name": "申請承認履歴",
+  "description": "建築確認申請の各段階 (5 stages) の承認履歴。1 申請 = 5 行 (受付 / 一次審査 / 公示 / 異議申立対応 / 最終決裁)。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-28T00:00:00.000Z",
+  "updatedAt": "2026-04-28T00:00:00.000Z",
+  "physicalName": "application_approvals",
+  "category": "ログ",
+  "comment": "WorkflowStep の各段階で 1 行 INSERT、stage で何段階目かを識別。",
+  "columns": [
+    { "id": "col-aa01", "no": 1, "physicalName": "id", "name": "承認ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-aa02", "no": 2, "physicalName": "application_id", "name": "申請ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-aa03", "no": 3, "physicalName": "stage", "name": "段階", "dataType": "VARCHAR", "length": 30, "notNull": true, "comment": "received_acknowledge / first_review / public_notice / objection_response / final_decision" },
+    { "id": "col-aa04", "no": 4, "physicalName": "decision", "name": "判断", "dataType": "VARCHAR", "length": 20, "notNull": true, "comment": "approved / rejected / acknowledged (受付段階) / signed_off (公示段階)" },
+    { "id": "col-aa05", "no": 5, "physicalName": "reviewer_user_id", "name": "判断者ID", "dataType": "VARCHAR", "length": 50, "notNull": true },
+    { "id": "col-aa06", "no": 6, "physicalName": "reviewer_role", "name": "判断者役職", "dataType": "VARCHAR", "length": 30, "notNull": true, "comment": "staff (担当) / manager (課長) / director (部長) / clerk (書記)" },
+    { "id": "col-aa07", "no": 7, "physicalName": "decided_at", "name": "判断日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-aa08", "no": 8, "physicalName": "comment", "name": "コメント", "dataType": "TEXT" },
+    { "id": "col-aa09", "no": 9, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-aa01", "physicalName": "idx_application_approvals_application_stage", "columns": [{ "columnId": "col-aa02" }, { "columnId": "col-aa03" }] }
+  ],
+  "constraints": [
+    {
+      "id": "fk-aa01",
+      "kind": "foreignKey",
+      "physicalName": "fk_application_approvals_application",
+      "columnIds": ["col-aa02"],
+      "referencedTableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb",
+      "referencedColumnIds": ["col-app01"],
+      "onDelete": "cascade",
+      "onUpdate": "cascade"
+    },
+    {
+      "id": "chk-aa01",
+      "kind": "check",
+      "physicalName": "chk_application_approvals_stage_enum",
+      "expression": "stage IN ('received_acknowledge', 'first_review', 'public_notice', 'objection_response', 'final_decision')"
+    },
+    {
+      "id": "chk-aa02",
+      "kind": "check",
+      "physicalName": "chk_application_approvals_decision_enum",
+      "expression": "decision IN ('approved', 'rejected', 'acknowledged', 'signed_off')"
+    }
+  ]
+}
