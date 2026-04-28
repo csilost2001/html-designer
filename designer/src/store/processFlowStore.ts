@@ -9,7 +9,7 @@ import type {
 } from "../types/action";
 import type { ProcessFlowId, ScreenId, Timestamp } from "../types/v3";
 import type { ProcessFlowMeta as FlowProcessFlowMeta } from "../types/flow";
-import { migrateProcessFlow, PROCESS_FLOW_V3_SCHEMA_REF } from "../utils/actionMigration";
+import { migrateProcessFlow, attachStepCompatAliases, PROCESS_FLOW_V3_SCHEMA_REF } from "../utils/actionMigration";
 import { generateUUID } from "../utils/uuid";
 import { nextNo, renumber } from "../utils/listOrder";
 import { loadProject, saveProject } from "./flowStore";
@@ -187,59 +187,61 @@ export function removeSubStep(parentStep: Step, subStepId: string): void {
 
 export function createDefaultStep(type: StepType): Step {
   const base = { id: generateUUID() as never, kind: type, description: "" };
+  let step: Step;
   switch (type) {
     case "validation":
-      return { ...base, kind: "validation", conditions: "", inlineBranch: { ok: [], ng: [] } };
+      step = { ...base, kind: "validation", conditions: "", inlineBranch: { ok: [], ng: [] } }; break;
     case "dbAccess":
-      return { ...base, kind: "dbAccess", tableId: "" as never, operation: "SELECT" };
+      step = { ...base, kind: "dbAccess", tableId: "" as never, operation: "SELECT" }; break;
     case "externalSystem":
-      return { ...base, kind: "externalSystem", systemRef: "" as never };
+      step = { ...base, kind: "externalSystem", systemRef: "" as never }; break;
     case "commonProcess":
-      return { ...base, kind: "commonProcess", refId: "" as never };
+      step = { ...base, kind: "commonProcess", refId: "" as never }; break;
     case "screenTransition":
-      return { ...base, kind: "screenTransition", targetScreenId: "" as never };
+      step = { ...base, kind: "screenTransition", targetScreenId: "" as never }; break;
     case "displayUpdate":
-      return { ...base, kind: "displayUpdate", target: "" };
+      step = { ...base, kind: "displayUpdate", target: "" }; break;
     case "branch":
-      return {
+      step = {
         ...base,
         kind: "branch",
         branches: [
           { id: generateUUID() as never, code: "A", condition: { kind: "expression", expression: "" }, steps: [] },
           { id: generateUUID() as never, code: "B", condition: { kind: "expression", expression: "" }, steps: [] },
         ],
-      };
+      }; break;
     case "loop":
-      return { ...base, kind: "loop", loopKind: "count", steps: [] };
+      step = { ...base, kind: "loop", loopKind: "count", steps: [] }; break;
     case "loopBreak":
-      return { ...base, kind: "loopBreak" };
+      step = { ...base, kind: "loopBreak" }; break;
     case "loopContinue":
-      return { ...base, kind: "loopContinue" };
+      step = { ...base, kind: "loopContinue" }; break;
     case "jump":
-      return { ...base, kind: "jump", jumpTo: "" as never };
+      step = { ...base, kind: "jump", jumpTo: "" as never }; break;
     case "compute":
-      return { ...base, kind: "compute", expression: "" };
+      step = { ...base, kind: "compute", expression: "" }; break;
     case "return":
-      return { ...base, kind: "return" };
+      step = { ...base, kind: "return" }; break;
     case "log":
-      return { ...base, kind: "log", level: "info", message: "" };
+      step = { ...base, kind: "log", level: "info", message: "" }; break;
     case "audit":
-      return { ...base, kind: "audit", action: "" };
+      step = { ...base, kind: "audit", action: "" }; break;
     case "workflow":
-      return { ...base, kind: "workflow", pattern: "approval-sequential", approvers: [], quorum: { type: "any" } };
+      step = { ...base, kind: "workflow", pattern: "approval-sequential", approvers: [], quorum: { type: "any" } }; break;
     case "transactionScope":
-      return { ...base, kind: "transactionScope", isolationLevel: "READ_COMMITTED", propagation: "REQUIRED", steps: [] };
+      step = { ...base, kind: "transactionScope", isolationLevel: "READ_COMMITTED", propagation: "REQUIRED", steps: [] }; break;
     case "eventPublish":
-      return { ...base, kind: "eventPublish", topic: "" as never };
+      step = { ...base, kind: "eventPublish", topic: "" as never }; break;
     case "eventSubscribe":
-      return { ...base, kind: "eventSubscribe", topic: "" as never };
+      step = { ...base, kind: "eventSubscribe", topic: "" as never }; break;
     case "closing":
-      return { ...base, kind: "closing", period: "monthly" };
+      step = { ...base, kind: "closing", period: "monthly" }; break;
     case "cdc":
-      return { ...base, kind: "cdc", tableIds: [], captureMode: "incremental", destination: { kind: "auditLog", auditAction: "" } };
+      step = { ...base, kind: "cdc", tableIds: [], captureMode: "incremental", destination: { kind: "auditLog", auditAction: "" } }; break;
     case "extension":
-      return { ...base, kind: "legacy:OtherStep", config: {} } as Step;
+      step = { ...base, kind: "legacy:OtherStep", config: {} } as Step; break;
   }
+  return attachStepCompatAliases(step);
 }
 
 function countGroupNotes(group: ProcessFlow): number {

@@ -274,11 +274,16 @@ export function decomposeFlowProject(
         trigger: e.trigger,
       })),
       tables: project.tables,
-      processFlows: project.processFlows?.map((entry) => ({
-        ...entry,
-        id: entry.id as ProcessFlowId,
-        screenId: entry.screenId as ScreenId | undefined,
-      })),
+      processFlows: project.processFlows?.map((entry) => {
+        // composeFlowProject で UI 用に追加した type フィールドを除去 (unevaluatedProperties: false 対策)
+        const { type: _t, ...rest } = entry as ProcessFlowMeta & { type?: unknown };
+        void _t;
+        return {
+          ...rest,
+          id: rest.id as ProcessFlowId,
+          screenId: rest.screenId as ScreenId | undefined,
+        };
+      }),
       sequences: project.sequences,
       views: project.views,
     },

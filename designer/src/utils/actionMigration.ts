@@ -226,7 +226,14 @@ function migrateStepInPlace(raw: unknown): Step {
   return attachStepCompatAliases(step as unknown as Step);
 }
 
-function attachStepCompatAliases(step: Step): Step {
+/**
+ * Phase 4-γ 過渡形式: v1 vocabulary (step.type 等) を UI コンポーネントが
+ * 引き続き使えるよう、v3 のフィールド (step.kind 等) と双方向 alias する。
+ *
+ * Phase 4-γ-cleanup (#570) で UI コンポーネントを v3 vocabulary に直接書き換え後に
+ * 本 alias 機構は削除予定。
+ */
+export function attachStepCompatAliases(step: Step): Step {
   const target = step as unknown as Raw;
   defineAlias(target, "type", () => step.kind, (v) => { step.kind = String(v); });
   if (!("subSteps" in target)) {
@@ -329,6 +336,14 @@ function defineAlias(target: Raw, key: string, get: () => unknown, set: (value: 
   });
 }
 
+/**
+ * Phase 4-γ 過渡形式: v1 vocabulary (errorCatalog / externalSystemCatalog 等) を
+ * UI コンポーネントが引き続き使えるよう、v3 のフィールド (context.catalogs.errors 等)
+ * と双方向 alias する。
+ *
+ * Phase 4-γ-cleanup (#570) で UI コンポーネントを v3 vocabulary に直接書き換え後に
+ * 本 alias 機構は削除予定。
+ */
 function attachRuntimeCompatAliases(flow: ProcessFlow): ProcessFlow {
   const target = flow as unknown as Raw;
   defineAlias(target, "id", () => flow.meta.id, (v) => { flow.meta.id = v as never; });

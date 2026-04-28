@@ -604,3 +604,190 @@ describe("migrateProcessFlow — v3 root 4 セクション化 + maturity / mode 
     expect(migrated.branches[1].steps[0].kind).toBe("jump");
   });
 });
+
+// ─── migrateStep — 22 variant 全カバー ──────────────────────────────────────
+
+describe("migrateStep — 22 variant 全カバー (v1 type → v3 kind 変換)", () => {
+  it("v1 externalSystem step を v3 kind=externalSystem に変換", () => {
+    const v1: any = { id: "s1", type: "externalSystem", description: "外部決済", systemName: "stripe" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("externalSystem");
+    // v1 systemName → v3 systemRef
+    expect((v3 as any).systemRef).toBe("stripe");
+    expect((v3 as any).systemName).toBeUndefined();
+  });
+
+  it("v1 commonProcess step を v3 kind=commonProcess に変換", () => {
+    const v1: any = { id: "s2", type: "commonProcess", description: "共通処理呼出", refId: "cccccccc-0001-4000-8000-000000000001" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("commonProcess");
+    expect((v3 as any).refId).toBe("cccccccc-0001-4000-8000-000000000001");
+  });
+
+  it("v1 screenTransition step を v3 kind=screenTransition に変換", () => {
+    const v1: any = { id: "s3", type: "screenTransition", description: "画面遷移", targetScreenName: "ログイン画面" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("screenTransition");
+    // v1 targetScreenName → v3 targetScreenId (値はそのまま格納)
+    expect((v3 as any).targetScreenId).toBe("ログイン画面");
+    expect((v3 as any).targetScreenName).toBeUndefined();
+  });
+
+  it("v1 displayUpdate step を v3 kind=displayUpdate に変換", () => {
+    const v1: any = { id: "s4", type: "displayUpdate", description: "表示更新", target: "orderList" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("displayUpdate");
+    expect((v3 as any).target).toBe("orderList");
+  });
+
+  it("v1 loopBreak step を v3 kind=loopBreak に変換", () => {
+    const v1: any = { id: "s5", type: "loopBreak", description: "ループ中断" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("loopBreak");
+  });
+
+  it("v1 loopContinue step を v3 kind=loopContinue に変換", () => {
+    const v1: any = { id: "s6", type: "loopContinue", description: "ループ継続" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("loopContinue");
+  });
+
+  it("v1 compute step を v3 kind=compute に変換", () => {
+    const v1: any = { id: "s7", type: "compute", description: "計算", expression: "price * 1.1" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("compute");
+    expect((v3 as any).expression).toBe("price * 1.1");
+  });
+
+  it("v1 return step を v3 kind=return に変換", () => {
+    const v1: any = { id: "s8", type: "return", description: "返却" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("return");
+  });
+
+  it("v1 log step を v3 kind=log に変換", () => {
+    const v1: any = { id: "s9", type: "log", description: "ログ出力", level: "info", message: "処理完了" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("log");
+    expect((v3 as any).level).toBe("info");
+    expect((v3 as any).message).toBe("処理完了");
+  });
+
+  it("v1 audit step を v3 kind=audit に変換", () => {
+    const v1: any = { id: "s10", type: "audit", description: "監査", action: "ORDER_CREATE" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("audit");
+    expect((v3 as any).action).toBe("ORDER_CREATE");
+  });
+
+  it("v1 workflow step を v3 kind=workflow に変換", () => {
+    const v1: any = {
+      id: "s11",
+      type: "workflow",
+      description: "承認",
+      pattern: "approval-sequential",
+      approvers: ["manager"],
+      quorum: { type: "any" },
+    };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("workflow");
+    expect((v3 as any).pattern).toBe("approval-sequential");
+    expect((v3 as any).approvers).toEqual(["manager"]);
+  });
+
+  it("v1 transactionScope step を v3 kind=transactionScope に変換 (子 steps も再帰)", () => {
+    const v1: any = {
+      id: "s12",
+      type: "transactionScope",
+      description: "TX",
+      isolationLevel: "READ_COMMITTED",
+      propagation: "REQUIRED",
+      steps: [{ id: "inner", type: "log", description: "TX内ログ", level: "info", message: "x" }],
+    };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("transactionScope");
+    expect((v3 as any).steps[0].kind).toBe("log");
+  });
+
+  it("v1 eventPublish step を v3 kind=eventPublish に変換", () => {
+    const v1: any = { id: "s13", type: "eventPublish", description: "イベント発行", topic: "order.created" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("eventPublish");
+    expect((v3 as any).topic).toBe("order.created");
+  });
+
+  it("v1 eventSubscribe step を v3 kind=eventSubscribe に変換", () => {
+    const v1: any = { id: "s14", type: "eventSubscribe", description: "イベント受信", topic: "payment.completed" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("eventSubscribe");
+    expect((v3 as any).topic).toBe("payment.completed");
+  });
+
+  it("v1 closing step を v3 kind=closing に変換", () => {
+    const v1: any = { id: "s15", type: "closing", description: "月次締め", period: "monthly" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("closing");
+    expect((v3 as any).period).toBe("monthly");
+  });
+
+  it("v1 cdc step を v3 kind=cdc に変換 (tables → tableIds、destination.type → kind)", () => {
+    const v1: any = {
+      id: "s16",
+      type: "cdc",
+      description: "CDC",
+      tables: ["tbl-001"],
+      captureMode: "incremental",
+      destination: { type: "auditLog", auditAction: "insert" },
+    };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("cdc");
+    // v1 tables → v3 tableIds
+    expect((v3 as any).tableIds).toEqual(["tbl-001"]);
+    expect((v3 as any).tables).toBeUndefined();
+    // v1 destination.type → v3 destination.kind
+    expect((v3 as any).destination.kind).toBe("auditLog");
+    expect((v3 as any).destination.type).toBeUndefined();
+  });
+
+  it("v1 extension (other) step を v3 kind=legacy:OtherStep に変換", () => {
+    const v1: any = { id: "s17", type: "other", description: "その他処理" };
+    const v3 = migrateStep(v1);
+    expect(v3.kind).toBe("legacy:OtherStep");
+  });
+
+  it("全 variant で compat alias step.type が step.kind と同値を返す", () => {
+    const kinds = [
+      "validation", "dbAccess", "externalSystem", "commonProcess",
+      "screenTransition", "displayUpdate", "branch", "loop",
+      "loopBreak", "loopContinue", "jump", "compute", "return",
+      "log", "audit", "workflow", "transactionScope",
+      "eventPublish", "eventSubscribe", "closing", "cdc",
+    ] as const;
+    for (const kind of kinds) {
+      const v1: any = { id: "sx", type: kind, description: "" };
+      // branch は必須フィールドを追加
+      if (kind === "branch") {
+        v1.branches = [
+          { id: "b1", code: "A", condition: { kind: "expression", expression: "" }, steps: [] },
+        ];
+      }
+      if (kind === "dbAccess") v1.tableId = "";
+      if (kind === "externalSystem") v1.systemRef = "";
+      if (kind === "commonProcess") v1.refId = "";
+      if (kind === "screenTransition") v1.targetScreenId = "";
+      if (kind === "loop") { v1.loopKind = "count"; v1.steps = []; }
+      if (kind === "jump") v1.jumpTo = "";
+      if (kind === "compute") v1.expression = "";
+      if (kind === "log") { v1.level = "info"; v1.message = ""; }
+      if (kind === "audit") v1.action = "";
+      if (kind === "workflow") { v1.pattern = "approval-sequential"; v1.approvers = []; v1.quorum = { type: "any" }; }
+      if (kind === "transactionScope") { v1.isolationLevel = "READ_COMMITTED"; v1.propagation = "REQUIRED"; v1.steps = []; }
+      if (kind === "closing") v1.period = "monthly";
+      if (kind === "cdc") { v1.tableIds = []; v1.captureMode = "incremental"; v1.destination = { kind: "auditLog", auditAction: "" }; }
+      const v3 = migrateStep(v1) as any;
+      expect(v3.kind).toBe(kind);
+      // compat alias: step.type は step.kind に委譲
+      expect(v3.type).toBe(kind);
+    }
+  });
+});
