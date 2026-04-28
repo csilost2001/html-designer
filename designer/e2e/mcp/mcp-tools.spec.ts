@@ -245,7 +245,7 @@ test.describe("wsBridge ファイル操作", () => {
       const tableId = "e2e-test-table-del-001";
       await sendBrowserRequest("saveTable", {
         tableId,
-        data: { id: tableId, name: "tmp", columns: [], indexes: [] },
+        data: { id: tableId, physicalName: "tmp", name: "tmp", columns: [], indexes: [] },
       });
 
       const deleteResult = await sendBrowserRequest("deleteTable", { tableId });

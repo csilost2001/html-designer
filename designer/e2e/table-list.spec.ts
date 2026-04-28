@@ -156,7 +156,7 @@ test.describe("テーブル一覧 / ソート", () => {
   test("表モードで列ヘッダクリックでソートが動作し、▲が表示される", async ({ page }) => {
     await setupTableList(page);
     await page.getByRole("button", { name: "表表示" }).click();
-    // テーブル名列ヘッダをクリック
+    // 物理名列ヘッダをクリック
     await page.locator(".data-list-th-sortable").first().click();
     await expect(page.locator(".data-list-th-sorted")).toHaveCount(1);
     // 列ヘッダの icon だけ絞る (#148 SortBar にも同じ caret アイコンが出るため)
