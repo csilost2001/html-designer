@@ -1,6 +1,6 @@
 ---
 name: review-flow
-description: ProcessFlow JSON の実行セマンティクスを専門レビュー (変数ライフサイクル / TX スコープ / runIf 連鎖 / 補償整合 / event 双方向)。設計フェーズから使える
+description: ProcessFlow JSON の実行セマンティクスを専門レビュー (変数ライフサイクル / TX スコープ / runIf 連鎖 / 補償整合 / event 双方向)。Step 0.5 で 4 バリデータを機械実行 (#599)、Step 1 で 8 観点を AI レビュー。設計フェーズから使える
 argument-hint: <flowId | path | --all | (空 = MCP アクティブタブ)>
 disable-model-invocation: true
 ---
@@ -59,6 +59,69 @@ maturity: <maturity>
 ```
 
 複数件なら一覧表示してから順次処理。
+
+## Step 0.5: 機械的バリデータ実行 (#599)
+
+Step 1 の AI 目視レビューに入る前に、実装済みの 4 バリデータ (`checkReferentialIntegrity` / `checkIdentifierScopes` / `checkSqlColumns` / `checkConventionReferences`) を CLI 経由で実行して、機械的に検出可能な参照整合・識別子スコープ・SQL カラム・@conv.* 参照の問題を先に拾う。
+
+### 実行コマンド
+
+対象フローのパス (Step 0 で resolve した絶対 / 相対パス) を `--flow` で渡す:
+
+```bash
+cd designer
+npm run validate:dogfood -- --flow <対象フローのパス>
+```
+
+`--all` モードや、Step 0 で複数件 resolve した場合は、`--flow` 引数を省略することでサンプル全件を一括検証できる:
+
+```bash
+cd designer
+npm run validate:dogfood
+```
+
+### 何が動くか (4 バリデータ)
+
+| バリデータ | 検出内容 | 入力 |
+|---|---|---|
+| `checkReferentialIntegrity` | responseRef / errorCode / systemRef / compensatesFor 等の不整合 | 常時動作 |
+| `checkIdentifierScopes` | 識別子スコープ違反 (root レベル `@var` 未宣言) | 常時動作 |
+| `checkSqlColumns` | SQL 内で参照したカラムがテーブル定義に存在しない | `docs/sample-project/tables/` 経由で自動ロード |
+| `checkConventionReferences` | `@conv.*` 参照が catalog 未登録 | `docs/sample-project/conventions/conventions-catalog.json` を自動ロード |
+
+### 結果の取り扱い
+
+- バリデータが検出した issue は **Step 1 のレビュー入力**として活用 (重複説明はしない)
+- 結果は Step 2 の「8 観点別カバレッジ」表に **「validator 検出済」** カラムとして記録
+- Must-fix 候補: `UNKNOWN_RESPONSE_REF` / `UNKNOWN_ERROR_CODE` / `UNKNOWN_IDENTIFIER` / `UNKNOWN_COLUMN` / `UNKNOWN_CONV_*` 等
+- 終了コード 1 (1 件以上 fail) でも Step 1 を中止せず実施する (実行セマンティクス観点が AI 目視のみで残るため)
+
+### 観点 ⇄ バリデータ対応表 (担当領域)
+
+| 観点 | バリデータでカバー | AI 目視のみ |
+|---|---|---|
+| 1. 変数ライフサイクル | identifierScope (root 識別子の未宣言) | TX 順序 / property path / 前方参照は AI |
+| 2. TX スコープ整合 | (なし) | AI |
+| 3. runIf 連鎖の網羅性 | (なし) | AI |
+| 4. branch / elseBranch 到達性 | (なし) | AI |
+| 5. compensatesFor 健全性 | referentialIntegrity (compensatesFor 対象の実在チェック) | 補償内容の妥当性は AI |
+| 6. eventsCatalog ⇄ eventPublish | (なし、referentialIntegrity 対象外) | AI |
+| 7. 外部呼び出しと TX 位置 | referentialIntegrity (systemRef 実在) | TX 内外の位置関係は AI |
+| 8. rollbackOn 発火可能性 | referentialIntegrity (UNKNOWN_ERROR_CODE) | TX inner からの実発火可能性は AI |
+
+監査根拠: `docs/spec/dogfood-2026-04-29-phase2-validator-audit.md` §3 / §4。
+
+### 終了コードの扱い
+
+- **exit 0**: 4 バリデータ全 pass → Step 1 へ進む
+- **exit 1**: 1 件以上の validator issue 検出 → Step 1 を中止せず、issue 内容を Step 2 のカバレッジ表に「validator 検出済」として記録して進む (実行セマンティクス観点が AI 目視のみで残るため)
+- **exit 2**: 引数異常 / ファイル不在 / JSON parse 失敗 → エラーメッセージを報告し AI 目視のみで Step 1 に進む
+
+### バリデータが動かない場合
+
+- `--flow <path>` のファイルが存在しない / JSON parse 失敗 (= exit 2) → エラーメッセージを報告し Step 1 に進む (AI 目視のみで継続)
+- `npm run validate:dogfood` 自体が失敗 (依存解決等) → 同上、Step 1 に進む
+- バリデータ未呼び出しは **Step 2 の「validator 検出済」欄を「未実行」と明記** (隠さない)
 
 ## Step 1: 検証項目 (8 観点)
 
@@ -178,16 +241,20 @@ TransactionScope の `rollbackOn: [...]` で指定したエラーコードにつ
 
 ### 8 観点別カバレッジ
 
-| 観点 | 検出件数 | 状態 |
-|---|---|---|
-| 1. 変数ライフサイクル | M:0 / S:0 / N:0 | ✓ 問題なし / ❌ Must-fix あり |
-| 2. TransactionScope 内外整合 | ... | ... |
-| 3. runIf 連鎖の網羅性 | ... | ... |
-| 4. branch 到達性 | ... | ... |
-| 5. compensatesFor | ... | ... |
-| 6. eventsCatalog ⇄ eventPublish | ... | ... |
-| 7. 外部呼び出しと TX | ... | ... |
-| 8. rollbackOn 発火可能性 | ... | ... |
+`validator 検出済` 欄には Step 0.5 で動作したバリデータの issue 件数を、`AI 目視` 欄には Step 1 で AI が検出した件数 (validator 重複は除外) を記入する。
+
+| 観点 | validator 検出済 | AI 目視 (M / S / N) | 状態 |
+|---|---|---|---|
+| 1. 変数ライフサイクル | identifierScope: N 件 | M:0 / S:0 / N:0 | ✓ 問題なし / ❌ Must-fix あり |
+| 2. TransactionScope 内外整合 | (validator 対象外) | ... | ... |
+| 3. runIf 連鎖の網羅性 | (validator 対象外) | ... | ... |
+| 4. branch 到達性 | (validator 対象外) | ... | ... |
+| 5. compensatesFor | referentialIntegrity: N 件 | ... | ... |
+| 6. eventsCatalog ⇄ eventPublish | (validator 対象外) | ... | ... |
+| 7. 外部呼び出しと TX | referentialIntegrity (systemRef): N 件 | ... | ... |
+| 8. rollbackOn 発火可能性 | referentialIntegrity (UNKNOWN_ERROR_CODE): N 件 | ... | ... |
+
+Step 0.5 をスキップした場合は `validator 検出済` 列を全行 `未実行` と記載する。
 
 ---
 
@@ -203,8 +270,9 @@ TransactionScope の `rollbackOn: [...]` で指定したエラーコードにつ
 
 ### 検証方法
 
+- Step 0.5: `npm run validate:dogfood -- --flow <パス>` で 4 バリデータ実行
 - 対象ファイル全文読み込み: <パス>
-- 8 観点を順に手動で grep + ライフサイクル追跡
+- 8 観点を順に手動で grep + ライフサイクル追跡 (validator 検出済の問題は重複説明しない)
 - 必要に応じて `schemas/process-flow.schema.json` の TransactionScopeStep 定義も参照
 ```
 
@@ -222,7 +290,8 @@ TransactionScope の `rollbackOn: [...]` で指定したエラーコードにつ
 
 - **マージしない / push しない / PR コメントしない** (設計フェーズでも使える skill のため)
 - **対象 JSON ファイルを書き換えない** (レビュー専任、修正は別ワークフロー)
-- **検証は read-only** (フロー JSON の Read + schema/spec の Read のみ)
+- **検証は read-only** (フロー JSON の Read + schema/spec の Read + Step 0.5 の `npm run validate:dogfood --flow` 実行のみ)
+- **Step 0.5 は必ず試行する** (失敗時は「未実行」と明記して Step 1 に進める)
 - **8 観点すべて実施**。「省略」は禁止。該当ゼロ件でもその旨明記
 - **JSON Schema 検証は対象外** (vitest や ajv にやらせる責務)。あくまで実行時セマンティクスを見る
 - **MCP `designer-mcp` が起動していなくても動く** (引数なし時のみ MCP 利用、明示指定時は不要)
