@@ -38,7 +38,7 @@ const samplesV3Dir = resolve(repoRoot, "docs/sample-project-v3");
 // ─── 型定義 ────────────────────────────────────────────────────────────────
 
 interface ProjectResources {
-  projectId: string;          // 識別用 (v1: "v1", v3: subdir 名 or "v3-root")
+  projectId: string;          // 識別用 (v1: "v1", v3: subdir 名)
   displayName: string;        // 表示用 (repoRoot からの相対パス)
   projectDir: string;         // プロジェクトディレクトリ絶対パス
   tables: TableDefinition[];
@@ -93,7 +93,6 @@ function loadConventionsFromFile(filePath: string): ConventionsCatalog | null {
  *
  * 発見規則:
  *   - v1: docs/sample-project/ (1 project、conventions は conventions/conventions-catalog.json、tables は tables/)
- *   - v3 過渡期: docs/sample-project-v3/ 直下に project.json があれば 1 project (retail 等の旧配置)
  *   - v3 per-project: docs/sample-project-v3/<subdir>/ に project.json があれば 1 project
  *
  * spec: docs/spec/sample-project-structure.md
