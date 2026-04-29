@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Table, TableEntry, TableId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { type SqlDialect, SQL_DIALECT_LABELS } from "../../utils/ddlGenerator";
-import { listTables, createTable, deleteTable, loadTable, saveTable } from "../../store/tableStore";
+import { listTables, createTable, deleteTable, loadTable, saveTable, loadTableValidationMap } from "../../store/tableStore";
 import { loadProject, saveProject } from "../../store/flowStore";
 import { generateAllDdl, generateAllTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -13,6 +13,8 @@ import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
+import { ValidationBadge } from "../common/ValidationBadge";
+import { MaturityBadge } from "../process-flow/MaturityBadge";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
@@ -26,6 +28,11 @@ import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:table-list";
 const TAB_ID = makeTabId("table-list", "main");
+
+interface ValidationSummary {
+  errors: number;
+  warnings: number;
+}
 
 function formatDate(iso: string): string {
   try {
@@ -47,6 +54,7 @@ export function TableListView() {
   const [exportDialect, setExportDialect] = useState<SqlDialect>("postgresql");
   const [showExport, setShowExport] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
 
   const loadTables = useCallback(async () => {
     mcpBridge.startWithoutEditor();
@@ -94,6 +102,36 @@ export function TableListView() {
 
   const allTables = editor.items;
 
+  useEffect(() => {
+    if (allTables.length === 0) {
+      setValidationMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    loadTableValidationMap()
+      .then((map) => {
+        if (cancelled) return;
+        const next = new Map<string, ValidationSummary>();
+        for (const [id, errors] of map) {
+          next.set(id, {
+            errors: errors.filter((e) => e.severity === "error").length,
+            warnings: errors.filter((e) => e.severity === "warning").length,
+          });
+        }
+        setValidationMap(next);
+      })
+      .catch(console.error);
+    return () => { cancelled = true; };
+  }, [allTables]);
+
+  const getErrorPriority = useCallback((id: string): number => {
+    const validation = validationMap.get(id);
+    if (!validation) return 0;
+    if (validation.errors > 0) return 2;
+    if (validation.warnings > 0) return 1;
+    return 0;
+  }, [validationMap]);
+
   const filter = useListFilter(allTables);
   useEffect(() => {
     const q = query.trim().toLowerCase();
@@ -116,9 +154,10 @@ export function TableListView() {
       case "category": return t.category ?? "";
       case "columnCount": return t.columnCount ?? 0;
       case "updatedAt": return t.updatedAt;
+      case "errorPriority": return getErrorPriority(t.id);
       default: return "";
     }
-  }, []);
+  }, [getErrorPriority]);
 
   const sort = useListSort(filter.filtered, sortAccessor);
   const selection = useListSelection(sort.sorted, (t) => t.id);
@@ -432,6 +471,18 @@ export function TableListView() {
       render: (t) => t.category ? <span className="table-card-category">{t.category}</span> : null,
     },
     {
+      key: "maturity",
+      header: "成熟度",
+      width: "80px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (t) => {
+        const order: Record<string, number> = { draft: 0, provisional: 1, committed: 2 };
+        return order[t.maturity ?? "draft"] ?? 0;
+      },
+      render: (t) => <MaturityBadge maturity={t.maturity ?? "draft"} />,
+    },
+    {
       key: "columnCount",
       header: "カラム",
       width: "80px",
@@ -441,6 +492,21 @@ export function TableListView() {
       render: (t) => <span className="table-list-col-count">{t.columnCount ?? 0}</span>,
     },
     {
+      key: "validation",
+      header: "検証",
+      width: "100px",
+      align: "center",
+      sortable: true,
+      sortAccessor: (t) => getErrorPriority(t.id),
+      render: (t) => {
+        const validation = validationMap.get(t.id);
+        if (!validation) return null;
+        if (validation.errors > 0) return <ValidationBadge severity="error" count={validation.errors} />;
+        if (validation.warnings > 0) return <ValidationBadge severity="warning" count={validation.warnings} />;
+        return <i className="bi bi-check-lg view-validation-ok" title="問題なし" />;
+      },
+    },
+    {
       key: "updatedAt",
       header: "更新日",
       width: "120px",
@@ -448,21 +514,33 @@ export function TableListView() {
       sortAccessor: (t) => t.updatedAt,
       render: (t) => <span className="table-list-date">{formatDate(t.updatedAt)}</span>,
     },
-  ], []);
+  ], [getErrorPriority, validationMap]);
 
-  const renderCard = (t: TableEntry) => (
-    <div className="table-card-content">
-      <div className="table-card-header">
-        <span className="table-card-name">{t.physicalName ?? ""}</span>
-        {t.category && <span className="table-card-category">{t.category}</span>}
+  const renderCard = (t: TableEntry) => {
+    const validation = validationMap.get(t.id);
+    const hasError = (validation?.errors ?? 0) > 0;
+    const hasWarning = (validation?.warnings ?? 0) > 0;
+    return (
+      <div className={`table-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
+        <div className="table-card-header">
+          <MaturityBadge maturity={t.maturity ?? "draft"} />
+          <span className="table-card-name">{t.physicalName ?? ""}</span>
+          {t.category && <span className="table-card-category">{t.category}</span>}
+          {validation && (hasError || hasWarning) && (
+            <span className="table-validation-badges">
+              <ValidationBadge severity="error" count={validation.errors} />
+              <ValidationBadge severity="warning" count={validation.warnings} />
+            </span>
+          )}
+        </div>
+        <div className="table-card-logical">{t.name}</div>
+        <div className="table-card-meta">
+          <span><i className="bi bi-columns-gap" /> {t.columnCount ?? 0} カラム</span>
+          <span className="table-card-date">{formatDate(t.updatedAt)}</span>
+        </div>
       </div>
-      <div className="table-card-logical">{t.name}</div>
-      <div className="table-card-meta">
-        <span><i className="bi bi-columns-gap" /> {t.columnCount ?? 0} カラム</span>
-        <span className="table-card-date">{formatDate(t.updatedAt)}</span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const selectedCount = selection.selectedIds.size;
   const deletedCount = editor.deletedIds.size;

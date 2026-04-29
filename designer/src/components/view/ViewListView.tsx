@@ -12,6 +12,7 @@ import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
+import { ValidationBadge } from "../common/ValidationBadge";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
@@ -442,10 +443,10 @@ export function ViewListView() {
         const validation = validationMap.get(v.id);
         if (!validation) return null;
         if (validation.errors > 0) {
-          return <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{validation.errors}</span>;
+          return <ValidationBadge severity="error" count={validation.errors} />;
         }
         if (validation.warnings > 0) {
-          return <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{validation.warnings}</span>;
+          return <ValidationBadge severity="warning" count={validation.warnings} />;
         }
         return <i className="bi bi-check-lg view-validation-ok" title="問題なし" />;
       },
@@ -463,8 +464,8 @@ export function ViewListView() {
           <span className="seq-card-name">{v.name}</span>
           {validation && (hasError || hasWarning) && (
             <span className="view-validation-badges">
-              {hasError && <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{validation.errors}</span>}
-              {hasWarning && <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{validation.warnings}</span>}
+              <ValidationBadge severity="error" count={validation.errors} />
+              <ValidationBadge severity="warning" count={validation.warnings} />
             </span>
           )}
         </div>

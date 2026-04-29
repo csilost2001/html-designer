@@ -1,5 +1,7 @@
 /* ─── 処理フロー定義 共通 ─────────────────────────────────────────── */
 
+@import "./validation.css";
+
 .process-flow-page {
   height: calc(100vh - var(--common-header-h, 0px) - var(--tabbar-h, 0px));
   display: flex;
@@ -107,21 +109,6 @@
 }
 
 /* エラー/警告状態のカード装飾 (:has() で外側を着色) */
-.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-error) {
-  background: #fff5f5;
-  border-color: #fecaca;
-}
-.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-error):hover {
-  border-color: #f87171;
-}
-.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-warning:not(.has-error)) {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
-.process-flow-data-list .data-list-card:has(.process-flow-card-content.has-warning:not(.has-error)):hover {
-  border-color: #fbbf24;
-}
-
 .process-flow-validation-badges {
   display: flex;
   gap: 4px;
@@ -1244,16 +1231,6 @@
 
 /* ─── バリデーションエラー表示 (Phase 6) ─────────────────────────── */
 
-.step-card.has-error {
-  border-left-color: #ef4444 !important;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
-}
-
-.step-card.has-warning:not(.has-error) {
-  border-left-color: #f59e0b !important;
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15);
-}
-
 .step-validation-msg {
   padding: 3px 12px 4px 48px;
   font-size: 0.75rem;
@@ -1272,36 +1249,6 @@
   color: #d97706;
   background: #fffbeb;
   border-top: 1px solid #fde68a;
-}
-
-.validation-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.validation-badge.error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-.validation-badge.warning {
-  background: #fffbeb;
-  color: #d97706;
-  border: 1px solid #fde68a;
-}
-
-.validation-badge.clickable {
-  cursor: pointer;
-  user-select: none;
-}
-.validation-badge.clickable:hover {
-  background: #fef3c7;
 }
 
 /* 警告詳細パネル (#261 UI 統合) */

@@ -24,6 +24,7 @@ import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
 import { ListContextMenu, type ContextMenuItem } from "../common/ListContextMenu";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
+import { ValidationBadge } from "../common/ValidationBadge";
 import { MaturityBadge } from "./MaturityBadge";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -589,8 +590,8 @@ export function ProcessFlowListView() {
       render: (g) => {
         const v = validationMap.get(g.id);
         if (!v) return null;
-        if (v.errors > 0) return <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{v.errors}</span>;
-        if (v.warnings > 0) return <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{v.warnings}</span>;
+        if (v.errors > 0) return <ValidationBadge severity="error" count={v.errors} />;
+        if (v.warnings > 0) return <ValidationBadge severity="warning" count={v.warnings} />;
         return <i className="bi bi-check-lg process-flow-validation-ok" title="問題なし" />;
       },
     },
@@ -611,8 +612,8 @@ export function ProcessFlowListView() {
           <span className="process-flow-card-name">{g.name}</span>
           {v && (hasError || hasWarning) && (
             <span className="process-flow-validation-badges">
-              {hasError && <span className="validation-badge error"><i className="bi bi-x-circle-fill" />{v.errors}</span>}
-              {hasWarning && <span className="validation-badge warning"><i className="bi bi-exclamation-triangle-fill" />{v.warnings}</span>}
+              <ValidationBadge severity="error" count={v.errors} />
+              <ValidationBadge severity="warning" count={v.warnings} />
             </span>
           )}
         </div>
