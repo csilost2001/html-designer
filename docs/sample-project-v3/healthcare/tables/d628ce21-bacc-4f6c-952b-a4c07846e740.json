@@ -36,7 +36,7 @@
     { "id": "fk-rx02", "kind": "foreignKey", "physicalName": "fk_prescriptions_medical_record", "columnIds": ["col-rx04"], "referencedTableId": "4bffe509-cd06-42de-a814-43c51d2ee5ed", "referencedColumnIds": ["col-mr01"], "onDelete": "restrict", "onUpdate": "cascade" },
     { "id": "fk-rx03", "kind": "foreignKey", "physicalName": "fk_prescriptions_prescriber", "columnIds": ["col-rx05"], "referencedTableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "referencedColumnIds": ["col-prv01"], "onDelete": "restrict", "onUpdate": "cascade" },
     { "id": "fk-rx04", "kind": "foreignKey", "physicalName": "fk_prescriptions_verifier", "columnIds": ["col-rx06"], "referencedTableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "referencedColumnIds": ["col-prv01"], "onDelete": "restrict", "onUpdate": "cascade" },
-    { "id": "chk-rx01", "kind": "check", "physicalName": "chk_prescriptions_status", "expression": "status IN ('draft', 'pending_verification', 'verified', 'sent', 'blocked', 'canceled')" },
+    { "id": "chk-rx01", "kind": "check", "physicalName": "chk_prescriptions_status", "expression": "status IN ('draft', 'pending_verification', 'verified', 'final_approved', 'sent', 'blocked', 'canceled')" },
     { "id": "chk-rx02", "kind": "check", "physicalName": "chk_prescriptions_days_supply", "expression": "days_supply BETWEEN 1 AND 90" }
   ]
 }

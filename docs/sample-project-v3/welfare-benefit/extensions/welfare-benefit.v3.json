@@ -30,21 +30,6 @@
         },
         "additionalProperties": false
       }
-    },
-    "DuplicateApplicationCheckStep": {
-      "label": "重複申請チェック",
-      "icon": "FileSearch",
-      "description": "同一申請者が一定期間内に同一給付種別を重複申請していないか確認する。",
-      "schema": {
-        "type": "object",
-        "required": ["applicantRef", "benefitType"],
-        "properties": {
-          "applicantRef": { "type": "string" },
-          "benefitType": { "type": "string" },
-          "lookbackDays": { "type": "integer" }
-        },
-        "additionalProperties": false
-      }
     }
   },
   "responseTypes": {
