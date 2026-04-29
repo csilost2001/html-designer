@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 15 観点を作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511)
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 9 観点 + 16 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -11,9 +11,10 @@ disable-model-invocation: true
     - `/create-flow <flowId> <業務概要>` (namespace なしでもよい)
 
   目的:
-    ProcessFlow JSON の作成時点で `/review-flow` の 8 観点を self-check として遵守させ、
-    既知パターン (TX outputBinding ネスト参照 / branch return 後 fallthrough / 死コード rollbackOn 等)
-    の再発を抑制する。完成後の `/review-flow` 検出件数を削減し、修正サイクル数を減らす。
+    ProcessFlow JSON の作成時点で `/review-flow` の 9 観点を self-check として遵守させ、
+    既知パターン (TX outputBinding ネスト参照 / branch return 後 fallthrough / 死コード rollbackOn /
+    画面項目イベント argumentMapping 不整合 等) の再発を抑制する。完成後の `/review-flow` 検出件数を
+    削減し、修正サイクル数を減らす。
 
   /review-flow との関係:
     - 本スキル = 作成支援 (作成前 self-check)
@@ -29,7 +30,7 @@ ProcessFlow `$ARGUMENTS` を品質ガード付きで作成します。
 
 ## 役割と前提
 
-- **あなたは ProcessFlow 設計者**。`/review-flow` の 8 観点を**作成前** に遵守して JSON を組み立てる
+- **あなたは ProcessFlow 設計者**。`/review-flow` の 9 観点を**作成前** に遵守して JSON を組み立てる
 - 出力: 処理フロー JSON 1 ファイル + (必要なら) 拡張定義の追加 + testScenarios 3 件以上
 - 完成後は **必ず `/review-flow` で自己検証**してから PR / マージに進める
 - 本スキルは spec の**索引 + 既知パターン要約**。詳細は `docs/spec/process-flow-*.md` を `Read` で参照
@@ -82,7 +83,7 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 
 各セクション 0 件は許されない (eventsCatalog と decisions と testScenarios は特に必須)。
 
-## Step 3: 既知パターン回避 self-check (8 ルール、必須遵守)
+## Step 3: 既知パターン回避 self-check (16 ルール、必須遵守)
 
 `/review-flow` で検出される既知パターンを**作成中**に避けること。各 step を書くたびに以下を確認:
 
@@ -188,6 +189,24 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 - **絶対禁止**: テスト pass を理由に schema を勝手に拡張すること
 - 参考: PR #508 で Sonnet が 6 フィールド勝手追加 → #511 でガバナンス導入の発端
 
+### Rule 16: 画面項目イベント連携整合 (#619 / #621、Phase 3)
+
+UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するときは、画面項目側との接続点を整合させる。`screenItemFlowValidator` が以下を機械検出する。
+
+- **`meta.primaryInvoker` (任意、推奨)**: 主要起動元の画面項目イベントを `{kind: "screen-item-event", screenId, itemId, eventId}` で宣言。同 PR or 後続 PR で対応する `ScreenItem.events[]` 側に `handlerFlowId: <本フロー id>` を載せると validator が双方向参照を確認する
+- **`actions[0].inputs[]` の引数契約**: `name` / `type` / `required` を画面側 `argumentMapping` のキー集合と一致させる
+  - 必須引数 (`required: true`) を画面側 `argumentMapping` に含めない → `MISSING_REQUIRED_ARGUMENT`
+  - 画面側 `argumentMapping` に inputs[] に無いキーがある → `EXTRA_ARGUMENT`
+  - 1 フローを複数画面項目イベントから呼ぶ場合の **キー集合統一** (異なると `INCONSISTENT_ARGUMENT_CONTRACT` warning)
+- **典型ミス**:
+  - inputs[] に `userId` を `required: true` で入れたが、ScreenItem.events[].argumentMapping を空にしている → MISSING
+  - inputs[] には無い `extraInfo` を ScreenItem.events[].argumentMapping に書いている → EXTRA
+  - 同じ flow を 「ボタンクリック」と「フォーム送信」両方から呼んでいて、片方は `customerId` を渡して片方は渡していない → INCONSISTENT (warning)
+- **本ルールが対象外のシナリオ**: `type: "system"` / `type: "batch"` / `mode: "downstream"` 等、画面項目から起動されないフローは `meta.primaryInvoker` を省略してよい (validator はフロー側のみ検査するためエラーにならない)
+- **Phase 3 補足**: 画面定義 (Screen / ScreenItem) は本スキルの作成範囲外 (ProcessFlow JSON のみ作成)。画面側の `events[]` 追加が必要な場合は、フロー作成と同 PR で画面側 JSON も整合させるか、別 ISSUE で先行整合する
+
+**Step 5.2 で `validate:dogfood` の `screenItemFlowValidator` により機械的に検出される**
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -223,7 +242,7 @@ npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.s
 npm run build
 ```
 
-### 5.2 バリデータ横断検証 (Rule 9/10 の機械的検出)
+### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 の機械的検出)
 
 作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
 
@@ -240,10 +259,15 @@ npm run validate:dogfood
 | conventionsValidator | `@conv.*` 参照が conventions-catalog.json 未登録 | Rule 10 |
 | referentialIntegrity | responseRef / errorCode / systemRef / compensatesFor の不整合 | Rule 5 / Rule 8 補強 |
 | identifierScope | 識別子スコープ違反 (root レベル) | Rule 1 補強 |
+| screenItemFlowValidator | 画面項目イベント ↔ 処理フロー連携の整合 (handlerFlowId 実在 / argumentMapping 整合 / primaryInvoker 双方向) | Rule 16 |
 
 **fail した場合の対処**:
 - `UNKNOWN_COLUMN` → SELECT 句を見直す or テーブル定義を更新
 - `UNKNOWN_CONV_LIMIT` 等 → `docs/sample-project/conventions/conventions-catalog.json` に追加 or 既存キーへ修正
+- `UNKNOWN_HANDLER_FLOW` → 画面項目側 `handlerFlowId` を本フロー id に修正 (画面側 JSON 編集が必要なら同 PR or 別 ISSUE で整合)
+- `MISSING_REQUIRED_ARGUMENT` / `EXTRA_ARGUMENT` → `actions[0].inputs[]` と画面側 `argumentMapping` の **キー集合 + required** を一致させる
+- `PRIMARY_INVOKER_MISMATCH` → `meta.primaryInvoker` が指す ScreenItem.events[].handlerFlowId が本フロー id を返すように整える (双方向参照)
+- `INCONSISTENT_ARGUMENT_CONTRACT` (warning) → 同フローを呼ぶ複数イベントの `argumentMapping` キー集合を統一 (意図的に異なるなら warning 受容可)
 - 構造的に解消できない場合は ISSUE 起票して停止 (グローバル schema 変更は禁止 — Rule 15)
 
 ### 5.3 単一フロー検証 (任意)
@@ -304,11 +328,12 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 | 13. `affectedRowsCheck.expected` (integer リテラル) | ✓ / 該当なし |
 | 14. `OtherStep.outputSchema` 形式 | ✓ / 該当なし |
 | 15. グローバル schema 変更禁止 | ✓ (`schemas/*.json` 未変更) / ❌ |
+| 16. 画面項目イベント連携整合 | ✓ / 該当なし (画面起点でない) / ❌ |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
 - build: <pass/fail>
-- validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope)
+- validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope / screenItemFlowValidator)
 - /review-flow: <Must-fix 件数 / Should-fix 件数>
 
 ### 推奨: 次の手順
@@ -323,11 +348,11 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **15 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **16 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
 - スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
 - 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
 - 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` / `ffffffff-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
-- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 15 ルールを遵守すること」が含まれているはず
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 16 ルールを遵守すること」が含まれているはず
