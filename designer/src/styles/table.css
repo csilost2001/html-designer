@@ -4,6 +4,8 @@
 
 /* ── グローバルナビ ─────────────────────────────────────────────────────── */
 
+@import "./validation.css";
+
 .global-nav {
   display: flex;
   gap: 2px;
@@ -212,6 +214,7 @@
   font-size: 15px;
   color: #fff;
   font-family: "Consolas", "Monaco", monospace;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -246,6 +249,13 @@
 
 .table-card-date {
   white-space: nowrap;
+}
+
+.table-validation-badges {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* ── 表モードセル ─────────────────────────────────────────────────── */
@@ -2140,20 +2150,6 @@
   flex-direction: column;
   gap: 4px;
 }
-.views-data-list .data-list-card:has(.seq-card-content.has-error) {
-  background: #fff5f5;
-  border-color: #fecaca;
-}
-.views-data-list .data-list-card:has(.seq-card-content.has-error):hover {
-  border-color: #f87171;
-}
-.views-data-list .data-list-card:has(.seq-card-content.has-warning:not(.has-error)) {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
-.views-data-list .data-list-card:has(.seq-card-content.has-warning:not(.has-error)):hover {
-  border-color: #fbbf24;
-}
 .view-validation-badges {
   display: flex;
   gap: 4px;
@@ -2162,25 +2158,6 @@
 }
 .view-validation-ok {
   color: #10b981;
-}
-.validation-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-.validation-badge.error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-.validation-badge.warning {
-  background: #fffbeb;
-  color: #d97706;
-  border: 1px solid #fde68a;
 }
 .seq-card-name {
   font-family: "Consolas", monospace;
