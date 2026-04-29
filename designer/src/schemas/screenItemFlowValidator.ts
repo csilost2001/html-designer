@@ -28,8 +28,16 @@ export type ScreenItemFlowIssueCode =
   | "MISSING_REQUIRED_ARGUMENT"
   | "EXTRA_ARGUMENT"
   | "PRIMARY_INVOKER_MISMATCH"
-  | "INCONSISTENT_ARGUMENT_CONTRACT";
+  | "INCONSISTENT_ARGUMENT_CONTRACT"
+  | "DUPLICATE_EVENT_ID";
 
+/**
+ * 本 validator は他 4 validator (sqlColumnValidator / conventionsValidator /
+ * referentialIntegrity / identifierScope) と異なり severity を持つ最初の validator。
+ * INCONSISTENT_ARGUMENT_CONTRACT が「設計上問題ない場合もある」 (異なるユースケースで
+ * 意図的に異なる引数集合を渡したい) 性質のため warning とする。他観点はすべて error。
+ * 将来他 validator に warning 観点が追加される際は本パターンに揃える。
+ */
 export interface ScreenItemFlowIssue {
   path: string;
   code: ScreenItemFlowIssueCode;
@@ -82,6 +90,22 @@ export function checkScreenItemFlowConsistency(
 
     items.forEach((item: ScreenItem, ii) => {
       const events = item.events ?? [];
+
+      // events[].id 重複検査 (画面項目内ユニーク制約、JSON Schema 標準では表現不能のため validator で担保)
+      const eventIdCounts = new Map<string, number>();
+      for (const event of events) {
+        eventIdCounts.set(event.id, (eventIdCounts.get(event.id) ?? 0) + 1);
+      }
+      for (const [eid, count] of eventIdCounts) {
+        if (count > 1) {
+          issues.push({
+            path: `${screenLabel}.items[${ii}=${item.id}]`,
+            code: "DUPLICATE_EVENT_ID",
+            severity: "error",
+            message: `event ID '${eid}' が画面項目内で ${count} 回出現しています (画面項目内ユニーク制約違反)。`,
+          });
+        }
+      }
 
       events.forEach((event: ScreenItemEvent, ei) => {
         const path = `${screenLabel}.items[${ii}=${item.id}].events[${ei}=${event.id}]`;
@@ -188,6 +212,11 @@ export function checkScreenItemFlowConsistency(
   });
 
   // 3. 多重定義検出 (warning)
+  // 比較は sites[0] を基点とする単純実装。3+ サイトある場合 sites[0] と sites[2] が同一でも
+  // sites[1] が異なれば sites[1] のみ検出される (全ペア比較ではない)。実用上 1 flow を呼ぶ
+  // 全 site は同一引数集合であるべきなので sites[0] 基点で十分。将来全ペア比較が必要なら拡張。
+  // また UNKNOWN_HANDLER_FLOW で early return した event は collect されないため、エラー event
+  // は多重定義の比較基点にならない (多重定義検出はエラー event を含まないクリーン collect で実施)。
   for (const [flowId, sites] of flowToCallSites) {
     if (sites.length <= 1) continue;
     const baseKeys = sites[0].argKeys;

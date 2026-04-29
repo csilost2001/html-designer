@@ -305,6 +305,27 @@ describe("checkScreenItemFlowConsistency — INCONSISTENT_ARGUMENT_CONTRACT", ()
   });
 });
 
+describe("checkScreenItemFlowConsistency — DUPLICATE_EVENT_ID", () => {
+  it("画面項目内で event.id が重複すると検出する", () => {
+    const flow = makeFlow();
+    const screen = makeScreen([
+      {
+        id: "submitBtn",
+        label: "送信",
+        type: "string",
+        events: [
+          { id: "click", handlerFlowId: FLOW_ID_A, argumentMapping: { userId: "@s.u" } },
+          { id: "click", handlerFlowId: FLOW_ID_A, argumentMapping: { userId: "@s.u" } },
+        ],
+      },
+    ]);
+    const issues = checkScreenItemFlowConsistency([flow] as never, [screen] as never);
+    const errs = issues.filter((i) => i.code === "DUPLICATE_EVENT_ID");
+    expect(errs).toHaveLength(1);
+    expect(errs[0].message).toContain("'click'");
+  });
+});
+
 describe("checkScreenItemFlowConsistency — empty inputs", () => {
   it("events が無い ScreenItem は検出ゼロ (後方互換)", () => {
     const flow = makeFlow();
