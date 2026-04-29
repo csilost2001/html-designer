@@ -26,6 +26,7 @@ import { checkConventionReferences, type ConventionsCatalog } from "../src/schem
 import { checkReferentialIntegrity } from "../src/schemas/referentialIntegrity.js";
 import { checkIdentifierScopes } from "../src/schemas/identifierScope.js";
 import { checkScreenItemFlowConsistency } from "../src/schemas/screenItemFlowValidator.js";
+import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFieldTypeValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
 
@@ -391,20 +392,38 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
       for (const { filePath, displayName, flow } of flows) {
         results.push(validateOne(filePath, displayName, flow, project));
       }
+      const projectIssues: ProjectValidationResult["issues"] = [];
       // 5. 画面項目イベント ↔ 処理フロー連携検証 (per-project、#619)
       const screenItemFlowIssues = checkScreenItemFlowConsistency(
         flows.map((f) => f.flow),
         project.screens,
       );
-      if (screenItemFlowIssues.length > 0) {
+      projectIssues.push(
+        ...screenItemFlowIssues.map((i) => ({
+          validator: "screenItemFlowValidator",
+          severity: i.severity,
+          message: `[${i.code}] ${i.path}: ${i.message}`,
+        })),
+      );
+
+      // 6. screen item fieldType to process-flow domain enum consistency (#631 / #627)
+      const screenItemFieldTypeIssues = checkScreenItemFieldTypeConsistency(
+        flows.map((f) => f.flow),
+        project.screens,
+      );
+      projectIssues.push(
+        ...screenItemFieldTypeIssues.map((i) => ({
+          validator: "screenItemFieldTypeValidator",
+          severity: i.severity,
+          message: `[${i.code}] ${i.path}: ${i.message}`,
+        })),
+      );
+
+      if (projectIssues.length > 0) {
         projectResults.push({
           projectId: project.projectId,
           displayName: project.displayName,
-          issues: screenItemFlowIssues.map((i) => ({
-            validator: "screenItemFlowValidator",
-            severity: i.severity,
-            message: `[${i.code}] ${i.path}: ${i.message}`,
-          })),
+          issues: projectIssues,
         });
       }
     }
@@ -429,6 +448,15 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
 
 // ─── CLI 出力 ──────────────────────────────────────────────────────────────
 
+const validatorDisplayOrder = [
+  "sqlColumnValidator",
+  "conventionsValidator",
+  "referentialIntegrity",
+  "identifierScope",
+  "screenItemFlowValidator",
+  "screenItemFieldTypeValidator",
+];
+
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {
   console.log(options.singleFlow ? "🔍 ドッグフード検証スイート (単一フロー)" : "🔍 ドッグフード検証スイート");
   console.log();
@@ -440,7 +468,7 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
 
   for (const result of summary.results) {
     if (result.issues.length === 0) {
-      console.log(`✅ ${result.displayName} (4 validators pass)`);
+      console.log(`✅ ${result.displayName} (${validatorDisplayOrder.length} validators pass)`);
     } else {
       console.log(`❌ ${result.displayName}`);
       const byValidator = new Map<string, string[]>();
@@ -492,11 +520,23 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
         totalIssues++;
       }
     }
+    for (const pr of summary.projectResults) {
+      for (const issue of pr.issues) {
+        totalByValidator.set(issue.validator, (totalByValidator.get(issue.validator) ?? 0) + 1);
+        totalIssues++;
+      }
+    }
 
     console.log(`Summary: ${summary.passedFlows} / ${summary.totalFlows} flows passed.`);
     console.log(`${summary.failedFlows} flow${summary.failedFlows > 1 ? "s" : ""} failed with ${totalIssues} issues:`);
-    for (const [validator, count] of totalByValidator) {
+    for (const validator of validatorDisplayOrder) {
+      const count = totalByValidator.get(validator) ?? 0;
       console.log(`  - [${validator}] ${count} 件`);
+    }
+    for (const [validator, count] of totalByValidator) {
+      if (!validatorDisplayOrder.includes(validator)) {
+        console.log(`  - [${validator}] ${count} 件`);
+      }
     }
     console.log("━".repeat(57));
     console.log();
