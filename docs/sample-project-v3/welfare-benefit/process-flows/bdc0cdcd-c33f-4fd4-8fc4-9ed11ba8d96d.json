@@ -10,7 +10,13 @@
     "updatedAt": "2026-04-30T00:00:00.000Z",
     "kind": "system",
     "apiVersion": "v1",
-    "mode": "upstream"
+    "mode": "upstream",
+    "primaryInvoker": {
+      "kind": "screen-item-event",
+      "screenId": "883e408d-3290-448d-a881-e9d7a22c85fc",
+      "itemId": "submitBtn",
+      "eventId": "click"
+    }
   },
   "context": {
     "catalogs": {

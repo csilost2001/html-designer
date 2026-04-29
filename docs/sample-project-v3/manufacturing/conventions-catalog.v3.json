@@ -1,6 +1,27 @@
 {
   "$schema": "../../../schemas/v3/conventions.v3.schema.json",
   "version": "1.0.0",
-  "description": "manufacturing サンプルプロジェクトの規約カタログ (#607 で空配置として補充)。エントリ追加は Phase 3 ドッグフード作業で対応予定。",
-  "updatedAt": "2026-04-30T00:00:00.000Z"
+  "description": "manufacturing サンプルプロジェクトの規約カタログ。Phase 3 ドッグフード (#622 / #614) で msg / numbering / regex を補充。",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "msg": {
+    "productItemCode.required": { "template": "製品コードを入力してください" },
+    "itemCode.invalidFormat": { "template": "品目コードは ITM-NNNN 形式 (英 3 文字 + ハイフン + 数字 4 桁) で入力してください" },
+    "plannedQuantity.outOfRange": { "template": "計画数量は 1 以上で入力してください" },
+    "schedule.invalidRange": { "template": "計画期間は開始日が終了日より前である必要があります" }
+  },
+  "regex": {
+    "item-code": {
+      "pattern": "^ITM-[0-9]{4}$",
+      "description": "品目コード。プレフィックス 'ITM-' + 数字 4 桁。",
+      "exampleValid": ["ITM-0001", "ITM-9999"],
+      "exampleInvalid": ["item-0001", "ITM-12", "ITM-12345"]
+    }
+  },
+  "numbering": {
+    "productionOrderNumber": {
+      "format": "PRD-YYYYMMDD-NNNN",
+      "implementation": "PostgreSQL sequence + 日次 reset",
+      "description": "生産指示番号。日付 + 連番 4 桁。日中の連番は当日内ユニーク。"
+    }
+  }
 }

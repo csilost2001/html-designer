@@ -1,6 +1,18 @@
 {
   "$schema": "../../../schemas/v3/conventions.v3.schema.json",
   "version": "1.0.0",
-  "description": "logistics サンプルプロジェクトの規約カタログ (#607 で空配置として補充)。エントリ追加は Phase 3 ドッグフード作業で対応予定。",
-  "updatedAt": "2026-04-30T00:00:00.000Z"
+  "description": "logistics サンプルプロジェクトの規約カタログ。Phase 3 ドッグフード (#622 / #614) で numbering を補充。",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "numbering": {
+    "shipmentNumber": {
+      "format": "SHP-YYYYMMDD-NNNNN",
+      "implementation": "PostgreSQL sequence + 日次 reset",
+      "description": "出荷指示番号。日付 + 連番 5 桁。日内ユニーク。"
+    },
+    "transferOrderNumber": {
+      "format": "TFR-YYYYMMDD-NNNN",
+      "implementation": "PostgreSQL sequence + 日次 reset",
+      "description": "倉庫間転送指示番号。日付 + 連番 4 桁。"
+    }
+  }
 }

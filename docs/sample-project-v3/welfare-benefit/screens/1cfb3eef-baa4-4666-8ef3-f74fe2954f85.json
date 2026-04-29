@@ -1,0 +1,90 @@
+{
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
+  "id": "1cfb3eef-baa4-4666-8ef3-f74fe2954f85",
+  "name": "支払通知",
+  "description": "受給者の指定口座へ給付金を送金し、住民通知を発行する画面。送信時に処理フロー d27974f9-b861-478d-93a4-d22f6cb3e051 (支払通知) を実行する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "kind": "form",
+  "path": "/welfare-benefit/payments/new",
+  "auth": "required",
+  "items": [
+    {
+      "id": "applicationCode",
+      "label": "申請番号",
+      "type": { "kind": "domain", "domainKey": "ApplicationCode" },
+      "direction": "input",
+      "required": true,
+      "errorMessages": {
+        "required": "@conv.msg.applicationCode.required"
+      }
+    },
+    {
+      "id": "bankAccountRef",
+      "label": "銀行口座参照",
+      "type": { "kind": "domain", "domainKey": "BankAccountRef" },
+      "direction": "input",
+      "required": true,
+      "helperText": "全銀フォーマットの口座参照 (銀行コード-支店コード-口座種別-口座番号)。",
+      "errorMessages": {
+        "required": "@conv.msg.bankAccountRef.required",
+        "invalidFormat": "@conv.msg.bankAccountRef.invalidFormat"
+      }
+    },
+    {
+      "id": "paymentMethod",
+      "label": "支払方法",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "options": [
+        { "value": "transfer", "label": "口座振込" },
+        { "value": "cash", "label": "現金窓口" }
+      ],
+      "defaultValue": "transfer",
+      "errorMessages": {
+        "required": "@conv.msg.paymentMethod.required"
+      }
+    },
+    {
+      "id": "remitterReference",
+      "label": "送金人参照",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "maxLength": 100,
+      "helperText": "通帳記載用の自治体名・課名 (例: '◯◯市福祉課')。",
+      "errorMessages": {
+        "required": "@conv.msg.remitterReference.required"
+      }
+    },
+    {
+      "id": "submitBtn",
+      "label": "支払を実行",
+      "type": "string",
+      "events": [
+        {
+          "id": "click",
+          "label": "支払実行",
+          "handlerFlowId": "d27974f9-b861-478d-93a4-d22f6cb3e051",
+          "argumentMapping": {
+            "applicationCode": "@self.applicationCode",
+            "bankAccountRef": "@self.bankAccountRef",
+            "paymentMethod": "@self.paymentMethod",
+            "remitterReference": "@self.remitterReference"
+          }
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "glossary": {
+      "支払通知": {
+        "definition": "給付決定済の受給者に対し銀行送金 + 住民通知を発行する業務操作。冪等キーで二重送金を防止する。",
+        "aliases": ["Payment Notification"]
+      }
+    }
+  }
+}
