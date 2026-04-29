@@ -29,6 +29,29 @@ import "../../styles/table.css";
 const STORAGE_KEY = "list-view-mode:table-list";
 const TAB_ID = makeTabId("table-list", "main");
 
+interface CommitTablesDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteTable: typeof deleteTable;
+}
+
+export async function commitTables(
+  { itemsInOrder, deletedIds }: { itemsInOrder: TableEntry[]; deletedIds: string[] },
+  deps: CommitTablesDeps = { loadProject, saveProject, deleteTable },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((t, i) => [t.id, i]));
+  project.tables = (project.tables ?? [])
+    .filter((t) => !deletedSet.has(t.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((t, i) => ({ ...t, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteTable(id);
+  }
+}
+
 interface ValidationSummary {
   errors: number;
   warnings: number;
@@ -63,27 +86,12 @@ export function TableListView() {
     return await listTables();
   }, []);
 
-  const commitTables = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: TableEntry[]; deletedIds: string[] }) => {
-    // 1. 削除対象を削除
-    for (const id of deletedIds) {
-      await deleteTable(id);
-    }
-    // 2. 並び順を project.tables に反映
-    const project = await loadProject();
-    if (project.tables) {
-      const deletedSet = new Set(deletedIds);
-      const orderMap = new Map(itemsInOrder.map((t, i) => [t.id, i]));
-      project.tables = project.tables
-        .filter((t) => !deletedSet.has(t.id))
-        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
-      await saveProject(project);
-    }
-  }, []);
+  const commitTableChanges = useCallback(commitTables, []);
 
   const editor = useListEditor<TableEntry>({
     getId: (t) => t.id,
     load: loadTables,
-    commit: commitTables,
+    commit: commitTableChanges,
     tabId: TAB_ID,
     renumber,
   });
