@@ -61,7 +61,8 @@ test.describe("役割・権限タブ (#555)", () => {
     const permsInput = page.locator('.conventions-table input[placeholder="order.create, order.read"]').first();
     await permsInput.fill("order.read");
     await expect(permsInput).toHaveValue("order.read");
-    // 既存 permission を参照しているので警告は出ない
+    // onChange → updateSilent → integrityIssues 再計算が live で走るため blur 不要。
+    // 既存 permission を参照しているので警告は出ない。
     await expect(page.locator(".conventions-issue")).toHaveCount(0);
   });
 

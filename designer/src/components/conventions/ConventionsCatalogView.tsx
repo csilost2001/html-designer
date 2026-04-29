@@ -730,7 +730,7 @@ function LimitEditor({
   );
 }
 
-// ── 新規 8 エディタ ─────────────────────────────────────────────────────
+// ── プロダクト規約 + role/permission エディタ群 ─────────────────────────
 
 function DefaultCell<T extends { default?: boolean }>({
   entry, onUpdate, onCommit,
