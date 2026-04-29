@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "a92060db-1674-4b36-83d8-f8a58f458a24",
+    "name": "v3 dogfood Phase 2 社会保険行政業務",
+    "description": "給付申請受付、多段審査 (一次 / 上長 / 最終決裁)、銀行送金による支払通知を対象にした社会保険行政業務 v3 サンプル。本人確認、重複申請防止、限度額管理、PII 最小保持、冪等送金を含む。",
+    "version": "1.0.0",
+    "maturity": "draft",
+    "createdAt": "2026-04-30T00:00:00.000Z",
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [
+    { "namespace": "welfare-benefit", "version": ">=1.0.0" }
+  ],
+  "entities": {
+    "tables": [
+      { "id": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "no": 1, "name": "申請者", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "applicants", "category": "マスタ", "columnCount": 12 },
+      { "id": "b57571d6-dc31-4dad-aad9-a2315267ea90", "no": 2, "name": "給付申請", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "applications", "category": "トランザクション", "columnCount": 14 },
+      { "id": "5565c2ee-671c-46ae-8540-4f2aa5691af8", "no": 3, "name": "審査記録", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "reviews", "category": "トランザクション", "columnCount": 10 },
+      { "id": "7198e401-00d8-4f6e-8382-aad4caeaf59e", "no": 4, "name": "支払処理", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "payments", "category": "トランザクション", "columnCount": 15 },
+      { "id": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "no": 5, "name": "受給者台帳", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "beneficiaries", "category": "マスタ", "columnCount": 10 }
+    ],
+    "processFlows": [
+      { "id": "bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d", "no": 1, "name": "給付申請受付", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 },
+      { "id": "d27974f9-b861-478d-93a4-d22f6cb3e051", "no": 2, "name": "支払通知", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 }
+    ]
+  }
+}

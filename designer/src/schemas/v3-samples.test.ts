@@ -60,6 +60,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       join(samplesV3Dir, "public-service", "project.json"),
       join(samplesV3Dir, "logistics", "project.json"),
       join(samplesV3Dir, "healthcare", "project.json"),
+      join(samplesV3Dir, "welfare-benefit", "project.json"),
     ];
     for (const file of files) {
       const data = loadJson(file);
@@ -76,6 +77,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "logistics", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "healthcare", "tables")),
+      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "tables")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -109,6 +111,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "logistics", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "healthcare", "process-flows")),
+      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "process-flows")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -151,6 +154,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "logistics", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "healthcare", "extensions")),
+      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "extensions")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {

@@ -1,0 +1,152 @@
+{
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d",
+    "name": "給付申請受付",
+    "description": "住民から提出された給付申請を受け付けて、本人確認 / 受給資格 / 重複申請 / 限度額の各検証を経た上で applications を作成し、一次審査キューに投入して受付通知メールを送信する。多段審査 (一次 / 上長 / 最終決裁) は別フローでハンドリング。",
+    "version": "1.0.0",
+    "maturity": "committed",
+    "createdAt": "2026-04-30T00:00:00.000Z",
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "kind": "system",
+    "apiVersion": "v1",
+    "mode": "upstream"
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "VALIDATION": { "httpStatus": 400, "defaultMessage": "入力値が不正です", "responseId": "400-validation" },
+        "IDENTITY_NOT_VERIFIED": { "httpStatus": 403, "defaultMessage": "本人確認が完了していない申請者は給付申請できません", "responseId": "403-identity-not-verified" },
+        "BENEFICIARY_INELIGIBLE": { "httpStatus": 403, "defaultMessage": "受給資格が停止されています", "responseId": "403-beneficiary-ineligible" },
+        "APPLICANT_NOT_FOUND": { "httpStatus": 404, "defaultMessage": "申請者が見つかりません", "responseId": "404-applicant-not-found" },
+        "DUPLICATE_APPLICATION": { "httpStatus": 409, "defaultMessage": "同一給付種別の重複申請が既に存在します", "responseId": "409-duplicate-application" },
+        "BENEFIT_LIMIT_EXCEEDED": { "httpStatus": 422, "defaultMessage": "申請額が年間累計上限を超えています", "responseId": "422-benefit-limit-exceeded" },
+        "NOTIFICATION_FAILED": { "httpStatus": 502, "defaultMessage": "受付通知メールの送信に失敗しました", "responseId": "502-notification-failed" }
+      },
+      "externalSystems": {
+        "notificationSystem": { "name": "住民通知システム", "baseUrl": "https://notify.example.local", "auth": { "kind": "bearer", "tokenRef": "@secret.notificationApiToken" }, "timeoutMs": 3000, "retryPolicy": { "maxAttempts": 2, "backoff": "exponential", "initialDelayMs": 200 }, "description": "住民にメール / 郵送通知を送る連携システム。" }
+      },
+      "secrets": {
+        "notificationApiToken": { "source": "vault", "name": "welfare/notification/api-token", "description": "住民通知 API の bearer token。", "rotationDays": 90 }
+      },
+      "domains": {
+        "ApplicantId": { "type": "string", "constraints": [{ "field": "value", "type": "regex", "pattern": "^AP[0-9]{10}$", "severity": "error" }], "description": "申請者ID (AP + 10 桁)。" },
+        "ApplicationCode": { "type": "string", "constraints": [{ "field": "value", "type": "regex", "pattern": "^BN[0-9]{8}[0-9]{8}$", "severity": "error" }], "description": "給付申請番号 (BN + YYYYMMDD + 連番8桁)。" },
+        "BenefitType": { "type": "string", "constraints": [{ "field": "value", "type": "enum", "values": ["child_allowance", "livelihood_support", "medical_expense_subsidy", "disability_support"], "severity": "error" }], "description": "給付種別。" },
+        "MoneyAmount": { "type": "number", "constraints": [{ "field": "value", "type": "range", "min": 1, "severity": "error" }], "description": "正の整数円単位の金額。" }
+      },
+      "functions": {
+        "generateApplicationCode": { "signature": "generateApplicationCode(now: datetime): string", "returnType": "string", "description": "BN + YYYYMMDD + 連番8桁の申請番号を採番する。", "examples": ["generateApplicationCode(@now)"] },
+        "hashAddress": { "signature": "hashAddress(address: string): string", "returnType": "string", "description": "住所文字列を SHA-256 でハッシュ化する (PII 直接保持回避)。", "examples": ["hashAddress('東京都...')"] }
+      },
+      "events": {
+        "welfare.application_submitted": { "description": "住民が給付申請を提出した時に発行する。", "payload": { "type": "object", "required": ["applicantCode", "benefitType", "submittedBy"], "properties": { "applicantCode": { "type": "string" }, "benefitType": { "type": "string" }, "submittedBy": { "type": "string" } } } },
+        "welfare.application_received": { "description": "給付申請を受付完了し一次審査キューに投入した時に発行する。", "payload": { "type": "object", "required": ["applicationCode", "applicantCode", "benefitType"], "properties": { "applicationCode": { "type": "string" }, "applicantCode": { "type": "string" }, "benefitType": { "type": "string" } } } },
+        "welfare.application_rejected_intake": { "description": "受付段階で却下した時 (本人確認不可 / 重複 / 資格停止 / 限度額超過) に発行する。", "payload": { "type": "object", "required": ["applicantCode", "reason"], "properties": { "applicantCode": { "type": "string" }, "applicationCode": { "type": "string" }, "reason": { "type": "string" } } } },
+        "welfare.notification_failed": { "description": "受付通知メール送信失敗時に発行する。リコンサイル用。", "payload": { "type": "object", "required": ["applicationCode", "reason"], "properties": { "applicationCode": { "type": "string" }, "reason": { "type": "string" } } } }
+      }
+    },
+    "ambientVariables": [
+      { "name": "requestId", "type": "string", "required": true },
+      { "name": "sessionUserId", "type": "string", "required": true },
+      { "name": "sessionRole", "type": "string", "required": true },
+      { "name": "now", "type": "datetime", "required": true }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "給付申請の受付",
+      "trigger": "welfare-benefit:applicationSubmitted",
+      "description": "申請者本人確認、受給資格、重複申請、限度額のチェックを経て applications を作成し、一次審査キューに投入する。",
+      "maturity": "committed",
+      "httpRoute": { "method": "POST", "path": "/api/welfare/applications", "auth": "required" },
+      "requiredPermissions": ["@conv.permission.application.submit"],
+      "inputs": [
+        { "name": "applicantCode", "label": "申請者ID", "type": { "kind": "domain", "domainKey": "ApplicantId" }, "required": true },
+        { "name": "benefitType", "label": "給付種別", "type": { "kind": "domain", "domainKey": "BenefitType" }, "required": true },
+        { "name": "requestedAmount", "label": "申請額", "type": { "kind": "domain", "domainKey": "MoneyAmount" }, "required": true },
+        { "name": "reason", "label": "申請理由", "type": "string", "required": true },
+        { "name": "addressForVerification", "label": "本人確認用住所", "type": "string", "required": true }
+      ],
+      "outputs": [
+        { "name": "applicationCode", "label": "申請番号", "type": { "kind": "domain", "domainKey": "ApplicationCode" } },
+        { "name": "status", "label": "状態", "type": "string" },
+        { "name": "submittedAt", "label": "提出日時", "type": "datetime" }
+      ],
+      "responses": [
+        { "id": "201-created", "status": 201, "bodySchema": { "typeRef": "welfare-benefit:ApplicationReceptionResponse" }, "when": "受付成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "403-identity-not-verified", "status": 403, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "403-beneficiary-ineligible", "status": 403, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "404-applicant-not-found", "status": 404, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "409-duplicate-application", "status": 409, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "422-benefit-limit-exceeded", "status": 422, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "502-notification-failed", "status": 502, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } }
+      ],
+      "steps": [
+        { "id": "step-01", "kind": "eventPublish", "description": "申請提出イベントを発行する。", "topic": "welfare.application_submitted", "payload": "{ applicantCode: @inputs.applicantCode, benefitType: @inputs.benefitType, submittedBy: @sessionUserId }" },
+        { "id": "step-02", "kind": "validation", "description": "申請者ID、給付種別、申請額、申請理由を検証する。", "rules": [
+          { "field": "applicantCode", "type": "regex", "pattern": "^AP[0-9]{10}$", "severity": "error", "message": "申請者IDの形式が不正です" },
+          { "field": "benefitType", "type": "enum", "values": ["child_allowance", "livelihood_support", "medical_expense_subsidy", "disability_support"], "severity": "error", "message": "給付種別が不正です" },
+          { "field": "requestedAmount", "type": "range", "min": 1, "severity": "error", "message": "申請額は 1 円以上です" },
+          { "field": "reason", "type": "minLength", "length": 10, "severity": "error", "message": "申請理由は 10 文字以上です" }
+        ], "fieldErrorsVar": "fieldErrors", "inlineBranch": { "ok": [], "ng": [], "ngResponseId": "400-validation", "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', requestId: @requestId, fieldErrors: @fieldErrors }" } },
+        { "id": "step-03", "kind": "dbAccess", "description": "申請者を申請者IDで取得する。", "tableId": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "operation": "SELECT", "sql": "SELECT id, applicant_code, full_name, identity_verified, identity_verified_at FROM applicants WHERE applicant_code = @inputs.applicantCode", "outputBinding": { "name": "applicant" }, "lineage": { "reads": [{ "tableId": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "purpose": "lookup" }] } },
+        { "id": "step-04", "kind": "branch", "description": "申請者が存在しない場合は 404 を返す。", "branches": [{ "id": "br-04-a", "code": "A", "label": "申請者なし", "condition": { "kind": "expression", "expression": "@applicant == null" }, "steps": [
+          { "id": "step-04-a-01", "kind": "eventPublish", "description": "受付却下イベント発行 (申請者不在)。", "topic": "welfare.application_rejected_intake", "payload": "{ applicantCode: @inputs.applicantCode, reason: 'applicant_not_found' }" },
+          { "id": "step-04-a-02", "kind": "return", "description": "申請者なし", "responseId": "404-applicant-not-found", "bodyExpression": "{ code: 'APPLICANT_NOT_FOUND', message: '申請者が見つかりません', requestId: @requestId }" }
+        ] }], "elseBranch": { "id": "br-04-else", "code": "B", "label": "申請者あり", "steps": [] } },
+        { "id": "step-05", "kind": "branch", "description": "本人確認未完了の申請者は受付できない。", "branches": [{ "id": "br-05-a", "code": "A", "label": "本人確認未完了", "condition": { "kind": "expression", "expression": "@applicant.identity_verified != true" }, "steps": [
+          { "id": "step-05-a-01", "kind": "eventPublish", "description": "受付却下イベント発行 (本人確認未完了)。", "topic": "welfare.application_rejected_intake", "payload": "{ applicantCode: @inputs.applicantCode, reason: 'identity_not_verified' }" },
+          { "id": "step-05-a-02", "kind": "return", "description": "本人確認未完了", "responseId": "403-identity-not-verified", "bodyExpression": "{ code: 'IDENTITY_NOT_VERIFIED', message: '本人確認が完了していない申請者は給付申請できません', requestId: @requestId }" }
+        ] }], "elseBranch": { "id": "br-05-else", "code": "B", "label": "本人確認済", "steps": [] } },
+        { "id": "step-06", "kind": "dbAccess", "description": "受給者台帳から資格状態を取得する (新規申請者は null となる)。", "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "operation": "SELECT", "sql": "SELECT id, beneficiary_code, eligibility_status, total_paid_amount, fiscal_year FROM beneficiaries WHERE applicant_id = @applicant.id", "outputBinding": { "name": "beneficiary" }, "lineage": { "reads": [{ "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "purpose": "eligibility-check" }] } },
+        { "id": "step-07", "kind": "branch", "description": "受給資格停止中の申請者は受付できない。", "branches": [{ "id": "br-07-a", "code": "A", "label": "資格停止", "condition": { "kind": "expression", "expression": "@beneficiary != null && @beneficiary.eligibility_status == 'disqualified'" }, "steps": [
+          { "id": "step-07-a-01", "kind": "eventPublish", "description": "受付却下イベント発行 (資格停止)。", "topic": "welfare.application_rejected_intake", "payload": "{ applicantCode: @inputs.applicantCode, reason: 'disqualified' }" },
+          { "id": "step-07-a-02", "kind": "return", "description": "受給資格停止", "responseId": "403-beneficiary-ineligible", "bodyExpression": "{ code: 'BENEFICIARY_INELIGIBLE', message: '受給資格が停止されています', requestId: @requestId }" }
+        ] }], "elseBranch": { "id": "br-07-else", "code": "B", "label": "資格あり (または初回)", "steps": [] } },
+        { "id": "step-08", "kind": "welfare-benefit:DuplicateApplicationCheckStep", "description": "同一申請者の同一給付種別の重複申請がないか確認する (規約規定の遡及窓を使用)。", "config": { "applicantRef": "@applicant.applicant_code", "benefitType": "@inputs.benefitType", "lookbackDays": 30 }, "lineage": { "reads": [{ "tableId": "b57571d6-dc31-4dad-aad9-a2315267ea90", "purpose": "duplicate-application-check" }] } },
+        { "id": "step-09", "kind": "dbAccess", "description": "重複申請を SQL で確認する (DuplicateApplicationCheckStep の論理を実体化)。", "tableId": "b57571d6-dc31-4dad-aad9-a2315267ea90", "operation": "SELECT", "sql": "SELECT id, application_code, status, submitted_at FROM applications WHERE applicant_id = @applicant.id AND benefit_type = @inputs.benefitType AND submitted_at > (@now - INTERVAL '30 days') AND status NOT IN ('rejected', 'cancelled') LIMIT 1", "outputBinding": { "name": "duplicateApplication" }, "lineage": { "reads": [{ "tableId": "b57571d6-dc31-4dad-aad9-a2315267ea90", "purpose": "duplicate-application-check" }] } },
+        { "id": "step-10", "kind": "branch", "description": "重複申請が存在する場合は 409 を返す。", "branches": [{ "id": "br-10-a", "code": "A", "label": "重複あり", "condition": { "kind": "expression", "expression": "@duplicateApplication != null" }, "steps": [
+          { "id": "step-10-a-01", "kind": "eventPublish", "description": "受付却下イベント発行 (重複)。", "topic": "welfare.application_rejected_intake", "payload": "{ applicantCode: @inputs.applicantCode, applicationCode: @duplicateApplication.application_code, reason: 'duplicate' }" },
+          { "id": "step-10-a-02", "kind": "return", "description": "重複申請", "responseId": "409-duplicate-application", "bodyExpression": "{ code: 'DUPLICATE_APPLICATION', message: '同一給付種別の重複申請が既に存在します', requestId: @requestId }" }
+        ] }], "elseBranch": { "id": "br-10-else", "code": "B", "label": "重複なし", "steps": [] } },
+        { "id": "step-11", "kind": "branch", "description": "受給者台帳の年間累計と新規申請額の合計が限度額を超える場合は 422 を返す (新規申請者は累計 0 として扱う)。", "branches": [{ "id": "br-11-a", "code": "A", "label": "限度額超過", "condition": { "kind": "expression", "expression": "@beneficiary != null && (@beneficiary.total_paid_amount + @inputs.requestedAmount) > 1000000" }, "steps": [
+          { "id": "step-11-a-01", "kind": "eventPublish", "description": "受付却下イベント発行 (限度額超過)。", "topic": "welfare.application_rejected_intake", "payload": "{ applicantCode: @inputs.applicantCode, reason: 'benefit_limit_exceeded' }" },
+          { "id": "step-11-a-02", "kind": "return", "description": "限度額超過", "responseId": "422-benefit-limit-exceeded", "bodyExpression": "{ code: 'BENEFIT_LIMIT_EXCEEDED', message: '申請額が年間累計上限を超えています', requestId: @requestId }" }
+        ] }], "elseBranch": { "id": "br-11-else", "code": "B", "label": "限度内", "steps": [] } },
+        { "id": "step-12", "kind": "dbAccess", "description": "申請を受付ステータスで作成する。", "tableId": "b57571d6-dc31-4dad-aad9-a2315267ea90", "operation": "INSERT", "sql": "INSERT INTO applications (application_code, applicant_id, benefit_type, requested_amount, currency, reason, status, submitted_at) VALUES (fn.generateApplicationCode(@now), @applicant.id, @inputs.benefitType, @inputs.requestedAmount, 'JPY', @inputs.reason, 'received', @now) RETURNING id, application_code, status, submitted_at", "outputBinding": { "name": "createdApplication" }, "lineage": { "writes": [{ "tableId": "b57571d6-dc31-4dad-aad9-a2315267ea90", "purpose": "create" }] } },
+        { "id": "step-13", "kind": "dbAccess", "description": "一次審査用の reviews 行 (decision=NULL) を投入してキューに乗せる。", "tableId": "5565c2ee-671c-46ae-8540-4f2aa5691af8", "operation": "INSERT", "sql": "INSERT INTO reviews (application_id, stage, reviewer_user_id, reviewer_role) VALUES (@createdApplication.id, 'first_review', @sessionUserId, 'intake_clerk')", "lineage": { "writes": [{ "tableId": "5565c2ee-671c-46ae-8540-4f2aa5691af8", "purpose": "queue-first-review" }] } },
+        { "id": "step-14", "kind": "audit", "description": "受付完了を監査ログへ記録する。", "action": "welfare.application.create", "resource": { "type": "application", "id": "@createdApplication.application_code" }, "result": "success", "sensitive": true },
+        { "id": "step-15", "kind": "eventPublish", "description": "受付完了イベントを発行する。", "topic": "welfare.application_received", "payload": "{ applicationCode: @createdApplication.application_code, applicantCode: @applicant.applicant_code, benefitType: @inputs.benefitType }" },
+        { "id": "step-16", "kind": "externalSystem", "description": "申請者へ受付通知メールを送る (DB 作成後の外部呼び出し)。失敗時は受付自体は成立、リコンサイルジョブで再送する。", "systemRef": "notificationSystem", "httpCall": { "method": "POST", "path": "/v1/notifications", "body": "{ kind: 'welfare.application.received', applicantCode: @applicant.applicant_code, applicationCode: @createdApplication.application_code }" }, "outputBinding": { "name": "notificationResult" }, "outcomes": { "success": { "action": "continue" }, "failure": { "action": "continue", "sideEffects": [{ "id": "step-16-fail-event", "kind": "eventPublish", "description": "通知失敗イベント発行 (リコンサイル用)。", "topic": "welfare.notification_failed", "payload": "{ applicationCode: @createdApplication.application_code, reason: 'notification provider failure' }" }] }, "timeout": { "action": "continue", "sideEffects": [{ "id": "step-16-timeout-event", "kind": "eventPublish", "description": "通知タイムアウトイベント発行。", "topic": "welfare.notification_failed", "payload": "{ applicationCode: @createdApplication.application_code, reason: 'notification timeout' }" }] } } },
+        { "id": "step-17", "kind": "return", "description": "受付結果を返す。", "responseId": "201-created", "bodyExpression": "{ applicationCode: @createdApplication.application_code, applicantId: @applicant.applicant_code, benefitType: @inputs.benefitType, requestedAmount: @inputs.requestedAmount, status: @createdApplication.status, submittedAt: @createdApplication.submitted_at }" }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      { "id": "ADR-001", "title": "本人確認は申請者マスタの identity_verified を信頼源にする", "status": "accepted", "context": "本人確認は住基ネット連携、マイナンバーカード認証、窓口手動の 3 経路があり、申請のたびに毎回再確認するのはコストが高い。", "decision": "申請受付フローでは applicants.identity_verified = true のみ通し、未確認者は別フロー (本人確認受付) に誘導する。", "consequences": "本人確認の鮮度管理 (期限切れ判定) は別ジョブで identity_verified を false に戻す責務とする。給付申請フローはあくまで参照のみ。", "date": "2026-04-30" },
+      { "id": "ADR-002", "title": "重複申請判定は遡及 30 日窓を使用する", "status": "accepted", "context": "同一給付種別を短期間に複数回申請する不正検知が必要だが、自然な再申請 (前回却下後の再提出など) は許容したい。", "decision": "submitted_at が現時点から 30 日以内かつ status が rejected / cancelled でない申請があれば重複として 409 を返す。30 日は @conv.benefitPolicy.duplicateLookbackDays で外部化。", "consequences": "30 日を超える再申請は許可される。短期での再提出は窓口で意図確認となる。", "date": "2026-04-30" },
+      { "id": "ADR-003", "title": "限度額超過は申請受付段階で 422 を返し DB に残さない", "status": "accepted", "context": "限度額超過の申請を受け付けて審査段階で却下する選択もあるが、不要な審査負荷とユーザー体験低下を招く。", "decision": "受付段階で beneficiaries.total_paid_amount + requestedAmount > 上限の場合は applications を作成せず 422 を返す。limit は本サンプルでは 1,000,000 円固定だが本番では @conv.benefitLimit カテゴリで給付種別別に管理。", "consequences": "applications テーブルに却下記録は残らないため、限度額超過申請件数の集計は welfare.application_rejected_intake イベントで取得する。", "date": "2026-04-30" }
+    ],
+    "glossary": {
+      "給付申請": { "definition": "住民が国 / 自治体に対して経済的支援を申請する行為。本サンプルでは児童手当、生活支援、医療費補助、障害支援を対象とする。", "aliases": ["Benefit Application"] },
+      "本人確認": { "definition": "申請者が本人であることを公的書類またはマイナンバーカードで確認するプロセス。", "aliases": ["Identity Verification", "KYC"] },
+      "受給者台帳": { "definition": "過去に給付を受けた住民の累計金額・受給資格状態を保持する台帳。新規申請者には行が存在しない。", "aliases": ["Beneficiary Ledger"] },
+      "一次審査": { "definition": "受付直後に担当職員が書類不備や明白な要件不備を確認する第 1 段階の審査。", "aliases": ["First Review"] },
+      "上長承認": { "definition": "一次審査を通過した申請を上席職員が確認し、決裁権限の範囲で承認 / 却下する第 2 段階。", "aliases": ["Manager Approval"] },
+      "最終決裁": { "definition": "上長承認を経た申請を所管課長が決裁する第 3 段階。決裁額が確定する。", "aliases": ["Final Decision"] },
+      "限度額": { "definition": "給付種別ごとに定められた一回上限・年間累計上限。受給者台帳の累計と新規申請額の合計で判定する。", "aliases": ["Benefit Limit", "Cap"] },
+      "重複申請": { "definition": "同一申請者が一定期間内に同一給付種別を複数回申請する状態。30 日窓で判定。", "aliases": ["Duplicate Application"] },
+      "受給資格": { "definition": "受給者台帳の eligibility_status で表される給付対象適格性。eligible / disqualified / suspended のいずれか。", "aliases": ["Eligibility"] }
+    },
+    "testScenarios": [
+      { "id": "happy-path-application", "name": "本人確認済み申請者の受付成功", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-app-001", "sessionUserId": "clerk-001", "sessionRole": "intake_clerk" } }, { "kind": "dbState", "tableId": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "rows": [{ "id": 1, "applicant_code": "AP0000000001", "full_name": "山田太郎", "identity_verified": true, "identity_verified_at": "2026-04-01T00:00:00.000Z" }] }, { "kind": "dbState", "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "rows": [{ "id": 1, "applicant_id": 1, "beneficiary_code": "BF0000000001", "eligibility_status": "eligible", "total_paid_amount": 100000, "fiscal_year": 2026 }] }, { "kind": "externalStub", "externalRef": "notificationSystem", "responseMock": { "status": "delivered" } }], "when": { "actionId": "act-001", "input": { "applicantCode": "AP0000000001", "benefitType": "child_allowance", "requestedAmount": 50000, "reason": "第二子出産に伴う追加給付申請", "addressForVerification": "東京都千代田区..." } }, "then": [{ "kind": "outcome", "expected": "201-created" }, { "kind": "dbRow", "tableId": "b57571d6-dc31-4dad-aad9-a2315267ea90", "match": { "status": "received" }, "count": 1 }, { "kind": "dbRow", "tableId": "5565c2ee-671c-46ae-8540-4f2aa5691af8", "match": { "stage": "first_review" }, "count": 1 }, { "kind": "auditLog", "action": "welfare.application.create", "result": "success" }], "tags": ["happy"] },
+      { "id": "validation-error", "name": "申請額 0 円は 400", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-app-002", "sessionUserId": "clerk-001" } }], "when": { "actionId": "act-001", "input": { "applicantCode": "AP0000000001", "benefitType": "child_allowance", "requestedAmount": 0, "reason": "テスト", "addressForVerification": "東京都..." } }, "then": [{ "kind": "outcome", "expected": "400-validation" }], "tags": ["error", "validation"] },
+      { "id": "edge-identity-not-verified", "name": "本人確認未完了は 403", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-app-003", "sessionUserId": "clerk-001" } }, { "kind": "dbState", "tableId": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "rows": [{ "id": 2, "applicant_code": "AP0000000002", "full_name": "佐藤花子", "identity_verified": false }] }], "when": { "actionId": "act-001", "input": { "applicantCode": "AP0000000002", "benefitType": "livelihood_support", "requestedAmount": 100000, "reason": "失職に伴う生活支援申請", "addressForVerification": "東京都..." } }, "then": [{ "kind": "outcome", "expected": "403-identity-not-verified" }], "tags": ["edge", "identity"] },
+      { "id": "edge-benefit-limit-exceeded", "name": "年間累計が上限を超過する申請は 422", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-app-004", "sessionUserId": "clerk-001" } }, { "kind": "dbState", "tableId": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "rows": [{ "id": 3, "applicant_code": "AP0000000003", "identity_verified": true, "identity_verified_at": "2026-04-01T00:00:00.000Z" }] }, { "kind": "dbState", "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "rows": [{ "id": 3, "applicant_id": 3, "beneficiary_code": "BF0000000003", "eligibility_status": "eligible", "total_paid_amount": 980000, "fiscal_year": 2026 }] }], "when": { "actionId": "act-001", "input": { "applicantCode": "AP0000000003", "benefitType": "medical_expense_subsidy", "requestedAmount": 50000, "reason": "高額医療費補助", "addressForVerification": "東京都..." } }, "then": [{ "kind": "outcome", "expected": "422-benefit-limit-exceeded" }], "tags": ["edge", "limit"] }
+    ]
+  }
+}
