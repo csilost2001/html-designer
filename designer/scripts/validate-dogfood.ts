@@ -38,7 +38,7 @@ const samplesV3Dir = resolve(repoRoot, "docs/sample-project-v3");
 // ─── 型定義 ────────────────────────────────────────────────────────────────
 
 interface ProjectResources {
-  projectId: string;          // 識別用 (v1: "v1", v3: subdir 名 or "v3-root")
+  projectId: string;          // 識別用 (v1: "v1", v3: subdir 名)
   displayName: string;        // 表示用 (repoRoot からの相対パス)
   projectDir: string;         // プロジェクトディレクトリ絶対パス
   tables: TableDefinition[];
@@ -93,7 +93,6 @@ function loadConventionsFromFile(filePath: string): ConventionsCatalog | null {
  *
  * 発見規則:
  *   - v1: docs/sample-project/ (1 project、conventions は conventions/conventions-catalog.json、tables は tables/)
- *   - v3 過渡期: docs/sample-project-v3/ 直下に project.json があれば 1 project (retail 等の旧配置)
  *   - v3 per-project: docs/sample-project-v3/<subdir>/ に project.json があれば 1 project
  *
  * spec: docs/spec/sample-project-structure.md
@@ -113,19 +112,7 @@ function discoverProjects(): ProjectResources[] {
     });
   }
 
-  // v3 過渡期 (root 直下)
-  if (existsSync(samplesV3Dir) && existsSync(join(samplesV3Dir, "project.json"))) {
-    projects.push({
-      projectId: "v3-root",
-      displayName: relative(repoRoot, samplesV3Dir).replace(/\\/g, "/"),
-      projectDir: samplesV3Dir,
-      tables: loadTablesFromDir(join(samplesV3Dir, "tables")),
-      conventions: loadConventionsFromFile(join(samplesV3Dir, "conventions-catalog.v3.json")),
-      flowsDir: join(samplesV3Dir, "process-flows"),
-    });
-  }
-
-  // v3 per-project
+  // v3 per-project (旧 v3-root 過渡期 fallback は #616 で retail/ に移動完了したため削除)
   if (existsSync(samplesV3Dir)) {
     for (const entry of readdirSync(samplesV3Dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;

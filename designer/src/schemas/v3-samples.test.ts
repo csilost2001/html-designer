@@ -54,7 +54,7 @@ function listJsonRecursive(dir: string): string[] {
 describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
   it("project.json (retail + finance + manufacturing + public-service) validates against project.v3.schema.json", () => {
     const files = [
-      join(samplesV3Dir, "project.json"),
+      join(samplesV3Dir, "retail", "project.json"),
       join(samplesV3Dir, "finance", "project.json"),
       join(samplesV3Dir, "manufacturing", "project.json"),
       join(samplesV3Dir, "public-service", "project.json"),
@@ -71,7 +71,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
 
   it("table samples validate against table.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "tables")),
+      ...listJsonRecursive(join(samplesV3Dir, "retail", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "tables")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "tables")),
@@ -89,7 +89,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
 
   it("screen samples validate against screen.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "screens")),
+      ...listJsonRecursive(join(samplesV3Dir, "retail", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "screens")),
@@ -105,7 +105,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
 
   it("process-flow samples validate against process-flow.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "process-flows")),
+      ...listJsonRecursive(join(samplesV3Dir, "retail", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "process-flows")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "process-flows")),
@@ -148,7 +148,7 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
 
   it("extension samples validate against extensions.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "extensions")),
+      ...listJsonRecursive(join(samplesV3Dir, "retail", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "finance", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "extensions")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "extensions")),
