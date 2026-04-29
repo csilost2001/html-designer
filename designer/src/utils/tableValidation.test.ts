@@ -76,6 +76,25 @@ describe("validateTable", () => {
     }));
   });
 
+  it("physicalName same value in different namespace -> no error", () => {
+    const ns1 = { ...table(), namespace: "sales" } as Table & { namespace: string };
+    const ns2 = {
+      ...table({ id: "22222222-2222-4222-8222-222222222222" as TableId }),
+      namespace: "marketing",
+    } as Table & { namespace: string };
+
+    const errors = validateTable(ns1, [ns1, ns2]);
+
+    expect(errors.find((e) => e.code === "table.physicalName.duplicate")).toBeUndefined();
+  });
+
+  it("columns empty does not double-fire primaryKey.empty", () => {
+    const errors = validateTable(table({ columns: [] }), []);
+
+    expect(errors.filter((e) => e.code === "table.primaryKey.empty")).toHaveLength(0);
+    expect(errors.filter((e) => e.code === "table.columns.empty")).toHaveLength(1);
+  });
+
   it("displayName empty -> warning", () => {
     const errors = validateTable(table({ name: "  " as DisplayName }), []);
 

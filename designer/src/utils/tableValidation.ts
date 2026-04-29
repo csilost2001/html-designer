@@ -1,6 +1,8 @@
 import type { Table } from "../types/v3/table";
 import type { ValidationError } from "./actionValidation";
 
+// Table 型は現状 namespace を持たないが、将来 plugin / namespace 分離で追加される想定 (#442)。
+// それまで physicalName 重複検証を namespace スコープで先行実装するため defensive cast。
 function tableNamespace(table: Table): string {
   return ((table as Table & { namespace?: string }).namespace ?? "").trim();
 }
@@ -9,7 +11,8 @@ export function validateTable(table: Table, allTables: Table[]): ValidationError
   const errors: ValidationError[] = [];
   const stepId = table.id;
 
-  if (!table.columns || table.columns.length === 0) {
+  const columns = table.columns ?? [];
+  if (columns.length === 0) {
     errors.push({
       stepId,
       severity: "warning",
@@ -17,9 +20,8 @@ export function validateTable(table: Table, allTables: Table[]): ValidationError
       path: "columns",
       message: "カラムが未定義です",
     });
-  }
-
-  if (!(table.columns ?? []).some((column) => column.primaryKey)) {
+    // columns 空の時点で PK 未指定は自明なので primaryKey.empty は重複発火させない
+  } else if (!columns.some((column) => column.primaryKey)) {
     errors.push({
       stepId,
       severity: "warning",

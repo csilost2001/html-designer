@@ -472,7 +472,7 @@ export function TableListView() {
     },
     {
       key: "maturity",
-      header: "謌千・蠎ｦ",
+      header: "成熟度",
       width: "80px",
       align: "center",
       sortable: true,
@@ -493,7 +493,7 @@ export function TableListView() {
     },
     {
       key: "validation",
-      header: "讀懆ｨｼ",
+      header: "検証",
       width: "100px",
       align: "center",
       sortable: true,
@@ -503,7 +503,7 @@ export function TableListView() {
         if (!validation) return null;
         if (validation.errors > 0) return <ValidationBadge severity="error" count={validation.errors} />;
         if (validation.warnings > 0) return <ValidationBadge severity="warning" count={validation.warnings} />;
-        return <i className="bi bi-check-lg view-validation-ok" title="蝠城｡後↑縺・" />;
+        return <i className="bi bi-check-lg view-validation-ok" title="問題なし" />;
       },
     },
     {
@@ -522,22 +522,22 @@ export function TableListView() {
     const hasWarning = (validation?.warnings ?? 0) > 0;
     return (
       <div className={`table-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
-      <div className="table-card-header">
-        <MaturityBadge maturity={t.maturity ?? "draft"} />
-        <span className="table-card-name">{t.physicalName ?? ""}</span>
-        {t.category && <span className="table-card-category">{t.category}</span>}
-        {validation && (hasError || hasWarning) && (
-          <span className="table-validation-badges">
-            <ValidationBadge severity="error" count={validation.errors} />
-            <ValidationBadge severity="warning" count={validation.warnings} />
-          </span>
-        )}
-      </div>
-      <div className="table-card-logical">{t.name}</div>
-      <div className="table-card-meta">
-        <span><i className="bi bi-columns-gap" /> {t.columnCount ?? 0} カラム</span>
-        <span className="table-card-date">{formatDate(t.updatedAt)}</span>
-      </div>
+        <div className="table-card-header">
+          <MaturityBadge maturity={t.maturity ?? "draft"} />
+          <span className="table-card-name">{t.physicalName ?? ""}</span>
+          {t.category && <span className="table-card-category">{t.category}</span>}
+          {validation && (hasError || hasWarning) && (
+            <span className="table-validation-badges">
+              <ValidationBadge severity="error" count={validation.errors} />
+              <ValidationBadge severity="warning" count={validation.warnings} />
+            </span>
+          )}
+        </div>
+        <div className="table-card-logical">{t.name}</div>
+        <div className="table-card-meta">
+          <span><i className="bi bi-columns-gap" /> {t.columnCount ?? 0} カラム</span>
+          <span className="table-card-date">{formatDate(t.updatedAt)}</span>
+        </div>
       </div>
     );
   };
