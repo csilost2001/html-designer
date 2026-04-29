@@ -26,6 +26,12 @@ Claude Code 固有の補足は `CLAUDE.md`、Codex 固有の設定は `.codex/co
 
 PR 作成後 / マージ前に `git diff origin/main..HEAD -- schemas/` を必ず確認すること。
 
+## draft-state policy (設計途中許容 + 警告可視化)
+
+業務リソースは設計途中の draft-state でも保存可能とする。schema 違反や未完成項目は保存ブロッカーにせず、UI の一覧・カード・編集画面で error / warning として可視化し、`committed` maturity へ進める過程で解消する。
+
+5 原則・severity 判定基準・新規リソース追加 checklist は [`docs/spec/draft-state-policy.md`](docs/spec/draft-state-policy.md) を参照すること。新しいリソース種別を追加する AI エージェントは、同 checklist に従って validator / store / ListView / Editor / maturity 表示 / AJV test layer の扱いを確認すること。
+
 ## Commands
 
 ### Designer (Frontend)

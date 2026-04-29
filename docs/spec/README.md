@@ -27,6 +27,7 @@
 | [dogfood-2026-04-26-manufacturing.md](dogfood-2026-04-26-manufacturing.md) | 再ドッグフード (製造業) 評価レポート — Codex 抜き / Sonnet vs Opus 比較 / 3 分類別件数集計 | #478 |
 | [dogfood-2026-04-27-logistics-create-flow-validation.md](dogfood-2026-04-27-logistics-create-flow-validation.md) | `/create-flow` 効果検証レポート (物流業務、Must-fix 50-75% 削減) | #486 |
 | [dogfood-2026-04-27-phase4-retail-validation.md](dogfood-2026-04-27-phase4-retail-validation.md) | Phase 4 全仕様書統合検証レポート — retail (既存退避→AI 生成→改善ループで Must-fix ゼロ達成) | #500 / #506 |
+| **[draft-state-policy.md](draft-state-policy.md)** | **draft-state policy** (設計途中許容 + UI 警告可視化の 5 原則 / severity 判定 / 新規リソース追加 checklist / AJV 導入要否) | #584 (Phase 1: #548 / Phase 2: #583) |
 | **[schema-governance.md](schema-governance.md)** | **最重要**: グローバル定義スキーマ変更ガバナンス (AI による勝手拡張を構造的に禁止) | #511 |
 | **[schema-design-principles.md](schema-design-principles.md)** | **schema を どう書くか の規範** — 命名 / 構造 / フォーマット / コード補完 / 拡張判断 / 後方互換 / テスト規約 / 既知課題 | #517 |
 | [schema-audit-2026-04-27.md](schema-audit-2026-04-27.md) | Schema 変更履歴監査レポート — 過去 102 コミット精査、(A) 正当 88% / (B) 不規則 2-3% / (C) 不適切 0% | #511 (Phase B-1) |
