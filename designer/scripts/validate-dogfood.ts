@@ -113,19 +113,7 @@ function discoverProjects(): ProjectResources[] {
     });
   }
 
-  // v3 過渡期 (root 直下)
-  if (existsSync(samplesV3Dir) && existsSync(join(samplesV3Dir, "project.json"))) {
-    projects.push({
-      projectId: "v3-root",
-      displayName: relative(repoRoot, samplesV3Dir).replace(/\\/g, "/"),
-      projectDir: samplesV3Dir,
-      tables: loadTablesFromDir(join(samplesV3Dir, "tables")),
-      conventions: loadConventionsFromFile(join(samplesV3Dir, "conventions-catalog.v3.json")),
-      flowsDir: join(samplesV3Dir, "process-flows"),
-    });
-  }
-
-  // v3 per-project
+  // v3 per-project (旧 v3-root 過渡期 fallback は #616 で retail/ に移動完了したため削除)
   if (existsSync(samplesV3Dir)) {
     for (const entry of readdirSync(samplesV3Dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;

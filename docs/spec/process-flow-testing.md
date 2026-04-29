@@ -175,4 +175,4 @@ v3 サンプルの検証: `cd designer && npx vitest run src/schemas/v3-samples.
 
 - スキーマ: `schemas/v3/process-flow.v3.schema.json` — `TestScenario` / `GivenVariant` / `ThenVariant`
 - `docs/spec/process-flow-maturity.md` — 成熟度と down-stream モード
-- `docs/sample-project-v3/process-flows/` — v3 形式の実サンプル (`authoring.testScenarios` 参照)
+- `docs/sample-project-v3/<project>/process-flows/` — v3 形式の実サンプル (`authoring.testScenarios` 参照)
