@@ -7,14 +7,15 @@
  *
  * 使用法:
  *   cd designer && npm run validate:dogfood
+ *   cd designer && npm run validate:dogfood -- --flow <path>   # 単一フローのみ検証 (#599)
  *
  * 終了コード:
  *   0: 全件 pass
  *   1: 1 件以上 fail
  */
 
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve, join, basename, relative } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { resolve, join, basename, relative, isAbsolute } from "node:path";
 import type { ProcessFlow } from "../src/types/action.js";
 import { checkSqlColumns, type TableDefinition } from "../src/schemas/sqlColumnValidator.js";
 import { checkConventionReferences, type ConventionsCatalog } from "../src/schemas/conventionsValidator.js";
@@ -165,7 +166,27 @@ function loadExtensions(): { extensions: LoadedExtensions; fileCount: number } {
   return { extensions: result.extensions, fileCount };
 }
 
-function loadFlows(): Array<{ filePath: string; displayName: string; flow: ProcessFlow }> {
+function loadFlows(explicitPath?: string): Array<{ filePath: string; displayName: string; flow: ProcessFlow }> {
+  if (explicitPath) {
+    const filePath = isAbsolute(explicitPath) ? explicitPath : resolve(process.cwd(), explicitPath);
+    let stat;
+    try {
+      stat = statSync(filePath);
+    } catch {
+      throw new Error(`--flow に指定されたファイルが見つかりません: ${filePath}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`--flow に指定されたパスはファイルではありません: ${filePath}`);
+    }
+    const displayName = relative(repoRoot, filePath).replace(/\\/g, "/");
+    const raw = readFileSync(filePath, "utf-8");
+    return [{
+      filePath,
+      displayName,
+      flow: JSON.parse(raw) as ProcessFlow,
+    }];
+  }
+
   const files = readdirSync(flowsDir)
     .filter((f) => f.endsWith(".json"))
     .sort();
@@ -187,12 +208,14 @@ function loadFlows(): Array<{ filePath: string; displayName: string; flow: Proce
 /**
  * 全サンプルフローを 4 バリデータで検証し、サマリを返す。
  * CI / テストから直接呼び出せるようにエクスポートする。
+ *
+ * @param flowPath 指定時はこのパスのフローのみを対象とする (単一フロー検証、#599)
  */
-export async function runValidation(): Promise<ValidationSummary> {
+export async function runValidation(flowPath?: string): Promise<ValidationSummary> {
   const tables = loadTables();
   const conventions = loadConventions();
   const { extensions, fileCount: extensionFileCount } = loadExtensions();
-  const flows = loadFlows();
+  const flows = loadFlows(flowPath);
 
   const results: FlowValidationResult[] = [];
 
@@ -241,7 +264,7 @@ export async function runValidation(): Promise<ValidationSummary> {
 
 // ─── CLI 出力 ──────────────────────────────────────────────────────────────
 
-function printSummary(summary: ValidationSummary): void {
+function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {
   const conventionsExists = (() => {
     try {
       readFileSync(conventionsFile);
@@ -251,7 +274,7 @@ function printSummary(summary: ValidationSummary): void {
     }
   })();
 
-  console.log("🔍 ドッグフード検証スイート");
+  console.log(options.singleFlow ? "🔍 ドッグフード検証スイート (単一フロー)" : "🔍 ドッグフード検証スイート");
   console.log();
   console.log(
     `📂 サンプル数: ${summary.totalFlows} flows / ${summary.tableCount} tables` +
@@ -312,8 +335,32 @@ function printSummary(summary: ValidationSummary): void {
 
 // ─── エントリーポイント ────────────────────────────────────────────────────
 
+function parseArgs(argv: string[]): { flowPath?: string } {
+  const out: { flowPath?: string } = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--flow") {
+      const next = argv[i + 1];
+      if (!next) throw new Error("--flow にはファイルパスを指定してください");
+      out.flowPath = next;
+      i++;
+    } else if (arg.startsWith("--flow=")) {
+      out.flowPath = arg.slice("--flow=".length);
+    }
+  }
+  return out;
+}
+
 (async () => {
-  const summary = await runValidation();
-  printSummary(summary);
-  process.exit(summary.failedFlows > 0 ? 1 : 0);
+  let flowPath: string | undefined;
+  try {
+    ({ flowPath } = parseArgs(process.argv.slice(2)));
+    const summary = await runValidation(flowPath);
+    printSummary(summary, { singleFlow: Boolean(flowPath) });
+    process.exit(summary.failedFlows > 0 ? 1 : 0);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`❌ ${message}`);
+    process.exit(2);
+  }
 })();
