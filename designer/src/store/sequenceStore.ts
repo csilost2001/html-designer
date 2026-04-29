@@ -90,11 +90,6 @@ export async function deleteSequence(sequenceId: string): Promise<void> {
     localStorage.removeItem(`${SEQUENCE_PREFIX}${sequenceId}`);
   }
 
-  const project = await loadProject();
-  if (project.sequences) {
-    project.sequences = renumber(project.sequences.filter((s) => s.id !== sequenceId));
-    await saveProject(project);
-  }
 }
 
 // ─── 内部 ────────────────────────────────────────────────────────────────
