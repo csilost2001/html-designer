@@ -18,6 +18,7 @@ import {
   readTable,
   writeTable,
   deleteTable as deleteTableFile,
+  listAllTables,
   readErLayout,
   writeErLayout,
   readScreenLayout,
@@ -37,6 +38,7 @@ import {
   readView,
   writeView,
   deleteView as deleteViewFile,
+  listAllViews,
   getFileMtime,
   readExtensionsBundle,
   writeExtensionsFile,
@@ -427,6 +429,11 @@ class WsBridge extends EventEmitter {
           this.broadcast("tableChanged", { tableId, deleted: true }, clientId);
           break;
         }
+        case "listAllTables": {
+          const tablesData = await listAllTables();
+          respond(tablesData);
+          break;
+        }
         case "loadErLayout": {
           const layoutData = await readErLayout();
           respond(layoutData);
@@ -482,6 +489,11 @@ class WsBridge extends EventEmitter {
             updatedAt: ag.updatedAt,
           }));
           respond(metas);
+          break;
+        }
+        case "listAllViews": {
+          const viewsData = await listAllViews();
+          respond(viewsData);
           break;
         }
         case "loadConventions": {

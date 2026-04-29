@@ -332,6 +332,7 @@ class McpBridgeImpl {
 
     const tableBackend: TableStorageBackend = {
       loadTable: (tableId) => this.request("loadTable", { tableId }),
+      listAllTables: () => this.request("listAllTables", {}) as Promise<unknown[]>,
       saveTable: (tableId, data) => this.request("saveTable", { tableId, data }).then(() => undefined),
       deleteTable: (tableId) => this.request("deleteTable", { tableId }).then(() => undefined),
     };
@@ -378,6 +379,7 @@ class McpBridgeImpl {
 
     const viewBackend: ViewStorageBackend = {
       loadView: (viewId) => this.request("loadView", { viewId }),
+      listAllViews: () => this.request("listAllViews", {}) as Promise<unknown[]>,
       saveView: (viewId, data) => this.request("saveView", { viewId, data }).then(() => undefined),
       deleteView: (viewId) => this.request("deleteView", { viewId }).then(() => undefined),
     };
