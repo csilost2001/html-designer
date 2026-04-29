@@ -23,6 +23,28 @@ import { renumber } from "../../utils/listOrder";
 const STORAGE_KEY = "list-view-mode:sequence-list";
 const TAB_ID = makeTabId("sequence-list", "main");
 
+interface CommitSequencesDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteSequence: typeof deleteSequence;
+}
+
+export async function commitSequences(
+  { itemsInOrder, deletedIds }: { itemsInOrder: SequenceEntry[]; deletedIds: string[] },
+  deps: CommitSequencesDeps = { loadProject, saveProject, deleteSequence },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((s, i) => [s.id, i]));
+  project.sequences = (project.sequences ?? [])
+    .filter((s) => !deletedSet.has(s.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteSequence(id);
+  }
+}
+
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString("ja-JP");
@@ -45,21 +67,6 @@ export function SequenceListView() {
     mcpBridge.startWithoutEditor();
     await loadProject();
     return await listSequences();
-  }, []);
-
-  const commitSequences = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: SequenceEntry[]; deletedIds: string[] }) => {
-    for (const id of deletedIds) {
-      await deleteSequence(id);
-    }
-    const project = await loadProject();
-    if (project.sequences) {
-      const deletedSet = new Set(deletedIds);
-      const orderMap = new Map(itemsInOrder.map((s, i) => [s.id, i]));
-      project.sequences = project.sequences
-        .filter((s) => !deletedSet.has(s.id))
-        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
-      await saveProject(project);
-    }
   }, []);
 
   const editor = useListEditor<SequenceEntry>({

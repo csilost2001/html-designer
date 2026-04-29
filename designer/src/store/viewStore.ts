@@ -113,11 +113,6 @@ export async function deleteView(viewId: string): Promise<void> {
     localStorage.removeItem(`${VIEW_PREFIX}${viewId}`);
   }
 
-  const project = await loadProject();
-  if (project.views) {
-    project.views = renumber(project.views.filter((v) => v.id !== viewId));
-    await saveProject(project);
-  }
 }
 
 // ─── 内部 ────────────────────────────────────────────────────────────────

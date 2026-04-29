@@ -26,6 +26,28 @@ import "../../styles/table.css";
 const STORAGE_KEY = "list-view-mode:view-list";
 const TAB_ID = makeTabId("view-list", "main");
 
+interface CommitViewsDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteView: typeof deleteView;
+}
+
+export async function commitViews(
+  { itemsInOrder, deletedIds }: { itemsInOrder: ViewEntry[]; deletedIds: string[] },
+  deps: CommitViewsDeps = { loadProject, saveProject, deleteView },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
+  project.views = (project.views ?? [])
+    .filter((v) => !deletedSet.has(v.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteView(id);
+  }
+}
+
 interface ValidationSummary {
   errors: number;
   warnings: number;
@@ -54,21 +76,6 @@ export function ViewListView() {
     mcpBridge.startWithoutEditor();
     await loadProject();
     return await listViews();
-  }, []);
-
-  const commitViews = useCallback(async ({ itemsInOrder, deletedIds }: { itemsInOrder: ViewEntry[]; deletedIds: string[] }) => {
-    for (const id of deletedIds) {
-      await deleteView(id);
-    }
-    const project = await loadProject();
-    if (project.views) {
-      const deletedSet = new Set(deletedIds);
-      const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
-      project.views = project.views
-        .filter((v) => !deletedSet.has(v.id))
-        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
-      await saveProject(project);
-    }
   }, []);
 
   const editor = useListEditor<ViewEntry>({
