@@ -26,16 +26,19 @@ async function setup(page: Page) {
 }
 
 test.describe("規約カタログ編集ビュー (#317)", () => {
-  test("11 カテゴリタブが 2 グループで見える", async ({ page }) => {
+  test("13 カテゴリタブが 3 グループで見える (#555)", async ({ page }) => {
     await setup(page);
     const tabs = page.locator(".conventions-category-tab");
-    await expect(tabs).toHaveCount(11);
+    await expect(tabs).toHaveCount(13);
     await expect(tabs.nth(0)).toContainText("メッセージ");
     await expect(tabs.nth(1)).toContainText("正規表現");
     await expect(tabs.nth(2)).toContainText("制限値");
+    await expect(tabs.nth(3)).toContainText("役割");
+    await expect(tabs.nth(4)).toContainText("権限");
     const groupLabels = page.locator(".conventions-tab-group-label");
     await expect(groupLabels.nth(0)).toContainText("入力バリデーション");
-    await expect(groupLabels.nth(1)).toContainText("プロダクト規約");
+    await expect(groupLabels.nth(1)).toContainText("役割・権限");
+    await expect(groupLabels.nth(2)).toContainText("プロダクト規約");
   });
 
   test("regex タブで新規エントリ追加 + pattern 入力", async ({ page }) => {
