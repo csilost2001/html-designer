@@ -141,12 +141,6 @@ export async function deleteTable(tableId: string): Promise<void> {
   } else {
     localStorage.removeItem(`${TABLE_PREFIX}${tableId}`);
   }
-
-  const project = await loadProject();
-  if (project.tables) {
-    project.tables = renumber(project.tables.filter((t) => t.id !== tableId));
-    await saveProject(project);
-  }
 }
 
 // ─── カラム操作 (Table mutate ヘルパー) ──────────────────────────────────
