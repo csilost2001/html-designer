@@ -25,7 +25,9 @@ import { checkSqlColumns, type TableDefinition } from "../src/schemas/sqlColumnV
 import { checkConventionReferences, type ConventionsCatalog } from "../src/schemas/conventionsValidator.js";
 import { checkReferentialIntegrity } from "../src/schemas/referentialIntegrity.js";
 import { checkIdentifierScopes } from "../src/schemas/identifierScope.js";
+import { checkScreenItemFlowConsistency } from "../src/schemas/screenItemFlowValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
+import type { Screen } from "../src/types/v3/screen.js";
 
 // ─── パス解決 ──────────────────────────────────────────────────────────────
 
@@ -43,6 +45,7 @@ interface ProjectResources {
   projectDir: string;         // プロジェクトディレクトリ絶対パス
   tables: TableDefinition[];
   conventions: ConventionsCatalog | null;
+  screens: Screen[];          // 画面定義 (#619、画面項目イベント連携検証用)
   flowsDir: string;           // process-flows/ の絶対パス
 }
 
@@ -56,14 +59,26 @@ interface FlowValidationResult {
   }>;
 }
 
+interface ProjectValidationResult {
+  projectId: string;
+  displayName: string;
+  issues: Array<{
+    validator: string;
+    severity: "error" | "warning";
+    message: string;
+  }>;
+}
+
 interface ValidationSummary {
   totalFlows: number;
   passedFlows: number;
   failedFlows: number;
   results: FlowValidationResult[];
+  projectResults: ProjectValidationResult[];
   projectCount: number;
   totalTableCount: number;
   totalConventionsCount: number;
+  totalScreenCount: number;
   extensionFileCount: number;
 }
 
@@ -88,6 +103,16 @@ function loadConventionsFromFile(filePath: string): ConventionsCatalog | null {
   }
 }
 
+function loadScreensFromDir(dir: string): Screen[] {
+  if (!existsSync(dir)) return [];
+  try {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    return files.map((f) => JSON.parse(readFileSync(join(dir, f), "utf-8")) as Screen);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * v1 + v3 のサンプルプロジェクトを発見してリソース情報を返す。
  *
@@ -108,6 +133,7 @@ function discoverProjects(): ProjectResources[] {
       projectDir: samplesV1Dir,
       tables: loadTablesFromDir(join(samplesV1Dir, "tables")),
       conventions: loadConventionsFromFile(join(samplesV1Dir, "conventions/conventions-catalog.json")),
+      screens: loadScreensFromDir(join(samplesV1Dir, "screens")),
       flowsDir: join(samplesV1Dir, "process-flows"),
     });
   }
@@ -124,6 +150,7 @@ function discoverProjects(): ProjectResources[] {
         projectDir,
         tables: loadTablesFromDir(join(projectDir, "tables")),
         conventions: loadConventionsFromFile(join(projectDir, "conventions-catalog.v3.json")),
+        screens: loadScreensFromDir(join(projectDir, "screens")),
         flowsDir: join(projectDir, "process-flows"),
       });
     }
@@ -316,8 +343,10 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
 
   const totalTableCount = projects.reduce((acc, p) => acc + p.tables.length, 0);
   const totalConventionsCount = projects.filter((p) => p.conventions !== null).length;
+  const totalScreenCount = projects.reduce((acc, p) => acc + p.screens.length, 0);
 
   const results: FlowValidationResult[] = [];
+  const projectResults: ProjectValidationResult[] = [];
 
   function validateOne(filePath: string, displayName: string, flow: ProcessFlow, project: ProjectResources): FlowValidationResult {
     const issues: FlowValidationResult["issues"] = [];
@@ -362,6 +391,22 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
       for (const { filePath, displayName, flow } of flows) {
         results.push(validateOne(filePath, displayName, flow, project));
       }
+      // 5. 画面項目イベント ↔ 処理フロー連携検証 (per-project、#619)
+      const screenItemFlowIssues = checkScreenItemFlowConsistency(
+        flows.map((f) => f.flow),
+        project.screens,
+      );
+      if (screenItemFlowIssues.length > 0) {
+        projectResults.push({
+          projectId: project.projectId,
+          displayName: project.displayName,
+          issues: screenItemFlowIssues.map((i) => ({
+            validator: "screenItemFlowValidator",
+            severity: i.severity,
+            message: `[${i.code}] ${i.path}: ${i.message}`,
+          })),
+        });
+      }
     }
   }
 
@@ -373,9 +418,11 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
     passedFlows,
     failedFlows,
     results,
+    projectResults,
     projectCount: projects.length,
     totalTableCount,
     totalConventionsCount,
+    totalScreenCount,
     extensionFileCount,
   };
 }
@@ -387,7 +434,7 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
   console.log();
   console.log(
     `📂 プロジェクト数: ${summary.projectCount} / ${summary.totalFlows} flows / ${summary.totalTableCount} tables` +
-    ` / ${summary.totalConventionsCount} conventions catalogs / ${summary.extensionFileCount} extension files`,
+    ` / ${summary.totalScreenCount} screens / ${summary.totalConventionsCount} conventions catalogs / ${summary.extensionFileCount} extension files`,
   );
   console.log();
 
@@ -410,10 +457,28 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
     }
   }
 
+  // project-level 検証結果 (#619 画面項目連携 validator)
+  if (summary.projectResults.length > 0) {
+    console.log();
+    console.log("📋 プロジェクトレベル検証 (画面項目イベント ↔ 処理フロー連携):");
+    for (const pr of summary.projectResults) {
+      console.log(`  ⚠️  ${pr.displayName}`);
+      for (const issue of pr.issues) {
+        const tag = issue.severity === "warning" ? "WARN" : "ERROR";
+        console.log(`     [${tag}] ${issue.message}`);
+      }
+    }
+  }
+
   console.log();
   console.log("━".repeat(57));
 
-  if (summary.failedFlows === 0) {
+  const projectLevelErrorCount = summary.projectResults.reduce(
+    (acc, pr) => acc + pr.issues.filter((i) => i.severity === "error").length,
+    0,
+  );
+
+  if (summary.failedFlows === 0 && projectLevelErrorCount === 0) {
     console.log(`Summary: ${summary.passedFlows} / ${summary.totalFlows} flows passed.`);
     console.log("━".repeat(57));
     console.log();
@@ -463,7 +528,11 @@ function parseArgs(argv: string[]): { flowPath?: string } {
     ({ flowPath } = parseArgs(process.argv.slice(2)));
     const summary = await runValidation(flowPath);
     printSummary(summary, { singleFlow: Boolean(flowPath) });
-    process.exit(summary.failedFlows > 0 ? 1 : 0);
+    const projectErrorCount = summary.projectResults.reduce(
+      (acc, pr) => acc + pr.issues.filter((i) => i.severity === "error").length,
+      0,
+    );
+    process.exit(summary.failedFlows > 0 || projectErrorCount > 0 ? 1 : 0);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`❌ ${message}`);

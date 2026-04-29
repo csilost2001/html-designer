@@ -20,6 +20,25 @@ import type {
   ViewColumnRef,
 } from "./common";
 
+/**
+ * 画面項目イベント (#624) — 発火時に handlerFlowId 指定の処理フローを呼び出し、
+ * argumentMapping で画面コンテキストを処理フロー inputs[] に変換する。
+ * 1 処理フロー × N イベント (再利用) を自然に表現する backward reference。
+ */
+export interface ScreenItemEvent {
+  /** イベント ID (例: `click` / `submit` / `change` / `blur`)。画面項目内ユニーク (validator 担保)。 */
+  id: string;
+  label?: DisplayName;
+  /** 発火時に実行する処理フローの ID (backward reference)。 */
+  handlerFlowId: ProcessFlowId;
+  /**
+   * 画面コンテキストを処理フロー引数 (inputs[]) に変換するマッピング。
+   * キーは処理フロー側 inputs[].name (Identifier 形式)、値は画面コンテキスト式
+   * (`@screen.* / @self.* / @session.*` 等)。
+   */
+  argumentMapping?: Record<Identifier, ExpressionString>;
+}
+
 /** ScreenItem.options 1 件。 */
 export interface ScreenItemOption {
   value: string;
@@ -92,5 +111,7 @@ export interface ScreenItem {
   valueFrom?: ValueSource;
   /** 派生計算式 (= で始まる)。output 項目用。 */
   formula?: ExpressionString;
+  /** 本画面項目で発火するイベントと処理フロー連携 (#624)。 */
+  events?: ScreenItemEvent[];
   description?: Description;
 }

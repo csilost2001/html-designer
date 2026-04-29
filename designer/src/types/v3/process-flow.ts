@@ -74,7 +74,21 @@ export interface ProcessFlowMeta {
   apiVersion?: string;
   mode?: Mode;
   sla?: Sla;
+  /** 主たる呼び出し元 (#624、任意、designer 補完精度向上用)。 */
+  primaryInvoker?: PrimaryInvoker;
 }
+
+/**
+ * 処理フローの主たる呼び出し元 (#624)。任意メタ情報、実行時には参照されない。
+ * 副次的呼び出し (他画面 / batch / 他フロー) は宣言不要 — 画面項目側 events[].handlerFlowId
+ * のみで成立する。現状は kind='screen-item-event' のみ対応 (将来拡張余地あり)。
+ */
+export type PrimaryInvoker = {
+  kind: "screen-item-event";
+  screenId: ScreenId;
+  itemId: string;
+  eventId: string;
+};
 
 // ─── Context (catalogs / ambientVariables / health / readiness / resources) ──
 
