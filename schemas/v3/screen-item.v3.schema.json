@@ -65,7 +65,38 @@
           "$ref": "common.v3.schema.json#/$defs/ExpressionString",
           "description": "派生計算式 (= で始まる)。output 項目用。"
         },
+        "events": {
+          "type": "array",
+          "description": "本画面項目で発火するイベントと処理フロー連携 (#624)。backward reference により 1 処理フロー × N イベント (再利用) を自然に表現する。",
+          "items": { "$ref": "#/$defs/ScreenItemEvent" }
+        },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
+    "ScreenItemEvent": {
+      "description": "画面項目イベント (#624)。発火時に handlerFlowId 指定の処理フローを呼び出し、argumentMapping で画面コンテキストを処理フロー inputs[] に変換する。",
+      "type": "object",
+      "required": ["id", "handlerFlowId"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "イベント ID (画面項目内ユニーク、例: 'click' / 'submit' / 'change' / 'blur')。"
+        },
+        "label": {
+          "$ref": "common.v3.schema.json#/$defs/DisplayName",
+          "description": "イベントの表示名 (designer UI 用)。"
+        },
+        "handlerFlowId": {
+          "$ref": "common.v3.schema.json#/$defs/Uuid",
+          "description": "発火時に実行する処理フローの ID (backward reference)。"
+        },
+        "argumentMapping": {
+          "type": "object",
+          "description": "画面コンテキストを処理フロー引数 (inputs[]) に変換するマッピング。キーは処理フロー側 inputs[].name、値は画面コンテキスト式 (@screen.* / @self.* / @session.* 等)。",
+          "additionalProperties": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
+        }
       }
     },
 
