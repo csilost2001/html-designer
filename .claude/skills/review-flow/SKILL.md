@@ -211,7 +211,7 @@ TransactionScope の `rollbackOn: [...]` で指定したエラーコードにつ
 UI 起点フロー (`type: "screen"` / `mode: "upstream"`) について、画面項目側との接続点を検証。**機械検出の大半は Step 0.5 の `screenItemFlowValidator` でカバー** されるため、AI 目視は **「validator では届かない業務文脈の妥当性」** に絞る。
 
 - **`meta.primaryInvoker` の業務妥当性**: 双方向参照は validator が確認するが、宣言された ScreenItem.events[] が**業務上の主要起動元**として妥当か (例: 「保存」フローの primaryInvoker が「ヘルプリンク」になっていないか)
-- **argumentMapping の意味的整合**: validator はキー集合のみを見る。`argumentMapping.amount` に画面側 `@form.priceJpy` を渡しているが、フロー側 `inputs.amount` のドメイン (例: 通貨単位) と一致するかは AI 判断
+- **argumentMapping の意味的整合**: validator はキー集合のみを見る。`argumentMapping.amount` に画面側 `@self.priceJpy` を渡しているが、フロー側 `inputs.amount` のドメイン (例: 通貨単位) と一致するかは AI 判断
 - **必須/任意の意図整合**: `inputs[].required: true` だが画面側で空文字を渡しうる UI なら、フロー側の入力検証 step (`type: "validate"`) が catch しているか
 - **複数イベント呼び出しの設計妥当性**: 同フローを複数イベントから呼ぶ場合、引数の差分が**業務上意図的**か (validator は warning を出すだけで、合理性は AI 判断)
 - **画面起点でないフローでの primaryInvoker 設定**: `type: "system"` / `type: "batch"` / `mode: "downstream"` で `meta.primaryInvoker` を設定しているのは設計ミス候補

@@ -215,7 +215,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 |---|---|---|
 | `OPTIONS_NOT_SUBSET_OF_ENUM` | error | 画面 ScreenItem.options[].value (selectbox / radio 等) ⊆ flow input domain.enum.values の包含検査。Phase 3 M2 (BenefitType enum 不一致) の構造的検出機構 |
 | `DOMAIN_KEY_MISMATCH` | error | 画面 ScreenItem.type.domainKey と flow input type.domainKey の不一致 (両方 domainKey 形式時) |
-| `TYPE_MISMATCH` | error | argumentMapping 値が `@form.*` 参照の場合、ScreenItem.type と inputs[].type の比較 (#627 吸収) |
+| `TYPE_MISMATCH` | error | argumentMapping 値が `@self.<itemId>` 参照の場合、ScreenItem.type と inputs[].type の比較 (#627 吸収) |
 | `PATTERN_DIVERGENCE` | warning | 画面 validation.pattern と flow input domain.pattern (regex) の不一致 (両方定義時) |
 | `RANGE_DIVERGENCE` | warning | 画面 min/max と flow input domain.minimum/maximum の不一致 (両方定義時) |
 | `LENGTH_DIVERGENCE` | warning | 画面 minLength/maxLength と flow input domain.minLength/maxLength の不一致 |
