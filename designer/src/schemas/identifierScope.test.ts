@@ -315,8 +315,8 @@ describe("checkIdentifierScopes — サンプル (docs/sample-project/process-fl
     });
   }
 });
-describe("checkIdentifierScopes - WorkflowStep result handlers", () => {
-  it("onApproved detects undeclared identifiers", () => {
+describe("checkIdentifierScopes — WorkflowStep result handlers", () => {
+  it("onApproved 内で未宣言識別子を UNKNOWN_IDENTIFIER として検出する", () => {
     const issues = checkIdentifierScopes(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
@@ -334,7 +334,7 @@ describe("checkIdentifierScopes - WorkflowStep result handlers", () => {
     expect(issues[0].code).toBe("UNKNOWN_IDENTIFIER");
   });
 
-  it("onRejected can reference variables declared by prior steps", () => {
+  it("onRejected 内で先行 step の outputBinding を参照可能", () => {
     const issues = checkIdentifierScopes(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
@@ -353,7 +353,7 @@ describe("checkIdentifierScopes - WorkflowStep result handlers", () => {
     expect(issues).toHaveLength(0);
   });
 
-  it("onApproved can reference the WorkflowStep outputBinding", () => {
+  it("onApproved 内で WorkflowStep 自身の outputBinding を参照可能", () => {
     const issues = checkIdentifierScopes(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
@@ -370,7 +370,7 @@ describe("checkIdentifierScopes - WorkflowStep result handlers", () => {
     expect(issues).toHaveLength(0);
   });
 
-  it("onTimeout can reference builtins", () => {
+  it("onTimeout 内で BUILTIN (@now / @uuid) を参照可能", () => {
     const issues = checkIdentifierScopes(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
@@ -380,6 +380,87 @@ describe("checkIdentifierScopes - WorkflowStep result handlers", () => {
           onTimeout: [
             { id: "s1", kind: "compute", description: "", expression: "@now.toISOString() + @uuid", outputBinding: "timeoutId" },
           ],
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+});
+
+describe("checkIdentifierScopes — ValidationStep inlineBranch", () => {
+  it("inlineBranch.ok 内で未宣言識別子を UNKNOWN_IDENTIFIER として検出する", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "v1", kind: "validation", description: "",
+          rules: [],
+          inlineBranch: {
+            ok: [
+              { id: "s1", kind: "compute", description: "", expression: "@undeclared + 1", outputBinding: "r" },
+            ],
+            ng: [],
+          },
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].identifier).toBe("undeclared");
+    expect(issues[0].code).toBe("UNKNOWN_IDENTIFIER");
+  });
+
+  it("inlineBranch.ng 内で fieldErrors を参照可能 (validation step の暗黙宣言)", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "v1", kind: "validation", description: "",
+          rules: [],
+          inlineBranch: {
+            ok: [],
+            ng: [
+              { id: "s1", kind: "return", description: "", bodyExpression: "{ errors: @fieldErrors }" },
+            ],
+          },
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("inlineBranch.ok 内で先行 step の outputBinding を参照可能", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s0", kind: "compute", description: "", expression: "'r'", outputBinding: "requestId" },
+          {
+            id: "v1", kind: "validation", description: "",
+            rules: [],
+            inlineBranch: {
+              ok: [
+                { id: "s1", kind: "return", description: "", bodyExpression: "{ requestId: @requestId }" },
+              ],
+              ng: [],
+            },
+          },
+        ],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("inlineBranch が string (v1 旧形式) のときは walk を skip", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "v1", kind: "validation", description: "",
+          rules: [],
+          inlineBranch: {
+            ok: "次のステップへ進む",
+            ng: "400 入力値エラーを返す",
+          } as never,
         }],
       }],
     }));

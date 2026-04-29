@@ -168,6 +168,15 @@ function walkSteps(
       if (step.onRejected) walkSteps(step.onRejected, `${path}.onRejected`, known, loopItems, issues);
       if (step.onTimeout) walkSteps(step.onTimeout, `${path}.onTimeout`, known, loopItems, issues);
     }
+    if (step.kind === "validation" && step.inlineBranch) {
+      // v1 旧形式は string、v3 schema は array of Step。Array.isArray で skip。
+      if (Array.isArray(step.inlineBranch.ok)) {
+        walkSteps(step.inlineBranch.ok, `${path}.inlineBranch.ok`, known, loopItems, issues);
+      }
+      if (Array.isArray(step.inlineBranch.ng)) {
+        walkSteps(step.inlineBranch.ng, `${path}.inlineBranch.ng`, known, loopItems, issues);
+      }
+    }
     if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {
