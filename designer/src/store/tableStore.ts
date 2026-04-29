@@ -23,6 +23,8 @@ import type {
 } from "../types/v3";
 import { loadProject, saveProject } from "./flowStore";
 import { generateUUID } from "../utils/uuid";
+import { validateTable } from "../utils/tableValidation";
+import type { ValidationError } from "../utils/actionValidation";
 import { renumber, nextNo } from "../utils/listOrder";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
@@ -69,6 +71,18 @@ export async function loadTable(tableId: string): Promise<Table | null> {
   // docs/spec/list-common.md §3.10: 読み込み時に no を配列順で補完
   raw.columns = renumber(raw.columns ?? []);
   return raw;
+}
+
+export async function loadTableValidationMap(): Promise<Map<TableId, ValidationError[]>> {
+  const entries = await listTables();
+  const tables = (await Promise.all(entries.map((entry) => loadTable(entry.id)))).filter((t): t is Table => t !== null);
+  const validationMap = new Map<TableId, ValidationError[]>();
+
+  for (const table of tables) {
+    validationMap.set(table.id, validateTable(table, tables));
+  }
+
+  return validationMap;
 }
 
 /** テーブル定義を保存 (project.json の TableEntry も同期) */
