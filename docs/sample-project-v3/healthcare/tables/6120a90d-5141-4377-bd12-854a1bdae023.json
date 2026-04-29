@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "6120a90d-5141-4377-bd12-854a1bdae023",
+  "name": "診察予約",
+  "description": "診察予約の要求、確定、キャンセル、来院状態を保持する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "physicalName": "appointments",
+  "category": "トランザクション",
+  "columns": [
+    { "id": "col-apt01", "no": 1, "physicalName": "id", "name": "予約内部ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-apt02", "no": 2, "physicalName": "appointment_code", "name": "予約ID", "dataType": "VARCHAR", "length": 24, "notNull": true, "unique": true },
+    { "id": "col-apt03", "no": 3, "physicalName": "patient_id", "name": "患者内部ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-apt04", "no": 4, "physicalName": "provider_id", "name": "担当医内部ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-apt05", "no": 5, "physicalName": "department", "name": "診療科", "dataType": "VARCHAR", "length": 80, "notNull": true },
+    { "id": "col-apt06", "no": 6, "physicalName": "reason_for_visit", "name": "受診理由", "dataType": "TEXT", "notNull": true },
+    { "id": "col-apt07", "no": 7, "physicalName": "scheduled_start_at", "name": "予約開始日時", "dataType": "TIMESTAMP", "notNull": true },
+    { "id": "col-apt08", "no": 8, "physicalName": "scheduled_end_at", "name": "予約終了日時", "dataType": "TIMESTAMP", "notNull": true },
+    { "id": "col-apt09", "no": 9, "physicalName": "status", "name": "状態", "dataType": "VARCHAR", "length": 30, "notNull": true, "defaultValue": "'booked'" },
+    { "id": "col-apt10", "no": 10, "physicalName": "triage_level", "name": "緊急度", "dataType": "VARCHAR", "length": 20, "notNull": true, "defaultValue": "'routine'" },
+    { "id": "col-apt11", "no": 11, "physicalName": "created_by", "name": "作成者ID", "dataType": "VARCHAR", "length": 80, "notNull": true },
+    { "id": "col-apt12", "no": 12, "physicalName": "canceled_reason", "name": "キャンセル理由", "dataType": "TEXT" },
+    { "id": "col-apt13", "no": 13, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-apt14", "no": 14, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-apt01", "physicalName": "idx_appointments_code", "columns": [{ "columnId": "col-apt02" }], "unique": true },
+    { "id": "idx-apt02", "physicalName": "idx_appointments_provider_time", "columns": [{ "columnId": "col-apt04" }, { "columnId": "col-apt07" }] },
+    { "id": "idx-apt03", "physicalName": "idx_appointments_patient_time", "columns": [{ "columnId": "col-apt03" }, { "columnId": "col-apt07", "order": "desc" }] }
+  ],
+  "constraints": [
+    { "id": "fk-apt01", "kind": "foreignKey", "physicalName": "fk_appointments_patient", "columnIds": ["col-apt03"], "referencedTableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "referencedColumnIds": ["col-pat01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "fk-apt02", "kind": "foreignKey", "physicalName": "fk_appointments_provider", "columnIds": ["col-apt04"], "referencedTableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "referencedColumnIds": ["col-prv01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "chk-apt01", "kind": "check", "physicalName": "chk_appointments_status", "expression": "status IN ('booked', 'checked_in', 'completed', 'canceled', 'no_show')" },
+    { "id": "chk-apt02", "kind": "check", "physicalName": "chk_appointments_time_range", "expression": "scheduled_end_at > scheduled_start_at" }
+  ]
+}

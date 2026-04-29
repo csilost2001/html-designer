@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "6b5ec66a-08bb-4df6-b908-1684b9c744c2",
+  "name": "患者",
+  "description": "患者の基本属性と PHI 保護に必要な同意状態を保持する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "physicalName": "patients",
+  "category": "マスタ",
+  "comment": "PHI を含むためアクセスは最小必要原則で監査対象とする。",
+  "columns": [
+    { "id": "col-pat01", "no": 1, "physicalName": "id", "name": "患者内部ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-pat02", "no": 2, "physicalName": "patient_code", "name": "患者ID", "dataType": "VARCHAR", "length": 20, "notNull": true, "unique": true, "comment": "PAT + 10 桁。" },
+    { "id": "col-pat03", "no": 3, "physicalName": "full_name", "name": "氏名", "dataType": "VARCHAR", "length": 120, "notNull": true },
+    { "id": "col-pat04", "no": 4, "physicalName": "date_of_birth", "name": "生年月日", "dataType": "DATE", "notNull": true },
+    { "id": "col-pat05", "no": 5, "physicalName": "sex_at_birth", "name": "出生時性別", "dataType": "VARCHAR", "length": 20 },
+    { "id": "col-pat06", "no": 6, "physicalName": "phone_number", "name": "電話番号", "dataType": "VARCHAR", "length": 30 },
+    { "id": "col-pat07", "no": 7, "physicalName": "email", "name": "メールアドレス", "dataType": "VARCHAR", "length": 255 },
+    { "id": "col-pat08", "no": 8, "physicalName": "insurance_member_id", "name": "保険者記号番号", "dataType": "VARCHAR", "length": 64 },
+    { "id": "col-pat09", "no": 9, "physicalName": "phi_consent_status", "name": "PHI 利用同意状態", "dataType": "VARCHAR", "length": 30, "notNull": true, "defaultValue": "'active'" },
+    { "id": "col-pat10", "no": 10, "physicalName": "allergy_summary", "name": "アレルギー要約", "dataType": "TEXT" },
+    { "id": "col-pat11", "no": 11, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-pat12", "no": 12, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-pat01", "physicalName": "idx_patients_patient_code", "columns": [{ "columnId": "col-pat02" }], "unique": true },
+    { "id": "idx-pat02", "physicalName": "idx_patients_name_birth", "columns": [{ "columnId": "col-pat03" }, { "columnId": "col-pat04" }] }
+  ],
+  "constraints": [
+    { "id": "chk-pat01", "kind": "check", "physicalName": "chk_patients_phi_consent_status", "expression": "phi_consent_status IN ('active', 'restricted', 'revoked')" },
+    { "id": "chk-pat02", "kind": "check", "physicalName": "chk_patients_patient_code_format", "expression": "patient_code LIKE 'PAT%'" }
+  ]
+}

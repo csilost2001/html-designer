@@ -1,0 +1,137 @@
+{
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "0be3eb9c-c96e-498e-9be4-6efe3878097a",
+    "name": "診察予約",
+    "description": "患者または受付担当者からの診察予約要求を受け、PHI 同意確認、患者照会、医師資格確認、空き枠確認、予約作成、電子カルテへの予約同期を行う。",
+    "version": "1.0.0",
+    "maturity": "committed",
+    "createdAt": "2026-04-30T00:00:00.000Z",
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "kind": "system",
+    "apiVersion": "v1",
+    "mode": "upstream"
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "VALIDATION": { "httpStatus": 400, "defaultMessage": "入力値が不正です", "responseId": "400-validation" },
+        "PHI_CONSENT_REQUIRED": { "httpStatus": 403, "defaultMessage": "PHI 利用同意が有効ではありません", "responseId": "403-phi-consent-required" },
+        "PATIENT_NOT_FOUND": { "httpStatus": 404, "defaultMessage": "患者が見つかりません", "responseId": "404-patient-not-found" },
+        "PROVIDER_NOT_AVAILABLE": { "httpStatus": 409, "defaultMessage": "指定された医師の予約枠を確保できません", "responseId": "409-provider-not-available" },
+        "CREDENTIAL_INVALID": { "httpStatus": 422, "defaultMessage": "医師資格が有効ではありません", "responseId": "422-credential-invalid" },
+        "EMR_SYNC_FAILED": { "httpStatus": 502, "defaultMessage": "電子カルテへの予約同期に失敗しました", "responseId": "502-emr-sync-failed" }
+      },
+      "externalSystems": {
+        "emrSystem": { "name": "電子カルテシステム", "baseUrl": "https://emr.example.local", "auth": { "kind": "bearer", "tokenRef": "@secret.emrApiToken" }, "timeoutMs": 3000, "retryPolicy": { "maxAttempts": 2, "backoff": "exponential", "initialDelayMs": 200 }, "description": "予約とカルテ記録を同期する院内 EMR。" },
+        "credentialRegistry": { "name": "医師資格確認システム", "baseUrl": "https://credential.example.local", "auth": { "kind": "apiKey", "tokenRef": "@secret.credentialApiKey", "headerName": "X-API-Key" }, "timeoutMs": 2000, "description": "医師資格番号の有効性を確認する外部レジストリ。" }
+      },
+      "secrets": {
+        "emrApiToken": { "source": "vault", "name": "healthcare/emr/api-token", "description": "電子カルテ API の bearer token。", "rotationDays": 90 },
+        "credentialApiKey": { "source": "vault", "name": "healthcare/credential/api-key", "description": "資格確認 API の key。", "rotationDays": 180 }
+      },
+      "domains": {
+        "PatientId": { "type": "string", "constraints": [{ "field": "value", "type": "regex", "pattern": "^PAT[0-9]{10}$", "severity": "error" }], "description": "医療機関内患者 ID。" },
+        "AppointmentId": { "type": "string", "constraints": [{ "field": "value", "type": "regex", "pattern": "^APT[0-9]{8}[0-9]{6}$", "severity": "error" }], "description": "診察予約 ID。" },
+        "ProviderId": { "type": "string", "constraints": [{ "field": "value", "type": "regex", "pattern": "^PRV[0-9]{8}$", "severity": "error" }], "description": "医療提供者 ID。" },
+        "MoneyAmount": { "type": "number", "constraints": [{ "field": "value", "type": "range", "min": 0, "severity": "error" }], "description": "自己負担見込額などの非負金額。" }
+      },
+      "functions": {
+        "calculateAppointmentEnd": { "signature": "calculateAppointmentEnd(startAt: datetime, durationMinutes: integer): datetime", "returnType": "datetime", "description": "予約開始日時と診療枠分数から終了日時を算出する。", "examples": ["calculateAppointmentEnd('2026-05-01T09:00:00Z', 30)"] },
+        "isPhiConsentActive": { "signature": "isPhiConsentActive(consentStatus: string): boolean", "returnType": "boolean", "description": "PHI 同意状態が有効か判定する。", "examples": ["isPhiConsentActive('active')"] },
+        "generateAppointmentCode": { "signature": "generateAppointmentCode(now: datetime): string", "returnType": "string", "description": "APT + 日付 + 連番の予約 ID を採番する。", "examples": ["generateAppointmentCode(@now)"] }
+      },
+      "events": {
+        "healthcare.appointment_requested": { "description": "診察予約要求を受け付けた時に発行する。", "payload": { "type": "object", "required": ["patientCode", "requestedBy"], "properties": { "patientCode": { "type": "string" }, "requestedBy": { "type": "string" } } } },
+        "healthcare.phi_access_logged": { "description": "PHI 参照を監査ログに記録した時に発行する。", "payload": { "type": "object", "required": ["patientCode", "purpose"], "properties": { "patientCode": { "type": "string" }, "purpose": { "type": "string" } } } },
+        "healthcare.appointment_booked": { "description": "診察予約が確定した時に発行する。", "payload": { "type": "object", "required": ["appointmentCode", "patientCode", "providerCode"], "properties": { "appointmentCode": { "type": "string" }, "patientCode": { "type": "string" }, "providerCode": { "type": "string" } } } },
+        "healthcare.appointment_sync_failed": { "description": "電子カルテへの予約同期に失敗した時に発行する。", "payload": { "type": "object", "required": ["appointmentCode", "reason"], "properties": { "appointmentCode": { "type": "string" }, "reason": { "type": "string" } } } }
+      }
+    },
+    "ambientVariables": [
+      { "name": "requestId", "type": "string", "required": true },
+      { "name": "sessionUserId", "type": "string", "required": true },
+      { "name": "sessionRole", "type": "string", "required": true },
+      { "name": "now", "type": "datetime", "required": true }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "診察予約を作成",
+      "trigger": "healthcare:appointmentRequested",
+      "description": "PHI を最小必要範囲で確認し、医師資格と空き枠を検証して予約を作成する。",
+      "maturity": "committed",
+      "httpRoute": { "method": "POST", "path": "/api/healthcare/appointments", "auth": "required" },
+      "requiredPermissions": ["@conv.permission.appointment.create"],
+      "inputs": [
+        { "name": "patientCode", "label": "患者ID", "type": { "kind": "domain", "domainKey": "PatientId" }, "required": true },
+        { "name": "providerCode", "label": "担当医ID", "type": { "kind": "domain", "domainKey": "ProviderId" }, "required": true },
+        { "name": "department", "label": "診療科", "type": "string", "required": true },
+        { "name": "requestedStartAt", "label": "希望開始日時", "type": "datetime", "required": true },
+        { "name": "durationMinutes", "label": "診療枠分数", "type": "integer", "required": true },
+        { "name": "reasonForVisit", "label": "受診理由", "type": "string", "required": true }
+      ],
+      "outputs": [
+        { "name": "appointmentId", "label": "予約ID", "type": { "kind": "domain", "domainKey": "AppointmentId" } },
+        { "name": "status", "label": "状態", "type": "string" }
+      ],
+      "responses": [
+        { "id": "201-created", "status": 201, "bodySchema": { "typeRef": "healthcare:AppointmentResponse" }, "when": "予約作成成功" },
+        { "id": "400-validation", "status": 400, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "403-phi-consent-required", "status": 403, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "404-patient-not-found", "status": 404, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "409-provider-not-available", "status": 409, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "422-credential-invalid", "status": 422, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "502-emr-sync-failed", "status": 502, "bodySchema": { "typeRef": "healthcare:ApiError" } }
+      ],
+      "steps": [
+        { "id": "step-01", "kind": "eventPublish", "description": "予約要求イベントを発行する。", "topic": "healthcare.appointment_requested", "payload": "{ patientCode: @inputs.patientCode, requestedBy: @sessionUserId }" },
+        { "id": "step-02", "kind": "validation", "description": "患者 ID、医師 ID、予約日時、診療枠分数を検証する。", "rules": [
+          { "field": "patientCode", "type": "regex", "pattern": "^PAT[0-9]{10}$", "severity": "error", "message": "患者IDの形式が不正です" },
+          { "field": "providerCode", "type": "regex", "pattern": "^PRV[0-9]{8}$", "severity": "error", "message": "担当医IDの形式が不正です" },
+          { "field": "durationMinutes", "type": "range", "min": 15, "max": 120, "severity": "error", "message": "診療枠分数は 15 から 120 分です" },
+          { "field": "reasonForVisit", "type": "minLength", "length": 1, "severity": "error", "message": "受診理由は必須です" }
+        ], "fieldErrorsVar": "fieldErrors", "inlineBranch": { "ok": [], "ng": [], "ngResponseId": "400-validation", "ngBodyExpression": "{ code: 'VALIDATION', message: '入力値が不正です', requestId: @requestId, fieldErrors: @fieldErrors }" } },
+        { "id": "step-03", "kind": "dbAccess", "description": "患者を患者 ID で取得する。", "tableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "operation": "SELECT", "sql": "SELECT id, patient_code, full_name, phi_consent_status, allergy_summary FROM patients WHERE patient_code = @inputs.patientCode", "outputBinding": { "name": "patient" }, "lineage": { "reads": [{ "tableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "purpose": "lookup" }] } },
+        { "id": "step-04", "kind": "branch", "description": "患者が存在しない場合は 404 を返す。", "branches": [{ "id": "br-04-a", "code": "A", "label": "患者なし", "condition": { "kind": "expression", "expression": "@patient == null" }, "steps": [{ "id": "step-04-a-01", "kind": "return", "description": "患者なし", "responseId": "404-patient-not-found", "bodyExpression": "{ code: 'PATIENT_NOT_FOUND', message: '患者が見つかりません', requestId: @requestId }" }] }], "elseBranch": { "id": "br-04-else", "code": "B", "label": "患者あり", "steps": [] } },
+        { "id": "step-05", "kind": "healthcare:PhiAccessCheckStep", "description": "診察予約に必要な最小範囲で PHI アクセスを確認する。", "config": { "purpose": "appointment-booking", "patientRef": "@patient.patient_code", "minimumNecessary": true }, "lineage": { "reads": [{ "tableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "purpose": "phi-access-check" }] } },
+        { "id": "step-06", "kind": "branch", "description": "PHI 同意が有効でない場合は予約を停止する。", "branches": [{ "id": "br-06-a", "code": "A", "label": "同意なし", "condition": { "kind": "expression", "expression": "@patient.phi_consent_status != 'active'" }, "steps": [{ "id": "step-06-a-01", "kind": "return", "description": "PHI 同意なし", "responseId": "403-phi-consent-required", "bodyExpression": "{ code: 'PHI_CONSENT_REQUIRED', message: 'PHI 利用同意が有効ではありません', requestId: @requestId }" }] }], "elseBranch": { "id": "br-06-else", "code": "B", "label": "同意あり", "steps": [] } },
+        { "id": "step-07", "kind": "dbAccess", "description": "担当医を取得する。", "tableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "operation": "SELECT", "sql": "SELECT id, provider_code, role, credential_number, credential_status, specialty FROM providers WHERE provider_code = @inputs.providerCode", "outputBinding": { "name": "provider" }, "lineage": { "reads": [{ "tableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "purpose": "lookup" }] } },
+        { "id": "step-08", "kind": "externalSystem", "description": "医師資格レジストリで資格を確認する。", "systemRef": "credentialRegistry", "httpCall": { "method": "GET", "path": "/v1/providers/{credentialNumber}/status", "query": { "credentialNumber": "@provider.credential_number" } }, "outputBinding": { "name": "credentialStatus" }, "outcomes": { "success": { "action": "continue" }, "failure": { "action": "abort" }, "timeout": { "action": "abort" } } },
+        { "id": "step-09", "kind": "branch", "description": "医師資格が有効でなければ 422 を返す。", "branches": [{ "id": "br-09-a", "code": "A", "label": "資格無効", "condition": { "kind": "expression", "expression": "@provider == null || @provider.role != 'physician' || @provider.credential_status != 'active'" }, "steps": [{ "id": "step-09-a-01", "kind": "return", "description": "資格無効", "responseId": "422-credential-invalid", "bodyExpression": "{ code: 'CREDENTIAL_INVALID', message: '医師資格が有効ではありません', requestId: @requestId }" }] }], "elseBranch": { "id": "br-09-else", "code": "B", "label": "資格有効", "steps": [] } },
+        { "id": "step-10", "kind": "compute", "description": "予約終了日時を計算する。", "expression": "fn.calculateAppointmentEnd(@inputs.requestedStartAt, @inputs.durationMinutes)", "outputBinding": { "name": "scheduledEndAt" } },
+        { "id": "step-11", "kind": "dbAccess", "description": "同一医師の重複予約を確認する。", "tableId": "6120a90d-5141-4377-bd12-854a1bdae023", "operation": "SELECT", "sql": "SELECT id, appointment_code, status FROM appointments WHERE provider_id = @provider.id AND status IN ('booked', 'checked_in') AND scheduled_start_at < @scheduledEndAt AND scheduled_end_at > @inputs.requestedStartAt", "outputBinding": { "name": "conflictingAppointment" }, "lineage": { "reads": [{ "tableId": "6120a90d-5141-4377-bd12-854a1bdae023", "purpose": "availability-check" }] } },
+        { "id": "step-12", "kind": "branch", "description": "空き枠がない場合は 409 を返す。", "branches": [{ "id": "br-12-a", "code": "A", "label": "空きなし", "condition": { "kind": "expression", "expression": "@conflictingAppointment != null" }, "steps": [{ "id": "step-12-a-01", "kind": "return", "description": "予約枠なし", "responseId": "409-provider-not-available", "bodyExpression": "{ code: 'PROVIDER_NOT_AVAILABLE', message: '指定された医師の予約枠を確保できません', requestId: @requestId }" }] }], "elseBranch": { "id": "br-12-else", "code": "B", "label": "空きあり", "steps": [] } },
+        { "id": "step-13", "kind": "dbAccess", "description": "予約を作成する。", "tableId": "6120a90d-5141-4377-bd12-854a1bdae023", "operation": "INSERT", "sql": "INSERT INTO appointments (appointment_code, patient_id, provider_id, department, reason_for_visit, scheduled_start_at, scheduled_end_at, status, triage_level, created_by) VALUES (fn.generateAppointmentCode(@now), @patient.id, @provider.id, @inputs.department, @inputs.reasonForVisit, @inputs.requestedStartAt, @scheduledEndAt, 'booked', 'routine', @sessionUserId) RETURNING id, appointment_code, scheduled_start_at, scheduled_end_at, status", "outputBinding": { "name": "createdAppointment" }, "lineage": { "writes": [{ "tableId": "6120a90d-5141-4377-bd12-854a1bdae023", "purpose": "create" }] } },
+        { "id": "step-14", "kind": "audit", "description": "PHI を含む予約作成を監査ログへ記録する。", "action": "healthcare.appointment.create", "resource": { "type": "appointment", "id": "@createdAppointment.appointment_code" }, "result": "success", "sensitive": true },
+        { "id": "step-15", "kind": "eventPublish", "description": "PHI アクセス監査イベントを発行する。", "topic": "healthcare.phi_access_logged", "payload": "{ patientCode: @patient.patient_code, purpose: 'appointment-booking' }" },
+        { "id": "step-16", "kind": "externalSystem", "description": "電子カルテへ予約を同期する。", "systemRef": "emrSystem", "httpCall": { "method": "POST", "path": "/v1/appointments", "body": "{ appointmentCode: @createdAppointment.appointment_code, patientCode: @patient.patient_code, providerCode: @provider.provider_code, scheduledStartAt: @createdAppointment.scheduled_start_at }" }, "outputBinding": { "name": "emrSyncResult" }, "outcomes": { "success": { "action": "continue" }, "failure": { "action": "abort", "sideEffects": [{ "id": "step-16-fail-event", "kind": "eventPublish", "description": "電子カルテ同期失敗イベントを発行する。", "topic": "healthcare.appointment_sync_failed", "payload": "{ appointmentCode: @createdAppointment.appointment_code, reason: 'emr failure' }" }] }, "timeout": { "action": "abort" } } },
+        { "id": "step-17", "kind": "eventPublish", "description": "予約確定イベントを発行する。", "topic": "healthcare.appointment_booked", "payload": "{ appointmentCode: @createdAppointment.appointment_code, patientCode: @patient.patient_code, providerCode: @provider.provider_code }" },
+        { "id": "step-18", "kind": "return", "description": "予約作成結果を返す。", "responseId": "201-created", "bodyExpression": "{ appointmentId: @createdAppointment.appointment_code, patientId: @patient.patient_code, providerId: @provider.provider_code, scheduledStartAt: @createdAppointment.scheduled_start_at, status: @createdAppointment.status }" }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      { "id": "ADR-001", "title": "PHI 同意確認を予約作成の前提にする", "status": "accepted", "context": "予約作成では患者氏名、連絡先、受診理由などの PHI を参照する。", "decision": "患者取得直後に PHI アクセス確認と同意状態チェックを行い、同意が有効でない場合は処理を停止する。", "consequences": "予約前の導線で同意更新が必要になるが、最小必要原則と監査証跡を守れる。", "date": "2026-04-30" },
+      { "id": "ADR-002", "title": "医師資格確認を外部レジストリで行う", "status": "accepted", "context": "院内 providers テーブルだけでは資格停止や失効の最新状態を取り逃がす可能性がある。", "decision": "DB の role/status 確認に加え、資格確認システムを TX 外で呼び出す。", "consequences": "外部依存により失敗時の予約不可が増えるが、資格無効医師による予約割当を防げる。", "date": "2026-04-30" },
+      { "id": "ADR-003", "title": "電子カルテ同期は予約作成後の外部呼び出しにする", "status": "accepted", "context": "電子カルテは別システムであり DB トランザクションに含められない。", "decision": "予約 DB 作成後に EMR API を呼び、失敗時は失敗イベントで補償対象として可視化する。", "consequences": "DB と EMR の一時的不整合が発生し得るため、運用監視と再同期が必要になる。", "date": "2026-04-30" }
+    ],
+    "glossary": {
+      "PHI": { "definition": "患者を識別可能な保護対象医療情報。氏名、連絡先、保険番号、受診理由などを含む。", "aliases": ["Protected Health Information"] },
+      "最小必要原則": { "definition": "業務目的に必要な最小限の PHI のみを参照、利用、開示する考え方。", "aliases": ["Minimum Necessary"] },
+      "診察予約": { "definition": "患者、担当医、診療科、予定日時、受診理由を紐付けた来院予定。", "aliases": ["Appointment"] },
+      "医師資格確認": { "definition": "処置や診察を担当する医師の資格番号、状態、専門科を確認すること。", "aliases": ["Physician Credential Validation"] },
+      "電子カルテ": { "definition": "診療記録、予約、処方などを保持する医療機関の基幹記録システム。", "aliases": ["EMR", "EHR"] },
+      "緊急度": { "definition": "予約や診察の優先度を表す分類。routine、urgent など。", "aliases": ["Triage Level"] },
+      "同意状態": { "definition": "患者が PHI の利用に同意しているか、制限または撤回しているかの状態。", "aliases": ["Consent Status"] },
+      "予約枠": { "definition": "医師または診療科が診察を受け入れられる時間帯。", "aliases": ["Slot"] }
+    },
+    "testScenarios": [
+      { "id": "happy-path-booking", "name": "PHI 同意済み患者の予約作成", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-apt-001", "sessionUserId": "user-reception-001", "sessionRole": "receptionist" } }, { "kind": "dbState", "tableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "rows": [{ "id": 1, "patient_code": "PAT0000000001", "full_name": "山田花子", "phi_consent_status": "active" }] }, { "kind": "dbState", "tableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "rows": [{ "id": 10, "provider_code": "PRV00000001", "role": "physician", "credential_status": "active", "credential_number": "NPI1234567" }] }, { "kind": "externalStub", "externalRef": "credentialRegistry", "responseMock": { "status": "active" } }, { "kind": "externalStub", "externalRef": "emrSystem", "responseMock": { "status": "synced" } }], "when": { "actionId": "act-001", "input": { "patientCode": "PAT0000000001", "providerCode": "PRV00000001", "department": "internal_medicine", "requestedStartAt": "2026-05-01T09:00:00.000Z", "durationMinutes": 30, "reasonForVisit": "発熱" } }, "then": [{ "kind": "outcome", "expected": "201-created" }, { "kind": "dbRow", "tableId": "6120a90d-5141-4377-bd12-854a1bdae023", "match": { "status": "booked" }, "count": 1 }, { "kind": "auditLog", "action": "healthcare.appointment.create", "result": "success" }], "tags": ["happy", "phi"] },
+      { "id": "validation-error", "name": "患者 ID 形式不正", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-apt-002", "sessionUserId": "user-reception-001" } }], "when": { "actionId": "act-001", "input": { "patientCode": "BAD", "providerCode": "PRV00000001", "department": "internal_medicine", "requestedStartAt": "2026-05-01T09:00:00.000Z", "durationMinutes": 30, "reasonForVisit": "発熱" } }, "then": [{ "kind": "outcome", "expected": "400-validation" }], "tags": ["error", "validation"] },
+      { "id": "edge-phi-consent-revoked", "name": "PHI 同意撤回済み患者は予約停止", "given": [{ "kind": "sessionContext", "context": { "requestId": "req-apt-003", "sessionUserId": "user-reception-001" } }, { "kind": "dbState", "tableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "rows": [{ "id": 2, "patient_code": "PAT0000000002", "phi_consent_status": "revoked" }] }], "when": { "actionId": "act-001", "input": { "patientCode": "PAT0000000002", "providerCode": "PRV00000001", "department": "internal_medicine", "requestedStartAt": "2026-05-01T10:00:00.000Z", "durationMinutes": 30, "reasonForVisit": "再診" } }, "then": [{ "kind": "outcome", "expected": "403-phi-consent-required" }], "tags": ["edge", "phi"] }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "d628ce21-bacc-4f6c-952b-a4c07846e740",
+  "name": "処方箋",
+  "description": "医師の処方、重複処方チェック、薬剤師鑑査、薬局連携状態を保持する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "physicalName": "prescriptions",
+  "category": "トランザクション",
+  "columns": [
+    { "id": "col-rx01", "no": 1, "physicalName": "id", "name": "処方箋内部ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-rx02", "no": 2, "physicalName": "prescription_code", "name": "処方箋ID", "dataType": "VARCHAR", "length": 24, "notNull": true, "unique": true },
+    { "id": "col-rx03", "no": 3, "physicalName": "patient_id", "name": "患者内部ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-rx04", "no": 4, "physicalName": "medical_record_id", "name": "患者記録内部ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-rx05", "no": 5, "physicalName": "prescriber_provider_id", "name": "処方医内部ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-rx06", "no": 6, "physicalName": "verifier_provider_id", "name": "鑑査薬剤師内部ID", "dataType": "BIGINT" },
+    { "id": "col-rx07", "no": 7, "physicalName": "medication_code", "name": "薬剤コード", "dataType": "VARCHAR", "length": 64, "notNull": true },
+    { "id": "col-rx08", "no": 8, "physicalName": "medication_name", "name": "薬剤名", "dataType": "VARCHAR", "length": 160, "notNull": true },
+    { "id": "col-rx09", "no": 9, "physicalName": "dosage_instruction", "name": "用法用量", "dataType": "TEXT", "notNull": true },
+    { "id": "col-rx10", "no": 10, "physicalName": "days_supply", "name": "処方日数", "dataType": "INTEGER", "notNull": true },
+    { "id": "col-rx11", "no": 11, "physicalName": "status", "name": "状態", "dataType": "VARCHAR", "length": 30, "notNull": true, "defaultValue": "'draft'" },
+    { "id": "col-rx12", "no": 12, "physicalName": "duplicate_check_result", "name": "重複処方チェック結果", "dataType": "VARCHAR", "length": 30, "notNull": true, "defaultValue": "'not_checked'" },
+    { "id": "col-rx13", "no": 13, "physicalName": "pharmacist_verified_at", "name": "薬剤師鑑査日時", "dataType": "TIMESTAMP" },
+    { "id": "col-rx14", "no": 14, "physicalName": "pharmacy_routing_status", "name": "薬局送信状態", "dataType": "VARCHAR", "length": 30, "notNull": true, "defaultValue": "'pending'" },
+    { "id": "col-rx15", "no": 15, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-rx16", "no": 16, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-rx01", "physicalName": "idx_prescriptions_code", "columns": [{ "columnId": "col-rx02" }], "unique": true },
+    { "id": "idx-rx02", "physicalName": "idx_prescriptions_patient_medication", "columns": [{ "columnId": "col-rx03" }, { "columnId": "col-rx07" }, { "columnId": "col-rx11" }] }
+  ],
+  "constraints": [
+    { "id": "fk-rx01", "kind": "foreignKey", "physicalName": "fk_prescriptions_patient", "columnIds": ["col-rx03"], "referencedTableId": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "referencedColumnIds": ["col-pat01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "fk-rx02", "kind": "foreignKey", "physicalName": "fk_prescriptions_medical_record", "columnIds": ["col-rx04"], "referencedTableId": "4bffe509-cd06-42de-a814-43c51d2ee5ed", "referencedColumnIds": ["col-mr01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "fk-rx03", "kind": "foreignKey", "physicalName": "fk_prescriptions_prescriber", "columnIds": ["col-rx05"], "referencedTableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "referencedColumnIds": ["col-prv01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "fk-rx04", "kind": "foreignKey", "physicalName": "fk_prescriptions_verifier", "columnIds": ["col-rx06"], "referencedTableId": "3cd0df6d-9a55-423c-9f12-829c132871ae", "referencedColumnIds": ["col-prv01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "chk-rx01", "kind": "check", "physicalName": "chk_prescriptions_status", "expression": "status IN ('draft', 'pending_verification', 'verified', 'sent', 'blocked', 'canceled')" },
+    { "id": "chk-rx02", "kind": "check", "physicalName": "chk_prescriptions_days_supply", "expression": "days_supply BETWEEN 1 AND 90" }
+  ]
+}

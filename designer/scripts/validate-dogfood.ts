@@ -33,6 +33,7 @@ const flowsDir = resolve(samplesDir, "process-flows");
 const tablesDir = resolve(samplesDir, "tables");
 const conventionsFile = resolve(samplesDir, "conventions/conventions-catalog.json");
 const extensionsDir = resolve(samplesDir, "extensions");
+const samplesV3Dir = resolve(repoRoot, "docs/sample-project-v3");
 
 // ─── 型定義 ────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,46 @@ function loadExtensions(): { extensions: LoadedExtensions; fileCount: number } {
     }
   } catch {
     // extensions ディレクトリが存在しない場合は空の extensions を返す
+  }
+
+  // v3 拡張定義 (per-industry single-file 形式 .v3.json) を追加で読み込む (#600)
+  // v3 拡張は { namespace, fieldTypes, actionTriggers, stepKinds, responseTypes, ... } の単一ファイル形式
+  try {
+    const v3Files = readdirSync(samplesV3Dir, { recursive: true })
+      .filter((f): f is string => typeof f === "string" && f.endsWith(".v3.json"))
+      .filter((f) => f.includes("extensions"));
+
+    for (const file of v3Files) {
+      const fullPath = join(samplesV3Dir, file);
+      try {
+        const raw = JSON.parse(readFileSync(fullPath, "utf-8")) as Record<string, unknown>;
+        fileCount++;
+        const namespace = typeof raw.namespace === "string" ? raw.namespace : "";
+        if (Array.isArray(raw.fieldTypes)) {
+          bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
+        }
+        if (Array.isArray(raw.actionTriggers)) {
+          bundle.triggers.triggers.push(...raw.actionTriggers);
+        }
+        if (Array.isArray(raw.dbOperations)) {
+          bundle.dbOperations.dbOperations.push(...raw.dbOperations);
+        }
+        if (raw.stepKinds && typeof raw.stepKinds === "object" && !Array.isArray(raw.stepKinds)) {
+          for (const [key, value] of Object.entries(raw.stepKinds as Record<string, unknown>)) {
+            bundle.steps.steps[withNamespace(namespace, key)] = value;
+          }
+        }
+        if (raw.responseTypes && typeof raw.responseTypes === "object" && !Array.isArray(raw.responseTypes)) {
+          for (const [key, value] of Object.entries(raw.responseTypes as Record<string, unknown>)) {
+            bundle.responseTypes.responseTypes[withNamespace(namespace, key)] = value;
+          }
+        }
+      } catch {
+        // 個別 v3 拡張の読み込みエラーは無視
+      }
+    }
+  } catch {
+    // sample-project-v3 が存在しない場合は何もしない
   }
 
   const extBundle: ExtensionsBundle = {
