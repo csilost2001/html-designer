@@ -315,3 +315,74 @@ describe("checkIdentifierScopes — サンプル (docs/sample-project/process-fl
     });
   }
 });
+describe("checkIdentifierScopes - WorkflowStep result handlers", () => {
+  it("onApproved detects undeclared identifiers", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "wf", kind: "workflow", description: "",
+          pattern: "approval-sequential", approvers: [],
+          onApproved: [
+            { id: "s1", kind: "compute", description: "", expression: "@undeclared + 1", outputBinding: "r" },
+          ],
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].identifier).toBe("undeclared");
+    expect(issues[0].code).toBe("UNKNOWN_IDENTIFIER");
+  });
+
+  it("onRejected can reference variables declared by prior steps", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", kind: "compute", description: "", expression: "'req-1'", outputBinding: "requestId" },
+          {
+            id: "wf", kind: "workflow", description: "",
+            pattern: "approval-sequential", approvers: [],
+            onRejected: [
+              { id: "s2", kind: "return", description: "", bodyExpression: "{ requestId: @requestId }" },
+            ],
+          },
+        ],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("onApproved can reference the WorkflowStep outputBinding", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "wf", kind: "workflow", description: "",
+          pattern: "approval-sequential", approvers: [],
+          outputBinding: "workflowResult",
+          onApproved: [
+            { id: "s1", kind: "compute", description: "", expression: "@workflowResult.status", outputBinding: "status" },
+          ],
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("onTimeout can reference builtins", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "wf", kind: "workflow", description: "",
+          pattern: "approval-sequential", approvers: [],
+          onTimeout: [
+            { id: "s1", kind: "compute", description: "", expression: "@now.toISOString() + @uuid", outputBinding: "timeoutId" },
+          ],
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+});

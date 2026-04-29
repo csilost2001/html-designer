@@ -163,6 +163,11 @@ function walkSteps(
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, known, loopItems, issues);
       if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, known, loopItems, issues);
     }
+    if (step.kind === "workflow") {
+      if (step.onApproved) walkSteps(step.onApproved, `${path}.onApproved`, known, loopItems, issues);
+      if (step.onRejected) walkSteps(step.onRejected, `${path}.onRejected`, known, loopItems, issues);
+      if (step.onTimeout) walkSteps(step.onTimeout, `${path}.onTimeout`, known, loopItems, issues);
+    }
     if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {
