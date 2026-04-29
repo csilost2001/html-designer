@@ -180,11 +180,14 @@ function loadFlows(explicitPath?: string): Array<{ filePath: string; displayName
     }
     const displayName = relative(repoRoot, filePath).replace(/\\/g, "/");
     const raw = readFileSync(filePath, "utf-8");
-    return [{
-      filePath,
-      displayName,
-      flow: JSON.parse(raw) as ProcessFlow,
-    }];
+    let flow: ProcessFlow;
+    try {
+      flow = JSON.parse(raw) as ProcessFlow;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`--flow の JSON parse に失敗しました: ${filePath} — ${message}`);
+    }
+    return [{ filePath, displayName, flow }];
   }
 
   const files = readdirSync(flowsDir)

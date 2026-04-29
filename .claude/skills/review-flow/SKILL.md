@@ -111,9 +111,15 @@ npm run validate:dogfood
 
 監査根拠: `docs/spec/dogfood-2026-04-29-phase2-validator-audit.md` §3 / §4。
 
+### 終了コードの扱い
+
+- **exit 0**: 4 バリデータ全 pass → Step 1 へ進む
+- **exit 1**: 1 件以上の validator issue 検出 → Step 1 を中止せず、issue 内容を Step 2 のカバレッジ表に「validator 検出済」として記録して進む (実行セマンティクス観点が AI 目視のみで残るため)
+- **exit 2**: 引数異常 / ファイル不在 / JSON parse 失敗 → エラーメッセージを報告し AI 目視のみで Step 1 に進む
+
 ### バリデータが動かない場合
 
-- `--flow <path>` のファイルが存在しない / JSON parse 失敗 → エラーメッセージを報告し Step 1 に進む (AI 目視のみで継続)
+- `--flow <path>` のファイルが存在しない / JSON parse 失敗 (= exit 2) → エラーメッセージを報告し Step 1 に進む (AI 目視のみで継続)
 - `npm run validate:dogfood` 自体が失敗 (依存解決等) → 同上、Step 1 に進む
 - バリデータ未呼び出しは **Step 2 の「validator 検出済」欄を「未実行」と明記** (隠さない)
 
