@@ -41,7 +41,8 @@ export async function commitViews(
   const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
   project.views = (project.views ?? [])
     .filter((v) => !deletedSet.has(v.id))
-    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((v, i) => ({ ...v, no: i + 1 }));
   await deps.saveProject(project);
   for (const id of deletedIds) {
     await deps.deleteView(id);

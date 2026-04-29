@@ -38,7 +38,8 @@ export async function commitSequences(
   const orderMap = new Map(itemsInOrder.map((s, i) => [s.id, i]));
   project.sequences = (project.sequences ?? [])
     .filter((s) => !deletedSet.has(s.id))
-    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((s, i) => ({ ...s, no: i + 1 }));
   await deps.saveProject(project);
   for (const id of deletedIds) {
     await deps.deleteSequence(id);

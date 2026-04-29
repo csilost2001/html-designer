@@ -74,6 +74,7 @@ describe("sequenceStore delete/commit batching", () => {
     expect(saveProject).toHaveBeenCalledTimes(1);
     expect(saveProject).toHaveBeenCalledWith(project);
     expect(project.sequences?.map((s) => s.id)).toEqual(["c", "a"]);
+    expect(project.sequences?.map((s) => s.no)).toEqual([1, 2]);
     expect(deleteSequence).toHaveBeenCalledTimes(2);
     expect(deleteSequence).toHaveBeenNthCalledWith(1, "b");
     expect(deleteSequence).toHaveBeenNthCalledWith(2, "missing");

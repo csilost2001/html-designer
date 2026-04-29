@@ -74,6 +74,7 @@ describe("viewStore delete/commit batching", () => {
     expect(saveProject).toHaveBeenCalledTimes(1);
     expect(saveProject).toHaveBeenCalledWith(project);
     expect(project.views?.map((v) => v.id)).toEqual(["c", "a"]);
+    expect(project.views?.map((v) => v.no)).toEqual([1, 2]);
     expect(deleteView).toHaveBeenCalledTimes(2);
     expect(deleteView).toHaveBeenNthCalledWith(1, "b");
     expect(deleteView).toHaveBeenNthCalledWith(2, "missing");
