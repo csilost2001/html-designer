@@ -13,55 +13,10 @@
  */
 
 import { test, expect } from "@playwright/test";
-import * as net from "net";
 import * as path from "path";
 import * as fs from "fs";
+import { isMcpRunning, sendBrowserRequest } from "./_helpers";
 
-// MCP サーバーが起動していない場合はスキップ
-async function isMcpRunning(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-    socket.setTimeout(500);
-    socket.connect(5179, "127.0.0.1", () => { socket.destroy(); resolve(true); });
-    socket.on("error", () => resolve(false));
-    socket.on("timeout", () => resolve(false));
-  });
-}
-
-/** ブラウザ役として wsBridge にリクエストを送るヘルパー */
-function sendBrowserRequest(method: string, params: unknown = {}): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket("ws://localhost:5179");
-    const clientId = `test-client-${Date.now()}`;
-    const reqId = `req-${Date.now()}`;
-
-    const timeout = setTimeout(() => {
-      ws.close();
-      reject(new Error(`Timeout waiting for response to ${method}`));
-    }, 10000);
-
-    ws.onopen = () => {
-      // ブラウザとして登録
-      ws.send(JSON.stringify({ type: "register", clientId }));
-      // リクエスト送信
-      ws.send(JSON.stringify({ type: "request", id: reqId, method, params }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data as string);
-        if (msg.type === "response" && msg.id === reqId) {
-          clearTimeout(timeout);
-          ws.close();
-          if (msg.error) reject(new Error(msg.error));
-          else resolve(msg.result);
-        }
-      } catch { /* 別メッセージは無視 */ }
-    };
-
-    ws.onerror = () => reject(new Error("WebSocket error"));
-  });
-}
 
 // ─── テスト ─────────────────────────────────────────────────────────────────
 
