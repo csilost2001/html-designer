@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 9 観点 + 16 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 17 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -11,7 +11,7 @@ disable-model-invocation: true
     - `/create-flow <flowId> <業務概要>` (namespace なしでもよい)
 
   目的:
-    ProcessFlow JSON の作成時点で `/review-flow` の 9 観点を self-check として遵守させ、
+    ProcessFlow JSON の作成時点で `/review-flow` の 10 観点を self-check として遵守させ、
     既知パターン (TX outputBinding ネスト参照 / branch return 後 fallthrough / 死コード rollbackOn /
     画面項目イベント argumentMapping 不整合 等) の再発を抑制する。完成後の `/review-flow` 検出件数を
     削減し、修正サイクル数を減らす。
@@ -30,7 +30,7 @@ ProcessFlow `$ARGUMENTS` を品質ガード付きで作成します。
 
 ## 役割と前提
 
-- **あなたは ProcessFlow 設計者**。`/review-flow` の 9 観点を**作成前** に遵守して JSON を組み立てる
+- **あなたは ProcessFlow 設計者**。`/review-flow` の 10 観点を**作成前** に遵守して JSON を組み立てる
 - 出力: 処理フロー JSON 1 ファイル + (必要なら) 拡張定義の追加 + testScenarios 3 件以上
 - 完成後は **必ず `/review-flow` で自己検証**してから PR / マージに進める
 - 本スキルは spec の**索引 + 既知パターン要約**。詳細は `docs/spec/process-flow-*.md` を `Read` で参照
@@ -83,7 +83,7 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 
 各セクション 0 件は許されない (eventsCatalog と decisions と testScenarios は特に必須)。
 
-## Step 3: 既知パターン回避 self-check (16 ルール、必須遵守)
+## Step 3: 既知パターン回避 self-check (17 ルール、必須遵守)
 
 `/review-flow` で検出される既知パターンを**作成中**に避けること。各 step を書くたびに以下を確認:
 
@@ -207,6 +207,23 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 
 **Step 5.2 で `validate:dogfood` の `screenItemFlowValidator` により機械的に検出される**
 
+### Rule 17: 画面項目値レベル整合 (#631 / #627、Phase 3 evolved)
+
+UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するときは、画面項目側 ScreenItem.type / options / validation と処理フロー inputs[].type / domain の **値レベル** で整合させる。`screenItemFieldTypeValidator` が以下を機械検出する。
+
+| code | severity | 検出内容 |
+|---|---|---|
+| `OPTIONS_NOT_SUBSET_OF_ENUM` | error | 画面 ScreenItem.options[].value (selectbox / radio 等) ⊆ flow input domain.enum.values の包含検査。Phase 3 M2 (BenefitType enum 不一致) の構造的検出機構 |
+| `DOMAIN_KEY_MISMATCH` | error | 画面 ScreenItem.type.domainKey と flow input type.domainKey の不一致 (両方 domainKey 形式時) |
+| `TYPE_MISMATCH` | error | argumentMapping 値が `@form.*` 参照の場合、ScreenItem.type と inputs[].type の比較 (#627 吸収) |
+| `PATTERN_DIVERGENCE` | warning | 画面 validation.pattern と flow input domain.pattern (regex) の不一致 (両方定義時) |
+| `RANGE_DIVERGENCE` | warning | 画面 min/max と flow input domain.minimum/maximum の不一致 (両方定義時) |
+| `LENGTH_DIVERGENCE` | warning | 画面 minLength/maxLength と flow input domain.minLength/maxLength の不一致 |
+
+**Step 5.2 で `validate:dogfood` の `screenItemFieldTypeValidator` により機械的に検出される**ため、本ルールは「機械検出は事後で必ず行われる」前提で、設計時に options / type / domainKey の対応関係を意識すること。
+
+業務文脈の妥当性 (例えば「BenefitType の意味的妥当性」「画面選択肢の業務命名」) は引き続き AI 目視で `/review-flow` 観点 10 で扱う。
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -242,7 +259,7 @@ npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.s
 npm run build
 ```
 
-### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 の機械的検出)
+### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 の機械的検出)
 
 作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
 
@@ -260,6 +277,7 @@ npm run validate:dogfood
 | referentialIntegrity | responseRef / errorCode / systemRef / compensatesFor の不整合 | Rule 5 / Rule 8 補強 |
 | identifierScope | 識別子スコープ違反 (root レベル) | Rule 1 補強 |
 | screenItemFlowValidator | 画面項目イベント ↔ 処理フロー連携の整合 (handlerFlowId 実在 / argumentMapping 整合 / primaryInvoker 双方向) | Rule 16 |
+| screenItemFieldTypeValidator | 画面項目 ↔ 処理フロー 値レベル整合 (options 包含 / domainKey / 型 / pattern / range / length) | Rule 17 |
 
 **fail した場合の対処**:
 - `UNKNOWN_COLUMN` → SELECT 句を見直す or テーブル定義を更新
@@ -329,11 +347,12 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 | 14. `OtherStep.outputSchema` 形式 | ✓ / 該当なし |
 | 15. グローバル schema 変更禁止 | ✓ (`schemas/*.json` 未変更) / ❌ |
 | 16. 画面項目イベント連携整合 | ✓ / 該当なし (画面起点でない) / ❌ |
+| 17. 画面項目値レベル整合 | ✓ / 該当なし (画面起点でない) / ❌ (options / domainKey / 型 / pattern / range / length 不一致) |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
 - build: <pass/fail>
-- validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope / screenItemFlowValidator)
+- validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope / screenItemFlowValidator / screenItemFieldTypeValidator)
 - /review-flow: <Must-fix 件数 / Should-fix 件数>
 
 ### 推奨: 次の手順
@@ -348,11 +367,11 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **16 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **17 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
 - スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
 - 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
 - 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` / `ffffffff-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
-- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 16 ルールを遵守すること」が含まれているはず
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 17 ルールを遵守すること」が含まれているはず
