@@ -202,3 +202,39 @@
   height: auto;
   width: 100%;
 }
+
+/* role / permission タブ (#555) — validator 連携の警告表示 */
+
+.conventions-table input.form-control.is-invalid {
+  border-color: #dc2626;
+  background-image: none;
+  padding-right: 6px;
+}
+
+.conventions-row-issues td {
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.conventions-issue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conventions-issue {
+  font-size: 0.75rem;
+  color: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.conventions-issue .bi {
+  color: #dc2626;
+  font-size: 0.85rem;
+}

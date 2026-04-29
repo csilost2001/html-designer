@@ -1,12 +1,13 @@
 /**
- * 規約カタログ編集ビュー (#317, #347)
+ * 規約カタログ編集ビュー (#317, #347, #555)
  *
  * 横断規約の機械可読カタログ (`data/conventions/catalog.json`) を designer 内で編集する
- * シングルトンタブ。カテゴリは 11 種、2 グループで表示:
+ * シングルトンタブ。カテゴリは 13 種、3 グループで表示:
  *   - 入力バリデーション: msg / regex / limit
+ *   - 役割・権限: role / permission
  *   - プロダクト規約: scope / currency / tax / auth / db / numbering / tx / externalOutcomeDefaults
  */
-import { useCallback, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -16,12 +17,18 @@ import {
   saveConventions,
   createEmptyCatalog,
 } from "../../store/conventionsStore";
-import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
+import {
+  type ConventionsCatalog,
+  type ConventionIssue,
+  checkConventionsCatalogIntegrity,
+} from "../../schemas/conventionsValidator";
 import type {
   ScopeEntry,
   CurrencyEntry,
   TaxEntry,
   AuthEntry,
+  RoleEntry,
+  PermissionEntry,
   DbEntry,
   NumberingEntry,
   TxEntry,
@@ -32,10 +39,12 @@ import "../../styles/conventions.css";
 
 type Category =
   | "msg" | "regex" | "limit"
+  | "role" | "permission"
   | "scope" | "currency" | "tax" | "auth"
   | "db" | "numbering" | "tx" | "externalOutcomeDefaults";
 
 const VALIDATION_CATEGORIES: Category[] = ["msg", "regex", "limit"];
+const RBAC_CATEGORIES: Category[] = ["role", "permission"];
 const PRODUCT_CATEGORIES: Category[] = [
   "scope", "currency", "tax", "auth", "db", "numbering", "tx", "externalOutcomeDefaults",
 ];
@@ -44,6 +53,8 @@ const CATEGORY_LABELS: Record<Category, string> = {
   msg: "メッセージ",
   regex: "正規表現",
   limit: "制限値",
+  role: "役割",
+  permission: "権限",
   scope: "スコープ",
   currency: "通貨",
   tax: "税",
@@ -58,6 +69,8 @@ const CATEGORY_ICONS: Record<Category, string> = {
   msg: "bi-chat-left-text",
   regex: "bi-regex",
   limit: "bi-rulers",
+  role: "bi-person-badge",
+  permission: "bi-shield-lock",
   scope: "bi-globe",
   currency: "bi-currency-yen",
   tax: "bi-calculator",
@@ -131,6 +144,17 @@ export function ConventionsCatalogView() {
     update((c) => { if (!c.auth) c.auth = {}; if (!c.auth[key]) c.auth[key] = { scheme: "" }; });
   }, [update]);
 
+  const addRole = useCallback((key: string) => {
+    update((c) => { if (!c.role) c.role = {}; if (!c.role[key]) c.role[key] = { permissions: [] }; });
+  }, [update]);
+
+  const addPermission = useCallback((key: string) => {
+    update((c) => {
+      if (!c.permission) c.permission = {};
+      if (!c.permission[key]) c.permission[key] = { resource: "", action: "" };
+    });
+  }, [update]);
+
   const addDb = useCallback((key: string) => {
     update((c) => { if (!c.db) c.db = {}; if (!c.db[key]) c.db[key] = {}; });
   }, [update]);
@@ -149,6 +173,11 @@ export function ConventionsCatalogView() {
       if (!c.externalOutcomeDefaults[key]) c.externalOutcomeDefaults[key] = { outcome: "failure", action: "abort" };
     });
   }, [update]);
+
+  const integrityIssues = useMemo<ConventionIssue[]>(
+    () => (catalog ? checkConventionsCatalogIntegrity(catalog) : []),
+    [catalog],
+  );
 
   if (!catalog) return null;
 
@@ -213,6 +242,7 @@ export function ConventionsCatalogView() {
 
       <div className="conventions-tabs-area">
         {renderTabGroup("入力バリデーション", VALIDATION_CATEGORIES)}
+        {renderTabGroup("役割・権限", RBAC_CATEGORIES)}
         {renderTabGroup("プロダクト規約", PRODUCT_CATEGORIES)}
       </div>
 
@@ -278,6 +308,26 @@ export function ConventionsCatalogView() {
             onUpdate={(key, patch) => updateSilent((c) => { if (c.auth?.[key]) Object.assign(c.auth[key], patch); })}
             onCommit={commit}
             onRemove={(key) => update((c) => { if (c.auth) delete c.auth[key]; })}
+          />
+        )}
+        {activeCategory === "role" && (
+          <RoleEditor
+            role={catalog.role ?? {}}
+            permissionKeys={Object.keys(catalog.permission ?? {})}
+            issues={integrityIssues}
+            onAdd={addRole}
+            onUpdate={(key, patch) => updateSilent((c) => { if (c.role?.[key]) Object.assign(c.role[key], patch); })}
+            onCommit={commit}
+            onRemove={(key) => update((c) => { if (c.role) delete c.role[key]; })}
+          />
+        )}
+        {activeCategory === "permission" && (
+          <PermissionEditor
+            permission={catalog.permission ?? {}}
+            onAdd={addPermission}
+            onUpdate={(key, patch) => updateSilent((c) => { if (c.permission?.[key]) Object.assign(c.permission[key], patch); })}
+            onCommit={commit}
+            onRemove={(key) => update((c) => { if (c.permission) delete c.permission[key]; })}
           />
         )}
         {activeCategory === "db" && (
@@ -1071,6 +1121,248 @@ function AuthEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !auth[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(auth, newKey.trim())}
+      />
+    </EntriesWrapper>
+  );
+}
+
+function RoleEditor({
+  role, permissionKeys, issues, onAdd, onUpdate, onCommit, onRemove,
+}: {
+  role: Record<string, RoleEntry>;
+  permissionKeys: string[];
+  issues: ConventionIssue[];
+  onAdd: (key: string) => void;
+  onUpdate: (key: string, patch: Partial<RoleEntry>) => void;
+  onCommit: () => void;
+  onRemove: (key: string) => void;
+}) {
+  const [newKey, setNewKey] = useState("");
+  const entries = Object.entries(role);
+  const roleKeys = Object.keys(role);
+
+  // role.<key> から始まる issue を key 別に集約
+  const issuesByKey = useMemo(() => {
+    const map = new Map<string, ConventionIssue[]>();
+    for (const iss of issues) {
+      const m = /^role\.([^.[]+)/.exec(iss.path);
+      if (!m) continue;
+      const k = m[1];
+      const arr = map.get(k) ?? [];
+      arr.push(iss);
+      map.set(k, arr);
+    }
+    return map;
+  }, [issues]);
+
+  const permissionListId = "conventions-permission-keys";
+  const roleListId = "conventions-role-keys";
+
+  return (
+    <EntriesWrapper empty={entries.length === 0}>
+      <datalist id={permissionListId}>
+        {permissionKeys.map((k) => <option key={k} value={k} />)}
+      </datalist>
+      <datalist id={roleListId}>
+        {roleKeys.map((k) => <option key={k} value={k} />)}
+      </datalist>
+      <table className="conventions-table">
+        <colgroup>
+          <col style={{ width: "12em" }} />
+          <col style={{ width: "10em" }} />
+          <col style={{ width: "14em" }} />
+          <col />
+          <col style={{ width: "16em" }} />
+          <col style={{ width: 28 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>key (@conv.role.xxx)</th>
+            <th>name</th>
+            <th>description</th>
+            <th>permissions (カンマ区切り)</th>
+            <th>inherits (カンマ区切り)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(([key, entry]) => {
+            const rowIssues = issuesByKey.get(key) ?? [];
+            const hasPermIssue = rowIssues.some((i) =>
+              i.code === "UNKNOWN_CONV_ROLE_PERMISSION" && i.path.startsWith(`role.${key}.permissions`),
+            );
+            const hasInheritsIssue = rowIssues.some((i) =>
+              (i.code === "UNKNOWN_CONV_ROLE_INHERITS" || i.code === "ROLE_INHERITS_CYCLE") &&
+              i.path.startsWith(`role.${key}.inherits`),
+            );
+            return (
+              <Fragment key={key}>
+                <tr>
+                  <td><code className="conventions-key-badge">{key}</code></td>
+                  <td>
+                    <input
+                      className="form-control form-control-sm"
+                      value={entry.name ?? ""}
+                      onChange={(e) => onUpdate(key, { name: e.target.value || undefined })}
+                      onBlur={onCommit}
+                      placeholder="顧客"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="form-control form-control-sm"
+                      value={entry.description ?? ""}
+                      onChange={(e) => onUpdate(key, { description: e.target.value || undefined })}
+                      onBlur={onCommit}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className={`form-control form-control-sm ${hasPermIssue ? "is-invalid" : ""}`}
+                      list={permissionListId}
+                      value={(entry.permissions ?? []).join(", ")}
+                      onChange={(e) => {
+                        const perms = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                        onUpdate(key, { permissions: perms });
+                      }}
+                      onBlur={onCommit}
+                      placeholder="order.create, order.read"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className={`form-control form-control-sm ${hasInheritsIssue ? "is-invalid" : ""}`}
+                      list={roleListId}
+                      value={(entry.inherits ?? []).join(", ")}
+                      onChange={(e) => {
+                        const inh = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                        onUpdate(key, { inherits: inh.length > 0 ? inh : undefined });
+                      }}
+                      onBlur={onCommit}
+                      placeholder="customer"
+                    />
+                  </td>
+                  <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+                </tr>
+                {rowIssues.length > 0 && (
+                  <tr className="conventions-row-issues">
+                    <td />
+                    <td colSpan={5}>
+                      <ul className="conventions-issue-list">
+                        {rowIssues.map((iss, i) => (
+                          <li key={i} className="conventions-issue">
+                            <i className="bi bi-exclamation-triangle-fill" />
+                            <span className="conventions-issue-message">{iss.message}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      <NewKeyRow
+        placeholder="新規 key (例: customer)"
+        value={newKey}
+        setValue={setNewKey}
+        onAdd={() => { const k = newKey.trim(); if (k && !role[k]) { onAdd(k); setNewKey(""); } }}
+        disabled={!newKey.trim() || Object.hasOwn(role, newKey.trim())}
+      />
+    </EntriesWrapper>
+  );
+}
+
+const SCOPE_OPTIONS = ["", "all", "own", "department"] as const;
+
+function PermissionEditor({
+  permission, onAdd, onUpdate, onCommit, onRemove,
+}: {
+  permission: Record<string, PermissionEntry>;
+  onAdd: (key: string) => void;
+  onUpdate: (key: string, patch: Partial<PermissionEntry>) => void;
+  onCommit: () => void;
+  onRemove: (key: string) => void;
+}) {
+  const [newKey, setNewKey] = useState("");
+  const entries = Object.entries(permission);
+
+  return (
+    <EntriesWrapper empty={entries.length === 0}>
+      <table className="conventions-table">
+        <colgroup>
+          <col style={{ width: "14em" }} />
+          <col style={{ width: "12em" }} />
+          <col style={{ width: "10em" }} />
+          <col style={{ width: "10em" }} />
+          <col />
+          <col style={{ width: 28 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>key (@conv.permission.xxx)</th>
+            <th>resource</th>
+            <th>action</th>
+            <th>scope</th>
+            <th>description</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(([key, entry]) => (
+            <tr key={key}>
+              <td><code className="conventions-key-badge">{key}</code></td>
+              <td>
+                <input
+                  className="form-control form-control-sm"
+                  value={entry.resource}
+                  onChange={(e) => onUpdate(key, { resource: e.target.value })}
+                  onBlur={onCommit}
+                  placeholder="Order"
+                />
+              </td>
+              <td>
+                <input
+                  className="form-control form-control-sm"
+                  value={entry.action}
+                  onChange={(e) => onUpdate(key, { action: e.target.value })}
+                  onBlur={onCommit}
+                  placeholder="create"
+                />
+              </td>
+              <td>
+                <select
+                  className="form-select form-select-sm"
+                  value={entry.scope ?? ""}
+                  onChange={(e) => {
+                    onUpdate(key, { scope: (e.target.value || undefined) as PermissionEntry["scope"] });
+                    onCommit();
+                  }}
+                >
+                  {SCOPE_OPTIONS.map((o) => <option key={o} value={o}>{o || "(未指定)"}</option>)}
+                </select>
+              </td>
+              <td>
+                <input
+                  className="form-control form-control-sm"
+                  value={entry.description ?? ""}
+                  onChange={(e) => onUpdate(key, { description: e.target.value || undefined })}
+                  onBlur={onCommit}
+                />
+              </td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <NewKeyRow
+        placeholder="新規 key (例: order.create)"
+        value={newKey}
+        setValue={setNewKey}
+        onAdd={() => { const k = newKey.trim(); if (k && !permission[k]) { onAdd(k); setNewKey(""); } }}
+        disabled={!newKey.trim() || Object.hasOwn(permission, newKey.trim())}
       />
     </EntriesWrapper>
   );
