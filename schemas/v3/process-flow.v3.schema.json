@@ -55,7 +55,7 @@
     },
 
     "PrimaryInvoker": {
-      "description": "本処理フローの主たる呼び出し元 (任意、#624)。designer 編集時の補完精度向上のためのメタ情報で、実行時には参照されない。副次的呼び出し (他画面 / batch / 他フロー) は宣言不要 — 画面項目側 events[].handlerFlowId のみで成立する。",
+      "description": "本処理フローの主たる呼び出し元 (任意、#624)。designer 編集時の補完精度向上のためのメタ情報で、実行時には参照されない。副次的呼び出し (他画面 / batch / 他フロー) は宣言不要 — 画面項目側 events[].handlerFlowId のみで成立する。現状は kind='screen-item-event' のみ対応 (1 要素 oneOf)。将来 'batch-trigger' / 'external-trigger' 等の variant を追加する際は AJV の discriminator キーワード採用を検討する。",
       "oneOf": [
         {
           "type": "object",

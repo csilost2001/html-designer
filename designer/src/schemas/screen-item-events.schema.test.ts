@@ -116,6 +116,42 @@ describe("ScreenItem.events[] (#624)", () => {
     };
     expect(validateScreenItem(item)).toBe(false);
   });
+
+  it("argumentMapping のキーが Identifier 形式 (lowerCamelCase) でないと fail", () => {
+    const item = {
+      id: "submitBtn",
+      label: "送信",
+      type: "string",
+      events: [
+        {
+          id: "click",
+          handlerFlowId: FLOW_UUID,
+          argumentMapping: {
+            "Invalid-Key": "@self.value",
+          },
+        },
+      ],
+    };
+    expect(validateScreenItem(item)).toBe(false);
+  });
+
+  it("argumentMapping の値が string (ExpressionString) でないと fail", () => {
+    const item = {
+      id: "submitBtn",
+      label: "送信",
+      type: "string",
+      events: [
+        {
+          id: "click",
+          handlerFlowId: FLOW_UUID,
+          argumentMapping: {
+            userId: 12345,
+          },
+        },
+      ],
+    };
+    expect(validateScreenItem(item)).toBe(false);
+  });
 });
 
 describe("ProcessFlow.meta.primaryInvoker (#624)", () => {
@@ -176,6 +212,22 @@ describe("ProcessFlow.meta.primaryInvoker (#624)", () => {
           itemId: "submitBtn",
           eventId: "click",
           unknownField: "rejected",
+        },
+      }),
+      actions: [],
+    };
+    expect(validateProcessFlow(flow)).toBe(false);
+  });
+
+  it("primaryInvoker.itemId が Identifier 形式 (lowerCamelCase) でないと fail", () => {
+    const flow = {
+      meta: makeMeta({
+        kind: "screen",
+        primaryInvoker: {
+          kind: "screen-item-event",
+          screenId: SCREEN_UUID,
+          itemId: "Submit-Btn",
+          eventId: "click",
         },
       }),
       actions: [],

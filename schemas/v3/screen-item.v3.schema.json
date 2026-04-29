@@ -82,7 +82,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "イベント ID (画面項目内ユニーク、例: 'click' / 'submit' / 'change' / 'blur')。"
+          "description": "イベント ID (例: 'click' / 'submit' / 'change' / 'blur')。画面項目内ユニーク制約は validator 側 (#619) で担保 (JSON Schema 標準では配列内の特定プロパティ一意制約を表現できないため)。"
         },
         "label": {
           "$ref": "common.v3.schema.json#/$defs/DisplayName",
@@ -94,7 +94,8 @@
         },
         "argumentMapping": {
           "type": "object",
-          "description": "画面コンテキストを処理フロー引数 (inputs[]) に変換するマッピング。キーは処理フロー側 inputs[].name、値は画面コンテキスト式 (@screen.* / @self.* / @session.* 等)。",
+          "description": "画面コンテキストを処理フロー引数 (inputs[]) に変換するマッピング。キーは処理フロー側 inputs[].name (Identifier 形式: lowerCamelCase)、値は画面コンテキスト式 (@screen.* / @self.* / @session.* 等)。",
+          "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
           "additionalProperties": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" }
         }
       }
