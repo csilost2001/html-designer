@@ -86,6 +86,8 @@ export function TableEditor() {
   }
 
   const ddl = generateDdl(table, ddlDialect, allTables);
+  const columnsEmpty = table.columns.length === 0;
+  const primaryKeyEmpty = !table.columns.some((column) => column.primaryKey);
 
   return (
     <div className="table-editor-page">
@@ -135,6 +137,12 @@ export function TableEditor() {
       <div className="table-editor-tabs">
         <button className={tab === "columns" ? "active" : ""} onClick={() => setTab("columns")}>
           <i className="bi bi-columns-gap" /> 列 <span className="tab-count">{table.columns.length}</span>
+          {columnsEmpty && (
+            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="カラムが未定義です">{"\u26A0\uFE0F"}</span>
+          )}
+          {primaryKeyEmpty && (
+            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="主キーが未指定です">{"\u26A0\uFE0F"}</span>
+          )}
         </button>
         <button className={tab === "constraints" ? "active" : ""} onClick={() => setTab("constraints")}>
           <i className="bi bi-shield-check" /> 制約
@@ -202,6 +210,7 @@ function TableMetaEditor({
   const [category, setCategory] = useState<string>(table.category ?? "");
   const [maturity, setMaturity] = useState<string>(table.maturity ?? "");
   const [version, setVersion] = useState<string>(table.version ?? "");
+  const physicalNameEmpty = !physicalName.trim();
 
   return (
     <div className="table-meta-editor">
@@ -212,6 +221,9 @@ function TableMetaEditor({
         placeholder="物理名 (snake_case)"
         autoFocus
       />
+      {physicalNameEmpty && (
+        <span className="view-editor-section-marker" style={{ color: "red", marginLeft: 2 }} title="物理名が必須です">{"\u26A0\uFE0F"}</span>
+      )}
       <input
         className="table-meta-input"
         value={name}
@@ -629,12 +641,20 @@ function ColumnsTab({
 
   const selectedCount = selection.selectedIds.size;
   const anySelected = selectedCount > 0;
+  const columnsEmpty = table.columns.length === 0;
+  const primaryKeyEmpty = !table.columns.some((column) => column.primaryKey);
 
   return (
     <div className="columns-tab">
       <div className="columns-selection-bar">
         <span className="columns-selection-count">
           {anySelected ? `${selectedCount} 件選択中 (ダブルクリック/Enter で編集)` : "クリックで選択、ダブルクリックで編集"}
+          {columnsEmpty && (
+            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="カラムが未定義です">{"\u26A0\uFE0F"}</span>
+          )}
+          {primaryKeyEmpty && (
+            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="主キーが未指定です">{"\u26A0\uFE0F"}</span>
+          )}
         </span>
         <div className="columns-selection-actions">
           <button
