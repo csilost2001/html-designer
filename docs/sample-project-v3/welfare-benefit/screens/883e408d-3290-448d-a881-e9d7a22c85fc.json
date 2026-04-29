@@ -1,0 +1,105 @@
+{
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
+  "id": "883e408d-3290-448d-a881-e9d7a22c85fc",
+  "name": "給付申請受付",
+  "description": "住民または窓口担当者が福祉給付の申請を行う画面。送信時に処理フロー bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d (給付申請受付) を実行する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "kind": "form",
+  "path": "/welfare-benefit/applications/new",
+  "auth": "required",
+  "items": [
+    {
+      "id": "applicantCode",
+      "label": "申請者ID",
+      "type": { "kind": "domain", "domainKey": "ApplicantId" },
+      "direction": "input",
+      "required": true,
+      "errorMessages": {
+        "required": "@conv.msg.applicantCode.required",
+        "invalidFormat": "@conv.msg.applicantCode.invalid"
+      }
+    },
+    {
+      "id": "benefitType",
+      "label": "給付種別",
+      "type": { "kind": "domain", "domainKey": "BenefitType" },
+      "direction": "input",
+      "required": true,
+      "options": [
+        { "value": "child_allowance", "label": "児童手当" },
+        { "value": "livelihood_support", "label": "生活扶助" },
+        { "value": "medical_expense_subsidy", "label": "医療扶助" },
+        { "value": "disability_support", "label": "障害者支援" }
+      ],
+      "errorMessages": {
+        "required": "@conv.msg.benefitType.required"
+      }
+    },
+    {
+      "id": "requestedAmount",
+      "label": "申請額",
+      "type": { "kind": "domain", "domainKey": "MoneyAmount" },
+      "direction": "input",
+      "required": true,
+      "min": 0,
+      "displayFormat": "¥#,##0",
+      "errorMessages": {
+        "required": "@conv.msg.requestedAmount.required",
+        "outOfRange": "@conv.msg.requestedAmount.outOfRange"
+      }
+    },
+    {
+      "id": "reason",
+      "label": "申請理由",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "maxLength": 1000,
+      "placeholder": "状況・事情を簡潔に",
+      "errorMessages": {
+        "required": "@conv.msg.reason.required"
+      }
+    },
+    {
+      "id": "addressForVerification",
+      "label": "本人確認用住所",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "maxLength": 200,
+      "errorMessages": {
+        "required": "@conv.msg.addressForVerification.required"
+      }
+    },
+    {
+      "id": "submitBtn",
+      "label": "申請を提出",
+      "type": "string",
+      "events": [
+        {
+          "id": "click",
+          "label": "申請提出",
+          "handlerFlowId": "bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d",
+          "argumentMapping": {
+            "applicantCode": "@self.applicantCode",
+            "benefitType": "@self.benefitType",
+            "requestedAmount": "@self.requestedAmount",
+            "reason": "@self.reason",
+            "addressForVerification": "@self.addressForVerification"
+          }
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "glossary": {
+      "給付申請": {
+        "definition": "住民が福祉給付を受けるために自治体に行う申請。本人確認・受給資格確認・重複申請チェックを経て受付番号が発行される。",
+        "aliases": ["Benefit Application"]
+      }
+    }
+  }
+}
