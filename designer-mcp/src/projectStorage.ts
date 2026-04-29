@@ -401,6 +401,23 @@ export async function deleteTable(tableId: string): Promise<void> {
   } catch { /* file not found is OK */ }
 }
 
+/** tables/ ディレクトリ内の全テーブル定義を読み込み (#587) */
+export async function listAllTables(): Promise<unknown[]> {
+  try {
+    await ensureDataDir();
+    const files = await fs.readdir(TABLES_DIR);
+    const results: unknown[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const data = await readJSON<unknown>(path.join(TABLES_DIR, file));
+      if (data) results.push(data);
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 /** actions/{processFlowId}.json を読み込み */
 export async function readProcessFlow(processFlowId: string): Promise<unknown | null> {
   return readJSON<unknown>(path.join(ACTIONS_DIR, `${processFlowId}.json`));
@@ -482,6 +499,23 @@ export async function deleteSequence(sequenceId: string): Promise<void> {
   try {
     await fs.unlink(path.join(SEQUENCES_DIR, `${sequenceId}.json`));
   } catch { /* file not found is OK */ }
+}
+
+/** views/ ディレクトリ内の全ビュー定義を読み込み (#587) */
+export async function listAllViews(): Promise<unknown[]> {
+  try {
+    await ensureDataDir();
+    const files = await fs.readdir(VIEWS_DIR);
+    const results: unknown[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const data = await readJSON<unknown>(path.join(VIEWS_DIR, file));
+      if (data) results.push(data);
+    }
+    return results;
+  } catch {
+    return [];
+  }
 }
 
 /** views/{viewId}.json を読み込み (v3 per-entity #549) */

@@ -31,6 +31,7 @@ import { renumber, nextNo } from "../utils/listOrder";
 
 export interface TableStorageBackend {
   loadTable(tableId: string): Promise<unknown>;
+  listAllTables?(): Promise<unknown[]>;
   saveTable(tableId: string, data: unknown): Promise<void>;
   deleteTable(tableId: string): Promise<void>;
 }
@@ -75,7 +76,17 @@ export async function loadTable(tableId: string): Promise<Table | null> {
 
 export async function loadTableValidationMap(): Promise<Map<TableId, ValidationError[]>> {
   const entries = await listTables();
-  const tables = (await Promise.all(entries.map((entry) => loadTable(entry.id)))).filter((t): t is Table => t !== null);
+  const entryIds = new Set(entries.map((entry) => entry.id));
+
+  let tables: Table[];
+  if (_backend?.listAllTables) {
+    const all = (await _backend.listAllTables()) as Table[];
+    tables = all.filter((table) => entryIds.has(table.id));
+  } else {
+    tables = (await Promise.all(entries.map((entry) => loadTable(entry.id))))
+      .filter((t): t is Table => t !== null);
+  }
+
   const validationMap = new Map<TableId, ValidationError[]>();
 
   for (const table of tables) {

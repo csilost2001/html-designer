@@ -9,6 +9,7 @@ import { renumber, nextNo } from "../utils/listOrder";
 
 export interface ViewStorageBackend {
   loadView(viewId: string): Promise<unknown>;
+  listAllViews?(): Promise<unknown[]>;
   saveView(viewId: string, data: unknown): Promise<void>;
   deleteView(viewId: string): Promise<void>;
 }
@@ -47,7 +48,17 @@ export async function loadView(viewId: string): Promise<View | null> {
 
 export async function loadViewValidationMap(): Promise<Map<ViewId, ValidationError[]>> {
   const entries = await listViews();
-  const views = (await Promise.all(entries.map((entry) => loadView(entry.id)))).filter((v): v is View => v !== null);
+  const entryIds = new Set(entries.map((entry) => entry.id));
+
+  let views: View[];
+  if (_backend?.listAllViews) {
+    const all = (await _backend.listAllViews()) as View[];
+    views = all.filter((view) => entryIds.has(view.id));
+  } else {
+    views = (await Promise.all(entries.map((entry) => loadView(entry.id))))
+      .filter((v): v is View => v !== null);
+  }
+
   const validationMap = new Map<ViewId, ValidationError[]>();
 
   for (const view of views) {
