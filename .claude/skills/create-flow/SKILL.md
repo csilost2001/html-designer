@@ -141,11 +141,15 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 - 典型ミス: `SELECT id, status FROM table` で取得後、後続で `@row.quantity` を参照 → 実行時 undefined
 - 対処: SELECT 句に必要カラムを全列挙、または compute step で別途取得
 
+**Step 5.2 で `validate:dogfood` により機械的に検出される**
+
 ### Rule 10: `@conv.*` 参照の catalog 整合 (#486 で発覚)
 
 - フロー内で参照する全 `@conv.*` キーが `docs/sample-project/conventions/conventions-catalog.json` に存在することを確認
 - 典型ミス: ADR で `@conv.limit.maxDeliveryAttempts` を仕様化したが catalog 追加を忘れる → runtime で undefined 解決、condition が常に false
 - 対処: 新規 `@conv.*` キーを使うときは必ず catalog にも追加 (本 PR で追加するか、別 ISSUE で先行追加)
+
+**Step 5.2 で `validate:dogfood` により機械的に検出される**
 
 ### Rule 11: TX 内 branch return 後の制御 (#486 で発覚)
 
@@ -211,13 +215,51 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 
 ## Step 5: 完成後の自己検証 (必須)
 
+### 5.1 構造検証
+
 ```bash
 cd designer
 npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.schema.test.ts
 npm run build
 ```
 
-両 pass を確認したら、**強く推奨**:
+### 5.2 バリデータ横断検証 (Rule 9/10 の機械的検出)
+
+作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
+
+```bash
+cd designer
+npm run validate:dogfood
+```
+
+これにより以下を機械的に検出する:
+
+| バリデータ | 検出内容 | 対応 Rule |
+|---|---|---|
+| sqlColumnValidator | SQL 内で参照したカラムがテーブル定義に存在しない | Rule 9 |
+| conventionsValidator | `@conv.*` 参照が conventions-catalog.json 未登録 | Rule 10 |
+| referentialIntegrity | responseRef / errorCode / systemRef / compensatesFor の不整合 | Rule 5 / Rule 8 補強 |
+| identifierScope | 識別子スコープ違反 (root レベル) | Rule 1 補強 |
+
+**fail した場合の対処**:
+- `UNKNOWN_COLUMN` → SELECT 句を見直す or テーブル定義を更新
+- `UNKNOWN_CONV_LIMIT` 等 → `docs/sample-project/conventions/conventions-catalog.json` に追加 or 既存キーへ修正
+- 構造的に解消できない場合は ISSUE 起票して停止 (グローバル schema 変更は禁止 — Rule 15)
+
+### 5.3 単一フロー検証 (任意)
+
+`validate:dogfood` は `docs/sample-project/` 全件対象のため、作成中フロー 1 件のみを検証したい場合:
+
+```bash
+cd designer
+npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
+```
+
+または `validateDogfood.test.ts` のパターンを参考にインライン実行 (詳細は同テストを参照)。
+
+### 5.4 /review-flow による最終検証
+
+5.1 / 5.2 が pass したら、**強く推奨**:
 
 ```
 /review-flow <flowId>
@@ -265,8 +307,9 @@ npm run build
 
 ### 検証結果
 - vitest: <pass/fail 件数>
-- npm run build: <成功/失敗>
-- /review-flow 自己実行: <実施済 Must-fix N 件 / 未実施>
+- build: <pass/fail>
+- validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope)
+- /review-flow: <Must-fix 件数 / Should-fix 件数>
 
 ### 推奨: 次の手順
 - /review-flow を未実施なら実施
