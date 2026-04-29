@@ -1,7 +1,6 @@
-// @ts-nocheck
 import type { ProcessFlow, StructuredField } from "../types/action";
 import type { Screen } from "../types/v3/screen";
-import type { ScreenItem } from "../types/v3/screen-item";
+import type { ScreenItem, ScreenItemEvent } from "../types/v3/screen-item";
 
 export type ScreenItemFieldTypeIssueCode =
   | "OPTIONS_NOT_SUBSET_OF_ENUM"
@@ -12,6 +11,7 @@ export type ScreenItemFieldTypeIssueCode =
   | "TYPE_MISMATCH";
 
 export interface ScreenItemFieldTypeIssue {
+  path: string;
   code: ScreenItemFieldTypeIssueCode;
   severity: "error" | "warning";
   screenId: string;
@@ -23,128 +23,138 @@ export interface ScreenItemFieldTypeIssue {
 
 interface MappedPair {
   screenId: string;
-  item: ScreenItem;
+  itemId: string;
+  eventId: string;
   flowId: string;
-  inputId: string;
-  input: StructuredField;
+  inputName: string;
+  screenItem: ScreenItem;
+  flowInput: StructuredField;
+  argExpression: string;
+  path: string;
 }
 
-const SELF_ITEM_REF = /^@self\.([a-zA-Z_][\w-]*)/;
+const SELF_ITEM_REF = /^@self\.([a-zA-Z_][\w-]*)$/;
 
 function getFlowId(flow: ProcessFlow): string | null {
-  return flow.id ?? flow.meta?.id ?? null;
+  return (flow as { id?: string }).id ?? flow.meta?.id ?? null;
 }
 
 function getScreenId(screen: Screen): string | null {
-  return screen.id ?? screen.meta?.id ?? null;
+  return (screen as { id?: string }).id ?? (screen as { meta?: { id: string } }).meta?.id ?? null;
 }
 
-function getFlowInputs(flow: ProcessFlow): StructuredField[] {
-  if (Array.isArray(flow.inputs)) return flow.inputs;
-  if (Array.isArray(flow.actions?.[0]?.inputs)) return flow.actions[0].inputs;
-  return [];
-}
-
-function getStepCandidates(flow: ProcessFlow): any[] {
-  const steps = Array.isArray(flow.steps) ? [...flow.steps] : [];
-  for (const action of flow.actions ?? []) {
-    if (Array.isArray(action.steps)) steps.push(...action.steps);
-  }
-  return steps;
-}
-
-function getArgumentMapping(step: any): Record<string, string> | null {
-  const mapping = step?.action?.argumentMapping ?? step?.argumentMapping;
-  return mapping && typeof mapping === "object" ? mapping : null;
-}
-
-function findScreenItems(screens: Screen[], flow: ProcessFlow, itemId: string): Array<{ screenId: string; item: ScreenItem }> {
-  const preferredScreenId = flow.meta?.primaryInvoker?.screenId;
-  const targetScreens = preferredScreenId
-    ? screens.filter((screen) => getScreenId(screen) === preferredScreenId)
-    : screens;
-
-  const found: Array<{ screenId: string; item: ScreenItem }> = [];
-  for (const screen of targetScreens) {
-    const screenId = getScreenId(screen);
-    if (!screenId) continue;
-    for (const item of screen.items ?? []) {
-      if (item.id === itemId) found.push({ screenId, item });
-    }
-  }
-  return found;
+function getPrimaryInputs(flow: ProcessFlow): StructuredField[] {
+  return flow.actions?.[0]?.inputs ?? [];
 }
 
 function collectMappedPairs(flows: ProcessFlow[], screens: Screen[]): MappedPair[] {
   const pairs: MappedPair[] = [];
+  const flowById = new Map<string, ProcessFlow>();
 
   for (const flow of flows) {
     const flowId = getFlowId(flow);
-    if (!flowId) continue;
-
-    const inputByName = new Map<string, StructuredField>();
-    for (const input of getFlowInputs(flow)) {
-      inputByName.set(input.name, input);
-    }
-
-    for (const step of getStepCandidates(flow)) {
-      const argumentMapping = getArgumentMapping(step);
-      if (!argumentMapping) continue;
-
-      for (const [inputId, expression] of Object.entries(argumentMapping)) {
-        if (typeof expression !== "string") continue;
-        const match = expression.match(SELF_ITEM_REF);
-        if (!match) continue;
-
-        const input = inputByName.get(inputId);
-        if (!input) continue;
-
-        for (const { screenId, item } of findScreenItems(screens, flow, match[1])) {
-          pairs.push({ screenId, item, flowId, inputId, input });
-        }
-      }
-    }
+    if (flowId) flowById.set(flowId, flow);
   }
+
+  screens.forEach((screen, si) => {
+    const screenId = getScreenId(screen) ?? `screens[${si}]`;
+    const screenItems = screen.items ?? [];
+
+    screenItems.forEach((item: ScreenItem, ii: number) => {
+      item.events?.forEach((event: ScreenItemEvent, ei: number) => {
+        const targetFlow = flowById.get(event.handlerFlowId);
+        if (!targetFlow) return;
+
+        const argMapping = event.argumentMapping ?? {};
+        const inputs = getPrimaryInputs(targetFlow);
+
+        Object.entries(argMapping).forEach(([inputName, argExpression]) => {
+          const flowInput = inputs.find((input) => input.name === inputName);
+          if (!flowInput) return;
+
+          const expression = String(argExpression);
+          const selfRef = expression.match(SELF_ITEM_REF);
+          const mappedScreenItem = selfRef ? screenItems.find((screenItem) => screenItem.id === selfRef[1]) : undefined;
+
+          pairs.push({
+            screenId,
+            itemId: item.id ?? String(ii),
+            eventId: event.id ?? (event as { type?: string }).type ?? String(ei),
+            flowId: event.handlerFlowId,
+            inputName,
+            screenItem: mappedScreenItem ?? item,
+            flowInput,
+            argExpression: expression,
+            path: `screens[si=${screenId}].items[ii=${item.id ?? ii}].events[ei=${
+              event.id ?? ei
+            }].argumentMapping.${inputName}`,
+          });
+        });
+      });
+    });
+  });
 
   return pairs;
 }
 
-function getDomain(input: StructuredField): any | null {
-  return input.domain && typeof input.domain === "object" ? input.domain : null;
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
-function getEnumValues(input: StructuredField): unknown[] | null {
-  const values = getDomain(input)?.enum?.values;
+function getDomain(field: StructuredField): Record<string, unknown> | null {
+  const type = asRecord(field.type);
+  const typeDomain = asRecord(type?.domain);
+  if (typeDomain) return typeDomain;
+  return asRecord((field as { domain?: unknown }).domain);
+}
+
+function getEnumValues(field: StructuredField): unknown[] | null {
+  const values = asRecord(getDomain(field)?.enum)?.values;
   return Array.isArray(values) ? values : null;
 }
 
 function getItemPattern(item: ScreenItem): string | undefined {
-  return item.validation?.pattern ?? item.pattern;
+  const validation = asRecord((item as { validation?: unknown }).validation);
+  return (typeof validation?.pattern === "string" ? validation.pattern : undefined) ?? item.pattern;
 }
 
 function getItemMin(item: ScreenItem): number | undefined {
-  return item.validation?.min ?? item.min;
+  const validation = asRecord((item as { validation?: unknown }).validation);
+  const minimum = validation?.minimum;
+  const min = validation?.min;
+  return (typeof minimum === "number" ? minimum : undefined) ?? (typeof min === "number" ? min : undefined) ?? item.min;
 }
 
 function getItemMax(item: ScreenItem): number | undefined {
-  return item.validation?.max ?? item.max;
+  const validation = asRecord((item as { validation?: unknown }).validation);
+  const maximum = validation?.maximum;
+  const max = validation?.max;
+  return (typeof maximum === "number" ? maximum : undefined) ?? (typeof max === "number" ? max : undefined) ?? item.max;
 }
 
 function getItemMinLength(item: ScreenItem): number | undefined {
-  return item.validation?.minLength ?? item.minLength;
+  const validation = asRecord((item as { validation?: unknown }).validation);
+  const minLength = validation?.minLength;
+  return (typeof minLength === "number" ? minLength : undefined) ?? item.minLength;
 }
 
 function getItemMaxLength(item: ScreenItem): number | undefined {
-  return item.validation?.maxLength ?? item.maxLength;
+  const validation = asRecord((item as { validation?: unknown }).validation);
+  const maxLength = validation?.maxLength;
+  return (typeof maxLength === "number" ? maxLength : undefined) ?? item.maxLength;
 }
 
 function getDomainKey(type: unknown): string | undefined {
-  return typeof type === "object" && type !== null ? type.domainKey : undefined;
+  const record = asRecord(type);
+  return typeof record?.domainKey === "string" ? record.domainKey : undefined;
 }
 
 function normalizeTypeForComparison(type: unknown): string | null {
   if (typeof type === "string") return type;
-  if (typeof type === "object" && type !== null && typeof type.kind === "string") return type.kind;
+
+  const record = asRecord(type);
+  if (typeof record?.kind === "string") return record.kind;
+
   return null;
 }
 
@@ -156,19 +166,20 @@ function addIssue(
   message: string,
 ): void {
   issues.push({
+    path: pair.path,
     code,
     severity,
     screenId: pair.screenId,
-    itemId: pair.item.id,
+    itemId: pair.itemId,
     flowId: pair.flowId,
-    inputId: pair.inputId,
+    inputId: pair.inputName,
     message,
   });
 }
 
 function checkOptionsSubset(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
-  const optionValues = pair.item.options?.map((option) => option.value);
-  const enumValues = getEnumValues(pair.input);
+  const optionValues = pair.screenItem.options?.map((option) => option.value);
+  const enumValues = getEnumValues(pair.flowInput);
   if (!optionValues?.length || !enumValues?.length) return;
 
   const enumSet = new Set(enumValues);
@@ -179,32 +190,69 @@ function checkOptionsSubset(issues: ScreenItemFieldTypeIssue[], pair: MappedPair
       pair,
       "OPTIONS_NOT_SUBSET_OF_ENUM",
       "error",
-      `画面項目 '${pair.item.id}' の options が処理フロー入力 '${pair.inputId}' の enum に含まれない値を持っています: ${extras.join(", ")}`,
+      `Screen item '${pair.itemId}' options contain values outside flow input '${pair.inputName}' enum: ${extras.join(
+        ", ",
+      )}`,
+    );
+  }
+}
+
+function checkDomainKeyMismatch(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
+  const itemDomainKey = getDomainKey(pair.screenItem.type);
+  const inputDomainKey = getDomainKey(pair.flowInput.type);
+  if (itemDomainKey === undefined || inputDomainKey === undefined) return;
+
+  if (itemDomainKey !== inputDomainKey) {
+    addIssue(
+      issues,
+      pair,
+      "DOMAIN_KEY_MISMATCH",
+      "error",
+      `Screen item '${pair.itemId}' domainKey does not match flow input '${pair.inputName}'.`,
+    );
+  }
+}
+
+function checkTypeMismatch(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
+  if (!SELF_ITEM_REF.test(pair.argExpression)) return;
+
+  const itemType = normalizeTypeForComparison(pair.screenItem.type);
+  const inputType = normalizeTypeForComparison(pair.flowInput.type);
+  if (itemType === null || inputType === null) return;
+
+  if (itemType !== inputType) {
+    addIssue(
+      issues,
+      pair,
+      "TYPE_MISMATCH",
+      "error",
+      `Mapped screen item '${pair.screenItem.id}' type '${itemType}' does not match flow input '${pair.inputName}' type '${inputType}'.`,
     );
   }
 }
 
 function checkPatternDivergence(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
-  const itemPattern = getItemPattern(pair.item);
-  const inputPattern = getDomain(pair.input)?.pattern;
+  const itemPattern = getItemPattern(pair.screenItem);
+  const inputPattern = getDomain(pair.flowInput)?.pattern;
   if (itemPattern === undefined || inputPattern === undefined) return;
+
   if (itemPattern !== inputPattern) {
     addIssue(
       issues,
       pair,
       "PATTERN_DIVERGENCE",
       "warning",
-      `画面項目 '${pair.item.id}' と処理フロー入力 '${pair.inputId}' の pattern が一致しません。`,
+      `Screen item '${pair.itemId}' pattern does not match flow input '${pair.inputName}' pattern.`,
     );
   }
 }
 
 function checkRangeDivergence(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
-  const domain = getDomain(pair.input);
+  const domain = getDomain(pair.flowInput);
   if (!domain) return;
 
-  const itemMin = getItemMin(pair.item);
-  const itemMax = getItemMax(pair.item);
+  const itemMin = getItemMin(pair.screenItem);
+  const itemMax = getItemMax(pair.screenItem);
   const minDiffers = itemMin !== undefined && domain.minimum !== undefined && itemMin !== domain.minimum;
   const maxDiffers = itemMax !== undefined && domain.maximum !== undefined && itemMax !== domain.maximum;
 
@@ -214,17 +262,17 @@ function checkRangeDivergence(issues: ScreenItemFieldTypeIssue[], pair: MappedPa
       pair,
       "RANGE_DIVERGENCE",
       "warning",
-      `画面項目 '${pair.item.id}' と処理フロー入力 '${pair.inputId}' の数値範囲が一致しません。`,
+      `Screen item '${pair.itemId}' numeric range does not match flow input '${pair.inputName}' range.`,
     );
   }
 }
 
 function checkLengthDivergence(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
-  const domain = getDomain(pair.input);
+  const domain = getDomain(pair.flowInput);
   if (!domain) return;
 
-  const itemMinLength = getItemMinLength(pair.item);
-  const itemMaxLength = getItemMaxLength(pair.item);
+  const itemMinLength = getItemMinLength(pair.screenItem);
+  const itemMaxLength = getItemMaxLength(pair.screenItem);
   const minLengthDiffers =
     itemMinLength !== undefined && domain.minLength !== undefined && itemMinLength !== domain.minLength;
   const maxLengthDiffers =
@@ -236,51 +284,21 @@ function checkLengthDivergence(issues: ScreenItemFieldTypeIssue[], pair: MappedP
       pair,
       "LENGTH_DIVERGENCE",
       "warning",
-      `画面項目 '${pair.item.id}' と処理フロー入力 '${pair.inputId}' の文字数範囲が一致しません。`,
+      `Screen item '${pair.itemId}' text length does not match flow input '${pair.inputName}' length.`,
     );
   }
 }
 
-function checkDomainKeyMismatch(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
-  const itemDomainKey = getDomainKey(pair.item.type);
-  const inputDomainKey = getDomainKey(pair.input.type);
-  if (itemDomainKey === undefined || inputDomainKey === undefined) return;
-  if (itemDomainKey !== inputDomainKey) {
-    addIssue(
-      issues,
-      pair,
-      "DOMAIN_KEY_MISMATCH",
-      "error",
-      `画面項目 '${pair.item.id}' と処理フロー入力 '${pair.inputId}' の domainKey が一致しません。`,
-    );
-  }
-}
-
-function checkTypeMismatch(issues: ScreenItemFieldTypeIssue[], pair: MappedPair): void {
-  const itemType = normalizeTypeForComparison(pair.item.type);
-  const inputType = normalizeTypeForComparison(pair.input.type);
-  if (itemType === null || inputType === null) return;
-  if (itemType !== inputType) {
-    addIssue(
-      issues,
-      pair,
-      "TYPE_MISMATCH",
-      "error",
-      `画面項目 '${pair.item.id}' の type '${itemType}' が処理フロー入力 '${pair.inputId}' の type '${inputType}' と一致しません。`,
-    );
-  }
-}
-
-export function checkScreenItemFieldTypeConsistency(flows: any[], screens: any[]): ScreenItemFieldTypeIssue[] {
+export function checkScreenItemFieldTypeConsistency(flows: ProcessFlow[], screens: Screen[]): ScreenItemFieldTypeIssue[] {
   const issues: ScreenItemFieldTypeIssue[] = [];
 
   for (const pair of collectMappedPairs(flows ?? [], screens ?? [])) {
     checkOptionsSubset(issues, pair);
+    checkDomainKeyMismatch(issues, pair);
+    checkTypeMismatch(issues, pair);
     checkPatternDivergence(issues, pair);
     checkRangeDivergence(issues, pair);
     checkLengthDivergence(issues, pair);
-    checkDomainKeyMismatch(issues, pair);
-    checkTypeMismatch(issues, pair);
   }
 
   return issues;

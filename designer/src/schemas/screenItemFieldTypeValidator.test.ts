@@ -1,179 +1,217 @@
 import { describe, expect, it } from "vitest";
+import type { ProcessFlow, StructuredField } from "../types/action";
+import type { Screen } from "../types/v3/screen";
+import type { ScreenItem, ScreenItemEvent } from "../types/v3/screen-item";
 import { checkScreenItemFieldTypeConsistency } from "./screenItemFieldTypeValidator";
 
 const FLOW_ID = "11111111-1111-4111-8111-111111111111";
+const UNKNOWN_FLOW_ID = "99999999-9999-4999-8999-999999999999";
 const SCREEN_ID = "22222222-2222-4222-8222-222222222222";
 
-function makeFlow(input: Record<string, unknown>, expression = "@self.targetItem"): Record<string, unknown> {
+function makeEvent(argumentMapping?: Record<string, string>, handlerFlowId = FLOW_ID): ScreenItemEvent {
   return {
-    meta: {
-      id: FLOW_ID,
-      name: "テスト処理フロー",
-      kind: "screen",
-      primaryInvoker: { kind: "screen-item-event", screenId: SCREEN_ID, itemId: "button", eventId: "click" },
-      createdAt: "2026-04-30T00:00:00.000Z",
-      updatedAt: "2026-04-30T00:00:00.000Z",
-    },
-    inputs: [{ name: "value", ...input }],
-    steps: [{ id: "step1", kind: "validation", argumentMapping: { value: expression } }],
+    id: "change",
+    handlerFlowId,
+    ...(argumentMapping === undefined ? {} : { argumentMapping }),
   };
 }
 
-function makeFlowWithActionMapping(input: Record<string, unknown>, expression = "@self.targetItem"): Record<string, unknown> {
+function makeItem(
+  id: string,
+  type: unknown,
+  overrides: Record<string, unknown> = {},
+  events: ScreenItemEvent[] = [makeEvent({ value: `@self.${id}` })],
+): ScreenItem {
   return {
-    meta: {
-      id: FLOW_ID,
-      name: "テスト処理フロー",
-      kind: "screen",
-      primaryInvoker: { kind: "screen-item-event", screenId: SCREEN_ID, itemId: "button", eventId: "click" },
-      createdAt: "2026-04-30T00:00:00.000Z",
-      updatedAt: "2026-04-30T00:00:00.000Z",
-    },
-    inputs: [{ name: "value", ...input }],
-    steps: [{ id: "step1", kind: "validation", action: { argumentMapping: { value: expression } } }],
-  };
+    id,
+    label: id,
+    type,
+    events,
+    ...overrides,
+  } as ScreenItem;
 }
 
-function makeScreen(item: Record<string, unknown>): Record<string, unknown> {
+function makeScreen(screenId: string, items: ScreenItem[]): Screen {
   return {
-    id: SCREEN_ID,
-    name: "テスト画面",
+    id: screenId,
+    name: "test-screen",
     kind: "form",
     path: "/test",
     createdAt: "2026-04-30T00:00:00.000Z",
     updatedAt: "2026-04-30T00:00:00.000Z",
-    items: [{ id: "targetItem", label: "対象項目", ...item }],
+    items,
   };
 }
 
-function codes(flows: unknown[], screens: unknown[]): string[] {
-  return checkScreenItemFieldTypeConsistency(flows as never, screens as never).map((issue) => issue.code);
+function makeFlow(flowId: string, inputs: StructuredField[]): ProcessFlow {
+  return {
+    meta: {
+      id: flowId,
+      name: "test-flow",
+      kind: "screen",
+      createdAt: "2026-04-30T00:00:00.000Z",
+      updatedAt: "2026-04-30T00:00:00.000Z",
+    },
+    actions: [
+      {
+        id: "act1",
+        name: "submit",
+        trigger: "change",
+        inputs,
+        steps: [],
+      },
+    ],
+  };
+}
+
+function field(type: unknown, extra: Record<string, unknown> = {}): StructuredField {
+  return { name: "value", type, ...extra } as StructuredField;
+}
+
+function issues(flows: ProcessFlow[], screens: Screen[]) {
+  return checkScreenItemFieldTypeConsistency(flows, screens);
+}
+
+function codes(flows: ProcessFlow[], screens: Screen[]): string[] {
+  return issues(flows, screens).map((issue) => issue.code);
 }
 
 describe("checkScreenItemFieldTypeConsistency", () => {
-  it("OPTIONS_NOT_SUBSET_OF_ENUM: options が enum の部分集合でない場合に検出する", () => {
-    const flow = makeFlow({ type: "string", domain: { enum: { values: ["A", "B"] } } });
-    const screen = makeScreen({
-      type: "string",
-      options: [
-        { value: "A", label: "A" },
-        { value: "C", label: "C" },
-      ],
-    });
+  it("detects OPTIONS_NOT_SUBSET_OF_ENUM", () => {
+    const flow = makeFlow(FLOW_ID, [field("string", { domain: { enum: { values: ["A", "B"] } } })]);
+    const screen = makeScreen(SCREEN_ID, [
+      makeItem("status", "string", {
+        options: [
+          { value: "A", label: "A" },
+          { value: "C", label: "C" },
+        ],
+      }),
+    ]);
 
-    const issues = checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never);
+    const result = issues([flow], [screen]);
 
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      path: `screens[si=${SCREEN_ID}].items[ii=status].events[ei=change].argumentMapping.value`,
       code: "OPTIONS_NOT_SUBSET_OF_ENUM",
       severity: "error",
       screenId: SCREEN_ID,
-      itemId: "targetItem",
+      itemId: "status",
       flowId: FLOW_ID,
       inputId: "value",
     });
   });
 
-  it("OPTIONS_NOT_SUBSET_OF_ENUM: options が enum の部分集合なら検出しない", () => {
-    const flow = makeFlow({ type: "string", domain: { enum: { values: ["A", "B"] } } });
-    const screen = makeScreen({ type: "string", options: [{ value: "A", label: "A" }] });
+  it("does not detect OPTIONS_NOT_SUBSET_OF_ENUM when options are inside enum", () => {
+    const flow = makeFlow(FLOW_ID, [field("string", { domain: { enum: { values: ["A", "B"] } } })]);
+    const screen = makeScreen(SCREEN_ID, [
+      makeItem("status", "string", { options: [{ value: "A", label: "A" }] }),
+    ]);
 
     expect(codes([flow], [screen])).not.toContain("OPTIONS_NOT_SUBSET_OF_ENUM");
   });
 
-  it("PATTERN_DIVERGENCE: pattern が不一致なら warning を検出する", () => {
-    const flow = makeFlowWithActionMapping({ type: "string", domain: { pattern: "^[A-Z]+$" } });
-    const screen = makeScreen({ type: "string", pattern: "^[0-9]+$" });
+  it("detects DOMAIN_KEY_MISMATCH", () => {
+    const flow = makeFlow(FLOW_ID, [field({ kind: "domain", domainKey: "CustomerId" })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("customerId", { kind: "domain", domainKey: "OrderId" })]);
 
-    const issues = checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never);
-
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ code: "PATTERN_DIVERGENCE", severity: "warning" });
+    expect(issues([flow], [screen])).toMatchObject([{ code: "DOMAIN_KEY_MISMATCH", severity: "error" }]);
   });
 
-  it("PATTERN_DIVERGENCE: pattern が一致する場合は検出しない", () => {
-    const flow = makeFlow({ type: "string", domain: { pattern: "^[A-Z]+$" } });
-    const screen = makeScreen({ type: "string", validation: { pattern: "^[A-Z]+$" } });
-
-    expect(codes([flow], [screen])).not.toContain("PATTERN_DIVERGENCE");
-  });
-
-  it("RANGE_DIVERGENCE: min または max が不一致なら warning を検出する", () => {
-    const flow = makeFlow({ type: "number", domain: { minimum: 1, maximum: 10 } });
-    const screen = makeScreen({ type: "number", min: 2, max: 10 });
-
-    const issues = checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never);
-
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ code: "RANGE_DIVERGENCE", severity: "warning" });
-  });
-
-  it("RANGE_DIVERGENCE: min と max が一致する場合は検出しない", () => {
-    const flow = makeFlow({ type: "number", domain: { minimum: 1, maximum: 10 } });
-    const screen = makeScreen({ type: "number", validation: { min: 1, max: 10 } });
-
-    expect(codes([flow], [screen])).not.toContain("RANGE_DIVERGENCE");
-  });
-
-  it("LENGTH_DIVERGENCE: minLength または maxLength が不一致なら warning を検出する", () => {
-    const flow = makeFlow({ type: "string", domain: { minLength: 1, maxLength: 20 } });
-    const screen = makeScreen({ type: "string", minLength: 1, maxLength: 10 });
-
-    const issues = checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never);
-
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ code: "LENGTH_DIVERGENCE", severity: "warning" });
-  });
-
-  it("LENGTH_DIVERGENCE: minLength と maxLength が一致する場合は検出しない", () => {
-    const flow = makeFlow({ type: "string", domain: { minLength: 1, maxLength: 20 } });
-    const screen = makeScreen({ type: "string", validation: { minLength: 1, maxLength: 20 } });
-
-    expect(codes([flow], [screen])).not.toContain("LENGTH_DIVERGENCE");
-  });
-
-  it("DOMAIN_KEY_MISMATCH: domainKey が不一致なら error を検出する", () => {
-    const flow = makeFlow({ type: { kind: "domain", domainKey: "CustomerId" } });
-    const screen = makeScreen({ type: { kind: "domain", domainKey: "OrderId" } });
-
-    const issues = checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never);
-
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ code: "DOMAIN_KEY_MISMATCH", severity: "error" });
-  });
-
-  it("DOMAIN_KEY_MISMATCH: domainKey が一致する場合は検出しない", () => {
-    const flow = makeFlow({ type: { kind: "domain", domainKey: "CustomerId" } });
-    const screen = makeScreen({ type: { kind: "domain", domainKey: "CustomerId" } });
+  it("does not detect DOMAIN_KEY_MISMATCH when domainKey matches", () => {
+    const flow = makeFlow(FLOW_ID, [field({ kind: "domain", domainKey: "CustomerId" })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("customerId", { kind: "domain", domainKey: "CustomerId" })]);
 
     expect(codes([flow], [screen])).not.toContain("DOMAIN_KEY_MISMATCH");
   });
 
-  it("TYPE_MISMATCH: primitive type が不一致なら error を検出する", () => {
-    const flow = makeFlow({ type: "number" });
-    const screen = makeScreen({ type: "string" });
+  it("detects TYPE_MISMATCH through @self item reference", () => {
+    const flow = makeFlow(FLOW_ID, [field("number")]);
+    const screen = makeScreen(SCREEN_ID, [
+      makeItem("button", "string", {}, [makeEvent({ value: "@self.amount" })]),
+      makeItem("amount", "string", {}, []),
+    ]);
 
-    const issues = checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never);
-
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ code: "TYPE_MISMATCH", severity: "error" });
+    expect(issues([flow], [screen])).toMatchObject([{ code: "TYPE_MISMATCH", severity: "error" }]);
   });
 
-  it("TYPE_MISMATCH: kind が一致する場合は検出しない", () => {
-    const flow = makeFlow({ type: { kind: "domain", domainKey: "CustomerId" } });
-    const screen = makeScreen({ type: { kind: "domain", domainKey: "CustomerId" } });
+  it("does not detect TYPE_MISMATCH when @self item type matches", () => {
+    const flow = makeFlow(FLOW_ID, [field("number")]);
+    const screen = makeScreen(SCREEN_ID, [
+      makeItem("button", "string", {}, [makeEvent({ value: "@self.amount" })]),
+      makeItem("amount", "number", {}, []),
+    ]);
 
     expect(codes([flow], [screen])).not.toContain("TYPE_MISMATCH");
   });
 
-  it("空入力では issue を返さない", () => {
+  it("skips TYPE_MISMATCH for nested @self paths", () => {
+    const flow = makeFlow(FLOW_ID, [field("number")]);
+    const screen = makeScreen(SCREEN_ID, [
+      makeItem("button", "string", {}, [makeEvent({ value: "@self.amount.value" })]),
+      makeItem("amount", "string", {}, []),
+    ]);
+
+    expect(codes([flow], [screen])).not.toContain("TYPE_MISMATCH");
+  });
+
+  it("detects PATTERN_DIVERGENCE", () => {
+    const flow = makeFlow(FLOW_ID, [field("string", { domain: { pattern: "^[A-Z]+$" } })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("code", "string", { validation: { pattern: "^[0-9]+$" } })]);
+
+    expect(issues([flow], [screen])).toMatchObject([{ code: "PATTERN_DIVERGENCE", severity: "warning" }]);
+  });
+
+  it("does not detect PATTERN_DIVERGENCE when pattern matches", () => {
+    const flow = makeFlow(FLOW_ID, [field("string", { domain: { pattern: "^[A-Z]+$" } })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("code", "string", { validation: { pattern: "^[A-Z]+$" } })]);
+
+    expect(codes([flow], [screen])).not.toContain("PATTERN_DIVERGENCE");
+  });
+
+  it("detects RANGE_DIVERGENCE", () => {
+    const flow = makeFlow(FLOW_ID, [field("number", { domain: { minimum: 1, maximum: 10 } })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("quantity", "number", { validation: { minimum: 2, maximum: 10 } })]);
+
+    expect(issues([flow], [screen])).toMatchObject([{ code: "RANGE_DIVERGENCE", severity: "warning" }]);
+  });
+
+  it("does not detect RANGE_DIVERGENCE when range matches", () => {
+    const flow = makeFlow(FLOW_ID, [field("number", { domain: { minimum: 1, maximum: 10 } })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("quantity", "number", { validation: { minimum: 1, maximum: 10 } })]);
+
+    expect(codes([flow], [screen])).not.toContain("RANGE_DIVERGENCE");
+  });
+
+  it("detects LENGTH_DIVERGENCE", () => {
+    const flow = makeFlow(FLOW_ID, [field("string", { domain: { minLength: 1, maxLength: 20 } })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("name", "string", { validation: { minLength: 1, maxLength: 10 } })]);
+
+    expect(issues([flow], [screen])).toMatchObject([{ code: "LENGTH_DIVERGENCE", severity: "warning" }]);
+  });
+
+  it("does not detect LENGTH_DIVERGENCE when length matches", () => {
+    const flow = makeFlow(FLOW_ID, [field("string", { domain: { minLength: 1, maxLength: 20 } })]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("name", "string", { validation: { minLength: 1, maxLength: 20 } })]);
+
+    expect(codes([flow], [screen])).not.toContain("LENGTH_DIVERGENCE");
+  });
+
+  it("returns no issues for empty input", () => {
     expect(checkScreenItemFieldTypeConsistency([], [])).toEqual([]);
   });
 
-  it("argumentMapping 未設定の ScreenItem はスキップする", () => {
-    const flow = { ...makeFlow({ type: "number" }), steps: [{ id: "step1", kind: "validation" }] };
-    const screen = makeScreen({ type: "string" });
+  it("returns no issues when argumentMapping is absent", () => {
+    const flow = makeFlow(FLOW_ID, [field("number")]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("amount", "string", {}, [makeEvent(undefined)])]);
 
-    expect(checkScreenItemFieldTypeConsistency([flow] as never, [screen] as never)).toEqual([]);
+    expect(checkScreenItemFieldTypeConsistency([flow], [screen])).toEqual([]);
+  });
+
+  it("skips unknown handlerFlowId without crashing", () => {
+    const flow = makeFlow(FLOW_ID, [field("number")]);
+    const screen = makeScreen(SCREEN_ID, [makeItem("amount", "string", {}, [makeEvent({ value: "@self.amount" }, UNKNOWN_FLOW_ID)])]);
+
+    expect(checkScreenItemFieldTypeConsistency([flow], [screen])).toEqual([]);
   });
 });
