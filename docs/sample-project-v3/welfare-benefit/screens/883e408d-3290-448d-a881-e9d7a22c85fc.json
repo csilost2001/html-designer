@@ -29,10 +29,10 @@
       "direction": "input",
       "required": true,
       "options": [
-        { "value": "livelihood", "label": "生活扶助" },
-        { "value": "housing", "label": "住宅扶助" },
-        { "value": "medical", "label": "医療扶助" },
-        { "value": "education", "label": "教育扶助" }
+        { "value": "child_allowance", "label": "児童手当" },
+        { "value": "livelihood_support", "label": "生活扶助" },
+        { "value": "medical_expense_subsidy", "label": "医療扶助" },
+        { "value": "disability_support", "label": "障害者支援" }
       ],
       "errorMessages": {
         "required": "@conv.msg.benefitType.required"
