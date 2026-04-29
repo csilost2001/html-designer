@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "id": "b57571d6-dc31-4dad-aad9-a2315267ea90",
+  "name": "給付申請",
+  "description": "給付申請の本体。受付 → 一次審査 → 上長承認 → 最終決裁 → 支払の遷移を status に保持する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "physicalName": "applications",
+  "category": "トランザクション",
+  "comment": "申請履歴。status 遷移は WorkflowStep / 業務フローで管理。requested_amount は申請時点の希望額、approved_amount は最終決裁額。",
+  "columns": [
+    { "id": "col-app01", "no": 1, "physicalName": "id", "name": "申請内部ID", "dataType": "BIGINT", "notNull": true, "primaryKey": true, "autoIncrement": true },
+    { "id": "col-app02", "no": 2, "physicalName": "application_code", "name": "申請番号", "dataType": "VARCHAR", "length": 24, "notNull": true, "unique": true, "comment": "BN + YYYYMMDD + 連番8桁。" },
+    { "id": "col-app03", "no": 3, "physicalName": "applicant_id", "name": "申請者内部ID", "dataType": "BIGINT", "notNull": true },
+    { "id": "col-app04", "no": 4, "physicalName": "benefit_type", "name": "給付種別", "dataType": "VARCHAR", "length": 64, "notNull": true, "comment": "child_allowance / livelihood_support / medical_expense_subsidy 等。" },
+    { "id": "col-app05", "no": 5, "physicalName": "requested_amount", "name": "申請額", "dataType": "DECIMAL", "length": 14, "scale": 0, "notNull": true, "comment": "申請者が記入した希望給付額 (整数円)。" },
+    { "id": "col-app06", "no": 6, "physicalName": "approved_amount", "name": "決裁額", "dataType": "DECIMAL", "length": 14, "scale": 0, "comment": "審査確定後の最終給付額 (NULL は未確定)。" },
+    { "id": "col-app07", "no": 7, "physicalName": "currency", "name": "通貨", "dataType": "VARCHAR", "length": 8, "notNull": true, "defaultValue": "'JPY'" },
+    { "id": "col-app08", "no": 8, "physicalName": "reason", "name": "申請理由", "dataType": "TEXT", "notNull": true },
+    { "id": "col-app09", "no": 9, "physicalName": "status", "name": "ステータス", "dataType": "VARCHAR", "length": 30, "notNull": true, "defaultValue": "'received'", "comment": "received / under_first_review / under_manager_approval / under_final_decision / approved / rejected / paid / cancelled" },
+    { "id": "col-app10", "no": 10, "physicalName": "submitted_at", "name": "提出日時", "dataType": "TIMESTAMP", "notNull": true },
+    { "id": "col-app11", "no": 11, "physicalName": "decided_at", "name": "決裁日時", "dataType": "TIMESTAMP" },
+    { "id": "col-app12", "no": 12, "physicalName": "paid_at", "name": "支払日時", "dataType": "TIMESTAMP" },
+    { "id": "col-app13", "no": 13, "physicalName": "created_at", "name": "作成日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" },
+    { "id": "col-app14", "no": 14, "physicalName": "updated_at", "name": "更新日時", "dataType": "TIMESTAMP", "notNull": true, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "indexes": [
+    { "id": "idx-app01", "physicalName": "idx_applications_code", "columns": [{ "columnId": "col-app02" }], "unique": true },
+    { "id": "idx-app02", "physicalName": "idx_applications_applicant_status", "columns": [{ "columnId": "col-app03" }, { "columnId": "col-app09" }, { "columnId": "col-app10", "order": "desc" }] },
+    { "id": "idx-app03", "physicalName": "idx_applications_dup_check", "columns": [{ "columnId": "col-app03" }, { "columnId": "col-app04" }, { "columnId": "col-app10", "order": "desc" }], "description": "同一申請者・同一給付種別の重複申請検出を高速化する。" }
+  ],
+  "constraints": [
+    { "id": "fk-app01", "kind": "foreignKey", "physicalName": "fk_applications_applicant", "columnIds": ["col-app03"], "referencedTableId": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "referencedColumnIds": ["col-apl01"], "onDelete": "restrict", "onUpdate": "cascade" },
+    { "id": "chk-app01", "kind": "check", "physicalName": "chk_applications_status", "expression": "status IN ('received', 'under_first_review', 'under_manager_approval', 'under_final_decision', 'approved', 'rejected', 'paid', 'cancelled')" },
+    { "id": "chk-app02", "kind": "check", "physicalName": "chk_applications_amount_positive", "expression": "requested_amount > 0" },
+    { "id": "chk-app03", "kind": "check", "physicalName": "chk_applications_approved_le_requested", "expression": "approved_amount IS NULL OR approved_amount <= requested_amount" }
+  ]
+}

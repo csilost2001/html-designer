@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "82fe66b3-a89d-43ea-8713-0c083f42badd",
+    "name": "v3 dogfood Phase 2 医療業界",
+    "description": "診察予約、患者記録、処方箋発行を対象にした医療業界 v3 サンプル。PHI 保護、医師資格確認、重複処方チェック、薬剤師鑑査を含む。",
+    "version": "1.0.0",
+    "maturity": "draft",
+    "createdAt": "2026-04-30T00:00:00.000Z",
+    "updatedAt": "2026-04-30T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [
+    { "namespace": "healthcare", "version": ">=1.0.0" }
+  ],
+  "entities": {
+    "tables": [
+      { "id": "6b5ec66a-08bb-4df6-b908-1684b9c744c2", "no": 1, "name": "患者", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "patients", "category": "マスタ", "columnCount": 12 },
+      { "id": "6120a90d-5141-4377-bd12-854a1bdae023", "no": 2, "name": "診察予約", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "appointments", "category": "トランザクション", "columnCount": 14 },
+      { "id": "4bffe509-cd06-42de-a814-43c51d2ee5ed", "no": 3, "name": "患者記録", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "medical_records", "category": "トランザクション", "columnCount": 13 },
+      { "id": "d628ce21-bacc-4f6c-952b-a4c07846e740", "no": 4, "name": "処方箋", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "prescriptions", "category": "トランザクション", "columnCount": 16 },
+      { "id": "3cd0df6d-9a55-423c-9f12-829c132871ae", "no": 5, "name": "医療提供者", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "providers", "category": "マスタ", "columnCount": 10 }
+    ],
+    "processFlows": [
+      { "id": "0be3eb9c-c96e-498e-9be4-6efe3878097a", "no": 1, "name": "診察予約", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 },
+      { "id": "a54d7fe5-a575-4ac8-967d-e72ec27db401", "no": 2, "name": "処方箋発行", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 }
+    ]
+  }
+}

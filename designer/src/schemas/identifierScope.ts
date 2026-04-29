@@ -77,7 +77,11 @@ function fieldNames(fields: StructuredField[] | undefined): string[] {
  */
 export function checkIdentifierScopes(group: ProcessFlow): IdentifierIssue[] {
   const issues: IdentifierIssue[] = [];
-  const ambientNames = new Set(fieldNames(group.ambientVariables));
+  // v1 (top-level ambientVariables) と v3 (context.ambientVariables) の両形式に対応
+  const ambientFields =
+    (group as { context?: { ambientVariables?: StructuredField[] } }).context?.ambientVariables
+    ?? group.ambientVariables;
+  const ambientNames = new Set(fieldNames(ambientFields));
 
   group.actions.forEach((action, ai) => {
     const knownInAction = new Set<string>(ambientNames);
