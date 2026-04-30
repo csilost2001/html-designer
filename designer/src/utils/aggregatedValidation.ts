@@ -8,7 +8,6 @@
  * SQL 列検査 (要 TableDefinition) と conventions 検査 (要 conventions-catalog) は
  * 依存データが必要なため optional パラメータで受け取る。未指定時は skip。
  */
-import type { ProcessFlow as ProcessFlowV1 } from "../types/action";
 import type { ProcessFlow, Step } from "../types/v3";
 import { validateProcessFlow, type ValidationError } from "./actionValidation";
 import { checkReferentialIntegrity } from "../schemas/referentialIntegrity";
@@ -38,10 +37,7 @@ export function aggregateValidation(
   const errors: ValidationError[] = [];
 
   // 1. 既存の構造バリデータ (loopBreak スコープ、branch 空 等)
-  // actionValidation.ts は legacy v1 type 受けのため、v3 → v1 ブリッジ cast。
-  // 注意: v1 type は AnyRecord shim のため、v3 ↔ v1 の field 不整合を型レベルで catch できない
-  // (偽陰性リスク)。actionValidation の v3 化完了 (#637) まで本 cast は残置。
-  errors.push(...validateProcessFlow(group as unknown as ProcessFlowV1));
+  errors.push(...validateProcessFlow(group));
 
   // 2. 参照整合性 (responseId / errorCode / systemRef / typeRef / secretRef)
   for (const issue of checkReferentialIntegrity(group, options.extensions)) {
