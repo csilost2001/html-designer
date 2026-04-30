@@ -161,7 +161,10 @@ function walkSteps(
     if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, known, loopItems, issues);
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, known, loopItems, issues);
-      if (step.onRollback) walkSteps(step.onRollback, `${path}.onRollback`, known, loopItems, issues);
+      if (step.onRollback) {
+        const onRollbackKnown = new Set([...known, "error"]);
+        walkSteps(step.onRollback, `${path}.onRollback`, onRollbackKnown, loopItems, issues);
+      }
     }
     if (step.kind === "workflow") {
       if (step.onApproved) walkSteps(step.onApproved, `${path}.onApproved`, known, loopItems, issues);

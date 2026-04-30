@@ -109,6 +109,12 @@ TX が rollback された**後**に実行する step 列。任意・補償処理
 
 `onRollback` の step は **TX の外** で実行されるため、ここでの失敗は元の rollback を撤回しない。
 
+#### `@error` ambient
+
+`onRollback[]` 内の step では、rollback の原因を表す暗黙変数 `@error` を参照できる。`@error` は `onRollback[]` 専用 ambient であり、`transactionScope.steps[]`、`onCommit[]`、transactionScope 外の root steps から参照した場合は `UNKNOWN_IDENTIFIER` として扱う。
+
+`@error` の型と具体的なフィールドは処理フローエンジン側で定義する。本バリデータは識別子 `error` がそのスコープで参照可能かだけを検証し、型検証は行わない。
+
 ## §3 既存 `StepBaseProps.txBoundary` との関係
 
 両者は **共存** する。役割は明確に分かれる:
