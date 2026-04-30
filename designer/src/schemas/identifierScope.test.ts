@@ -82,8 +82,8 @@ describe("checkIdentifierScopes — outputBinding が後続ステップで参照
         id: "a1", name: "f", trigger: "click",
         inputs: [{ name: "x", type: "number" }],
         steps: [
-          { id: "s1", kind: "compute", description: "", expression: "@x * 2", outputBinding: "doubled" },
-          { id: "s2", kind: "compute", description: "", expression: "@doubled + 1", outputBinding: "r" },
+          { id: "s1", kind: "compute", description: "", expression: "@x * 2", outputBinding: { name: "doubled" } },
+          { id: "s2", kind: "compute", description: "", expression: "@doubled + 1", outputBinding: { name: "r" } },
         ],
       }],
     }));
@@ -94,11 +94,11 @@ describe("checkIdentifierScopes — outputBinding が後続ステップで参照
 describe("checkIdentifierScopes — ambient 変数", () => {
   it("ambientVariables で宣言されれば参照 OK", () => {
     const issues = checkIdentifierScopes(makeGroup({
-      ambientVariables: [{ name: "requestId", type: "string" }],
+      context: { ambientVariables: [{ name: "requestId", type: "string" }] },
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", kind: "externalSystem", description: "", systemName: "x",
+          { id: "s1", kind: "externalSystem", description: "", systemRef: "x",
             idempotencyKey: "key-@requestId" },
         ],
       }],
@@ -157,7 +157,7 @@ describe("checkIdentifierScopes — ValidationStep.fieldErrorsVar", () => {
           {
             id: "s1", kind: "validation", description: "", conditions: "",
             rules: [{ field: "x", type: "required" }],
-            inlineBranch: { ok: "ok", ng: "ng", ngBodyExpression: "{ errors: @fieldErrors }" },
+            inlineBranch: { ok: [], ng: [], ngBodyExpression: "{ errors: @fieldErrors }" },
           },
         ],
       }],
@@ -399,7 +399,7 @@ describe("checkIdentifierScopes — WorkflowStep result handlers", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s1", kind: "compute", description: "", expression: "'req-1'", outputBinding: "requestId" },
+          { id: "s1", kind: "compute", description: "", expression: "'req-1'", outputBinding: { name: "requestId" } },
           {
             id: "wf", kind: "workflow", description: "",
             pattern: "approval-sequential", approvers: [],
@@ -420,9 +420,9 @@ describe("checkIdentifierScopes — WorkflowStep result handlers", () => {
         steps: [{
           id: "wf", kind: "workflow", description: "",
           pattern: "approval-sequential", approvers: [],
-          outputBinding: "workflowResult",
+          outputBinding: { name: "workflowResult" },
           onApproved: [
-            { id: "s1", kind: "compute", description: "", expression: "@workflowResult.status", outputBinding: "status" },
+            { id: "s1", kind: "compute", description: "", expression: "@workflowResult.status", outputBinding: { name: "status" } },
           ],
         }],
       }],
@@ -493,7 +493,7 @@ describe("checkIdentifierScopes — ValidationStep inlineBranch", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         steps: [
-          { id: "s0", kind: "compute", description: "", expression: "'r'", outputBinding: "requestId" },
+          { id: "s0", kind: "compute", description: "", expression: "'r'", outputBinding: { name: "requestId" } },
           {
             id: "v1", kind: "validation", description: "",
             rules: [],
@@ -505,23 +505,6 @@ describe("checkIdentifierScopes — ValidationStep inlineBranch", () => {
             },
           },
         ],
-      }],
-    }));
-    expect(issues).toHaveLength(0);
-  });
-
-  it("inlineBranch が string (v1 旧形式) のときは walk を skip", () => {
-    const issues = checkIdentifierScopes(makeGroup({
-      actions: [{
-        id: "a1", name: "f", trigger: "click",
-        steps: [{
-          id: "v1", kind: "validation", description: "",
-          rules: [],
-          inlineBranch: {
-            ok: "次のステップへ進む",
-            ng: "400 入力値エラーを返す",
-          } as never,
-        }],
       }],
     }));
     expect(issues).toHaveLength(0);

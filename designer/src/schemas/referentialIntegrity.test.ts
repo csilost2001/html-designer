@@ -16,13 +16,13 @@ function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
 }
 
 describe("checkReferentialIntegrity — responseRef", () => {
-  it("未定義 responseRef を検出", () => {
+  it("未定義 responseId を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201-ok", status: 201 }],
         steps: [
-          { id: "s1", kind: "return", description: "", responseRef: "999-missing" },
+          { id: "s1", kind: "return", description: "", responseId: "999-missing" },
         ],
       }],
     }));
@@ -31,35 +31,35 @@ describe("checkReferentialIntegrity — responseRef", () => {
     expect(issues[0].value).toBe("999-missing");
   });
 
-  it("定義済み responseRef は問題なし", () => {
+  it("定義済み responseId は問題なし", () => {
     const issues = checkReferentialIntegrity(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201-ok", status: 201 }],
-        steps: [{ id: "s1", kind: "return", description: "", responseRef: "201-ok" }],
+        steps: [{ id: "s1", kind: "return", description: "", responseId: "201-ok" }],
       }],
     }));
     expect(issues).toHaveLength(0);
   });
 
-  it("ValidationStep.inlineBranch.ngResponseRef も検査", () => {
+  it("ValidationStep.inlineBranch.ngResponseId も検査", () => {
     const issues = checkReferentialIntegrity(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [],
         steps: [{
           id: "s1", kind: "validation", description: "", conditions: "",
-          inlineBranch: { ok: "ok", ng: "ng", ngResponseRef: "400-not-defined" },
+          inlineBranch: { ok: [], ng: [], ngResponseId: "400-not-defined" },
         }],
       }],
     }));
     expect(issues.some((i) => i.code === "UNKNOWN_RESPONSE_REF")).toBe(true);
   });
 
-  it("errorCatalog.responseRef も検査", () => {
+  it("errorCatalog.responseId も検査", () => {
     const issues = checkReferentialIntegrity(makeGroup({
       context: { catalogs: { errors: {
-        STOCK_SHORTAGE: { responseRef: "409-missing" },
+        STOCK_SHORTAGE: { responseId: "409-missing" },
       } } },
       actions: [{
         id: "a1", name: "f", trigger: "click",
@@ -128,7 +128,7 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
         responses: [{ id: "200-ok", status: 200 }],
         steps: [{
           id: "lp", kind: "loop", description: "", loopKind: "count",
-          steps: [{ id: "ret", kind: "return", description: "", responseRef: "missing" }],
+          steps: [{ id: "ret", kind: "return", description: "", responseId: "missing" }],
         }],
       }],
     }));
@@ -147,7 +147,7 @@ describe("checkReferentialIntegrity — ネスト走査", () => {
             failure: {
               action: "continue",
               sideEffects: [
-                { id: "ret", kind: "return", description: "", responseRef: "missing" },
+                { id: "ret", kind: "return", description: "", responseId: "missing" },
               ],
             },
           },

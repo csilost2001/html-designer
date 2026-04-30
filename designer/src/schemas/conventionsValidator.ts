@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @conv.msg.* / @conv.regex.* / @conv.limit.* 参照の検証 (#151-A / #261 残)。
  *
@@ -11,10 +10,9 @@ import type {
   ProcessFlow,
   Step,
   ActionDefinition,
-  ValidationStep,
-  LoopStep,
-} from "../types/action";
-import type { Conventions } from "../types/v3";
+  Conventions,
+} from "../types/v3";
+import { isBuiltinStep } from "./stepGuards";
 
 /**
  * 既存呼び出し側互換のため `ConventionsCatalog` 名で v3 `Conventions` を再エクスポート。
@@ -258,12 +256,13 @@ function walkSteps(
     const path = `${basePath}[${i}]`;
     checkStep(step, path, catalog, issues);
 
-    if ("subSteps" in step && step.subSteps) walkSteps(step.subSteps, `${path}.subSteps`, catalog, issues);
+    // 拡張 step は nested 走査スキップ (固有プロパティは config 内に閉じる仕様)
+    if (!isBuiltinStep(step)) return;
     if (step.kind === "branch") {
       step.branches.forEach((b, bi) => walkSteps(b.steps, `${path}.branches[${bi}].steps`, catalog, issues));
       if (step.elseBranch) walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, catalog, issues);
     }
-    if (step.kind === "loop") walkSteps((step as LoopStep).steps, `${path}.steps`, catalog, issues);
+    if (step.kind === "loop") walkSteps(step.steps, `${path}.steps`, catalog, issues);
     if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, catalog, issues);
       if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, catalog, issues);
@@ -302,29 +301,31 @@ function checkValue(src: string, path: string, catalog: ConventionsCatalog, issu
 function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues: ConventionIssue[]): void {
   const texts: Array<{ src: string; field: string }> = [];
 
+  // StepBaseProps 共通フィールド: kind に関係なく全 step variant で検査 (拡張 step / v1 fixture も含む)
   if (step.description) texts.push({ src: step.description, field: "description" });
   if (step.runIf) texts.push({ src: step.runIf, field: "runIf" });
 
-  if (step.kind === "compute") texts.push({ src: step.expression, field: "expression" });
-  if (step.kind === "return" && step.bodyExpression) texts.push({ src: step.bodyExpression, field: "bodyExpression" });
-  if (step.kind === "validation") {
-    const vStep = step as ValidationStep;
-    if (vStep.conditions) texts.push({ src: vStep.conditions, field: "conditions" });
-    (vStep.rules ?? []).forEach((r, ri) => {
-      if (r.condition) texts.push({ src: r.condition, field: `rules[${ri}].condition` });
-      if (r.message) texts.push({ src: r.message, field: `rules[${ri}].message` });
-      if (r.pattern) texts.push({ src: r.pattern, field: `rules[${ri}].pattern` });
-    });
-    if (vStep.inlineBranch?.ngBodyExpression) {
-      texts.push({ src: vStep.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
+  // kind 固有フィールドは組み込み step に絞る (拡張 step の固有 property は config 内に閉じる仕様)
+  if (isBuiltinStep(step)) {
+    if (step.kind === "compute") texts.push({ src: step.expression, field: "expression" });
+    if (step.kind === "return" && step.bodyExpression) texts.push({ src: step.bodyExpression, field: "bodyExpression" });
+    if (step.kind === "validation") {
+      if (step.conditions) texts.push({ src: step.conditions, field: "conditions" });
+      (step.rules ?? []).forEach((r, ri) => {
+        if (r.condition) texts.push({ src: r.condition, field: `rules[${ri}].condition` });
+        if (r.message) texts.push({ src: r.message, field: `rules[${ri}].message` });
+        if (r.pattern) texts.push({ src: r.pattern, field: `rules[${ri}].pattern` });
+      });
+      if (step.inlineBranch?.ngBodyExpression) {
+        texts.push({ src: step.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
+      }
     }
-  }
-  if (step.kind === "dbAccess") {
-    if (step.sql) texts.push({ src: step.sql, field: "sql" });
-  }
-  if (step.kind === "externalSystem") {
-    if (step.protocol) texts.push({ src: step.protocol, field: "protocol" });
-    if (step.httpCall?.body) texts.push({ src: step.httpCall.body, field: "httpCall.body" });
+    if (step.kind === "dbAccess") {
+      if (step.sql) texts.push({ src: step.sql, field: "sql" });
+    }
+    if (step.kind === "externalSystem") {
+      if (step.httpCall?.body) texts.push({ src: step.httpCall.body, field: "httpCall.body" });
+    }
   }
 
   for (const { src, field } of texts) {

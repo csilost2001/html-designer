@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 画面項目イベント ↔ 処理フロー連携の整合検査 (#619、#624 schema 拡張前提)。
  *
@@ -19,9 +18,7 @@
  * (全 v3 sample で actions 数 = 1 のため)。複数 actions のケースは将来課題。
  */
 
-import type { ProcessFlow, StructuredField } from "../types/action";
-import type { Screen } from "../types/v3/screen";
-import type { ScreenItem, ScreenItemEvent } from "../types/v3/screen-item";
+import type { ProcessFlow, StructuredField, Screen, ScreenItem, ScreenItemEvent } from "../types/v3";
 
 export type ScreenItemFlowIssueCode =
   | "UNKNOWN_HANDLER_FLOW"
@@ -51,12 +48,11 @@ interface CallSite {
 }
 
 function getFlowId(flow: ProcessFlow): string | null {
-  // v1 (top-level id) と v3 (meta.id) の両形式に対応
-  return (flow as { id?: string }).id ?? flow.meta?.id ?? null;
+  return flow.meta?.id ?? null;
 }
 
 function getScreenId(screen: Screen): string | null {
-  return (screen as { id?: string }).id ?? (screen as { meta?: { id: string } }).meta?.id ?? null;
+  return (screen.id as string | undefined) ?? null;
 }
 
 function getPrimaryInputs(flow: ProcessFlow): StructuredField[] {
@@ -125,7 +121,8 @@ export function checkScreenItemFlowConsistency(
         // 1.2 引数 contract 整合
         const inputs = getPrimaryInputs(targetFlow);
         const argMapping = event.argumentMapping ?? {};
-        const inputNames = new Set(inputs.map((i) => i.name));
+        // StructuredField.name は v3 で Identifier brand 型のため、Set<string> として比較するため cast
+        const inputNames = new Set<string>(inputs.map((i) => i.name as string));
 
         // 必須引数欠落
         for (const input of inputs) {

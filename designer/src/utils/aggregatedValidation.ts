@@ -8,12 +8,14 @@
  * SQL 列検査 (要 TableDefinition) と conventions 検査 (要 conventions-catalog) は
  * 依存データが必要なため optional パラメータで受け取る。未指定時は skip。
  */
-import type { ProcessFlow, Step } from "../types/action";
+import type { ProcessFlow as ProcessFlowV1 } from "../types/action";
+import type { ProcessFlow, Step } from "../types/v3";
 import { validateProcessFlow, type ValidationError } from "./actionValidation";
 import { checkReferentialIntegrity } from "../schemas/referentialIntegrity";
 import { checkIdentifierScopes } from "../schemas/identifierScope";
 import { checkSqlColumns, type TableDefinition } from "../schemas/sqlColumnValidator";
 import { checkConventionReferences, type ConventionsCatalog } from "../schemas/conventionsValidator";
+import { isBuiltinStep } from "../schemas/stepGuards";
 import type { LoadedExtensions } from "../schemas/loadExtensions";
 
 export interface AggregatedValidationOptions {
@@ -36,9 +38,11 @@ export function aggregateValidation(
   const errors: ValidationError[] = [];
 
   // 1. 既存の構造バリデータ (loopBreak スコープ、branch 空 等)
-  errors.push(...validateProcessFlow(group));
+  // actionValidation.ts は legacy v1 type 受けのため、v3 → v1 ブリッジ cast。
+  // actionValidation 自体の v3 化は別 ISSUE スコープ。
+  errors.push(...validateProcessFlow(group as unknown as ProcessFlowV1));
 
-  // 2. 参照整合性 (responseRef / errorCode / systemRef / typeRef / secretRef)
+  // 2. 参照整合性 (responseId / errorCode / systemRef / typeRef / secretRef)
   for (const issue of checkReferentialIntegrity(group, options.extensions)) {
     errors.push({
       stepId: stepIdFromPath(issue.path, group) ?? "",
@@ -91,7 +95,7 @@ export function aggregateValidation(
 
 /**
  * JSON path ("actions[0].steps[2]..." 等) から該当 step の ID を解決。
- * 深くネストしたパス (branches / elseBranch / loop / subSteps / sideEffects) も辿る。
+ * 深くネストしたパス (branches / elseBranch / loop / transactionScope / sideEffects) も辿る。
  * 解決できない場合 (catalog レベルの issue 等) は null。
  */
 function stepIdFromPath(path: string, group: ProcessFlow): string | null {
@@ -107,44 +111,43 @@ function stepIdFromPath(path: string, group: ProcessFlow): string | null {
 
   // ネストしたセグメントを順次辿る
   // 例: ".branches[0].steps[1].outcomes.failure.sideEffects[0]"
-  const segmentRe = /^(?:\.branches\[(\d+)\]\.steps\[(\d+)\]|\.elseBranch\.steps\[(\d+)\]|\.subSteps\[(\d+)\]|\.steps\[(\d+)\]|\.outcomes\.(success|failure|timeout)\.sideEffects\[(\d+)\])/;
+  const segmentRe = /^(?:\.branches\[(\d+)\]\.steps\[(\d+)\]|\.elseBranch\.steps\[(\d+)\]|\.steps\[(\d+)\]|\.outcomes\.(success|failure|timeout)\.sideEffects\[(\d+)\])/;
 
   while (true) {
     const sm = rest.match(segmentRe);
     if (!sm) break;
     if (sm[1] !== undefined && sm[2] !== undefined) {
-      // branches[b].steps[s]
-      if (currentStep.kind !== "branch") return currentStep.id;
+      if (!isBuiltinStep(currentStep) || currentStep.kind !== "branch") return currentStep.id;
       const branch = currentStep.branches[+sm[1]];
       if (!branch) return currentStep.id;
       const next = branch.steps[+sm[2]];
       if (!next) return currentStep.id;
       currentStep = next;
     } else if (sm[3] !== undefined) {
-      if (currentStep.kind !== "branch" || !currentStep.elseBranch) return currentStep.id;
+      if (!isBuiltinStep(currentStep) || currentStep.kind !== "branch" || !currentStep.elseBranch) return currentStep.id;
       const next = currentStep.elseBranch.steps[+sm[3]];
       if (!next) return currentStep.id;
       currentStep = next;
     } else if (sm[4] !== undefined) {
-      if (!currentStep.subSteps) return currentStep.id;
-      const next = currentStep.subSteps[+sm[4]];
-      if (!next) return currentStep.id;
-      currentStep = next;
-    } else if (sm[5] !== undefined) {
-      if (currentStep.kind !== "loop") return currentStep.id;
-      const next = currentStep.steps[+sm[5]];
-      if (!next) return currentStep.id;
-      currentStep = next;
-    } else if (sm[6] !== undefined && sm[7] !== undefined) {
-      if (currentStep.kind !== "externalSystem") return currentStep.id;
-      const outcome = currentStep.outcomes?.[sm[6] as "success" | "failure" | "timeout"];
+      // .steps[N]: loop / transactionScope の nested steps
+      if (!isBuiltinStep(currentStep)) return currentStep.id;
+      if (currentStep.kind === "loop" || currentStep.kind === "transactionScope") {
+        const next = currentStep.steps[+sm[4]];
+        if (!next) return currentStep.id;
+        currentStep = next;
+      } else {
+        return currentStep.id;
+      }
+    } else if (sm[5] !== undefined && sm[6] !== undefined) {
+      if (!isBuiltinStep(currentStep) || currentStep.kind !== "externalSystem") return currentStep.id;
+      const outcome = currentStep.outcomes?.[sm[5] as "success" | "failure" | "timeout"];
       if (!outcome?.sideEffects) return currentStep.id;
-      const next = outcome.sideEffects[+sm[7]];
+      const next = outcome.sideEffects[+sm[6]];
       if (!next) return currentStep.id;
       currentStep = next;
     }
     rest = rest.slice(sm[0].length);
   }
 
-  return currentStep.id;
+  return currentStep.id as string;
 }

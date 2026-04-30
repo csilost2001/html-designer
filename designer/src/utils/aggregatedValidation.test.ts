@@ -31,7 +31,7 @@ describe("aggregateValidation — 統合テスト", () => {
       actions: [{
         id: "a1", name: "f", trigger: "click",
         responses: [{ id: "201", status: 201 }],
-        steps: [{ id: "s1", kind: "return", description: "", responseRef: "404-missing" }],
+        steps: [{ id: "s1", kind: "return", description: "", responseId: "404-missing" }],
       }],
     }));
     const w = errors.find((e) => e.code === "UNKNOWN_RESPONSE_REF");
@@ -62,7 +62,7 @@ describe("aggregateValidation — 統合テスト", () => {
           id: "branch1", kind: "branch", description: "",
           branches: [{
             id: "b1", code: "A", condition: "@flag",
-            steps: [{ id: "inner-return", kind: "return", description: "", responseRef: "missing" }],
+            steps: [{ id: "inner-return", kind: "return", description: "", responseId: "missing" }],
           }],
         }],
       }],
