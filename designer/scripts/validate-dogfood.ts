@@ -22,6 +22,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join, basename, relative, isAbsolute } from "node:path";
 import type { ProcessFlow } from "../src/types/action.js";
 import { checkSqlColumns, type TableDefinition } from "../src/schemas/sqlColumnValidator.js";
+import { checkSqlOrder, type OrderTableDefinition } from "../src/schemas/sqlOrderValidator.js";
 import { checkConventionReferences, type ConventionsCatalog } from "../src/schemas/conventionsValidator.js";
 import { checkReferentialIntegrity } from "../src/schemas/referentialIntegrity.js";
 import { checkIdentifierScopes } from "../src/schemas/identifierScope.js";
@@ -358,6 +359,12 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
       issues.push({ validator: "sqlColumnValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
+    // 7. DB 制約 × 操作順序検証 (#632 MVP: NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED)
+    const sqlOrderIssues = checkSqlOrder(flow, project.tables as unknown as OrderTableDefinition[]);
+    for (const issue of sqlOrderIssues) {
+      issues.push({ validator: "sqlOrderValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
+    }
+
     // 2. 規約カタログ参照検証
     const convIssues = checkConventionReferences(flow, project.conventions);
     for (const issue of convIssues) {
@@ -455,6 +462,7 @@ const validatorDisplayOrder = [
   "identifierScope",
   "screenItemFlowValidator",
   "screenItemFieldTypeValidator",
+  "sqlOrderValidator",
 ];
 
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {

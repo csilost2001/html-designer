@@ -80,7 +80,7 @@ cd designer
 npm run validate:dogfood
 ```
 
-### 何が動くか (6 バリデータ)
+### 何が動くか (7 バリデータ)
 
 | # | バリデータ | 検出内容 | 入力 |
 |---|---|---|---|
@@ -90,12 +90,13 @@ npm run validate:dogfood
 | 4 | conventionsValidator | `@conv.*` 参照が catalog 未登録 | `docs/sample-project/conventions/conventions-catalog.json` を自動ロード |
 | 5 | screenItemFlowValidator | 画面項目イベント ↔ 処理フロー連携 (handlerFlowId 実在 / argumentMapping 整合 / primaryInvoker 双方向 / events[].id ユニーク) | 各プロジェクトの `screens/` を per-project でロード (project-level 検査、#619/#621) |
 | 6 | screenItemFieldTypeValidator | 画面項目 ↔ フロー 値レベル整合 | 画面項目定義ファイル + 処理フロー JSON |
+| 7 | sqlOrderValidator | DB 制約 × 操作順序 (NOT NULL × INSERT / FK × INSERT 順序) | テーブル定義 (v3 形式) を自動ロード (#632) |
 
 ### 結果の取り扱い
 
 - バリデータが検出した issue は **Step 1 のレビュー入力**として活用 (重複説明はしない)
 - 結果は Step 2 の「10 観点別カバレッジ」表に **「validator 検出済」** カラムとして記録
-- Must-fix 候補: `UNKNOWN_RESPONSE_REF` / `UNKNOWN_ERROR_CODE` / `UNKNOWN_IDENTIFIER` / `UNKNOWN_COLUMN` / `UNKNOWN_CONV_*` / `UNKNOWN_HANDLER_FLOW` / `MISSING_REQUIRED_ARGUMENT` / `EXTRA_ARGUMENT` / `PRIMARY_INVOKER_MISMATCH` / `DUPLICATE_EVENT_ID` 等
+- Must-fix 候補: `UNKNOWN_RESPONSE_REF` / `UNKNOWN_ERROR_CODE` / `UNKNOWN_IDENTIFIER` / `UNKNOWN_COLUMN` / `UNKNOWN_CONV_*` / `UNKNOWN_HANDLER_FLOW` / `MISSING_REQUIRED_ARGUMENT` / `EXTRA_ARGUMENT` / `PRIMARY_INVOKER_MISMATCH` / `DUPLICATE_EVENT_ID` / `NULL_NOT_ALLOWED_AT_INSERT` / `FK_REFERENCE_NOT_INSERTED` 等
 - Should-fix 候補 (warning): `INCONSISTENT_ARGUMENT_CONTRACT` (1 フローを呼ぶ複数イベント間で argumentMapping キー集合が異なる)
 - 終了コード 1 (1 件以上 fail) でも Step 1 を中止せず実施する (実行セマンティクス観点が AI 目視のみで残るため)
 
@@ -103,7 +104,7 @@ npm run validate:dogfood
 
 | 観点 | バリデータでカバー | AI 目視のみ |
 |---|---|---|
-| 1. 変数ライフサイクル | identifierScope (root 識別子の未宣言) | TX 順序 / property path / 前方参照は AI |
+| 1. 変数ライフサイクル | identifierScope (root 識別子の未宣言) / sqlOrderValidator (INSERT 時点の未バインド変数) | TX 順序 / property path / 前方参照は AI |
 | 2. TX スコープ整合 | (なし) | AI |
 | 3. runIf 連鎖の網羅性 | (なし) | AI |
 | 4. branch / elseBranch 到達性 | (なし) | AI |
@@ -113,6 +114,7 @@ npm run validate:dogfood
 | 8. rollbackOn 発火可能性 | referentialIntegrity (UNKNOWN_ERROR_CODE) | TX inner からの実発火可能性は AI |
 | 9. 画面項目イベント連携整合 | screenItemFlowValidator (handlerFlowId / argumentMapping / primaryInvoker / events[].id ユニーク) | 業務文脈での argumentMapping 値の妥当性 (UI 入力 → フロー入力の意味的整合) は AI |
 | 10. 画面項目値レベル整合 | screenItemFieldTypeValidator (options 包含 / domainKey / 型 / pattern / range / length) | 業務文脈の妥当性 (選択肢命名の業務適切性 / domain 設計妥当性) は AI |
+| 11. DB 制約 × INSERT 順序 (#632) | sqlOrderValidator (NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED) | 複雑な条件分岐での可能性の有無は AI |
 
 監査根拠: `docs/spec/dogfood-2026-04-29-phase2-validator-audit.md` §3 / §4 + Phase 3 子 1 #619 (PR #626)。
 
