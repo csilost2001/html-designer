@@ -31,7 +31,7 @@
  */
 
 import { Parser } from "node-sql-parser";
-import type { ProcessFlow, Step } from "../types/v3";
+import type { ProcessFlow, Step, TransactionScopeStep } from "../types/v3";
 import { isBuiltinStep } from "./stepGuards";
 
 // ─── 入力型: テーブル定義 (v3 形式) ────────────────────────────────────────
@@ -81,7 +81,7 @@ export interface OrderTableDefinition {
 
 export interface SqlOrderIssue {
   path: string;
-  code: "NULL_NOT_ALLOWED_AT_INSERT" | "FK_REFERENCE_NOT_INSERTED" | "UNIQUE_CHECK_MISSING" | "CASCADE_DELETE_OMITTED" | "SQL_PARSE_ERROR";
+  code: "NULL_NOT_ALLOWED_AT_INSERT" | "FK_REFERENCE_NOT_INSERTED" | "UNIQUE_CHECK_MISSING" | "CASCADE_DELETE_OMITTED" | "TX_CIRCULAR_DEPENDENCY" | "SQL_PARSE_ERROR";
   severity?: "error" | "warning";
   message: string;
 }
@@ -526,6 +526,183 @@ function hasTryCatchUniqueViolationInSteps(steps: Step[]): boolean {
   return false;
 }
 
+// ─── 観点 5: TX_CIRCULAR_DEPENDENCY ────────────────────────────────────────
+
+/**
+ * INSERT/UPDATE 対象テーブルを transactionScope step 内の dbAccess step から収集する。
+ * - INSERT / UPDATE step の対象テーブル物理名 (lowercase) を返す
+ * - SQL をパースできない場合は step.tableId 経由でフォールバック
+ */
+function collectTxWriteTableNames(
+  txSteps: Step[],
+  tableMeta: Map<string, TableMeta>,
+  tableIdIndex: Map<string, TableMeta>,
+): string[] {
+  const result: string[] = [];
+
+  function walk(steps: Step[]): void {
+    for (const step of steps) {
+      if (!isBuiltinStep(step)) continue;
+
+      if (step.kind === "dbAccess" && (step.operation === "INSERT" || step.operation === "UPDATE") && step.sql) {
+        // SQL パースでテーブル名を取得
+        const substituted = substituteAtVars(step.sql);
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let ast: any = parser.astify(substituted, { database: DIALECT });
+          ast = Array.isArray(ast) ? ast[0] : ast;
+          if (ast) {
+            let tableName: string | null = null;
+            if (ast.type === "insert") {
+              tableName = extractInsertTableName(ast);
+            } else if (ast.type === "update") {
+              // UPDATE AST: ast.table または ast.from
+              if (Array.isArray(ast.table)) {
+                for (const t of ast.table) {
+                  if (t.table && typeof t.table === "string") { tableName = t.table.toLowerCase(); break; }
+                }
+              }
+            }
+            if (tableName && tableMeta.has(tableName)) {
+              result.push(tableName);
+            }
+          }
+        } catch {
+          // パース失敗: step.tableId フォールバック
+        }
+        // step.tableId フォールバック (SQL パース失敗 or テーブル名が取れなかった場合)
+        if (step.tableId) {
+          const meta = tableIdIndex.get(step.tableId);
+          if (meta && !result.includes(meta.physicalName)) {
+            result.push(meta.physicalName);
+          }
+        }
+      }
+
+      // nested step の走査 (branch / loop / transactionScope 内は対象外 — TX スコープは本関数呼び出し元で制御)
+      if (step.kind === "branch") {
+        for (const branch of step.branches) walk(branch.steps);
+        if (step.elseBranch) walk(step.elseBranch.steps);
+      }
+      if (step.kind === "loop") walk(step.steps);
+      // 入れ子 TX は対象外 (outer TX のみで循環を見る)
+    }
+  }
+
+  walk(txSteps);
+  return result;
+}
+
+/**
+ * テーブル集合のサブグラフで有向 FK グラフを構築し、DFS で循環を検出する。
+ *
+ * グラフ: 各ノード = テーブル物理名 (lowercase)
+ *         エッジ A → B = テーブル A の FK が テーブル B を参照する
+ *
+ * @param tableNames   TX 内で INSERT/UPDATE されたテーブル物理名集合
+ * @param tableMeta    テーブルメタデータ (FK 情報含む)
+ * @param tableIdIndex id → TableMeta 逆引き
+ * @returns 循環パスの配列 (例: [["table_a", "table_b", "table_a"]])
+ */
+function detectFkCycles(
+  tableNames: string[],
+  tableMeta: Map<string, TableMeta>,
+  tableIdIndex: Map<string, TableMeta>,
+): string[][] {
+  const tableSet = new Set(tableNames);
+  const cycles: string[][] = [];
+
+  // 隣接リスト (A → [B, C, ...]) を tableSet 内のノードのみで構築
+  const adj = new Map<string, string[]>();
+  for (const name of tableSet) {
+    const meta = tableMeta.get(name);
+    if (!meta) continue;
+    const neighbors: string[] = [];
+    for (const fk of meta.fkConstraints) {
+      const refMeta = tableIdIndex.get(fk.referencedTableId);
+      if (refMeta && tableSet.has(refMeta.physicalName) && refMeta.physicalName !== name) {
+        neighbors.push(refMeta.physicalName);
+      }
+    }
+    adj.set(name, neighbors);
+  }
+
+  // DFS による back-edge (循環) 検出
+  const visited = new Set<string>();
+  const onStack = new Set<string>();
+  const stackPath: string[] = [];
+
+  function dfs(node: string): void {
+    visited.add(node);
+    onStack.add(node);
+    stackPath.push(node);
+
+    const neighbors = adj.get(node) ?? [];
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        dfs(neighbor);
+      } else if (onStack.has(neighbor)) {
+        // back-edge 発見: 循環パスを抽出
+        const cycleStart = stackPath.indexOf(neighbor);
+        const cyclePath = [...stackPath.slice(cycleStart), neighbor];
+        // 重複しない循環のみ追加 (循環の正規化: 最小要素を先頭にした比較)
+        const cycleKey = cyclePath.join("→");
+        const alreadyExists = cycles.some((c) => c.join("→") === cycleKey);
+        if (!alreadyExists) {
+          cycles.push(cyclePath);
+        }
+      }
+    }
+
+    stackPath.pop();
+    onStack.delete(node);
+  }
+
+  for (const name of tableSet) {
+    if (!visited.has(name)) {
+      dfs(name);
+    }
+  }
+
+  return cycles;
+}
+
+/**
+ * 観点 5: TX_CIRCULAR_DEPENDENCY 検出。
+ *
+ * 同一 transactionScope 内で INSERT/UPDATE されるテーブル群の FK 有向グラフで循環を検出する。
+ * 循環 = テーブル A の FK が B を参照し、かつ B の FK が A を参照 (直接 or 間接) していて、
+ * 同一 TX 内で両方が書き込まれている状態。
+ *
+ * severity = warning (設計者目視確認で許容判断。DEFERRED は本 ISSUE スコープ外)
+ */
+function checkTxCircularDependency(
+  txStep: TransactionScopeStep,
+  txPath: string,
+  tableMeta: Map<string, TableMeta>,
+  tableIdIndex: Map<string, TableMeta>,
+  issues: SqlOrderIssue[],
+): void {
+  const txSteps = txStep.steps ?? [];
+  if (txSteps.length === 0) return;
+
+  // TX 内で INSERT/UPDATE されるテーブル物理名を収集
+  const writtenTableNames = collectTxWriteTableNames(txSteps, tableMeta, tableIdIndex);
+  if (writtenTableNames.length < 2) return; // 2 テーブル未満では循環不可
+
+  // FK グラフで循環検出
+  const cycles = detectFkCycles(writtenTableNames, tableMeta, tableIdIndex);
+
+  for (const cycle of cycles) {
+    issues.push({
+      path: `${txPath}`,
+      code: "TX_CIRCULAR_DEPENDENCY",
+      severity: "warning",
+      message: `transactionScope 内で双方向 FK 循環が検出されました: ${cycle.join(" → ")}。同一 TX で INSERT/UPDATE されるテーブル間に循環する FK 参照チェーンが存在します。DEFERRED 制約または挿入順序の見直し / FK 一時無効化を検討してください (設計者目視確認が必要です)。`,
+    });
+  }
+}
+
 // ─── メイン検査ロジック ─────────────────────────────────────────────────────
 
 /**
@@ -555,6 +732,12 @@ function checkAction(
   // (branch 内部は楽観的に両パスを走査してバインドを union する — 保守的な偽陽性抑止)
   walkStepsInOrder(steps, `actions[${actionIndex}].steps`, (step, path) => {
     if (!isBuiltinStep(step)) return;
+
+    // ── 観点 5: TX_CIRCULAR_DEPENDENCY ────────────────────────────────────
+    // transactionScope step を検出したら、そのスコープ内のテーブルで FK 循環を検査
+    if (step.kind === "transactionScope") {
+      checkTxCircularDependency(step as TransactionScopeStep, path, tableMeta, tableIdIndex, issues);
+    }
 
     // outputBinding を先に boundVars に追加 (同 step の sql でも使えるよう before/after は問わない)
     // 厳密には sql 評価後に bind されるが、偽陽性抑止のため同 step の binding も有効とする。

@@ -262,6 +262,12 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
   - onDelete = cascade: DB 側が子を自動削除 → 子 DELETE step 不要
   - onDelete = setNull / setDefault: DB 側が子の FK カラムを NULL / DEFAULT に更新 → 子 DELETE step 不要
   - onDelete = restrict / noAction (デフォルト): 子 DELETE step が前段になければ実行時 FK 制約違反
+- `transactionScope` 内で双方向 FK 循環 (A→B かつ B→A) がある場合: Should-fix (warning) (#642)
+  - 同一 TX で INSERT/UPDATE されるテーブル群の FK 有向グラフを DFS で検査し、back-edge を検出
+  - 三角循環 (A→B→C→A) も検出
+  - TX 外の双方向 FK は対象外 (TX スコープ内のみ)
+  - DEFERRED constraint 検出は Phase 5 候補 (別 ISSUE)
+  - 対処: 挿入順序の見直し / DEFERRED FK / FK 一時無効化 のいずれかを設計者が判断
 
 **Step 5.2 で `validate:dogfood` の `sqlOrderValidator` により機械的に検出される**
 
@@ -271,6 +277,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 | `FK_REFERENCE_NOT_INSERTED` | error | FK 参照先テーブルの先行 INSERT なし + FK カラム変数が未バインド |
 | `UNIQUE_CHECK_MISSING` | warning | UNIQUE カラムへの INSERT で事前重複チェックなし (#640) |
 | `CASCADE_DELETE_OMITTED` | error | FK onDelete=restrict/noAction の子テーブル行を先 DELETE せず親を DELETE (#641) |
+| `TX_CIRCULAR_DEPENDENCY` | warning | transactionScope 内で INSERT/UPDATE テーブル間に双方向 FK 循環 (#642) |
 
 ### Rule 20: ViewDefinition 整合 (#649、Phase 4 子 1)
 
