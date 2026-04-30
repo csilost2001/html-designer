@@ -92,6 +92,29 @@ export async function deleteSequence(sequenceId: string): Promise<void> {
 
 }
 
+interface CommitSequencesDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteSequence: typeof deleteSequence;
+}
+
+export async function commitSequences(
+  { itemsInOrder, deletedIds }: { itemsInOrder: SequenceEntry[]; deletedIds: string[] },
+  deps: CommitSequencesDeps = { loadProject, saveProject, deleteSequence },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((s, i) => [s.id, i]));
+  project.sequences = (project.sequences ?? [])
+    .filter((s) => !deletedSet.has(s.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((s, i) => ({ ...s, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteSequence(id);
+  }
+}
+
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
 async function syncSequenceMeta(sequence: Sequence): Promise<void> {

@@ -1,6 +1,5 @@
 import type {
   DisplayName,
-  Table,
   TableId,
   Timestamp,
   ViewDefinition,
@@ -14,7 +13,7 @@ import {
   type ViewDefinitionIssue,
 } from "../schemas/viewDefinitionValidator";
 import { loadProject, saveProject } from "./flowStore";
-import { loadTable, listTables } from "./tableStore";
+import { loadAllTables } from "./tableStore";
 import { renumber, nextNo } from "../utils/listOrder";
 
 export interface ViewDefinitionStorageBackend {
@@ -79,9 +78,7 @@ export async function loadViewDefinitionValidationMap(): Promise<
       .filter((vd): vd is ViewDefinition => vd !== null);
   }
 
-  const tableEntries = await listTables();
-  const tables = (await Promise.all(tableEntries.map((entry) => loadTable(entry.id))))
-    .filter((table): table is Table => table !== null);
+  const tables = await loadAllTables();
 
   const issues = checkViewDefinitions(viewDefinitions, tables);
   const validationMap = new Map<ViewDefinitionId, ViewDefinitionIssue[]>();
@@ -140,6 +137,33 @@ export async function deleteViewDefinition(viewDefinitionId: string): Promise<vo
     await _backend.deleteViewDefinition(viewDefinitionId);
   } else {
     localStorage.removeItem(`${VIEW_DEFINITION_PREFIX}${viewDefinitionId}`);
+  }
+}
+
+interface CommitViewDefinitionsDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteViewDefinition: typeof deleteViewDefinition;
+}
+
+export async function commitViewDefinitions(
+  { itemsInOrder, deletedIds }: { itemsInOrder: ViewDefinitionEntry[]; deletedIds: string[] },
+  deps: CommitViewDefinitionsDeps = { loadProject, saveProject, deleteViewDefinition },
+): Promise<void> {
+  const project: ProjectWithViewDefinitions = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
+  project.viewDefinitions = (project.viewDefinitions ?? [])
+    .filter((v) => !deletedSet.has(String(v.id)))
+    .sort(
+      (a, b) =>
+        (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    )
+    .map((v, i) => ({ ...v, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteViewDefinition(id);
   }
 }
 

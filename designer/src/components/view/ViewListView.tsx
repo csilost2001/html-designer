@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { View, ViewEntry, ViewId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
-import { listViews, createView, deleteView, loadView, saveView, loadViewValidationMap } from "../../store/viewStore";
-import { loadProject, saveProject } from "../../store/flowStore";
+import { listViews, createView, loadView, saveView, loadViewValidationMap, commitViews } from "../../store/viewStore";
+import { loadProject } from "../../store/flowStore";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -25,29 +25,6 @@ import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:view-list";
 const TAB_ID = makeTabId("view-list", "main");
-
-interface CommitViewsDeps {
-  loadProject: typeof loadProject;
-  saveProject: typeof saveProject;
-  deleteView: typeof deleteView;
-}
-
-export async function commitViews(
-  { itemsInOrder, deletedIds }: { itemsInOrder: ViewEntry[]; deletedIds: string[] },
-  deps: CommitViewsDeps = { loadProject, saveProject, deleteView },
-): Promise<void> {
-  const project = await deps.loadProject();
-  const deletedSet = new Set(deletedIds);
-  const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
-  project.views = (project.views ?? [])
-    .filter((v) => !deletedSet.has(v.id))
-    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
-    .map((v, i) => ({ ...v, no: i + 1 }));
-  await deps.saveProject(project);
-  for (const id of deletedIds) {
-    await deps.deleteView(id);
-  }
-}
 
 interface ValidationSummary {
   errors: number;

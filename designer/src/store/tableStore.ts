@@ -74,19 +74,21 @@ export async function loadTable(tableId: string): Promise<Table | null> {
   return raw;
 }
 
-export async function loadTableValidationMap(): Promise<Map<TableId, ValidationError[]>> {
+export async function loadAllTables(): Promise<Table[]> {
   const entries = await listTables();
   const entryIds = new Set(entries.map((entry) => entry.id));
 
-  let tables: Table[];
   if (_backend?.listAllTables) {
     const all = (await _backend.listAllTables()) as Table[];
-    tables = all.filter((table) => entryIds.has(table.id));
-  } else {
-    tables = (await Promise.all(entries.map((entry) => loadTable(entry.id))))
-      .filter((t): t is Table => t !== null);
+    return all.filter((table) => entryIds.has(table.id));
   }
 
+  return (await Promise.all(entries.map((entry) => loadTable(entry.id))))
+    .filter((t): t is Table => t !== null);
+}
+
+export async function loadTableValidationMap(): Promise<Map<TableId, ValidationError[]>> {
+  const tables = await loadAllTables();
   const validationMap = new Map<TableId, ValidationError[]>();
 
   for (const table of tables) {
@@ -140,6 +142,29 @@ export async function deleteTable(tableId: string): Promise<void> {
     await _backend.deleteTable(tableId);
   } else {
     localStorage.removeItem(`${TABLE_PREFIX}${tableId}`);
+  }
+}
+
+interface CommitTablesDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteTable: typeof deleteTable;
+}
+
+export async function commitTables(
+  { itemsInOrder, deletedIds }: { itemsInOrder: TableEntry[]; deletedIds: string[] },
+  deps: CommitTablesDeps = { loadProject, saveProject, deleteTable },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((t, i) => [t.id, i]));
+  project.tables = (project.tables ?? [])
+    .filter((t) => !deletedSet.has(t.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((t, i) => ({ ...t, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteTable(id);
   }
 }
 

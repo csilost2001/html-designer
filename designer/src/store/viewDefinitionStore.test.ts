@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { commitViewDefinitions } from "../components/view-definition/ViewDefinitionListView";
 import type { FlowProject } from "../types/flow";
 import type {
   DisplayName,
@@ -12,6 +11,7 @@ import type { FlowStorageBackend } from "./flowStore";
 import { setFlowDraftMode, setFlowStorageBackend } from "./flowStore";
 import type { ViewDefinitionStorageBackend as StoreViewDefinitionStorageBackend } from "./viewDefinitionStore";
 import {
+  commitViewDefinitions,
   createViewDefinition,
   deleteViewDefinition,
   setViewDefinitionStorageBackend,

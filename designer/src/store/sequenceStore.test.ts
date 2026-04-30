@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { commitSequences } from "../components/sequence/SequenceListView";
 import type { FlowProject } from "../types/flow";
 import type { SequenceEntry, SequenceId, Timestamp } from "../types/v3";
 import type { FlowStorageBackend } from "./flowStore";
 import { setFlowDraftMode, setFlowStorageBackend } from "./flowStore";
 import type { SequenceStorageBackend } from "./sequenceStore";
-import { deleteSequence, setSequenceStorageBackend } from "./sequenceStore";
+import { commitSequences, deleteSequence, setSequenceStorageBackend } from "./sequenceStore";
 
 const TS = "2026-04-29T00:00:00.000Z" as Timestamp;
 

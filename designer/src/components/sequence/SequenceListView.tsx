@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Sequence, SequenceEntry, SequenceId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
-import { listSequences, createSequence, deleteSequence, loadSequence, saveSequence } from "../../store/sequenceStore";
+import { listSequences, createSequence, loadSequence, saveSequence, commitSequences } from "../../store/sequenceStore";
 import { generateUUID } from "../../utils/uuid";
-import { loadProject, saveProject } from "../../store/flowStore";
+import { loadProject } from "../../store/flowStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { DataList, type DataListColumn } from "../common/DataList";
@@ -22,29 +22,6 @@ import { renumber } from "../../utils/listOrder";
 
 const STORAGE_KEY = "list-view-mode:sequence-list";
 const TAB_ID = makeTabId("sequence-list", "main");
-
-interface CommitSequencesDeps {
-  loadProject: typeof loadProject;
-  saveProject: typeof saveProject;
-  deleteSequence: typeof deleteSequence;
-}
-
-export async function commitSequences(
-  { itemsInOrder, deletedIds }: { itemsInOrder: SequenceEntry[]; deletedIds: string[] },
-  deps: CommitSequencesDeps = { loadProject, saveProject, deleteSequence },
-): Promise<void> {
-  const project = await deps.loadProject();
-  const deletedSet = new Set(deletedIds);
-  const orderMap = new Map(itemsInOrder.map((s, i) => [s.id, i]));
-  project.sequences = (project.sequences ?? [])
-    .filter((s) => !deletedSet.has(s.id))
-    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
-    .map((s, i) => ({ ...s, no: i + 1 }));
-  await deps.saveProject(project);
-  for (const id of deletedIds) {
-    await deps.deleteSequence(id);
-  }
-}
 
 function formatDate(iso: string): string {
   try {

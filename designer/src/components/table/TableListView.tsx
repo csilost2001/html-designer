@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Table, TableEntry, TableId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { type SqlDialect, SQL_DIALECT_LABELS } from "../../utils/ddlGenerator";
-import { listTables, createTable, deleteTable, loadTable, saveTable, loadTableValidationMap } from "../../store/tableStore";
-import { loadProject, saveProject } from "../../store/flowStore";
+import { listTables, createTable, loadTable, saveTable, loadTableValidationMap, commitTables } from "../../store/tableStore";
+import { loadProject } from "../../store/flowStore";
 import { generateAllDdl, generateAllTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
@@ -28,29 +28,6 @@ import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:table-list";
 const TAB_ID = makeTabId("table-list", "main");
-
-interface CommitTablesDeps {
-  loadProject: typeof loadProject;
-  saveProject: typeof saveProject;
-  deleteTable: typeof deleteTable;
-}
-
-export async function commitTables(
-  { itemsInOrder, deletedIds }: { itemsInOrder: TableEntry[]; deletedIds: string[] },
-  deps: CommitTablesDeps = { loadProject, saveProject, deleteTable },
-): Promise<void> {
-  const project = await deps.loadProject();
-  const deletedSet = new Set(deletedIds);
-  const orderMap = new Map(itemsInOrder.map((t, i) => [t.id, i]));
-  project.tables = (project.tables ?? [])
-    .filter((t) => !deletedSet.has(t.id))
-    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
-    .map((t, i) => ({ ...t, no: i + 1 }));
-  await deps.saveProject(project);
-  for (const id of deletedIds) {
-    await deps.deleteTable(id);
-  }
-}
 
 interface ValidationSummary {
   errors: number;
