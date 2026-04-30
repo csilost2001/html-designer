@@ -74,19 +74,21 @@ export async function loadTable(tableId: string): Promise<Table | null> {
   return raw;
 }
 
-export async function loadTableValidationMap(): Promise<Map<TableId, ValidationError[]>> {
+export async function loadAllTables(): Promise<Table[]> {
   const entries = await listTables();
   const entryIds = new Set(entries.map((entry) => entry.id));
 
-  let tables: Table[];
   if (_backend?.listAllTables) {
     const all = (await _backend.listAllTables()) as Table[];
-    tables = all.filter((table) => entryIds.has(table.id));
-  } else {
-    tables = (await Promise.all(entries.map((entry) => loadTable(entry.id))))
-      .filter((t): t is Table => t !== null);
+    return all.filter((table) => entryIds.has(table.id));
   }
 
+  return (await Promise.all(entries.map((entry) => loadTable(entry.id))))
+    .filter((t): t is Table => t !== null);
+}
+
+export async function loadTableValidationMap(): Promise<Map<TableId, ValidationError[]>> {
+  const tables = await loadAllTables();
   const validationMap = new Map<TableId, ValidationError[]>();
 
   for (const table of tables) {

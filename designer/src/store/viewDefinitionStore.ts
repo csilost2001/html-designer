@@ -1,6 +1,5 @@
 import type {
   DisplayName,
-  Table,
   TableId,
   Timestamp,
   ViewDefinition,
@@ -14,7 +13,7 @@ import {
   type ViewDefinitionIssue,
 } from "../schemas/viewDefinitionValidator";
 import { loadProject, saveProject } from "./flowStore";
-import { loadTable, listTables } from "./tableStore";
+import { loadAllTables } from "./tableStore";
 import { renumber, nextNo } from "../utils/listOrder";
 
 export interface ViewDefinitionStorageBackend {
@@ -79,9 +78,7 @@ export async function loadViewDefinitionValidationMap(): Promise<
       .filter((vd): vd is ViewDefinition => vd !== null);
   }
 
-  const tableEntries = await listTables();
-  const tables = (await Promise.all(tableEntries.map((entry) => loadTable(entry.id))))
-    .filter((table): table is Table => table !== null);
+  const tables = await loadAllTables();
 
   const issues = checkViewDefinitions(viewDefinitions, tables);
   const validationMap = new Map<ViewDefinitionId, ViewDefinitionIssue[]>();
