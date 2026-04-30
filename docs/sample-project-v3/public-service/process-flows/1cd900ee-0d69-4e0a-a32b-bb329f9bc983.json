@@ -21,6 +21,7 @@
         "REVIEW_REJECTED": { "httpStatus": 422, "defaultMessage": "一次審査で却下されました", "responseId": "422-review-rejected" },
         "OBJECTION_REJECTED": { "httpStatus": 422, "defaultMessage": "異議申立により却下されました", "responseId": "422-objection-rejected" },
         "FINAL_REJECTED": { "httpStatus": 422, "defaultMessage": "最終決裁で却下されました", "responseId": "422-final-rejected" },
+        "DUPLICATE_APPLICATION_NUMBER": { "httpStatus": 500, "defaultMessage": "申請番号 採番衝突 (内部エラー)", "responseId": "500-internal-error" },
         "INTERNAL_ERROR": { "httpStatus": 500, "defaultMessage": "内部エラー", "responseId": "500-internal-error" }
       },
       "events": {
@@ -124,6 +125,7 @@
           "operation": "INSERT",
           "sql": "INSERT INTO applications (application_number, applicant_id, site_address, building_use, total_floor_area_sqm, status, submitted_at) VALUES (@conv.numbering.applicationNumber, @applicant.id, @inputs.siteAddress, @inputs.buildingUse, @inputs.totalFloorAreaSqm, 'received', CURRENT_TIMESTAMP) RETURNING id, application_number",
           "outputBinding": { "name": "createdApplication" },
+          "affectedRowsCheck": { "operator": "=", "expected": 1, "onViolation": "throw", "errorCode": "DUPLICATE_APPLICATION_NUMBER", "description": "application_number 採番衝突 (defense-in-depth、numbering convention により実質発生しない想定)" },
           "lineage": { "writes": [{ "tableId": "0e169ac3-e54e-46f5-b0e2-2e937f0944bb", "purpose": "create" }] }
         },
         {

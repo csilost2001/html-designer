@@ -20,6 +20,7 @@
         "WAREHOUSE_NOT_FOUND": { "httpStatus": 404, "defaultMessage": "倉庫が見つかりません", "responseId": "404-warehouse-not-found" },
         "APPROVAL_REJECTED": { "httpStatus": 422, "defaultMessage": "並行承認で却下", "responseId": "422-approval-rejected" },
         "PICKING_FAILED": { "httpStatus": 422, "defaultMessage": "ピッキングで在庫不足等の問題発生", "responseId": "422-picking-failed" },
+        "DUPLICATE_ORDER_NUMBER": { "httpStatus": 500, "defaultMessage": "オーダー番号 採番衝突 (内部エラー)", "responseId": "500-internal-error" },
         "INTERNAL_ERROR": { "httpStatus": 500, "defaultMessage": "内部エラー", "responseId": "500-internal-error" }
       },
       "events": {
@@ -126,6 +127,7 @@
           "operation": "INSERT",
           "sql": "INSERT INTO transfer_orders (order_number, source_warehouse_id, destination_warehouse_id, shipping_method, status, scheduled_ship_at, requested_by_user_id, memo) VALUES (@conv.numbering.transferOrderNumber, @sourceWarehouse.id, @destinationWarehouse.id, @inputs.shippingMethod, 'pending_approval', @inputs.scheduledShipAt, @sessionUserId, @inputs.memo) RETURNING id, order_number",
           "outputBinding": { "name": "createdOrder" },
+          "affectedRowsCheck": { "operator": "=", "expected": 1, "onViolation": "throw", "errorCode": "DUPLICATE_ORDER_NUMBER", "description": "order_number 採番衝突 (defense-in-depth、numbering convention により実質発生しない想定)" },
           "lineage": { "writes": [{ "tableId": "a2e83031-be05-442e-b1f0-df7eab240269", "purpose": "create" }] }
         },
         {
