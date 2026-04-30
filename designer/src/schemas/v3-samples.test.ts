@@ -21,6 +21,7 @@ let validateExtension: ValidateFunction;
 let validateSequence: ValidateFunction;
 let validateScreenLayout: ValidateFunction;
 let validateErLayout: ValidateFunction;
+let validateViewDefinition: ValidateFunction;
 
 beforeAll(() => {
   ajv = new Ajv2020({ allErrors: true, strict: false, discriminator: true });
@@ -35,6 +36,7 @@ beforeAll(() => {
   validateSequence = ajv.compile(loadJson(join(v3Dir, "sequence.v3.schema.json")) as object);
   validateScreenLayout = ajv.compile(loadJson(join(v3Dir, "screen-layout.v3.schema.json")) as object);
   validateErLayout = ajv.compile(loadJson(join(v3Dir, "er-layout.v3.schema.json")) as object);
+  validateViewDefinition = ajv.compile(loadJson(join(v3Dir, "view-definition.v3.schema.json")) as object);
 });
 
 function dumpErrors(file: string, validate: ValidateFunction): string {
@@ -94,6 +96,8 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "public-service", "screens")),
       ...listJsonRecursive(join(samplesV3Dir, "logistics", "screens")),
+      ...listJsonRecursive(join(samplesV3Dir, "healthcare", "screens")),
+      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "screens")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -356,6 +360,19 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
     );
     expect(discriminatorErr).toBeDefined();
+  });
+
+  it("view-definition samples validate against view-definition.v3.schema.json (#649)", () => {
+    const files = [
+      ...listJsonRecursive(join(samplesV3Dir, "retail", "view-definitions")),
+      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "view-definitions")),
+    ];
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const data = loadJson(file);
+      const ok = validateViewDefinition(data);
+      expect(ok, ok ? "" : dumpErrors(file, validateViewDefinition)).toBe(true);
+    }
   });
 
   it("F-4: Constraint (table.v3) の不正 kind は discriminator でエラー", () => {

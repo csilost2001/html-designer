@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
+  "id": "e2d3f4a5-b6c7-4000-8000-e2d3f4a5b6c7",
+  "name": "受給者一覧",
+  "description": "受給者台帳の一覧を表示する画面。受給資格状態によるフィルタと受給者IDの検索をサポートする。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "kind": "list",
+  "path": "/welfare-benefit/beneficiaries",
+  "auth": "required",
+  "viewDefinitionRefs": [
+    "c7d8e9f0-a1b2-4000-8000-c7d8e9f0a1b2"
+  ],
+  "authoring": {
+    "notes": [
+      {
+        "id": "note-screen-bnf-01",
+        "kind": "assumption",
+        "body": "受給者台帳には個人情報 (PII) が含まれるため認証必須。ロールベースアクセス制御は別途権限管理で実施する。",
+        "createdAt": "2026-04-30T00:00:00.000Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
+  "id": "c7d8e9f0-a1b2-4000-8000-c7d8e9f0a1b2",
+  "name": "受給者一覧ビュー",
+  "description": "受給者台帳を一覧表示する ViewDefinition。受給資格状態フィルタと年間累計支払額降順ソートをデフォルト設定。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "kind": "list",
+  "sourceTableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408",
+  "columns": [
+    {
+      "name": "beneficiaryCode",
+      "tableColumnRef": { "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "columnId": "col-bnf02" },
+      "displayName": "受給者ID",
+      "type": "string",
+      "width": "140px",
+      "align": "left",
+      "sortable": true,
+      "filterable": true,
+      "linkTo": "/welfare-benefit/beneficiaries/:beneficiaryCode"
+    },
+    {
+      "name": "fiscalYear",
+      "tableColumnRef": { "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "columnId": "col-bnf04" },
+      "displayName": "会計年度",
+      "type": "integer",
+      "width": "100px",
+      "align": "center",
+      "sortable": true,
+      "filterable": true
+    },
+    {
+      "name": "totalPaidAmount",
+      "tableColumnRef": { "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "columnId": "col-bnf05" },
+      "displayName": "年間累計支払額",
+      "type": "number",
+      "width": "150px",
+      "align": "right",
+      "sortable": true,
+      "filterable": false,
+      "displayFormat": "#,##0"
+    },
+    {
+      "name": "eligibilityStatus",
+      "tableColumnRef": { "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "columnId": "col-bnf07" },
+      "displayName": "受給資格状態",
+      "type": "string",
+      "width": "130px",
+      "align": "center",
+      "sortable": true,
+      "filterable": true
+    },
+    {
+      "name": "lastPaidAt",
+      "tableColumnRef": { "tableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408", "columnId": "col-bnf06" },
+      "displayName": "最終支払日時",
+      "type": "datetime",
+      "width": "160px",
+      "align": "left",
+      "sortable": true,
+      "filterable": false,
+      "displayFormat": "YYYY-MM-DD HH:mm"
+    }
+  ],
+  "sortDefaults": [
+    { "columnName": "totalPaidAmount", "order": "desc" }
+  ],
+  "filterDefaults": [
+    { "columnName": "eligibilityStatus", "operator": "eq", "value": "eligible" }
+  ],
+  "pageSize": 30,
+  "authoring": {
+    "notes": [
+      {
+        "id": "note-vd-bnf-01",
+        "kind": "assumption",
+        "body": "初期フィルタは受給資格状態=eligible のみ表示。資格停止受給者を含む全件表示はフィルタ解除で実施。年間累計支払額は降順で、限度額近傍の案件を先頭に表示する設計。",
+        "createdAt": "2026-04-30T00:00:00.000Z"
+      }
+    ]
+  }
+}
