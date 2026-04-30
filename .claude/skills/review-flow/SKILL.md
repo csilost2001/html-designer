@@ -80,7 +80,7 @@ cd designer
 npm run validate:dogfood
 ```
 
-### 何が動くか (7 バリデータ)
+### 何が動くか (8 バリデータ)
 
 | # | バリデータ | 検出内容 | 入力 |
 |---|---|---|---|
@@ -91,6 +91,7 @@ npm run validate:dogfood
 | 5 | screenItemFlowValidator | 画面項目イベント ↔ 処理フロー連携 (handlerFlowId 実在 / argumentMapping 整合 / primaryInvoker 双方向 / events[].id ユニーク) | 各プロジェクトの `screens/` を per-project でロード (project-level 検査、#619/#621) |
 | 6 | screenItemFieldTypeValidator | 画面項目 ↔ フロー 値レベル整合 | 画面項目定義ファイル + 処理フロー JSON |
 | 7 | sqlOrderValidator | DB 制約 × 操作順序 (NOT NULL × INSERT / FK × INSERT 順序) | テーブル定義 (v3 形式) を自動ロード (#632) |
+| 8 | viewDefinitionValidator | ViewDefinition 整合 (sourceTableId 実在 / columnRef 実在 / 重複列名 / sort/filter/groupBy 列参照 / FieldType 互換) | 各プロジェクトの `view-definitions/` を per-project でロード (project-level 検査、#649) |
 
 ### 結果の取り扱い
 
@@ -115,13 +116,16 @@ npm run validate:dogfood
 | 9. 画面項目イベント連携整合 | screenItemFlowValidator (handlerFlowId / argumentMapping / primaryInvoker / events[].id ユニーク) | 業務文脈での argumentMapping 値の妥当性 (UI 入力 → フロー入力の意味的整合) は AI |
 | 10. 画面項目値レベル整合 | screenItemFieldTypeValidator (options 包含 / domainKey / 型 / pattern / range / length) | 業務文脈の妥当性 (選択肢命名の業務適切性 / domain 設計妥当性) は AI |
 | 11. DB 制約 × INSERT 順序 (#632) | sqlOrderValidator (NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED) | 複雑な条件分岐での可能性の有無は AI |
+| 12. ViewDefinition 整合 (#649) | viewDefinitionValidator (UNKNOWN_SOURCE_TABLE / UNKNOWN_TABLE_COLUMN_REF / DUPLICATE_VIEW_COLUMN_NAME / UNKNOWN_SORT_COLUMN / UNKNOWN_FILTER_COLUMN / UNKNOWN_GROUP_BY_COLUMN) | sourceTableId ↔ dbAccess テーブルの業務的整合 / FIELD_TYPE_INCOMPATIBLE の業務妥当性は AI |
 
 監査根拠: `docs/spec/dogfood-2026-04-29-phase2-validator-audit.md` §3 / §4 + Phase 3 子 1 #619 (PR #626)。
 
 ### 終了コードの扱い
 
-- **exit 0**: 6 バリデータ全 pass → Step 1 へ進む
+- **exit 0**: 8 バリデータ全 pass → Step 1 へ進む
 - **exit 1**: 1 件以上の validator issue 検出 → Step 1 を中止せず、issue 内容を Step 2 のカバレッジ表に「validator 検出済」として記録して進む (実行セマンティクス観点が AI 目視のみで残るため)
+- **ViewDefinition 関連 Must-fix 候補**: `UNKNOWN_SOURCE_TABLE` / `UNKNOWN_TABLE_COLUMN_REF` / `DUPLICATE_VIEW_COLUMN_NAME` / `UNKNOWN_SORT_COLUMN` / `UNKNOWN_FILTER_COLUMN` / `UNKNOWN_GROUP_BY_COLUMN`
+- **ViewDefinition 関連 Should-fix (warning)**: `COLUMN_REF_NOT_IN_SOURCE_TABLE` / `FIELD_TYPE_INCOMPATIBLE` / `FILTER_OPERATOR_TYPE_MISMATCH`
 - **exit 2**: 引数異常 / ファイル不在 / JSON parse 失敗 → エラーメッセージを報告し AI 目視のみで Step 1 に進む
 
 ### バリデータが動かない場合
@@ -130,9 +134,10 @@ npm run validate:dogfood
 - `npm run validate:dogfood` 自体が失敗 (依存解決等) → 同上、Step 1 に進む
 - バリデータ未呼び出しは **Step 2 の「validator 検出済」欄を「未実行」と明記** (隠さない)
 
-## Step 1: 検証項目 (10 観点)
+## Step 1: 検証項目 (12 観点)
 
 各観点を **必ず実施**。「該当なし」の場合もその旨を明記する。
+観点 11 / 12 は機械検出が主 (Step 0.5) で AI 目視は業務文脈の妥当性のみ担当する。
 
 ### 1. 変数ライフサイクル (Variable Lifecycle)
 

@@ -23,6 +23,7 @@ import type {
   Uuid,
   ViewId,
 } from "./common";
+import type { ViewDefinitionId } from "./view-definition";
 
 /** entities.* 配列要素の共通プロパティ。一覧 UI 表示用最小メタ。 */
 export interface EntryBase {
@@ -65,6 +66,16 @@ export interface ViewEntry extends EntryBase {
   physicalName?: PhysicalName;
 }
 
+/** ViewDefinition (画面 一覧 UI viewer) entry。schemas/v3/view-definition.v3.schema.json と対応。 */
+export interface ViewDefinitionEntry extends EntryBase {
+  id: ViewDefinitionId;
+  /** ViewDefinitionKind (list / detail / kanban / calendar、または `retail:storefront` 等の拡張参照)。 */
+  kind?: string;
+  /** ベースとなる source table の Uuid (一覧 UI 表示用)。 */
+  sourceTableId?: TableId;
+  columnCount?: number;
+}
+
 export interface SequenceEntry extends EntryBase {
   id: SequenceId;
   physicalName?: PhysicalName;
@@ -94,6 +105,7 @@ export interface ProjectEntities {
   tables?: TableEntry[];
   processFlows?: ProcessFlowEntry[];
   views?: ViewEntry[];
+  viewDefinitions?: ViewDefinitionEntry[];
   sequences?: SequenceEntry[];
   screenGroups?: ScreenGroupEntry[];
   screenTransitions?: ScreenTransitionEntry[];

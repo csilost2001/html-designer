@@ -17,7 +17,20 @@
   "entities": {
     "screens": [
       { "id": "883e408d-3290-448d-a881-e9d7a22c85fc", "no": 1, "name": "給付申請受付", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "form", "path": "/welfare-benefit/applications/new", "hasDesign": false },
-      { "id": "1cfb3eef-baa4-4666-8ef3-f74fe2954f85", "no": 2, "name": "支払通知", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "form", "path": "/welfare-benefit/payments/new", "hasDesign": false }
+      { "id": "1cfb3eef-baa4-4666-8ef3-f74fe2954f85", "no": 2, "name": "支払通知", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "form", "path": "/welfare-benefit/payments/new", "hasDesign": false },
+      { "id": "e2d3f4a5-b6c7-4000-8000-e2d3f4a5b6c7", "no": 3, "name": "受給者一覧", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "list", "path": "/welfare-benefit/beneficiaries", "hasDesign": false }
+    ],
+    "viewDefinitions": [
+      {
+        "id": "c7d8e9f0-a1b2-4000-8000-c7d8e9f0a1b2",
+        "no": 1,
+        "name": "受給者一覧ビュー",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "list",
+        "sourceTableId": "dde87bc9-e122-4466-9b1c-e8c5b2f98408",
+        "columnCount": 5
+      }
     ],
     "tables": [
       { "id": "c3bff56f-e4d2-4597-8819-93ecf7fc0acd", "no": 1, "name": "申請者", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "applicants", "category": "マスタ", "columnCount": 12 },

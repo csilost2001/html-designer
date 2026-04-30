@@ -29,9 +29,11 @@ import { checkIdentifierScopes } from "../src/schemas/identifierScope.js";
 import { checkScreenItemFlowConsistency } from "../src/schemas/screenItemFlowValidator.js";
 import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFieldTypeValidator.js";
 import { checkScreenItemRefKeyConsistency } from "../src/schemas/screenItemRefKeyValidator.js";
+import { checkViewDefinitions } from "../src/schemas/viewDefinitionValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
 import type { Conventions } from "../src/types/v3/conventions.js";
+import type { ViewDefinition } from "../src/types/v3/view-definition.js";
 import { discoverProjects as discoverSampleProjects, type SampleProjectInfo } from "./sample-projects.js";
 
 // ─── パス解決 ──────────────────────────────────────────────────────────────
@@ -52,6 +54,7 @@ interface ProjectResources {
   conventions: ConventionsCatalog | null;
   conventionsV3: Conventions | null;  // v3 型 conventions (refKey validator 用、#651)
   screens: Screen[];          // 画面定義 (#619、画面項目イベント連携検証用)
+  viewDefinitions: ViewDefinition[]; // ViewDefinition 一覧 (#649)
   flowsDir: string;           // process-flows/ の絶対パス
 }
 
@@ -85,6 +88,7 @@ interface ValidationSummary {
   totalTableCount: number;
   totalConventionsCount: number;
   totalScreenCount: number;
+  totalViewDefinitionCount: number;
   extensionFileCount: number;
 }
 
@@ -119,6 +123,16 @@ function loadScreensFromDir(dir: string): Screen[] {
   }
 }
 
+function loadViewDefinitionsFromDir(dir: string): ViewDefinition[] {
+  if (!existsSync(dir)) return [];
+  try {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    return files.map((f) => JSON.parse(readFileSync(join(dir, f), "utf-8")) as ViewDefinition);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * v1 + v3 のサンプルプロジェクトを発見してリソース情報を返す。
  *
@@ -139,6 +153,7 @@ function discoverProjects(): ProjectResources[] {
       conventions,
       conventionsV3: conventions as Conventions | null,
       screens: loadScreensFromDir(info.screensDir),
+      viewDefinitions: loadViewDefinitionsFromDir(join(info.projectDir, "view-definitions")),
       flowsDir: info.flowsDir,
     };
   });
@@ -329,6 +344,7 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
   const totalTableCount = projects.reduce((acc, p) => acc + p.tables.length, 0);
   const totalConventionsCount = projects.filter((p) => p.conventions !== null).length;
   const totalScreenCount = projects.reduce((acc, p) => acc + p.screens.length, 0);
+  const totalViewDefinitionCount = projects.reduce((acc, p) => acc + p.viewDefinitions.length, 0);
 
   const results: FlowValidationResult[] = [];
   const projectResults: ProjectValidationResult[] = [];
@@ -422,6 +438,19 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
         })),
       );
 
+      // 11. ViewDefinition 整合検証 (#649 Phase 4 子 1)
+      const viewDefinitionIssues = checkViewDefinitions(
+        project.viewDefinitions,
+        project.tables as unknown as import("../src/schemas/viewDefinitionValidator.js").TableDefinitionForView[],
+      );
+      projectIssues.push(
+        ...viewDefinitionIssues.map((i) => ({
+          validator: "viewDefinitionValidator",
+          severity: i.severity,
+          message: `[${i.code}] ${i.path}: ${i.message}`,
+        })),
+      );
+
       if (projectIssues.length > 0) {
         projectResults.push({
           projectId: project.projectId,
@@ -445,6 +474,7 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
     totalTableCount,
     totalConventionsCount,
     totalScreenCount,
+    totalViewDefinitionCount,
     extensionFileCount,
   };
 }
@@ -460,6 +490,7 @@ const validatorDisplayOrder = [
   "screenItemFieldTypeValidator",
   "sqlOrderValidator",
   "screenItemRefKeyValidator",
+  "viewDefinitionValidator",
 ];
 
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {
@@ -467,7 +498,7 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
   console.log();
   console.log(
     `📂 プロジェクト数: ${summary.projectCount} / ${summary.totalFlows} flows / ${summary.totalTableCount} tables` +
-    ` / ${summary.totalScreenCount} screens / ${summary.totalConventionsCount} conventions catalogs / ${summary.extensionFileCount} extension files`,
+    ` / ${summary.totalScreenCount} screens / ${summary.totalViewDefinitionCount} viewDefinitions / ${summary.totalConventionsCount} conventions catalogs / ${summary.extensionFileCount} extension files`,
   );
   console.log();
 

@@ -42,6 +42,7 @@
         "tables":  { "type": "array", "items": { "$ref": "#/$defs/TableEntry" } },
         "processFlows": { "type": "array", "items": { "$ref": "#/$defs/ProcessFlowEntry" } },
         "views": { "type": "array", "items": { "$ref": "#/$defs/ViewEntry" } },
+        "viewDefinitions": { "type": "array", "items": { "$ref": "#/$defs/ViewDefinitionEntry" } },
         "sequences": { "type": "array", "items": { "$ref": "#/$defs/SequenceEntry" } },
         "screenGroups": { "type": "array", "items": { "$ref": "#/$defs/ScreenGroupEntry" } },
         "screenTransitions": { "type": "array", "items": { "$ref": "#/$defs/ScreenTransitionEntry" } }
@@ -108,6 +109,18 @@
       "type": "object",
       "properties": {
         "physicalName": { "$ref": "common.v3.schema.json#/$defs/PhysicalName" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ViewDefinitionEntry": {
+      "description": "ViewDefinition (画面 一覧 UI viewer) entry。schemas/v3/view-definition.v3.schema.json と対応。",
+      "allOf": [{ "$ref": "#/$defs/EntryBase" }],
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "description": "ViewDefinitionKind (list / detail / kanban / calendar、または 'retail:storefront' 等の拡張参照)。" },
+        "sourceTableId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "ベースとなる source table の Uuid (一覧 UI 表示用)。" },
+        "columnCount": { "type": "integer", "minimum": 0 }
       },
       "unevaluatedProperties": false
     },

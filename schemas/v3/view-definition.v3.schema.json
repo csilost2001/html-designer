@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/html-designer/main/schemas/v3/view-definition.v3.schema.json",
+  "title": "ViewDefinition (v3 画面 一覧 UI viewer)",
+  "description": "画面側の一覧 UI viewer 設定 (list / detail / kanban / calendar 等)。DB の SELECT 文を保持する View (view.v3.schema.json) とは axis が異なる。1 viewer = 1 source table、列は画面表示型 (FieldType) で表現。Screen は viewDefinitionRefs[] で 1:N 参照する。",
+  "type": "object",
+  "$ref": "#/$defs/ViewDefinition",
+  "$defs": {
+    "ViewDefinition": {
+      "description": "ViewDefinition entity 本体。EntityMeta + viewer 種別 + source table + columns + sort/filter defaults + authoring。",
+      "allOf": [
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+      ],
+      "type": "object",
+      "required": ["kind", "sourceTableId", "columns"],
+      "properties": {
+        "$schema": { "type": "string", "description": "instance JSON が参照する schema 文書への URL/相対パス。" },
+        "kind": { "$ref": "#/$defs/ViewDefinitionKind" },
+        "sourceTableId": {
+          "$ref": "common.v3.schema.json#/$defs/Uuid",
+          "description": "viewer の主要ソーステーブル。1 ViewDefinition = 1 ベース table。joined view を表現する場合は別 column の tableColumnRef.tableId が異なる値を持ってよい (warning)。"
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "description": "viewer に表示する列定義。表示順は配列順。",
+          "items": { "$ref": "#/$defs/ViewColumn" }
+        },
+        "sortDefaults": {
+          "type": "array",
+          "description": "既定ソート順 (複数列対応)。columnName は columns[].name を参照。",
+          "items": { "$ref": "#/$defs/SortSpec" }
+        },
+        "filterDefaults": {
+          "type": "array",
+          "description": "初期フィルタ条件。columnName は columns[].name を参照。",
+          "items": { "$ref": "#/$defs/FilterSpec" }
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "ページング初期件数。"
+        },
+        "groupBy": {
+          "$ref": "common.v3.schema.json#/$defs/Identifier",
+          "description": "kanban / グルーピング表示時の集約キー。columns[].name を参照。"
+        },
+        "authoring": { "$ref": "common.v3.schema.json#/$defs/Authoring" }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "ViewDefinitionKind": {
+      "description": "viewer 種別。組み込み 4 種 (list / detail / kanban / calendar) + 拡張参照 (namespace:kindName)。",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["list", "detail", "kanban", "calendar"]
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*:[a-z][a-zA-Z0-9]*$",
+          "description": "拡張 ViewDefinitionKind 参照。namespace:kindName 形式 (例: 'retail:storefront')。"
+        }
+      ]
+    },
+
+    "ViewColumn": {
+      "description": "viewer 1 列の定義。table カラムへの複合参照 + 画面表示型 (FieldType)。",
+      "type": "object",
+      "required": ["name", "tableColumnRef", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "common.v3.schema.json#/$defs/Identifier",
+          "description": "列識別子 (camelCase)。同 ViewDefinition 内で一意。sortDefaults / filterDefaults / groupBy が参照する。"
+        },
+        "tableColumnRef": {
+          "$ref": "common.v3.schema.json#/$defs/TableColumnRef",
+          "description": "参照する table カラム (Pattern B)。tableId は通常 sourceTableId と一致。"
+        },
+        "displayName": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
+        "type": {
+          "$ref": "common.v3.schema.json#/$defs/FieldType",
+          "description": "画面表示型 (FieldType)。Column.dataType (DB 型) と互換であること (validator が検査)。"
+        },
+        "displayFormat": {
+          "type": "string",
+          "description": "表示書式。例: '#,##0' (整数 3 桁区切り) / 'YYYY-MM-DD' (日付)。"
+        },
+        "width": {
+          "type": "string",
+          "description": "列幅 (CSS 表記、例: '120px' / '1fr' / 'auto')。"
+        },
+        "align": {
+          "enum": ["left", "center", "right"]
+        },
+        "sortable": { "type": "boolean" },
+        "filterable": { "type": "boolean" },
+        "visibleWhen": {
+          "$ref": "common.v3.schema.json#/$defs/ExpressionString",
+          "description": "列表示条件式。"
+        },
+        "linkTo": {
+          "type": "string",
+          "description": "セル click で navigate する path (例: '/orders/:id')。:colon 形式で同行値を埋め込み。"
+        }
+      }
+    },
+
+    "SortSpec": {
+      "description": "ソート 1 列。columnName は ViewColumn.name を参照。",
+      "type": "object",
+      "required": ["columnName", "order"],
+      "additionalProperties": false,
+      "properties": {
+        "columnName": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+        "order": { "enum": ["asc", "desc"] }
+      }
+    },
+
+    "FilterSpec": {
+      "description": "フィルタ 1 件。columnName は ViewColumn.name を参照。value (リテラル) または valueExpression (式) のいずれか。",
+      "type": "object",
+      "required": ["columnName", "operator"],
+      "additionalProperties": false,
+      "properties": {
+        "columnName": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+        "operator": {
+          "enum": ["eq", "neq", "gt", "gte", "lt", "lte", "contains", "startsWith", "in", "between"]
+        },
+        "value": {
+          "description": "比較リテラル値。operator に応じて型が変わる (in: array / between: [min, max] / contains-startsWith: string)。"
+        },
+        "valueExpression": {
+          "$ref": "common.v3.schema.json#/$defs/ExpressionString",
+          "description": "比較値を式で渡したい場合 (例: '@conv.numbering.lowStockThreshold')。"
+        }
+      }
+    }
+  }
+}

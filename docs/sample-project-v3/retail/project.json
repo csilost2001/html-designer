@@ -28,6 +28,28 @@
         "kind": "search",
         "path": "/retail/inventory/search",
         "hasDesign": false
+      },
+      {
+        "id": "a1b2c3d4-e5f6-4000-8000-a1b2c3d4e5f6",
+        "no": 2,
+        "name": "商品一覧",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "list",
+        "path": "/retail/products",
+        "hasDesign": false
+      }
+    ],
+    "viewDefinitions": [
+      {
+        "id": "f1a2b3c4-d5e6-4000-8000-f1a2b3c4d5e6",
+        "no": 1,
+        "name": "商品一覧ビュー",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "list",
+        "sourceTableId": "eb574288-88f2-419f-ac5e-56a9948e8f46",
+        "columnCount": 5
       }
     ],
     "tables": [

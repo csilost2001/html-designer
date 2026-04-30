@@ -33,6 +33,7 @@ export * from "./screen-layout";
 export * from "./table";
 export * from "./sequence";
 export * from "./view";
+export * from "./view-definition";
 export * from "./er-layout";
 
 // 処理フロー

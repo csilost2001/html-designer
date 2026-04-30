@@ -1,4 +1,4 @@
-﻿---
+---
 name: create-flow
 description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 18 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
 argument-hint: <flowId> <業務概要> [namespace]
@@ -253,6 +253,30 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
   - 全く出どころ不明の変数を FK カラムに使う場合のみ issue
 
 **Step 5.2 で `validate:dogfood` の `sqlOrderValidator` により機械的に検出される**
+
+
+### Rule 20: ViewDefinition 整合 (#649、Phase 4 子 1)
+
+一覧系画面 (`list` / `search` 等) のフローを作成するとき、同プロジェクト内の ViewDefinition との整合を確認する。`viewDefinitionValidator` が以下を機械検出する。
+
+| code | severity | 検出内容 |
+|---|---|---|
+| `UNKNOWN_SOURCE_TABLE` | error | ViewDefinition.sourceTableId が同プロジェクトのテーブルに実在しない |
+| `UNKNOWN_TABLE_COLUMN_REF` | error | ViewColumn.tableColumnRef が指す {tableId, columnId} が実在しない |
+| `COLUMN_REF_NOT_IN_SOURCE_TABLE` | warning | tableColumnRef.tableId が sourceTableId と異なる (joined view 参照) |
+| `DUPLICATE_VIEW_COLUMN_NAME` | error | ViewColumn.name が同 ViewDefinition 内で重複 |
+| `FIELD_TYPE_INCOMPATIBLE` | warning | ViewColumn.type (FieldType) と DB Column.dataType が互換しない |
+| `UNKNOWN_SORT_COLUMN` | error | sortDefaults[].columnName が columns[].name に存在しない |
+| `UNKNOWN_FILTER_COLUMN` | error | filterDefaults[].columnName が columns[].name に存在しない |
+| `FILTER_OPERATOR_TYPE_MISMATCH` | warning | filter operator が column type と不整合 (数値型に contains 等) |
+| `UNKNOWN_GROUP_BY_COLUMN` | error | groupBy が columns[].name に存在しない |
+
+フロー作成時のチェックポイント:
+- `dbAccess` の対象テーブルが ViewDefinition.sourceTableId と一致しているか
+- ViewColumn.name で参照している列が実際に SELECT 句に含まれているか
+- Screen.viewDefinitionRefs[] が本フローで扱う ViewDefinition ID を正しく列挙しているか
+
+**Step 5.2 で `validate:dogfood` の `viewDefinitionValidator` により機械的に検出される**
 
 ### Rule 22: 画面項目 refKey 横断整合 (#651、Phase 4 子 3)
 
