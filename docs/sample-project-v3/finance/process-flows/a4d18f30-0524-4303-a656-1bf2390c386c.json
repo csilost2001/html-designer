@@ -29,6 +29,7 @@
         "CREDIT_DENIED": { "httpStatus": 403, "defaultMessage": "与信審査により振込が拒否されました", "responseId": "403-credit-denied" },
         "APPROVAL_REJECTED": { "httpStatus": 422, "defaultMessage": "承認者により却下されました", "responseId": "422-approval-rejected" },
         "TRANSFER_TIMEOUT": { "httpStatus": 504, "defaultMessage": "処理がタイムアウトしました", "responseId": "504-transfer-timeout" },
+        "DUPLICATE_TRANSFER_NUMBER": { "httpStatus": 500, "defaultMessage": "送金番号 採番衝突 (内部エラー)", "responseId": "500-internal-error" },
         "INTERNAL_ERROR": { "httpStatus": 500, "defaultMessage": "内部エラーが発生しました", "responseId": "500-internal-error" }
       },
       "externalSystems": {
@@ -362,6 +363,7 @@
                   "operation": "INSERT",
                   "sql": "INSERT INTO transfers (transfer_number, from_account_id, to_account_id, amount, fee, status, approval_required, requested_by_customer_id, memo) VALUES (@conv.numbering.transferNumber, @fromAccount.id, @toAccount.id, @inputs.amount, @fee, 'pending', true, @sessionUserId, @inputs.memo) RETURNING id, transfer_number",
                   "outputBinding": { "name": "createdTransfer" },
+                  "affectedRowsCheck": { "operator": "=", "expected": 1, "onViolation": "throw", "errorCode": "DUPLICATE_TRANSFER_NUMBER", "description": "transfer_number 採番衝突 (defense-in-depth、numbering convention により実質発生しない想定)" },
                   "lineage": {
                     "writes": [{ "tableId": "cfd7ac67-73bf-4a22-baea-f7be435f3006", "purpose": "create" }]
                   }
@@ -473,6 +475,7 @@
                 "operation": "INSERT",
                 "sql": "INSERT INTO transfers (transfer_number, from_account_id, to_account_id, amount, fee, status, approval_required, requested_by_customer_id, memo) VALUES (@conv.numbering.transferNumber, @fromAccount.id, @toAccount.id, @inputs.amount, @fee, 'approved', false, @sessionUserId, @inputs.memo) RETURNING id, transfer_number",
                 "outputBinding": { "name": "createdTransfer" },
+                "affectedRowsCheck": { "operator": "=", "expected": 1, "onViolation": "throw", "errorCode": "DUPLICATE_TRANSFER_NUMBER", "description": "transfer_number 採番衝突 (defense-in-depth、numbering convention により実質発生しない想定)" },
                 "lineage": {
                   "writes": [{ "tableId": "cfd7ac67-73bf-4a22-baea-f7be435f3006", "purpose": "create" }]
                 }
