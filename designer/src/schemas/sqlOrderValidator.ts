@@ -261,6 +261,15 @@ function walkStepsInOrder(
         if (spec?.sideEffects) walkStepsInOrder(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, visitor);
       });
     }
+    if (step.kind === "workflow") {
+      if (step.onApproved) walkStepsInOrder(step.onApproved, `${path}.onApproved`, visitor);
+      if (step.onRejected) walkStepsInOrder(step.onRejected, `${path}.onRejected`, visitor);
+      if (step.onTimeout) walkStepsInOrder(step.onTimeout, `${path}.onTimeout`, visitor);
+    }
+    if (step.kind === "validation" && step.inlineBranch) {
+      walkStepsInOrder(step.inlineBranch.ok, `${path}.inlineBranch.ok`, visitor);
+      walkStepsInOrder(step.inlineBranch.ng, `${path}.inlineBranch.ng`, visitor);
+    }
   }
 }
 
@@ -743,6 +752,11 @@ function checkAction(
     // 厳密には sql 評価後に bind されるが、偽陽性抑止のため同 step の binding も有効とする。
     if (step.outputBinding?.name) {
       boundVars.add(step.outputBinding.name);
+    }
+    // ValidationStep.fieldErrorsVar も暗黙宣言として boundVars に取り込む
+    // (identifierScope.ts:129-132 と同ロジック、デフォルト名 "fieldErrors")
+    if (step.kind === "validation") {
+      boundVars.add(step.fieldErrorsVar ?? "fieldErrors");
     }
     if (step.kind === "compute" && step.outputBinding?.name) {
       boundVars.add(step.outputBinding.name);

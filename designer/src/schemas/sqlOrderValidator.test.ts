@@ -306,6 +306,333 @@ describe("観点 1: NULL_NOT_ALLOWED_AT_INSERT", () => {
   });
 });
 
+describe("sqlOrderValidator boundVars implicit declarations (#654)", () => {
+  const tables: OrderTableDefinition[] = [
+    makeTable("tbl-validation-errors", "validation_errors", [
+      { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { physicalName: "error_log", notNull: true },
+    ]),
+    makeTable("tbl-audit-log", "audit_log", [
+      { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { physicalName: "payload", notNull: true },
+    ]),
+    makeTable("tbl-source", "source_items", [
+      { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { physicalName: "name", notNull: true },
+    ]),
+  ];
+
+  it("ValidationStep.fieldErrorsVar 明示: @myErrors 参照 INSERT の false positive を出さない", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-01",
+          name: "fieldErrorsVar 明示",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-validation-01",
+              kind: "validation",
+              description: "入力チェック",
+              rules: [],
+              fieldErrorsVar: "myErrors",
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "エラー記録",
+              tableId: "tbl-validation-errors",
+              operation: "INSERT",
+              sql: "INSERT INTO validation_errors (error_log) VALUES (@myErrors)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("myErrors"),
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it("ValidationStep.fieldErrorsVar 省略: デフォルト fieldErrors を boundVars として扱う", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-02",
+          name: "fieldErrorsVar 省略",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-validation-01",
+              kind: "validation",
+              description: "入力チェック",
+              rules: [],
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "エラー記録",
+              tableId: "tbl-validation-errors",
+              operation: "INSERT",
+              sql: "INSERT INTO validation_errors (error_log) VALUES (@fieldErrors)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("fieldErrors"),
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it("workflow.onApproved 内 outputBinding は workflow step 後の sibling step から参照できる", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-03",
+          name: "workflow onApproved",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-workflow-01",
+              kind: "workflow",
+              description: "承認",
+              pattern: "approval-sequential",
+              approvers: [{ role: "manager" }],
+              onApproved: [
+                {
+                  id: "step-select-01",
+                  kind: "dbAccess",
+                  description: "承認済みレコード取得",
+                  tableId: "tbl-source",
+                  operation: "SELECT",
+                  sql: "SELECT id, name FROM source_items WHERE id = @inputs.id",
+                  outputBinding: { name: "approvedRecord" },
+                },
+              ],
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "監査ログ記録",
+              tableId: "tbl-audit-log",
+              operation: "INSERT",
+              sql: "INSERT INTO audit_log (payload) VALUES (@approvedRecord)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("approvedRecord"),
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it("validation.inlineBranch.ok 内 outputBinding は validation step 後の sibling step から参照できる", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-04",
+          name: "validation inlineBranch",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-validation-01",
+              kind: "validation",
+              description: "入力チェック",
+              rules: [],
+              inlineBranch: {
+                ok: [
+                  {
+                    id: "step-select-01",
+                    kind: "dbAccess",
+                    description: "検証済み項目取得",
+                    tableId: "tbl-source",
+                    operation: "SELECT",
+                    sql: "SELECT id, name FROM source_items WHERE id = @inputs.id",
+                    outputBinding: { name: "validatedItem" },
+                  },
+                ],
+                ng: [],
+              },
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "監査ログ記録",
+              tableId: "tbl-audit-log",
+              operation: "INSERT",
+              sql: "INSERT INTO audit_log (payload) VALUES (@validatedItem)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("validatedItem"),
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it("workflow.onRejected 内 outputBinding が後続 sibling step から参照可能", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-05",
+          name: "workflow onRejected",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-workflow-01",
+              kind: "workflow",
+              description: "承認",
+              pattern: "approval-sequential",
+              approvers: [{ role: "manager" }],
+              onRejected: [
+                {
+                  id: "step-select-01",
+                  kind: "dbAccess",
+                  description: "却下済みレコード取得",
+                  tableId: "tbl-source",
+                  operation: "SELECT",
+                  sql: "SELECT id, name FROM source_items WHERE id = @inputs.id",
+                  outputBinding: { name: "rejectedRecord" },
+                },
+              ],
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "監査ログ記録",
+              tableId: "tbl-audit-log",
+              operation: "INSERT",
+              sql: "INSERT INTO audit_log (payload) VALUES (@rejectedRecord)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("rejectedRecord"),
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it("workflow.onTimeout 内 outputBinding が後続 sibling step から参照可能", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-06",
+          name: "workflow onTimeout",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-workflow-01",
+              kind: "workflow",
+              description: "承認",
+              pattern: "approval-sequential",
+              approvers: [{ role: "manager" }],
+              onTimeout: [
+                {
+                  id: "step-select-01",
+                  kind: "dbAccess",
+                  description: "期限切れレコード取得",
+                  tableId: "tbl-source",
+                  operation: "SELECT",
+                  sql: "SELECT id, name FROM source_items WHERE id = @inputs.id",
+                  outputBinding: { name: "timeoutRecord" },
+                },
+              ],
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "監査ログ記録",
+              tableId: "tbl-audit-log",
+              operation: "INSERT",
+              sql: "INSERT INTO audit_log (payload) VALUES (@timeoutRecord)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("timeoutRecord"),
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it("validation.inlineBranch.ng 内 outputBinding が後続 sibling step から参照可能", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-654-07",
+          name: "validation inlineBranch ng",
+          trigger: "submit",
+          inputs: [],
+          steps: [
+            {
+              id: "step-validation-01",
+              kind: "validation",
+              description: "入力チェック",
+              rules: [],
+              inlineBranch: {
+                ok: [],
+                ng: [
+                  {
+                    id: "step-select-01",
+                    kind: "dbAccess",
+                    description: "検証NG項目取得",
+                    tableId: "tbl-source",
+                    operation: "SELECT",
+                    sql: "SELECT id, name FROM source_items WHERE id = @inputs.id",
+                    outputBinding: { name: "ngValidatedItem" },
+                  },
+                ],
+              },
+            },
+            {
+              id: "step-insert-01",
+              kind: "dbAccess",
+              description: "監査ログ記録",
+              tableId: "tbl-audit-log",
+              operation: "INSERT",
+              sql: "INSERT INTO audit_log (payload) VALUES (@ngValidatedItem)",
+            },
+          ],
+        },
+      ],
+    });
+
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("ngValidatedItem"),
+    );
+    expect(target).toHaveLength(0);
+  });
+});
+
 // ─── 観点 2: FK_REFERENCE_NOT_INSERTED ────────────────────────────────────
 
 describe("観点 2: FK_REFERENCE_NOT_INSERTED", () => {
