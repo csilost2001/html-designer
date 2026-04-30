@@ -436,6 +436,7 @@ function generateDummyFieldTypes(opts: {
   if (variant === "v3") {
     return {
       namespace: safeId,
+      version: "0.0.0",
       fieldTypes: [
         {
           kind: `${safeId}Id`,
@@ -448,7 +449,7 @@ function generateDummyFieldTypes(opts: {
       ],
       actionTriggers: [],
       dbOperations: [],
-      stepKinds: [],
+      stepKinds: {},
     };
   }
 
