@@ -22,7 +22,7 @@ Claude Code 向けの補足ガイダンス。
 
 - **`/issues <N>`** — ISSUE を 12 ルール Opus オーケストレーターワークフローで完遂 (`.claude/skills/issues/SKILL.md`)
 - **`/review-pr <N>`** — PR 独立レビュー (一般品質: spec / 命名 / テスト) (`.claude/skills/review-pr/SKILL.md`)
-- **`/create-flow <flowId> <業務概要> [namespace]`** — ProcessFlow JSON を品質ガード付きで作成 (`/review-flow` の 14 観点を作成前 self-check として組み込み、#486 検証で発覚した 6 件の追加 checklist を含む)。`/review-flow` と併用前提 (`.claude/skills/create-flow/SKILL.md`)
+- **`/create-flow <flowId> <業務概要> [namespace]`** — ProcessFlow JSON を品質ガード付きで作成 (`/review-flow` の 10 観点を作成前 self-check として組み込み、18 ルールの既知パターン回避 self-check を含む)。`/review-flow` と併用前提 (`.claude/skills/create-flow/SKILL.md`)
 - **`/review-flow <flowId>`** — ProcessFlow JSON 実行セマンティクス専門レビュー (変数ライフサイクル / TX / runIf / 補償 / event 双方向)。設計フェーズから使える (`.claude/skills/review-flow/SKILL.md`)
 - **`/review-issue <N>`** — ISSUE 単位の実装網羅性監査 (`.claude/skills/review-issue/SKILL.md`)
 - **`/test-strategy`** — テスト実装時の自動起動スキル (`.claude/skills/test-strategy/SKILL.md`)

@@ -239,6 +239,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 - 各 `dbAccess SELECT` 対象テーブルについて、行ありパターン + 行なしパターン (新規ユーザー / 初回利用) を testScenarios で網羅する
 - NOT NULL カラムへの INSERT で他テーブル参照を持つ場合、前提行なしの fixture を必ず 1 件用意する
 - 典型ミス: happy-path で全前提を pre-seed、edge は 400/403 系の検証に偏り、初回ユーザーパスが抜ける
+- **補足**: 静的検出 `sqlOrderValidator` (#632) が導入されるまで本ルールが主要 catch 機構。導入後も「値レベル fixture 不足」など静的検出では届かない領域は本ルールで継続担保 (Step 5.2 validate:dogfood では機械検出されない、Step 3 self-check のみで担保)
 
 ## Step 4: 拡張定義の使い方
 
@@ -275,7 +276,7 @@ npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.s
 npm run build
 ```
 
-### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 の機械的検出)
+### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 の機械的検出、Rule 18 は AI 目視)
 
 作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
 
