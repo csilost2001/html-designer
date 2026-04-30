@@ -241,7 +241,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 - 典型ミス: happy-path で全前提を pre-seed、edge は 400/403 系の検証に偏り、初回ユーザーパスが抜ける
 - **補足**: 静的検出 `sqlOrderValidator` (#632) が導入されるまで本ルールが主要 catch 機構。導入後も「値レベル fixture 不足」など静的検出では届かない領域は本ルールで継続担保 (Step 5.2 validate:dogfood では機械検出されない、Step 3 self-check のみで担保)
 
-### Rule 19: DB 制約 × INSERT 操作順序 (#632 / #640)
+### Rule 19: DB 制約 × INSERT / DELETE 操作順序 (#632 / #640 / #641)
 
 - INSERT 文の VALUES で使う変数が INSERT 時点でバインド済みか確認 (NOT NULL カラムが対象)
   - 未バインド変数を NOT NULL カラムに入れている場合: 実行時 DB 制約違反 → Must-fix
@@ -257,6 +257,11 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
     2. INSERT step 自身の `affectedRowsCheck.errorCode` が UNIQUE/DUPLICATE/CONFLICT/ALREADY_EXISTS 系
     3. action 内に `branch.condition.kind: "tryCatch"` で UNIQUE_VIOLATION 系エラーをキャッチする step がある
   - 対象: `Table.constraints[].kind: "unique"` の columnIds および `Column.unique: true`
+- 親テーブルへの DELETE 時、FK の onDelete が restrict / noAction (または未指定) の子テーブルが存在する場合: Must-fix (error) (#641)
+  - 同 action 内の前段に子テーブルへの DELETE step が必要
+  - onDelete = cascade: DB 側が子を自動削除 → 子 DELETE step 不要
+  - onDelete = setNull / setDefault: DB 側が子の FK カラムを NULL / DEFAULT に更新 → 子 DELETE step 不要
+  - onDelete = restrict / noAction (デフォルト): 子 DELETE step が前段になければ実行時 FK 制約違反
 
 **Step 5.2 で `validate:dogfood` の `sqlOrderValidator` により機械的に検出される**
 
@@ -265,6 +270,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 | `NULL_NOT_ALLOWED_AT_INSERT` | error | NOT NULL カラムへの NULL または未バインド変数 INSERT |
 | `FK_REFERENCE_NOT_INSERTED` | error | FK 参照先テーブルの先行 INSERT なし + FK カラム変数が未バインド |
 | `UNIQUE_CHECK_MISSING` | warning | UNIQUE カラムへの INSERT で事前重複チェックなし (#640) |
+| `CASCADE_DELETE_OMITTED` | error | FK onDelete=restrict/noAction の子テーブル行を先 DELETE せず親を DELETE (#641) |
 
 ### Rule 20: ViewDefinition 整合 (#649、Phase 4 子 1)
 

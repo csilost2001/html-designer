@@ -1,5 +1,5 @@
 /**
- * DB 制約 × フロー操作順序の交差検査 (#632 MVP: 観点 1+2、#640 観点 3)。
+ * DB 制約 × フロー操作順序の交差検査 (#632 MVP: 観点 1+2、#640 観点 3、#641 観点 4)。
  *
  * 観点 1 (NULL_NOT_ALLOWED_AT_INSERT):
  *   INSERT 時点で NOT NULL カラムに対応する変数が未バインド
@@ -16,11 +16,17 @@
  *   - INSERT step 自身の affectedRowsCheck.errorCode が UNIQUE_VIOLATION 系
  *   - INSERT を含む branch step の condition.kind: "tryCatch" で UNIQUE_VIOLATION error
  *
+ * 観点 4 (CASCADE_DELETE_OMITTED):
+ *   親テーブルへの DELETE step を検出した際に、子テーブル (referencedTableId が親を指す FK を持つ)
+ *   の onDelete が restrict / noAction (または未指定) の場合、同 action 内の前段に
+ *   子テーブルへの DELETE step が存在しなければ実行時 FK 制約違反。
+ *   - onDelete = cascade / setNull / setDefault → DB 側が処理するため issue なし
+ *   - onDelete = restrict / noAction (default) → 子 DELETE が前段になければ error
+ *
  * 既存 sqlColumnValidator と同じ node-sql-parser v5 AST walker を再利用。
  * 変数バインド時系列追跡 + テーブル schema (notNull / foreignKey / unique) との交差解析
  * で実行時 DB 制約違反を構造的に検出する。
  *
- * 観点 4 (CASCADE_DELETE_OMITTED) → #641
  * 観点 5 (TX_CIRCULAR_DEPENDENCY) → #642
  */
 
@@ -40,11 +46,15 @@ export interface OrderTableColumn {
   defaultValue?: string;
 }
 
+/** FK onDelete アクション (table.v3.schema.json の FkAction enum)。 */
+export type FkAction = "cascade" | "setNull" | "setDefault" | "restrict" | "noAction";
+
 /** FK 制約 (validator 内部で必要な最小フィールド)。 */
 export interface OrderForeignKeyConstraint {
   kind: "foreignKey";
   columnIds: string[];
   referencedTableId: string;
+  onDelete?: FkAction;
 }
 
 /** UNIQUE 制約 (validator 内部で必要な最小フィールド)。 */
@@ -71,7 +81,7 @@ export interface OrderTableDefinition {
 
 export interface SqlOrderIssue {
   path: string;
-  code: "NULL_NOT_ALLOWED_AT_INSERT" | "FK_REFERENCE_NOT_INSERTED" | "UNIQUE_CHECK_MISSING" | "SQL_PARSE_ERROR";
+  code: "NULL_NOT_ALLOWED_AT_INSERT" | "FK_REFERENCE_NOT_INSERTED" | "UNIQUE_CHECK_MISSING" | "CASCADE_DELETE_OMITTED" | "SQL_PARSE_ERROR";
   severity?: "error" | "warning";
   message: string;
 }
@@ -96,6 +106,33 @@ function extractInsertTableName(ast: any): string | null {
   if (ast.type === "insert" && Array.isArray(ast.table)) {
     for (const t of ast.table) {
       if (t.table && typeof t.table === "string") return t.table.toLowerCase();
+    }
+  }
+  return null;
+}
+
+/**
+ * DELETE AST から対象テーブル名を取得 (lowercase)。
+ *
+ * node-sql-parser v5 PostgreSQL dialect での DELETE AST 構造:
+ *   - ast.from: Array<{ table: string, ... }>  (PostgreSQL DELETE FROM)
+ *   - ast.table: Array<{ table: string, ... }>  (一部 dialect フォールバック)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractDeleteTableName(ast: any): string | null {
+  if (!ast || typeof ast !== "object") return null;
+  if (ast.type === "delete") {
+    // PostgreSQL: DELETE FROM table_name → ast.from
+    if (Array.isArray(ast.from)) {
+      for (const t of ast.from) {
+        if (t.table && typeof t.table === "string") return t.table.toLowerCase();
+      }
+    }
+    // フォールバック: ast.table
+    if (Array.isArray(ast.table)) {
+      for (const t of ast.table) {
+        if (t.table && typeof t.table === "string") return t.table.toLowerCase();
+      }
     }
   }
   return null;
@@ -237,6 +274,7 @@ interface TableMeta {
   fkConstraints: Array<{
     columnPhysicalNames: string[]; // FK 本テーブル側カラム物理名 (lowercase)
     referencedTableId: string;
+    onDelete?: FkAction;           // FK 違反時アクション (省略時は noAction 相当)
   }>;
   uniqueConstraints: Array<string[]>; // UNIQUE 制約ごとの physicalName (lowercase) 配列
   uniqueColumns: Set<string>;         // Column.unique: true のカラム (各カラム単体 UNIQUE)
@@ -293,6 +331,7 @@ function buildTableMeta(tables: OrderTableDefinition[]): Map<string, TableMeta> 
           fkConstraints.push({
             columnPhysicalNames,
             referencedTableId: fkCon.referencedTableId,
+            onDelete: fkCon.onDelete,
           });
         }
       } else if (con.kind === "unique") {
@@ -490,10 +529,11 @@ function hasTryCatchUniqueViolationInSteps(steps: Step[]): boolean {
 // ─── メイン検査ロジック ─────────────────────────────────────────────────────
 
 /**
- * action 内 INSERT step を順番に検査。
+ * action 内 INSERT / DELETE step を順番に検査。
  *
  * - boundVars: action.inputs の name + 各 step を順に実行した際に蓄積される outputBinding.name
  * - insertedTableIds: 先行 INSERT で書き込んだテーブルの id (FK 参照先確認用)
+ * - deletedTableIds: 先行 DELETE で削除したテーブルの id (観点 4 の子 DELETE 前段確認用)
  * - priorSelectWhereColumns: INSERT より前に見た SELECT の WHERE カラム集合 (観点 3 用)
  */
 function checkAction(
@@ -506,6 +546,8 @@ function checkAction(
 ): void {
   const boundVars = new Set<string>(initialBound);
   const insertedTableIds = new Set<string>();
+  // 観点 4: 先行 DELETE 済みテーブル id (physicalName lowercase → id の逆引きも兼ねる)
+  const deletedTableIds = new Set<string>();
   // 観点 3: INSERT より前に見た SELECT の WHERE カラム集合 (テーブル物理名 → カラム集合)
   const priorSelectWhereColumnsByTable = new Map<string, Set<string>>();
 
@@ -556,6 +598,60 @@ function checkAction(
         }
       } catch {
         // SELECT パース失敗は無視 (観点 3 の偽陽性抑止のため)
+      }
+    }
+
+    // dbAccess DELETE: 観点 4 (CASCADE_DELETE_OMITTED) の検査
+    if (step.kind === "dbAccess" && step.operation === "DELETE" && step.sql) {
+      const delSql = step.sql;
+      const delSubstituted = substituteAtVars(delSql);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let delAst: any;
+      try {
+        delAst = parser.astify(delSubstituted, { database: DIALECT });
+      } catch {
+        // DELETE パース失敗は観点 4 をスキップ
+        delAst = null;
+      }
+      if (delAst) {
+        const delRootNode = Array.isArray(delAst) ? delAst[0] : delAst;
+        const delTableName = extractDeleteTableName(delRootNode);
+        if (delTableName) {
+          const delMeta = tableMeta.get(delTableName);
+          if (delMeta) {
+            // ── 観点 4: CASCADE_DELETE_OMITTED ──────────────────────────────
+            // 親テーブルを DELETE しようとしている → 子テーブルを逆引きして確認
+            // 子テーブル = fkConstraints に referencedTableId === delMeta.id が含まれるテーブル
+            for (const childMeta of tableMeta.values()) {
+              for (const fk of childMeta.fkConstraints) {
+                if (fk.referencedTableId !== delMeta.id) continue;
+
+                // onDelete の確認: cascade / setNull / setDefault は DB 側が処理 → skip
+                const onDel = fk.onDelete ?? "noAction";
+                if (onDel === "cascade" || onDel === "setNull" || onDel === "setDefault") continue;
+
+                // restrict / noAction: 子テーブルへの前段 DELETE が必要
+                if (deletedTableIds.has(childMeta.id)) continue;
+
+                // 前段 DELETE なし → error
+                issues.push({
+                  path: `${path}.sql`,
+                  code: "CASCADE_DELETE_OMITTED",
+                  severity: "error",
+                  message: `テーブル "${delMeta.physicalName}" を DELETE する前に、FK (onDelete=${onDel}) で参照している子テーブル "${childMeta.physicalName}" の DELETE が必要です。子テーブル行を先に DELETE してから親テーブルを DELETE してください。`,
+                });
+              }
+            }
+
+            // この DELETE を記録 (後続の親テーブル DELETE の false positive 抑止用)
+            deletedTableIds.add(delMeta.id);
+          }
+        }
+        // step.tableId からも記録 (SQL が取得できない場合の補完)
+        if (step.tableId) {
+          const metaById = tableIdIndex.get(step.tableId);
+          if (metaById) deletedTableIds.add(metaById.id);
+        }
       }
     }
 
