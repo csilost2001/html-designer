@@ -30,6 +30,7 @@ import { checkScreenItemFlowConsistency } from "../src/schemas/screenItemFlowVal
 import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFieldTypeValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
+import { discoverProjects as discoverSampleProjects, type SampleProjectInfo } from "./sample-projects.js";
 
 // ─── パス解決 ──────────────────────────────────────────────────────────────
 
@@ -118,47 +119,22 @@ function loadScreensFromDir(dir: string): Screen[] {
 /**
  * v1 + v3 のサンプルプロジェクトを発見してリソース情報を返す。
  *
- * 発見規則:
- *   - v1: docs/sample-project/ (1 project、conventions は conventions/conventions-catalog.json、tables は tables/)
- *   - v3 per-project: docs/sample-project-v3/<subdir>/ に project.json があれば 1 project
+ * 発見ロジックは scripts/sample-projects.ts の discoverProjects() に共通化済 (#617)。
+ * ここでは validator 用に tables / conventions / screens を eager load する。
  *
  * spec: docs/spec/sample-project-structure.md
  */
 function discoverProjects(): ProjectResources[] {
-  const projects: ProjectResources[] = [];
-
-  // v1
-  if (existsSync(join(samplesV1Dir, "project.json")) || existsSync(join(samplesV1Dir, "process-flows"))) {
-    projects.push({
-      projectId: "v1",
-      displayName: relative(repoRoot, samplesV1Dir).replace(/\\/g, "/"),
-      projectDir: samplesV1Dir,
-      tables: loadTablesFromDir(join(samplesV1Dir, "tables")),
-      conventions: loadConventionsFromFile(join(samplesV1Dir, "conventions/conventions-catalog.json")),
-      screens: loadScreensFromDir(join(samplesV1Dir, "screens")),
-      flowsDir: join(samplesV1Dir, "process-flows"),
-    });
-  }
-
-  // v3 per-project (旧 v3-root 過渡期 fallback は #616 で retail/ に移動完了したため削除)
-  if (existsSync(samplesV3Dir)) {
-    for (const entry of readdirSync(samplesV3Dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const projectDir = join(samplesV3Dir, entry.name);
-      if (!existsSync(join(projectDir, "project.json"))) continue;
-      projects.push({
-        projectId: entry.name,
-        displayName: relative(repoRoot, projectDir).replace(/\\/g, "/"),
-        projectDir,
-        tables: loadTablesFromDir(join(projectDir, "tables")),
-        conventions: loadConventionsFromFile(join(projectDir, "conventions-catalog.v3.json")),
-        screens: loadScreensFromDir(join(projectDir, "screens")),
-        flowsDir: join(projectDir, "process-flows"),
-      });
-    }
-  }
-
-  return projects;
+  const infos: SampleProjectInfo[] = discoverSampleProjects(repoRoot);
+  return infos.map((info) => ({
+    projectId: info.projectId,
+    displayName: info.displayName,
+    projectDir: info.projectDir,
+    tables: loadTablesFromDir(info.tablesDir),
+    conventions: loadConventionsFromFile(info.conventionsCatalogFile),
+    screens: loadScreensFromDir(info.screensDir),
+    flowsDir: info.flowsDir,
+  }));
 }
 
 /**

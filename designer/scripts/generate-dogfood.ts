@@ -23,9 +23,15 @@
  */
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
+import { resolve, join, dirname, relative as pathRelative } from "node:path";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import {
+  defaultRepoRoot,
+  discoverProjects,
+  findProjectById,
+  type SampleProjectInfo,
+} from "./sample-projects.js";
 
 // ─── CLI 引数解析 ─────────────────────────────────────────────────────────────
 
@@ -34,9 +40,16 @@ type GenerateMode = "dummy" | "ai";
 interface CliOptions {
   industry: string;
   scenarios: string;
+  /** 出力先ディレクトリ。--project 指定時は省略可 (該当プロジェクトの projectDir を使う) */
   output: string;
   dryRun: boolean;
   mode: GenerateMode;
+  /**
+   * 既存サンプルプロジェクト ID (例: finance / retail / v1)。
+   * 指定すると output 未指定でもプロジェクトディレクトリへ追記書き込みする per-project mode に切り替わる。
+   * extension namespace も projectId に揃える。
+   */
+  projectId?: string;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -54,6 +67,9 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case "--output":
         opts.output = args[++i];
+        break;
+      case "--project":
+        opts.projectId = args[++i];
         break;
       case "--dry-run":
         opts.dryRun = true;
@@ -75,6 +91,8 @@ function parseArgs(argv: string[]): CliOptions {
           opts.scenarios = arg.slice("--scenarios=".length);
         } else if (arg.startsWith("--output=")) {
           opts.output = arg.slice("--output=".length);
+        } else if (arg.startsWith("--project=")) {
+          opts.projectId = arg.slice("--project=".length);
         } else if (arg.startsWith("--mode=")) {
           const modeVal = arg.slice("--mode=".length);
           if (modeVal !== "dummy" && modeVal !== "ai") {
@@ -88,15 +106,32 @@ function parseArgs(argv: string[]): CliOptions {
     }
   }
 
+  // --project 指定時: industry / output 未指定なら projectId から推論
+  if (opts.projectId && !opts.output) {
+    const project = findProjectById(opts.projectId);
+    if (!project) {
+      const available = discoverProjects()
+        .map((p) => p.projectId)
+        .join(", ");
+      console.error(`エラー: --project ${opts.projectId} に該当するサンプルプロジェクトが見つかりません`);
+      console.error(`  利用可能: ${available}`);
+      process.exit(1);
+    }
+    opts.output = project.projectDir;
+    if (!opts.industry) {
+      opts.industry = opts.projectId;
+    }
+  }
+
   if (!opts.industry) {
-    console.error("エラー: --industry が必要です");
+    console.error("エラー: --industry が必要です (または --project を指定してください)");
     process.exit(1);
   }
   if (!opts.scenarios) {
     opts.scenarios = `${opts.industry} 業務シナリオ`;
   }
   if (!opts.output) {
-    console.error("エラー: --output が必要です");
+    console.error("エラー: --output が必要です (または --project を指定してください)");
     process.exit(1);
   }
 
@@ -105,13 +140,77 @@ function parseArgs(argv: string[]): CliOptions {
 
 // ─── ディレクトリ準備 ─────────────────────────────────────────────────────────
 
-function prepareOutputDirs(outputDir: string, industry: string): void {
-  const dirs = [
+interface OutputLayout {
+  /** 既存サンプルプロジェクト情報 (新規 ad-hoc 出力時は null) */
+  project: SampleProjectInfo | null;
+  /** 出力ルート (project.projectDir または ad-hoc の output) */
+  outputDir: string;
+  /** flows 出力先ディレクトリ */
+  flowsDir: string;
+  /** tables 出力先ディレクトリ */
+  tablesDir: string;
+  /** extensions namespace ディレクトリ。v3 は <projectDir>/extensions、v1 / ad-hoc は <outputDir>/extensions/<safeId> */
+  extensionsDir: string;
+  /** extensions namespace ファイル名 (v3 のみ <ns>.v3.json、v1 / ad-hoc は field-types.json) */
+  extensionsFileName: string;
+  /** conventions catalog ファイルの絶対パス。v3 は conventions-catalog.v3.json、v1 / ad-hoc は conventions/conventions-catalog.json */
+  conventionsCatalogFile: string;
+}
+
+/**
+ * --project 指定時は既存サンプル構造に揃えた path を返す (per-project mode)。
+ * 未指定時は ad-hoc 出力 (新規 outputDir 直下に v1 互換 flat 構造) を返す。
+ */
+function resolveOutputLayout(opts: CliOptions, safeId: string): OutputLayout {
+  const outputDir = resolve(opts.output);
+
+  if (opts.projectId) {
+    const project = findProjectById(opts.projectId);
+    if (!project) {
+      throw new Error(`--project ${opts.projectId} に該当するサンプルプロジェクトが見つかりません`);
+    }
+    if (project.variant === "v3") {
+      return {
+        project,
+        outputDir: project.projectDir,
+        flowsDir: project.flowsDir,
+        tablesDir: project.tablesDir,
+        extensionsDir: project.extensionsDir,
+        extensionsFileName: `${safeId}.v3.json`,
+        conventionsCatalogFile: project.conventionsCatalogFile,
+      };
+    }
+    // v1
+    return {
+      project,
+      outputDir: project.projectDir,
+      flowsDir: project.flowsDir,
+      tablesDir: project.tablesDir,
+      extensionsDir: join(project.extensionsDir, safeId),
+      extensionsFileName: "field-types.json",
+      conventionsCatalogFile: project.conventionsCatalogFile,
+    };
+  }
+
+  // ad-hoc 出力 (v1 互換 flat 構造)
+  return {
+    project: null,
     outputDir,
-    join(outputDir, "process-flows"),
-    join(outputDir, "tables"),
-    join(outputDir, "extensions", industry),
-    join(outputDir, "conventions"),
+    flowsDir: join(outputDir, "process-flows"),
+    tablesDir: join(outputDir, "tables"),
+    extensionsDir: join(outputDir, "extensions", safeId),
+    extensionsFileName: "field-types.json",
+    conventionsCatalogFile: join(outputDir, "conventions", "conventions-catalog.json"),
+  };
+}
+
+function prepareOutputDirs(layout: OutputLayout): void {
+  const dirs = [
+    layout.outputDir,
+    layout.flowsDir,
+    layout.tablesDir,
+    layout.extensionsDir,
+    dirname(layout.conventionsCatalogFile),
   ];
   for (const dir of dirs) {
     mkdirSync(dir, { recursive: true });
@@ -423,12 +522,24 @@ function generateBriefingContent(opts: {
   safeId: string;
   scenarios: string;
   outputDir: string;
+  layout: OutputLayout;
 }): string {
-  const { industry, safeId, scenarios, outputDir } = opts;
+  const { industry, safeId, scenarios, outputDir, layout } = opts;
   const scenarioList = parseScenarios(scenarios);
   const scenarioBullets = scenarioList
     .map((s, i) => `${i + 1}. ${s}`)
     .join("\n");
+
+  // briefing 内のリソース path 表記は per-project layout に従う
+  const variant = layout.project?.variant ?? "ad-hoc";
+  const flowsRel = relativeFromOutput(outputDir, layout.flowsDir);
+  const tablesRel = relativeFromOutput(outputDir, layout.tablesDir);
+  const extensionsFileRel = relativeFromOutput(outputDir, join(layout.extensionsDir, layout.extensionsFileName));
+  const conventionsRel = relativeFromOutput(outputDir, layout.conventionsCatalogFile);
+  const fallbackConventionsSource = findFallbackConventionsSource();
+  const fallbackConventionsLabel = fallbackConventionsSource
+    ? relativeFromRepoRoot(fallbackConventionsSource)
+    : "(既存サンプルなし)";
 
   return `# 設計データ投入 briefing — ${industry}
 
@@ -439,7 +550,7 @@ function generateBriefingContent(opts: {
 
 ## 業界 namespace
 
-\`${safeId}\` (業界: \`${industry}\`)
+\`${safeId}\` (業界: \`${industry}\`、レイアウト: \`${variant}\`)
 
 ## 業務概要 (シナリオ群)
 
@@ -453,17 +564,18 @@ ${scenarioBullets}
 
 作業ディレクトリ: \`${outputDir}/\`
 
-### 1. 拡張定義 (\`extensions/${safeId}/*.json\`)
+### 1. 拡張定義 (\`${extensionsFileRel}\`)
 
 業界固有の拡張定義を作成:
-- \`field-types.json\`: 業界固有の型 (例: \`${safeId}Id\` / \`${safeId}Name\` など)
-- \`triggers.json\`: 業界固有トリガー (該当あれば)
-- \`db-operations.json\`: 業界固有 DB 操作 (該当あれば)
-- \`steps.json\`: 業界固有メタステップ (該当あれば)
+- field-types: 業界固有の型 (例: \`${safeId}Id\` / \`${safeId}Name\` など)
+- triggers: 業界固有トリガー (該当あれば)
+- db-operations: 業界固有 DB 操作 (該当あれば)
+- steps: 業界固有メタステップ (該当あれば)
 
-各ファイルの形式: \`{ namespace: "${safeId}", fieldTypes/triggers/dbOperations/steps: [...] }\`
+ファイル形式 (v1): \`{ namespace: "${safeId}", fieldTypes/triggers/dbOperations/steps: [...] }\` を種別ごとに別ファイルで出力
+ファイル形式 (v3): \`{ namespace: "${safeId}", fieldTypes/actionTriggers/dbOperations/stepKinds: [...] }\` を 1 ファイルに統合
 
-### 2. テーブル定義 (\`tables/<uuid>.json\`) × N テーブル
+### 2. テーブル定義 (\`${tablesRel}/<uuid>.json\`) × N テーブル
 
 シナリオ群から推論されるエンティティを正規化したテーブル定義。
 各テーブルに以下を含める:
@@ -471,12 +583,12 @@ ${scenarioBullets}
 - \`columns[]\`: id / name / logicalName / dataType / notNull / primaryKey / unique / (autoIncrement)
 - \`indexes[]\`
 
-### 3. conventions 拡張 (\`conventions/conventions-catalog.json\`)
+### 3. conventions 拡張 (\`${conventionsRel}\`)
 
-既存 catalog (\`docs/sample-project/conventions/conventions-catalog.json\`) をベースに
+既存 catalog (\`${fallbackConventionsLabel}\`) をベースに
 業界固有 \`@conv.limit.*\` / \`@conv.numbering.*\` 等を追加した版を出力。
 
-### 4. 処理フロー (\`process-flows/<uuid>.json\`) × ${scenarioList.length} シナリオ
+### 4. 処理フロー (\`${flowsRel}/<uuid>.json\`) × ${scenarioList.length} シナリオ
 
 各シナリオに対して 1 フロー生成:
 
@@ -511,10 +623,10 @@ ${scenarioList.map((s, i) => `- シナリオ ${i + 1}: ${s}`).join("\n")}
 
 ### 推奨手順
 
-1. まず \`docs/sample-project/extensions/${safeId}/\` が存在しない場合は新規 namespace として \`${outputDir}/extensions/${safeId}/\` に作成
+1. 出力ルート \`${outputDir}/\` のディレクトリ骨格は本スクリプトで作成済 (extensions / process-flows / tables / conventions)
 2. Sonnet/Opus サブエージェントを Spawn し、1 シナリオずつ並列実装可能
 3. 各サブエージェントは \`/create-flow\` SKILL の 14 ルールを遵守
-4. 生成物を \`docs/sample-project/\` に移動してから \`validate:dogfood\` で検証
+4. 生成物が \`docs/sample-project/\` (v1) または \`docs/sample-project-v3/<projectId>/\` (v3) 配下にあれば、そのまま \`validate:dogfood\` の per-project スキャン対象となる (#615 / #617)
 5. 検出された問題を 3 分類別 (フレームワーク / 拡張定義 / サンプル設計) に集計
 
 ### 検証コマンド
@@ -524,9 +636,8 @@ cd designer
 npm run validate:dogfood
 \`\`\`
 
-> 注意: 現状 validate:dogfood は \`docs/sample-project/\` を対象とするため、
-> 生成先が異なる場合は生成物を \`docs/sample-project/\` に移動してから実行してください。
-> 生成先を直接検証する対応は別 ISSUE で追跡中。
+> 注意: validate:dogfood は \`docs/sample-project/\` (v1) と \`docs/sample-project-v3/<projectId>/\` (v3) を per-project スキャンする (#615)。
+> 出力先が上記サンプルルート配下なら自動検出される。それ以外のディレクトリへ生成した場合はサンプルルート配下に移動してから再実行してください。
 
 ---
 
@@ -557,9 +668,24 @@ npm run validate:dogfood
 - 既存 5/5 達成サンプル: \`docs/legacy-sample-project/process-flows/cccccccc-0007-*.json\`
 - /create-flow SKILL: \`.claude/skills/create-flow/SKILL.md\`
 - spec: \`docs/spec/process-flow-*.md\`
-- 既存 conventions: \`docs/sample-project/conventions/conventions-catalog.json\`
-- 既存拡張サンプル: \`docs/sample-project/extensions/\`
+- 既存 conventions テンプレート: \`${fallbackConventionsLabel}\`
+- 既存サンプル一覧 (v1 / v3 全件): \`docs/sample-project/\` および \`docs/sample-project-v3/<projectId>/\`
 `;
+}
+
+// ─── ユーティリティ (briefing template 用) ───────────────────────────────────
+
+/**
+ * outputDir 起点で targetPath を相対化。Windows path 区切りも正規化する。
+ */
+function relativeFromOutput(outputDir: string, targetPath: string): string {
+  const rel = pathRelative(outputDir, targetPath);
+  return rel.replace(/\\/g, "/") || ".";
+}
+
+function relativeFromRepoRoot(targetPath: string): string {
+  const rel = pathRelative(defaultRepoRoot(), targetPath);
+  return rel.replace(/\\/g, "/") || ".";
 }
 
 // ─── ファイル書き込み ─────────────────────────────────────────────────────────
@@ -611,20 +737,23 @@ export function generate(opts: CliOptions): {
   extensionPath: string;
   conventionsPath: string;
 } {
-  const { industry, scenarios, output, dryRun } = opts;
+  const { industry, scenarios, dryRun } = opts;
   const safeId = toSafeId(industry);
-  const outputDir = resolve(output);
+  const layout = resolveOutputLayout(opts, safeId);
 
   console.log("🚀 generate-dogfood 開始 (dummy モード)");
   console.log(`  industry : ${industry}`);
   console.log(`  scenarios: ${scenarios}`);
-  console.log(`  output   : ${outputDir}`);
+  console.log(`  output   : ${layout.outputDir}`);
+  if (layout.project) {
+    console.log(`  project  : ${layout.project.projectId} (${layout.project.variant})`);
+  }
   console.log(`  dry-run  : ${dryRun}`);
   console.log();
 
   // 1. ディレクトリ準備
   if (!dryRun) {
-    prepareOutputDirs(outputDir, safeId);
+    prepareOutputDirs(layout);
     console.log("📁 出力ディレクトリを作成しました");
   } else {
     console.log("[dry-run] ディレクトリ作成をスキップ");
@@ -634,7 +763,7 @@ export function generate(opts: CliOptions): {
   // 2. テーブル生成
   const tableId = randomUUID();
   const tableName = `${safeId}_items`;
-  const tablePath = join(outputDir, "tables", `${tableId}.json`);
+  const tablePath = join(layout.tablesDir, `${tableId}.json`);
   const tableData = generateDummyTable({ id: tableId, industry, safeId });
 
   console.log("📊 テーブル定義を生成:");
@@ -642,7 +771,7 @@ export function generate(opts: CliOptions): {
 
   // 3. フロー生成
   const flowId = randomUUID();
-  const flowPath = join(outputDir, "process-flows", `${flowId}.json`);
+  const flowPath = join(layout.flowsDir, `${flowId}.json`);
   const flowData = generateDummyFlow({
     id: flowId,
     industry,
@@ -656,7 +785,7 @@ export function generate(opts: CliOptions): {
   writeJson(flowPath, flowData, dryRun);
 
   // 4. 拡張定義生成
-  const extensionPath = join(outputDir, "extensions", safeId, "field-types.json");
+  const extensionPath = join(layout.extensionsDir, layout.extensionsFileName);
   const extensionData = generateDummyFieldTypes({ industry, safeId });
 
   console.log("🔌 拡張定義を生成:");
@@ -666,17 +795,12 @@ export function generate(opts: CliOptions): {
   writeJson(extensionPath, extensionData, dryRun);
 
   // 5. 規約カタログ生成
-  // docs/sample-project/conventions/conventions-catalog.json があればベースとして使う
-  const designerDir = resolve(__dirname, "..");
-  const sampleConventionsFile = resolve(
-    designerDir,
-    "../docs/sample-project/conventions/conventions-catalog.json",
-  );
-  const conventionsPath = join(outputDir, "conventions", "conventions-catalog.json");
+  // 既存 catalog があればベースに業界固有 limit を追記、無ければ最小骨格を生成
+  const conventionsPath = layout.conventionsCatalogFile;
   const conventionsData = generateDummyConventions({
     industry,
     safeId,
-    sourceConventionsFile: sampleConventionsFile,
+    sourceConventionsFile: existsSync(conventionsPath) ? conventionsPath : findFallbackConventionsSource(),
   });
 
   console.log("📜 規約カタログを生成:");
@@ -690,6 +814,21 @@ export function generate(opts: CliOptions): {
   console.log(`  規約    : ${conventionsPath}`);
 
   return { flowId, tableId, flowPath, tablePath, extensionPath, conventionsPath };
+}
+
+/**
+ * 既存サンプルから convention catalog のテンプレートを探す。
+ * v1 → v3 の優先順で最初に見つかった catalog を返す。無ければ undefined。
+ */
+function findFallbackConventionsSource(): string | undefined {
+  const projects = discoverProjects();
+  for (const variant of ["v1", "v3"] as const) {
+    for (const p of projects) {
+      if (p.variant !== variant) continue;
+      if (existsSync(p.conventionsCatalogFile)) return p.conventionsCatalogFile;
+    }
+  }
+  return undefined;
 }
 
 // ─── エントリーポイント (AI モード) ──────────────────────────────────────────
@@ -707,14 +846,18 @@ export interface GenerateAiResult {
  * Anthropic API 直接呼び出しは Phase 4-1c 別 ISSUE で対応。
  */
 export function generateAi(opts: CliOptions): GenerateAiResult {
-  const { industry, scenarios, output, dryRun } = opts;
+  const { industry, scenarios, dryRun } = opts;
   const safeId = toSafeId(industry);
-  const outputDir = resolve(output);
+  const layout = resolveOutputLayout(opts, safeId);
+  const outputDir = layout.outputDir;
 
   console.log("🚀 generate-dogfood 開始 (AI モード)");
   console.log(`  industry : ${industry}`);
   console.log(`  scenarios: ${scenarios}`);
   console.log(`  output   : ${outputDir}`);
+  if (layout.project) {
+    console.log(`  project  : ${layout.project.projectId} (${layout.project.variant})`);
+  }
   console.log(`  dry-run  : ${dryRun}`);
   console.log();
 
@@ -728,20 +871,20 @@ export function generateAi(opts: CliOptions): GenerateAiResult {
     console.log("   生成予定ファイル:");
     console.log(`     ${briefingPath}`);
     console.log("   生成予定ディレクトリ:");
-    console.log(`     ${join(outputDir, "process-flows")}/`);
-    console.log(`     ${join(outputDir, "tables")}/`);
-    console.log(`     ${join(outputDir, "extensions", safeId)}/`);
-    console.log(`     ${join(outputDir, "conventions")}/`);
+    console.log(`     ${layout.flowsDir}/`);
+    console.log(`     ${layout.tablesDir}/`);
+    console.log(`     ${layout.extensionsDir}/`);
+    console.log(`     ${dirname(layout.conventionsCatalogFile)}/`);
     return { briefingPath, outputDir };
   }
 
   // 1. ディレクトリ骨格作成
-  prepareOutputDirs(outputDir, safeId);
+  prepareOutputDirs(layout);
   console.log("📁 出力ディレクトリを作成しました");
   console.log();
 
   // 2. briefing.md 生成
-  const content = generateBriefingContent({ industry, safeId, scenarios, outputDir });
+  const content = generateBriefingContent({ industry, safeId, scenarios, outputDir, layout });
   writeFileSync(briefingPath, content, "utf-8");
   console.log(`📝 briefing を生成: ${briefingPath}`);
   console.log();
@@ -759,7 +902,7 @@ export function generateAi(opts: CliOptions): GenerateAiResult {
   console.log("     1. 別セッションで Claude Code を起動 (claude コマンド)");
   console.log(`     2. _briefing.md を読み込む: Read ${briefingPath}`);
   console.log("     3. briefing の指示に従って ProcessFlow / テーブル / 拡張定義 / 規約を生成");
-  console.log("     4. 生成物を docs/sample-project/ に移動後 validate:dogfood で検証");
+  console.log("     4. 生成物が docs/sample-project/ または docs/sample-project-v3/<projectId>/ 配下なら、validate:dogfood で per-project 検証可能 (#615 / #617)");
   console.log();
   console.log("  ℹ️  AI モードでは validate:dogfood は実行しません (生成物がまだないため)");
 
@@ -779,10 +922,21 @@ if (opts.mode === "ai") {
 
   // dry-run でなければ validate:dogfood を実行
   if (!opts.dryRun) {
-    // validate:dogfood は docs/sample-project/ を見る。
-    // --output docs/sample-project/ 専用 (本格対応は別 ISSUE)
+    // validate:dogfood は docs/sample-project/ (v1) と docs/sample-project-v3/<projectId>/ (v3)
+    // を per-project スキャンする (#615 / #617)。
+    // 生成先がいずれかの配下なら自動検出される。それ以外なら検証はスキップして警告のみ表示。
     const designerDir = resolve(__dirname, "..");
-    runValidateDogfood(designerDir);
+    const repoRoot = resolve(designerDir, "..");
+    const isUnderSampleRoot =
+      result.flowPath.startsWith(resolve(repoRoot, "docs/sample-project")) ||
+      result.flowPath.startsWith(resolve(repoRoot, "docs/sample-project-v3"));
+    if (isUnderSampleRoot) {
+      runValidateDogfood(designerDir);
+    } else {
+      console.log();
+      console.log("ℹ️  生成先がサンプルルート (docs/sample-project / docs/sample-project-v3) 配下ではないため、");
+      console.log("   validate:dogfood は実行しませんでした。生成物をサンプルルート配下に移動して再実行してください。");
+    }
   } else {
     console.log();
     console.log("ℹ️  --dry-run モード: validate:dogfood はスキップしました");

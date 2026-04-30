@@ -438,3 +438,99 @@ describe("generate-dogfood --mode ai (AI 推論モード, #504)", () => {
     expect(output).toContain("--mode");
   });
 });
+
+describe("generate-dogfood --project オプション (per-project mode, #617)", () => {
+  it("--project v1 --mode ai --dry-run は v1 layout (flat) のパスをログ出力する", () => {
+    const scriptPath = resolve(repoRoot, "designer/scripts/generate-dogfood.ts");
+    const tsxPath = resolveTsxPath(repoRoot);
+
+    const result = spawnSync(
+      tsxPath,
+      [
+        scriptPath,
+        "--project", "v1",
+        "--mode", "ai",
+        "--dry-run",
+      ],
+      {
+        cwd: designerDir,
+        encoding: "utf-8",
+        shell: process.platform === "win32",
+        maxBuffer: 5 * 1024 * 1024,
+      },
+    );
+
+    // 終了コード 0
+    expect(result.status).toBe(0);
+    const output = result.stdout ?? "";
+
+    // dry-run なのでディレクトリ作成はスキップされる
+    expect(output).toContain("dry-run");
+
+    // v1 プロジェクト配下のパスが出力に含まれること (sample-project 配下; Windows では \ 区切りのため部分一致)
+    expect(output).toContain("sample-project");
+
+    // AI モードなので _briefing.md がログに出る
+    expect(output).toContain("_briefing.md");
+  });
+
+  it("--project finance --mode ai --dry-run は v3 layout (subdirectory) のパスをログ出力する", () => {
+    const scriptPath = resolve(repoRoot, "designer/scripts/generate-dogfood.ts");
+    const tsxPath = resolveTsxPath(repoRoot);
+
+    const result = spawnSync(
+      tsxPath,
+      [
+        scriptPath,
+        "--project", "finance",
+        "--mode", "ai",
+        "--dry-run",
+      ],
+      {
+        cwd: designerDir,
+        encoding: "utf-8",
+        shell: process.platform === "win32",
+        maxBuffer: 5 * 1024 * 1024,
+      },
+    );
+
+    // 終了コード 0
+    expect(result.status).toBe(0);
+    const output = result.stdout ?? "";
+
+    // v3 プロジェクト配下のパスが出力に含まれること (docs/sample-project-v3/finance 配下)
+    expect(output).toContain("sample-project-v3");
+    expect(output).toContain("finance");
+
+    // project 情報がログに出力される
+    expect(output).toContain("v3");
+
+    // AI モードなので _briefing.md がログに出る
+    expect(output).toContain("_briefing.md");
+  });
+
+  it("--project nonexistent は該当プロジェクト不在でエラー終了コード 1", () => {
+    const scriptPath = resolve(repoRoot, "designer/scripts/generate-dogfood.ts");
+    const tsxPath = resolveTsxPath(repoRoot);
+
+    const result = spawnSync(
+      tsxPath,
+      [
+        scriptPath,
+        "--project", "nonexistent-project-xyz",
+      ],
+      {
+        cwd: designerDir,
+        encoding: "utf-8",
+        shell: process.platform === "win32",
+        maxBuffer: 1 * 1024 * 1024,
+      },
+    );
+
+    expect(result.status).toBe(1);
+    const output = (result.stderr ?? "") + (result.stdout ?? "");
+    // エラーメッセージに --project と不在プロジェクト名が含まれること
+    expect(output).toContain("--project");
+    expect(output).toContain("nonexistent-project-xyz");
+  });
+});
