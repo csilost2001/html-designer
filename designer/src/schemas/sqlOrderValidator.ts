@@ -409,7 +409,7 @@ function checkAction(
         const allVarsBound = fkColsInInsert.every((c) => {
           const v = colVarMap.get(c);
           // null (NULL リテラル) または未バインド変数 → NG
-          if (v === null) return false;
+          if (v === null || v === undefined) return false;
           if (v === "__literal__") return true; // リテラル値は OK
           return boundVars.has(v); // 変数がバインド済みなら OK
         });
@@ -418,7 +418,7 @@ function checkAction(
         // FK 列の値が変数参照かつ未バインド → 潜在的問題
         const unboundFkCols = fkColsInInsert.filter((c) => {
           const v = colVarMap.get(c);
-          if (v === null || v === "__literal__") return false;
+          if (v === null || v === undefined || v === "__literal__") return false;
           return !boundVars.has(v);
         });
         if (unboundFkCols.length === 0) continue;

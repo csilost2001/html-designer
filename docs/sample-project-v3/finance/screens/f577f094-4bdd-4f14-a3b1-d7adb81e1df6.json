@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
+  "id": "f577f094-4bdd-4f14-a3b1-d7adb81e1df6",
+  "name": "振込履歴照会",
+  "description": "顧客が自分の振込履歴を照会する画面。振込元・振込先の口座番号で絞り込み可能。refKey paving (#651 Phase 4 子 3): accountNumber / transferAmount を振込実行画面と共有。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "kind": "form",
+  "path": "/finance/transfers/history",
+  "auth": "required",
+  "items": [
+    {
+      "id": "searchAccountNumber",
+      "label": "口座番号 (絞り込み)",
+      "type": { "kind": "extension", "extensionRef": "finance:accountNumber" },
+      "refKey": "accountNumber",
+      "direction": "input",
+      "required": false,
+      "pattern": "@conv.regex.account-number"
+    },
+    {
+      "id": "dateFrom",
+      "label": "照会開始日",
+      "type": "date",
+      "direction": "input",
+      "required": false
+    },
+    {
+      "id": "dateTo",
+      "label": "照会終了日",
+      "type": "date",
+      "direction": "input",
+      "required": false
+    },
+    {
+      "id": "transferAmountFrom",
+      "label": "振込額 (下限)",
+      "type": { "kind": "extension", "extensionRef": "finance:transferAmount" },
+      "refKey": "transferAmount",
+      "direction": "input",
+      "required": false,
+      "min": 1,
+      "max": 99999999,
+      "displayFormat": "¥#,##0"
+    },
+    {
+      "id": "historyList",
+      "label": "振込履歴一覧",
+      "type": "json",
+      "direction": "output",
+      "valueFrom": {
+        "kind": "flowVariable",
+        "variableName": "historyRows"
+      }
+    }
+  ],
+  "design": { "designFileRef": "design.json" }
+}
