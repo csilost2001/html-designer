@@ -71,6 +71,10 @@ import {
   setViewStorageBackend,
   type ViewStorageBackend,
 } from "../store/viewStore";
+import {
+  setViewDefinitionStorageBackend,
+  type ViewDefinitionStorageBackend,
+} from "../store/viewDefinitionStore";
 import type { RawExtensionsBundle } from "../schemas/loadExtensions";
 
 export type McpStatus = "disconnected" | "connecting" | "connected";
@@ -384,6 +388,14 @@ class McpBridgeImpl {
       deleteView: (viewId) => this.request("deleteView", { viewId }).then(() => undefined),
     };
     setViewStorageBackend(viewBackend);
+
+    const viewDefinitionBackend: ViewDefinitionStorageBackend = {
+      loadViewDefinition: (viewDefinitionId) => this.request("loadViewDefinition", { viewDefinitionId }),
+      listAllViewDefinitions: () => this.request("listAllViewDefinitions", {}) as Promise<unknown[]>,
+      saveViewDefinition: (viewDefinitionId, data) => this.request("saveViewDefinition", { viewDefinitionId, data }).then(() => undefined),
+      deleteViewDefinition: (viewDefinitionId) => this.request("deleteViewDefinition", { viewDefinitionId }).then(() => undefined),
+    };
+    setViewDefinitionStorageBackend(viewDefinitionBackend);
   }
 
   /** 切断時: localStorage フォールバックに戻す */
@@ -398,6 +410,7 @@ class McpBridgeImpl {
     setScreenStorageBackend(null);
     setSequenceStorageBackend(null);
     setViewStorageBackend(null);
+    setViewDefinitionStorageBackend(null);
   }
 
   // ── メッセージ受信 ─────────────────────────────────────────────────────

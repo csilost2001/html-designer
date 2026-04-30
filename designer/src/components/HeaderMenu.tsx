@@ -56,6 +56,10 @@ const MENU_ITEMS: MenuItem[] = [
     id: "view-list", label: "ビュー一覧", icon: "bi-eye", route: "/view/list",
     activePaths: ["/view/list"], activePrefixes: ["/view/edit/"],
   },
+  {
+    id: "view-definition-list", label: "ビュー定義一覧", icon: "bi-layout-text-window", route: "/view-definition/list",
+    activePaths: ["/view-definition/list"], activePrefixes: ["/view-definition/edit/"],
+  },
 ];
 
 const DASHBOARD_ITEM: MenuItem = {
