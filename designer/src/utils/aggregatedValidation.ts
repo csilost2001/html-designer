@@ -39,7 +39,8 @@ export function aggregateValidation(
 
   // 1. 既存の構造バリデータ (loopBreak スコープ、branch 空 等)
   // actionValidation.ts は legacy v1 type 受けのため、v3 → v1 ブリッジ cast。
-  // actionValidation 自体の v3 化は別 ISSUE スコープ。
+  // 注意: v1 type は AnyRecord shim のため、v3 ↔ v1 の field 不整合を型レベルで catch できない
+  // (偽陰性リスク)。actionValidation の v3 化完了 (#637) まで本 cast は残置。
   errors.push(...validateProcessFlow(group as unknown as ProcessFlowV1));
 
   // 2. 参照整合性 (responseId / errorCode / systemRef / typeRef / secretRef)
