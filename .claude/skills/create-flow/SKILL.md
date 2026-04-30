@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 17 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 18 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -79,11 +79,21 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 | `domainsCatalog` | ID 系・金額系等のドメイン型 (constraints 付き) |
 | `functionsCatalog` | 業務固有関数のシグネチャ (signature / returnType / examples) |
 | `actions[]` | 1-3 アクション。各 trigger / inputs / outputs / responses / steps |
-| `testScenarios` | 3 件以上 (happy path / validation error / 業務エッジケース) |
+| `testScenarios` | 3 件以上 (happy path / validation error / 業務エッジケース)、各 SELECT 対象テーブルについて行ありパターン + 行なしパターン (新規ユーザー / 初回利用) を網羅 (#608) |
 
 各セクション 0 件は許されない (eventsCatalog と decisions と testScenarios は特に必須)。
 
-## Step 3: 既知パターン回避 self-check (17 ルール、必須遵守)
+### testScenarios fixture バリエーション網羅 (#608)
+
+testScenarios 設計時に、各 `dbAccess SELECT` で使用するテーブルについて、以下のバリエーションを最低 1 件ずつ含める:
+
+- **テーブル行が存在するパターン** (典型的な happy-path)
+- **テーブル行が存在しないパターン** (新規ユーザー / 初回利用 / 第 1 回目の処理)
+- **テーブル行が境界条件にあるパターン** (累計が上限近傍 / 期限境界 / NULL 許容カラムが NULL の状態 等)
+
+`dbAccess INSERT` の前に他テーブル行の存在を前提とする場合、testScenarios で「前提行が無い場合の挙動」を必ず確認する。特に NOT NULL カラムへの INSERT で他テーブル参照を持つ場合は、その前提テーブル行が無い fixture を 1 件追加し、「初回」「新規」「リセット後初回」のキーワードを意図的に使う。
+
+## Step 3: 既知パターン回避 self-check (18 ルール、必須遵守)
 
 `/review-flow` で検出される既知パターンを**作成中**に避けること。各 step を書くたびに以下を確認:
 
@@ -224,6 +234,13 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 
 業務文脈の妥当性 (例えば「BenefitType の意味的妥当性」「画面選択肢の業務命名」) は引き続き AI 目視で `/review-flow` 観点 10 で扱う。
 
+### Rule 18: testScenarios fixture バリエーション網羅 (#608)
+
+- 各 `dbAccess SELECT` 対象テーブルについて、行ありパターン + 行なしパターン (新規ユーザー / 初回利用) を testScenarios で網羅する
+- NOT NULL カラムへの INSERT で他テーブル参照を持つ場合、前提行なしの fixture を必ず 1 件用意する
+- 典型ミス: happy-path で全前提を pre-seed、edge は 400/403 系の検証に偏り、初回ユーザーパスが抜ける
+- **補足**: 静的検出 `sqlOrderValidator` (#632) が導入されるまで本ルールが主要 catch 機構。導入後も「値レベル fixture 不足」など静的検出では届かない領域は本ルールで継続担保 (Step 5.2 validate:dogfood では機械検出されない、Step 3 self-check のみで担保)
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -259,7 +276,7 @@ npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.s
 npm run build
 ```
 
-### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 の機械的検出)
+### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 の機械的検出、Rule 18 は AI 目視)
 
 作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
 
@@ -348,6 +365,7 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 | 15. グローバル schema 変更禁止 | ✓ (`schemas/*.json` 未変更) / ❌ |
 | 16. 画面項目イベント連携整合 | ✓ / 該当なし (画面起点でない) / ❌ |
 | 17. 画面項目値レベル整合 | ✓ / 該当なし (画面起点でない) / ❌ (options / domainKey / 型 / pattern / range / length 不一致) |
+| 18. testScenarios fixture バリエーション網羅 | ✓ / 該当なし (DB 操作なし) / ❌ (行ありのみで行なしパターン未網羅) |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
@@ -367,11 +385,11 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **17 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **18 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
 - スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
 - 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
 - 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` / `ffffffff-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
-- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 17 ルールを遵守すること」が含まれているはず
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 18 ルールを遵守すること」が含まれているはず
