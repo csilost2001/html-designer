@@ -198,14 +198,14 @@ function loadJson<T>(path: string): T {
 
 describe("v3 TS 型 と sample-project-v3 JSON の compatibility (5 業界カバー)", () => {
   it("retail project.json を Project 型として parse できる", () => {
-    const project = loadJson<Project>(join(samplesV3Dir, "project.json"));
+    const project = loadJson<Project>(join(samplesV3Dir, "retail/project.json"));
     expect(project.schemaVersion).toBe("v3");
     expect(project.meta.name).toBeDefined();
   });
 
   it("retail 在庫照会フローを ProcessFlow 型として parse できる + Step narrow", () => {
     const flow = loadJson<ProcessFlow>(
-      join(samplesV3Dir, "process-flows/506c266f-cc46-4d6f-86df-3c71f515bfcc.json"),
+      join(samplesV3Dir, "retail/process-flows/506c266f-cc46-4d6f-86df-3c71f515bfcc.json"),
     );
     expect(flow.meta.kind).toBe("screen");
     const firstStep: Step = flow.actions[0].steps[0];
@@ -235,7 +235,7 @@ describe("v3 TS 型 と sample-project-v3 JSON の compatibility (5 業界カバ
 
   it("retail 店舗在庫照会画面を Screen 型として parse できる", () => {
     const screen = loadJson<Screen>(
-      join(samplesV3Dir, "screens/3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c.json"),
+      join(samplesV3Dir, "retail/screens/3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c.json"),
     );
     expect(screen.kind).toBe("search");
     expect(screen.path).toMatch(/\/inventory\//);
