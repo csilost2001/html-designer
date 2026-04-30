@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DbAccessStep.sql 内の列名がテーブル定義に存在するかを検証 (#261 残)。
  *
@@ -11,7 +10,8 @@
  * node-sql-parser v5 ベース。複雑な CTE / window / サブクエリは best-effort。
  */
 import { Parser } from "node-sql-parser";
-import type { ProcessFlow, DbAccessStep, Step } from "../types/action";
+import type { ProcessFlow, DbAccessStep, Step } from "../types/v3";
+import { isBuiltinStep } from "./stepGuards";
 
 /** テーブル定義 (最小シェイプ、docs/sample-project/tables/*.json 形式) */
 export interface TableDefinition {
@@ -210,7 +210,7 @@ export function checkSqlColumns(
 
   group.actions.forEach((action, ai) => {
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
-      if (step.kind === "dbAccess" && step.sql) {
+      if (isBuiltinStep(step) && step.kind === "dbAccess" && step.sql) {
         issues.push(...validateSql(step.sql, defsByName, `${path}.sql`));
       }
     });
@@ -223,7 +223,8 @@ function walkSteps(steps: Step[], basePath: string, visit: (s: Step, p: string) 
   steps.forEach((step, i) => {
     const path = `${basePath}[${i}]`;
     visit(step, path);
-    if ("subSteps" in step && step.subSteps) walkSteps(step.subSteps, `${path}.subSteps`, visit);
+    // 拡張 step は nested 走査スキップ (固有プロパティは config 内に閉じる仕様)
+    if (!isBuiltinStep(step)) return;
     if (step.kind === "branch") {
       step.branches.forEach((b, bi) => walkSteps(b.steps, `${path}.branches[${bi}].steps`, visit));
       if (step.elseBranch) walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, visit);

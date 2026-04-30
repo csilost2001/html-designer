@@ -1,41 +1,42 @@
-// @ts-nocheck
 /**
- * 蜃ｦ逅・ヵ繝ｭ繝ｼ JSON 縺ｮ繧ｯ繝ｭ繧ｹ繝ｪ繝輔ぃ繝ｬ繝ｳ繧ｹ讀懆ｨｼ (#253)縲・
+ * 処理フロー JSON のクロスリファレンス検証 (#253)。
  *
- * JSON Schema 2020-12 縺ｧ縺ｯ cross-reference (蛻･繝輔ぅ繝ｼ繝ｫ繝峨↓蟄伜惠縺吶ｋ蛟､縺ｸ縺ｮ蜿ら・讀懆ｨｼ) 縺ｯ
- * $dynamicRef 繧帝ｧ・ｽｿ縺励※繧りｪｭ縺ｿ縺ｫ縺上￥縺ｪ繧九◆繧√√せ繧ｭ繝ｼ繝槫､悶・繝舌Μ繝・・繧ｿ縺ｨ縺励※螳溯｣・・
+ * JSON Schema 2020-12 では cross-reference (別フィールドに存在する値への参照検証) は
+ * $dynamicRef を駆使しても読みにくくなるため、スキーマ外のバリデータとして実装する。
  *
- * 讀懆ｨｼ縺吶ｋ隕冗ｴ・
- * 1. ReturnStep.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→
- * 2. ValidationStep.inlineBranch.ngResponseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→
- * 3. BranchConditionVariant.errorCode 縺ｯ context.catalogs.errors 縺ｮ繧ｭ繝ｼ縺ｫ蟄伜惠縺吶ｋ縺薙→
- *    (context.catalogs.errors 縺悟ｮ夂ｾｩ縺輔ｌ縺ｦ縺・ｋ蝣ｴ蜷医・縺ｿ)
- * 4. DbAccessStep.affectedRowsCheck.errorCode 繧ょ酔荳・
- * 5. ErrorCatalogEntry.responseRef 縺ｯ action.responses[].id 縺ｫ蟄伜惠縺吶ｋ縺薙→ (context.catalogs.errors 竊・responses)
+ * 検証する観点:
+ * 1. ReturnStep.responseId は action.responses[].id に存在すること
+ * 2. ValidationStep.inlineBranch.ngResponseId は action.responses[].id に存在すること
+ * 3. BranchConditionVariant.errorCode は context.catalogs.errors のキーに存在すること
+ *    (context.catalogs.errors が定義されている場合のみ)
+ * 4. DbAccessStep.affectedRowsCheck.errorCode も同上
+ * 5. ErrorCatalogEntry.responseId は action.responses[].id に存在すること
+ *    (context.catalogs.errors → responses の逆参照)
  */
-import type { ProcessFlow, Step } from "../types/action";
+import type { ProcessFlow, Step } from "../types/v3";
 import type { LoadedExtensions } from "./loadExtensions";
+import { isBuiltinStep } from "./stepGuards";
 
 export interface IntegrityIssue {
-  /** 繝峨ャ繝医ヱ繧ｹ (萓・ "actions[0].steps[2].responseRef") */
+  /** ドットパス (例: "actions[0].steps[2].responseRef") */
   path: string;
-  /** 蝠城｡後・隴伜挨蟄・*/
+  /** 問題の識別子 */
   code:
     | "UNKNOWN_RESPONSE_REF"
     | "UNKNOWN_ERROR_CODE"
     | "UNKNOWN_SYSTEM_REF"
     | "UNKNOWN_TYPE_REF"
     | "UNKNOWN_SECRET_REF";
-  /** 蜿ら・縺励ｈ縺・→縺励◆蛟､ */
+  /** 参照しようとした値 */
   value: string;
-  /** 繧ｨ繝ｩ繝ｼ繝｡繝・そ繝ｼ繧ｸ */
+  /** エラーメッセージ */
   message: string;
 }
 
-/** @secret.KEY 縺ｫ繝槭ャ繝・*/
+/** @secret.KEY にマッチ */
 const SECRET_RE = /@secret\.([a-zA-Z_][\w-]*)/g;
 
-/** ProcessFlow 蜈ｨ菴薙・繧ｯ繝ｭ繧ｹ繝ｪ繝輔ぃ繝ｬ繝ｳ繧ｹ讀懆ｨｼ縲らｩｺ驟榊・縺ｪ繧・OK */
+/** ProcessFlow 全体のクロスリファレンス検証。空配列なら OK */
 export function checkReferentialIntegrity(
   group: ProcessFlow,
   extensions?: LoadedExtensions,
@@ -50,7 +51,7 @@ export function checkReferentialIntegrity(
   const secretKeys = new Set(Object.keys(group.context?.catalogs?.secrets ?? {}));
   const hasSecretsCatalog = secretKeys.size > 0;
 
-  // context.catalogs.externalSystems.*.auth.tokenRef 蜀・・ @secret.* 蜿ら・繧呈､懈渊
+  // context.catalogs.externalSystems.*.auth.tokenRef 内の @secret.* 参照を検査
   if (hasSecretsCatalog) {
     Object.entries(group.context?.catalogs?.externalSystems ?? {}).forEach(([k, entry]) => {
       const tok = entry.auth?.tokenRef;
@@ -62,7 +63,7 @@ export function checkReferentialIntegrity(
               path: `context.catalogs.externalSystems.${k}.auth.tokenRef`,
               code: "UNKNOWN_SECRET_REF",
               value: `@secret.${m[1]}`,
-              message: `@secret.${m[1]} 縺・context.catalogs.secrets 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+              message: `@secret.${m[1]} が context.catalogs.secrets に存在しません`,
             });
           }
         }
@@ -71,34 +72,41 @@ export function checkReferentialIntegrity(
   }
 
   group.actions.forEach((action, ai) => {
-    const responseIds = new Set(
-      (action.responses ?? []).map((r) => r.id).filter((x): x is string => !!x),
+    // r.id は v3 で LocalId brand 型のため、Set<string> として比較するため cast
+    const responseIds = new Set<string>(
+      (action.responses ?? [])
+        .map((r) => r.id as string | undefined)
+        .filter((x): x is string => !!x),
     );
-    // bodySchema.typeRef 縺ｮ蜿ら・讀懈渊
+    // bodySchema.typeRef の参照検査 (v3 BodySchema discriminated union: { typeRef } | { schema })
     (action.responses ?? []).forEach((resp, ri) => {
-      if (resp.bodySchema && typeof resp.bodySchema === "object" && "typeRef" in resp.bodySchema && resp.bodySchema.typeRef) {
-        if (hasExtensions && !typeIds.has(resp.bodySchema.typeRef)) {
-          issues.push({
-            path: `actions[${ai}].responses[${ri}].bodySchema.typeRef`,
-            code: "UNKNOWN_TYPE_REF",
-            value: resp.bodySchema.typeRef,
-            message: `bodySchema.typeRef "${resp.bodySchema.typeRef}" 縺・グローバル extensions responseTypes 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
-          });
-        }
+      const bs = resp.bodySchema;
+      const typeRef =
+        bs && typeof bs === "object" && "typeRef" in bs
+          ? (bs as { typeRef?: string }).typeRef
+          : undefined;
+      if (typeRef && hasExtensions && !typeIds.has(typeRef)) {
+        issues.push({
+          path: `actions[${ai}].responses[${ri}].bodySchema.typeRef`,
+          code: "UNKNOWN_TYPE_REF",
+          value: typeRef,
+          message: `bodySchema.typeRef "${typeRef}" がグローバル extensions responseTypes に存在しません`,
+        });
       }
     });
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
       checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues, secretKeys, hasSecretsCatalog);
     });
 
-    // context.catalogs.errors -> responses 蜿ら・
+    // context.catalogs.errors -> responses 参照
     Object.entries(group.context?.catalogs?.errors ?? {}).forEach(([key, entry]) => {
-      if (entry.responseRef && !responseIds.has(entry.responseRef)) {
+      const ref = entry.responseId;
+      if (ref && !responseIds.has(ref)) {
         issues.push({
-          path: `context.catalogs.errors.${key}.responseRef (actions[${ai}])`,
+          path: `context.catalogs.errors.${key}.responseId (actions[${ai}])`,
           code: "UNKNOWN_RESPONSE_REF",
-          value: entry.responseRef,
-          message: `context.catalogs.errors.${key}.responseRef "${entry.responseRef}" 縺・action "${action.name}" 縺ｮ responses[].id 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          value: ref,
+          message: `context.catalogs.errors.${key}.responseId "${ref}" が action "${action.name}" の responses[].id に存在しません`,
         });
       }
     });
@@ -115,10 +123,9 @@ function walkSteps(
   steps.forEach((step, i) => {
     const path = `${basePath}[${i}]`;
     visit(step, path);
-    // 繝阪せ繝医＠縺・steps 繧呈戟縺､ variant
-    if ("subSteps" in step && step.subSteps) {
-      walkSteps(step.subSteps, `${path}.subSteps`, visit);
-    }
+    // 拡張 step は nested 走査スキップ (固有プロパティは config 内に閉じる仕様)
+    if (!isBuiltinStep(step)) return;
+    // ネストした steps を持つ variant
     if (step.kind === "branch") {
       step.branches.forEach((b, bi) => {
         walkSteps(b.steps, `${path}.branches[${bi}].steps`, visit);
@@ -157,6 +164,8 @@ function checkStep(
   secretKeys?: Set<string>,
   hasSecretsCatalog?: boolean,
 ): void {
+  // 拡張 step の固有 property は config に閉じるため、組み込み step に絞って検査
+  if (!isBuiltinStep(step)) return;
   if (step.kind === "externalSystem" && step.systemRef && hasSystemCatalog) {
     // systemRef に @ を含む場合は動的式 (@identifier による切替) のためスキップ
     if (!step.systemRef.includes("@") && !systemIds.has(step.systemRef)) {
@@ -164,11 +173,11 @@ function checkStep(
         path: `${path}.systemRef`,
         code: "UNKNOWN_SYSTEM_REF",
         value: step.systemRef,
-        message: `ExternalSystemStep.systemRef "${step.systemRef}" 縺・context.catalogs.externalSystems 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        message: `ExternalSystemStep.systemRef "${step.systemRef}" が context.catalogs.externalSystems に存在しません`,
       });
     }
   }
-  // step 蛛ｴ auth.tokenRef 縺ｮ @secret.* 蜿ら・繧呈､懈渊
+  // step 側 auth.tokenRef の @secret.* 参照を検査
   if (step.kind === "externalSystem" && step.auth?.tokenRef && hasSecretsCatalog && secretKeys) {
     const tok = step.auth.tokenRef;
     const re = /@secret\.([a-zA-Z_][\w-]*)/g;
@@ -179,27 +188,30 @@ function checkStep(
           path: `${path}.auth.tokenRef`,
           code: "UNKNOWN_SECRET_REF",
           value: `@secret.${m[1]}`,
-          message: `@secret.${m[1]} 縺・context.catalogs.secrets 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `@secret.${m[1]} が context.catalogs.secrets に存在しません`,
         });
       }
     }
   }
-  if (step.kind === "return" && step.responseRef && !responseIds.has(step.responseRef)) {
-    issues.push({
-      path: `${path}.responseRef`,
-      code: "UNKNOWN_RESPONSE_REF",
-      value: step.responseRef,
-      message: `ReturnStep.responseRef "${step.responseRef}" 縺・action.responses[].id 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
-    });
-  }
-  if (step.kind === "validation" && step.inlineBranch?.ngResponseRef) {
-    const r = step.inlineBranch.ngResponseRef;
-    if (!responseIds.has(r)) {
+  if (step.kind === "return") {
+    const ref = step.responseId;
+    if (ref && !responseIds.has(ref)) {
       issues.push({
-        path: `${path}.inlineBranch.ngResponseRef`,
+        path: `${path}.responseId`,
         code: "UNKNOWN_RESPONSE_REF",
-        value: r,
-        message: `ValidationStep.inlineBranch.ngResponseRef "${r}" 縺・action.responses[].id 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        value: ref,
+        message: `ReturnStep.responseId "${ref}" が action.responses[].id に存在しません`,
+      });
+    }
+  }
+  if (step.kind === "validation" && step.inlineBranch) {
+    const ref = step.inlineBranch.ngResponseId;
+    if (ref && !responseIds.has(ref)) {
+      issues.push({
+        path: `${path}.inlineBranch.ngResponseId`,
+        code: "UNKNOWN_RESPONSE_REF",
+        value: ref,
+        message: `ValidationStep.inlineBranch.ngResponseId "${ref}" が action.responses[].id に存在しません`,
       });
     }
   }
@@ -210,7 +222,7 @@ function checkStep(
         path: `${path}.affectedRowsCheck.errorCode`,
         code: "UNKNOWN_ERROR_CODE",
         value: e,
-        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+        message: `DbAccessStep.affectedRowsCheck.errorCode "${e}" が context.catalogs.errors に存在しません`,
       });
     }
   }
@@ -223,7 +235,7 @@ function checkStep(
             path: `${path}.branches[${bi}].condition.errorCode`,
             code: "UNKNOWN_ERROR_CODE",
             value: c.errorCode,
-            message: `BranchConditionVariant.errorCode "${c.errorCode}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+            message: `BranchConditionVariant.errorCode "${c.errorCode}" が context.catalogs.errors に存在しません`,
           });
         }
       }
@@ -236,7 +248,7 @@ function checkStep(
           path: `${path}.rollbackOn[${ci}]`,
           code: "UNKNOWN_ERROR_CODE",
           value: code,
-          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" 縺・context.catalogs.errors 縺ｫ蟄伜惠縺励∪縺帙ｓ`,
+          message: `TransactionScopeStep.rollbackOn[${ci}] "${code}" が context.catalogs.errors に存在しません`,
         });
       }
     });

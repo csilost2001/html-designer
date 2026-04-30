@@ -96,13 +96,13 @@ describe("dogfood バリデータ — checkConventionReferences", () => {
 });
 
 describe("dogfood バリデータ — checkReferentialIntegrity", () => {
-  it("未定義 responseRef を検出する", () => {
+  it("未定義 responseId を検出する", () => {
     const flow = makeFlow({
       actions: [{
         id: "act-1", name: "取得", trigger: "init",
         responses: [{ id: "200-ok", status: 200 }],
         steps: [
-          { id: "ret-1", kind: "return", description: "", responseRef: "404-not-defined" },
+          { id: "ret-1", kind: "return", description: "", responseId: "404-not-defined" },
         ],
       }],
     });

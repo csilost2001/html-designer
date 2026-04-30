@@ -1,12 +1,11 @@
-// @ts-nocheck
 /**
  * 処理フロー @ 参照の識別子スコープ検証 (#261 残タスク)。
  *
  * 全ての @identifier が以下のいずれかに存在するかを検査:
  * - ActionDefinition.inputs[].name
  * - ActionDefinition.outputs[].name
- * - ProcessFlow.ambientVariables[].name
- * - 先行ステップの StepBase.outputBinding (string or object.name)
+ * - ProcessFlow.context.ambientVariables[].name
+ * - 先行ステップの StepBase.outputBinding.name
  * - LoopStep.collectionItemName (ループ配下のスコープのみ)
  * - ValidationStep.fieldErrorsVar の宣言
  * - BUILTIN_AMBIENTS (組み込み関数・グローバル識別子)
@@ -18,10 +17,9 @@ import type {
   ProcessFlow,
   Step,
   OutputBinding,
-  ValidationStep,
-  LoopStep,
   StructuredField,
-} from "../types/action";
+} from "../types/v3";
+import { isBuiltinStep } from "./stepGuards";
 
 export interface IdentifierIssue {
   path: string;
@@ -62,13 +60,11 @@ function extractIdentifiers(src: string): string[] {
 }
 
 function getBindingName(binding: OutputBinding | undefined): string | null {
-  if (!binding) return null;
-  if (typeof binding === "string") return binding;
-  return binding.name;
+  return binding?.name ?? null;
 }
 
 function fieldNames(fields: StructuredField[] | undefined): string[] {
-  return fields?.map((f) => f.name) ?? [];
+  return fields?.map((f) => f.name as string) ?? [];
 }
 
 /**
@@ -77,10 +73,7 @@ function fieldNames(fields: StructuredField[] | undefined): string[] {
  */
 export function checkIdentifierScopes(group: ProcessFlow): IdentifierIssue[] {
   const issues: IdentifierIssue[] = [];
-  // v1 (top-level ambientVariables) と v3 (context.ambientVariables) の両形式に対応
-  const ambientFields =
-    (group as { context?: { ambientVariables?: StructuredField[] } }).context?.ambientVariables
-    ?? group.ambientVariables;
+  const ambientFields = group.context?.ambientVariables;
   const ambientNames = new Set(fieldNames(ambientFields));
 
   group.actions.forEach((action, ai) => {
@@ -125,13 +118,16 @@ function walkSteps(
     const available = new Set<string>([...known, ...loopItems]);
     checkStep(step, path, available, issues);
 
-    // この step の outputBinding を known に追加 (後続ステップから参照可能に)
+    // outputBinding は StepBaseProps 共通フィールド。拡張 step も継承するため kind 関係なく known に追加
     const bindName = getBindingName(step.outputBinding);
     if (bindName) known.add(bindName);
+
+    // 以下は組み込み step variant 固有の処理 (拡張 step は config 内の固有プロパティを持つため除外)
+    if (!isBuiltinStep(step)) return;
+
     // ValidationStep の fieldErrorsVar も known に
     if (step.kind === "validation") {
-      const vStep = step as ValidationStep;
-      if (vStep.fieldErrorsVar) known.add(vStep.fieldErrorsVar);
+      if (step.fieldErrorsVar) known.add(step.fieldErrorsVar);
       else known.add("fieldErrors"); // 既定
     }
     // ReturnStep は新変数を作らない
@@ -140,9 +136,6 @@ function walkSteps(
     // outputBinding は親スコープからも参照可能とする -- accumulate/push を
     // ループ外で参照するパターンを許容するため、現時点では permissive)。
     // loopItems はループ配下のみ有効 (ループ外に leak させない)。
-    if ("subSteps" in step && step.subSteps) {
-      walkSteps(step.subSteps, `${path}.subSteps`, known, loopItems, issues);
-    }
     if (step.kind === "branch") {
       step.branches.forEach((b, bi) => {
         walkSteps(b.steps, `${path}.branches[${bi}].steps`, known, loopItems, issues);
@@ -152,11 +145,10 @@ function walkSteps(
       }
     }
     if (step.kind === "loop") {
-      const loopStep = step as LoopStep;
-      const childLoopItems = loopStep.collectionItemName
-        ? [...loopItems, loopStep.collectionItemName]
+      const childLoopItems = step.collectionItemName
+        ? [...loopItems, step.collectionItemName]
         : loopItems;
-      walkSteps(loopStep.steps, `${path}.steps`, known, childLoopItems, issues);
+      walkSteps(step.steps, `${path}.steps`, known, childLoopItems, issues);
     }
     if (step.kind === "transactionScope") {
       walkSteps(step.steps, `${path}.steps`, known, loopItems, issues);
@@ -172,13 +164,8 @@ function walkSteps(
       if (step.onTimeout) walkSteps(step.onTimeout, `${path}.onTimeout`, known, loopItems, issues);
     }
     if (step.kind === "validation" && step.inlineBranch) {
-      // v1 旧形式は string、v3 schema は array of Step。Array.isArray で skip。
-      if (Array.isArray(step.inlineBranch.ok)) {
-        walkSteps(step.inlineBranch.ok, `${path}.inlineBranch.ok`, known, loopItems, issues);
-      }
-      if (Array.isArray(step.inlineBranch.ng)) {
-        walkSteps(step.inlineBranch.ng, `${path}.inlineBranch.ng`, known, loopItems, issues);
-      }
+      walkSteps(step.inlineBranch.ok, `${path}.inlineBranch.ok`, known, loopItems, issues);
+      walkSteps(step.inlineBranch.ng, `${path}.inlineBranch.ng`, known, loopItems, issues);
     }
     if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
@@ -192,12 +179,13 @@ function walkSteps(
 
 /** 1 step の式フィールドを全走査、@ 識別子を known と突合 */
 function checkStep(step: Step, path: string, availableIn: Set<string>, issues: IdentifierIssue[]): void {
+  // 拡張 step の固有 property は config に閉じるため、組み込み step に絞って検査
+  if (!isBuiltinStep(step)) return;
   // ValidationStep は自分自身の rules[] 評価結果 fieldErrors を同じ step の ngBodyExpression
   // で使う (同時に可視) ので、available に足してから式チェック
   const available = new Set(availableIn);
   if (step.kind === "validation") {
-    const vStep = step as ValidationStep;
-    available.add(vStep.fieldErrorsVar ?? "fieldErrors");
+    available.add(step.fieldErrorsVar ?? "fieldErrors");
   }
 
   const expressions: Array<{ src: string; field: string }> = [];
@@ -222,8 +210,8 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
   }
   if (step.kind === "branch") {
     step.branches.forEach((b, bi) => {
-      if (typeof b.condition === "string") {
-        expressions.push({ src: b.condition, field: `branches[${bi}].condition` });
+      if (b.condition.kind === "expression") {
+        expressions.push({ src: b.condition.expression, field: `branches[${bi}].condition.expression` });
       }
     });
   }
@@ -237,7 +225,6 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
     if (step.fields) expressions.push({ src: step.fields, field: "fields" });
   }
   if (step.kind === "externalSystem") {
-    if (step.protocol) expressions.push({ src: step.protocol, field: "protocol" });
     if (step.idempotencyKey) expressions.push({ src: step.idempotencyKey, field: "idempotencyKey" });
     if (step.httpCall?.path) expressions.push({ src: step.httpCall.path, field: "httpCall.path" });
     if (step.httpCall?.body) expressions.push({ src: step.httpCall.body, field: "httpCall.body" });
@@ -247,11 +234,6 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
     Object.entries(step.headers ?? {}).forEach(([k, v]) => {
       expressions.push({ src: v, field: `headers.${k}` });
     });
-    Object.entries((step as { argumentMapping?: Record<string, string> }).argumentMapping ?? {}).forEach(
-      ([k, v]) => {
-        expressions.push({ src: v, field: `argumentMapping.${k}` });
-      },
-    );
   }
   if (step.kind === "commonProcess" && step.argumentMapping) {
     Object.entries(step.argumentMapping).forEach(([k, v]) => {
@@ -260,8 +242,9 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
   }
 
   // outputBinding.initialValue: 文字列式のみ識別子検査 (JSON 値なら skip)
-  if (typeof step.outputBinding === "object" && typeof step.outputBinding?.initialValue === "string" && step.outputBinding.initialValue) {
-    expressions.push({ src: step.outputBinding.initialValue, field: "outputBinding.initialValue" });
+  const initialValue = step.outputBinding?.initialValue;
+  if (typeof initialValue === "string" && initialValue) {
+    expressions.push({ src: initialValue, field: "outputBinding.initialValue" });
   }
 
   for (const { src, field } of expressions) {
