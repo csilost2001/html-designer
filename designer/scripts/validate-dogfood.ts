@@ -129,16 +129,19 @@ function loadScreensFromDir(dir: string): Screen[] {
  */
 function discoverProjects(): ProjectResources[] {
   const infos: SampleProjectInfo[] = discoverSampleProjects(repoRoot);
-  return infos.map((info) => ({
-    projectId: info.projectId,
-    displayName: info.displayName,
-    projectDir: info.projectDir,
-    tables: loadTablesFromDir(info.tablesDir),
-    conventions: loadConventionsFromFile(info.conventionsCatalogFile),
-    conventionsV3: loadConventionsFromFile(info.conventionsCatalogFile) as Conventions | null,
-    screens: loadScreensFromDir(info.screensDir),
-    flowsDir: info.flowsDir,
-  }));
+  return infos.map((info) => {
+    const conventions = loadConventionsFromFile(info.conventionsCatalogFile);
+    return {
+      projectId: info.projectId,
+      displayName: info.displayName,
+      projectDir: info.projectDir,
+      tables: loadTablesFromDir(info.tablesDir),
+      conventions,
+      conventionsV3: conventions as Conventions | null,
+      screens: loadScreensFromDir(info.screensDir),
+      flowsDir: info.flowsDir,
+    };
+  });
 }
 
 /**

@@ -1,4 +1,4 @@
-﻿---
+---
 name: review-flow
 description: ProcessFlow JSON の実行セマンティクスを専門レビュー (変数ライフサイクル / TX スコープ / runIf 連鎖 / 補償整合 / event 双方向 / 画面項目連携)。Step 0.5 で 6 バリデータを機械実行 (#599 / #621)、Step 1 で 10 観点を AI レビュー。設計フェーズから使える
 argument-hint: <flowId | path | --all | (空 = MCP アクティブタブ)>
