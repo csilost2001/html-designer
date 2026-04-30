@@ -1331,3 +1331,458 @@ describe("観点 4: CASCADE_DELETE_OMITTED", () => {
     expect(target).toHaveLength(0);
   });
 });
+
+// ─── 観点 5: TX_CIRCULAR_DEPENDENCY ───────────────────────────────────────
+
+describe("観点 5: TX_CIRCULAR_DEPENDENCY", () => {
+  /**
+   * テーブル構成:
+   *   table_a: FK → table_b (a.b_id)
+   *   table_b: FK → table_a (b.a_id) ← 双方向循環
+   *   table_c: FK → table_b (c.b_id) (一方向のみ: a→b→c は DAG)
+   *
+   * 循環: a ⇄ b (table_a.b_id → table_b 、 table_b.a_id → table_a)
+   */
+
+  function makeCircularTables() {
+    // table_a: FK b_id → table_b
+    const tableA = {
+      id: "tbl-circ-a",
+      physicalName: "table_a",
+      columns: [
+        { id: "col-a-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { id: "col-a-2", physicalName: "b_id", notNull: true },
+        { id: "col-a-3", physicalName: "name", notNull: true },
+      ],
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-a-b",
+          columnIds: ["col-a-2"],
+          referencedTableId: "tbl-circ-b",
+          referencedColumnIds: ["col-b-1"],
+        },
+      ],
+    };
+
+    // table_b: FK a_id → table_a (双方向)
+    const tableB = {
+      id: "tbl-circ-b",
+      physicalName: "table_b",
+      columns: [
+        { id: "col-b-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { id: "col-b-2", physicalName: "a_id", notNull: true },
+        { id: "col-b-3", physicalName: "value", notNull: true },
+      ],
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-b-a",
+          columnIds: ["col-b-2"],
+          referencedTableId: "tbl-circ-a",
+          referencedColumnIds: ["col-a-1"],
+        },
+      ],
+    };
+
+    // table_c: FK b_id → table_b (一方向のみ)
+    const tableC = {
+      id: "tbl-circ-c",
+      physicalName: "table_c",
+      columns: [
+        { id: "col-c-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { id: "col-c-2", physicalName: "b_id", notNull: true },
+        { id: "col-c-3", physicalName: "detail", notNull: true },
+      ],
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-c-b",
+          columnIds: ["col-c-2"],
+          referencedTableId: "tbl-circ-b",
+          referencedColumnIds: ["col-b-1"],
+        },
+      ],
+    };
+
+    return [tableA, tableB, tableC] as import("./sqlOrderValidator").OrderTableDefinition[];
+  }
+
+  it("検出: A↔B 直接双方向循環 — 同一 TX で両テーブルに INSERT", () => {
+    const tables = makeCircularTables();
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "循環 INSERT",
+          trigger: "submit",
+          inputs: [
+            { name: "bId", type: "string", required: true },
+            { name: "aId", type: "string", required: true },
+            { name: "nameVal", type: "string", required: true },
+            { name: "valueVal", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-tx-01",
+              kind: "transactionScope",
+              description: "双方向 FK 循環 TX",
+              steps: [
+                {
+                  id: "step-01",
+                  kind: "dbAccess",
+                  description: "table_a INSERT",
+                  tableId: "tbl-circ-a",
+                  operation: "INSERT",
+                  sql: "INSERT INTO table_a (b_id, name) VALUES (@inputs.bId, @inputs.nameVal)",
+                },
+                {
+                  id: "step-02",
+                  kind: "dbAccess",
+                  description: "table_b INSERT (循環)",
+                  tableId: "tbl-circ-b",
+                  operation: "INSERT",
+                  sql: "INSERT INTO table_b (a_id, value) VALUES (@inputs.aId, @inputs.valueVal)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    expect(target[0].severity).toBe("warning");
+    // 循環パスに table_a と table_b が含まれること
+    expect(target.some((i) => i.message.includes("table_a") && i.message.includes("table_b"))).toBe(true);
+  });
+
+  it("検出: A→B→C→A 三角循環 — 同一 TX で 3 テーブルに INSERT", () => {
+    // table_c に table_a への FK を追加した三角循環テーブル群
+    const tableA2 = {
+      id: "tbl-tri-a",
+      physicalName: "tri_a",
+      columns: [
+        { id: "col-ta-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { id: "col-ta-2", physicalName: "c_id", notNull: true }, // → tri_c (三角の一辺)
+      ],
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-ta-tc",
+          columnIds: ["col-ta-2"],
+          referencedTableId: "tbl-tri-c",
+          referencedColumnIds: ["col-tc-1"],
+        },
+      ],
+    };
+    const tableB2 = {
+      id: "tbl-tri-b",
+      physicalName: "tri_b",
+      columns: [
+        { id: "col-tb-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { id: "col-tb-2", physicalName: "a_id", notNull: true }, // → tri_a
+      ],
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-tb-ta",
+          columnIds: ["col-tb-2"],
+          referencedTableId: "tbl-tri-a",
+          referencedColumnIds: ["col-ta-1"],
+        },
+      ],
+    };
+    const tableC2 = {
+      id: "tbl-tri-c",
+      physicalName: "tri_c",
+      columns: [
+        { id: "col-tc-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { id: "col-tc-2", physicalName: "b_id", notNull: true }, // → tri_b
+      ],
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-tc-tb",
+          columnIds: ["col-tc-2"],
+          referencedTableId: "tbl-tri-b",
+          referencedColumnIds: ["col-tb-1"],
+        },
+      ],
+    };
+    const tables = [tableA2, tableB2, tableC2] as import("./sqlOrderValidator").OrderTableDefinition[];
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "三角循環 INSERT",
+          trigger: "submit",
+          inputs: [
+            { name: "aId", type: "string", required: true },
+            { name: "bId", type: "string", required: true },
+            { name: "cId", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-tx-01",
+              kind: "transactionScope",
+              description: "A→B→C→A 三角循環 TX",
+              steps: [
+                {
+                  id: "step-01",
+                  kind: "dbAccess",
+                  description: "tri_a INSERT",
+                  tableId: "tbl-tri-a",
+                  operation: "INSERT",
+                  sql: "INSERT INTO tri_a (c_id) VALUES (@inputs.cId)",
+                },
+                {
+                  id: "step-02",
+                  kind: "dbAccess",
+                  description: "tri_b INSERT",
+                  tableId: "tbl-tri-b",
+                  operation: "INSERT",
+                  sql: "INSERT INTO tri_b (a_id) VALUES (@inputs.aId)",
+                },
+                {
+                  id: "step-03",
+                  kind: "dbAccess",
+                  description: "tri_c INSERT",
+                  tableId: "tbl-tri-c",
+                  operation: "INSERT",
+                  sql: "INSERT INTO tri_c (b_id) VALUES (@inputs.bId)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    expect(target[0].severity).toBe("warning");
+  });
+
+  it("false positive 抑止: TX scope 外での双方向 FK (TX なし) — issue 出さない", () => {
+    const tables = makeCircularTables();
+    // TX なし (直接 action steps に INSERT)
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "TX 外 INSERT",
+          trigger: "submit",
+          inputs: [
+            { name: "bId", type: "string", required: true },
+            { name: "aId", type: "string", required: true },
+            { name: "nameVal", type: "string", required: true },
+            { name: "valueVal", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "table_a INSERT (TX 外)",
+              tableId: "tbl-circ-a",
+              operation: "INSERT",
+              sql: "INSERT INTO table_a (b_id, name) VALUES (@inputs.bId, @inputs.nameVal)",
+            },
+            {
+              id: "step-02",
+              kind: "dbAccess",
+              description: "table_b INSERT (TX 外)",
+              tableId: "tbl-circ-b",
+              operation: "INSERT",
+              sql: "INSERT INTO table_b (a_id, value) VALUES (@inputs.aId, @inputs.valueVal)",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    // TX_CIRCULAR_DEPENDENCY は transactionScope 内のみ → TX 外では issue なし
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止: 一方向 FK のみ (A→B、循環なし) — issue 出さない", () => {
+    const tables = makeCircularTables();
+    // table_a (a.b_id→table_b) と table_c (c.b_id→table_b): a→b、c→b の DAG (循環なし)
+    // table_b 自体を INSERT しない (table_a と table_c のみ)
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "一方向 FK TX",
+          trigger: "submit",
+          inputs: [
+            { name: "bId", type: "string", required: true },
+            { name: "nameVal", type: "string", required: true },
+            { name: "detailVal", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-tx-01",
+              kind: "transactionScope",
+              description: "一方向 FK TX (a→b のみ、循環なし)",
+              steps: [
+                {
+                  // table_a だけを INSERT (b_id は既存 table_b 行を参照するため変数が bound 済と仮定)
+                  // ここでの目的は TX_CIRCULAR_DEPENDENCY が出ないことの確認
+                  id: "step-01",
+                  kind: "dbAccess",
+                  description: "table_a INSERT のみ",
+                  tableId: "tbl-circ-a",
+                  operation: "INSERT",
+                  sql: "INSERT INTO table_a (b_id, name) VALUES (@inputs.bId, @inputs.nameVal)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    // 1 テーブルのみ INSERT なので循環不可 → issue なし
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止: 同一 TX で 1 テーブルのみ操作 — issue 出さない", () => {
+    const tables = makeCircularTables();
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "単独 TX",
+          trigger: "submit",
+          inputs: [{ name: "bId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-tx-01",
+              kind: "transactionScope",
+              description: "1 テーブルのみ",
+              steps: [
+                {
+                  id: "step-01",
+                  kind: "dbAccess",
+                  description: "table_a のみ INSERT",
+                  tableId: "tbl-circ-a",
+                  operation: "INSERT",
+                  sql: "INSERT INTO table_a (b_id, name) VALUES (@inputs.bId, 'test')",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止: 異なる TX スコープに分散 (各 TX に 1 テーブルのみ) — issue 出さない", () => {
+    const tables = makeCircularTables();
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "分散 TX",
+          trigger: "submit",
+          inputs: [
+            { name: "bId", type: "string", required: true },
+            { name: "aId", type: "string", required: true },
+            { name: "nameVal", type: "string", required: true },
+            { name: "valueVal", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-tx-01",
+              kind: "transactionScope",
+              description: "TX 1: table_a のみ",
+              steps: [
+                {
+                  id: "step-01",
+                  kind: "dbAccess",
+                  description: "table_a INSERT",
+                  tableId: "tbl-circ-a",
+                  operation: "INSERT",
+                  sql: "INSERT INTO table_a (b_id, name) VALUES (@inputs.bId, @inputs.nameVal)",
+                },
+              ],
+            },
+            {
+              id: "step-tx-02",
+              kind: "transactionScope",
+              description: "TX 2: table_b のみ",
+              steps: [
+                {
+                  id: "step-02",
+                  kind: "dbAccess",
+                  description: "table_b INSERT",
+                  tableId: "tbl-circ-b",
+                  operation: "INSERT",
+                  sql: "INSERT INTO table_b (a_id, value) VALUES (@inputs.aId, @inputs.valueVal)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    // 各 TX に 1 テーブルのみ → 各スコープ内での循環なし → issue なし
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    expect(target).toHaveLength(0);
+  });
+
+  it("正常系: UPDATE も TX 内で検出対象に含まれる (双方向 FK + UPDATE)", () => {
+    const tables = makeCircularTables();
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "UPDATE 循環",
+          trigger: "submit",
+          inputs: [
+            { name: "bId", type: "string", required: true },
+            { name: "aId", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-tx-01",
+              kind: "transactionScope",
+              description: "UPDATE を含む双方向 FK 循環 TX",
+              steps: [
+                {
+                  id: "step-01",
+                  kind: "dbAccess",
+                  description: "table_a UPDATE (b_id を参照)",
+                  tableId: "tbl-circ-a",
+                  operation: "UPDATE",
+                  sql: "UPDATE table_a SET b_id = @inputs.bId WHERE id = 1",
+                },
+                {
+                  id: "step-02",
+                  kind: "dbAccess",
+                  description: "table_b UPDATE (a_id を参照)",
+                  tableId: "tbl-circ-b",
+                  operation: "UPDATE",
+                  sql: "UPDATE table_b SET a_id = @inputs.aId WHERE id = 1",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "TX_CIRCULAR_DEPENDENCY");
+    // UPDATE も対象 → 双方向 FK 循環 → warning
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    expect(target[0].severity).toBe("warning");
+  });
+});
