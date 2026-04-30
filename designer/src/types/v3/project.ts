@@ -105,6 +105,7 @@ export interface ProjectEntities {
   tables?: TableEntry[];
   processFlows?: ProcessFlowEntry[];
   views?: ViewEntry[];
+  viewDefinitions?: ViewDefinitionEntry[];
   sequences?: SequenceEntry[];
   screenGroups?: ScreenGroupEntry[];
   screenTransitions?: ScreenTransitionEntry[];
