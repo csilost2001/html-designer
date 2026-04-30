@@ -231,6 +231,12 @@
           "payload": "{ shipmentNumber: @createdShipment.shipment_number, trackingNumber: @createdShipment.tracking_number }"
         },
         {
+          "id": "step-10-nav",
+          "kind": "screenTransition",
+          "description": "転送指示完了後、転送完了画面へ遷移する。画面フロー edge (st-log-01) と対応 (#650 三者整合サンプル)。",
+          "targetScreenId": "c3d5e7f9-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        },
+        {
           "id": "step-11",
           "kind": "return",
           "description": "200 OK",

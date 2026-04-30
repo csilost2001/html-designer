@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
+  "id": "e5f7a9b1-3c4d-4e5f-af6b-7c8d9e0f1a2b",
+  "name": "申請完了",
+  "description": "建築確認申請の承認が完了した後に表示される完了画面。申請番号と決定日時を表示する。",
+  "version": "1.0.0",
+  "maturity": "committed",
+  "createdAt": "2026-04-30T00:00:00.000Z",
+  "updatedAt": "2026-04-30T00:00:00.000Z",
+  "kind": "complete",
+  "path": "/public/applications/building-confirmation/complete",
+  "auth": "required",
+  "items": [
+    {
+      "id": "applicationNumber",
+      "label": "申請番号",
+      "type": "string",
+      "direction": "output",
+      "valueFrom": {
+        "kind": "flowVariable",
+        "variableName": "createdApplication.application_number"
+      }
+    },
+    {
+      "id": "decidedAt",
+      "label": "決定日時",
+      "type": "datetime",
+      "direction": "output",
+      "valueFrom": {
+        "kind": "expression",
+        "expression": "@now"
+      }
+    }
+  ]
+}

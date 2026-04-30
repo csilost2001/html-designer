@@ -25,6 +25,16 @@
         "kind": "form",
         "path": "/public/applications/building-confirmation/new",
         "hasDesign": false
+      },
+      {
+        "id": "e5f7a9b1-3c4d-4e5f-af6b-7c8d9e0f1a2b",
+        "no": 2,
+        "name": "申請完了",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "complete",
+        "path": "/public/applications/building-confirmation/complete",
+        "hasDesign": false
       }
     ],
     "tables": [
@@ -52,6 +62,15 @@
         "maturity": "committed",
         "kind": "system",
         "actionCount": 1
+      }
+    ],
+    "screenTransitions": [
+      {
+        "id": "st-ps-01",
+        "sourceScreenId": "f9de5853-db95-4dc5-aefc-ca03b482cfd9",
+        "targetScreenId": "e5f7a9b1-3c4d-4e5f-af6b-7c8d9e0f1a2b",
+        "label": "申請完了へ",
+        "trigger": "submit"
       }
     ]
   }

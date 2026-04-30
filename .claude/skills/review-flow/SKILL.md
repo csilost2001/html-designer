@@ -239,6 +239,17 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) について、画面
 - domainKey 設計の業務妥当性 (例: `BenefitType` を多業務で再利用するか専用に閉じるか)
 - pattern / range / length の業務上の正当性 (validator は 一致 / 不一致のみ検出、業務として妥当な範囲かは AI 判断)
 
+#### 観点 13: 画面遷移三者整合 (#650、Phase 4 子 2)
+
+画面遷移を含むフローについて、**画面フロー edges × ProcessFlow の `ScreenTransitionStep.targetScreenId` × 画面 path (URL ルーティング)** の三者整合を検証する。**機械検出は Step 0.5 の `screenNavigationValidator` でカバー** されるため、AI 目視は **「validator では届かない業務文脈の妥当性」** に絞る:
+
+- `MISSING_FLOW_EDGE` / `ORPHAN_FLOW_EDGE` warning は **業務遷移として意図的か再確認** (画面フロー edges を後で追加すべき遷移か、単に不要なら ScreenTransitionStep 側を削除)
+- `AUTH_TRANSITION_VIOLATION` の例外運用 (login / error 画面以外で auth 不一致を許容するべき業務シナリオが妥当か)
+- `DEAD_END_SCREEN` warning が **業務として終端でよい画面か** (確認画面 / 完了画面は終端で正当、それ以外は遷移欠落の可能性)
+- `PATH_PARAM_MISMATCH` warning は path 設計の業務的整合性を再確認 (param 名の業務表現が source / target で一致しているか)
+- Must-fix 候補: `UNKNOWN_TARGET_SCREEN` (実在しない画面への遷移) / `DUPLICATE_SCREEN_PATH` (path 衝突) / `AUTH_TRANSITION_VIOLATION` (認証 bypass)
+- Should-fix 候補: 上記 warning 4 観点
+
 #### 観点 14: 画面項目 refKey 横断整合 (#651、Phase 4 子 3)
 
 このフローに紐付く画面項目の `refKey` 設定と `conventions.fieldKeys` 宣言の整合性を確認する。**機械検出は Step 0.5 の `screenItemRefKeyValidator` でカバー** されるため、AI 目視は **「validator では届かない業務文脈の妥当性」** に絞る:

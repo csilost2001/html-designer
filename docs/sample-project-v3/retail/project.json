@@ -23,7 +23,7 @@
         "id": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
         "no": 1,
         "name": "店舗在庫照会",
-        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
         "maturity": "committed",
         "kind": "search",
         "path": "/retail/inventory/search",
@@ -37,6 +37,26 @@
         "maturity": "committed",
         "kind": "list",
         "path": "/retail/products",
+        "hasDesign": false
+      },
+      {
+        "id": "a2c4e6f8-1b3d-4a5e-9c7b-8d0f2e4a6c8e",
+        "no": 3,
+        "name": "商品詳細",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "detail",
+        "path": "/retail/products/:productCode",
+        "hasDesign": false
+      },
+      {
+        "id": "b4e7a012-3c56-4d89-a123-456789abcdef",
+        "no": 4,
+        "name": "カート",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "form",
+        "path": "/retail/cart",
         "hasDesign": false
       }
     ],
@@ -79,11 +99,47 @@
         "id": "506c266f-cc46-4d6f-86df-3c71f515bfcc",
         "no": 1,
         "name": "店舗在庫照会 (小売)",
-        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
         "maturity": "committed",
         "kind": "screen",
         "screenId": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
         "actionCount": 1
+      },
+      {
+        "id": "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+        "no": 2,
+        "name": "商品詳細表示 (小売)",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "screen",
+        "screenId": "a2c4e6f8-1b3d-4a5e-9c7b-8d0f2e4a6c8e",
+        "actionCount": 1
+      },
+      {
+        "id": "a3a129e5-55fe-4805-a411-833e8f6a7311",
+        "no": 3,
+        "name": "カート追加 (小売)",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "screen",
+        "screenId": "b4e7a012-3c56-4d89-a123-456789abcdef",
+        "actionCount": 1
+      }
+    ],
+    "screenTransitions": [
+      {
+        "id": "st-retail-01",
+        "sourceScreenId": "3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c",
+        "targetScreenId": "a2c4e6f8-1b3d-4a5e-9c7b-8d0f2e4a6c8e",
+        "label": "商品詳細へ",
+        "trigger": "click"
+      },
+      {
+        "id": "st-retail-02",
+        "sourceScreenId": "a2c4e6f8-1b3d-4a5e-9c7b-8d0f2e4a6c8e",
+        "targetScreenId": "b4e7a012-3c56-4d89-a123-456789abcdef",
+        "label": "カートへ追加",
+        "trigger": "submit"
       }
     ]
   },

@@ -278,6 +278,28 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 
 **Step 5.2 で `validate:dogfood` の `viewDefinitionValidator` により機械的に検出される**
 
+### Rule 21: 画面遷移三者整合 (#650、Phase 4 子 2)
+
+画面遷移を含むフローを作成するとき、**画面フロー edges (`Project.screenTransitions[]`) × ProcessFlow の `ScreenTransitionStep.targetScreenId` × 画面の `path` (URL ルーティング)** の三者が整合していることを確認する。`screenNavigationValidator` が以下を機械検出する。
+
+| code | severity | 検出内容 |
+|---|---|---|
+| `UNKNOWN_TARGET_SCREEN` | error | ScreenTransitionStep.targetScreenId が同プロジェクトの画面に実在しない |
+| `MISSING_FLOW_EDGE` | warning | ScreenTransitionStep が遷移するが Project.screenTransitions[] に対応 edge が無い |
+| `ORPHAN_FLOW_EDGE` | warning | Project.screenTransitions[] が宣言されているが ScreenTransitionStep / forward が無い |
+| `DEAD_END_SCREEN` | warning | 画面に遷移先 (forward / ScreenTransitionStep) が無い (login / error 等の固定終端は除外) |
+| `AUTH_TRANSITION_VIOLATION` | error | `auth: optional / none` 画面から `auth: required` 画面への直接遷移 (kind=login/error は例外) |
+| `PATH_PARAM_MISMATCH` | warning | source.path に対応する `:param` が無いまま target.path のパラメータを要求 (軽量判定) |
+| `DUPLICATE_SCREEN_PATH` | error | 複数画面が同じ path を宣言 |
+
+フロー作成時のチェックポイント:
+- ScreenTransitionStep.targetScreenId が実在画面か
+- 画面フロー edges (`Project.screenTransitions[]`) に同じ遷移を宣言しているか
+- 遷移先画面の `auth` 要件と遷移元の `auth` が整合しているか (login 後画面への bypass を作っていないか)
+- 画面の `path` が一意か / `:param` の整合があるか
+
+**Step 5.2 で `validate:dogfood` の `screenNavigationValidator` により機械的に検出される**
+
 ### Rule 22: 画面項目 refKey 横断整合 (#651、Phase 4 子 3)
 
 このルールはフロー作成時の **画面 JSON 整備** を対象とする (ProcessFlow JSON ではなく Screen JSON の品質)。

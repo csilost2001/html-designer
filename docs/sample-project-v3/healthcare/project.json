@@ -27,8 +27,17 @@
       { "id": "3cd0df6d-9a55-423c-9f12-829c132871ae", "no": 5, "name": "医療提供者", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "physicalName": "providers", "category": "マスタ", "columnCount": 10 }
     ],
     "processFlows": [
-      { "id": "0be3eb9c-c96e-498e-9be4-6efe3878097a", "no": 1, "name": "診察予約", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 },
-      { "id": "a54d7fe5-a575-4ac8-967d-e72ec27db401", "no": 2, "name": "処方箋発行", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 }
+      { "id": "0be3eb9c-c96e-498e-9be4-6efe3878097a", "no": 1, "name": "診察予約", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "screen", "screenId": "87516f74-1daa-4a92-8102-a294accdba68", "actionCount": 1 },
+      { "id": "a54d7fe5-a575-4ac8-967d-e72ec27db401", "no": 2, "name": "処方箋発行", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "screen", "screenId": "2b3d8199-e338-4c61-b0c3-3df36cd41532", "actionCount": 1 }
+    ],
+    "screenTransitions": [
+      {
+        "id": "st-hc-01",
+        "sourceScreenId": "87516f74-1daa-4a92-8102-a294accdba68",
+        "targetScreenId": "2b3d8199-e338-4c61-b0c3-3df36cd41532",
+        "label": "処方箋発行へ",
+        "trigger": "submit"
+      }
     ]
   }
 }
