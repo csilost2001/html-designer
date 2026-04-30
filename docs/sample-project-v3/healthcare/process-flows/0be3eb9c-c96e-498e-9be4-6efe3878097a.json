@@ -90,6 +90,7 @@
         { "id": "404-patient-not-found", "status": 404, "bodySchema": { "typeRef": "healthcare:ApiError" } },
         { "id": "409-provider-not-available", "status": 409, "bodySchema": { "typeRef": "healthcare:ApiError" } },
         { "id": "422-credential-invalid", "status": 422, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "500-internal-error", "status": 500, "bodySchema": { "typeRef": "healthcare:ApiError" } },
         { "id": "502-emr-sync-failed", "status": 502, "bodySchema": { "typeRef": "healthcare:ApiError" } }
       ],
       "steps": [

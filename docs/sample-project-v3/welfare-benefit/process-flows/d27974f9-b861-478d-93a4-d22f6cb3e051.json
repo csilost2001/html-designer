@@ -90,6 +90,7 @@
         { "id": "404-application-not-found", "status": 404, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
         { "id": "409-application-not-approved", "status": 409, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
         { "id": "422-treasurer-rejected", "status": 422, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
+        { "id": "500-internal-error", "status": 500, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
         { "id": "502-bank-transfer-failed", "status": 502, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } },
         { "id": "502-notification-failed", "status": 502, "bodySchema": { "typeRef": "welfare-benefit:ApiError" } }
       ],
