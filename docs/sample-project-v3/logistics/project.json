@@ -14,7 +14,8 @@
   "extensionsApplied": [{ "namespace": "logistics", "version": ">=1.0.0" }],
   "entities": {
     "screens": [
-      { "id": "42f09728-910e-4ac1-9d8b-8f9d8223a439", "no": 1, "name": "倉庫間転送指示", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "form", "path": "/logistics/transfers/new", "hasDesign": false }
+      { "id": "42f09728-910e-4ac1-9d8b-8f9d8223a439", "no": 1, "name": "倉庫間転送指示", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "form", "path": "/logistics/transfers/new", "hasDesign": false },
+      { "id": "c3d5e7f9-1a2b-4c3d-8e4f-5a6b7c8d9e0f", "no": 2, "name": "転送完了", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "complete", "path": "/logistics/transfers/complete", "hasDesign": false }
     ],
     "tables": [
       { "id": "6f43ce95-a553-45bf-973b-7f46be57faa1", "no": 1, "name": "倉庫マスタ", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "physicalName": "warehouses", "category": "マスタ", "columnCount": 9 },
@@ -25,6 +26,15 @@
     "processFlows": [
       { "id": "0fe7af80-0f0c-4075-a46f-9c921866a52b", "no": 1, "name": "倉庫間転送実行", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "screen", "screenId": "42f09728-910e-4ac1-9d8b-8f9d8223a439", "actionCount": 1 },
       { "id": "ea579b99-4b83-4724-823e-d8e73e979266", "no": 2, "name": "配送状況照会", "updatedAt": "2026-04-28T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 }
+    ],
+    "screenTransitions": [
+      {
+        "id": "st-log-01",
+        "sourceScreenId": "42f09728-910e-4ac1-9d8b-8f9d8223a439",
+        "targetScreenId": "c3d5e7f9-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+        "label": "転送完了へ",
+        "trigger": "submit"
+      }
     ]
   }
 }

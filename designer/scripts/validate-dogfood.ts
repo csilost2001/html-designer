@@ -30,10 +30,12 @@ import { checkScreenItemFlowConsistency } from "../src/schemas/screenItemFlowVal
 import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFieldTypeValidator.js";
 import { checkScreenItemRefKeyConsistency } from "../src/schemas/screenItemRefKeyValidator.js";
 import { checkViewDefinitions } from "../src/schemas/viewDefinitionValidator.js";
+import { checkScreenNavigation } from "../src/schemas/screenNavigationValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
 import type { Conventions } from "../src/types/v3/conventions.js";
 import type { ViewDefinition } from "../src/types/v3/view-definition.js";
+import type { ScreenTransitionEntry } from "../src/types/v3/project.js";
 import { discoverProjects as discoverSampleProjects, type SampleProjectInfo } from "./sample-projects.js";
 
 // ─── パス解決 ──────────────────────────────────────────────────────────────
@@ -55,6 +57,7 @@ interface ProjectResources {
   conventionsV3: Conventions | null;  // v3 型 conventions (refKey validator 用、#651)
   screens: Screen[];          // 画面定義 (#619、画面項目イベント連携検証用)
   viewDefinitions: ViewDefinition[]; // ViewDefinition 一覧 (#649)
+  screenTransitions: ScreenTransitionEntry[]; // 画面遷移定義 (#650、三者整合検証用)
   flowsDir: string;           // process-flows/ の絶対パス
 }
 
@@ -134,6 +137,21 @@ function loadViewDefinitionsFromDir(dir: string): ViewDefinition[] {
 }
 
 /**
+ * project.json から entities.screenTransitions を読み込む (#650)。
+ * project.json が存在しない場合や screenTransitions が未定義の場合は空配列を返す。
+ */
+function loadScreenTransitionsFromProjectJson(projectDir: string): ScreenTransitionEntry[] {
+  const filePath = join(projectDir, "project.json");
+  if (!existsSync(filePath)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(filePath, "utf-8")) as { entities?: { screenTransitions?: ScreenTransitionEntry[] } };
+    return raw.entities?.screenTransitions ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * v1 + v3 のサンプルプロジェクトを発見してリソース情報を返す。
  *
  * 発見ロジックは scripts/sample-projects.ts の discoverProjects() に共通化済 (#617)。
@@ -154,6 +172,7 @@ function discoverProjects(): ProjectResources[] {
       conventionsV3: conventions as Conventions | null,
       screens: loadScreensFromDir(info.screensDir),
       viewDefinitions: loadViewDefinitionsFromDir(join(info.projectDir, "view-definitions")),
+      screenTransitions: loadScreenTransitionsFromProjectJson(info.projectDir),
       flowsDir: info.flowsDir,
     };
   });
@@ -451,6 +470,23 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
         })),
       );
 
+      // 12. 画面フロー × ScreenTransitionStep × URL ルーティング 三者整合 (#650、Phase 4 子 2)
+      const screenNavIssues = checkScreenNavigation(
+        flows.map((f) => f.flow),
+        project.screens,
+        project.screenTransitions,
+      );
+      // error severity のみ projectIssues に含める (warning は draft-state policy 準拠でスキップ)
+      projectIssues.push(
+        ...screenNavIssues
+          .filter((i) => i.severity === "error")
+          .map((i) => ({
+            validator: "screenNavigationValidator",
+            severity: i.severity,
+            message: `[${i.code}] ${i.path}: ${i.message}`,
+          })),
+      );
+
       if (projectIssues.length > 0) {
         projectResults.push({
           projectId: project.projectId,
@@ -491,6 +527,7 @@ const validatorDisplayOrder = [
   "sqlOrderValidator",
   "screenItemRefKeyValidator",
   "viewDefinitionValidator",
+  "screenNavigationValidator",
 ];
 
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {

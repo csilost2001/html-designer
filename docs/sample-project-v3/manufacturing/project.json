@@ -25,6 +25,16 @@
         "kind": "form",
         "path": "/manufacturing/production-orders/new",
         "hasDesign": false
+      },
+      {
+        "id": "d4e6f8a0-2b3c-4d4e-9f5a-6b7c8d9e0f1a",
+        "no": 2,
+        "name": "製造指示完了",
+        "updatedAt": "2026-04-30T00:00:00.000Z",
+        "maturity": "committed",
+        "kind": "complete",
+        "path": "/manufacturing/production-orders/complete",
+        "hasDesign": false
       }
     ],
     "tables": [
@@ -109,6 +119,15 @@
         "maturity": "committed",
         "kind": "scheduled",
         "actionCount": 1
+      }
+    ],
+    "screenTransitions": [
+      {
+        "id": "st-mfg-01",
+        "sourceScreenId": "67cf4447-cff1-4402-ac73-816cf4fe4ca2",
+        "targetScreenId": "d4e6f8a0-2b3c-4d4e-9f5a-6b7c8d9e0f1a",
+        "label": "製造指示完了へ",
+        "trigger": "submit"
       }
     ]
   }

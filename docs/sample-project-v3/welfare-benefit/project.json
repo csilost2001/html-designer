@@ -42,6 +42,15 @@
     "processFlows": [
       { "id": "bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d", "no": 1, "name": "給付申請受付", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 },
       { "id": "d27974f9-b861-478d-93a4-d22f6cb3e051", "no": 2, "name": "支払通知", "updatedAt": "2026-04-30T00:00:00.000Z", "maturity": "committed", "kind": "system", "actionCount": 1 }
+    ],
+    "screenTransitions": [
+      {
+        "id": "st-wb-01",
+        "sourceScreenId": "883e408d-3290-448d-a881-e9d7a22c85fc",
+        "targetScreenId": "1cfb3eef-baa4-4666-8ef3-f74fe2954f85",
+        "label": "支払通知へ",
+        "trigger": "submit"
+      }
     ]
   }
 }

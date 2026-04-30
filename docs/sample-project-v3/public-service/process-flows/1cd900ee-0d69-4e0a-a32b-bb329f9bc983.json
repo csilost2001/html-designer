@@ -364,6 +364,12 @@
           "payload": "{ applicationNumber: @createdApplication.application_number }"
         },
         {
+          "id": "step-99-nav",
+          "kind": "screenTransition",
+          "description": "申請承認完了後、申請完了画面へ遷移する。画面フロー edge (st-ps-01) と対応 (#650 三者整合サンプル)。",
+          "targetScreenId": "e5f7a9b1-3c4d-4e5f-af6b-7c8d9e0f1a2b"
+        },
+        {
           "id": "step-99-return",
           "kind": "return",
           "description": "200 OK 申請完了",

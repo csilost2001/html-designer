@@ -239,6 +239,12 @@
           "payload": "{ orderNumber: @createdOrder.order_number, productItemCode: @product.item_code, plannedQuantity: @inputs.plannedQuantity, componentCount: @bomComponents.length }"
         },
         {
+          "id": "step-09-nav",
+          "kind": "screenTransition",
+          "description": "製造指示作成完了後、製造完了画面へ遷移する。画面フロー edge (st-mfg-01) と対応 (#650 三者整合サンプル)。",
+          "targetScreenId": "d4e6f8a0-2b3c-4d4e-9f5a-6b7c8d9e0f1a"
+        },
+        {
           "id": "step-10",
           "kind": "return",
           "description": "200 OK",
