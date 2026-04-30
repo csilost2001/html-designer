@@ -300,6 +300,66 @@ describe("checkIdentifierScopes — 組み込み関数 BUILTIN_AMBIENTS", () => 
   });
 });
 
+describe("checkIdentifierScopes - TransactionScopeStep onRollback @error ambient", () => {
+  it("allows @error inside transactionScope.onRollback", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "tx", kind: "transactionScope", description: "",
+          steps: [
+            { id: "s1", kind: "compute", description: "", expression: "1", outputBinding: "value" },
+          ],
+          onRollback: [
+            { id: "rb1", kind: "return", description: "", bodyExpression: "{ message: @error.message }" },
+          ],
+        }],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "error")).toHaveLength(0);
+  });
+
+  it("reports @error outside transactionScope.onRollback", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", kind: "return", description: "", bodyExpression: "{ message: @error.message }" },
+        ],
+      }],
+    }));
+    const errorIssues = issues.filter((i) => i.identifier === "error");
+    expect(errorIssues).toHaveLength(1);
+    expect(errorIssues[0].code).toBe("UNKNOWN_IDENTIFIER");
+  });
+
+  // ケース C: walkSteps が onRollback 内の nested step (branch.condition / 内部 return.bodyExpression)
+  // にも onRollbackKnown を再帰継承することを確認
+  it("inherits @error inside nested onRollback steps", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "tx", kind: "transactionScope", description: "",
+          steps: [
+            { id: "s1", kind: "compute", description: "", expression: "1", outputBinding: "value" },
+          ],
+          onRollback: [{
+            id: "branch", kind: "branch", description: "",
+            branches: [{
+              condition: "@error.code == 'STOCK_SHORTAGE'",
+              steps: [
+                { id: "rb1", kind: "return", description: "", bodyExpression: "{ code: @error.code }" },
+              ],
+            }],
+          }],
+        }],
+      }],
+    }));
+    expect(issues.filter((i) => i.identifier === "error")).toHaveLength(0);
+  });
+});
+
 describe("checkIdentifierScopes — サンプル (docs/sample-project/process-flows/*.json)", () => {
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
   for (const f of files) {
