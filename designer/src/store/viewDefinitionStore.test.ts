@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { commitViewDefinitions } from "../components/view-definition/ViewDefinitionListView";
 import type { FlowProject } from "../types/flow";
 import type {
   DisplayName,
   TableId,
   Timestamp,
+  ViewDefinitionEntry,
+  ViewDefinitionId,
 } from "../types/v3";
 import type { FlowStorageBackend } from "./flowStore";
 import { setFlowDraftMode, setFlowStorageBackend } from "./flowStore";
@@ -25,6 +28,30 @@ function emptyProject(): FlowProject {
     edges: [],
     updatedAt: TS,
   };
+}
+
+function viewDefinitionEntry(id: string, no: number): ViewDefinitionEntry {
+  return {
+    id: id as unknown as ViewDefinitionId,
+    no,
+    name: `vd ${id}`,
+    kind: "list",
+    sourceTableId: "tbl-1" as any,
+    columnCount: 0,
+    updatedAt: TS,
+  };
+}
+
+function projectWithViewDefinitions(viewDefinitions: ViewDefinitionEntry[]): FlowProject {
+  return {
+    version: 1,
+    name: "test",
+    screens: [],
+    groups: [],
+    edges: [],
+    viewDefinitions,
+    updatedAt: TS,
+  } as unknown as FlowProject;
 }
 
 describe("viewDefinitionStore", () => {
@@ -75,5 +102,29 @@ describe("viewDefinitionStore", () => {
     expect(vd.kind).toBe("list");
     expect(vd.sourceTableId).toBe("table-orders");
     expect(vd.columns).toEqual([]);
+  });
+
+  it("commitViewDefinitions saves project.json once regardless of deletedIds count", async () => {
+    const project = projectWithViewDefinitions([
+      viewDefinitionEntry("a", 1),
+      viewDefinitionEntry("b", 2),
+      viewDefinitionEntry("c", 3),
+    ]);
+    const loadProject = vi.fn().mockResolvedValue(project);
+    const saveProject = vi.fn().mockResolvedValue(undefined);
+    const deleteViewDefinition = vi.fn().mockResolvedValue(undefined);
+
+    await commitViewDefinitions({
+      itemsInOrder: [viewDefinitionEntry("c", 1), viewDefinitionEntry("a", 2)],
+      deletedIds: ["b", "missing"],
+    }, { loadProject, saveProject, deleteViewDefinition });
+
+    expect(saveProject).toHaveBeenCalledTimes(1);
+    expect(saveProject).toHaveBeenCalledWith(project);
+    expect(project.viewDefinitions?.map((vd) => vd.id)).toEqual(["c", "a"]);
+    expect(project.viewDefinitions?.map((vd) => vd.no)).toEqual([1, 2]);
+    expect(deleteViewDefinition).toHaveBeenCalledTimes(2);
+    expect(deleteViewDefinition).toHaveBeenNthCalledWith(1, "b");
+    expect(deleteViewDefinition).toHaveBeenNthCalledWith(2, "missing");
   });
 });
