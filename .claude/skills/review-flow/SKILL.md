@@ -97,7 +97,7 @@ npm run validate:dogfood
 
 - バリデータが検出した issue は **Step 1 のレビュー入力**として活用 (重複説明はしない)
 - 結果は Step 2 の「10 観点別カバレッジ」表に **「validator 検出済」** カラムとして記録
-- Must-fix 候補: `UNKNOWN_RESPONSE_REF` / `UNKNOWN_ERROR_CODE` / `UNKNOWN_IDENTIFIER` / `UNKNOWN_COLUMN` / `UNKNOWN_CONV_*` / `UNKNOWN_HANDLER_FLOW` / `MISSING_REQUIRED_ARGUMENT` / `EXTRA_ARGUMENT` / `PRIMARY_INVOKER_MISMATCH` / `DUPLICATE_EVENT_ID` / `NULL_NOT_ALLOWED_AT_INSERT` / `FK_REFERENCE_NOT_INSERTED` 等
+- Must-fix 候補: `UNKNOWN_RESPONSE_REF` / `UNKNOWN_ERROR_CODE` / `UNKNOWN_IDENTIFIER` / `UNKNOWN_COLUMN` / `UNKNOWN_CONV_*` / `UNKNOWN_HANDLER_FLOW` / `MISSING_REQUIRED_ARGUMENT` / `EXTRA_ARGUMENT` / `PRIMARY_INVOKER_MISMATCH` / `DUPLICATE_EVENT_ID` / `NULL_NOT_ALLOWED_AT_INSERT` / `FK_REFERENCE_NOT_INSERTED` / `CASCADE_DELETE_OMITTED` 等
 - Should-fix 候補 (warning): `INCONSISTENT_ARGUMENT_CONTRACT` (1 フローを呼ぶ複数イベント間で argumentMapping キー集合が異なる) / `UNIQUE_CHECK_MISSING` (UNIQUE カラムへの INSERT で事前重複チェックなし、#640)
 - 終了コード 1 (1 件以上 fail) でも Step 1 を中止せず実施する (実行セマンティクス観点が AI 目視のみで残るため)
 
@@ -115,7 +115,7 @@ npm run validate:dogfood
 | 8. rollbackOn 発火可能性 | referentialIntegrity (UNKNOWN_ERROR_CODE) | TX inner からの実発火可能性は AI |
 | 9. 画面項目イベント連携整合 | screenItemFlowValidator (handlerFlowId / argumentMapping / primaryInvoker / events[].id ユニーク) | 業務文脈での argumentMapping 値の妥当性 (UI 入力 → フロー入力の意味的整合) は AI |
 | 10. 画面項目値レベル整合 | screenItemFieldTypeValidator (options 包含 / domainKey / 型 / pattern / range / length) | 業務文脈の妥当性 (選択肢命名の業務適切性 / domain 設計妥当性) は AI |
-| 11. DB 制約 × INSERT 順序 (#632 / #640) | sqlOrderValidator (NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED / UNIQUE_CHECK_MISSING) | 複雑な条件分岐での可能性の有無は AI / UNIQUE チェック抑止パターンの業務妥当性は AI |
+| 11. DB 制約 × INSERT / DELETE 順序 (#632 / #640 / #641) | sqlOrderValidator (NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED / UNIQUE_CHECK_MISSING / CASCADE_DELETE_OMITTED) | 複雑な条件分岐での可能性の有無は AI / UNIQUE チェック抑止パターンの業務妥当性は AI / onDelete 設定が業務要件として適切かは AI |
 | 12. ViewDefinition 整合 (#649) | viewDefinitionValidator (UNKNOWN_SOURCE_TABLE / UNKNOWN_TABLE_COLUMN_REF / DUPLICATE_VIEW_COLUMN_NAME / UNKNOWN_SORT_COLUMN / UNKNOWN_FILTER_COLUMN / UNKNOWN_GROUP_BY_COLUMN) | sourceTableId ↔ dbAccess テーブルの業務的整合 / FIELD_TYPE_INCOMPATIBLE の業務妥当性は AI |
 
 監査根拠: `docs/spec/dogfood-2026-04-29-phase2-validator-audit.md` §3 / §4 + Phase 3 子 1 #619 (PR #626)。

@@ -1047,3 +1047,287 @@ describe("観点 3: UNIQUE_CHECK_MISSING", () => {
     expect(target).toHaveLength(0);
   });
 });
+
+// ─── 観点 4: CASCADE_DELETE_OMITTED ───────────────────────────────────────
+
+describe("観点 4: CASCADE_DELETE_OMITTED", () => {
+  /**
+   * テーブル構成:
+   *   orders (親)
+   *   └─ order_items (子、orders.id を FK 参照)
+   *
+   * order_items の FK onDelete は各テストで変えて確認する。
+   */
+
+  function makeOrderTables(onDelete?: "cascade" | "setNull" | "setDefault" | "restrict" | "noAction") {
+    const orders = makeTable(
+      "tbl-orders-parent",
+      "orders",
+      [
+        { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { physicalName: "status", notNull: true },
+      ],
+    );
+
+    // order_items の制約を直接組み立てる (makeTable は onDelete を受け取らない)
+    const orderItemsCols = [
+      { id: "col-oi-1", physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { id: "col-oi-2", physicalName: "order_id", notNull: true },
+      { id: "col-oi-3", physicalName: "quantity", notNull: true },
+    ];
+    const orderItems = {
+      id: "tbl-order-items",
+      physicalName: "order_items",
+      columns: orderItemsCols,
+      constraints: [
+        {
+          kind: "foreignKey" as const,
+          id: "fk-oi-orders",
+          columnIds: ["col-oi-2"], // order_id
+          referencedTableId: "tbl-orders-parent",
+          referencedColumnIds: ["col-orders-1"],
+          ...(onDelete !== undefined ? { onDelete } : {}),
+        },
+      ],
+    };
+
+    return [orders, orderItems];
+  }
+
+  it("検出: 子 onDelete=restrict、子 DELETE なしで親 DELETE → CASCADE_DELETE_OMITTED error", () => {
+    const tables = makeOrderTables("restrict");
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "注文を削除 (子テーブル DELETE なし)",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    expect(target.some((i) => i.message.includes("order_items"))).toBe(true);
+    expect(target[0].severity).toBe("error");
+  });
+
+  it("検出: 子 onDelete=noAction (デフォルト)、子 DELETE なしで親 DELETE → CASCADE_DELETE_OMITTED error", () => {
+    const tables = makeOrderTables("noAction");
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "注文を削除 (onDelete=noAction、子 DELETE なし)",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    expect(target.some((i) => i.message.includes("order_items"))).toBe(true);
+  });
+
+  it("検出: onDelete 未指定 (デフォルト noAction 扱い)、子 DELETE なしで親 DELETE → error", () => {
+    const tables = makeOrderTables(undefined); // onDelete 未指定 → noAction 相当
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "注文を削除 (onDelete 未指定)",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("false positive 抑止: 子 DELETE が前段にある場合 (onDelete=restrict) → 検出しない", () => {
+    const tables = makeOrderTables("restrict");
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "子テーブル (order_items) を先に DELETE",
+              tableId: "tbl-order-items",
+              operation: "DELETE",
+              sql: "DELETE FROM order_items WHERE order_id = @inputs.orderId",
+            },
+            {
+              id: "step-02",
+              kind: "dbAccess",
+              description: "親テーブル (orders) を DELETE",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止: 子 onDelete=cascade → DB 側が処理するため検出しない", () => {
+    const tables = makeOrderTables("cascade");
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "注文を削除 (onDelete=cascade なので子は DB 側で自動削除)",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止: 子 onDelete=setNull → DB 側が NULL 化するため検出しない", () => {
+    const tables = makeOrderTables("setNull");
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "注文を削除 (onDelete=setNull なので子の FK カラムは DB 側で NULL 化)",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止: 子 onDelete=setDefault → DB 側が DEFAULT 値を設定するため検出しない", () => {
+    const tables = makeOrderTables("setDefault");
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文削除",
+          trigger: "click",
+          inputs: [{ name: "orderId", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "注文を削除 (onDelete=setDefault なので子の FK カラムは DB 側で DEFAULT 値)",
+              tableId: "tbl-orders-parent",
+              operation: "DELETE",
+              sql: "DELETE FROM orders WHERE id = @inputs.orderId",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target).toHaveLength(0);
+  });
+
+  it("正常系: FK を持つ子テーブルが存在しない (参照がない) 場合は issue なし", () => {
+    const tables = makeOrderTables("restrict");
+    // 親テーブルのみ使う (子テーブルが存在しても FK が orders を参照していない)
+    const standaloneTable = makeTable(
+      "tbl-standalone",
+      "standalone",
+      [
+        { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { physicalName: "name", notNull: true },
+      ],
+    );
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "スタンドアロン削除",
+          trigger: "click",
+          inputs: [{ name: "id", type: "string", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "FK 参照のないテーブルを削除",
+              tableId: "tbl-standalone",
+              operation: "DELETE",
+              sql: "DELETE FROM standalone WHERE id = @inputs.id",
+            },
+          ],
+        },
+      ],
+    });
+    // standalone テーブルへの FK を持つ子テーブルがないため issue なし
+    const issues = checkSqlOrder(flow, [standaloneTable, ...tables]);
+    const target = issues.filter((i) => i.code === "CASCADE_DELETE_OMITTED");
+    expect(target).toHaveLength(0);
+  });
+});
