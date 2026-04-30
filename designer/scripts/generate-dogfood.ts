@@ -50,6 +50,8 @@ interface CliOptions {
    * extension namespace も projectId に揃える。
    */
   projectId?: string;
+  /** parseArgs() 内で --project 解決時に発見した SampleProjectInfo (resolveOutputLayout への引き回し用) */
+  _resolvedProject?: SampleProjectInfo | null;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -106,9 +108,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
   }
 
-  // --project 指定時: industry / output 未指定なら projectId から推論
-  if (opts.projectId && !opts.output) {
+  // --project 指定時: projectId を解決し、industry / output 未指定なら projectId から推論
+  if (opts.projectId) {
     const project = findProjectById(opts.projectId);
+    opts._resolvedProject = project;
     if (!project) {
       const available = discoverProjects()
         .map((p) => p.projectId)
@@ -117,7 +120,9 @@ function parseArgs(argv: string[]): CliOptions {
       console.error(`  利用可能: ${available}`);
       process.exit(1);
     }
-    opts.output = project.projectDir;
+    if (!opts.output) {
+      opts.output = project.projectDir;
+    }
     if (!opts.industry) {
       opts.industry = opts.projectId;
     }
@@ -165,7 +170,7 @@ function resolveOutputLayout(opts: CliOptions, safeId: string): OutputLayout {
   const outputDir = resolve(opts.output);
 
   if (opts.projectId) {
-    const project = findProjectById(opts.projectId);
+    const project = opts._resolvedProject;
     if (!project) {
       throw new Error(`--project ${opts.projectId} に該当するサンプルプロジェクトが見つかりません`);
     }
