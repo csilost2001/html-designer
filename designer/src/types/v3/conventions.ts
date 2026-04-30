@@ -8,7 +8,7 @@
  * 参考: schemas/v3/conventions.v3.schema.json
  */
 
-import type { Description, DisplayName, SemVer, Timestamp } from "./common";
+import type { Description, DisplayName, FieldType, SemVer, Timestamp } from "./common";
 
 /** 丸めモード (currency / tax の roundingMode 用)。 */
 export type RoundingMode = "floor" | "ceil" | "round";
@@ -158,6 +158,21 @@ export interface ExternalOutcomeEntry {
   description?: Description;
 }
 
+/**
+ * 画面横断 論理フィールド カタログ 1 件 (#651)。
+ *
+ * `ScreenItem.refKey` が参照する中央集約定義。
+ * validation rules (pattern / minLength 等) は意図的に含めない
+ * (画面ごとに UI 制約は変えてよい — 業務一貫性は validator で担保し schema で強制しない)。
+ */
+export interface FieldKeyEntry {
+  /** 標準型宣言 (任意)。各 ScreenItem.type と一致しなければ validator が DECLARED_TYPE_MISMATCH (warning)。 */
+  type?: FieldType;
+  /** 論理フィールドの表示名 (UI ハイライト用)。 */
+  displayName?: DisplayName;
+  description?: Description;
+}
+
 /** Conventions root。`data/conventions/catalog.json` に対応。 */
 export interface Conventions {
   $schema?: string;
@@ -183,4 +198,10 @@ export interface Conventions {
    * `@conv.<categoryName>.<key>` で参照。エントリの shape は拡張側で定義。
    */
   extensionCategories?: Record<string, Record<string, unknown>>;
+  /**
+   * 画面横断 論理フィールド カタログ (#651)。
+   * `ScreenItem.refKey` が参照する中央集約定義。@conv の参照式ではなく純粋な ID レジストリ。
+   * 同一 refKey を複数画面で再利用する場合の論理同一性ガバナンスを担う。
+   */
+  fieldKeys?: Record<string, FieldKeyEntry>;
 }

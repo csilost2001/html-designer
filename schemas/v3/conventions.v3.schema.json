@@ -86,6 +86,11 @@
         "type": "object",
         "additionalProperties": true
       }
+    },
+    "fieldKeys": {
+      "type": "object",
+      "description": "画面横断 論理フィールド カタログ (#651)。ScreenItem.refKey が参照する中央集約定義。@conv の参照式ではなく純粋な ID レジストリ (@conv.fieldKey.<key> という参照式は本フィールド対象外)。同一 refKey を複数画面で再利用する場合の論理同一性ガバナンス。",
+      "additionalProperties": { "$ref": "#/$defs/FieldKeyEntry" }
     }
   },
 
@@ -300,6 +305,20 @@
     "RoundingMode": {
       "type": "string",
       "enum": ["floor", "ceil", "round"]
+    },
+
+    "FieldKeyEntry": {
+      "description": "画面横断 論理フィールド カタログ 1 件 (#651)。ScreenItem.refKey が参照する中央集約定義。validation rules (pattern / minLength 等) は意図的に含めない (画面ごとに UI 制約は変えてよい — 業務一貫性は validator で担保し schema で強制しない)。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "common.v3.schema.json#/$defs/FieldType",
+          "description": "標準型宣言 (任意)。各 ScreenItem.type と一致しなければ validator が DECLARED_TYPE_MISMATCH (warning)。"
+        },
+        "displayName": { "$ref": "common.v3.schema.json#/$defs/DisplayName", "description": "論理フィールドの表示名 (UI ハイライト用)。" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
     }
   }
 }

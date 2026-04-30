@@ -234,6 +234,15 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) について、画面
 - domainKey 設計の業務妥当性 (例: `BenefitType` を多業務で再利用するか専用に閉じるか)
 - pattern / range / length の業務上の正当性 (validator は 一致 / 不一致のみ検出、業務として妥当な範囲かは AI 判断)
 
+#### 観点 14: 画面項目 refKey 横断整合 (#651、Phase 4 子 3)
+
+このフローに紐付く画面項目の `refKey` 設定と `conventions.fieldKeys` 宣言の整合性を確認する。**機械検出は Step 0.5 の `screenItemRefKeyValidator` でカバー** されるため、AI 目視は **「validator では届かない業務文脈の妥当性」** に絞る:
+
+- 同一 `refKey` の画面項目間で **UI 制約の業務上の差異が正当か** (例: 振込実行は required=true、履歴照会は required=false — 画面 role の違いとして正当)
+- `conventions.fieldKeys` の `displayName` / `description` が業務の実態を正確に表しているか
+- 未来の画面追加で再利用されるべき共通フィールドに `refKey` が付与されているか (付与漏れは warning 受容可だが将来の整合性リスク)
+- `refKey` は `UNDECLARED_REF_KEY` / `INCONSISTENT_TYPE_BY_REF_KEY` は Must-fix 相当 (validator が検出)、それ以外の warning 観点 (INCONSISTENT_FORMAT / VALIDATION / HANDLER_FLOW / ORPHAN / DECLARED_TYPE_MISMATCH) は business context で判断
+
 ## Step 2: 報告フォーマット
 
 結果を **標準出力** に Markdown で出す (PR コメント投稿はしない、設計フェーズで使えるため)。
@@ -288,6 +297,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) について、画面
 | 8. rollbackOn 発火可能性 | referentialIntegrity (UNKNOWN_ERROR_CODE): N 件 | ... | ... |
 | 9. 画面項目イベント連携整合性 | screenItemFlowValidator: N 件 (UNKNOWN_HANDLER_FLOW / MISSING_REQUIRED_ARGUMENT / EXTRA_ARGUMENT / PRIMARY_INVOKER_MISMATCH / DUPLICATE_EVENT_ID / INCONSISTENT_ARGUMENT_CONTRACT 内訳) | 業務妥当性 (型整合 / 主要起動元妥当性) は AI | ... |
 | 10. 画面項目値レベル整合 | screenItemFieldTypeValidator: N 件 (OPTIONS_NOT_SUBSET_OF_ENUM / DOMAIN_KEY_MISMATCH / TYPE_MISMATCH / PATTERN_DIVERGENCE / RANGE_DIVERGENCE / LENGTH_DIVERGENCE 内訳) | 業務妥当性 (選択肢命名 / domain 設計) は AI | ... |
+| 14. 画面項目 refKey 横断整合 | screenItemRefKeyValidator: N 件 (UNDECLARED_REF_KEY / INCONSISTENT_TYPE_BY_REF_KEY / INCONSISTENT_FORMAT_BY_REF_KEY / INCONSISTENT_VALIDATION_BY_REF_KEY / INCONSISTENT_HANDLER_FLOW_BY_REF_KEY / ORPHAN_FIELD_KEY / DECLARED_TYPE_MISMATCH 内訳) | 業務文脈での warning 判断は AI | ... |
 
 Step 0.5 をスキップした場合は `validator 検出済` 列を全行 `未実行` と記載する。
 

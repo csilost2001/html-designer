@@ -15,6 +15,7 @@
       "id": "sourceWarehouseCode",
       "label": "転送元倉庫",
       "type": { "kind": "extension", "extensionRef": "logistics:warehouseCode" },
+      "refKey": "warehouseCode",
       "direction": "input",
       "required": true
     },
@@ -22,6 +23,7 @@
       "id": "destinationWarehouseCode",
       "label": "転送先倉庫",
       "type": { "kind": "extension", "extensionRef": "logistics:warehouseCode" },
+      "refKey": "warehouseCode",
       "direction": "input",
       "required": true
     },
@@ -57,6 +59,7 @@
       "id": "orderNumber",
       "label": "転送注文番号",
       "type": "string",
+      "refKey": "transferOrderNumber",
       "direction": "output",
       "valueFrom": { "kind": "flowVariable", "variableName": "createdOrder.order_number" }
     },

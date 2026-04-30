@@ -82,6 +82,14 @@ export interface ScreenItem {
   id: Identifier;
   label: DisplayName;
   type: FieldType;
+  /**
+   * 画面横断の論理同一性キー (任意、#651)。
+   * `conventions.fieldKeys[<refKey>]` に宣言された値を参照する。
+   * 同じ refKey を持つ ScreenItem は論理的に同一フィールド (例: customerId, orderNumber)。
+   * validator (screenItemRefKeyValidator) が未宣言検出 + 画面横断整合 (type / pattern / range / length / handlerFlow) を担保。
+   * id (画面内ユニーク) と独立。
+   */
+  refKey?: Identifier;
   /** input = フォーム入力項目 (既定) / output = 表示専用項目。 */
   direction?: "input" | "output";
   required?: boolean;

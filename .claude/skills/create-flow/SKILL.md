@@ -254,6 +254,22 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 
 **Step 5.2 で `validate:dogfood` の `sqlOrderValidator` により機械的に検出される**
 
+### Rule 22: 画面項目 refKey 横断整合 (#651、Phase 4 子 3)
+
+このルールはフロー作成時の **画面 JSON 整備** を対象とする (ProcessFlow JSON ではなく Screen JSON の品質)。
+
+- フロー作成前に、関連する画面項目に `refKey` を設定する (論理的に同じフィールドなら同一 refKey)
+  - 例: 振込実行画面の `fromAccountNumber` と振込履歴照会の `searchAccountNumber` は同じ「口座番号」 → `refKey: "accountNumber"`
+- `refKey` を設定したら `conventions.fieldKeys[<refKey>]` に宣言を追加する
+  - 宣言は `type` (任意) + `displayName` + `description` が推奨
+  - `type` を宣言した場合、全画面の同 `refKey` 項目と型が一致していること
+- 同一 `refKey` を持つ ScreenItem 間で `type` が不整合な場合は実装時の型バグ → Must-fix
+- `pattern` / `displayFormat` の不整合は UI 一貫性問題 → Should-fix
+- `min` / `max` / `minLength` / `maxLength` の不整合は業務的に合理的な場合もある → warning 受容可
+- `handlerFlowId` の発散: 両側に `events` がある場合のみ発報。一方が出力専用なら片側 events なしで正常
+
+**Step 5.2 で `validate:dogfood` の `screenItemRefKeyValidator` により機械的に検出される**
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -309,6 +325,7 @@ npm run validate:dogfood
 | screenItemFlowValidator | 画面項目イベント ↔ 処理フロー連携の整合 (handlerFlowId 実在 / argumentMapping 整合 / primaryInvoker 双方向) | Rule 16 |
 | screenItemFieldTypeValidator | 画面項目 ↔ 処理フロー 値レベル整合 (options 包含 / domainKey / 型 / pattern / range / length) | Rule 17 |
 | sqlOrderValidator | NOT NULL × INSERT 順序 (NULL_NOT_ALLOWED_AT_INSERT) / FK × INSERT 順序 (FK_REFERENCE_NOT_INSERTED) | Rule 19 |
+| screenItemRefKeyValidator | ScreenItem.refKey 横断整合 (型一致 / conventions.fieldKeys 宣言 / ORPHAN 検出) | Rule 22 |
 
 **fail した場合の対処**:
 - `UNKNOWN_COLUMN` → SELECT 句を見直す or テーブル定義を更新

@@ -28,8 +28,10 @@ import { checkReferentialIntegrity } from "../src/schemas/referentialIntegrity.j
 import { checkIdentifierScopes } from "../src/schemas/identifierScope.js";
 import { checkScreenItemFlowConsistency } from "../src/schemas/screenItemFlowValidator.js";
 import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFieldTypeValidator.js";
+import { checkScreenItemRefKeyConsistency } from "../src/schemas/screenItemRefKeyValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
+import type { Conventions } from "../src/types/v3/conventions.js";
 import { discoverProjects as discoverSampleProjects, type SampleProjectInfo } from "./sample-projects.js";
 
 // ─── パス解決 ──────────────────────────────────────────────────────────────
@@ -48,6 +50,7 @@ interface ProjectResources {
   projectDir: string;         // プロジェクトディレクトリ絶対パス
   tables: TableDefinition[];
   conventions: ConventionsCatalog | null;
+  conventionsV3: Conventions | null;  // v3 型 conventions (refKey validator 用、#651)
   screens: Screen[];          // 画面定義 (#619、画面項目イベント連携検証用)
   flowsDir: string;           // process-flows/ の絶対パス
 }
@@ -126,15 +129,19 @@ function loadScreensFromDir(dir: string): Screen[] {
  */
 function discoverProjects(): ProjectResources[] {
   const infos: SampleProjectInfo[] = discoverSampleProjects(repoRoot);
-  return infos.map((info) => ({
-    projectId: info.projectId,
-    displayName: info.displayName,
-    projectDir: info.projectDir,
-    tables: loadTablesFromDir(info.tablesDir),
-    conventions: loadConventionsFromFile(info.conventionsCatalogFile),
-    screens: loadScreensFromDir(info.screensDir),
-    flowsDir: info.flowsDir,
-  }));
+  return infos.map((info) => {
+    const conventions = loadConventionsFromFile(info.conventionsCatalogFile);
+    return {
+      projectId: info.projectId,
+      displayName: info.displayName,
+      projectDir: info.projectDir,
+      tables: loadTablesFromDir(info.tablesDir),
+      conventions,
+      conventionsV3: conventions as Conventions | null,
+      screens: loadScreensFromDir(info.screensDir),
+      flowsDir: info.flowsDir,
+    };
+  });
 }
 
 /**
@@ -402,6 +409,19 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
         })),
       );
 
+      // 10. 画面項目 refKey 横断整合検証 (#651、Phase 4 子 3)
+      const screenItemRefKeyIssues = checkScreenItemRefKeyConsistency(
+        project.screens,
+        project.conventionsV3,
+      );
+      projectIssues.push(
+        ...screenItemRefKeyIssues.map((i) => ({
+          validator: "screenItemRefKeyValidator",
+          severity: i.severity,
+          message: `[${i.code}] ${i.path}: ${i.message}`,
+        })),
+      );
+
       if (projectIssues.length > 0) {
         projectResults.push({
           projectId: project.projectId,
@@ -439,6 +459,7 @@ const validatorDisplayOrder = [
   "screenItemFlowValidator",
   "screenItemFieldTypeValidator",
   "sqlOrderValidator",
+  "screenItemRefKeyValidator",
 ];
 
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {

@@ -16,6 +16,10 @@
         "id": { "$ref": "common.v3.schema.json#/$defs/Identifier", "description": "画面項目識別子 (camelCase 強制、JS 識別子に直接使用可)。" },
         "label": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
         "type": { "$ref": "common.v3.schema.json#/$defs/FieldType" },
+        "refKey": {
+          "$ref": "common.v3.schema.json#/$defs/Identifier",
+          "description": "画面横断の論理同一性キー (任意、#651)。conventions.fieldKeys[<refKey>] に宣言された値を参照する。同じ refKey を持つ ScreenItem は論理的に同一フィールド (例: customerId, orderNumber)。validator (screenItemRefKeyValidator) が未宣言検出 + 画面横断整合 (type / pattern / range / length / handlerFlow) を担保。id (画面内ユニーク) と独立。"
+        },
         "direction": {
           "type": "string",
           "enum": ["input", "output"],

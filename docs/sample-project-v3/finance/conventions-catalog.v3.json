@@ -33,5 +33,17 @@
       "implementation": "PostgreSQL sequence + DEFAULT (年度繰越時に reset)",
       "description": "振込トランザクション番号。年度 + 連番 8 桁。"
     }
+  },
+  "fieldKeys": {
+    "accountNumber": {
+      "type": { "kind": "extension", "extensionRef": "finance:accountNumber" },
+      "displayName": "口座番号",
+      "description": "11 桁の銀行口座番号 (銀行コード省略の簡易形式)。振込実行・振込履歴照会で共通使用する論理フィールド (#651 refKey paving)。"
+    },
+    "transferAmount": {
+      "type": { "kind": "extension", "extensionRef": "finance:transferAmount" },
+      "displayName": "振込額",
+      "description": "振込金額 (円建て、1 〜 99,999,999 円)。振込実行・振込履歴照会で共通使用する論理フィールド (#651 refKey paving)。"
+    }
   }
 }
