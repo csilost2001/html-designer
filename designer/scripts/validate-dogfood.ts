@@ -22,6 +22,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join, basename, relative, isAbsolute } from "node:path";
 import type { ProcessFlow } from "../src/types/action.js";
 import { checkSqlColumns, type TableDefinition } from "../src/schemas/sqlColumnValidator.js";
+import { checkSqlOrder, type OrderTableDefinition } from "../src/schemas/sqlOrderValidator.js";
 import { checkConventionReferences, type ConventionsCatalog } from "../src/schemas/conventionsValidator.js";
 import { checkReferentialIntegrity } from "../src/schemas/referentialIntegrity.js";
 import { checkIdentifierScopes } from "../src/schemas/identifierScope.js";
@@ -358,19 +359,25 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
       issues.push({ validator: "sqlColumnValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 2. 規約カタログ参照検証
+    // 2. DB 制約 × 操作順序検証 (#632 MVP: NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED)
+    const sqlOrderIssues = checkSqlOrder(flow, project.tables as unknown as OrderTableDefinition[]);
+    for (const issue of sqlOrderIssues) {
+      issues.push({ validator: "sqlOrderValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
+    }
+
+    // 3. 規約カタログ参照検証
     const convIssues = checkConventionReferences(flow, project.conventions);
     for (const issue of convIssues) {
       issues.push({ validator: "conventionsValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 3. クロスリファレンス整合性検証 (extensions は global 統合)
+    // 4. クロスリファレンス整合性検証 (extensions は global 統合)
     const integrityIssues = checkReferentialIntegrity(flow, extensions);
     for (const issue of integrityIssues) {
       issues.push({ validator: "referentialIntegrity", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 4. 識別子スコープ検証
+    // 5. 識別子スコープ検証
     const scopeIssues = checkIdentifierScopes(flow);
     for (const issue of scopeIssues) {
       issues.push({ validator: "identifierScope", message: `[${issue.code}] ${issue.path}: @${issue.identifier} — ${issue.message}` });
@@ -455,6 +462,7 @@ const validatorDisplayOrder = [
   "identifierScope",
   "screenItemFlowValidator",
   "screenItemFieldTypeValidator",
+  "sqlOrderValidator",
 ];
 
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {
