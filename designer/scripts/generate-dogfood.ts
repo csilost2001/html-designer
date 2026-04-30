@@ -50,6 +50,8 @@ interface CliOptions {
    * extension namespace も projectId に揃える。
    */
   projectId?: string;
+  /** parseArgs() 内で --project 解決時に発見した SampleProjectInfo (resolveOutputLayout への引き回し用) */
+  _resolvedProject?: SampleProjectInfo | null;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -106,9 +108,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
   }
 
-  // --project 指定時: industry / output 未指定なら projectId から推論
-  if (opts.projectId && !opts.output) {
+  // --project 指定時: projectId を解決し、industry / output 未指定なら projectId から推論
+  if (opts.projectId) {
     const project = findProjectById(opts.projectId);
+    opts._resolvedProject = project;
     if (!project) {
       const available = discoverProjects()
         .map((p) => p.projectId)
@@ -117,7 +120,9 @@ function parseArgs(argv: string[]): CliOptions {
       console.error(`  利用可能: ${available}`);
       process.exit(1);
     }
-    opts.output = project.projectDir;
+    if (!opts.output) {
+      opts.output = project.projectDir;
+    }
     if (!opts.industry) {
       opts.industry = opts.projectId;
     }
@@ -165,7 +170,7 @@ function resolveOutputLayout(opts: CliOptions, safeId: string): OutputLayout {
   const outputDir = resolve(opts.output);
 
   if (opts.projectId) {
-    const project = findProjectById(opts.projectId);
+    const project = opts._resolvedProject;
     if (!project) {
       throw new Error(`--project ${opts.projectId} に該当するサンプルプロジェクトが見つかりません`);
     }
@@ -425,8 +430,29 @@ function generateDummyTable(opts: {
 function generateDummyFieldTypes(opts: {
   industry: string;
   safeId: string;
+  variant: "v1" | "v3";
 }): unknown {
-  const { industry, safeId } = opts;
+  const { industry, safeId, variant } = opts;
+  if (variant === "v3") {
+    return {
+      namespace: safeId,
+      version: "0.0.0",
+      fieldTypes: [
+        {
+          kind: `${safeId}Id`,
+          label: `${industry} ID`,
+        },
+        {
+          kind: `${safeId}Name`,
+          label: `${industry}名`,
+        },
+      ],
+      actionTriggers: [],
+      dbOperations: [],
+      stepKinds: {},
+    };
+  }
+
   return {
     namespace: safeId,
     fieldTypes: [
@@ -786,7 +812,11 @@ export function generate(opts: CliOptions): {
 
   // 4. 拡張定義生成
   const extensionPath = join(layout.extensionsDir, layout.extensionsFileName);
-  const extensionData = generateDummyFieldTypes({ industry, safeId });
+  const extensionData = generateDummyFieldTypes({
+    industry,
+    safeId,
+    variant: layout.project?.variant ?? "v1",
+  });
 
   console.log("🔌 拡張定義を生成:");
   if (!dryRun) {
