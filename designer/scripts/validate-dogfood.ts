@@ -67,6 +67,7 @@ interface FlowValidationResult {
   projectId: string;
   issues: Array<{
     validator: string;
+    severity?: "error" | "warning";
     message: string;
   }>;
 }
@@ -377,10 +378,15 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
       issues.push({ validator: "sqlColumnValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 2. DB 制約 × 操作順序検証 (#632 MVP: NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED)
+    // 2. DB 制約 × 操作順序検証 (#632 MVP: NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED / #640 UNIQUE_CHECK_MISSING)
+    // severity: "warning" の issue は表示するが exit code には影響しない (draft-state policy 準拠)。
     const sqlOrderIssues = checkSqlOrder(flow, project.tables as unknown as OrderTableDefinition[]);
     for (const issue of sqlOrderIssues) {
-      issues.push({ validator: "sqlOrderValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
+      issues.push({
+        validator: "sqlOrderValidator",
+        severity: issue.severity ?? "error",
+        message: `[${issue.code}] ${issue.path}: ${issue.message}`,
+      });
     }
 
     // 3. 規約カタログ参照検証
@@ -497,8 +503,11 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
     }
   }
 
-  const passedFlows = results.filter((r) => r.issues.length === 0).length;
-  const failedFlows = results.filter((r) => r.issues.length > 0).length;
+  // error issue が 1 件以上あるフローを失敗扱い (warning のみは pass 扱い)
+  const hasErrorIssues = (r: FlowValidationResult) =>
+    r.issues.some((i) => !i.severity || i.severity === "error");
+  const passedFlows = results.filter((r) => !hasErrorIssues(r)).length;
+  const failedFlows = results.filter((r) => hasErrorIssues(r)).length;
 
   return {
     totalFlows: results.length,
@@ -540,8 +549,16 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
   console.log();
 
   for (const result of summary.results) {
-    if (result.issues.length === 0) {
+    const errorIssues = result.issues.filter((i) => !i.severity || i.severity === "error");
+    const warnIssues = result.issues.filter((i) => i.severity === "warning");
+    if (errorIssues.length === 0 && warnIssues.length === 0) {
       console.log(`✅ ${result.displayName} (${validatorDisplayOrder.length} validators pass)`);
+    } else if (errorIssues.length === 0 && warnIssues.length > 0) {
+      // warning のみ → pass 扱いだが警告表示
+      console.log(`⚠️  ${result.displayName} (${validatorDisplayOrder.length} validators pass, ${warnIssues.length} warning(s))`);
+      for (const issue of warnIssues) {
+        console.log(`   [WARN] ${issue.message}`);
+      }
     } else {
       console.log(`❌ ${result.displayName}`);
       const byValidator = new Map<string, string[]>();
@@ -587,14 +604,15 @@ function printSummary(summary: ValidationSummary, options: { singleFlow: boolean
   } else {
     const totalByValidator = new Map<string, number>();
     let totalIssues = 0;
-    for (const result of summary.results.filter((r) => r.issues.length > 0)) {
-      for (const issue of result.issues) {
+    // error issue のみをカウント (warning は pass 扱い)
+    for (const result of summary.results.filter((r) => r.issues.some((i) => !i.severity || i.severity === "error"))) {
+      for (const issue of result.issues.filter((i) => !i.severity || i.severity === "error")) {
         totalByValidator.set(issue.validator, (totalByValidator.get(issue.validator) ?? 0) + 1);
         totalIssues++;
       }
     }
     for (const pr of summary.projectResults) {
-      for (const issue of pr.issues) {
+      for (const issue of pr.issues.filter((i) => i.severity === "error")) {
         totalByValidator.set(issue.validator, (totalByValidator.get(issue.validator) ?? 0) + 1);
         totalIssues++;
       }
