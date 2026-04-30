@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { commitTables } from "../components/table/TableListView";
 import type { FlowProject } from "../types/flow";
 import type { TableEntry, TableId, Timestamp } from "../types/v3";
 import type { FlowStorageBackend } from "./flowStore";
 import { setFlowDraftMode, setFlowStorageBackend } from "./flowStore";
 import type { TableStorageBackend } from "./tableStore";
-import { deleteTable, setTableStorageBackend } from "./tableStore";
+import { commitTables, deleteTable, setTableStorageBackend } from "./tableStore";
 
 const TS = "2026-04-29T00:00:00.000Z" as Timestamp;
 

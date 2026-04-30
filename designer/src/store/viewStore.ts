@@ -115,6 +115,29 @@ export async function deleteView(viewId: string): Promise<void> {
 
 }
 
+interface CommitViewsDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteView: typeof deleteView;
+}
+
+export async function commitViews(
+  { itemsInOrder, deletedIds }: { itemsInOrder: ViewEntry[]; deletedIds: string[] },
+  deps: CommitViewsDeps = { loadProject, saveProject, deleteView },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
+  project.views = (project.views ?? [])
+    .filter((v) => !deletedSet.has(v.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((v, i) => ({ ...v, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteView(id);
+  }
+}
+
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
 async function syncViewMeta(view: View): Promise<void> {

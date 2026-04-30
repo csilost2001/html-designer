@@ -143,6 +143,29 @@ export async function deleteTable(tableId: string): Promise<void> {
   }
 }
 
+interface CommitTablesDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteTable: typeof deleteTable;
+}
+
+export async function commitTables(
+  { itemsInOrder, deletedIds }: { itemsInOrder: TableEntry[]; deletedIds: string[] },
+  deps: CommitTablesDeps = { loadProject, saveProject, deleteTable },
+): Promise<void> {
+  const project = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((t, i) => [t.id, i]));
+  project.tables = (project.tables ?? [])
+    .filter((t) => !deletedSet.has(t.id))
+    .sort((a, b) => (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+    .map((t, i) => ({ ...t, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteTable(id);
+  }
+}
+
 // ─── カラム操作 (Table mutate ヘルパー) ──────────────────────────────────
 
 /** カラムを追加 (column.id は LocalId 形式で `col-NN` 採番) */

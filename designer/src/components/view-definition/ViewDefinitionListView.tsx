@@ -12,13 +12,13 @@ import type {
 import {
   listViewDefinitions,
   createViewDefinition,
-  deleteViewDefinition,
   loadViewDefinition,
   saveViewDefinition,
   loadViewDefinitionValidationMap,
+  commitViewDefinitions,
 } from "../../store/viewDefinitionStore";
 import { listTables } from "../../store/tableStore";
-import { loadProject, saveProject } from "../../store/flowStore";
+import { loadProject } from "../../store/flowStore";
 import { generateUUID } from "../../utils/uuid";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId, openTab } from "../../store/tabStore";
@@ -42,35 +42,6 @@ import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:view-definition-list";
 const TAB_ID = makeTabId("view-definition-list", "main");
-
-interface CommitViewDefinitionsDeps {
-  loadProject: typeof loadProject;
-  saveProject: typeof saveProject;
-  deleteViewDefinition: typeof deleteViewDefinition;
-}
-
-export async function commitViewDefinitions(
-  { itemsInOrder, deletedIds }: { itemsInOrder: ViewDefinitionEntry[]; deletedIds: string[] },
-  deps: CommitViewDefinitionsDeps = { loadProject, saveProject, deleteViewDefinition },
-): Promise<void> {
-  const project = await deps.loadProject();
-  const deletedSet = new Set(deletedIds);
-  const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const p = project as any;
-  p.viewDefinitions = (p.viewDefinitions ?? [])
-    .filter((v: ViewDefinitionEntry) => !deletedSet.has(String(v.id)))
-    .sort(
-      (a: ViewDefinitionEntry, b: ViewDefinitionEntry) =>
-        (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-        (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-    )
-    .map((v: ViewDefinitionEntry, i: number) => ({ ...v, no: i + 1 }));
-  await deps.saveProject(p);
-  for (const id of deletedIds) {
-    await deps.deleteViewDefinition(id);
-  }
-}
 
 interface ValidationSummary {
   errors: number;

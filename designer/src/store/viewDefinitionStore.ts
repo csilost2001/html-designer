@@ -143,6 +143,33 @@ export async function deleteViewDefinition(viewDefinitionId: string): Promise<vo
   }
 }
 
+interface CommitViewDefinitionsDeps {
+  loadProject: typeof loadProject;
+  saveProject: typeof saveProject;
+  deleteViewDefinition: typeof deleteViewDefinition;
+}
+
+export async function commitViewDefinitions(
+  { itemsInOrder, deletedIds }: { itemsInOrder: ViewDefinitionEntry[]; deletedIds: string[] },
+  deps: CommitViewDefinitionsDeps = { loadProject, saveProject, deleteViewDefinition },
+): Promise<void> {
+  const project: ProjectWithViewDefinitions = await deps.loadProject();
+  const deletedSet = new Set(deletedIds);
+  const orderMap = new Map(itemsInOrder.map((v, i) => [v.id, i]));
+  project.viewDefinitions = (project.viewDefinitions ?? [])
+    .filter((v) => !deletedSet.has(String(v.id)))
+    .sort(
+      (a, b) =>
+        (orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    )
+    .map((v, i) => ({ ...v, no: i + 1 }));
+  await deps.saveProject(project);
+  for (const id of deletedIds) {
+    await deps.deleteViewDefinition(id);
+  }
+}
+
 async function syncViewDefinitionMeta(vd: ViewDefinition): Promise<void> {
   const project: ProjectWithViewDefinitions = await loadProject();
   if (!project.viewDefinitions) project.viewDefinitions = [];

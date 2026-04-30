@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { commitViews } from "../components/view/ViewListView";
 import type { FlowProject } from "../types/flow";
 import type { Timestamp, ViewEntry, ViewId } from "../types/v3";
 import type { FlowStorageBackend } from "./flowStore";
 import { setFlowDraftMode, setFlowStorageBackend } from "./flowStore";
 import type { ViewStorageBackend } from "./viewStore";
-import { deleteView, setViewStorageBackend } from "./viewStore";
+import { commitViews, deleteView, setViewStorageBackend } from "./viewStore";
 
 const TS = "2026-04-29T00:00:00.000Z" as Timestamp;
 
