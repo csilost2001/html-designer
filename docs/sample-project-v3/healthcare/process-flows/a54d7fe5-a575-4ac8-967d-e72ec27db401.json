@@ -28,7 +28,7 @@
         "DUPLICATE_PRESCRIPTION": { "httpStatus": 409, "defaultMessage": "重複処方の疑いがあります", "responseId": "409-duplicate-prescription" },
         "PHARMACIST_REJECTED": { "httpStatus": 422, "defaultMessage": "薬剤師鑑査で差し戻されました", "responseId": "422-pharmacist-rejected" },
         "PHARMACY_SEND_FAILED": { "httpStatus": 502, "defaultMessage": "薬局システムへの送信に失敗しました", "responseId": "502-pharmacy-send-failed" },
-        "DUPLICATE_PRESCRIPTION_CODE": { "httpStatus": 500, "defaultMessage": "処方コード 採番衝突 (内部エラー)", "responseId": "500-prescription-update-conflict" },
+        "DUPLICATE_PRESCRIPTION_CODE": { "httpStatus": 500, "defaultMessage": "処方コード 採番衝突 (内部エラー)", "responseId": "500-internal-error" },
         "PRESCRIPTION_UPDATE_CONFLICT": { "httpStatus": 500, "defaultMessage": "処方箋ステータス更新で楽観ロック競合または対象不在", "responseId": "500-prescription-update-conflict" }
       },
       "externalSystems": {
@@ -100,6 +100,7 @@
         { "id": "422-prescriber-invalid", "status": 422, "bodySchema": { "typeRef": "healthcare:ApiError" } },
         { "id": "422-pharmacist-rejected", "status": 422, "bodySchema": { "typeRef": "healthcare:ApiError" } },
         { "id": "502-pharmacy-send-failed", "status": 502, "bodySchema": { "typeRef": "healthcare:ApiError" } },
+        { "id": "500-internal-error", "status": 500, "bodySchema": { "typeRef": "healthcare:ApiError" } },
         { "id": "500-prescription-update-conflict", "status": 500, "bodySchema": { "typeRef": "healthcare:ApiError" } }
       ],
       "steps": [
