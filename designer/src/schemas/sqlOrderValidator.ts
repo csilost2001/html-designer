@@ -1,5 +1,5 @@
 /**
- * DB 制約 × フロー操作順序の交差検査 (#632 MVP: 観点 1+2)。
+ * DB 制約 × フロー操作順序の交差検査 (#632 MVP: 観点 1+2、#640 観点 3)。
  *
  * 観点 1 (NULL_NOT_ALLOWED_AT_INSERT):
  *   INSERT 時点で NOT NULL カラムに対応する変数が未バインド
@@ -9,11 +9,17 @@
  *   INSERT 時点で FK 参照先テーブルへの先行 INSERT が同 action 内に無い
  *   (= FK 制約の参照整合を保証する先行書き込みが存在しない)
  *
+ * 観点 3 (UNIQUE_CHECK_MISSING):
+ *   INSERT 時点で UNIQUE 制約のあるカラムに対して事前の重複チェックがない
+ *   (= 以下のいずれかが INSERT 直前に存在しない場合 warning)
+ *   - SELECT WHERE <unique_col> = <value> + branch.condition で件数判定
+ *   - INSERT step 自身の affectedRowsCheck.errorCode が UNIQUE_VIOLATION 系
+ *   - INSERT を含む branch step の condition.kind: "tryCatch" で UNIQUE_VIOLATION error
+ *
  * 既存 sqlColumnValidator と同じ node-sql-parser v5 AST walker を再利用。
- * 変数バインド時系列追跡 + テーブル schema (notNull / foreignKey) との交差解析
+ * 変数バインド時系列追跡 + テーブル schema (notNull / foreignKey / unique) との交差解析
  * で実行時 DB 制約違反を構造的に検出する。
  *
- * 観点 3 (UNIQUE_CHECK_MISSING) → #640
  * 観点 4 (CASCADE_DELETE_OMITTED) → #641
  * 観点 5 (TX_CIRCULAR_DEPENDENCY) → #642
  */
@@ -41,9 +47,16 @@ export interface OrderForeignKeyConstraint {
   referencedTableId: string;
 }
 
-/** テーブル制約 (validator 内部では FK だけ利用)。 */
+/** UNIQUE 制約 (validator 内部で必要な最小フィールド)。 */
+export interface OrderUniqueConstraint {
+  kind: "unique";
+  columnIds: string[];
+}
+
+/** テーブル制約 (validator 内部では FK と UNIQUE を利用)。 */
 export type OrderConstraint =
-  | { kind: "unique" | "check"; [key: string]: unknown }
+  | OrderUniqueConstraint
+  | { kind: "check"; [key: string]: unknown }
   | OrderForeignKeyConstraint;
 
 /** テーブル定義 (v3 table.v3.schema.json の最小シェイプ)。 */
@@ -58,7 +71,8 @@ export interface OrderTableDefinition {
 
 export interface SqlOrderIssue {
   path: string;
-  code: "NULL_NOT_ALLOWED_AT_INSERT" | "FK_REFERENCE_NOT_INSERTED" | "SQL_PARSE_ERROR";
+  code: "NULL_NOT_ALLOWED_AT_INSERT" | "FK_REFERENCE_NOT_INSERTED" | "UNIQUE_CHECK_MISSING" | "SQL_PARSE_ERROR";
+  severity?: "error" | "warning";
   message: string;
 }
 
@@ -224,6 +238,8 @@ interface TableMeta {
     columnPhysicalNames: string[]; // FK 本テーブル側カラム物理名 (lowercase)
     referencedTableId: string;
   }>;
+  uniqueConstraints: Array<string[]>; // UNIQUE 制約ごとの physicalName (lowercase) 配列
+  uniqueColumns: Set<string>;         // Column.unique: true のカラム (各カラム単体 UNIQUE)
 }
 
 /**
@@ -264,6 +280,9 @@ function buildTableMeta(tables: OrderTableDefinition[]): Map<string, TableMeta> 
     }
 
     const fkConstraints: TableMeta["fkConstraints"] = [];
+    const uniqueConstraints: TableMeta["uniqueConstraints"] = [];
+    const uniqueColumns = new Set<string>();
+
     for (const con of t.constraints ?? []) {
       if (con.kind === "foreignKey") {
         const fkCon = con as OrderForeignKeyConstraint;
@@ -276,6 +295,24 @@ function buildTableMeta(tables: OrderTableDefinition[]): Map<string, TableMeta> 
             referencedTableId: fkCon.referencedTableId,
           });
         }
+      } else if (con.kind === "unique") {
+        // UNIQUE 制約 (複合含む): columnIds → physicalName に変換
+        const uqCon = con as OrderUniqueConstraint;
+        const columnPhysicalNames = uqCon.columnIds
+          .map((id) => colIdToPhysical.get(id) ?? "")
+          .filter(Boolean);
+        if (columnPhysicalNames.length > 0) {
+          uniqueConstraints.push(columnPhysicalNames);
+        }
+      }
+    }
+
+    // Column.unique: true も単体 UNIQUE として収集
+    for (const col of t.columns) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((col as any).unique === true) {
+        const pName = getPhysicalName(col);
+        if (pName) uniqueColumns.add(pName.toLowerCase());
       }
     }
 
@@ -285,9 +322,169 @@ function buildTableMeta(tables: OrderTableDefinition[]): Map<string, TableMeta> 
       notNullColumns,
       autoColumns,
       fkConstraints,
+      uniqueConstraints,
+      uniqueColumns,
     });
   }
   return map;
+}
+
+// ─── 観点 3: UNIQUE_CHECK_MISSING ヘルパー ─────────────────────────────────
+
+/**
+ * UNIQUE_VIOLATION 系のエラーコード文字列かどうかを判定。
+ * 主要な命名パターンを網羅する。
+ */
+function isUniqueViolationErrorCode(code: string | undefined): boolean {
+  if (!code) return false;
+  const upper = code.toUpperCase();
+  return (
+    upper.includes("UNIQUE") ||
+    upper.includes("DUPLICATE") ||
+    upper.includes("ALREADY_EXISTS") ||
+    upper.includes("CONFLICT") ||
+    upper.includes("DUPLICATE_KEY") ||
+    upper.includes("DUPLICATE_ENTRY")
+  );
+}
+
+/**
+ * column_ref ノードからカラム名文字列を抽出する。
+ *
+ * node-sql-parser v5 PostgreSQL dialect では column が
+ * - 文字列 (v4 以前) または
+ * - { expr: { type: "default", value: "colName" } } オブジェクト (v5)
+ * のどちらかになる。両方に対応する。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractColumnName(node: any): string | null {
+  if (!node || node.type !== "column_ref") return null;
+  const col = node.column;
+  if (typeof col === "string") return col.toLowerCase();
+  if (col && typeof col === "object") {
+    // v5 形式: { expr: { type: "default", value: "colName" } }
+    if (col.expr && typeof col.expr.value === "string") return col.expr.value.toLowerCase();
+    // フォールバック: value 直下
+    if (typeof col.value === "string") return col.value.toLowerCase();
+  }
+  return null;
+}
+
+/**
+ * SELECT SQL AST から WHERE 句で参照しているカラム物理名 (lowercase) を抽出する。
+ * シンプルな `WHERE col = @var` 形式および `AND` / `OR` 連結を対象とする。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractWhereColumns(ast: any): Set<string> {
+  const cols = new Set<string>();
+  if (!ast || ast.type !== "select") return cols;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function walk(node: any): void {
+    if (!node || typeof node !== "object") return;
+    // binary expression: left/right
+    if (node.type === "binary_expr") {
+      const leftCol = extractColumnName(node.left);
+      if (leftCol) cols.add(leftCol);
+      const rightCol = extractColumnName(node.right);
+      if (rightCol) cols.add(rightCol);
+      walk(node.left);
+      walk(node.right);
+    }
+    // WHERE 直下
+    if (node.where) walk(node.where);
+  }
+
+  walk(ast);
+  return cols;
+}
+
+/**
+ * action 内の前段 step (INSERT step より前の index まで) を走査して、
+ * 以下のいずれかが存在するか確認する (UNIQUE_CHECK_MISSING の false positive 抑止):
+ *
+ * パターン 1: SELECT WHERE <unique_col> = <value> が存在する
+ *             (= SELECT で存在確認してから INSERT する正常フロー)
+ *
+ * walkStepsInOrder は INSERT 順に呼ばれるため、ここでは「これまでに見た SELECT step 列」を
+ * 引数で受け取る。
+ */
+function hasPriorSelectForUniqueColumns(
+  uniqueColPhysicalNames: string[], // UNIQUE 制約の全カラム物理名 (lowercase)
+  priorSelectWhereColumns: Set<string>, // INSERT より前に見た SELECT の WHERE カラム集合
+): boolean {
+  // UNIQUE 制約のいずれかのカラムが SELECT WHERE に含まれていれば OK
+  // (厳密には全カラムが含まれるべきだが、偽陽性抑止優先で any-match にする)
+  return uniqueColPhysicalNames.some((col) => priorSelectWhereColumns.has(col));
+}
+
+/**
+ * step の affectedRowsCheck.errorCode が UNIQUE_VIOLATION 系かどうかを確認する。
+ * パターン 2: INSERT step 自身の affectedRowsCheck でハンドリングしている。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hasAffectedRowsUniqueCheck(step: any): boolean {
+  return isUniqueViolationErrorCode(step?.affectedRowsCheck?.errorCode);
+}
+
+/**
+ * step がいずれかの branch / tryCatch 内に入っているかを確認するのではなく、
+ * INSERT step の親 branch step が tryCatch で UNIQUE_VIOLATION をハンドルしているかを確認する。
+ *
+ * 実装上の制約: walkStepsInOrder は step を個別に訪問するため、「親 branch を持つか」の
+ * 判定が複雑になる。ここでは代わりに「action 全体の step 列 (flat) に tryCatch で
+ * UNIQUE_VIOLATION 系のエラーをハンドルする branch step が存在するか」で代替する。
+ * (偽陽性抑止優先: tryCatch が存在すれば OK とみなす)
+ *
+ * パターン 3: branch step の condition.kind === "tryCatch" で UNIQUE_VIOLATION をキャッチ。
+ */
+function hasTryCatchUniqueViolationInSteps(steps: Step[]): boolean {
+  for (const step of steps) {
+    if (!isBuiltinStep(step)) continue;
+    if (step.kind === "branch") {
+      // branches の condition を確認
+      for (const branch of step.branches) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cond = branch.condition as any;
+        if (
+          cond?.kind === "tryCatch" &&
+          Array.isArray(cond?.catchErrors) &&
+          cond.catchErrors.some((e: unknown) => {
+            if (typeof e === "string") return isUniqueViolationErrorCode(e);
+            if (e && typeof e === "object") {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const obj = e as any;
+              return isUniqueViolationErrorCode(obj.errorCode ?? obj.code ?? obj.kind ?? "");
+            }
+            return false;
+          })
+        ) {
+          return true;
+        }
+        // condition が文字列で UNIQUE_VIOLATION 系を含む場合
+        if (typeof branch.condition === "string" && isUniqueViolationErrorCode(branch.condition)) {
+          return true;
+        }
+      }
+      // elseBranch も含め再帰
+      if (step.elseBranch && hasTryCatchUniqueViolationInSteps(step.elseBranch.steps)) return true;
+      for (const branch of step.branches) {
+        if (hasTryCatchUniqueViolationInSteps(branch.steps)) return true;
+      }
+    }
+    if (step.kind === "loop" && hasTryCatchUniqueViolationInSteps(step.steps)) return true;
+    if (step.kind === "transactionScope") {
+      if (hasTryCatchUniqueViolationInSteps(step.steps)) return true;
+    }
+    if (step.kind === "externalSystem") {
+      for (const spec of Object.values(step.outcomes ?? {})) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = spec as any;
+        if (s?.sideEffects && hasTryCatchUniqueViolationInSteps(s.sideEffects)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // ─── メイン検査ロジック ─────────────────────────────────────────────────────
@@ -297,6 +494,7 @@ function buildTableMeta(tables: OrderTableDefinition[]): Map<string, TableMeta> 
  *
  * - boundVars: action.inputs の name + 各 step を順に実行した際に蓄積される outputBinding.name
  * - insertedTableIds: 先行 INSERT で書き込んだテーブルの id (FK 参照先確認用)
+ * - priorSelectWhereColumns: INSERT より前に見た SELECT の WHERE カラム集合 (観点 3 用)
  */
 function checkAction(
   actionIndex: number,
@@ -308,6 +506,8 @@ function checkAction(
 ): void {
   const boundVars = new Set<string>(initialBound);
   const insertedTableIds = new Set<string>();
+  // 観点 3: INSERT より前に見た SELECT の WHERE カラム集合 (テーブル物理名 → カラム集合)
+  const priorSelectWhereColumnsByTable = new Map<string, Set<string>>();
 
   // 平坦化した step のシーケンスを順走査
   // (branch 内部は楽観的に両パスを走査してバインドを union する — 保守的な偽陽性抑止)
@@ -321,6 +521,42 @@ function checkAction(
     }
     if (step.kind === "compute" && step.outputBinding?.name) {
       boundVars.add(step.outputBinding.name);
+    }
+
+    // dbAccess SELECT: WHERE カラムを収集 (観点 3 の false positive 抑止用)
+    if (step.kind === "dbAccess" && step.operation === "SELECT" && step.sql) {
+      const substitutedSel = substituteAtVars(step.sql);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let astSel: any = parser.astify(substitutedSel, { database: DIALECT });
+        astSel = Array.isArray(astSel) ? astSel[0] : astSel;
+        if (astSel && astSel.type === "select") {
+          // SELECT 対象テーブル名を抽出 (FROM 句)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const fromTables: string[] = [];
+          if (Array.isArray(astSel.from)) {
+            for (const fromItem of astSel.from) {
+              if (fromItem?.table && typeof fromItem.table === "string") {
+                fromTables.push(fromItem.table.toLowerCase());
+              }
+            }
+          }
+          const whereColumns = extractWhereColumns(astSel);
+          for (const tbl of fromTables) {
+            const existing = priorSelectWhereColumnsByTable.get(tbl) ?? new Set<string>();
+            for (const col of whereColumns) existing.add(col);
+            priorSelectWhereColumnsByTable.set(tbl, existing);
+          }
+          // テーブルが特定できない場合は全テーブルに追加 (偽陽性抑止)
+          if (fromTables.length === 0 && whereColumns.size > 0) {
+            const fallback = priorSelectWhereColumnsByTable.get("__any__") ?? new Set<string>();
+            for (const col of whereColumns) fallback.add(col);
+            priorSelectWhereColumnsByTable.set("__any__", fallback);
+          }
+        }
+      } catch {
+        // SELECT パース失敗は無視 (観点 3 の偽陽性抑止のため)
+      }
     }
 
     // dbAccess INSERT のみ検査
@@ -427,6 +663,45 @@ function checkAction(
           path: `${path}.sql`,
           code: "FK_REFERENCE_NOT_INSERTED",
           message: `テーブル "${insertTableName}" の FK カラム [${unboundFkCols.join(", ")}] が参照する "${refMeta.physicalName}" の行が INSERT 時点で未確保です (先行 INSERT なし、かつ FK 列の変数が未バインド)。`,
+        });
+      }
+
+      // ── 観点 3: UNIQUE 制約 × 事前チェック有無 (warning) ───────────────────
+      // UNIQUE 制約のあるカラムが INSERT 対象に含まれる場合、
+      // 以下のいずれかが存在するか確認する:
+      //   パターン 1: 同テーブルへの先行 SELECT WHERE で UNIQUE カラムを参照している
+      //   パターン 2: INSERT step 自身の affectedRowsCheck.errorCode が UNIQUE_VIOLATION 系
+      //   パターン 3: action 全体の steps に tryCatch で UNIQUE_VIOLATION をキャッチする branch がある
+      const allUniqueConstraints: Array<{ cols: string[] }> = [
+        ...meta.uniqueConstraints.map((cols) => ({ cols })),
+        // Column.unique: true は単体 UNIQUE として扱う
+        ...[...meta.uniqueColumns].map((col) => ({ cols: [col] })),
+      ];
+
+      for (const uq of allUniqueConstraints) {
+        // INSERT 対象カラムとの交差
+        const uqColsInInsert = uq.cols.filter((c) => colVarMap.has(c));
+        if (uqColsInInsert.length === 0) continue;
+
+        // パターン 2: affectedRowsCheck.errorCode が UNIQUE_VIOLATION 系
+        if (hasAffectedRowsUniqueCheck(step)) continue;
+
+        // パターン 3: action 全体の steps に tryCatch で UNIQUE_VIOLATION をキャッチする branch
+        if (hasTryCatchUniqueViolationInSteps(steps)) continue;
+
+        // パターン 1: 同テーブルへの先行 SELECT WHERE でいずれかの UNIQUE カラムを参照
+        const tablePriorCols = priorSelectWhereColumnsByTable.get(insertTableName) ?? new Set<string>();
+        // __any__ (テーブル不明な SELECT のカラム) も加算
+        const anyPriorCols = priorSelectWhereColumnsByTable.get("__any__") ?? new Set<string>();
+        const mergedPriorCols = new Set<string>([...tablePriorCols, ...anyPriorCols]);
+        if (hasPriorSelectForUniqueColumns(uqColsInInsert, mergedPriorCols)) continue;
+
+        // どのパターンも満たさない → warning
+        issues.push({
+          path: `${path}.sql`,
+          code: "UNIQUE_CHECK_MISSING",
+          severity: "warning",
+          message: `テーブル "${insertTableName}" の UNIQUE カラム [${uqColsInInsert.join(", ")}] に対する事前の重複チェックがありません。INSERT 前に SELECT で存在確認するか、INSERT の affectedRowsCheck で UNIQUE VIOLATION をハンドルするか、tryCatch で UNIQUE_VIOLATION エラーをキャッチしてください。`,
         });
       }
 

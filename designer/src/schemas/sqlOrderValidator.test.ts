@@ -31,8 +31,9 @@ function makeFlow(overrides: Partial<ProcessFlow> = {}): ProcessFlow {
 
 /**
  * テーブル定義ショートカット。
- * columns: [{ physicalName, notNull?, autoIncrement?, defaultValue? }, ...]
- * constraints: [{ kind: "foreignKey", columnPhysicalNames, referencedTableId }, ...]
+ * columns: [{ physicalName, notNull?, autoIncrement?, defaultValue?, unique? }, ...]
+ * fkConstraints: [{ columnPhysicalNames, referencedTableId }, ...]
+ * uniqueConstraints: [{ columnPhysicalNames }] — 複合 UNIQUE 制約
  */
 function makeTable(
   id: string,
@@ -44,8 +45,10 @@ function makeTable(
     autoIncrement?: boolean;
     defaultValue?: string;
     primaryKey?: boolean;
+    unique?: boolean;
   }>,
   fkConstraints?: Array<{ columnPhysicalNames: string[]; referencedTableId: string }>,
+  uniqueConstraints?: Array<{ columnPhysicalNames: string[] }>,
 ): OrderTableDefinition {
   const cols = columns.map((c, i) => ({
     id: c.id ?? `col-${physicalName}-${i + 1}`,
@@ -54,18 +57,26 @@ function makeTable(
     autoIncrement: c.autoIncrement,
     defaultValue: c.defaultValue,
     primaryKey: c.primaryKey,
+    unique: c.unique,
   }));
 
-  // FK 制約の columnIds は physicalName → id の逆引きで解決
+  // FK / UNIQUE 制約の columnIds は physicalName → id の逆引きで解決
   const physicalToId = new Map<string, string>(cols.map((c) => [c.physicalName, c.id]));
 
-  const constraints = (fkConstraints ?? []).map((fk, i) => ({
-    kind: "foreignKey" as const,
-    id: `fk-${physicalName}-${i + 1}`,
-    columnIds: fk.columnPhysicalNames.map((p) => physicalToId.get(p) ?? p),
-    referencedTableId: fk.referencedTableId,
-    referencedColumnIds: ["col-ref-01"],
-  }));
+  const constraints = [
+    ...(fkConstraints ?? []).map((fk, i) => ({
+      kind: "foreignKey" as const,
+      id: `fk-${physicalName}-${i + 1}`,
+      columnIds: fk.columnPhysicalNames.map((p) => physicalToId.get(p) ?? p),
+      referencedTableId: fk.referencedTableId,
+      referencedColumnIds: ["col-ref-01"],
+    })),
+    ...(uniqueConstraints ?? []).map((uq, i) => ({
+      kind: "unique" as const,
+      id: `uq-${physicalName}-${i + 1}`,
+      columnIds: uq.columnPhysicalNames.map((p) => physicalToId.get(p) ?? p),
+    })),
+  ];
 
   return { id, physicalName, columns: cols, constraints };
 }
@@ -735,5 +746,304 @@ describe("welfare-benefit M1 実証: beneficiary_id NOT NULL × INSERT 順序", 
       (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" && i.message.includes("beneficiary_id"),
     );
     expect(nullIssues).toHaveLength(0);
+  });
+});
+
+// ─── 観点 3: UNIQUE_CHECK_MISSING ─────────────────────────────────────────
+
+describe("観点 3: UNIQUE_CHECK_MISSING", () => {
+  /**
+   * テーブル: users
+   *   - email: Column.unique: true (単体 UNIQUE)
+   *   - (transfer_id, approver_role): 複合 UNIQUE 制約 (transfer_approvals 相当)
+   */
+  const tableUsers = makeTable(
+    "tbl-users-uq",
+    "users",
+    [
+      { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { physicalName: "email", notNull: true, unique: true },
+      { physicalName: "name", notNull: true },
+    ],
+  );
+
+  const tableApprovals = makeTable(
+    "tbl-approvals",
+    "transfer_approvals",
+    [
+      { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { physicalName: "transfer_id", notNull: true },
+      { physicalName: "approver_role", notNull: true },
+      { physicalName: "decision", notNull: true },
+    ],
+    undefined, // FK なし
+    [{ columnPhysicalNames: ["transfer_id", "approver_role"] }], // 複合 UNIQUE 制約
+  );
+
+  it("検出: UNIQUE カラム (email) への INSERT で事前チェックなし", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "ユーザー登録",
+          trigger: "submit",
+          inputs: [
+            { name: "userEmail", type: "string", required: true },
+            { name: "userName", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "users INSERT (email UNIQUE チェックなし)",
+              tableId: "tbl-users-uq",
+              operation: "INSERT",
+              sql: "INSERT INTO users (email, name) VALUES (@inputs.userEmail, @inputs.userName)",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableUsers]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    expect(target.some((i) => i.message.includes("email"))).toBe(true);
+    expect(target[0].severity).toBe("warning");
+  });
+
+  it("検出: 複合 UNIQUE 制約 (transfer_id, approver_role) への INSERT で事前チェックなし", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "承認記録",
+          trigger: "submit",
+          inputs: [
+            { name: "transferId", type: "string", required: true },
+            { name: "approverRole", type: "string", required: true },
+            { name: "decision", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "transfer_approvals INSERT (重複チェックなし)",
+              tableId: "tbl-approvals",
+              operation: "INSERT",
+              sql: "INSERT INTO transfer_approvals (transfer_id, approver_role, decision) VALUES (@inputs.transferId, @inputs.approverRole, @inputs.decision)",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableApprovals]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target.length).toBeGreaterThanOrEqual(1);
+    // 複合 UNIQUE のいずれかのカラムを含む旨のメッセージ
+    expect(target.some((i) => i.message.includes("transfer_id") || i.message.includes("approver_role"))).toBe(true);
+  });
+
+  it("false positive 抑止 (パターン 1): 先行 SELECT WHERE email で EXISTS チェック → 検出しない", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "ユーザー登録",
+          trigger: "submit",
+          inputs: [
+            { name: "userEmail", type: "string", required: true },
+            { name: "userName", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "email 重複確認 SELECT",
+              tableId: "tbl-users-uq",
+              operation: "SELECT",
+              sql: "SELECT id FROM users WHERE email = @inputs.userEmail",
+              outputBinding: { name: "existingUser" },
+            },
+            {
+              id: "step-02",
+              kind: "branch",
+              description: "既存ユーザーがいなければ INSERT",
+              branches: [
+                {
+                  condition: "@existingUser == null",
+                  steps: [
+                    {
+                      id: "step-03",
+                      kind: "dbAccess",
+                      description: "users INSERT",
+                      tableId: "tbl-users-uq",
+                      operation: "INSERT",
+                      sql: "INSERT INTO users (email, name) VALUES (@inputs.userEmail, @inputs.userName)",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableUsers]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止 (パターン 2): affectedRowsCheck.errorCode = DUPLICATE_ENTRY → 検出しない", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "ユーザー登録",
+          trigger: "submit",
+          inputs: [
+            { name: "userEmail", type: "string", required: true },
+            { name: "userName", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "users INSERT with UNIQUE violation errorCode",
+              tableId: "tbl-users-uq",
+              operation: "INSERT",
+              sql: "INSERT INTO users (email, name) VALUES (@inputs.userEmail, @inputs.userName)",
+              affectedRowsCheck: {
+                operator: "=",
+                expected: 1,
+                onViolation: "throw",
+                errorCode: "DUPLICATE_ENTRY",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableUsers]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止 (パターン 2 変形): affectedRowsCheck.errorCode = UNIQUE_VIOLATION → 検出しない", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "ユーザー登録",
+          trigger: "submit",
+          inputs: [
+            { name: "userEmail", type: "string", required: true },
+            { name: "userName", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "users INSERT with UNIQUE_VIOLATION errorCode",
+              tableId: "tbl-users-uq",
+              operation: "INSERT",
+              sql: "INSERT INTO users (email, name) VALUES (@inputs.userEmail, @inputs.userName)",
+              affectedRowsCheck: {
+                operator: "=",
+                expected: 1,
+                onViolation: "throw",
+                errorCode: "UNIQUE_VIOLATION",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableUsers]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target).toHaveLength(0);
+  });
+
+  it("false positive 抑止 (パターン 3): tryCatch branch で UNIQUE_VIOLATION をキャッチ → 検出しない", () => {
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "ユーザー登録",
+          trigger: "submit",
+          inputs: [
+            { name: "userEmail", type: "string", required: true },
+            { name: "userName", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "users INSERT",
+              tableId: "tbl-users-uq",
+              operation: "INSERT",
+              sql: "INSERT INTO users (email, name) VALUES (@inputs.userEmail, @inputs.userName)",
+            },
+            {
+              id: "step-02",
+              kind: "branch",
+              description: "tryCatch で UNIQUE_VIOLATION をキャッチ",
+              branches: [
+                {
+                  condition: {
+                    kind: "tryCatch",
+                    catchErrors: ["UNIQUE_VIOLATION"],
+                  },
+                  steps: [
+                    {
+                      id: "step-03",
+                      kind: "return",
+                      description: "重複エラーを返す",
+                      payload: { status: "DUPLICATE" },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableUsers]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target).toHaveLength(0);
+  });
+
+  it("正常系: UNIQUE 制約のないテーブルへの INSERT は検出しない", () => {
+    const tableNoUnique = makeTable(
+      "tbl-no-unique",
+      "orders",
+      [
+        { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { physicalName: "amount", notNull: true },
+      ],
+    );
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文登録",
+          trigger: "submit",
+          inputs: [{ name: "amount", type: "number", required: true }],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "orders INSERT",
+              tableId: "tbl-no-unique",
+              operation: "INSERT",
+              sql: "INSERT INTO orders (amount) VALUES (@inputs.amount)",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, [tableNoUnique]);
+    const target = issues.filter((i) => i.code === "UNIQUE_CHECK_MISSING");
+    expect(target).toHaveLength(0);
   });
 });
