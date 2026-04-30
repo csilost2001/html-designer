@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { aggregateValidation } from "./aggregatedValidation";
-import type { ProcessFlow } from "../types/action";
+import type { ProcessFlow } from "../types/v3";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -45,7 +45,7 @@ describe("aggregateValidation — 統合テスト", () => {
     const errors = aggregateValidation(makeGroup({
       actions: [{
         id: "a1", name: "f", trigger: "click",
-        steps: [{ id: "s1", kind: "compute", description: "", expression: "@unknownX * 2", outputBinding: "r" }],
+        steps: [{ id: "s1", kind: "compute", description: "", expression: "@unknownX * 2", outputBinding: { name: "r" } }],
       }],
     }));
     const w = errors.find((e) => e.code === "UNKNOWN_IDENTIFIER");
@@ -61,7 +61,7 @@ describe("aggregateValidation — 統合テスト", () => {
         steps: [{
           id: "branch1", kind: "branch", description: "",
           branches: [{
-            id: "b1", code: "A", condition: "@flag",
+            id: "b1", code: "A", condition: { kind: "expression", expression: "@flag" },
             steps: [{ id: "inner-return", kind: "return", description: "", responseId: "missing" }],
           }],
         }],
@@ -80,7 +80,7 @@ describe("aggregateValidation — 統合テスト", () => {
           outcomes: {
             failure: {
               action: "continue",
-              sideEffects: [{ id: "se-unknown", kind: "compute", description: "", expression: "@unknownVar", outputBinding: "r" }],
+              sideEffects: [{ id: "se-unknown", kind: "compute", description: "", expression: "@unknownVar", outputBinding: { name: "r" } }],
             },
           },
         }],
