@@ -333,6 +333,8 @@ describe("checkIdentifierScopes - TransactionScopeStep onRollback @error ambient
     expect(errorIssues[0].code).toBe("UNKNOWN_IDENTIFIER");
   });
 
+  // ケース C: walkSteps が onRollback 内の nested step (branch.condition / 内部 return.bodyExpression)
+  // にも onRollbackKnown を再帰継承することを確認
   it("inherits @error inside nested onRollback steps", () => {
     const issues = checkIdentifierScopes(makeGroup({
       actions: [{
