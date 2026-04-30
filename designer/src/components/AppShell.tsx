@@ -14,6 +14,8 @@ import { SequenceListView } from "./sequence/SequenceListView";
 import { SequenceEditor } from "./sequence/SequenceEditor";
 import { ViewListView } from "./view/ViewListView";
 import { ViewEditor } from "./view/ViewEditor";
+import { ViewDefinitionListView } from "./view-definition/ViewDefinitionListView";
+import { ViewDefinitionEditor } from "./view-definition/ViewDefinitionEditor";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
@@ -23,6 +25,7 @@ import { loadTable } from "../store/tableStore";
 import { loadProcessFlow } from "../store/processFlowStore";
 import { loadSequence } from "../store/sequenceStore";
 import { loadView } from "../store/viewStore";
+import { loadViewDefinition } from "../store/viewDefinitionStore";
 import {
   getTabs,
   getActiveTabId,
@@ -202,6 +205,28 @@ export function AppShell() {
       return;
     }
 
+    const viewDefinitionMatch = matchPath("/view-definition/edit/:viewDefinitionId", location.pathname);
+    if (viewDefinitionMatch?.params.viewDefinitionId) {
+      const viewDefinitionId = decodeURIComponent(viewDefinitionMatch.params.viewDefinitionId);
+      const tabId = makeTabId("view-definition", viewDefinitionId);
+      const existing = getTabs().find((t) => t.id === tabId);
+      if (existing) {
+        setActiveTab(tabId);
+      } else {
+        loadViewDefinition(viewDefinitionId).then((vd) => {
+          if (vd) {
+            openTab({ id: tabId, type: "view-definition", resourceId: viewDefinitionId, label: vd.name });
+          } else {
+            fallbackToDashboard("ビュー定義", viewDefinitionId);
+          }
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadViewDefinition 失敗", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("ビュー定義", viewDefinitionId);
+        });
+      }
+      return;
+    }
+
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
       { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
@@ -215,6 +240,7 @@ export function AppShell() {
       { path: "/screen-items",       type: "screen-items",       label: "画面項目定義" },
       { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
       { path: "/view/list",          type: "view-list",           label: "ビュー一覧" },
+      { path: "/view-definition/list", type: "view-definition-list", label: "ビュー定義一覧" },
     ];
     for (const { path, type, label } of singletonRoutes) {
       if (location.pathname === path) {
@@ -237,6 +263,7 @@ export function AppShell() {
       : activeTab.type === "action"           ? `/process-flow/edit/${activeTab.resourceId}`
       : activeTab.type === "sequence"         ? `/sequence/edit/${activeTab.resourceId}`
       : activeTab.type === "view"             ? `/view/edit/${activeTab.resourceId}`
+      : activeTab.type === "view-definition"  ? `/view-definition/edit/${activeTab.resourceId}`
       : activeTab.type === "screen-flow"      ? "/screen/flow"
       : activeTab.type === "screen-list"      ? "/screen/list"
       : activeTab.type === "table-list"       ? "/table/list"
@@ -246,8 +273,9 @@ export function AppShell() {
       : activeTab.type === "conventions-catalog" ? "/conventions/catalog"
       : activeTab.type === "screen-items"     ? "/screen-items"
       : activeTab.type === "sequence-list"    ? "/sequence/list"
-      : activeTab.type === "view-list"        ? "/view/list"
-      : activeTab.type === "dashboard"        ? "/"
+      : activeTab.type === "view-list"              ? "/view/list"
+      : activeTab.type === "view-definition-list"   ? "/view-definition/list"
+      : activeTab.type === "dashboard"              ? "/"
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
       navigate(expectedPath, { replace: true });
@@ -328,6 +356,8 @@ export function AppShell() {
             <Route path="/sequence/edit/:sequenceId" element={<SequenceEditor />} />
             <Route path="/view/list" element={<ViewListView />} />
             <Route path="/view/edit/:viewId" element={<ViewEditor />} />
+            <Route path="/view-definition/list" element={<ViewDefinitionListView />} />
+            <Route path="/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
           </Routes>
         </ErrorBoundary>
       )}
