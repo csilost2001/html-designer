@@ -21,6 +21,7 @@ const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
 const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
 const SEQUENCES_DIR = path.join(DATA_DIR, "sequences");
 const VIEWS_DIR = path.join(DATA_DIR, "views");
+const VIEW_DEFINITIONS_DIR = path.join(DATA_DIR, "view-definitions");
 export const EXTENSIONS_DIR = path.join(DATA_DIR, "extensions");
 export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
 export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
@@ -87,6 +88,7 @@ export async function ensureDataDir(): Promise<void> {
   // screen-items/ は Phase 4-β migration 後に廃止済み — 再作成しない
   await fs.mkdir(SEQUENCES_DIR, { recursive: true });
   await fs.mkdir(VIEWS_DIR, { recursive: true });
+  await fs.mkdir(VIEW_DEFINITIONS_DIR, { recursive: true });
   await fs.mkdir(EXTENSIONS_DIR, { recursive: true });
 }
 
@@ -148,6 +150,7 @@ function resolveDataFile(kind: string, id?: string): string | null {
     case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
     case "sequence": return id ? path.join(SEQUENCES_DIR, `${id}.json`) : null;
     case "view": return id ? path.join(VIEWS_DIR, `${id}.json`) : null;
+    case "viewDefinition": return id ? path.join(VIEW_DEFINITIONS_DIR, `${id}.json`) : null;
     default: return null;
   }
 }
@@ -533,6 +536,37 @@ export async function writeView(viewId: string, data: unknown): Promise<void> {
 export async function deleteView(viewId: string): Promise<void> {
   try {
     await fs.unlink(path.join(VIEWS_DIR, `${viewId}.json`));
+  } catch { /* file not found is OK */ }
+}
+
+export async function listAllViewDefinitions(): Promise<unknown[]> {
+  try {
+    await ensureDataDir();
+    const files = await fs.readdir(VIEW_DEFINITIONS_DIR);
+    const results: unknown[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const data = await readJSON<unknown>(path.join(VIEW_DEFINITIONS_DIR, file));
+      if (data) results.push(data);
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+export async function readViewDefinition(viewDefinitionId: string): Promise<unknown | null> {
+  return readJSON<unknown>(path.join(VIEW_DEFINITIONS_DIR, `${viewDefinitionId}.json`));
+}
+
+export async function writeViewDefinition(viewDefinitionId: string, data: unknown): Promise<void> {
+  await ensureDataDir();
+  await writeJSON(path.join(VIEW_DEFINITIONS_DIR, `${viewDefinitionId}.json`), data);
+}
+
+export async function deleteViewDefinition(viewDefinitionId: string): Promise<void> {
+  try {
+    await fs.unlink(path.join(VIEW_DEFINITIONS_DIR, `${viewDefinitionId}.json`));
   } catch { /* file not found is OK */ }
 }
 

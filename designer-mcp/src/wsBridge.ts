@@ -39,6 +39,10 @@ import {
   writeView,
   deleteView as deleteViewFile,
   listAllViews,
+  readViewDefinition,
+  writeViewDefinition,
+  deleteViewDefinition as deleteViewDefinitionFile,
+  listAllViewDefinitions,
   getFileMtime,
   readExtensionsBundle,
   writeExtensionsFile,
@@ -496,6 +500,11 @@ class WsBridge extends EventEmitter {
           respond(viewsData);
           break;
         }
+        case "listAllViewDefinitions": {
+          const viewDefinitionsData = await listAllViewDefinitions();
+          respond(viewDefinitionsData);
+          break;
+        }
         case "loadConventions": {
           const catalog = await readConventions();
           respond(catalog);
@@ -566,6 +575,26 @@ class WsBridge extends EventEmitter {
           await deleteViewFile(viewId);
           respond({ success: true });
           this.broadcast("viewChanged", { viewId, deleted: true }, clientId);
+          break;
+        }
+        case "loadViewDefinition": {
+          const { viewDefinitionId } = (params ?? {}) as { viewDefinitionId: string };
+          const data = await readViewDefinition(viewDefinitionId);
+          respond(data);
+          break;
+        }
+        case "saveViewDefinition": {
+          const { viewDefinitionId, data } = (params ?? {}) as { viewDefinitionId: string; data: unknown };
+          await writeViewDefinition(viewDefinitionId, data);
+          respond({ success: true });
+          this.broadcast("viewDefinitionChanged", { viewDefinitionId }, clientId);
+          break;
+        }
+        case "deleteViewDefinition": {
+          const { viewDefinitionId } = (params ?? {}) as { viewDefinitionId: string };
+          await deleteViewDefinitionFile(viewDefinitionId);
+          respond({ success: true });
+          this.broadcast("viewDefinitionChanged", { viewDefinitionId, deleted: true }, clientId);
           break;
         }
         case "getFileMtime": {
