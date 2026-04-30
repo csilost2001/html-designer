@@ -196,7 +196,7 @@ function loadJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf-8")) as T;
 }
 
-describe("v3 TS 型 と sample-project-v3 JSON の compatibility (5 業界カバー)", () => {
+describe("v3 TS 型 と sample-project-v3 JSON の compatibility (7 業界カバー)", () => {
   it("retail project.json を Project 型として parse できる", () => {
     const project = loadJson<Project>(join(samplesV3Dir, "retail/project.json"));
     expect(project.schemaVersion).toBe("v3");
@@ -279,5 +279,77 @@ describe("v3 TS 型 と sample-project-v3 JSON の compatibility (5 業界カバ
     expect(patterns).toContain("sign-off");
     expect(patterns).toContain("approval-veto");
     expect(patterns).toContain("approval-sequential");
+  });
+
+  it("healthcare project.json を Project 型として parse できる", () => {
+    const project = loadJson<Project>(
+      join(samplesV3Dir, "healthcare/project.json"),
+    );
+    expect(project.schemaVersion).toBe("v3");
+    expect(project.meta.name).toBeDefined();
+    expect(project.entities.processFlows?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("healthcare 診察予約フロー (PHI 確認 + 医師資格確認) を ProcessFlow として parse + Step narrow", () => {
+    const flow = loadJson<ProcessFlow>(
+      join(
+        samplesV3Dir,
+        "healthcare/process-flows/0be3eb9c-c96e-498e-9be4-6efe3878097a.json",
+      ),
+    );
+    expect(flow.meta.kind).toBe("system");
+    const firstStep: Step = flow.actions[0].steps[0];
+    expect(firstStep.kind).toBeDefined();
+    // audit step が存在することを確認
+    const auditSteps = flow.actions[0].steps.filter((s) => s.kind === "audit");
+    expect(auditSteps.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("healthcare 診察予約画面を Screen 型として parse できる", () => {
+    const screen = loadJson<Screen>(
+      join(
+        samplesV3Dir,
+        "healthcare/screens/87516f74-1daa-4a92-8102-a294accdba68.json",
+      ),
+    );
+    expect(screen.kind).toBe("form");
+    expect(screen.path).toMatch(/\/healthcare\//);
+  });
+
+  it("welfare-benefit project.json を Project 型として parse できる", () => {
+    const project = loadJson<Project>(
+      join(samplesV3Dir, "welfare-benefit/project.json"),
+    );
+    expect(project.schemaVersion).toBe("v3");
+    expect(project.meta.name).toBeDefined();
+    expect(project.entities.processFlows?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("welfare-benefit 給付申請受付フロー (重複申請防止 + 限度額確認) を ProcessFlow として parse + Step narrow", () => {
+    const flow = loadJson<ProcessFlow>(
+      join(
+        samplesV3Dir,
+        "welfare-benefit/process-flows/bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d.json",
+      ),
+    );
+    expect(flow.meta.kind).toBe("system");
+    const firstStep: Step = flow.actions[0].steps[0];
+    expect(firstStep.kind).toBeDefined();
+    // externalSystem step (住民通知) が存在することを確認
+    const extSteps = flow.actions[0].steps.filter(
+      (s) => s.kind === "externalSystem",
+    );
+    expect(extSteps.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("welfare-benefit 給付申請受付画面を Screen 型として parse できる", () => {
+    const screen = loadJson<Screen>(
+      join(
+        samplesV3Dir,
+        "welfare-benefit/screens/883e408d-3290-448d-a881-e9d7a22c85fc.json",
+      ),
+    );
+    expect(screen.kind).toBe("form");
+    expect(screen.path).toMatch(/\/welfare-benefit\//);
   });
 });
