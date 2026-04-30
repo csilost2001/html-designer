@@ -1,33 +1,38 @@
 /**
  * projectStorage.ts
- * ファイルベースのプロジェクトデータ永続化ユーティリティ
+ * ファイルベースのプロジェクトデータ永続化ユーティリティ。
  *
- * データディレクトリ: $DESIGNER_DATA_DIR または ../data（ワークスペースルート）
+ * #671 以降、active workspace path は `workspaceState` モジュールが保持する。
+ * 本モジュール内の path 解決はすべて `requireActivePath()` 経由で行うため、
+ * active 未選択時は WorkspaceUnsetError を throw する。
  */
 import fs from "fs/promises";
 import path from "path";
 import Ajv, { type ValidateFunction } from "ajv";
+import { requireActivePath } from "./workspaceState.js";
 
-// DATA_DIR: 環境変数で上書き可能
-// デフォルト: designer-mcp/src/ から 2 段上がって data/
-export const DATA_DIR =
-  process.env.DESIGNER_DATA_DIR ??
-  path.resolve(import.meta.dirname, "../../data");
+// ── path 解決ヘルパー (#671) ─────────────────────────────────────────
+// workspace 切替に追従するため、絶対パス constant を廃止し getter 関数化。
 
-const SCREENS_DIR = path.join(DATA_DIR, "screens");
-const TABLES_DIR = path.join(DATA_DIR, "tables");
-const ACTIONS_DIR = path.join(DATA_DIR, "actions");
-const CONVENTIONS_DIR = path.join(DATA_DIR, "conventions");
-const SCREEN_ITEMS_DIR = path.join(DATA_DIR, "screen-items");
-const SEQUENCES_DIR = path.join(DATA_DIR, "sequences");
-const VIEWS_DIR = path.join(DATA_DIR, "views");
-const VIEW_DEFINITIONS_DIR = path.join(DATA_DIR, "view-definitions");
-export const EXTENSIONS_DIR = path.join(DATA_DIR, "extensions");
-export const PROJECT_FILE = path.join(DATA_DIR, "project.json");
-export const CUSTOM_BLOCKS_FILE = path.join(DATA_DIR, "custom-blocks.json");
-export const ER_LAYOUT_FILE = path.join(DATA_DIR, "er-layout.json");
-export const SCREEN_LAYOUT_FILE = path.join(DATA_DIR, "screen-layout.json");
-export const CONVENTIONS_FILE = path.join(CONVENTIONS_DIR, "catalog.json");
+/** 現在 active な workspace のルート絶対パスを返す。未選択なら throw */
+export function dataDir(): string {
+  return requireActivePath();
+}
+
+const screensDir       = () => path.join(dataDir(), "screens");
+const tablesDir        = () => path.join(dataDir(), "tables");
+const actionsDir       = () => path.join(dataDir(), "actions");
+const conventionsDir   = () => path.join(dataDir(), "conventions");
+const screenItemsDir   = () => path.join(dataDir(), "screen-items");
+const sequencesDir     = () => path.join(dataDir(), "sequences");
+const viewsDir         = () => path.join(dataDir(), "views");
+const viewDefsDir      = () => path.join(dataDir(), "view-definitions");
+export const extensionsDir = () => path.join(dataDir(), "extensions");
+export const projectFile      = () => path.join(dataDir(), "project.json");
+export const customBlocksFile = () => path.join(dataDir(), "custom-blocks.json");
+export const erLayoutFile     = () => path.join(dataDir(), "er-layout.json");
+export const screenLayoutFile = () => path.join(dataDir(), "screen-layout.json");
+export const conventionsFile  = () => path.join(conventionsDir(), "catalog.json");
 
 const EXTENSION_FILE_NAMES = {
   steps: "steps.json",
@@ -78,18 +83,18 @@ async function validateExtensionFile(kind: ExtensionFileKind, data: unknown): Pr
   }
 }
 
-/** data/ ディレクトリ群を作成（既存なら無視） */
+/** active workspace 配下のディレクトリ群を作成（既存なら無視） */
 export async function ensureDataDir(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.mkdir(SCREENS_DIR, { recursive: true });
-  await fs.mkdir(TABLES_DIR, { recursive: true });
-  await fs.mkdir(ACTIONS_DIR, { recursive: true });
-  await fs.mkdir(CONVENTIONS_DIR, { recursive: true });
+  await fs.mkdir(dataDir(), { recursive: true });
+  await fs.mkdir(screensDir(), { recursive: true });
+  await fs.mkdir(tablesDir(), { recursive: true });
+  await fs.mkdir(actionsDir(), { recursive: true });
+  await fs.mkdir(conventionsDir(), { recursive: true });
   // screen-items/ は Phase 4-β migration 後に廃止済み — 再作成しない
-  await fs.mkdir(SEQUENCES_DIR, { recursive: true });
-  await fs.mkdir(VIEWS_DIR, { recursive: true });
-  await fs.mkdir(VIEW_DEFINITIONS_DIR, { recursive: true });
-  await fs.mkdir(EXTENSIONS_DIR, { recursive: true });
+  await fs.mkdir(sequencesDir(), { recursive: true });
+  await fs.mkdir(viewsDir(), { recursive: true });
+  await fs.mkdir(viewDefsDir(), { recursive: true });
+  await fs.mkdir(extensionsDir(), { recursive: true });
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
@@ -108,7 +113,7 @@ async function writeJSON(filePath: string, data: unknown): Promise<void> {
 
 /** project.json を読み込み（存在しない場合は null） */
 export async function readProject(): Promise<unknown | null> {
-  return readJSON<unknown>(PROJECT_FILE);
+  return readJSON<unknown>(projectFile());
 }
 
 /** project.json を書き込み */
@@ -116,13 +121,13 @@ export async function writeProject(project: unknown): Promise<void> {
   await ensureDataDir();
   const next = project as Record<string, unknown>;
   if (next.schemaVersion === "v3") {
-    const current = await readJSON<Record<string, unknown>>(PROJECT_FILE);
+    const current = await readJSON<Record<string, unknown>>(projectFile());
     if (current && current.schemaVersion !== "v3") {
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      await fs.copyFile(PROJECT_FILE, `${PROJECT_FILE}.bak.${ts}`);
+      await fs.copyFile(projectFile(), `${projectFile()}.bak.${ts}`);
     }
   }
-  await writeJSON(PROJECT_FILE, project);
+  await writeJSON(projectFile(), project);
 }
 
 /** 各種データファイルの更新時刻を取得（存在しないなら null） */
@@ -139,18 +144,18 @@ export async function getFileMtime(kind: string, id?: string): Promise<number | 
 
 function resolveDataFile(kind: string, id?: string): string | null {
   switch (kind) {
-    case "project": return PROJECT_FILE;
-    case "erLayout": return ER_LAYOUT_FILE;
-    case "customBlocks": return CUSTOM_BLOCKS_FILE;
-    case "conventions": return CONVENTIONS_FILE;
-    case "screen": return id ? path.join(SCREENS_DIR, `${id}.design.json`) : null;
-    case "screenEntity": return id ? path.join(SCREENS_DIR, `${id}.json`) : null;
-    case "table": return id ? path.join(TABLES_DIR, `${id}.json`) : null;
-    case "processFlow": return id ? path.join(ACTIONS_DIR, `${id}.json`) : null;
-    case "screenItems": return id ? path.join(SCREEN_ITEMS_DIR, `${id}.json`) : null;
-    case "sequence": return id ? path.join(SEQUENCES_DIR, `${id}.json`) : null;
-    case "view": return id ? path.join(VIEWS_DIR, `${id}.json`) : null;
-    case "viewDefinition": return id ? path.join(VIEW_DEFINITIONS_DIR, `${id}.json`) : null;
+    case "project": return projectFile();
+    case "erLayout": return erLayoutFile();
+    case "customBlocks": return customBlocksFile();
+    case "conventions": return conventionsFile();
+    case "screen": return id ? path.join(screensDir(), `${id}.design.json`) : null;
+    case "screenEntity": return id ? path.join(screensDir(), `${id}.json`) : null;
+    case "table": return id ? path.join(tablesDir(), `${id}.json`) : null;
+    case "processFlow": return id ? path.join(actionsDir(), `${id}.json`) : null;
+    case "screenItems": return id ? path.join(screenItemsDir(), `${id}.json`) : null;
+    case "sequence": return id ? path.join(sequencesDir(), `${id}.json`) : null;
+    case "view": return id ? path.join(viewsDir(), `${id}.json`) : null;
+    case "viewDefinition": return id ? path.join(viewDefsDir(), `${id}.json`) : null;
     default: return null;
   }
 }
@@ -215,9 +220,9 @@ const _inflightMigrations = new Map<string, Promise<Record<string, unknown> | nu
 
 async function _migrateScreenCore(screenId: string): Promise<Record<string, unknown> | null> {
   await ensureDataDir();
-  const entityPath = path.join(SCREENS_DIR, `${screenId}.json`);
-  const designPath = path.join(SCREENS_DIR, `${screenId}.design.json`);
-  const legacyItemsPath = path.join(SCREEN_ITEMS_DIR, `${screenId}.json`);
+  const entityPath = path.join(screensDir(), `${screenId}.json`);
+  const designPath = path.join(screensDir(), `${screenId}.design.json`);
+  const legacyItemsPath = path.join(screenItemsDir(), `${screenId}.json`);
   const current = await readJSON<unknown>(entityPath);
 
   if (isScreenEntity(current) && !isLegacyGrapesScreen(current)) {
@@ -267,7 +272,7 @@ export async function readExtensionsBundle(): Promise<Record<ExtensionFileKind, 
   await ensureDataDir();
   const entries = await Promise.all(
     Object.entries(EXTENSION_FILE_NAMES).map(async ([kind, fileName]) => {
-      const data = await readJSON<unknown>(path.join(EXTENSIONS_DIR, fileName));
+      const data = await readJSON<unknown>(path.join(extensionsDir(), fileName));
       return [kind, data] as const;
     }),
   );
@@ -284,14 +289,14 @@ export async function writeExtensionsFile(
   if (!options?.skipValidation) {
     await validateExtensionFile(type, content);
   }
-  await writeJSON(path.join(EXTENSIONS_DIR, EXTENSION_FILE_NAMES[type]), content);
+  await writeJSON(path.join(extensionsDir(), EXTENSION_FILE_NAMES[type]), content);
   options?.onAfterWrite?.();
 }
 
 /** screens/{screenId}.json を読み込み */
 export async function readScreen(screenId: string): Promise<unknown | null> {
   await migrateScreenIfNeeded(screenId);
-  return readJSON<unknown>(path.join(SCREENS_DIR, `${screenId}.design.json`));
+  return readJSON<unknown>(path.join(screensDir(), `${screenId}.design.json`));
 }
 
 /** screens/{screenId}.json を書き込み */
@@ -311,8 +316,8 @@ export async function writeScreen(screenId: string, data: unknown): Promise<void
       designFileRef: `${screenId}.design.json`,
     },
   };
-  await writeJSON(path.join(SCREENS_DIR, `${screenId}.json`), entity);
-  await writeJSON(path.join(SCREENS_DIR, `${screenId}.design.json`), data);
+  await writeJSON(path.join(screensDir(), `${screenId}.json`), entity);
+  await writeJSON(path.join(screensDir(), `${screenId}.design.json`), data);
 }
 
 export async function readScreenEntity(screenId: string): Promise<unknown | null> {
@@ -337,70 +342,70 @@ export async function writeScreenEntity(screenId: string, data: unknown): Promis
       designFileRef: `${screenId}.design.json`,
     },
   };
-  await writeJSON(path.join(SCREENS_DIR, `${screenId}.json`), toSave);
+  await writeJSON(path.join(screensDir(), `${screenId}.json`), toSave);
 }
 
 /** screens/{screenId}.json を削除（存在しない場合は無視） */
 export async function deleteScreen(screenId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(SCREENS_DIR, `${screenId}.json`));
+    await fs.unlink(path.join(screensDir(), `${screenId}.json`));
   } catch { /* file not found is OK */ }
   try {
-    await fs.unlink(path.join(SCREENS_DIR, `${screenId}.design.json`));
+    await fs.unlink(path.join(screensDir(), `${screenId}.design.json`));
   } catch { /* file not found is OK */ }
   try {
-    await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
+    await fs.unlink(path.join(screenItemsDir(), `${screenId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** custom-blocks.json を読み込み */
 export async function readCustomBlocks(): Promise<unknown[]> {
-  return (await readJSON<unknown[]>(CUSTOM_BLOCKS_FILE)) ?? [];
+  return (await readJSON<unknown[]>(customBlocksFile())) ?? [];
 }
 
 /** custom-blocks.json を書き込み */
 export async function writeCustomBlocks(blocks: unknown[]): Promise<void> {
   await ensureDataDir();
-  await writeJSON(CUSTOM_BLOCKS_FILE, blocks);
+  await writeJSON(customBlocksFile(), blocks);
 }
 
 /** er-layout.json を読み込み */
 export async function readErLayout(): Promise<unknown | null> {
-  return readJSON<unknown>(ER_LAYOUT_FILE);
+  return readJSON<unknown>(erLayoutFile());
 }
 
 /** er-layout.json を書き込み */
 export async function writeErLayout(data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(ER_LAYOUT_FILE, data);
+  await writeJSON(erLayoutFile(), data);
 }
 
 /** screen-layout.json を読み込み (Phase 3-β、#561) */
 export async function readScreenLayout(): Promise<unknown | null> {
-  return readJSON<unknown>(SCREEN_LAYOUT_FILE);
+  return readJSON<unknown>(screenLayoutFile());
 }
 
 /** screen-layout.json を書き込み (Phase 3-β、#561) */
 export async function writeScreenLayout(data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(SCREEN_LAYOUT_FILE, data);
+  await writeJSON(screenLayoutFile(), data);
 }
 
 /** tables/{tableId}.json を読み込み */
 export async function readTable(tableId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(TABLES_DIR, `${tableId}.json`));
+  return readJSON<unknown>(path.join(tablesDir(), `${tableId}.json`));
 }
 
 /** tables/{tableId}.json を書き込み */
 export async function writeTable(tableId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(TABLES_DIR, `${tableId}.json`), data);
+  await writeJSON(path.join(tablesDir(), `${tableId}.json`), data);
 }
 
 /** tables/{tableId}.json を削除（存在しない場合は無視） */
 export async function deleteTable(tableId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(TABLES_DIR, `${tableId}.json`));
+    await fs.unlink(path.join(tablesDir(), `${tableId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -408,11 +413,11 @@ export async function deleteTable(tableId: string): Promise<void> {
 export async function listAllTables(): Promise<unknown[]> {
   try {
     await ensureDataDir();
-    const files = await fs.readdir(TABLES_DIR);
+    const files = await fs.readdir(tablesDir());
     const results: unknown[] = [];
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
-      const data = await readJSON<unknown>(path.join(TABLES_DIR, file));
+      const data = await readJSON<unknown>(path.join(tablesDir(), file));
       if (data) results.push(data);
     }
     return results;
@@ -423,31 +428,31 @@ export async function listAllTables(): Promise<unknown[]> {
 
 /** actions/{processFlowId}.json を読み込み */
 export async function readProcessFlow(processFlowId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(ACTIONS_DIR, `${processFlowId}.json`));
+  return readJSON<unknown>(path.join(actionsDir(), `${processFlowId}.json`));
 }
 
 /** actions/{processFlowId}.json を書き込み */
 export async function writeProcessFlow(processFlowId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(ACTIONS_DIR, `${processFlowId}.json`), data);
+  await writeJSON(path.join(actionsDir(), `${processFlowId}.json`), data);
 }
 
 /** actions/{processFlowId}.json を削除（存在しない場合は無視） */
 export async function deleteProcessFlow(processFlowId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(ACTIONS_DIR, `${processFlowId}.json`));
+    await fs.unlink(path.join(actionsDir(), `${processFlowId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** conventions/catalog.json を読み込み (#317) */
 export async function readConventions(): Promise<unknown | null> {
-  return readJSON<unknown>(CONVENTIONS_FILE);
+  return readJSON<unknown>(conventionsFile());
 }
 
 /** conventions/catalog.json を書き込み (#317) */
 export async function writeConventions(data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(CONVENTIONS_FILE, data);
+  await writeJSON(conventionsFile(), data);
 }
 
 /** screen-items/{screenId}.json を読み込み (#318) */
@@ -472,7 +477,7 @@ export async function writeScreenItems(screenId: string, data: unknown): Promise
     updatedAt: new Date().toISOString(),
   };
   await writeScreenEntity(screenId, next);
-  try { await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`)); } catch { /* ignore */ }
+  try { await fs.unlink(path.join(screenItemsDir(), `${screenId}.json`)); } catch { /* ignore */ }
 }
 
 /** screen-items/{screenId}.json を削除 (#318) */
@@ -482,25 +487,25 @@ export async function deleteScreenItems(screenId: string): Promise<void> {
     await writeScreenEntity(screenId, { ...current, items: [] });
   }
   try {
-    await fs.unlink(path.join(SCREEN_ITEMS_DIR, `${screenId}.json`));
+    await fs.unlink(path.join(screenItemsDir(), `${screenId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** sequences/{sequenceId}.json を読み込み (#374) */
 export async function readSequence(sequenceId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(SEQUENCES_DIR, `${sequenceId}.json`));
+  return readJSON<unknown>(path.join(sequencesDir(), `${sequenceId}.json`));
 }
 
 /** sequences/{sequenceId}.json を書き込み (#374) */
 export async function writeSequence(sequenceId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(SEQUENCES_DIR, `${sequenceId}.json`), data);
+  await writeJSON(path.join(sequencesDir(), `${sequenceId}.json`), data);
 }
 
 /** sequences/{sequenceId}.json を削除（存在しない場合は無視） (#374) */
 export async function deleteSequence(sequenceId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(SEQUENCES_DIR, `${sequenceId}.json`));
+    await fs.unlink(path.join(sequencesDir(), `${sequenceId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -508,11 +513,11 @@ export async function deleteSequence(sequenceId: string): Promise<void> {
 export async function listAllViews(): Promise<unknown[]> {
   try {
     await ensureDataDir();
-    const files = await fs.readdir(VIEWS_DIR);
+    const files = await fs.readdir(viewsDir());
     const results: unknown[] = [];
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
-      const data = await readJSON<unknown>(path.join(VIEWS_DIR, file));
+      const data = await readJSON<unknown>(path.join(viewsDir(), file));
       if (data) results.push(data);
     }
     return results;
@@ -523,30 +528,30 @@ export async function listAllViews(): Promise<unknown[]> {
 
 /** views/{viewId}.json を読み込み (v3 per-entity #549) */
 export async function readView(viewId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(VIEWS_DIR, `${viewId}.json`));
+  return readJSON<unknown>(path.join(viewsDir(), `${viewId}.json`));
 }
 
 /** views/{viewId}.json を書き込み (v3 per-entity #549) */
 export async function writeView(viewId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(VIEWS_DIR, `${viewId}.json`), data);
+  await writeJSON(path.join(viewsDir(), `${viewId}.json`), data);
 }
 
 /** views/{viewId}.json を削除（存在しない場合は無視） (v3 per-entity #549) */
 export async function deleteView(viewId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(VIEWS_DIR, `${viewId}.json`));
+    await fs.unlink(path.join(viewsDir(), `${viewId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 export async function listAllViewDefinitions(): Promise<unknown[]> {
   try {
     await ensureDataDir();
-    const files = await fs.readdir(VIEW_DEFINITIONS_DIR);
+    const files = await fs.readdir(viewDefsDir());
     const results: unknown[] = [];
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
-      const data = await readJSON<unknown>(path.join(VIEW_DEFINITIONS_DIR, file));
+      const data = await readJSON<unknown>(path.join(viewDefsDir(), file));
       if (data) results.push(data);
     }
     return results;
@@ -556,17 +561,17 @@ export async function listAllViewDefinitions(): Promise<unknown[]> {
 }
 
 export async function readViewDefinition(viewDefinitionId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(VIEW_DEFINITIONS_DIR, `${viewDefinitionId}.json`));
+  return readJSON<unknown>(path.join(viewDefsDir(), `${viewDefinitionId}.json`));
 }
 
 export async function writeViewDefinition(viewDefinitionId: string, data: unknown): Promise<void> {
   await ensureDataDir();
-  await writeJSON(path.join(VIEW_DEFINITIONS_DIR, `${viewDefinitionId}.json`), data);
+  await writeJSON(path.join(viewDefsDir(), `${viewDefinitionId}.json`), data);
 }
 
 export async function deleteViewDefinition(viewDefinitionId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(VIEW_DEFINITIONS_DIR, `${viewDefinitionId}.json`));
+    await fs.unlink(path.join(viewDefsDir(), `${viewDefinitionId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -574,11 +579,11 @@ export async function deleteViewDefinition(viewDefinitionId: string): Promise<vo
 export async function listProcessFlows(): Promise<unknown[]> {
   try {
     await ensureDataDir();
-    const files = await fs.readdir(ACTIONS_DIR);
+    const files = await fs.readdir(actionsDir());
     const results: unknown[] = [];
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
-      const data = await readJSON<unknown>(path.join(ACTIONS_DIR, file));
+      const data = await readJSON<unknown>(path.join(actionsDir(), file));
       if (data) results.push(data);
     }
     return results;

@@ -1229,4 +1229,44 @@ export const tools = [
     description: "data/extensions/ の全拡張 (steps / fieldTypes / triggers / dbOperations / responseTypes) を一括取得します。",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
+
+  // ── ワークスペース管理 (#671) ─────────────────────────────────────
+  {
+    name: "designer__workspace_list",
+    description: "最近使ったワークスペース一覧と現在 active なワークスペース、lockdown 状態を返します。",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "designer__workspace_status",
+    description: "現在 active なワークスペースの絶対パス・名前・lockdown フラグを返します。",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "designer__workspace_open",
+    description: "指定 path または id のワークスペースを active にし、recent に upsert します。lockdown モード時は error を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        path: { type: "string", description: "ワークスペースの絶対パス。id と排他、どちらか必須。" },
+        id: { type: "string", description: "recent 上の workspace id。path と排他。" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "designer__workspace_close",
+    description: "現在 active なワークスペースを閉じます (active = null)。lockdown モード時は error を返します。",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "designer__workspace_remove",
+    description: "recent からワークスペースエントリを除外します (fs は変更しません)。lockdown モード時は error を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "recent 上の workspace id" },
+      },
+      required: ["id"],
+    },
+  },
 ];

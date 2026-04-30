@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { handleMarkerTool } from "./handlers/marker.js";
 import { handleProcessFlowTool } from "./handlers/processFlow.js";
 import { renameScreenItemId, checkScreenItemRefs, updateProcessFlowRefs } from "./renameScreenItem.js";
@@ -17,6 +18,8 @@ import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles } from "./projectStorage.js";
 import { mcpTableToSpecEntry } from "./specExport.js";
+import { initWorkspaceState, getActivePath, setActivePath, clearActive, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError } from "./workspaceState.js";
+import { listWorkspaces, upsertWorkspace, removeWorkspace, findById, findByPath, setLastActive } from "./recentStore.js";
 
 // 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
 // stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
@@ -31,6 +34,9 @@ function setupLifecycle(): void {
 }
 
 setupLifecycle();
+
+// workspace 状態の初期化 (#671): env DESIGNER_DATA_DIR があれば lockdown モード固定
+initWorkspaceState();
 
 // HTTP + WebSocket サーバ起動 (port 5179 に両方同居)
 await wsBridge.start();
@@ -963,10 +969,121 @@ function createMcpServer(): Server {
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
 
+      // ── ワークスペース管理 (#671) ─────────────────────────────────
+      case "designer__workspace_list": {
+        const { workspaces, lastActiveId } = await listWorkspaces();
+        const activePath = getActivePath();
+        const lockdown = isLockdown();
+        const lockdownPath = getLockdownPath();
+        const payload = {
+          workspaces,
+          lastActiveId,
+          active: activePath ? { path: activePath } : null,
+          lockdown,
+          lockdownPath,
+        };
+        return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+      }
+
+      case "designer__workspace_status": {
+        const activePath = getActivePath();
+        let activeName: string | null = null;
+        if (activePath) {
+          const entry = await findByPath(activePath);
+          activeName = entry?.name ?? null;
+        }
+        const payload = {
+          active: activePath ? { path: activePath, name: activeName } : null,
+          lockdown: isLockdown(),
+          lockdownPath: getLockdownPath(),
+        };
+        return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+      }
+
+      case "designer__workspace_open": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.path !== "string" && typeof a.id !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "path または id のいずれかが必要です");
+        }
+        let target = typeof a.path === "string" ? a.path : null;
+        if (!target && typeof a.id === "string") {
+          const entry = await findById(a.id);
+          if (!entry) throw new McpError(ErrorCode.InvalidParams, `id ${a.id} のワークスペースが見つかりません`);
+          target = entry.path;
+        }
+        if (!target) throw new McpError(ErrorCode.InvalidParams, "path 解決に失敗しました");
+        try {
+          setActivePath(target);
+        } catch (e) {
+          if (e instanceof LockdownError) {
+            throw new McpError(ErrorCode.InvalidParams, e.message);
+          }
+          throw e;
+        }
+        // project.json を読んで name をキャッシュ。失敗時は basename にフォールバック
+        let name = path.basename(target);
+        try {
+          const proj = await readProject();
+          if (proj && typeof proj === "object" && proj !== null) {
+            const meta = (proj as Record<string, unknown>).meta;
+            if (meta && typeof meta === "object" && meta !== null) {
+              const n = (meta as Record<string, unknown>).name;
+              if (typeof n === "string" && n.trim().length > 0) name = n;
+            }
+          }
+        } catch { /* recent name update only — open may still proceed before #672 init flow */ }
+        const entry = await upsertWorkspace(target, name);
+        await setLastActive(entry.id);
+        wsBridge.broadcast("workspace.changed", {
+          activeId: entry.id,
+          path: entry.path,
+          name: entry.name,
+          lockdown: false,
+        });
+        return { content: [{ type: "text", text: `ワークスペース「${entry.name}」を開きました (${entry.path})` }] };
+      }
+
+      case "designer__workspace_close": {
+        try {
+          clearActive();
+        } catch (e) {
+          if (e instanceof LockdownError) {
+            throw new McpError(ErrorCode.InvalidParams, e.message);
+          }
+          throw e;
+        }
+        await setLastActive(null);
+        wsBridge.broadcast("workspace.changed", {
+          activeId: null,
+          path: null,
+          name: null,
+          lockdown: false,
+        });
+        return { content: [{ type: "text", text: "ワークスペースを閉じました。" }] };
+      }
+
+      case "designer__workspace_remove": {
+        if (isLockdown()) {
+          throw new McpError(ErrorCode.InvalidParams, "lockdown モード中はワークスペースを除外できません");
+        }
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.id !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "id は必須です");
+        }
+        const removed = await removeWorkspace(a.id);
+        if (!removed) {
+          return { content: [{ type: "text", text: `id ${a.id} のワークスペースは見つかりませんでした。` }] };
+        }
+        return { content: [{ type: "text", text: `id ${a.id} を recent から除外しました (ファイルは変更されません)。` }] };
+      }
+
       default:
         throw new McpError(ErrorCode.MethodNotFound, `未知のツール: ${name}`);
     }
   } catch (err) {
+    if (err instanceof WorkspaceUnsetError) {
+      throw new McpError(ErrorCode.InvalidParams, err.message);
+    }
     if (err instanceof McpError) throw err;
     const message = err instanceof Error ? err.message : String(err);
     return {

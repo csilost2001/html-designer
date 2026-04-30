@@ -5,7 +5,6 @@ import { execSync } from "child_process";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
 import {
-  ensureDataDir,
   readProject,
   writeProject,
   readScreen,
@@ -126,7 +125,8 @@ class WsBridge extends EventEmitter {
   }
 
   async start(): Promise<void> {
-    await ensureDataDir();
+    // workspace 切替モード対応 (#671): startup 時点で workspace 未選択のことがあるため、
+    // ensureDataDir() は呼ばない。各 read/write 関数が必要時に ensureDataDir() を呼ぶ。
     if (killStaleProcessOnPort(WS_PORT)) {
       await delay(500);
     }
