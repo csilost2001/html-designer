@@ -359,25 +359,25 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
       issues.push({ validator: "sqlColumnValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 7. DB 制約 × 操作順序検証 (#632 MVP: NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED)
+    // 2. DB 制約 × 操作順序検証 (#632 MVP: NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED)
     const sqlOrderIssues = checkSqlOrder(flow, project.tables as unknown as OrderTableDefinition[]);
     for (const issue of sqlOrderIssues) {
       issues.push({ validator: "sqlOrderValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 2. 規約カタログ参照検証
+    // 3. 規約カタログ参照検証
     const convIssues = checkConventionReferences(flow, project.conventions);
     for (const issue of convIssues) {
       issues.push({ validator: "conventionsValidator", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 3. クロスリファレンス整合性検証 (extensions は global 統合)
+    // 4. クロスリファレンス整合性検証 (extensions は global 統合)
     const integrityIssues = checkReferentialIntegrity(flow, extensions);
     for (const issue of integrityIssues) {
       issues.push({ validator: "referentialIntegrity", message: `[${issue.code}] ${issue.path}: ${issue.message}` });
     }
 
-    // 4. 識別子スコープ検証
+    // 5. 識別子スコープ検証
     const scopeIssues = checkIdentifierScopes(flow);
     for (const issue of scopeIssues) {
       issues.push({ validator: "identifierScope", message: `[${issue.code}] ${issue.path}: @${issue.identifier} — ${issue.message}` });

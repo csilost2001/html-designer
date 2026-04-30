@@ -1,4 +1,4 @@
----
+﻿---
 name: create-flow
 description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 18 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621)
 argument-hint: <flowId> <業務概要> [namespace]
@@ -289,7 +289,7 @@ npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.s
 npm run build
 ```
 
-### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 の機械的検出、Rule 18 は AI 目視)
+### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 / 19 の機械的検出、Rule 18 は AI 目視)
 
 作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
 
