@@ -430,8 +430,28 @@ function generateDummyTable(opts: {
 function generateDummyFieldTypes(opts: {
   industry: string;
   safeId: string;
+  variant: "v1" | "v3";
 }): unknown {
-  const { industry, safeId } = opts;
+  const { industry, safeId, variant } = opts;
+  if (variant === "v3") {
+    return {
+      namespace: safeId,
+      fieldTypes: [
+        {
+          kind: `${safeId}Id`,
+          label: `${industry} ID`,
+        },
+        {
+          kind: `${safeId}Name`,
+          label: `${industry}名`,
+        },
+      ],
+      actionTriggers: [],
+      dbOperations: [],
+      stepKinds: [],
+    };
+  }
+
   return {
     namespace: safeId,
     fieldTypes: [
@@ -791,7 +811,11 @@ export function generate(opts: CliOptions): {
 
   // 4. 拡張定義生成
   const extensionPath = join(layout.extensionsDir, layout.extensionsFileName);
-  const extensionData = generateDummyFieldTypes({ industry, safeId });
+  const extensionData = generateDummyFieldTypes({
+    industry,
+    safeId,
+    variant: layout.project?.variant ?? "v1",
+  });
 
   console.log("🔌 拡張定義を生成:");
   if (!dryRun) {
