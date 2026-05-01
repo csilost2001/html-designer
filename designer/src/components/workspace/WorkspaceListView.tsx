@@ -50,6 +50,7 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
   const [inspectName, setInspectName] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [pickedFolderHint, setPickedFolderHint] = useState<string | null>(null);
 
   const handleInspect = async () => {
     const trimmed = path.trim();
@@ -103,10 +104,11 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
     if (!("showDirectoryPicker" in window)) return;
     try {
       const handle = await (window as Window & { showDirectoryPicker: () => Promise<{ name: string }> }).showDirectoryPicker();
-      setPath(handle.name);
-      setStatus("idle");
+      // showDirectoryPicker は絶対パスを返さない (フォルダ名 .name のみ)。
+      // 入力欄に書き込むと相対パスとして MCP server cwd 配下と誤解釈されるため、
+      // 入力欄には触れず、フォルダ名だけを「選択ヒント」として表示する。
+      setPickedFolderHint(handle.name);
       setErrorMsg(null);
-      setInspectName(null);
     } catch (e) {
       if ((e as { name?: string }).name !== "AbortError") {
         setErrorMsg("フォルダ選択に失敗しました");
@@ -134,7 +136,7 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
               onKeyDown={(e) => { if (e.key === "Enter") handleInspect(); }}
             />
             {hasPickerSupport && (
-              <button className="tbl-btn tbl-btn-ghost" onClick={handlePickFolder} title="フォルダを選択">
+              <button className="tbl-btn tbl-btn-ghost" onClick={handlePickFolder} title="フォルダ名を確認 (絶対パスは別途入力)">
                 <i className="bi bi-folder2-open" />
               </button>
             )}
@@ -143,7 +145,13 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
 
         {hasPickerSupport && (
           <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
-            ※「フォルダを選択」はフォルダ名のみ取得できます。絶対パスは手動で入力・修正してください。
+            ※「フォルダ選択」はフォルダ名の確認のみ可能です (ブラウザ仕様で絶対パス取得不可)。上の入力欄には絶対パスを必ず手動入力してください。
+          </p>
+        )}
+
+        {pickedFolderHint && (
+          <p style={{ fontSize: "0.82rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
+            選択したフォルダ名: <strong>{pickedFolderHint}</strong> — このフォルダの<em>絶対パス</em>を上の入力欄に入力してください。
           </p>
         )}
 
