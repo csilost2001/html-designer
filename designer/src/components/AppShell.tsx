@@ -78,19 +78,21 @@ export function AppShell() {
     return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
   }, []);
 
-  // 起動時: MCP 接続後にワークスペースをロード、ブロードキャスト購読
+  // 起動時: MCP 接続を能動的に開始 + 接続後にワークスペースをロード、ブロードキャスト購読。
+  // / (Dashboard) のような MCP 接続を能動起動しないルートで初回ランディングしても guard が
+  // 動作するよう、ここで startWithoutEditor() を呼ぶ。
+  // Designer タブ等の start(editor) は既存接続があれば再利用するため衝突しない (mcpBridge.start 内で
+  // readyState OPEN なら early return する仕様)。
   useEffect(() => {
     const unsubBroadcast = subscribeWorkspaceChanges();
-    // onStatusChange は登録時に現在の status を即座にコールバックする (mcpBridge 仕様)。
-    // よって、登録後 1 回目のコールが現状を反映する。"connected" になるまで loadWorkspaces を
-    // 呼ばないことで、未接続状態での失敗 → active=null → /workspace/select 強制遷移
-    // という不正な誘導を防ぐ。loading=true 初期値 (workspaceStore) と組み合わせ、
-    // 初回 load 完了までガードを停止させる。
     const unsubStatus = (mcpBridge as unknown as { onStatusChange: (cb: (s: string) => void) => () => void }).onStatusChange((s) => {
       if (s === "connected") {
         loadWorkspaces().catch(console.error);
       }
     });
+    // bridge を能動起動 (既に接続中なら no-op)。これにより onStatusChange が "connected" を
+    // 受信して loadWorkspaces が走る → loading=false に落ちる → guard が判定可能になる。
+    (mcpBridge as unknown as { startWithoutEditor: () => void }).startWithoutEditor();
     return () => { unsubBroadcast(); unsubStatus(); };
   }, []);
 
@@ -98,27 +100,36 @@ export function AppShell() {
   // per-resource タブを閉じるだけでは singleton stores (flowStore, tableStore 等) と
   // 現在マウント中の singleton view (DashboardView, ScreenListView 等) が旧 workspace の
   // データを保持し、その状態から保存すると新 workspace に旧データが混入するため。
+  //
+  // 重要: 初回 hydration (起動時の自動 active 設定: store の初期 null → 復元された id) は
+  // 「切替」ではないのでリロードしない。リロード対象は prev が non-null だった場合のみ。
+  // null → non-null をリロードすると、リロード後また初期 null に戻り再 hydration → 再リロードで
+  // 無限ループになる。
   const prevActiveWorkspaceIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const currentId = workspaceState.active?.id ?? null;
     if (prevActiveWorkspaceIdRef.current === undefined) {
-      // 初回: 記録のみ (起動時の自動 active 設定ではリロード不要)
+      // 1 回目の effect 実行: 記録のみ
       prevActiveWorkspaceIdRef.current = currentId;
       return;
     }
-    if (prevActiveWorkspaceIdRef.current !== currentId) {
+    if (prevActiveWorkspaceIdRef.current === currentId) return;
+    if (prevActiveWorkspaceIdRef.current === null) {
+      // null → non-null: 初回 hydration (backend の auto-restore など)。
+      // 既存 store / view は new workspace のデータでまだ何も染まっていないのでリロード不要。
       prevActiveWorkspaceIdRef.current = currentId;
-      // dirty タブの数を確認 (再読込で全閉じになるので警告ログのみ)
-      const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition"];
-      const dirtyLabels = getTabs()
-        .filter((t) => t.isDirty && perResourceTypes.includes(t.type))
-        .map((t) => t.label);
-      if (dirtyLabels.length > 0) {
-        console.warn(`[workspace] 未保存タブを強制破棄: ${dirtyLabels.join(", ")}`);
-      }
-      // 全 store / 全 view を初期化するための full page reload
-      window.location.reload();
+      return;
     }
+    // non-null → 別の non-null / null: ユーザー操作による workspace 切替 / 閉じる
+    prevActiveWorkspaceIdRef.current = currentId;
+    const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition"];
+    const dirtyLabels = getTabs()
+      .filter((t) => t.isDirty && perResourceTypes.includes(t.type))
+      .map((t) => t.label);
+    if (dirtyLabels.length > 0) {
+      console.warn(`[workspace] 未保存タブを強制破棄: ${dirtyLabels.join(", ")}`);
+    }
+    window.location.reload();
   }, [workspaceState.active?.id]);
 
   // ルーティングガード: active===null かつ /workspace/list でも /workspace/select でもない → /workspace/select へ
