@@ -480,6 +480,15 @@ export function ScreenItemsView() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
+    // pending debounce があればキャンセルして即 flush
+    // 編集開始直後に保存した場合 draft が空のまま commitDraft に到達してゾンビロックになるのを防ぐ
+    if (draftUpdateTimer.current) {
+      clearTimeout(draftUpdateTimer.current);
+      draftUpdateTimer.current = null;
+    }
+    if (fileRef.current) {
+      await mcpBridge.updateDraft("screen-item", "singleton", fileRef.current);
+    }
     await resourceHandleSave();
     await actions.save();
   }, [isReadonly, isSaving, resourceHandleSave, actions]);

@@ -168,6 +168,15 @@ export function ConventionsCatalogView() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
+    // pending debounce があればキャンセルして即 flush
+    // 編集開始直後に保存した場合 draft が空のまま commitDraft に到達してゾンビロックになるのを防ぐ
+    if (draftUpdateTimer.current) {
+      clearTimeout(draftUpdateTimer.current);
+      draftUpdateTimer.current = null;
+    }
+    if (catalogRef.current) {
+      await mcpBridge.updateDraft("convention", "singleton", catalogRef.current);
+    }
     await resourceHandleSave();
     await actions.save();
   }, [isReadonly, isSaving, resourceHandleSave, actions]);

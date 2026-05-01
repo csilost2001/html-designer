@@ -731,6 +731,13 @@ function FlowEditorInner() {
 
   const handleSave = useCallback(async () => {
     if (!projectRef.current || isSaving || isReadonly) return;
+    // pending debounce があればキャンセルして即 flush
+    // 編集開始直後に保存した場合 draft が空のまま commitDraft に到達してゾンビロックになるのを防ぐ
+    if (saveDebounceRef.current) {
+      clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    }
+    await mcpBridge.updateDraft("flow", "singleton", projectRef.current);
     setIsSaving(true);
     try {
       await persistProject(projectRef.current);
