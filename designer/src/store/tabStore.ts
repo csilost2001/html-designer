@@ -56,12 +56,17 @@ function _notify() {
 function _isValidTab(t: unknown): t is TabItem {
   if (!t || typeof t !== "object") return false;
   const o = t as Record<string, unknown>;
-  return (
-    typeof o.id === "string" && o.id.length > 0 &&
-    typeof o.type === "string" && KNOWN_TAB_TYPES.has(o.type as TabType) &&
-    typeof o.resourceId === "string" && o.resourceId.length > 0 &&
-    typeof o.label === "string"
-  );
+  if (
+    !(typeof o.id === "string" && o.id.length > 0 &&
+      typeof o.type === "string" && KNOWN_TAB_TYPES.has(o.type as TabType) &&
+      typeof o.resourceId === "string" && o.resourceId.length > 0 &&
+      typeof o.label === "string")
+  ) {
+    return false;
+  }
+  // #696: screen-items は per-screen タブ化されたため、旧 singleton 形式 (resourceId="singleton") は無効
+  if (o.type === "screen-items" && o.resourceId === "singleton") return false;
+  return true;
 }
 
 function _loadTabs(): TabItem[] {

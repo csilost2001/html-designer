@@ -201,7 +201,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     }
     // non-null → 別の non-null / null: ユーザー操作による workspace 切替 / 閉じる
     prevActiveWorkspaceIdRef.current = currentId;
-    const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition"];
+    const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition", "screen-items"];
     const dirtyLabels = getTabs()
       .filter((t) => t.isDirty && perResourceTypes.includes(t.type))
       .map((t) => t.label);

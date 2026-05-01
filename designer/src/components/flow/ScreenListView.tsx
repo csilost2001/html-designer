@@ -456,6 +456,7 @@ export function ScreenListView() {
           className="btn btn-sm btn-outline-secondary"
           onClick={(e) => { e.stopPropagation(); navigate(wsPath(`/screen/items/${s.id}`)); }}
           title="画面項目定義を開く"
+          aria-label={`${s.name} の画面項目定義を開く`}
         >
           <i className="bi bi-ui-checks-grid" />
           {hasDraft("screen-item", s.id) && (
