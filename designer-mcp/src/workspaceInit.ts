@@ -178,10 +178,20 @@ export async function initializeWorkspace(folderPath: string): Promise<Initializ
  * 旧来の <designer-mcp 親>/data/ ディレクトリを default workspace として扱う。
  * project.json があれば recent に upsert、無ければ何もしない。
  */
-const LEGACY_DATA_DIR = path.resolve(import.meta.dirname, "../../data");
+
+/**
+ * C: LEGACY_DATA_DIR を動的解決。
+ * - env DESIGNER_LEGACY_DATA_DIR が設定されていればそれを使う (packaged 配布 / VS Code 拡張組み込み時の override 用)
+ * - 未設定なら元実装と同等のリポジトリ root data/ (import.meta.dirname/../../data)
+ */
+function resolveLegacyDataDir(): string {
+  const envPath = process.env.DESIGNER_LEGACY_DATA_DIR;
+  if (envPath && envPath.trim().length > 0) return path.resolve(envPath);
+  return path.resolve(import.meta.dirname, "../../data");
+}
 
 async function tryAutoRegisterLegacyData(): Promise<WorkspaceEntry | null> {
-  const legacy = LEGACY_DATA_DIR;
+  const legacy = resolveLegacyDataDir();
   if (!(await pathExists(legacy))) return null;
   const project = await readProjectAt(legacy);
   if (!project) return null;
@@ -235,6 +245,6 @@ export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
 
 /** test-only */
 export const _internals = {
-  LEGACY_DATA_DIR,
+  resolveLegacyDataDir,
   PROJECT_SCHEMA_REF,
 };

@@ -65,7 +65,22 @@ export function subscribe(listener: Listener): () => void {
   return () => _listeners.delete(listener);
 }
 
+// 並行呼び出しを直列化するための Promise チェーン (A: loadWorkspaces 直列化)
+let _loadChain: Promise<void> = Promise.resolve();
+
+/** @internal テスト専用: _loadChain を初期状態にリセットする */
+export function __resetLoadChainForTest(): void {
+  _loadChain = Promise.resolve();
+}
+
 export async function loadWorkspaces(): Promise<void> {
+  _loadChain = _loadChain
+    .catch(() => undefined) // 前回失敗でチェーンを切らない
+    .then(() => _doLoadWorkspaces());
+  return _loadChain;
+}
+
+async function _doLoadWorkspaces(): Promise<void> {
   _setState({ loading: true, error: null });
   try {
     const result = (await mcpBridge.request("workspace.list")) as {
@@ -173,6 +188,8 @@ export function subscribeWorkspaceChanges(): () => void {
       name: string | null;
       lockdown: boolean;
     };
+    // B: payload だけで state を完成させる。loadWorkspaces() は呼ばない。
+    // recent list の更新は次の明示的 loadWorkspaces() (ListView mount 等) まで遅延 — 許容範囲。
     if (ev.activeId === null || ev.path === null) {
       _setState({ active: null, lockdown: ev.lockdown ?? false });
     } else {
@@ -181,8 +198,6 @@ export function subscribeWorkspaceChanges(): () => void {
         lockdown: ev.lockdown ?? false,
       });
     }
-    // ワークスペースリストも再取得して最新に保つ
-    loadWorkspaces().catch(console.error);
   });
 
   _broadcastUnsubscribe = unsub;
