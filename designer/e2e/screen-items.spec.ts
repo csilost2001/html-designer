@@ -1,8 +1,8 @@
 /**
  * 画面項目定義プロトタイプ (#318 / PR #320) の基本 E2E。
+ * #696: per-screen タブ化 — /w/:wsId/screen/items/:screenId URL に移行。
  *
- * - /screen-items を開けること
- * - 画面セレクタで画面を選べること
+ * - /screen/items/:screenId を開けること
  * - 新規項目の追加 / name / type / required 編集
  * - 項目の削除
  * - 保存ボタン押下で isDirty が解消されること
@@ -76,18 +76,15 @@ async function setup(page: Page, opts: SetupOptions = {}) {
       }
     }
   }, { project: dummyProject, catalog: opts.catalog ?? null, screenItems: opts.screenItems ?? null });
-  await page.goto("/screen-items");
+  await page.goto(`/w/ws-e2e/screen/items/${screenId1}`);
   await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
 }
 
 test.describe("画面項目定義プロトタイプ (#318)", () => {
-  test("画面一覧が selector に反映される", async ({ page }) => {
+  test("画面名がヘッダータイトルに表示される", async ({ page }) => {
     await setup(page);
-    const sel = page.locator(".screen-items-screen-select");
-    await expect(sel).toBeVisible();
-    await expect(sel.locator("option")).toHaveCount(2);
-    await expect(sel).toContainText("ログイン画面");
-    await expect(sel).toContainText("顧客登録画面");
+    // EditorHeader の title に画面名が表示されること
+    await expect(page.locator(".screen-items-view")).toContainText("ログイン画面");
   });
 
   test("項目追加 → ID 入力 → 保存", async ({ page }) => {
@@ -111,20 +108,18 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await expect(saveBtn).toBeDisabled({ timeout: 3000 }); // isDirty 解消
   });
 
-  test("画面切替で項目リストがリセットされる", async ({ page }) => {
+  test("別画面の URL に移動すると別タブで開く", async ({ page }) => {
     await setup(page);
     // scr-1 に 1 件追加 + 保存
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
     await page.locator('.screen-items-table input[placeholder="email"]').first().fill("field1");
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    // scr-2 に切替
-    await page.locator(".screen-items-screen-select").selectOption(screenId2);
+    // scr-2 の URL に遷移
+    await page.goto(`/w/ws-e2e/screen/items/${screenId2}`);
+    await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     // scr-2 は項目 0 件
     await expect(page.locator(".screen-items-empty-row")).toBeVisible();
-    // scr-1 に戻す
-    await page.locator(".screen-items-screen-select").selectOption(screenId1);
-    await expect(page.locator('.screen-items-table input[value="field1"]')).toBeVisible({ timeout: 3000 });
   });
 
   test("画面デザインから追加モーダルを開ける", async ({ page }) => {
@@ -308,21 +303,19 @@ test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () 
     await expect(errorRow.locator('input[placeholder="@conv.msg.required"]')).toHaveValue("@conv.msg.required", { timeout: 3000 });
   });
 
-  test("画面切替で errorMessages 展開状態がリセットされる", async ({ page }) => {
+  test("別画面の URL に移動すると errorMessages 展開状態がリセットされる", async ({ page }) => {
     await setup(page, { catalog: sampleCatalog });
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
     const row = page.locator(".screen-items-table tbody tr:last-child");
     // 💬 ボタンで展開
     await row.locator('button[aria-label="エラーメッセージ展開"]').click();
     await expect(page.locator(".screen-items-error-row")).toBeVisible({ timeout: 3000 });
-    // 保存して画面切替
+    // 保存して別画面に遷移
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    await page.locator(".screen-items-screen-select").selectOption(screenId2);
+    await page.goto(`/w/ws-e2e/screen/items/${screenId2}`);
+    await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     // scr-2 では展開行なし
-    await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
-    // scr-1 に戻っても展開状態はリセットされている
-    await page.locator(".screen-items-screen-select").selectOption(screenId1);
     await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
   });
 });
@@ -446,19 +439,72 @@ test.describe("詳細フィールド展開行 (#353)", () => {
     await expect(numInputs.nth(1)).toHaveValue("100");
   });
 
-  test("画面切替で detail 展開状態がリセットされる", async ({ page }) => {
+  test("別画面の URL に移動すると detail 展開状態がリセットされる", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
     const row = page.locator(".screen-items-table tbody tr:last-child");
     await row.locator('button[aria-label="詳細展開"]').click();
     await expect(page.locator(".screen-items-detail-row")).toBeVisible({ timeout: 3000 });
-    // 保存して画面切替
+    // 保存して別画面に遷移
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    await page.locator(".screen-items-screen-select").selectOption(screenId2);
+    await page.goto(`/w/ws-e2e/screen/items/${screenId2}`);
+    await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
-    // scr-1 に戻っても展開状態はリセット済み
-    await page.locator(".screen-items-screen-select").selectOption(screenId1);
-    await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
+  });
+});
+
+test.describe("per-screen タブ独立編集 (#696)", () => {
+  /**
+   * 2 画面の項目定義を別タブで開いて独立編集できることを確認する。
+   * localStorage モードで動作するため MCP 不要。
+   */
+  test("2 画面のタブを独立編集: 片方を保存しても他方の dirty が保持される", async ({ browser }) => {
+    // 2 コンテキストで別タブをシミュレート (同一ページ内での複数タブは難しいため URL 切替で代替)
+    // ここでは 1 コンテキスト内で 2 ページを開き、それぞれ独立した localStorage を持つことを確認
+    const context = await browser.newContext();
+
+    const setupLocal = async (p: import("@playwright/test").Page, targetScreenId: string) => {
+      await p.addInitScript(({ project, sid }) => {
+        localStorage.setItem("workspace-e2e-bypass", "true");
+        localStorage.setItem("flow-project", JSON.stringify(project));
+        localStorage.removeItem("designer-open-tabs");
+        localStorage.removeItem("designer-active-tab");
+        for (const k of Object.keys(localStorage)) {
+          if (k.startsWith("screen-items-") || k.startsWith("draft-screen-items-")) {
+            localStorage.removeItem(k);
+          }
+        }
+      }, {
+        project: dummyProject,
+        sid: targetScreenId,
+      });
+      await p.goto(`/w/ws-e2e/screen/items/${targetScreenId}`);
+      await expect(p.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
+    };
+
+    // タブ1: scr-1 を開いて項目追加
+    const page1 = await context.newPage();
+    await setupLocal(page1, screenId1);
+    await page1.locator(".screen-items-view button:has-text('項目追加')").click();
+    await page1.locator('.screen-items-table input[placeholder="email"]').first().fill("screen1Field");
+    // dirty になっていること (保存ボタンが有効)
+    await expect(page1.locator(".srb-btn-save")).toBeEnabled({ timeout: 3000 });
+
+    // タブ2: scr-2 を開いて別の項目追加
+    const page2 = await context.newPage();
+    await setupLocal(page2, screenId2);
+    await page2.locator(".screen-items-view button:has-text('項目追加')").click();
+    await page2.locator('.screen-items-table input[placeholder="email"]').first().fill("screen2Field");
+    await expect(page2.locator(".srb-btn-save")).toBeEnabled({ timeout: 3000 });
+
+    // タブ2 だけ保存 → タブ1 は dirty のまま
+    await page2.locator(".srb-btn-save").click();
+    await expect(page2.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
+
+    // タブ1 は保存ボタンがまだ有効 (dirty 保持)
+    await expect(page1.locator(".srb-btn-save")).toBeEnabled();
+
+    await context.close();
   });
 });

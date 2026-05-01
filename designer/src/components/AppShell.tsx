@@ -419,6 +419,29 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       return;
     }
 
+    const screenItemsMatch = matchPath("/w/:wsId/screen/items/:screenId", location.pathname);
+    if (screenItemsMatch?.params.screenId) {
+      const screenId = screenItemsMatch.params.screenId;
+      const tabId = makeTabId("screen-items", screenId);
+      const existing = getTabs().find((t) => t.id === tabId);
+      if (existing) {
+        setActiveTab(tabId);
+      } else {
+        loadProject().then((project) => {
+          const screen = project.screens.find((s) => s.id === screenId);
+          if (screen) {
+            openTab({ id: tabId, type: "screen-items", resourceId: screenId, label: `${screen.name} (項目定義)` });
+          } else {
+            fallbackToDashboard("画面", screenId);
+          }
+        }).catch((e) => {
+          recordError({ source: "manual", message: "loadProject 失敗 (screen-items)", stack: e instanceof Error ? e.stack : undefined });
+          fallbackToDashboard("画面", screenId);
+        });
+      }
+      return;
+    }
+
     // /workspace/select はタブ対象外 (フルスクリーン選択画面)
     if (location.pathname === "/workspace/select") return;
 
@@ -434,7 +457,6 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       { path: `${wsPrefix}/process-flow/list`,  type: "process-flow-list",  label: "処理フロー一覧" },
       { path: `${wsPrefix}/extensions`,         type: "extensions",         label: "拡張管理" },
       { path: `${wsPrefix}/conventions/catalog`, type: "conventions-catalog", label: "規約カタログ" },
-      { path: `${wsPrefix}/screen-items`,       type: "screen-items",       label: "画面項目定義" },
       { path: `${wsPrefix}/sequence/list`,      type: "sequence-list",      label: "シーケンス一覧" },
       { path: `${wsPrefix}/view/list`,          type: "view-list",           label: "ビュー一覧" },
       { path: `${wsPrefix}/view-definition/list`, type: "view-definition-list", label: "ビュー定義一覧" },
@@ -480,7 +502,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       : activeTab.type === "process-flow-list" ? `${wp}/process-flow/list`
       : activeTab.type === "extensions"       ? `${wp}/extensions`
       : activeTab.type === "conventions-catalog" ? `${wp}/conventions/catalog`
-      : activeTab.type === "screen-items"     ? `${wp}/screen-items`
+      : activeTab.type === "screen-items"     ? `${wp}/screen/items/${activeTab.resourceId}`
       : activeTab.type === "sequence-list"    ? `${wp}/sequence/list`
       : activeTab.type === "view-list"              ? `${wp}/view/list`
       : activeTab.type === "view-definition-list"   ? `${wp}/view-definition/list`
@@ -581,7 +603,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
             <Route path="/w/:wsId/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
             <Route path="/w/:wsId/extensions" element={<ExtensionsPanel />} />
             <Route path="/w/:wsId/conventions/catalog" element={<ConventionsCatalogView />} />
-            <Route path="/w/:wsId/screen-items" element={<ScreenItemsView />} />
+            <Route path="/w/:wsId/screen/items/:screenId" element={<ScreenItemsView />} />
             <Route path="/w/:wsId/sequence/list" element={<SequenceListView />} />
             <Route path="/w/:wsId/sequence/edit/:sequenceId" element={<SequenceEditor />} />
             <Route path="/w/:wsId/view/list" element={<ViewListView />} />

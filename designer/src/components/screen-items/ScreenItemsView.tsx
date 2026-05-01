@@ -1,8 +1,8 @@
 /**
  * 画面項目定義ビュー (#318 プロトタイプ、#323 既存画面からの抽出対応)。
  *
- * MVP: シングルトンタブで、中で画面を選択して項目を編集する。
- * 保存・リセット・undo/redo は useResourceEditor + EditorHeader に統一 (#318 改善)。
+ * #696: per-screen タブ化。useParams<{ screenId }> で画面 ID を取得し、
+ * 1 画面 = 1 タブ = 1 draft モデルに統一。
  *
  * 項目追加経路 3 つ:
  * 1. 空欄追加 (従来)
@@ -10,7 +10,8 @@
  * 3. (将来) GrapesJS サイドバーからの直接追加 (#322)
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePersistentState } from "../../hooks/usePersistentState";
+import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -338,11 +339,10 @@ async function saveFile(data: ScreenItemsDocument): Promise<void> {
 }
 
 export function ScreenItemsView() {
+  const { screenId } = useParams<{ screenId: string }>();
+  const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [screens, setScreens] = useState<ScreenMeta[]>([]);
-  const [selectedScreenId, setSelectedScreenId] = usePersistentState<string | undefined>(
-    "screen-items:selectedScreenId",
-    undefined,
-  );
   const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
   const [lintIssues, setLintIssues] = useState<ConventionIssue[]>([]);
@@ -403,7 +403,7 @@ export function ScreenItemsView() {
     })().catch(console.error);
   }, []);
 
-  // 画面一覧をロード (初回 + MCP 接続復帰時)
+  // 画面一覧をロード (初回 + MCP 接続復帰時)。onNotFound ハンドリング用に画面一覧も保持。
   useEffect(() => {
     let mounted = true;
     const doLoad = () => {
@@ -411,10 +411,10 @@ export function ScreenItemsView() {
         if (!mounted) return;
         const metas = p.screens.map((s) => ({ id: s.id, name: s.name }));
         setScreens(metas);
-        setSelectedScreenId((cur) => {
-          if (cur && metas.some((m) => m.id === cur)) return cur; // 有効な保存済み ID を維持
-          return metas.length > 0 ? metas[0].id : undefined;
-        });
+        // screenId が存在しない場合は画面一覧へ遷移
+        if (screenId && !metas.some((m) => m.id === screenId)) {
+          navigate(wsPath("/screen/list"), { replace: true });
+        }
       }).catch(console.error);
     };
     mcpBridge.startWithoutEditor();
@@ -426,7 +426,8 @@ export function ScreenItemsView() {
       mounted = false;
       unsubStatus();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenId]);
 
   const {
     state: file,
@@ -439,16 +440,17 @@ export function ScreenItemsView() {
     tabType: "screen-items",
     mtimeKind: "screenEntity",
     draftKind: "screen-items",
-    id: selectedScreenId,
+    id: screenId,
     load: loadFile,
     save: saveFile,
     broadcastName: "screenItemsChanged",
     broadcastIdField: "screenId",
+    onNotFound: () => navigate(wsPath("/screen/list"), { replace: true }),
   });
 
   const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "screen-item",
-    resourceId: "singleton",
+    resourceId: screenId ?? "",
     sessionId,
   });
 
@@ -463,20 +465,20 @@ export function ScreenItemsView() {
     update(fn);
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
-      if (!selectedScreenId || !fileRef.current) return;
-      mcpBridge.updateDraft("screen-item", "singleton", fileRef.current).catch(console.error);
+      if (!screenId || !fileRef.current) return;
+      mcpBridge.updateDraft("screen-item", screenId, fileRef.current).catch(console.error);
     }, 300);
-  }, [isReadonly, update, selectedScreenId]);
+  }, [isReadonly, update, screenId]);
 
   const updateSilentWithDraft = useCallback((fn: (f: ScreenItemsDocument) => void) => {
     if (isReadonly) return;
     updateSilent(fn);
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
-      if (!selectedScreenId || !fileRef.current) return;
-      mcpBridge.updateDraft("screen-item", "singleton", fileRef.current).catch(console.error);
+      if (!screenId || !fileRef.current) return;
+      mcpBridge.updateDraft("screen-item", screenId, fileRef.current).catch(console.error);
     }, 300);
-  }, [isReadonly, updateSilent, selectedScreenId]);
+  }, [isReadonly, updateSilent, screenId]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -486,12 +488,12 @@ export function ScreenItemsView() {
       clearTimeout(draftUpdateTimer.current);
       draftUpdateTimer.current = null;
     }
-    if (fileRef.current) {
-      await mcpBridge.updateDraft("screen-item", "singleton", fileRef.current);
+    if (screenId && fileRef.current) {
+      await mcpBridge.updateDraft("screen-item", screenId, fileRef.current);
     }
     await resourceHandleSave();
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+  }, [isReadonly, isSaving, resourceHandleSave, actions, screenId]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -511,36 +513,30 @@ export function ScreenItemsView() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    await mcpBridge.discardDraft("screen-item", "singleton");
+    if (screenId) await mcpBridge.discardDraft("screen-item", screenId);
     await reload();
-  }, [reload]);
+  }, [screenId, reload]);
 
   // タブ dirty マーク
   useEffect(() => {
-    const tabId = makeTabId("screen-items", "singleton");
+    if (!screenId) return;
+    const tabId = makeTabId("screen-items", screenId);
     setTabDirty(tabId, isDirtyForTab || isDirty);
-  }, [isDirtyForTab, isDirty]);
+  }, [screenId, isDirtyForTab, isDirty]);
 
   // 復元ダイアログ (readonly + draft 存在時)
   useEffect(() => {
     if (sessionLoading) return;
     if (mode.kind !== "readonly") return;
+    if (!screenId) return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("screen-item", "singleton") as { exists: boolean } | null;
+      const res = await mcpBridge.hasDraft("screen-item", screenId) as { exists: boolean } | null;
       if (cancelled) return;
       if (res?.exists) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
-  }, [sessionLoading, mode.kind]);
-
-  const handleSwitchScreen = (nextId: string) => {
-    if (isDirty) {
-      const ok = window.confirm("未保存の変更があります。破棄して別の画面に切り替えますか?");
-      if (!ok) return;
-    }
-    setSelectedScreenId(nextId);
-  };
+  }, [sessionLoading, mode.kind, screenId]);
 
   const handleAddItem = useCallback(() => {
     updateWithDraft((f) => {
@@ -608,7 +604,7 @@ export function ScreenItemsView() {
 
   /** ID リセット開始: 参照チェック → 確認ダイアログ or 即実行 */
   const handleResetItems = useCallback(async (indices: number[]) => {
-    if (!file || !selectedScreenId) return;
+    if (!file || !screenId) return;
     if (isDirty) {
       alert("未保存の変更があります。先に保存してからIDをリセットしてください。");
       return;
@@ -636,7 +632,7 @@ export function ScreenItemsView() {
       const results = await Promise.all(
         toRename.map((r) =>
           mcpBridge.request("checkScreenItemRefs", {
-            screenId: selectedScreenId,
+            screenId: screenId,
             itemId: r.oldId,
           }) as Promise<{ affectedProcessFlows: Array<{ id: string; name: string; refCount: number }>; totalRefs: number }>,
         ),
@@ -659,7 +655,7 @@ export function ScreenItemsView() {
         // 参照なし → 即実行
         for (const { oldId, newId } of toRename) {
           await mcpBridge.request("renameScreenItem", {
-            screenId: selectedScreenId,
+            screenId: screenId,
             oldId,
             newId,
           });
@@ -683,17 +679,17 @@ export function ScreenItemsView() {
       });
       commit();
     }
-  }, [file, selectedScreenId, isDirty, buildResets, updateSilentWithDraft, commit]);
+  }, [file, screenId, isDirty, buildResets, updateSilentWithDraft, commit]);
 
   /** リセット確認: renameScreenItem を順次実行 */
   const handleConfirmReset = useCallback(async () => {
-    if (!pendingReset || !selectedScreenId) return;
+    if (!pendingReset || !screenId) return;
     const { resets } = pendingReset;
     setPendingReset(null);
     try {
       for (const { oldId, newId } of resets) {
         await mcpBridge.request("renameScreenItem", {
-          screenId: selectedScreenId,
+          screenId: screenId,
           oldId,
           newId,
         });
@@ -708,7 +704,7 @@ export function ScreenItemsView() {
     } catch (e) {
       alert(`IDリセットに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [pendingReset, selectedScreenId, updateSilentWithDraft, commit]);
+  }, [pendingReset, screenId, updateSilentWithDraft, commit]);
 
   const handleCancelReset = useCallback(() => {
     setPendingReset(null);
@@ -750,7 +746,7 @@ export function ScreenItemsView() {
     const originalId = idFocusVals.current.get(idx) ?? newId;
     idFocusVals.current.delete(idx);
 
-    if (newId === originalId || !originalId || !selectedScreenId) {
+    if (newId === originalId || !originalId || !screenId) {
       commit();
       return;
     }
@@ -780,7 +776,7 @@ export function ScreenItemsView() {
 
     try {
       const result = await mcpBridge.request("checkScreenItemRefs", {
-        screenId: selectedScreenId,
+        screenId: screenId,
         itemId: originalId,
       }) as { affectedProcessFlows: Array<{ id: string; name: string; refCount: number }>; totalRefs: number };
 
@@ -799,16 +795,16 @@ export function ScreenItemsView() {
     } catch {
       commit();
     }
-  }, [selectedScreenId, file, updateSilentWithDraft, commit]);
+  }, [screenId, file, updateSilentWithDraft, commit]);
 
   /** リネーム確認: バックエンドに実行を委譲 */
   const handleConfirmRename = useCallback(async () => {
-    if (!pendingRename || !selectedScreenId) return;
+    if (!pendingRename || !screenId) return;
     const { idx, oldId, newId } = pendingRename;
     setPendingRename(null);
     try {
       await mcpBridge.request("renameScreenItem", {
-        screenId: selectedScreenId,
+        screenId: screenId,
         oldId,
         newId,
       });
@@ -821,7 +817,7 @@ export function ScreenItemsView() {
       updateSilentWithDraft((f) => { f.items[idx].id = oldId as Identifier; });
       commit();
     }
-  }, [pendingRename, selectedScreenId, updateSilentWithDraft, commit]);
+  }, [pendingRename, screenId, updateSilentWithDraft, commit]);
 
   /** リネームキャンセル: ローカル状態を元に戻す */
   const handleCancelRename = useCallback(() => {
@@ -900,9 +896,9 @@ export function ScreenItemsView() {
     setSelectedIndices(new Set());
     setExpandedErrorRows(new Set());
     setExpandedDetailRows(new Set());
-  }, [selectedScreenId]);
+  }, [screenId]);
 
-  const selectedScreenName = screens.find((s) => s.id === selectedScreenId)?.name;
+  const selectedScreenName = screens.find((s) => s.id === screenId)?.name;
 
   const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
@@ -965,42 +961,15 @@ export function ScreenItemsView() {
         title={
           <span className="fw-semibold">
             <i className="bi bi-ui-checks-grid me-1" />
-            画面項目定義
-            <span className="badge bg-warning text-dark ms-2" style={{ fontSize: "0.7rem" }}>
-              ドラフト (#318)
-            </span>
+            {selectedScreenName ? `${selectedScreenName} — 項目定義` : "画面項目定義"}
           </span>
-        }
-        centerTools={
-          <div className="d-flex align-items-center gap-2">
-            <label className="form-label mb-0 small fw-semibold">画面</label>
-            <select
-              className="form-select form-select-sm screen-items-screen-select"
-              value={selectedScreenId ?? ""}
-              onChange={(e) => handleSwitchScreen(e.target.value)}
-              disabled={screens.length === 0}
-            >
-              {screens.length === 0 && <option value="">画面がありません</option>}
-              {screens.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
         saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
       />
 
       <div className="screen-items-content">
-        {!selectedScreenId && (
-          <div className="screen-items-empty">
-            <p>画面を選択してください。</p>
-            <p className="text-muted small">画面が存在しない場合は、先に「画面一覧」で画面を作成してください。</p>
-          </div>
-        )}
-        {selectedScreenId && file && (
+        {screenId && file && (
           <>
           {lintIssues.length > 0 && (
             <div className="screen-items-lint-warnings">
@@ -1510,7 +1479,7 @@ export function ScreenItemsView() {
 
       <ScreenItemCandidatesModal
         open={candidatesModalOpen}
-        screenId={selectedScreenId ?? null}
+        screenId={screenId ?? null}
         screenName={selectedScreenName}
         existingIds={existingIds}
         onClose={() => setCandidatesModalOpen(false)}

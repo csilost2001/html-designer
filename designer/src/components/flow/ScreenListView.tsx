@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type { ScreenNode } from "../../types/flow";
 import { SCREEN_KIND_LABELS, SCREEN_KIND_ICONS } from "../../types/flow";
 import type { ScreenId, ScreenKind, Timestamp } from "../../types/v3";
@@ -42,6 +43,7 @@ function formatDate(iso: string): string {
 
 export function ScreenListView() {
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [screenModal, setScreenModal] = useState<{ open: boolean; editId?: string; initial?: Partial<ScreenFormData> }>({ open: false });
@@ -443,7 +445,26 @@ export function ScreenListView() {
       sortAccessor: (s) => s.updatedAt,
       render: (s) => <span className="screen-table-date">{formatDate(s.updatedAt)}</span>,
     },
-  ], [hasDraft]);
+    {
+      key: "screenItems",
+      header: "項目定義",
+      width: "100px",
+      align: "center",
+      render: (s) => (
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          onClick={(e) => { e.stopPropagation(); navigate(wsPath(`/screen/items/${s.id}`)); }}
+          title="画面項目定義を開く"
+        >
+          <i className="bi bi-ui-checks-grid" />
+          {hasDraft("screen-item", s.id) && (
+            <span className="list-item-draft-mark ms-1" title="未保存の編集中 draft があります">●</span>
+          )}
+        </button>
+      ),
+    },
+  ], [hasDraft, navigate, wsPath]);
 
   const renderCard = (s: ScreenNode) => (
     <div className="screen-card-content">
@@ -462,6 +483,20 @@ export function ScreenListView() {
           {s.hasDesign ? "デザイン済" : "未デザイン"}
         </span>
         <span className="screen-card-date">{formatDate(s.updatedAt)}</span>
+      </div>
+      <div className="screen-card-actions">
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          onClick={(e) => { e.stopPropagation(); navigate(wsPath(`/screen/items/${s.id}`)); }}
+          title="画面項目定義を開く"
+        >
+          <i className="bi bi-ui-checks-grid me-1" />
+          項目定義
+          {hasDraft("screen-item", s.id) && (
+            <span className="list-item-draft-mark ms-1" title="未保存の編集中 draft があります">●</span>
+          )}
+        </button>
       </div>
     </div>
   );
