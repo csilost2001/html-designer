@@ -701,7 +701,7 @@ class WsBridge extends EventEmitter {
               type as "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes",
               content,
               root(),
-              { onAfterWrite: () => this.broadcast({ wsId: null, event: "extensionsChanged", data: { type }, excludeClientId: clientId }) },
+              { onAfterWrite: () => this.broadcast({ wsId: root(), event: "extensionsChanged", data: { type }, excludeClientId: clientId }) },
             );
             respond({ success: true });
           } catch (e) {

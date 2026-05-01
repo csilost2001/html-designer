@@ -150,25 +150,45 @@ broadcast({
 `wsId` には actor session の `activePath` (絶対パス) を渡す。実装は以下:
 
 - `wsId` が path 文字列 → `WorkspaceContextManager.getClientIdsByPath(wsId)` で同 path を active にしている session のみに配信 (= 同 workspace を見ているブラウザタブ)
-- `wsId === null` → 全 active session に配信 (`extensionsChanged` のような workspace 横断イベントで使用、明示的に意図したケースのみ)
+- `wsId === null` → 全 active session に配信 (用途は § 6.3 で限定列挙)
 
-通常の resource 系 broadcast (`screenChanged` / `tableChanged` 等) では `wsId: <actorActivePath>` を渡し、workspace 横断 broadcast では `wsId: null` を使う。
+通常の resource 系 broadcast (`screenChanged` / `tableChanged` 等) では `wsId: <actorActivePath>` を渡す。
 
-### 6.2 対象 broadcast (全件 wsId scoping 化)
+### 6.2 対象 broadcast (全 workspace scoped)
 
-| event | 配信元 |
-|-------|--------|
-| `workspace.changed` | `wsBridge.workspace.open` / `workspace.close` |
-| `screen.changed` | screens 書込み時 |
-| `table.changed` | tables 書込み時 |
-| `process-flow.changed` | actions 書込み時 |
-| その他 entity の autosave broadcast | R-2 実装時に grep audit |
+すべての resource 系 broadcast は **wsId scoping 必須** (= 同 workspace を見ているセッションのみに配信)。
 
-### 6.3 旧 broadcast の audit
+| event | 配信元 | 配信先 |
+|-------|--------|--------|
+| `workspace.changed` | `wsBridge.workspace.open` / `workspace.close` | actor の新 / 旧 activePath を持つ session |
+| `projectChanged` | `project.json` 書換時 | actor activePath |
+| `screenChanged` | screens 書込み / 削除 / リネーム時 | actor activePath |
+| `screenItemsChanged` / `screenEntityChanged` | screen-items 書込み時 | actor activePath |
+| `tableChanged` | tables 書込み / 削除時 | actor activePath |
+| `processFlowChanged` | actions 書込み / 削除時 | actor activePath |
+| `viewChanged` / `viewDefinitionChanged` | views / view-definitions 書込み時 | actor activePath |
+| `sequenceChanged` | sequences 書込み時 | actor activePath |
+| `extensionsChanged` | `extensions/*.json` 書込み時 (steps / fieldTypes / triggers / dbOperations / responseTypes) | actor activePath |
+| `customBlocksChanged` | custom-blocks.json 書込み時 | actor activePath |
+| `erLayoutChanged` / `screenLayoutChanged` | レイアウト保存時 | actor activePath |
+| `conventionsChanged` | conventions/catalog.json 書込み時 | actor activePath |
+| `draft.changed` | draft 作成 / 更新 / commit / discard 時 | actor activePath |
+| `lock.changed` | lock 取得 / 解放 / 強制解除時 | actor activePath |
 
-R-2 実装時に `grep -rn "broadcast(" designer-mcp/src/` で全件抽出し、wsId 引数を追加する。漏れがあると別 workspace タブに誤配信されるため全件対応が必須。
+### 6.3 `wsId === null` (全配信) の用途
 
-実装対象 PR: R-2 (#700)
+`wsId === null` は **設計上のフォールバック** であり、resource 系 broadcast で使ってはならない。現状の正当な用途:
+
+- **全 session 通知系** が将来必要になった場合の予約 (例: server 再起動予告、global error)
+- 現時点で実装側に該当ケースなし
+
+resource 系で `wsId: null` を渡してしまうと、他 workspace を見ているブラウザタブに誤配信されてストア状態が汚染される。grep audit で `wsId: null` の混入を検知すること:
+
+```bash
+grep -rn 'wsId: null' designer-mcp/src/  # resource broadcast では 0 件であること
+```
+
+実装対象 PR: R-2 (#700) で導入、R-5 (#703) と post-merge 修正で全 broadcast を scoping 化完了 (2026-05-02)。
 
 ---
 

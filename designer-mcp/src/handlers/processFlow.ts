@@ -73,7 +73,7 @@ async function readResponseTypesFile(root: string): Promise<ResponseTypesFile> {
 
 async function writeResponseTypesFile(file: ResponseTypesFile, root: string): Promise<void> {
   await writeExtensionsFile("responseTypes", file, root, {
-    onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "responseTypes" } }),
+    onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "responseTypes" } }),
   });
 }
 
@@ -558,7 +558,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       const newStepsFile = { namespace: typeof stepsFile.namespace === "string" ? stepsFile.namespace : (a.namespace as string), steps: stepsMap };
       try {
         await writeExtensionsFile("steps", newStepsFile, root, {
-          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "steps" } }),
+          onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "steps" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -586,7 +586,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       const newFtFile = { namespace: typeof ftFile.namespace === "string" ? ftFile.namespace : (a.namespace as string), fieldTypes: ftArray };
       try {
         await writeExtensionsFile("fieldTypes", newFtFile, root, {
-          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "fieldTypes" } }),
+          onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "fieldTypes" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -614,7 +614,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       const newTrFile = { namespace: typeof trFile.namespace === "string" ? trFile.namespace : (a.namespace as string), triggers: trArray };
       try {
         await writeExtensionsFile("triggers", newTrFile, root, {
-          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "triggers" } }),
+          onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "triggers" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -642,7 +642,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       const newDbFile = { namespace: typeof dbFile.namespace === "string" ? dbFile.namespace : (a.namespace as string), dbOperations: dbArray };
       try {
         await writeExtensionsFile("dbOperations", newDbFile, root, {
-          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "dbOperations" } }),
+          onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "dbOperations" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -671,7 +671,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         delete stepsMap[rmKey];
         try {
           await writeExtensionsFile("steps", { ...removeFile, steps: stepsMap }, root, {
-            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "steps" } }),
+            onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "steps" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -686,7 +686,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         delete rtMap[rmRtKey];
         try {
           await writeExtensionsFile("responseTypes", { ...removeFile, responseTypes: rtMap }, root, {
-            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "responseTypes" } }),
+            onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "responseTypes" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -697,7 +697,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         const ftArr = Array.isArray(removeFile.fieldTypes) ? (removeFile.fieldTypes as Array<{ kind: string; label: string }>).filter((ft) => ft.kind !== a.value) : [];
         try {
           await writeExtensionsFile("fieldTypes", { ...removeFile, fieldTypes: ftArr }, root, {
-            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "fieldTypes" } }),
+            onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "fieldTypes" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -708,7 +708,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         const trArr = Array.isArray(removeFile.triggers) ? (removeFile.triggers as Array<{ value: string; label: string }>).filter((t) => t.value !== a.value) : [];
         try {
           await writeExtensionsFile("triggers", { ...removeFile, triggers: trArr }, root, {
-            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "triggers" } }),
+            onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "triggers" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -719,7 +719,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         const dbArr = Array.isArray(removeFile.dbOperations) ? (removeFile.dbOperations as Array<{ value: string; label: string }>).filter((d) => d.value !== a.value) : [];
         try {
           await writeExtensionsFile("dbOperations", { ...removeFile, dbOperations: dbArr }, root, {
-            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "dbOperations" } }),
+            onAfterWrite: () => wsBridge.broadcast({ wsId: root, event: "extensionsChanged", data: { type: "dbOperations" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
