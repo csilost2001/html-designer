@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -37,6 +38,7 @@ const nodeTypes = { erTableNode: ErTableNodeComponent };
 
 function ErDiagramInner() {
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const { fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
@@ -318,7 +320,7 @@ function ErDiagramInner() {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#777", height: "100%" }}>
             <i className="bi bi-diagram-3" style={{ fontSize: 48, color: "#555" }} />
             <p>テーブル定義がまだありません</p>
-            <button className="tbl-btn tbl-btn-primary" onClick={() => navigate("/table/list")}>
+            <button className="tbl-btn tbl-btn-primary" onClick={() => navigate(wsPath("/table/list"))}>
               <i className="bi bi-table" /> テーブル設計へ
             </button>
           </div>

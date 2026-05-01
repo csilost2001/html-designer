@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
   ViewDefinition,
   ViewColumn,
@@ -150,6 +151,7 @@ export function ViewDefinitionEditor() {
   const { viewDefinitionId: rawId } = useParams<{ viewDefinitionId: string }>();
   const viewDefinitionId = rawId ? decodeURIComponent(rawId) : rawId;
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
 
   // テーブル選択 state (tableColumnRef 用カスケード)
   // key: column index → 選択中のテーブル ID (cascade step 1)
@@ -162,7 +164,7 @@ export function ViewDefinitionEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate("/view-definition/list"), [navigate]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/view-definition/list")), [navigate, wsPath]);
 
   // onLoaded: viewDefinition 読み込み時に UI state を初期化 (useEffect の代わり)
   const handleLoaded = useCallback((vd: ViewDefinition) => {
@@ -524,7 +526,7 @@ export function ViewDefinitionEditor() {
         }
         backLink={{
           label: "ビュー定義一覧",
-          onClick: () => navigate("/view-definition/list"),
+          onClick: () => navigate(wsPath("/view-definition/list")),
         } satisfies EditorHeaderBackLink}
         undoRedo={{
           onUndo: undo,

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type { Sequence, TableColumnRef, TableId, LocalId, Maturity, SemVer } from "../../types/v3";
 import { loadSequence, saveSequence } from "../../store/sequenceStore";
 import { loadConventions } from "../../store/conventionsStore";
@@ -34,6 +35,7 @@ export function SequenceEditor() {
   const { sequenceId: rawId } = useParams<{ sequenceId: string }>();
   const sequenceId = rawId ? decodeURIComponent(rawId) : rawId;
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
 
   const [ddlOpen, setDdlOpen] = useState(false);
   const [numberingKeys, setNumberingKeys] = useState<Array<{ key: string; entry: NumberingEntry }>>([]);
@@ -45,7 +47,7 @@ export function SequenceEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate("/sequence/list"), [navigate]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/sequence/list")), [navigate, wsPath]);
 
   const sessionId = mcpBridge.getSessionId();
 
@@ -260,7 +262,7 @@ export function SequenceEditor() {
         title={<><i className="bi bi-arrow-repeat" /> シーケンス編集: <code>{seq.physicalName}</code></>}
         backLink={{
           label: "シーケンス一覧",
-          onClick: () => navigate("/sequence/list"),
+          onClick: () => navigate(wsPath("/sequence/list")),
         } satisfies EditorHeaderBackLink}
         saveReset={isReadonly ? undefined : {
           isDirty,

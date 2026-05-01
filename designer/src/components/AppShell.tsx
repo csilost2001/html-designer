@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Routes, Route, useLocation, useNavigate, matchPath } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, matchPath, useParams } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
 import { ScreenListView } from "./flow/ScreenListView";
 import { TableListView } from "./table/TableListView";
@@ -66,7 +66,80 @@ function useTabs() {
   return { tabs, activeTabId };
 }
 
+// ─── WorkspaceScopedRoutes ────────────────────────────────────────────────────
+// /w/:wsId/* 配下の全ルートをレンダリングするコンポーネント
+// AppShell から /w/:wsId/* ネストで呼ばれる。useParams() で :wsId を取得可能。
+function WorkspaceScopedRoutes() {
+  return <WorkspaceScopedShell />;
+}
+
+// AppShell の全ロジックを持つ内部コンポーネント
+// /w/:wsId/* 配下にネストされているので useParams() で wsId を取得できる
+function WorkspaceScopedShell() {
+  const { wsId } = useParams<{ wsId: string }>();
+  return <AppShellInner wsId={wsId} />;
+}
+
+// ルートレベルの AppShell: /workspace/* と /w/:wsId/* に分岐
 export function AppShell() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [workspaceState, setWorkspaceState] = useState(getWorkspaceState());
+  useEffect(() => {
+    return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
+  }, []);
+
+  // workspace が loading 完了後に URL を判定してリダイレクト
+  useEffect(() => {
+    if (workspaceState.loading) return;
+    // /workspace/select や /workspace/list は常に許可
+    if (location.pathname.startsWith("/workspace/")) return;
+    // /w/:wsId/* 配下は WorkspaceScopedShell が処理
+    if (location.pathname.startsWith("/w/")) return;
+    // それ以外 (/, /screen/flow 等の旧 URL) は active があれば /w/<id>/<元パス> に、なければ /workspace/select に
+    if (workspaceState.active?.id) {
+      navigate(`/w/${workspaceState.active.id}${location.pathname === "/" ? "/" : location.pathname}`, { replace: true });
+    } else if (!workspaceState.lockdown) {
+      navigate("/workspace/select", { replace: true });
+    }
+  }, [workspaceState.loading, workspaceState.active?.id, workspaceState.lockdown, location.pathname]);
+
+  // loading 中はスプラッシュ表示 (WorkspaceScopedShell に合わせて一貫性確保)
+  if (workspaceState.loading) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "100vh", flexDirection: "column", gap: "8px",
+        color: "var(--muted-text, #888)",
+      }}>
+        <i className="bi bi-hourglass-split" style={{ fontSize: "1.5rem" }} />
+        <p style={{ margin: 0 }}>ワークスペース情報を読み込み中...</p>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/w/:wsId/*" element={<WorkspaceScopedRoutes />} />
+      <Route path="/workspace/list" element={<WorkspaceListView />} />
+      <Route path="/workspace/select" element={<WorkspaceSelectView />} />
+      {/* 旧 URL (/, /screen/flow 等) にもスプラッシュで対応
+          useEffect の redirect が動くまでの僅かな間のレンダー用 */}
+      <Route path="*" element={
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          height: "100vh", flexDirection: "column", gap: "8px",
+          color: "var(--muted-text, #888)",
+        }}>
+          <i className="bi bi-hourglass-split" style={{ fontSize: "1.5rem" }} />
+          <p style={{ margin: 0 }}>ページを読み込み中...</p>
+        </div>
+      } />
+    </Routes>
+  );
+}
+
+function AppShellInner({ wsId }: { wsId: string | undefined }) {
   const { tabs, activeTabId } = useTabs();
   const location = useLocation();
   const navigate = useNavigate();
@@ -145,23 +218,40 @@ export function AppShell() {
         if (k && k.startsWith("gjs-")) localStorage.removeItem(k);
       }
     } catch { /* private browsing / quota error は無視 */ }
-    window.location.reload();
+    // workspace 切替: navigate で URL を /w/<新wsId>/ に更新してから reload。
+    // store のリセットは reload が担う (store.resetForWorkspaceSwitch 未実装のため reload 方式を維持)。
+    const targetPath = currentId ? `/w/${currentId}/` : "/workspace/select";
+    // location.href を直接書き換えることで URL 変更 + 完全リロードを一発で実現
+    window.location.href = targetPath;
   }, [workspaceState.active?.id]);
 
-  // ルーティングガード: active===null かつ /workspace/list でも /workspace/select でもない → /workspace/select へ
+  // ルーティングガード: wsId が active と異なる、または active===null の場合の処理
   // backend オフライン時は error が立つ → ガードを停止して localStorage fallback 経路を温存する。
   // (AGENTS.md "If WS disconnected → localStorage" の互換性確保)
   useEffect(() => {
     if (workspaceState.loading) return; // ロード中は判定しない
     if (workspaceState.lockdown) return; // lockdown 時はガード不要 (常にアクティブ扱い)
     if (workspaceState.error !== null) return; // load 失敗 (offline 等) は redirect しない
+
     if (workspaceState.active === null) {
-      const excluded = ["/workspace/list", "/workspace/select"];
-      if (!excluded.includes(location.pathname)) {
+      // active なし → /workspace/select
+      // /workspace/* パスは AppShell の上位 Route で処理済みのため、
+      // ここは /w/:wsId/* 配下の場合のみ
+      navigate("/workspace/select", { replace: true });
+    } else if (wsId && wsId !== workspaceState.active.id) {
+      // URL の :wsId が現在 active と異なる → workspace.open で同期
+      const recentEntry = workspaceState.workspaces.find((w) => w.id === wsId);
+      if (recentEntry) {
+        mcpBridge.request("workspace.open", { id: wsId }).catch((err) => {
+          console.error("[workspace] workspace.open from URL failed:", err);
+          navigate("/workspace/select", { replace: true });
+        });
+      } else {
+        // recent にない不正 wsId → /workspace/select
         navigate("/workspace/select", { replace: true });
       }
     }
-  }, [workspaceState.active, workspaceState.loading, workspaceState.lockdown, workspaceState.error, location.pathname]);
+  }, [workspaceState.active, workspaceState.active?.id, workspaceState.loading, workspaceState.lockdown, workspaceState.error, workspaceState.workspaces, wsId, location.pathname]);
 
   // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
   useEffect(() => {
@@ -189,12 +279,14 @@ export function AppShell() {
       context: { kind, id, pathname: location.pathname },
       skipLogRecord: true, // 直前に recordError 済み
     });
-    navigate("/", { replace: true });
+    const dashPath = wsId ? `/w/${wsId}/` : "/";
+    navigate(dashPath, { replace: true });
   };
 
   // URL → タブ同期（ブラウザの直接ナビゲーション / mcpBridge.navigateScreen）
+  // /w/:wsId/* 配下で使用するため、全 matchPath を /w/:wsId/... 規約に更新
   useEffect(() => {
-    const designMatch = matchPath("/screen/design/:screenId", location.pathname);
+    const designMatch = matchPath("/w/:wsId/screen/design/:screenId", location.pathname);
     if (designMatch?.params.screenId) {
       const screenId = designMatch.params.screenId;
       const tabId = makeTabId("design", screenId);
@@ -217,7 +309,7 @@ export function AppShell() {
       return;
     }
 
-    const tableMatch = matchPath("/table/edit/:tableId", location.pathname);
+    const tableMatch = matchPath("/w/:wsId/table/edit/:tableId", location.pathname);
     if (tableMatch?.params.tableId) {
       const tableId = tableMatch.params.tableId;
       const tabId = makeTabId("table", tableId);
@@ -239,7 +331,7 @@ export function AppShell() {
       return;
     }
 
-    const actionMatch = matchPath("/process-flow/edit/:processFlowId", location.pathname);
+    const actionMatch = matchPath("/w/:wsId/process-flow/edit/:processFlowId", location.pathname);
     if (actionMatch?.params.processFlowId) {
       const processFlowId = actionMatch.params.processFlowId;
       const tabId = makeTabId("process-flow", processFlowId);
@@ -261,7 +353,7 @@ export function AppShell() {
       return;
     }
 
-    const sequenceMatch = matchPath("/sequence/edit/:sequenceId", location.pathname);
+    const sequenceMatch = matchPath("/w/:wsId/sequence/edit/:sequenceId", location.pathname);
     if (sequenceMatch?.params.sequenceId) {
       const sequenceId = sequenceMatch.params.sequenceId;
       const tabId = makeTabId("sequence", sequenceId);
@@ -283,7 +375,7 @@ export function AppShell() {
       return;
     }
 
-    const viewMatch = matchPath("/view/edit/:viewId", location.pathname);
+    const viewMatch = matchPath("/w/:wsId/view/edit/:viewId", location.pathname);
     if (viewMatch?.params.viewId) {
       const viewId = viewMatch.params.viewId;
       const tabId = makeTabId("view", viewId);
@@ -305,7 +397,7 @@ export function AppShell() {
       return;
     }
 
-    const viewDefinitionMatch = matchPath("/view-definition/edit/:viewDefinitionId", location.pathname);
+    const viewDefinitionMatch = matchPath("/w/:wsId/view-definition/edit/:viewDefinitionId", location.pathname);
     if (viewDefinitionMatch?.params.viewDefinitionId) {
       const viewDefinitionId = decodeURIComponent(viewDefinitionMatch.params.viewDefinitionId);
       const tabId = makeTabId("view-definition", viewDefinitionId);
@@ -331,19 +423,21 @@ export function AppShell() {
     if (location.pathname === "/workspace/select") return;
 
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
+    // /w/:wsId/* 規約のパスと /workspace/list (wsId なし) を含む
+    const wsPrefix = wsId ? `/w/${wsId}` : "";
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
-      { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
-      { path: "/screen/flow",        type: "screen-flow",        label: "画面フロー" },
-      { path: "/screen/list",        type: "screen-list",        label: "画面一覧" },
-      { path: "/table/list",         type: "table-list",         label: "テーブル一覧" },
-      { path: "/table/er",           type: "er",                 label: "ER図" },
-      { path: "/process-flow/list",  type: "process-flow-list",  label: "処理フロー一覧" },
-      { path: "/extensions",         type: "extensions",         label: "拡張管理" },
-      { path: "/conventions/catalog", type: "conventions-catalog", label: "規約カタログ" },
-      { path: "/screen-items",       type: "screen-items",       label: "画面項目定義" },
-      { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
-      { path: "/view/list",          type: "view-list",           label: "ビュー一覧" },
-      { path: "/view-definition/list", type: "view-definition-list", label: "ビュー定義一覧" },
+      { path: `${wsPrefix}/`,                   type: "dashboard",          label: "ダッシュボード" },
+      { path: `${wsPrefix}/screen/flow`,        type: "screen-flow",        label: "画面フロー" },
+      { path: `${wsPrefix}/screen/list`,        type: "screen-list",        label: "画面一覧" },
+      { path: `${wsPrefix}/table/list`,         type: "table-list",         label: "テーブル一覧" },
+      { path: `${wsPrefix}/table/er`,           type: "er",                 label: "ER図" },
+      { path: `${wsPrefix}/process-flow/list`,  type: "process-flow-list",  label: "処理フロー一覧" },
+      { path: `${wsPrefix}/extensions`,         type: "extensions",         label: "拡張管理" },
+      { path: `${wsPrefix}/conventions/catalog`, type: "conventions-catalog", label: "規約カタログ" },
+      { path: `${wsPrefix}/screen-items`,       type: "screen-items",       label: "画面項目定義" },
+      { path: `${wsPrefix}/sequence/list`,      type: "sequence-list",      label: "シーケンス一覧" },
+      { path: `${wsPrefix}/view/list`,          type: "view-list",           label: "ビュー一覧" },
+      { path: `${wsPrefix}/view-definition/list`, type: "view-definition-list", label: "ビュー定義一覧" },
       { path: "/workspace/list",     type: "workspace-list",     label: "ワークスペース" },
     ];
     for (const { path, type, label } of singletonRoutes) {
@@ -370,31 +464,33 @@ export function AppShell() {
     if (workspaceState.active === null && !workspaceState.lockdown && activeTab.type !== "workspace-list") {
       return;
     }
+    // /w/:wsId/* 規約のパスを生成。workspace-list は wsId なし
+    const wp = wsId ? `/w/${wsId}` : "";
     const expectedPath =
-      activeTab.type === "design"             ? `/screen/design/${activeTab.resourceId}`
-      : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
-      : activeTab.type === "action"           ? `/process-flow/edit/${activeTab.resourceId}`
-      : activeTab.type === "sequence"         ? `/sequence/edit/${activeTab.resourceId}`
-      : activeTab.type === "view"             ? `/view/edit/${activeTab.resourceId}`
-      : activeTab.type === "view-definition"  ? `/view-definition/edit/${activeTab.resourceId}`
-      : activeTab.type === "screen-flow"      ? "/screen/flow"
-      : activeTab.type === "screen-list"      ? "/screen/list"
-      : activeTab.type === "table-list"       ? "/table/list"
-      : activeTab.type === "er"               ? "/table/er"
-      : activeTab.type === "process-flow-list" ? "/process-flow/list"
-      : activeTab.type === "extensions"       ? "/extensions"
-      : activeTab.type === "conventions-catalog" ? "/conventions/catalog"
-      : activeTab.type === "screen-items"     ? "/screen-items"
-      : activeTab.type === "sequence-list"    ? "/sequence/list"
-      : activeTab.type === "view-list"              ? "/view/list"
-      : activeTab.type === "view-definition-list"   ? "/view-definition/list"
+      activeTab.type === "design"             ? `${wp}/screen/design/${activeTab.resourceId}`
+      : activeTab.type === "table"            ? `${wp}/table/edit/${activeTab.resourceId}`
+      : activeTab.type === "action"           ? `${wp}/process-flow/edit/${activeTab.resourceId}`
+      : activeTab.type === "sequence"         ? `${wp}/sequence/edit/${activeTab.resourceId}`
+      : activeTab.type === "view"             ? `${wp}/view/edit/${activeTab.resourceId}`
+      : activeTab.type === "view-definition"  ? `${wp}/view-definition/edit/${activeTab.resourceId}`
+      : activeTab.type === "screen-flow"      ? `${wp}/screen/flow`
+      : activeTab.type === "screen-list"      ? `${wp}/screen/list`
+      : activeTab.type === "table-list"       ? `${wp}/table/list`
+      : activeTab.type === "er"               ? `${wp}/table/er`
+      : activeTab.type === "process-flow-list" ? `${wp}/process-flow/list`
+      : activeTab.type === "extensions"       ? `${wp}/extensions`
+      : activeTab.type === "conventions-catalog" ? `${wp}/conventions/catalog`
+      : activeTab.type === "screen-items"     ? `${wp}/screen-items`
+      : activeTab.type === "sequence-list"    ? `${wp}/sequence/list`
+      : activeTab.type === "view-list"              ? `${wp}/view/list`
+      : activeTab.type === "view-definition-list"   ? `${wp}/view-definition/list`
       : activeTab.type === "workspace-list"         ? "/workspace/list"
-      : activeTab.type === "dashboard"              ? "/"
+      : activeTab.type === "dashboard"              ? `${wp}/`
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
       navigate(expectedPath, { replace: true });
     }
-  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname]);
+  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname, wsId]);
 
   const designTabs = tabs.filter((t) => t.type === "design");
   const activeIsDesign = activeTab?.type === "design";
@@ -420,11 +516,6 @@ export function AppShell() {
         <p style={{ margin: 0 }}>ワークスペース情報を読み込み中...</p>
       </div>
     );
-  }
-
-  // /workspace/select はフルスクリーンで表示 (ヘッダー・タブバーなし)
-  if (location.pathname === "/workspace/select") {
-    return <WorkspaceSelectView />;
   }
 
   return (
@@ -458,7 +549,7 @@ export function AppShell() {
         </div>
       ))}
 
-      {/* 非デザインコンテンツ: 通常ルーティング */}
+      {/* 非デザインコンテンツ: 通常ルーティング (/w/:wsId/* 相対パス) */}
       {!activeIsDesign && (
         <ErrorBoundary
           resetKey={activeTabId}
@@ -475,28 +566,28 @@ export function AppShell() {
           )}
         >
           <Routes>
-            <Route path="/" element={<DashboardView />} />
-            <Route path="/screen/flow" element={<FlowEditor />} />
-            <Route path="/screen/list" element={<ScreenListView />} />
+            {/* /w/:wsId/* 規約の絶対パス (location.pathname に対してマッチ) */}
+            <Route path="/w/:wsId/" element={<DashboardView />} />
+            <Route path="/w/:wsId/screen/flow" element={<FlowEditor />} />
+            <Route path="/w/:wsId/screen/list" element={<ScreenListView />} />
             {/* design は designTabs 経由で別レンダーされるが、
                  URL→タブ同期 effect の解決中に一瞬こちらのブランチが描画される。
                  以前は element={null} で真っ白だったのを ResourceLoading に置換 (#124) */}
-            <Route path="/screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
-            <Route path="/table/list" element={<TableListView />} />
-            <Route path="/table/edit/:tableId" element={<TableEditor />} />
-            <Route path="/table/er" element={<ErDiagram />} />
-            <Route path="/process-flow/list" element={<ProcessFlowListView />} />
-            <Route path="/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
-            <Route path="/extensions" element={<ExtensionsPanel />} />
-            <Route path="/conventions/catalog" element={<ConventionsCatalogView />} />
-            <Route path="/screen-items" element={<ScreenItemsView />} />
-            <Route path="/sequence/list" element={<SequenceListView />} />
-            <Route path="/sequence/edit/:sequenceId" element={<SequenceEditor />} />
-            <Route path="/view/list" element={<ViewListView />} />
-            <Route path="/view/edit/:viewId" element={<ViewEditor />} />
-            <Route path="/view-definition/list" element={<ViewDefinitionListView />} />
-            <Route path="/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
-            <Route path="/workspace/list" element={<WorkspaceListView />} />
+            <Route path="/w/:wsId/screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
+            <Route path="/w/:wsId/table/list" element={<TableListView />} />
+            <Route path="/w/:wsId/table/edit/:tableId" element={<TableEditor />} />
+            <Route path="/w/:wsId/table/er" element={<ErDiagram />} />
+            <Route path="/w/:wsId/process-flow/list" element={<ProcessFlowListView />} />
+            <Route path="/w/:wsId/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
+            <Route path="/w/:wsId/extensions" element={<ExtensionsPanel />} />
+            <Route path="/w/:wsId/conventions/catalog" element={<ConventionsCatalogView />} />
+            <Route path="/w/:wsId/screen-items" element={<ScreenItemsView />} />
+            <Route path="/w/:wsId/sequence/list" element={<SequenceListView />} />
+            <Route path="/w/:wsId/sequence/edit/:sequenceId" element={<SequenceEditor />} />
+            <Route path="/w/:wsId/view/list" element={<ViewListView />} />
+            <Route path="/w/:wsId/view/edit/:viewId" element={<ViewEditor />} />
+            <Route path="/w/:wsId/view-definition/list" element={<ViewDefinitionListView />} />
+            <Route path="/w/:wsId/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
           </Routes>
         </ErrorBoundary>
       )}

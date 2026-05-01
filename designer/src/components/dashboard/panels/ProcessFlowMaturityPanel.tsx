@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../../hooks/useWorkspacePath";
 import type { ProcessFlowMeta } from "../../../types/action";
 import { loadProject } from "../../../store/flowStore";
 import { mcpBridge } from "../../../mcp/mcpBridge";
@@ -37,6 +38,7 @@ async function fetchSummary(): Promise<Summary> {
 
 export function ProcessFlowMaturityPanel() {
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [summary, setSummary] = useState<Summary>(INITIAL);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function ProcessFlowMaturityPanel() {
     return <div className="panel-error"><i className="bi bi-exclamation-triangle" /> 集計失敗: {error}</div>;
   }
 
-  const go = () => navigate("/process-flow/list");
+  const go = () => navigate(wsPath("/process-flow/list"));
 
   return (
     <div className="process-flow-maturity-panel" style={{ padding: 8 }}>
