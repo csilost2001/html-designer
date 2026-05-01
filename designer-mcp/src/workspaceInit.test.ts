@@ -1,5 +1,5 @@
 /**
- * workspaceInit 単体テスト (#672)
+ * workspaceInit 単体テスト (#672, #677-C)
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import fs from "node:fs/promises";
@@ -8,6 +8,7 @@ import os from "node:os";
 import {
   inspectWorkspacePath,
   initializeWorkspace,
+  _internals,
 } from "./workspaceInit.js";
 
 const TMP_ROOT = path.join(os.tmpdir(), `workspace-init-test-${process.pid}-${Date.now()}`);
@@ -129,5 +130,31 @@ describe("initializeWorkspace", () => {
     expect(proj.meta.maturity).toBe("draft");
     expect(proj.meta.mode).toBe("upstream");
     expect(Array.isArray(proj.entities.screens)).toBe(true);
+  });
+});
+
+describe("resolveLegacyDataDir (C: 動的解決 + env override)", () => {
+  const origEnv = process.env.DESIGNER_LEGACY_DATA_DIR;
+
+  afterEach(() => {
+    // 環境変数を元に戻す
+    if (origEnv === undefined) {
+      delete process.env.DESIGNER_LEGACY_DATA_DIR;
+    } else {
+      process.env.DESIGNER_LEGACY_DATA_DIR = origEnv;
+    }
+  });
+
+  it("env 未設定の場合は process.cwd()/data が返る", () => {
+    delete process.env.DESIGNER_LEGACY_DATA_DIR;
+    const result = _internals.resolveLegacyDataDir();
+    expect(result).toBe(path.resolve(process.cwd(), "data"));
+  });
+
+  it("env DESIGNER_LEGACY_DATA_DIR 設定時はその値 (resolve 済み) が返る", () => {
+    const custom = path.join(os.tmpdir(), "my-legacy-data");
+    process.env.DESIGNER_LEGACY_DATA_DIR = custom;
+    const result = _internals.resolveLegacyDataDir();
+    expect(result).toBe(path.resolve(custom));
   });
 });
