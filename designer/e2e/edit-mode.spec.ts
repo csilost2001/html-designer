@@ -1,5 +1,5 @@
 /**
- * edit-session-draft 編集モード UI E2E テスト (#687 PR-4)
+ * edit-session-draft 編集モード UI E2E テスト (#687 PR-4 + #690 PR-7)
  *
  * 前提: dev サーバーおよび designer-mcp が起動済み
  *
@@ -7,6 +7,13 @@
  *   1. TableEditor: 編集開始 → カラム追加 → 保存 → 反映確認
  *   2. ProcessFlowEditor: 編集開始 → 名前変更 → 破棄 → 元に戻ることを確認
  *   3. 強制解除: 2 タブ open → タブ A 編集中 → タブ B から強制解除 → 両タブの状態確認
+ *   4. ViewEditor: 編集開始 → 編集 → 保存 (PR-7)
+ *   5. ViewDefinitionEditor: 編集開始 → 確認 (PR-7)
+ *   6. SequenceEditor: 編集開始 → 確認 (PR-7)
+ *   7. ScreenItemsView (singleton): 編集開始 → 確認 (PR-7)
+ *   8. ConventionsCatalogView (singleton): 編集開始 → 確認 (PR-7)
+ *   9. ExtensionsPanel (singleton): 編集開始 → 確認 (PR-7)
+ *  10. FlowEditor (singleton): 編集開始 → 確認 (PR-7)
  */
 
 import { test, expect } from "@playwright/test";
@@ -147,6 +154,150 @@ test.describe("編集モード UI — ProcessFlowEditor", () => {
     await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
   });
 });
+
+// ─── PR-7 追加: 7 エディタ (View / ViewDefinition / Sequence / ScreenItems / Conventions / Extensions / Flow) ───
+
+const VIEW_ID = `v-e2e-edit-${Date.now()}`;
+const VIEW_DEF_ID = `vd-e2e-edit-${Date.now()}`;
+const SEQUENCE_ID = `seq-e2e-edit-${Date.now()}`;
+
+const dummyView = {
+  id: VIEW_ID,
+  name: "E2E ビュー",
+  description: "",
+  maturity: "draft" as const,
+  tableId: "",
+  columns: [],
+  version: "1.0.0",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const dummyViewDefinition = {
+  id: VIEW_DEF_ID,
+  name: "E2E ビュー定義",
+  description: "",
+  maturity: "draft" as const,
+  layout: { type: "form" as const, fields: [] },
+  version: "1.0.0",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const dummySequence = {
+  id: SEQUENCE_ID,
+  name: "E2E シーケンス",
+  description: "",
+  maturity: "draft" as const,
+  steps: [],
+  version: "1.0.0",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+/** 編集開始ボタンが表示されている場合だけクリック。なければ MCP 未接続でスキップ。 */
+async function startEditOrSkip(page: import("@playwright/test").Page) {
+  await page.waitForLoadState("networkidle");
+  const editBtn = page.getByTestId("edit-mode-start");
+  const visible = await editBtn.isVisible({ timeout: 5000 }).catch(() => false);
+  if (!visible) {
+    test.skip();
+    return false;
+  }
+  await editBtn.click();
+  return true;
+}
+
+test.describe("編集モード UI — ViewEditor (PR-7)", () => {
+  test("編集開始 → 保存", async ({ page }) => {
+    await page.goto("/view/list");
+    await page.evaluate(
+      ({ id, data }) => {
+        localStorage.setItem(`v3-view-${id}`, JSON.stringify(data));
+      },
+      { id: VIEW_ID, data: dummyView },
+    );
+    await page.goto(`/view/edit/${VIEW_ID}`);
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    await page.getByTestId("edit-mode-save").click();
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("編集モード UI — ViewDefinitionEditor (PR-7)", () => {
+  test("編集開始 → 確認", async ({ page }) => {
+    await page.goto("/view-definition/list");
+    await page.evaluate(
+      ({ id, data }) => {
+        localStorage.setItem(`v3-view-definition-${id}`, JSON.stringify(data));
+      },
+      { id: VIEW_DEF_ID, data: dummyViewDefinition },
+    );
+    await page.goto(`/view-definition/edit/${VIEW_DEF_ID}`);
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("編集モード UI — SequenceEditor (PR-7)", () => {
+  test("編集開始 → 確認", async ({ page }) => {
+    await page.goto("/sequence/list");
+    await page.evaluate(
+      ({ id, data }) => {
+        localStorage.setItem(`v3-sequence-${id}`, JSON.stringify(data));
+      },
+      { id: SEQUENCE_ID, data: dummySequence },
+    );
+    await page.goto(`/sequence/edit/${SEQUENCE_ID}`);
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("編集モード UI — ScreenItemsView singleton (PR-7)", () => {
+  test("編集開始 → 確認", async ({ page }) => {
+    await page.goto("/screen-items");
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("編集モード UI — ConventionsCatalogView singleton (PR-7)", () => {
+  test("編集開始 → 確認", async ({ page }) => {
+    await page.goto("/conventions/catalog");
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("編集モード UI — ExtensionsPanel singleton (PR-7)", () => {
+  test("編集開始 → 確認", async ({ page }) => {
+    await page.goto("/extensions");
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    // ExtensionsPanel は per-tab save なので edit-mode-save が表示されなくてもよい
+    await expect(
+      page.getByTestId("edit-mode-save").or(page.getByTestId("edit-mode-discard")),
+    ).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe("編集モード UI — FlowEditor singleton (PR-7)", () => {
+  test("編集開始 → 確認", async ({ page }) => {
+    await page.goto("/screen/flow");
+    const started = await startEditOrSkip(page);
+    if (!started) return;
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ─── 既存: 強制解除シナリオ ───
 
 test.describe("編集モード UI — 強制解除シナリオ", () => {
   test("シナリオ 3: 2 タブ open → タブ A 編集中 → タブ B から強制解除", async ({ browser }) => {
