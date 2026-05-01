@@ -26,9 +26,6 @@ import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
 import {
   isLockdown as isWorkspaceLockdown,
   getLockdownPath as getWorkspaceLockdownPath,
-  getActivePath as getActiveWorkspacePath,
-  setActivePath as setActiveWorkspacePath,
-  clearActive as clearActiveWorkspace,
   LockdownError as WorkspaceLockdownError,
   workspaceContextManager,
 } from "./workspaceState.js";
@@ -364,50 +361,28 @@ class WsBridge extends EventEmitter {
   }
 
   /**
-   * ブロードキャスト (#700 R-2 D-4)
+   * ブロードキャスト (#700 R-2 D-4 — 旧シグネチャ完全削除)
    *
    * 新シグネチャ: `broadcast({ wsId, event, data, excludeClientId? })`
    * - wsId が指定された場合: 該当 wsId の active workspace を持つ session のみに配信
-   * - wsId が null/undefined の場合: 全 session に配信 (R-4 までの互換動作)
+   * - wsId が null の場合: 全 session に配信 (MCP tool からの一斉通知)
    *
-   * 旧シグネチャ `broadcast(event, data, excludeClientId?)` も後方互換で維持する。
+   * LEGACY の文字列直渡し `broadcast(event, data)` は #700 R-2 で完全削除。
    */
-  broadcast(
-    eventOrOpts: string | { wsId?: string | null; event: string; data: unknown; excludeClientId?: string },
-    dataOrUndefined?: unknown,
-    excludeClientIdLegacy?: string,
-  ): void {
-    let event: string;
-    let data: unknown;
-    let excludeClientId: string | undefined;
-    let wsId: string | null | undefined;
-
-    if (typeof eventOrOpts === "string") {
-      // 旧シグネチャ後方互換
-      event = eventOrOpts;
-      data = dataOrUndefined;
-      excludeClientId = excludeClientIdLegacy;
-      wsId = undefined; // 全配信
-    } else {
-      event = eventOrOpts.event;
-      data = eventOrOpts.data;
-      excludeClientId = eventOrOpts.excludeClientId;
-      wsId = eventOrOpts.wsId;
-    }
-
+  broadcast(opts: { wsId: string | null; event: string; data: unknown; excludeClientId?: string }): void {
+    const { event, data, excludeClientId, wsId } = opts;
     const msg = JSON.stringify({ type: "broadcast", event, data });
 
     for (const [id, ws] of this.clients) {
       if (id === excludeClientId) continue;
       if (ws.readyState !== WebSocket.OPEN) continue;
 
-      // wsId が指定されている場合: 該当 wsId の active path を持つ session のみ
-      if (wsId != null) {
+      // wsId が指定された場合: 該当 wsId の active path を持つ session のみ
+      if (wsId !== null) {
         const ctx = workspaceContextManager.getAllContexts().find((c) => c.clientId === id);
         if (!ctx || !ctx.activePath) continue;
-        // wsId は recent エントリの UUID。ここでは activePath レベルで照合する。
         // wsId → activePath の逆引きは R-4 完了まで wsBridge 内では行わないため、
-        // wsId scoping は「wsId を持つ context」 = activePath が非 null の session に絞る。
+        // wsId scoping は「activePath が非 null の session」に絞る。
         // (R-4 で wsId → path の Map を wsBridge に持たせ、厳密 scoping に移行する)
       }
 
@@ -450,7 +425,7 @@ class WsBridge extends EventEmitter {
           const { project } = (params ?? {}) as { project: unknown };
           await writeProject(project, root());
           respond({ success: true });
-          this.broadcast("projectChanged", {}, clientId);
+          this.broadcast({ wsId: null, event: "projectChanged", data: {}, excludeClientId: clientId });
           break;
         }
         case "loadScreen": {
@@ -472,14 +447,14 @@ class WsBridge extends EventEmitter {
                 screen.updatedAt = new Date().toISOString();
                 project.updatedAt = new Date().toISOString();
                 await writeProject(project, root());
-                this.broadcast("projectChanged", {}, clientId);
+                this.broadcast({ wsId: null, event: "projectChanged", data: {}, excludeClientId: clientId });
               }
             }
           } catch (e) {
             console.error("[WsBridge] Failed to update hasDesign:", e);
           }
           respond({ success: true });
-          this.broadcast("screenChanged", { screenId }, clientId);
+          this.broadcast({ wsId: null, event: "screenChanged", data: { screenId }, excludeClientId: clientId });
           break;
         }
         case "loadScreenEntity": {
@@ -492,15 +467,15 @@ class WsBridge extends EventEmitter {
           const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
           await writeScreenEntity(screenId, data, root());
           respond({ success: true });
-          this.broadcast("screenEntityChanged", { screenId }, clientId);
-          this.broadcast("screenItemsChanged", { screenId }, clientId);
+          this.broadcast({ wsId: null, event: "screenEntityChanged", data: { screenId }, excludeClientId: clientId });
+          this.broadcast({ wsId: null, event: "screenItemsChanged", data: { screenId }, excludeClientId: clientId });
           break;
         }
         case "deleteScreen": {
           const { screenId } = (params ?? {}) as { screenId: string };
           await deleteScreenFile(screenId, root());
           respond({ success: true });
-          this.broadcast("screenChanged", { screenId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "screenChanged", data: { screenId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "loadCustomBlocks": {
@@ -512,7 +487,7 @@ class WsBridge extends EventEmitter {
           const { blocks } = (params ?? {}) as { blocks: unknown[] };
           await writeCustomBlocks(blocks, root());
           respond({ success: true });
-          this.broadcast("customBlocksChanged", {}, clientId);
+          this.broadcast({ wsId: null, event: "customBlocksChanged", data: {}, excludeClientId: clientId });
           break;
         }
         case "loadTable": {
@@ -525,14 +500,14 @@ class WsBridge extends EventEmitter {
           const { tableId, data } = (params ?? {}) as { tableId: string; data: unknown };
           await writeTable(tableId, data, root());
           respond({ success: true });
-          this.broadcast("tableChanged", { tableId }, clientId);
+          this.broadcast({ wsId: null, event: "tableChanged", data: { tableId }, excludeClientId: clientId });
           break;
         }
         case "deleteTable": {
           const { tableId } = (params ?? {}) as { tableId: string };
           await deleteTableFile(tableId, root());
           respond({ success: true });
-          this.broadcast("tableChanged", { tableId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "tableChanged", data: { tableId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "listAllTables": {
@@ -549,7 +524,7 @@ class WsBridge extends EventEmitter {
           const { data } = (params ?? {}) as { data: unknown };
           await writeErLayout(data, root());
           respond({ success: true });
-          this.broadcast("erLayoutChanged", {}, clientId);
+          this.broadcast({ wsId: null, event: "erLayoutChanged", data: {}, excludeClientId: clientId });
           break;
         }
         case "loadScreenLayout": {
@@ -561,7 +536,7 @@ class WsBridge extends EventEmitter {
           const { data } = (params ?? {}) as { data: unknown };
           await writeScreenLayout(data, root());
           respond({ success: true });
-          this.broadcast("screenLayoutChanged", {}, clientId);
+          this.broadcast({ wsId: null, event: "screenLayoutChanged", data: {}, excludeClientId: clientId });
           break;
         }
         case "loadProcessFlow": {
@@ -574,14 +549,14 @@ class WsBridge extends EventEmitter {
           const { id: agId, data: agData } = (params ?? {}) as { id: string; data: unknown };
           await writeProcessFlow(agId, agData, root());
           respond({ success: true });
-          this.broadcast("processFlowChanged", { id: agId }, clientId);
+          this.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId }, excludeClientId: clientId });
           break;
         }
         case "deleteProcessFlow": {
           const { id: agId } = (params ?? {}) as { id: string };
           await deleteProcessFlowFile(agId, root());
           respond({ success: true });
-          this.broadcast("processFlowChanged", { id: agId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "listProcessFlows": {
@@ -616,7 +591,7 @@ class WsBridge extends EventEmitter {
           const { catalog } = (params ?? {}) as { catalog: unknown };
           await writeConventions(catalog, root());
           respond({ success: true });
-          this.broadcast("conventionsChanged", {}, clientId);
+          this.broadcast({ wsId: null, event: "conventionsChanged", data: {}, excludeClientId: clientId });
           break;
         }
         case "loadScreenItems": {
@@ -629,14 +604,14 @@ class WsBridge extends EventEmitter {
           const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
           await writeScreenItems(screenId, data, root());
           respond({ success: true });
-          this.broadcast("screenItemsChanged", { screenId }, clientId);
+          this.broadcast({ wsId: null, event: "screenItemsChanged", data: { screenId }, excludeClientId: clientId });
           break;
         }
         case "deleteScreenItems": {
           const { screenId } = (params ?? {}) as { screenId: string };
           await deleteScreenItems(screenId, root());
           respond({ success: true });
-          this.broadcast("screenItemsChanged", { screenId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "screenItemsChanged", data: { screenId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "loadSequence": {
@@ -649,14 +624,14 @@ class WsBridge extends EventEmitter {
           const { sequenceId, data } = (params ?? {}) as { sequenceId: string; data: unknown };
           await writeSequence(sequenceId, data, root());
           respond({ success: true });
-          this.broadcast("sequenceChanged", { sequenceId }, clientId);
+          this.broadcast({ wsId: null, event: "sequenceChanged", data: { sequenceId }, excludeClientId: clientId });
           break;
         }
         case "deleteSequence": {
           const { sequenceId } = (params ?? {}) as { sequenceId: string };
           await deleteSequenceFile(sequenceId, root());
           respond({ success: true });
-          this.broadcast("sequenceChanged", { sequenceId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "sequenceChanged", data: { sequenceId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "loadView": {
@@ -669,14 +644,14 @@ class WsBridge extends EventEmitter {
           const { viewId, data } = (params ?? {}) as { viewId: string; data: unknown };
           await writeView(viewId, data, root());
           respond({ success: true });
-          this.broadcast("viewChanged", { viewId }, clientId);
+          this.broadcast({ wsId: null, event: "viewChanged", data: { viewId }, excludeClientId: clientId });
           break;
         }
         case "deleteView": {
           const { viewId } = (params ?? {}) as { viewId: string };
           await deleteViewFile(viewId, root());
           respond({ success: true });
-          this.broadcast("viewChanged", { viewId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "viewChanged", data: { viewId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "loadViewDefinition": {
@@ -689,19 +664,19 @@ class WsBridge extends EventEmitter {
           const { viewDefinitionId, data } = (params ?? {}) as { viewDefinitionId: string; data: unknown };
           await writeViewDefinition(viewDefinitionId, data, root());
           respond({ success: true });
-          this.broadcast("viewDefinitionChanged", { viewDefinitionId }, clientId);
+          this.broadcast({ wsId: null, event: "viewDefinitionChanged", data: { viewDefinitionId }, excludeClientId: clientId });
           break;
         }
         case "deleteViewDefinition": {
           const { viewDefinitionId } = (params ?? {}) as { viewDefinitionId: string };
           await deleteViewDefinitionFile(viewDefinitionId, root());
           respond({ success: true });
-          this.broadcast("viewDefinitionChanged", { viewDefinitionId, deleted: true }, clientId);
+          this.broadcast({ wsId: null, event: "viewDefinitionChanged", data: { viewDefinitionId, deleted: true }, excludeClientId: clientId });
           break;
         }
         case "getFileMtime": {
           const { kind, id: fid } = (params ?? {}) as { kind: string; id?: string };
-          const mtime = await getFileMtime(kind, fid, root());
+          const mtime = await getFileMtime(kind, root(), fid);
           respond({ mtime });
           break;
         }
@@ -720,7 +695,8 @@ class WsBridge extends EventEmitter {
             await writeExtensionsFile(
               type as "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes",
               content,
-              { onAfterWrite: () => this.broadcast("extensionsChanged", { type }, clientId), root: root() }
+              root(),
+              { onAfterWrite: () => this.broadcast({ wsId: null, event: "extensionsChanged", data: { type }, excludeClientId: clientId }) },
             );
             respond({ success: true });
           } catch (e) {
@@ -732,20 +708,20 @@ class WsBridge extends EventEmitter {
           const { screenId, oldId, newId } = (params ?? {}) as {
             screenId: string; oldId: string; newId: string;
           };
-          const result = await renameScreenItemId(screenId, oldId, newId);
+          const result = await renameScreenItemId(screenId, oldId, newId, root());
           respond(result);
-          this.broadcast("screenItemsChanged", { screenId }, clientId);
+          this.broadcast({ wsId: null, event: "screenItemsChanged", data: { screenId }, excludeClientId: clientId });
           for (const agId of result.processFlowsUpdated) {
-            this.broadcast("processFlowChanged", { id: agId }, clientId);
+            this.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId }, excludeClientId: clientId });
           }
           if (result.screenHtmlUpdated) {
-            this.broadcast("screenChanged", { screenId }, clientId);
+            this.broadcast({ wsId: null, event: "screenChanged", data: { screenId }, excludeClientId: clientId });
           }
           break;
         }
         case "checkScreenItemRefs": {
           const { screenId, itemId } = (params ?? {}) as { screenId: string; itemId: string };
-          const result = await checkScreenItemRefs(screenId, itemId);
+          const result = await checkScreenItemRefs(screenId, itemId, root());
           respond(result);
           break;
         }
@@ -753,7 +729,7 @@ class WsBridge extends EventEmitter {
         // ── ワークスペース管理 (#671/#672/#673) ─────────────────────────
         case "workspace.list": {
           const { workspaces, lastActiveId } = await listWorkspacesEntries();
-          const activePath = getActiveWorkspacePath();
+          const activePath = workspaceContextManager.getActivePath(clientId);
           respond({
             workspaces,
             lastActiveId,
@@ -766,8 +742,8 @@ class WsBridge extends EventEmitter {
           break;
         }
         case "workspace.status": {
-          // per-session active path を優先、fallback は LEGACY global (#700 R-2)
-          const activePath = workspaceContextManager.getActivePath(clientId) ?? getActiveWorkspacePath();
+          // per-session active path (#700 R-2)
+          const activePath = workspaceContextManager.getActivePath(clientId);
           let activeName: string | null = null;
           if (activePath) {
             const entry = await findWorkspaceByPath(activePath);
@@ -835,15 +811,13 @@ class WsBridge extends EventEmitter {
           try {
             // per-session context を更新 (#700 R-2)
             workspaceContextManager.setActivePath(clientId, resolved);
-            // LEGACY global も更新 (MCP tool 側の互換のため)
-            setActiveWorkspacePath(resolved);
           } catch (e) {
             if (e instanceof WorkspaceLockdownError) { respondError(e.message); break; }
             throw e;
           }
           let name = initName ?? resolved.split(/[\\/]/).pop() ?? "";
           try {
-            const proj = await readProject();
+            const proj = await readProject(resolved);
             if (proj && typeof proj === "object" && proj !== null) {
               const meta = (proj as Record<string, unknown>).meta;
               if (meta && typeof meta === "object" && meta !== null) {
@@ -855,29 +829,27 @@ class WsBridge extends EventEmitter {
           const entry = await upsertWorkspaceEntry(resolved, name);
           await setLastActiveWorkspace(entry.id);
           respond({ active: { id: entry.id, path: entry.path, name: entry.name } });
-          this.broadcast("workspace.changed", {
+          this.broadcast({ wsId: null, event: "workspace.changed", data: {
             activeId: entry.id,
             path: entry.path,
             name: entry.name,
             lockdown: isWorkspaceLockdown(),
-          }, clientId);
+          }, excludeClientId: clientId });
           break;
         }
         case "workspace.close": {
           try {
             // per-session context を更新 (#700 R-2)
             workspaceContextManager.clearActive(clientId);
-            // LEGACY global も更新 (MCP tool 側の互換のため)
-            clearActiveWorkspace();
           } catch (e) {
             if (e instanceof WorkspaceLockdownError) { respondError(e.message); break; }
             throw e;
           }
           await setLastActiveWorkspace(null);
           respond({ success: true });
-          this.broadcast("workspace.changed", {
+          this.broadcast({ wsId: null, event: "workspace.changed", data: {
             activeId: null, path: null, name: null, lockdown: isWorkspaceLockdown(),
-          }, clientId);
+          }, excludeClientId: clientId });
           break;
         }
         case "workspace.remove": {
@@ -892,52 +864,52 @@ class WsBridge extends EventEmitter {
         // ── draft 管理 (#685) ─────────────────────────────────────────
         case "draft.read": {
           const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const payload = await readDraft(dt, did);
+          const payload = await readDraft(clientId, dt, did);
           respond({ payload, exists: payload !== null });
           break;
         }
         case "draft.update": {
           const { type: dt, id: did, payload: dp } = (params ?? {}) as { type: DraftResourceType; id: string; payload: unknown };
-          await updateDraft(dt, did, dp);
+          await updateDraft(clientId, dt, did, dp);
           respond({ updated: true });
-          this.broadcast("draft.changed", { type: dt, id: did, op: "updated" }, clientId);
+          this.broadcast({ wsId: null, event: "draft.changed", data: { type: dt, id: did, op: "updated" }, excludeClientId: clientId });
           break;
         }
         case "draft.commit": {
           const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await commitDraft(dt, did);
+          const r = await commitDraft(clientId, dt, did);
           respond(r);
           if (r.committed) {
-            this.broadcast("draft.changed", { type: dt, id: did, op: "committed" }, clientId);
+            this.broadcast({ wsId: null, event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
           }
           break;
         }
         case "draft.discard": {
           const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await discardDraft(dt, did);
+          const r = await discardDraft(clientId, dt, did);
           respond(r);
           if (r.discarded) {
-            this.broadcast("draft.changed", { type: dt, id: did, op: "discarded" }, clientId);
+            this.broadcast({ wsId: null, event: "draft.changed", data: { type: dt, id: did, op: "discarded" }, excludeClientId: clientId });
           }
           break;
         }
         case "draft.has": {
           const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const exists = await hasDraft(dt, did);
+          const exists = await hasDraft(clientId, dt, did);
           respond({ exists });
           break;
         }
         case "draft.list": {
-          const drafts = await listDrafts();
+          const drafts = await listDrafts(clientId);
           respond({ drafts });
           break;
         }
         case "draft.create": {
           const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await createDraft(dt, did);
+          const r = await createDraft(clientId, dt, did);
           respond(r);
           if (r.created) {
-            this.broadcast("draft.changed", { type: dt, id: did, op: "created" }, clientId);
+            this.broadcast({ wsId: null, event: "draft.changed", data: { type: dt, id: did, op: "created" }, excludeClientId: clientId });
           }
           break;
         }
@@ -948,7 +920,7 @@ class WsBridge extends EventEmitter {
           try {
             const entry = lockAcquire(lrt, lrid, clientId);
             respond({ entry });
-            this.broadcast("lock.changed", { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId });
+            this.broadcast({ wsId: null, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId } });
           } catch (e) {
             if (e instanceof LockConflictError) {
               respondError(e.message);
@@ -963,7 +935,7 @@ class WsBridge extends EventEmitter {
           try {
             const result = lockRelease(lrt, lrid, clientId);
             respond(result);
-            this.broadcast("lock.changed", { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId });
+            this.broadcast({ wsId: null, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId } });
           } catch (e) {
             if (e instanceof LockNotHeldError) {
               respondError(e.message);
@@ -977,7 +949,7 @@ class WsBridge extends EventEmitter {
           const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
           const fr = lockForceRelease(lrt, lrid, clientId);
           respond(fr);
-          this.broadcast("lock.changed", { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner });
+          this.broadcast({ wsId: null, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner } });
           break;
         }
         case "lock.get": {

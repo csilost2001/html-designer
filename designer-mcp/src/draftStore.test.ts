@@ -1,7 +1,7 @@
 /**
  * draftStore 単体テスト (#685)
  *
- * env DESIGNER_DATA_DIR に tmp パスを設定して workspaceState の lockdown を利用。
+ * per-session API (#700 R-2): connect(clientId, path) を使って workspace を設定。
  * 実際のワークスペースには一切触れない。
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 
 const TMP_ROOT = path.join(os.tmpdir(), `draft-store-test-${process.pid}-${Date.now()}`);
-const ORIGINAL_ENV = process.env.DESIGNER_DATA_DIR;
+const TEST_CLIENT_ID = "test-client";
 
 const {
   createDraft,
@@ -22,7 +22,7 @@ const {
   listDrafts,
 } = await import("./draftStore.js");
 
-const { _resetForTest, setActivePath, initWorkspaceState } = await import("./workspaceState.js");
+const { _resetForTest, connect, initWorkspaceState } = await import("./workspaceState.js");
 
 async function ensureWorkspace(): Promise<void> {
   await fs.mkdir(TMP_ROOT, { recursive: true });
@@ -36,7 +36,8 @@ async function ensureWorkspace(): Promise<void> {
 beforeAll(async () => {
   await ensureWorkspace();
   _resetForTest();
-  setActivePath(TMP_ROOT);
+  initWorkspaceState();
+  connect(TEST_CLIENT_ID, TMP_ROOT);
 });
 
 beforeEach(async () => {
@@ -55,30 +56,25 @@ afterAll(async () => {
     // ignore
   }
   _resetForTest();
-  if (ORIGINAL_ENV !== undefined) {
-    process.env.DESIGNER_DATA_DIR = ORIGINAL_ENV;
-  } else {
-    delete process.env.DESIGNER_DATA_DIR;
-  }
 });
 
 describe("draftStore", () => {
   describe("createDraft / readDraft / updateDraft", () => {
     it("happy path: create (新規) → read → update → read", async () => {
-      const result = await createDraft("table", "tbl-001");
+      const result = await createDraft(TEST_CLIENT_ID, "table", "tbl-001");
       expect(result.created).toBe(true);
 
-      const initial = await readDraft("table", "tbl-001");
+      const initial = await readDraft(TEST_CLIENT_ID, "table", "tbl-001");
       expect(initial).toEqual({});
 
-      await updateDraft("table", "tbl-001", { name: "users", columns: [] });
-      const updated = await readDraft("table", "tbl-001");
+      await updateDraft(TEST_CLIENT_ID, "table", "tbl-001", { name: "users", columns: [] });
+      const updated = await readDraft(TEST_CLIENT_ID, "table", "tbl-001");
       expect(updated).toMatchObject({ name: "users", columns: [] });
     });
 
     it("createDraft: 既に draft が存在する場合は created: false を返す", async () => {
-      await createDraft("table", "tbl-dup");
-      const second = await createDraft("table", "tbl-dup");
+      await createDraft(TEST_CLIENT_ID, "table", "tbl-dup");
+      const second = await createDraft(TEST_CLIENT_ID, "table", "tbl-dup");
       expect(second.created).toBe(false);
     });
 
@@ -91,31 +87,31 @@ describe("draftStore", () => {
         "utf-8",
       );
 
-      const r = await createDraft("table", "tbl-copy");
+      const r = await createDraft(TEST_CLIENT_ID, "table", "tbl-copy");
       expect(r.created).toBe(true);
-      const draft = await readDraft("table", "tbl-copy");
+      const draft = await readDraft(TEST_CLIENT_ID, "table", "tbl-copy");
       expect(draft).toMatchObject({ name: "existing" });
     });
 
     it("readDraft: 存在しない draft は null を返す", async () => {
-      const d = await readDraft("table", "nonexistent");
+      const d = await readDraft(TEST_CLIENT_ID, "table", "nonexistent");
       expect(d).toBeNull();
     });
 
     it("updateDraft: draft が未存在でも書き込める (新規作成)", async () => {
-      await updateDraft("sequence", "seq-001", { steps: [1, 2, 3] });
-      const d = await readDraft("sequence", "seq-001");
+      await updateDraft(TEST_CLIENT_ID, "sequence", "seq-001", { steps: [1, 2, 3] });
+      const d = await readDraft(TEST_CLIENT_ID, "sequence", "seq-001");
       expect(d).toMatchObject({ steps: [1, 2, 3] });
     });
   });
 
   describe("commitDraft", () => {
     it("table: draft を本体ファイルへ昇格し draft が消える", async () => {
-      await updateDraft("table", "tbl-commit", { id: "tbl-commit", name: "orders" });
-      const r = await commitDraft("table", "tbl-commit");
+      await updateDraft(TEST_CLIENT_ID, "table", "tbl-commit", { id: "tbl-commit", name: "orders" });
+      const r = await commitDraft(TEST_CLIENT_ID, "table", "tbl-commit");
       expect(r.committed).toBe(true);
 
-      const afterDraft = await readDraft("table", "tbl-commit");
+      const afterDraft = await readDraft(TEST_CLIENT_ID, "table", "tbl-commit");
       expect(afterDraft).toBeNull();
 
       const bodyPath = path.join(TMP_ROOT, "tables", "tbl-commit.json");
@@ -124,8 +120,8 @@ describe("draftStore", () => {
     });
 
     it("process-flow: draft を actions/ 配下へ昇格する", async () => {
-      await updateDraft("process-flow", "flow-001", { id: "flow-001", steps: [] });
-      const r = await commitDraft("process-flow", "flow-001");
+      await updateDraft(TEST_CLIENT_ID, "process-flow", "flow-001", { id: "flow-001", steps: [] });
+      const r = await commitDraft(TEST_CLIENT_ID, "process-flow", "flow-001");
       expect(r.committed).toBe(true);
 
       const bodyPath = path.join(TMP_ROOT, "actions", "flow-001.json");
@@ -134,8 +130,8 @@ describe("draftStore", () => {
     });
 
     it("convention: draft を conventions/catalog.json へ昇格する", async () => {
-      await updateDraft("convention", "catalog", { version: 1, rules: [] });
-      const r = await commitDraft("convention", "catalog");
+      await updateDraft(TEST_CLIENT_ID, "convention", "catalog", { version: 1, rules: [] });
+      const r = await commitDraft(TEST_CLIENT_ID, "convention", "catalog");
       expect(r.committed).toBe(true);
 
       const bodyPath = path.join(TMP_ROOT, "conventions", "catalog.json");
@@ -144,16 +140,16 @@ describe("draftStore", () => {
     });
 
     it("commitDraft: draft が存在しない場合は committed: false を返す", async () => {
-      const r = await commitDraft("table", "no-such-draft");
+      const r = await commitDraft(TEST_CLIENT_ID, "table", "no-such-draft");
       expect(r.committed).toBe(false);
     });
 
     it("screen-item: commitDraft は writeScreenItems を呼び出して committed: true を返す", async () => {
-      await updateDraft("screen-item", "si-001", { screenId: "si-001", items: [] });
-      const r = await commitDraft("screen-item", "si-001");
+      await updateDraft(TEST_CLIENT_ID, "screen-item", "si-001", { screenId: "si-001", items: [] });
+      const r = await commitDraft(TEST_CLIENT_ID, "screen-item", "si-001");
       expect(r.committed).toBe(true);
       // draft が削除されていること
-      const afterDraft = await readDraft("screen-item", "si-001");
+      const afterDraft = await readDraft(TEST_CLIENT_ID, "screen-item", "si-001");
       expect(afterDraft).toBeNull();
     });
 
@@ -169,16 +165,16 @@ describe("draftStore", () => {
       );
 
       // singleton id で draft を作成・commit
-      await updateDraft("screen-item", "singleton", {
+      await updateDraft(TEST_CLIENT_ID, "screen-item", "singleton", {
         screenId,
         items: [{ id: "item-1", label: "ラベル" }],
         updatedAt: "2026-01-01T00:00:00.000Z",
       });
-      const r = await commitDraft("screen-item", "singleton");
+      const r = await commitDraft(TEST_CLIENT_ID, "screen-item", "singleton");
       expect(r.committed).toBe(true);
 
       // draft が削除されていること
-      const afterDraft = await readDraft("screen-item", "singleton");
+      const afterDraft = await readDraft(TEST_CLIENT_ID, "screen-item", "singleton");
       expect(afterDraft).toBeNull();
 
       // 正しい screenId のファイルに書き込まれていること ("singleton" ではない)
@@ -189,18 +185,18 @@ describe("draftStore", () => {
     });
 
     it("screen-item: payload.screenId が空文字のときエラーを投げる", async () => {
-      await updateDraft("screen-item", "singleton", {
+      await updateDraft(TEST_CLIENT_ID, "screen-item", "singleton", {
         screenId: "",
         items: [],
       });
-      await expect(commitDraft("screen-item", "singleton")).rejects.toThrow(
+      await expect(commitDraft(TEST_CLIENT_ID, "screen-item", "singleton")).rejects.toThrow(
         "screen-item draft payload に screenId がありません",
       );
     });
 
     it("screen-item: payload.screenId が存在しないときエラーを投げる", async () => {
-      await updateDraft("screen-item", "singleton", { items: [] });
-      await expect(commitDraft("screen-item", "singleton")).rejects.toThrow(
+      await updateDraft(TEST_CLIENT_ID, "screen-item", "singleton", { items: [] });
+      await expect(commitDraft(TEST_CLIENT_ID, "screen-item", "singleton")).rejects.toThrow(
         "screen-item draft payload に screenId がありません",
       );
     });
@@ -208,35 +204,35 @@ describe("draftStore", () => {
 
   describe("discardDraft", () => {
     it("create → discard → has=false", async () => {
-      await createDraft("sequence", "seq-discard");
-      const r = await discardDraft("sequence", "seq-discard");
+      await createDraft(TEST_CLIENT_ID, "sequence", "seq-discard");
+      const r = await discardDraft(TEST_CLIENT_ID, "sequence", "seq-discard");
       expect(r.discarded).toBe(true);
 
-      const exists = await hasDraft("sequence", "seq-discard");
+      const exists = await hasDraft(TEST_CLIENT_ID, "sequence", "seq-discard");
       expect(exists).toBe(false);
     });
 
     it("discardDraft: 存在しない draft は discarded: false", async () => {
-      const r = await discardDraft("table", "ghost");
+      const r = await discardDraft(TEST_CLIENT_ID, "table", "ghost");
       expect(r.discarded).toBe(false);
     });
   });
 
   describe("hasDraft", () => {
     it("draft 存在時は true、非存在時は false", async () => {
-      expect(await hasDraft("table", "hd-test")).toBe(false);
-      await createDraft("table", "hd-test");
-      expect(await hasDraft("table", "hd-test")).toBe(true);
+      expect(await hasDraft(TEST_CLIENT_ID, "table", "hd-test")).toBe(false);
+      await createDraft(TEST_CLIENT_ID, "table", "hd-test");
+      expect(await hasDraft(TEST_CLIENT_ID, "table", "hd-test")).toBe(true);
     });
   });
 
   describe("listDrafts", () => {
     it("複数 type の draft を列挙できる", async () => {
-      await createDraft("table", "t1");
-      await createDraft("table", "t2");
-      await createDraft("sequence", "s1");
+      await createDraft(TEST_CLIENT_ID, "table", "t1");
+      await createDraft(TEST_CLIENT_ID, "table", "t2");
+      await createDraft(TEST_CLIENT_ID, "sequence", "s1");
 
-      const items = await listDrafts();
+      const items = await listDrafts(TEST_CLIENT_ID);
       expect(items.length).toBeGreaterThanOrEqual(3);
 
       const types = items.map((i) => i.type);
@@ -251,7 +247,7 @@ describe("draftStore", () => {
     });
 
     it(".drafts/ が存在しない場合は空配列を返す", async () => {
-      const items = await listDrafts();
+      const items = await listDrafts(TEST_CLIENT_ID);
       expect(Array.isArray(items)).toBe(true);
     });
   });
@@ -260,9 +256,9 @@ describe("draftStore", () => {
     it("連続 update でも最終値が正しく読める", async () => {
       const updates = Array.from({ length: 10 }, (_, i) => ({ version: i }));
       for (const payload of updates) {
-        await updateDraft("table", "atomic-test", payload);
+        await updateDraft(TEST_CLIENT_ID, "table", "atomic-test", payload);
       }
-      const final = await readDraft("table", "atomic-test");
+      const final = await readDraft(TEST_CLIENT_ID, "table", "atomic-test");
       expect(final).toMatchObject({ version: 9 });
     });
   });

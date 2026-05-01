@@ -66,14 +66,14 @@ function namespacedKey(namespace: string | undefined, key: string): string {
   return namespace ? `${namespace}:${key}` : key;
 }
 
-async function readResponseTypesFile(): Promise<ResponseTypesFile> {
-  const bundle = await readExtensionsBundle();
+async function readResponseTypesFile(root: string): Promise<ResponseTypesFile> {
+  const bundle = await readExtensionsBundle(root);
   return normalizeResponseTypesFile(bundle.responseTypes);
 }
 
-async function writeResponseTypesFile(file: ResponseTypesFile): Promise<void> {
-  await writeExtensionsFile("responseTypes", file, {
-    onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "responseTypes" }),
+async function writeResponseTypesFile(file: ResponseTypesFile, root: string): Promise<void> {
+  await writeExtensionsFile("responseTypes", file, root, {
+    onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "responseTypes" } }),
   });
 }
 
@@ -82,31 +82,31 @@ async function handleAddResponseTypeExtension(params: {
   key?: unknown;
   schema?: unknown;
   description?: unknown;
-}): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+}, root: string): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   if (typeof params.key !== "string" || typeof params.schema !== "object" || params.schema === null || Array.isArray(params.schema)) {
     throw new McpError(ErrorCode.InvalidParams, "key, schema は必須です");
   }
   const namespace = typeof params.namespace === "string" ? params.namespace : "";
   const key = namespacedKey(namespace, params.key);
-  const file = await readResponseTypesFile();
+  const file = await readResponseTypesFile(root);
   file.responseTypes[key] = {
     schema: params.schema as Record<string, unknown>,
     ...(typeof params.description === "string" ? { description: params.description } : {}),
   };
   try {
-    await writeResponseTypesFile(file);
+    await writeResponseTypesFile(file, root);
   } catch (e) {
     throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
   }
   return { content: [{ type: "text", text: `responseTypes.${key} を追加/更新しました。` }] };
 }
 
-export const handleProcessFlowTool: ToolHandler = async (name, args) => {
+export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
   const a = args ?? {};
 
   switch (name) {
     case "designer__list_process_flows": {
-      const agList = await listProcessFlowFiles() as Array<{ id: string; name: string; type: string; screenId?: string; actions?: unknown[]; updatedAt: string }>;
+      const agList = await listProcessFlowFiles(root) as Array<{ id: string; name: string; type: string; screenId?: string; actions?: unknown[]; updatedAt: string }>;
       if (agList.length === 0) {
         return { content: [{ type: "text", text: "処理フロー定義はまだありません。" }] };
       }
@@ -122,7 +122,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       // browser-first: ProcessFlowEditor が開いていれば live 状態を取得
       const liveData = await wsBridge.tryCommand("getProcessFlow", { id: a.processFlowId });
-      const agData = liveData ?? await readProcessFlow(a.processFlowId);
+      const agData = liveData ?? await readProcessFlow(a.processFlowId, root);
       if (!agData) {
         throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       }
@@ -147,13 +147,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         createdAt: agNow,
         updatedAt: agNow,
       };
-      await writeProcessFlow(agId, agDef);
-      const agProject = (await readProject() ?? {}) as Record<string, unknown>;
+      await writeProcessFlow(agId, agDef, root);
+      const agProject = (await readProject(root) ?? {}) as Record<string, unknown>;
       const agMetas = (agProject.processFlows ?? []) as Array<Record<string, unknown>>;
       agMetas.push({ id: agId, name: a.name, type: a.type, screenId: a.screenId, actionCount: 0, updatedAt: agNow });
       agProject.processFlows = agMetas;
       agProject.updatedAt = agNow;
-      await writeProject(agProject);
+      await writeProject(agProject, root);
       return { content: [{ type: "text", text: `処理フロー「${a.name}」(${a.type}) を追加しました（ID: ${agId}）` }] };
     }
 
@@ -163,8 +163,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       const agDef = a.definition as Record<string, unknown>;
       agDef.updatedAt = new Date().toISOString();
-      await writeProcessFlow(a.processFlowId, agDef);
-      const agProject = (await readProject() ?? {}) as Record<string, unknown>;
+      await writeProcessFlow(a.processFlowId, agDef, root);
+      const agProject = (await readProject(root) ?? {}) as Record<string, unknown>;
       const agMetas = (agProject.processFlows ?? []) as Array<Record<string, unknown>>;
       const agIdx = agMetas.findIndex((m) => m.id === a.processFlowId);
       const agActions = (agDef.actions ?? []) as unknown[];
@@ -172,7 +172,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (agIdx >= 0) agMetas[agIdx] = agMeta; else agMetas.push(agMeta);
       agProject.processFlows = agMetas;
       agProject.updatedAt = agDef.updatedAt as string;
-      await writeProject(agProject);
+      await writeProject(agProject, root);
       return { content: [{ type: "text", text: `処理フロー ${a.processFlowId} を更新しました。` }] };
     }
 
@@ -180,12 +180,12 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.processFlowId !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId は必須です");
       }
-      await deleteProcessFlowFile(a.processFlowId);
-      const agProject = (await readProject() ?? {}) as Record<string, unknown>;
+      await deleteProcessFlowFile(a.processFlowId, root);
+      const agProject = (await readProject(root) ?? {}) as Record<string, unknown>;
       const agMetas = ((agProject.processFlows ?? []) as Array<Record<string, unknown>>).filter((m) => m.id !== a.processFlowId);
       agProject.processFlows = agMetas;
       agProject.updatedAt = new Date().toISOString();
-      await writeProject(agProject);
+      await writeProject(agProject, root);
       return { content: [{ type: "text", text: `処理フロー ${a.processFlowId} を削除しました。` }] };
     }
 
@@ -193,14 +193,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.processFlowId !== "string" || typeof a.name !== "string" || typeof a.trigger !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, name, trigger は必須です");
       }
-      const ag = await readProcessFlow(a.processFlowId) as Record<string, unknown> | null;
+      const ag = await readProcessFlow(a.processFlowId, root) as Record<string, unknown> | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       const actions = (ag.actions ?? []) as Array<Record<string, unknown>>;
       const actionId = `act-${Date.now()}`;
       actions.push({ id: actionId, name: a.name, trigger: a.trigger, steps: [] });
       ag.actions = actions;
       ag.updatedAt = new Date().toISOString();
-      await writeProcessFlow(a.processFlowId, ag);
+      await writeProcessFlow(a.processFlowId, ag, root);
       return { content: [{ type: "text", text: `アクション「${a.name}」を追加しました（ID: ${actionId}）` }] };
     }
 
@@ -216,13 +216,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         return { content: [{ type: "text", text: `ステップ（${a.type}）をブラウザで追加しました（保存で確定）` }] };
       }
       // fallback: ファイル書き
-      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       const stepId = `step-${Date.now()}`;
       const detail = (a.detail ?? {}) as Record<string, unknown>;
       const step = { id: stepId, type: a.type as string, description: (a.description as string) ?? "", ...detail };
       editInsertStepAt(ag, a.actionId as string, step, typeof a.position === "number" ? a.position : undefined);
-      await saveAndBroadcast(a.processFlowId, ag);
+      await saveAndBroadcast(a.processFlowId, ag, root);
       return { content: [{ type: "text", text: `ステップ（${a.type}）を追加しました（ID: ${stepId}）` }] };
     }
 
@@ -237,14 +237,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで更新しました（保存で確定）` }] };
       }
       // fallback
-      const updAg = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const updAg = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!updAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         editUpdateStep(updAg, a.stepId, a.patch as Record<string, unknown>);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, updAg);
+      await saveAndBroadcast(a.processFlowId, updAg, root);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を更新しました。` }] };
     }
 
@@ -259,14 +259,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで削除しました（保存で確定）` }] };
       }
       // fallback
-      const rmAg = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const rmAg = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!rmAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         editRemoveStep(rmAg, a.stepId);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, rmAg);
+      await saveAndBroadcast(a.processFlowId, rmAg, root);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を削除しました。` }] };
     }
 
@@ -281,14 +281,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで位置 ${a.newIndex} に移動しました（保存で確定）` }] };
       }
       // fallback
-      const mvAg = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const mvAg = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!mvAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         editMoveStep(mvAg, a.stepId, a.newIndex);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, mvAg);
+      await saveAndBroadcast(a.processFlowId, mvAg, root);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を位置 ${a.newIndex} に移動しました。` }] };
     }
 
@@ -296,14 +296,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.processFlowId !== "string" || typeof a.target !== "string" || typeof a.maturity !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, target, maturity は必須です");
       }
-      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         editSetMaturity(ag, a.target as "group" | "action" | "step", a.targetId as string | undefined, a.maturity as "draft" | "provisional" | "committed");
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, ag);
+      await saveAndBroadcast(a.processFlowId, ag, root);
       return { content: [{ type: "text", text: `maturity を ${a.maturity} に更新しました。` }] };
     }
 
@@ -311,11 +311,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.processFlowId !== "string" || typeof a.stepId !== "string" || typeof a.type !== "string" || typeof a.body !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, stepId, type, body は必須です");
       }
-      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
         const res = editAddStepNote(ag, a.stepId, a.type as string, a.body as string);
-        await saveAndBroadcast(a.processFlowId, ag);
+        await saveAndBroadcast(a.processFlowId, ag, root);
         return { content: [{ type: "text", text: `付箋を追加しました (ID: ${res.id})` }] };
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
@@ -323,24 +323,24 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
     }
 
     case "designer__list_response_type_extensions": {
-      const file = await readResponseTypesFile();
+      const file = await readResponseTypesFile(root);
       return { content: [{ type: "text", text: JSON.stringify(file.responseTypes, null, 2) }] };
     }
 
     case "designer__get_response_type_extension": {
       if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
-      const file = await readResponseTypesFile();
+      const file = await readResponseTypesFile(root);
       const entry = file.responseTypes[a.key];
       if (!entry) throw new McpError(ErrorCode.InvalidParams, `responseTypes.${a.key} が見つかりません`);
       return { content: [{ type: "text", text: JSON.stringify(entry, null, 2) }] };
     }
 
     case "designer__add_response_type_extension":
-      return await handleAddResponseTypeExtension(a);
+      return await handleAddResponseTypeExtension(a, root);
 
     case "designer__update_response_type_extension": {
       if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
-      const file = await readResponseTypesFile();
+      const file = await readResponseTypesFile(root);
       const current = file.responseTypes[a.key];
       if (!current) throw new McpError(ErrorCode.InvalidParams, `responseTypes.${a.key} が見つかりません`);
       file.responseTypes[a.key] = {
@@ -349,7 +349,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         ...(typeof a.description === "string" ? { description: a.description } : {}),
       };
       try {
-        await writeResponseTypesFile(file);
+        await writeResponseTypesFile(file, root);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
       }
@@ -358,10 +358,10 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
 
     case "designer__delete_response_type_extension": {
       if (typeof a.key !== "string") throw new McpError(ErrorCode.InvalidParams, "key は必須です");
-      const file = await readResponseTypesFile();
+      const file = await readResponseTypesFile(root);
       delete file.responseTypes[a.key];
       try {
-        await writeResponseTypesFile(file);
+        await writeResponseTypesFile(file, root);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
       }
@@ -369,7 +369,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
     }
 
     case "designer__list_extension_packages": {
-      const bundle = await readExtensionsBundle();
+      const bundle = await readExtensionsBundle(root);
       const packages = EXTENSION_PACKAGE_TYPES.map((type) => {
         const content = bundle[type];
         const body = content && typeof content === "object" ? (content as Record<string, unknown>)[type] : undefined;
@@ -386,7 +386,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.packageName !== "string" || !EXTENSION_PACKAGE_TYPES.includes(a.packageName as ExtensionFileKind)) {
         throw new McpError(ErrorCode.InvalidParams, "packageName が不正です");
       }
-      const bundle = await readExtensionsBundle();
+      const bundle = await readExtensionsBundle(root);
       return { content: [{ type: "text", text: JSON.stringify(bundle[a.packageName as ExtensionFileKind], null, 2) }] };
     }
 
@@ -402,12 +402,12 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
           key: a.key,
           schema: value.schema,
           description: value.description,
-        });
+        }, root);
       }
-      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       editAddCatalogEntry(ag, a.catalog as CatalogName, a.key as string, a.value as Record<string, unknown>);
-      await saveAndBroadcast(a.processFlowId, ag);
+      await saveAndBroadcast(a.processFlowId, ag, root);
       return { content: [{ type: "text", text: `${a.catalog}.${a.key} を追加/更新しました。` }] };
     }
 
@@ -417,19 +417,19 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       if (a.catalog === "typeCatalog") {
         console.warn("[deprecation] remove_catalog_entry catalogName=typeCatalog is forwarded to delete_response_type_extension");
-        const file = await readResponseTypesFile();
+        const file = await readResponseTypesFile(root);
         delete file.responseTypes[a.key];
         try {
-          await writeResponseTypesFile(file);
+          await writeResponseTypesFile(file, root);
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
         }
         return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
       }
-      const ag = await readProcessFlow(a.processFlowId) as ProcessFlowDoc | null;
+      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
       if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       editRemoveCatalogEntry(ag, a.catalog as CatalogName, a.key as string);
-      await saveAndBroadcast(a.processFlowId, ag);
+      await saveAndBroadcast(a.processFlowId, ag, root);
       return { content: [{ type: "text", text: `${a.catalog}.${a.key} を削除しました。` }] };
     }
 
@@ -437,7 +437,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.processFlowId !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId は必須です");
       }
-      const flow = await readProcessFlow(a.processFlowId) as Record<string, unknown> | null;
+      const flow = await readProcessFlow(a.processFlowId, root) as Record<string, unknown> | null;
       if (!flow) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
 
       const fmt = (a.outputFormat as string | undefined) ?? "yaml";
@@ -463,7 +463,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
 
       const outPath = path.isAbsolute(a.outputPath as string)
         ? (a.outputPath as string)
-        : path.join(dataDir(), a.outputPath as string);
+        : path.join(dataDir(root), a.outputPath as string);
 
       const zip = new AdmZip();
       const manifest = {
@@ -476,7 +476,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
 
       const missing: string[] = [];
       for (const id of ids) {
-        const doc = await readProcessFlow(id);
+        const doc = await readProcessFlow(id, root);
         if (!doc) { missing.push(id); continue; }
         zip.addFile(`process-flows/${id}.json`, Buffer.from(JSON.stringify(doc, null, 2), "utf8"));
       }
@@ -495,13 +495,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       const inPath = path.isAbsolute(a.inputPath as string)
         ? (a.inputPath as string)
-        : path.join(dataDir(), a.inputPath as string);
+        : path.join(dataDir(root), a.inputPath as string);
       const conflict = (a.conflictResolution as string | undefined) ?? "skip";
 
       const zip = new AdmZip(inPath);
       const entries = zip.getEntries().filter(e => e.entryName.startsWith("process-flows/") && e.entryName.endsWith(".json") && !e.isDirectory);
 
-      const actionsDir = path.join(dataDir(), "actions");
+      const actionsDir = path.join(dataDir(root), "actions");
       const results: string[] = [];
 
       for (const entry of entries) {
@@ -527,7 +527,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
           doc = { ...doc, id: writeId };
         }
 
-        await writeProcessFlow(writeId, doc);
+        await writeProcessFlow(writeId, doc, root);
         results.push(`OK: ${writeId}`);
       }
 
@@ -540,7 +540,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.namespace !== "string" || typeof a.key !== "string" || typeof a.schema !== "object" || a.schema === null || Array.isArray(a.schema)) {
         throw new McpError(ErrorCode.InvalidParams, "namespace, key, schema は必須です");
       }
-      const stepsBundle = await readExtensionsBundle();
+      const stepsBundle = await readExtensionsBundle(root);
       const rawSteps = stepsBundle.steps;
       const stepsFile = rawSteps && typeof rawSteps === "object" && !Array.isArray(rawSteps)
         ? rawSteps as { namespace?: string; steps?: Record<string, unknown> }
@@ -557,8 +557,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       };
       const newStepsFile = { namespace: typeof stepsFile.namespace === "string" ? stepsFile.namespace : (a.namespace as string), steps: stepsMap };
       try {
-        await writeExtensionsFile("steps", newStepsFile, {
-          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "steps" }),
+        await writeExtensionsFile("steps", newStepsFile, root, {
+          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "steps" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -570,7 +570,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.namespace !== "string" || typeof a.kind !== "string" || typeof a.label !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "namespace, kind, label は必須です");
       }
-      const ftBundle = await readExtensionsBundle();
+      const ftBundle = await readExtensionsBundle(root);
       const rawFt = ftBundle.fieldTypes;
       const ftFile = rawFt && typeof rawFt === "object" && !Array.isArray(rawFt)
         ? rawFt as { namespace?: string; fieldTypes?: Array<{ kind: string; label: string }> }
@@ -585,8 +585,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       const newFtFile = { namespace: typeof ftFile.namespace === "string" ? ftFile.namespace : (a.namespace as string), fieldTypes: ftArray };
       try {
-        await writeExtensionsFile("fieldTypes", newFtFile, {
-          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" }),
+        await writeExtensionsFile("fieldTypes", newFtFile, root, {
+          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "fieldTypes" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -598,7 +598,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.namespace !== "string" || typeof a.value !== "string" || typeof a.label !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "namespace, value, label は必須です");
       }
-      const trBundle = await readExtensionsBundle();
+      const trBundle = await readExtensionsBundle(root);
       const rawTr = trBundle.triggers;
       const trFile = rawTr && typeof rawTr === "object" && !Array.isArray(rawTr)
         ? rawTr as { namespace?: string; triggers?: Array<{ value: string; label: string }> }
@@ -613,8 +613,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       const newTrFile = { namespace: typeof trFile.namespace === "string" ? trFile.namespace : (a.namespace as string), triggers: trArray };
       try {
-        await writeExtensionsFile("triggers", newTrFile, {
-          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "triggers" }),
+        await writeExtensionsFile("triggers", newTrFile, root, {
+          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "triggers" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -626,7 +626,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (typeof a.namespace !== "string" || typeof a.value !== "string" || typeof a.label !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "namespace, value, label は必須です");
       }
-      const dbBundle = await readExtensionsBundle();
+      const dbBundle = await readExtensionsBundle(root);
       const rawDb = dbBundle.dbOperations;
       const dbFile = rawDb && typeof rawDb === "object" && !Array.isArray(rawDb)
         ? rawDb as { namespace?: string; dbOperations?: Array<{ value: string; label: string }> }
@@ -641,8 +641,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       const newDbFile = { namespace: typeof dbFile.namespace === "string" ? dbFile.namespace : (a.namespace as string), dbOperations: dbArray };
       try {
-        await writeExtensionsFile("dbOperations", newDbFile, {
-          onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "dbOperations" }),
+        await writeExtensionsFile("dbOperations", newDbFile, root, {
+          onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "dbOperations" } }),
         });
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -655,7 +655,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       if (!extType || !["steps", "fieldTypes", "triggers", "dbOperations", "responseTypes"].includes(extType)) {
         throw new McpError(ErrorCode.InvalidParams, "type は必須です (steps/fieldTypes/triggers/dbOperations/responseTypes)");
       }
-      const removeBundle = await readExtensionsBundle();
+      const removeBundle = await readExtensionsBundle(root);
       const rawRemove = removeBundle[extType as ExtensionFileKind];
       if (!rawRemove || typeof rawRemove !== "object" || Array.isArray(rawRemove)) {
         throw new McpError(ErrorCode.InvalidParams, `extensions/${extType} が見つかりません`);
@@ -670,8 +670,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         const rmKey = namespacedKey(typeof a.namespace === "string" ? a.namespace : "", a.key as string);
         delete stepsMap[rmKey];
         try {
-          await writeExtensionsFile("steps", { ...removeFile, steps: stepsMap }, {
-            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "steps" }),
+          await writeExtensionsFile("steps", { ...removeFile, steps: stepsMap }, root, {
+            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "steps" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -685,8 +685,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         const rmRtKey = namespacedKey(typeof a.namespace === "string" ? a.namespace : "", a.key as string);
         delete rtMap[rmRtKey];
         try {
-          await writeExtensionsFile("responseTypes", { ...removeFile, responseTypes: rtMap }, {
-            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "responseTypes" }),
+          await writeExtensionsFile("responseTypes", { ...removeFile, responseTypes: rtMap }, root, {
+            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "responseTypes" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -696,8 +696,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "fieldTypes の remove には value (kind) が必要です");
         const ftArr = Array.isArray(removeFile.fieldTypes) ? (removeFile.fieldTypes as Array<{ kind: string; label: string }>).filter((ft) => ft.kind !== a.value) : [];
         try {
-          await writeExtensionsFile("fieldTypes", { ...removeFile, fieldTypes: ftArr }, {
-            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "fieldTypes" }),
+          await writeExtensionsFile("fieldTypes", { ...removeFile, fieldTypes: ftArr }, root, {
+            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "fieldTypes" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -707,8 +707,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "triggers の remove には value が必要です");
         const trArr = Array.isArray(removeFile.triggers) ? (removeFile.triggers as Array<{ value: string; label: string }>).filter((t) => t.value !== a.value) : [];
         try {
-          await writeExtensionsFile("triggers", { ...removeFile, triggers: trArr }, {
-            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "triggers" }),
+          await writeExtensionsFile("triggers", { ...removeFile, triggers: trArr }, root, {
+            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "triggers" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -718,8 +718,8 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
         if (typeof a.value !== "string") throw new McpError(ErrorCode.InvalidParams, "dbOperations の remove には value が必要です");
         const dbArr = Array.isArray(removeFile.dbOperations) ? (removeFile.dbOperations as Array<{ value: string; label: string }>).filter((d) => d.value !== a.value) : [];
         try {
-          await writeExtensionsFile("dbOperations", { ...removeFile, dbOperations: dbArr }, {
-            onAfterWrite: () => wsBridge.broadcast("extensionsChanged", { type: "dbOperations" }),
+          await writeExtensionsFile("dbOperations", { ...removeFile, dbOperations: dbArr }, root, {
+            onAfterWrite: () => wsBridge.broadcast({ wsId: null, event: "extensionsChanged", data: { type: "dbOperations" } }),
           });
         } catch (e) {
           throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
@@ -730,7 +730,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
     }
 
     case "designer__list_extensions": {
-      const allBundle = await readExtensionsBundle();
+      const allBundle = await readExtensionsBundle(root);
       return { content: [{ type: "text", text: JSON.stringify(allBundle, null, 2) }] };
     }
 

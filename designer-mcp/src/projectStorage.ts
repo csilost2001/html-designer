@@ -3,60 +3,59 @@
  * ファイルベースのプロジェクトデータ永続化ユーティリティ。
  *
  * #671 以降、active workspace path は `workspaceState` モジュールが保持する。
- * 本モジュール内の path 解決はすべて `requireActivePath()` 経由で行うため、
+ * #700 R-2: LEGACY_CLIENT_ID / 後方互換 wrapper を完全削除。
+ * 全 public 関数は `root: string` を必須引数として受け取る。
+ * 呼び出し側は `resolveRoot(clientId)` で per-session root を解決してから渡す。
  * active 未選択時は WorkspaceUnsetError を throw する。
- *
- * #700 R-2: per-session active state 対応。`resolveRoot(clientId?)` ヘルパーを追加し、
- * clientId が渡された場合は WorkspaceContextManager 経由で root を解決する。
- * clientId が渡されない場合は LEGACY global API (requireActivePath()) に fallback する。
  */
 import fs from "fs/promises";
 import path from "path";
 import Ajv, { type ValidateFunction } from "ajv";
-import { requireActivePath, workspaceContextManager } from "./workspaceState.js";
+import { workspaceContextManager } from "./workspaceState.js";
 
 // ── path 解決ヘルパー (#671 + #700 R-2) ─────────────────────────────────────
 // workspace 切替に追従するため、絶対パス constant を廃止し getter 関数化。
 //
 // レース対策 (#676 review 7 周目): 各 getter は optional root を受け、未指定なら
-// requireActivePath() からフォールバック取得する。複数 path を生成する公開関数は
+// requireActivePath(clientId) からフォールバック取得する。複数 path を生成する公開関数は
 // 関数開始時に root を 1 度だけスナップショットし、すべての helper にそれを渡す
 // ことで、操作中に workspace 切替が起きても書き込み先が分散しないようにする。
 //
-// #700 R-2: clientId が渡された場合は WorkspaceContextManager 経由で per-session root を解決。
-// clientId なしの呼び出しは LEGACY global API に fallback (MCP tool 等の互換維持)。
+// #700 R-2: LEGACY 削除。clientId 必須。root は内部 helper 専用 (snapshot 規約)。
 
 /**
  * clientId から per-session active root を解決するヘルパー (#700 R-2)。
- * clientId が渡された場合は WorkspaceContextManager を使用。
- * clientId が渡されない場合は LEGACY global requireActivePath() に fallback。
+ * clientId が渡された場合は WorkspaceContextManager 経由で解決。
+ * root が渡された場合は snapshot path を直接使用 (内部 helper 向け)。
  */
-export function resolveRoot(clientId?: string): string {
-  if (clientId) {
-    return workspaceContextManager.requireActivePath(clientId);
-  }
-  return requireActivePath();
+export function resolveRoot(clientId: string): string {
+  return workspaceContextManager.requireActivePath(clientId);
 }
 
-/** 現在 active な workspace のルート絶対パスを返す。未選択なら throw */
-export function dataDir(root?: string): string {
-  return root ?? requireActivePath();
+/**
+ * root path を返す内部ヘルパー (snapshot 規約用)。
+ * root が渡されればそれを、なければ clientId で解決する。
+ * NOTE: public 関数の引数としては使わない — root は関数内でスナップショットした値を
+ * 内部 helper に渡すためのもの。
+ */
+export function dataDir(root: string): string {
+  return root;
 }
 
-const screensDir       = (root?: string) => path.join(dataDir(root), "screens");
-const tablesDir        = (root?: string) => path.join(dataDir(root), "tables");
-const actionsDir       = (root?: string) => path.join(dataDir(root), "actions");
-const conventionsDir   = (root?: string) => path.join(dataDir(root), "conventions");
-const screenItemsDir   = (root?: string) => path.join(dataDir(root), "screen-items");
-const sequencesDir     = (root?: string) => path.join(dataDir(root), "sequences");
-const viewsDir         = (root?: string) => path.join(dataDir(root), "views");
-const viewDefsDir      = (root?: string) => path.join(dataDir(root), "view-definitions");
-export const extensionsDir = (root?: string) => path.join(dataDir(root), "extensions");
-export const projectFile      = (root?: string) => path.join(dataDir(root), "project.json");
-export const customBlocksFile = (root?: string) => path.join(dataDir(root), "custom-blocks.json");
-export const erLayoutFile     = (root?: string) => path.join(dataDir(root), "er-layout.json");
-export const screenLayoutFile = (root?: string) => path.join(dataDir(root), "screen-layout.json");
-export const conventionsFile  = (root?: string) => path.join(conventionsDir(root), "catalog.json");
+const screensDir       = (root: string) => path.join(root, "screens");
+const tablesDir        = (root: string) => path.join(root, "tables");
+const actionsDir       = (root: string) => path.join(root, "actions");
+const conventionsDir   = (root: string) => path.join(root, "conventions");
+const screenItemsDir   = (root: string) => path.join(root, "screen-items");
+const sequencesDir     = (root: string) => path.join(root, "sequences");
+const viewsDir         = (root: string) => path.join(root, "views");
+const viewDefsDir      = (root: string) => path.join(root, "view-definitions");
+export const extensionsDir    = (root: string) => path.join(root, "extensions");
+export const projectFile      = (root: string) => path.join(root, "project.json");
+export const customBlocksFile = (root: string) => path.join(root, "custom-blocks.json");
+export const erLayoutFile     = (root: string) => path.join(root, "er-layout.json");
+export const screenLayoutFile = (root: string) => path.join(root, "screen-layout.json");
+export const conventionsFile  = (root: string) => path.join(conventionsDir(root), "catalog.json");
 
 const EXTENSION_FILE_NAMES = {
   steps: "steps.json",
@@ -108,8 +107,8 @@ async function validateExtensionFile(kind: ExtensionFileKind, data: unknown): Pr
 }
 
 /** active workspace 配下のディレクトリ群を作成（既存なら無視） */
-export async function ensureDataDir(root?: string): Promise<void> {
-  const r = dataDir(root);
+export async function ensureDataDir(root: string): Promise<void> {
+  const r = root;
   await fs.mkdir(r, { recursive: true });
   await fs.mkdir(screensDir(r), { recursive: true });
   await fs.mkdir(tablesDir(r), { recursive: true });
@@ -137,16 +136,13 @@ async function writeJSON(filePath: string, data: unknown): Promise<void> {
 }
 
 /** project.json を読み込み（存在しない場合は null） */
-export async function readProject(root?: string): Promise<unknown | null> {
-  // 他の read 関数と一貫させるため明示的に root snapshot (#676 Sonnet re-review Nit)。
-  // 引数 root が指定されていればそれを優先、未指定時は requireActivePath() で確定。
-  const r = root ?? requireActivePath();
-  return readJSON<unknown>(projectFile(r));
+export async function readProject(root: string): Promise<unknown | null> {
+  return readJSON<unknown>(projectFile(root));
 }
 
 /** project.json を書き込み */
-export async function writeProject(project: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeProject(project: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   const projFile = projectFile(r);
   const next = project as Record<string, unknown>;
@@ -161,8 +157,8 @@ export async function writeProject(project: unknown, root?: string): Promise<voi
 }
 
 /** 各種データファイルの更新時刻を取得（存在しないなら null） */
-export async function getFileMtime(kind: string, id?: string, root?: string): Promise<number | null> {
-  const r = root ?? requireActivePath();
+export async function getFileMtime(kind: string, root: string, id?: string): Promise<number | null> {
+  const r = root;
   const filePath = resolveDataFile(kind, r, id);
   if (!filePath) return null;
   try {
@@ -288,7 +284,7 @@ async function _migrateScreenCore(screenId: string, root: string): Promise<Recor
   return null;
 }
 
-async function migrateScreenIfNeeded(screenId: string, root?: string): Promise<Record<string, unknown> | null> {
+async function migrateScreenIfNeeded(screenId: string, root: string): Promise<Record<string, unknown> | null> {
   const r = dataDir(root);
   const key = `${r}::${screenId}`;
   const existing = _inflightMigrations.get(key);
@@ -302,8 +298,8 @@ async function migrateScreenIfNeeded(screenId: string, root?: string): Promise<R
 }
 
 /** data/extensions/*.json を生 JSON バンドルとして読み込み (#444) */
-export async function readExtensionsBundle(root?: string): Promise<Record<ExtensionFileKind, unknown | null>> {
-  const r = root ?? requireActivePath();
+export async function readExtensionsBundle(root: string): Promise<Record<ExtensionFileKind, unknown | null>> {
+  const r = root;
   await ensureDataDir(r);
   const extDir = extensionsDir(r);
   const entries = await Promise.all(
@@ -319,9 +315,10 @@ export async function readExtensionsBundle(root?: string): Promise<Record<Extens
 export async function writeExtensionsFile(
   type: ExtensionFileKind,
   content: unknown,
-  options?: { onAfterWrite?: () => void; skipValidation?: boolean; root?: string },
+  root: string,
+  options?: { onAfterWrite?: () => void; skipValidation?: boolean },
 ): Promise<void> {
-  const r = options?.root ?? requireActivePath();
+  const r = root;
   await ensureDataDir(r);
   if (!options?.skipValidation) {
     await validateExtensionFile(type, content);
@@ -331,15 +328,15 @@ export async function writeExtensionsFile(
 }
 
 /** screens/{screenId}.json を読み込み */
-export async function readScreen(screenId: string, root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readScreen(screenId: string, root: string): Promise<unknown | null> {
+  const r = root;
   await migrateScreenIfNeeded(screenId, r);
   return readJSON<unknown>(path.join(screensDir(r), `${screenId}.design.json`));
 }
 
 /** screens/{screenId}.json を書き込み */
-export async function writeScreen(screenId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeScreen(screenId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   let entity = await migrateScreenIfNeeded(screenId, r);
   if (!entity) {
@@ -360,12 +357,12 @@ export async function writeScreen(screenId: string, data: unknown, root?: string
   await writeJSON(path.join(sDir, `${screenId}.design.json`), data);
 }
 
-export async function readScreenEntity(screenId: string, root?: string): Promise<unknown | null> {
+export async function readScreenEntity(screenId: string, root: string): Promise<unknown | null> {
   return migrateScreenIfNeeded(screenId, root);
 }
 
-export async function writeScreenEntity(screenId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeScreenEntity(screenId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   const current = isRecord(data) ? data : {};
   const project = await readProject(r);
@@ -387,8 +384,8 @@ export async function writeScreenEntity(screenId: string, data: unknown, root?: 
 }
 
 /** screens/{screenId}.json を削除（存在しない場合は無視） */
-export async function deleteScreen(screenId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteScreen(screenId: string, root: string): Promise<void> {
+  const r = root;
   const sDir = screensDir(r);
   const siDir = screenItemsDir(r);
   try {
@@ -403,69 +400,69 @@ export async function deleteScreen(screenId: string, root?: string): Promise<voi
 }
 
 /** custom-blocks.json を読み込み */
-export async function readCustomBlocks(root?: string): Promise<unknown[]> {
-  const r = root ?? requireActivePath();
+export async function readCustomBlocks(root: string): Promise<unknown[]> {
+  const r = root;
   return (await readJSON<unknown[]>(customBlocksFile(r))) ?? [];
 }
 
 /** custom-blocks.json を書き込み */
-export async function writeCustomBlocks(blocks: unknown[], root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeCustomBlocks(blocks: unknown[], root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(customBlocksFile(r), blocks);
 }
 
 /** er-layout.json を読み込み */
-export async function readErLayout(root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readErLayout(root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(erLayoutFile(r));
 }
 
 /** er-layout.json を書き込み */
-export async function writeErLayout(data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeErLayout(data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(erLayoutFile(r), data);
 }
 
 /** screen-layout.json を読み込み (Phase 3-β、#561) */
-export async function readScreenLayout(root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readScreenLayout(root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(screenLayoutFile(r));
 }
 
 /** screen-layout.json を書き込み (Phase 3-β、#561) */
-export async function writeScreenLayout(data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeScreenLayout(data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(screenLayoutFile(r), data);
 }
 
 /** tables/{tableId}.json を読み込み */
-export async function readTable(tableId: string, root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readTable(tableId: string, root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(path.join(tablesDir(r), `${tableId}.json`));
 }
 
 /** tables/{tableId}.json を書き込み */
-export async function writeTable(tableId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeTable(tableId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(path.join(tablesDir(r), `${tableId}.json`), data);
 }
 
 /** tables/{tableId}.json を削除（存在しない場合は無視） */
-export async function deleteTable(tableId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteTable(tableId: string, root: string): Promise<void> {
+  const r = root;
   try {
     await fs.unlink(path.join(tablesDir(r), `${tableId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** tables/ ディレクトリ内の全テーブル定義を読み込み (#587) */
-export async function listAllTables(root?: string): Promise<unknown[]> {
+export async function listAllTables(root: string): Promise<unknown[]> {
   try {
-    const r = root ?? requireActivePath();
+    const r = root;
     await ensureDataDir(r);
     const tDir = tablesDir(r);
     const files = await fs.readdir(tDir);
@@ -482,41 +479,41 @@ export async function listAllTables(root?: string): Promise<unknown[]> {
 }
 
 /** actions/{processFlowId}.json を読み込み */
-export async function readProcessFlow(processFlowId: string, root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readProcessFlow(processFlowId: string, root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(path.join(actionsDir(r), `${processFlowId}.json`));
 }
 
 /** actions/{processFlowId}.json を書き込み */
-export async function writeProcessFlow(processFlowId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeProcessFlow(processFlowId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(path.join(actionsDir(r), `${processFlowId}.json`), data);
 }
 
 /** actions/{processFlowId}.json を削除（存在しない場合は無視） */
-export async function deleteProcessFlow(processFlowId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteProcessFlow(processFlowId: string, root: string): Promise<void> {
+  const r = root;
   try {
     await fs.unlink(path.join(actionsDir(r), `${processFlowId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** conventions/catalog.json を読み込み (#317) */
-export async function readConventions(root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readConventions(root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(conventionsFile(r));
 }
 
 /** conventions/catalog.json を書き込み (#317) */
-export async function writeConventions(data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeConventions(data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(conventionsFile(r), data);
 }
 
 /** screen-items/{screenId}.json を読み込み (#318) */
-export async function readScreenItems(screenId: string, root?: string): Promise<unknown | null> {
+export async function readScreenItems(screenId: string, root: string): Promise<unknown | null> {
   const screen = await readScreenEntity(screenId, root);
   if (!isRecord(screen)) return null;
   return {
@@ -527,8 +524,8 @@ export async function readScreenItems(screenId: string, root?: string): Promise<
 }
 
 /** screen-items/{screenId}.json を書き込み (#318) */
-export async function writeScreenItems(screenId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeScreenItems(screenId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   const current = (await migrateScreenIfNeeded(screenId, r)) as Record<string, unknown> | null;
   const project = await readProject(r);
   const items = extractItems(data);
@@ -542,8 +539,8 @@ export async function writeScreenItems(screenId: string, data: unknown, root?: s
 }
 
 /** screen-items/{screenId}.json を削除 (#318) */
-export async function deleteScreenItems(screenId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteScreenItems(screenId: string, root: string): Promise<void> {
+  const r = root;
   const current = (await migrateScreenIfNeeded(screenId, r)) as Record<string, unknown> | null;
   if (current) {
     await writeScreenEntity(screenId, { ...current, items: [] }, r);
@@ -554,30 +551,30 @@ export async function deleteScreenItems(screenId: string, root?: string): Promis
 }
 
 /** sequences/{sequenceId}.json を読み込み (#374) */
-export async function readSequence(sequenceId: string, root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readSequence(sequenceId: string, root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(path.join(sequencesDir(r), `${sequenceId}.json`));
 }
 
 /** sequences/{sequenceId}.json を書き込み (#374) */
-export async function writeSequence(sequenceId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeSequence(sequenceId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(path.join(sequencesDir(r), `${sequenceId}.json`), data);
 }
 
 /** sequences/{sequenceId}.json を削除（存在しない場合は無視） (#374) */
-export async function deleteSequence(sequenceId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteSequence(sequenceId: string, root: string): Promise<void> {
+  const r = root;
   try {
     await fs.unlink(path.join(sequencesDir(r), `${sequenceId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** views/ ディレクトリ内の全ビュー定義を読み込み (#587) */
-export async function listAllViews(root?: string): Promise<unknown[]> {
+export async function listAllViews(root: string): Promise<unknown[]> {
   try {
-    const r = root ?? requireActivePath();
+    const r = root;
     await ensureDataDir(r);
     const vDir = viewsDir(r);
     const files = await fs.readdir(vDir);
@@ -594,29 +591,29 @@ export async function listAllViews(root?: string): Promise<unknown[]> {
 }
 
 /** views/{viewId}.json を読み込み (v3 per-entity #549) */
-export async function readView(viewId: string, root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readView(viewId: string, root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(path.join(viewsDir(r), `${viewId}.json`));
 }
 
 /** views/{viewId}.json を書き込み (v3 per-entity #549) */
-export async function writeView(viewId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeView(viewId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(path.join(viewsDir(r), `${viewId}.json`), data);
 }
 
 /** views/{viewId}.json を削除（存在しない場合は無視） (v3 per-entity #549) */
-export async function deleteView(viewId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteView(viewId: string, root: string): Promise<void> {
+  const r = root;
   try {
     await fs.unlink(path.join(viewsDir(r), `${viewId}.json`));
   } catch { /* file not found is OK */ }
 }
 
-export async function listAllViewDefinitions(root?: string): Promise<unknown[]> {
+export async function listAllViewDefinitions(root: string): Promise<unknown[]> {
   try {
-    const r = root ?? requireActivePath();
+    const r = root;
     await ensureDataDir(r);
     const vdDir = viewDefsDir(r);
     const files = await fs.readdir(vdDir);
@@ -632,28 +629,28 @@ export async function listAllViewDefinitions(root?: string): Promise<unknown[]> 
   }
 }
 
-export async function readViewDefinition(viewDefinitionId: string, root?: string): Promise<unknown | null> {
-  const r = root ?? requireActivePath();
+export async function readViewDefinition(viewDefinitionId: string, root: string): Promise<unknown | null> {
+  const r = root;
   return readJSON<unknown>(path.join(viewDefsDir(r), `${viewDefinitionId}.json`));
 }
 
-export async function writeViewDefinition(viewDefinitionId: string, data: unknown, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function writeViewDefinition(viewDefinitionId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
   await ensureDataDir(r);
   await writeJSON(path.join(viewDefsDir(r), `${viewDefinitionId}.json`), data);
 }
 
-export async function deleteViewDefinition(viewDefinitionId: string, root?: string): Promise<void> {
-  const r = root ?? requireActivePath();
+export async function deleteViewDefinition(viewDefinitionId: string, root: string): Promise<void> {
+  const r = root;
   try {
     await fs.unlink(path.join(viewDefsDir(r), `${viewDefinitionId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** actions/ ディレクトリ内の全処理フローを読み込み */
-export async function listProcessFlows(root?: string): Promise<unknown[]> {
+export async function listProcessFlows(root: string): Promise<unknown[]> {
   try {
-    const r = root ?? requireActivePath();
+    const r = root;
     await ensureDataDir(r);
     const aDir = actionsDir(r);
     const files = await fs.readdir(aDir);

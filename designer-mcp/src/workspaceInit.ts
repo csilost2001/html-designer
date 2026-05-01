@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
   isLockdown,
-  setActivePath,
+  setGlobalDefaultPath,
 } from "./workspaceState.js";
 import {
   readRecent,
@@ -228,7 +228,7 @@ export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
     if (entry) {
       const inspect = await inspectWorkspacePath(entry.path);
       if (inspect.status === "ready") {
-        setActivePath(entry.path);
+        setGlobalDefaultPath(entry.path);
         return { status: "restored", entry };
       }
       // フォルダが消えた / project.json が無い: stale エントリなのでスキップ。
@@ -237,7 +237,7 @@ export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
   }
   const legacy = await tryAutoRegisterLegacyData();
   if (legacy) {
-    setActivePath(legacy.path);
+    setGlobalDefaultPath(legacy.path);
     return { status: "registeredLegacy", entry: legacy };
   }
   return { status: "none" };

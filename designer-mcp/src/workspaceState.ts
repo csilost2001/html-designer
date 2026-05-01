@@ -36,6 +36,22 @@ let _lockdownPath: string | null = null;
 let _initialized = false;
 
 /**
+ * 起動時の自動 active 設定 (autoActivateOnStartup) が設定したデフォルトパス。
+ * lockdown 時は使わない。MCP session connect 時に initialPath として使用される。
+ */
+let _globalDefaultPath: string | null = null;
+
+/** autoActivateOnStartup が設定するデフォルトの active path (#700 R-2) */
+export function setGlobalDefaultPath(absPath: string | null): void {
+  _globalDefaultPath = absPath ? path.resolve(absPath) : null;
+}
+
+/** デフォルトの active path を取得 (#700 R-2) */
+export function getGlobalDefaultPath(): string | null {
+  return _globalDefaultPath;
+}
+
+/**
  * env DESIGNER_DATA_DIR を読み、lockdown 状態を確定する。
  * idempotent — 複数回呼んでも初回判定が固定される。
  */
@@ -85,9 +101,10 @@ export class WorkspaceContextManager {
     if (this._contexts.has(clientId)) {
       return this._contexts.get(clientId)!;
     }
+    // lockdown 時は lockdownPath 固定。非 lockdown 時は initialPath → _globalDefaultPath → null の順
     const activePath = _lockdown
       ? (_lockdownPath ?? null)
-      : (initialPath ?? null);
+      : (initialPath !== undefined ? initialPath : _globalDefaultPath);
     const ctx: ConnectionContext = {
       clientId,
       activePath,
@@ -191,50 +208,42 @@ export class WorkspaceContextManager {
 /** モジュールレベルのシングルトン WorkspaceContextManager */
 export const workspaceContextManager = new WorkspaceContextManager();
 
-// ── 後方互換 global API (v1 → v2 移行期。WS/MCP の clientId が解決されるまでの fallback) ──
+// ── per-session public API (clientId 必須) ─────────────────────────────────
 //
-// LEGACY_CLIENT_ID を使う経路は R-2 完了後も残す。理由:
-// - MCP tool (index.ts) は stateless HTTP transport のため session ID が未解決
-// - v1 テスト (workspaceState.test.ts) は global API を使っている
-// - R-4/R-5 で clientId が全経路に整備されたら LEGACY 経路を廃止する
+// #700 R-2: LEGACY_CLIENT_ID / 後方互換 wrapper を完全削除。
+// clientId なし呼び出しはコンパイルエラーになるため、全 call site で clientId を pass-through する。
 //
-// IMPORTANT: LEGACY 経路は新規実装では使わない。既存呼び出し点の互換維持専用。
+// MCP tool (index.ts) の stateless HTTP transport は httpTransport.ts が MCP session の
+// sessionId を connect/disconnect するため、MCP tool handler は sessionId を clientId として使う。
 
-export const LEGACY_CLIENT_ID = "__legacy_global__";
-
-// LEGACY_CLIENT_ID の context は initWorkspaceState() 後に作成する
-// (workspaceContextManager.connect() が _initialized 後に初めて意味を持つため、
-// 実際の connect は initWorkspaceState() を wrap する形で行う)
-let _legacyContextCreated = false;
-
-function ensureLegacyContext(): void {
-  if (_legacyContextCreated) return;
-  _legacyContextCreated = true;
-  workspaceContextManager.connect(LEGACY_CLIENT_ID, _lockdown ? _lockdownPath : null);
+/** clientId の active workspace パスを取得 */
+export function getActivePath(clientId: string): string | null {
+  return workspaceContextManager.getActivePath(clientId);
 }
 
-/** @deprecated R-4 以降は clientId 引数付き API を使う */
-export function getActivePath(): string | null {
-  ensureLegacyContext();
-  return workspaceContextManager.getActivePath(LEGACY_CLIENT_ID);
+/** read/write が前提となる箇所で使う。未選択時は WorkspaceUnsetError を throw */
+export function requireActivePath(clientId: string): string {
+  return workspaceContextManager.requireActivePath(clientId);
 }
 
-/** @deprecated R-4 以降は clientId 引数付き API を使う */
-export function requireActivePath(): string {
-  ensureLegacyContext();
-  return workspaceContextManager.requireActivePath(LEGACY_CLIENT_ID);
+/** clientId の active workspace を設定 */
+export function setActivePath(clientId: string, absPath: string): void {
+  workspaceContextManager.setActivePath(clientId, absPath);
 }
 
-/** @deprecated R-4 以降は clientId 引数付き API を使う */
-export function setActivePath(absPath: string): void {
-  ensureLegacyContext();
-  workspaceContextManager.setActivePath(LEGACY_CLIENT_ID, absPath);
+/** clientId の active workspace を null にする */
+export function clearActive(clientId: string): void {
+  workspaceContextManager.clearActive(clientId);
 }
 
-/** @deprecated R-4 以降は clientId 引数付き API を使う */
-export function clearActive(): void {
-  ensureLegacyContext();
-  workspaceContextManager.clearActive(LEGACY_CLIENT_ID);
+/** clientId を登録して context を作成 (WS 接続時 / MCP session 開始時) */
+export function connect(clientId: string, initialPath?: string | null): void {
+  workspaceContextManager.connect(clientId, initialPath);
+}
+
+/** clientId の context を削除 (WS 切断時 / MCP session 終了時) */
+export function disconnect(clientId: string): void {
+  workspaceContextManager.disconnect(clientId);
 }
 
 /** test-only: 状態リセット */
@@ -242,6 +251,6 @@ export function _resetForTest(): void {
   _lockdown = false;
   _lockdownPath = null;
   _initialized = false;
-  _legacyContextCreated = false;
+  _globalDefaultPath = null;
   workspaceContextManager._resetForTest();
 }

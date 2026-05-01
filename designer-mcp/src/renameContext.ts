@@ -185,7 +185,7 @@ type ScreenItemsDocumentShape = {
  * ブラウザが開いていれば unsaved の canvas 状態を優先し、
  * 未接続の場合はファイルベースの fallback を使用する。
  */
-export async function getRenameContext(screenId: string): Promise<GetRenameContextResult> {
+export async function getRenameContext(screenId: string, root: string): Promise<GetRenameContextResult> {
   let siFile: ScreenItemsDocumentShape | null = null;
   let html: string;
 
@@ -200,8 +200,8 @@ export async function getRenameContext(screenId: string): Promise<GetRenameConte
     siFile = snapshot.screenItems;
   } else {
     // fallback: ファイルベース
-    siFile = (await readScreenItems(screenId)) as ScreenItemsDocumentShape | null;
-    const screenDoc = await readScreen(screenId);
+    siFile = (await readScreenItems(screenId, root)) as ScreenItemsDocumentShape | null;
+    const screenDoc = await readScreen(screenId, root);
     html = screenToHtml(screenDoc);
   }
 
@@ -237,13 +237,14 @@ export async function getRenameContext(screenId: string): Promise<GetRenameConte
 export async function applyRenameMapping(
   screenId: string,
   mapping: Record<string, string>,
+  root: string,
 ): Promise<ApplyRenameMappingResult> {
   const succeeded: ApplyRenameMappingEntry[] = [];
   const failed: Array<{ oldId: string; newId: string; error: string }> = [];
 
   for (const [oldId, newId] of Object.entries(mapping)) {
     try {
-      const res: RenameResult = await renameScreenItemId(screenId, oldId, newId);
+      const res: RenameResult = await renameScreenItemId(screenId, oldId, newId, root);
       succeeded.push({
         oldId,
         newId,

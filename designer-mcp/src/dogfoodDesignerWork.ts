@@ -16,6 +16,7 @@
  * 目的: MCP stdio がなくても dev env で /designer-work の挙動を再現し、
  *       ブラウザでリアルタイム反映を検証できるようにする。
  */
+import path from "node:path";
 import { readProcessFlow, writeProcessFlow } from "./projectStorage.js";
 import {
   listMarkers,
@@ -56,7 +57,12 @@ async function main() {
     process.exit(1);
   }
 
-  const ag = await readProcessFlow(id) as ProcessFlowDoc | null;
+  // root: env DESIGNER_DATA_DIR か、リポジトリルートの data/ をデフォルトとして使う
+  const root = process.env.DESIGNER_DATA_DIR
+    ? path.resolve(process.env.DESIGNER_DATA_DIR)
+    : path.resolve(import.meta.dirname, "../../data");
+
+  const ag = await readProcessFlow(id, root) as ProcessFlowDoc | null;
   if (!ag) {
     console.error(`ProcessFlow ${id} が見つかりません (data/process-flows/${id}.json)`);
     process.exit(1);
@@ -116,8 +122,8 @@ async function main() {
   }
 
   ag.updatedAt = new Date().toISOString();
-  await writeProcessFlow(id, ag);
-  console.log(`ファイル書き戻し完了: data/process-flows/${id}.json`);
+  await writeProcessFlow(id, ag, root);
+  console.log(`ファイル書き戻し完了: ${root}/actions/${id}.json`);
 
   console.log("ws broadcast を試行...");
   await broadcastSave(id, ag);

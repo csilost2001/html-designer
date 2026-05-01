@@ -1,8 +1,9 @@
 /**
  * workspaceState 単体テスト (#671 + #700 R-2)
  *
- * - v1 global API (後方互換 wrapper) の動作確認
- * - v2 WorkspaceContextManager の per-session 動作確認
+ * - per-session public API (clientId 必須) の動作確認
+ * - WorkspaceContextManager の per-session 動作確認
+ * - lockdown モードの動作確認
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import path from "node:path";
@@ -14,11 +15,12 @@ import {
   setActivePath,
   clearActive,
   requireActivePath,
+  connect,
+  disconnect,
   LockdownError,
   WorkspaceUnsetError,
   workspaceContextManager,
   WorkspaceContextManager,
-  LEGACY_CLIENT_ID,
   _resetForTest,
 } from "./workspaceState.js";
 
@@ -38,66 +40,83 @@ afterEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// v1 後方互換 global API (LEGACY_CLIENT_ID 経由)
+// per-session public API (通常モード)
 // ─────────────────────────────────────────────────────────────────────────────
-describe("workspaceState v1 後方互換 global API (通常モード)", () => {
+describe("workspaceState per-session public API (通常モード)", () => {
   it("init 後 active は null、lockdown も false", () => {
     initWorkspaceState();
-    expect(getActivePath()).toBeNull();
+    connect("client-A");
+    expect(getActivePath("client-A")).toBeNull();
     expect(isLockdown()).toBe(false);
     expect(getLockdownPath()).toBeNull();
   });
 
   it("setActivePath で active が更新される (絶対パスに正規化)", () => {
     initWorkspaceState();
-    setActivePath("/some/path");
-    expect(getActivePath()).toBe(path.resolve("/some/path"));
+    connect("client-A");
+    setActivePath("client-A", "/some/path");
+    expect(getActivePath("client-A")).toBe(path.resolve("/some/path"));
   });
 
   it("clearActive で active が null に戻る", () => {
     initWorkspaceState();
-    setActivePath("/some/path");
-    clearActive();
-    expect(getActivePath()).toBeNull();
+    connect("client-A");
+    setActivePath("client-A", "/some/path");
+    clearActive("client-A");
+    expect(getActivePath("client-A")).toBeNull();
   });
 
   it("requireActivePath は active 未選択時に WorkspaceUnsetError を throw", () => {
     initWorkspaceState();
-    expect(() => requireActivePath()).toThrow(WorkspaceUnsetError);
+    connect("client-A");
+    expect(() => requireActivePath("client-A")).toThrow(WorkspaceUnsetError);
   });
 
   it("requireActivePath は active 選択時にパスを返す", () => {
     initWorkspaceState();
-    setActivePath("/some/path");
-    expect(requireActivePath()).toBe(path.resolve("/some/path"));
+    connect("client-A");
+    setActivePath("client-A", "/some/path");
+    expect(requireActivePath("client-A")).toBe(path.resolve("/some/path"));
+  });
+
+  it("disconnect 後の getActivePath は null を返す", () => {
+    initWorkspaceState();
+    connect("client-A");
+    setActivePath("client-A", "/some/path");
+    disconnect("client-A");
+    expect(getActivePath("client-A")).toBeNull();
   });
 });
 
-describe("workspaceState v1 後方互換 global API (lockdown モード)", () => {
+describe("workspaceState per-session public API (lockdown モード)", () => {
   it("env DESIGNER_DATA_DIR 指定時は lockdown=true、active が env パス固定", () => {
     process.env.DESIGNER_DATA_DIR = "/env/data";
     initWorkspaceState();
+    connect("client-A");
     expect(isLockdown()).toBe(true);
     expect(getLockdownPath()).toBe(path.resolve("/env/data"));
-    expect(getActivePath()).toBe(path.resolve("/env/data"));
+    expect(getActivePath("client-A")).toBe(path.resolve("/env/data"));
   });
 
   it("lockdown 中の setActivePath は LockdownError", () => {
     process.env.DESIGNER_DATA_DIR = "/env/data";
     initWorkspaceState();
-    expect(() => setActivePath("/other")).toThrow(LockdownError);
+    connect("client-A");
+    expect(() => setActivePath("client-A", "/other")).toThrow(LockdownError);
   });
 
   it("lockdown 中の clearActive は LockdownError", () => {
     process.env.DESIGNER_DATA_DIR = "/env/data";
     initWorkspaceState();
-    expect(() => clearActive()).toThrow(LockdownError);
+    connect("client-A");
+    expect(() => clearActive("client-A")).toThrow(LockdownError);
   });
 
   it("lockdown 中も requireActivePath は env パスを返す", () => {
     process.env.DESIGNER_DATA_DIR = "/env/data";
     initWorkspaceState();
-    expect(requireActivePath()).toBe(path.resolve("/env/data"));
+    connect("client-A");
+    expect(requireActivePath("client-A")).toBe(path.resolve("/env/data"));
   });
 });
 
