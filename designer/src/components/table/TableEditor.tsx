@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { Table, Column, BuiltinDataType, PhysicalName, DisplayName, LocalId, Maturity, SemVer } from "../../types/v3";
 import {
@@ -15,6 +15,7 @@ import { listTables } from "../../store/tableStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
@@ -30,7 +31,10 @@ import { ConstraintsTab } from "./ConstraintsTab";
 import { IndexesTab } from "./IndexesTab";
 import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
 import { renumber } from "../../utils/listOrder";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog } from "../editing/ConfirmDialogs";
 import "../../styles/table.css";
+import "../../styles/editMode.css";
 
 type TabId = "columns" | "constraints" | "indexes" | "triggers" | "comment";
 
@@ -39,18 +43,22 @@ export function TableEditor() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>("columns");
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
-  // FHD (≤1920) は閉じた状態、WQHD (2560+) は開いた状態で初期化
   const ddlOpen = window.innerWidth >= 2560;
   const [editingMeta, setEditingMeta] = useState(false);
   const [allTables, setAllTables] = useState<Table[]>([]);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
 
   const handleNotFound = useCallback(() => navigate("/table/list"), [navigate]);
+
+  const sessionId = mcpBridge.getSessionId();
 
   const {
     state: table,
     isDirty, isSaving, serverChanged,
     update, undo, redo, canUndo, canRedo,
-    handleSave, handleReset, dismissServerBanner,
+    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    reload,
   } = useResourceEditor<Table>({
     tabType: "table",
     mtimeKind: "table",
@@ -63,11 +71,47 @@ export function TableEditor() {
     onNotFound: handleNotFound,
   });
 
-  useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
+  const { mode, loading: sessionLoading, actions } = useEditSession({
+    resourceType: "table",
+    resourceId: tableId ?? "",
+    sessionId,
   });
 
-  // FK 選択用に他テーブル一覧を別途ロード
+  const isReadonly = mode.kind !== "editing";
+
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateWithDraft = useCallback((fn: (t: Table) => void) => {
+    if (isReadonly) return;
+    update(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!tableId) return;
+      mcpBridge.updateDraft("table", tableId, undefined).catch(console.error);
+    }, 300);
+  }, [isReadonly, update, tableId]);
+
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
+    await resourceHandleSave();
+    await actions.save();
+  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    await reload();
+  }, [actions, reload]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving && !isReadonly) handleSave();
+  });
+
   useEffect(() => {
     mcpBridge.startWithoutEditor();
     (async () => {
@@ -81,39 +125,76 @@ export function TableEditor() {
     })();
   }, [tableId]);
 
-  if (!table) {
+  if (!table || sessionLoading) {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
   }
 
   const ddl = generateDdl(table, ddlDialect, allTables);
   const columnsEmpty = table.columns.length === 0;
   const primaryKeyEmpty = !table.columns.some((column) => column.primaryKey);
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
   return (
-    <div className="table-editor-page">
+    <div className={`table-editor-page${isReadonly ? " readonly-mode" : ""}`}>
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
+      )}
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={actions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
       )}
 
       <EditorHeader
         variant="dark"
         backLink={{ label: "テーブル一覧", onClick: () => navigate("/table/list") }}
         title={
-          editingMeta ? (
+          editingMeta && !isReadonly ? (
             <TableMetaEditor
               table={table}
               onSave={(patch) => {
-                update((t) => Object.assign(t, patch));
+                updateWithDraft((t) => Object.assign(t, patch));
                 setEditingMeta(false);
               }}
               onCancel={() => setEditingMeta(false)}
             />
           ) : (
-            <div className="table-editor-title" onClick={() => setEditingMeta(true)} title="クリックして編集">
+            <div
+              className="table-editor-title"
+              onClick={() => { if (!isReadonly) setEditingMeta(true); }}
+              title={isReadonly ? undefined : "クリックして編集"}
+            >
               <span className="table-name-display">{table.physicalName}</span>
               <span className="table-logical-display">{table.name}</span>
               {table.category && <span className="table-category-badge">{table.category}</span>}
-              <i className="bi bi-pencil table-edit-icon" />
+              {!isReadonly && <i className="bi bi-pencil table-edit-icon" />}
             </div>
           )
         }
@@ -130,18 +211,17 @@ export function TableEditor() {
             <i className="bi bi-clipboard" />
           </button>
         }
-        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+        saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
       />
 
-      {/* Tabs */}
       <div className="table-editor-tabs">
         <button className={tab === "columns" ? "active" : ""} onClick={() => setTab("columns")}>
           <i className="bi bi-columns-gap" /> 列 <span className="tab-count">{table.columns.length}</span>
           {columnsEmpty && (
-            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="カラムが未定義です">{"\u26A0\uFE0F"}</span>
+            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="カラムが未定義です">{"⚠️"}</span>
           )}
           {primaryKeyEmpty && (
-            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="主キーが未指定です">{"\u26A0\uFE0F"}</span>
+            <span className="view-editor-section-marker" style={{ color: "orange", marginLeft: 6 }} title="主キーが未指定です">{"⚠️"}</span>
           )}
         </button>
         <button className={tab === "constraints" ? "active" : ""} onClick={() => setTab("constraints")}>
@@ -164,23 +244,22 @@ export function TableEditor() {
         </button>
       </div>
 
-      {/* Content + DDL drawer */}
       <div className="table-editor-content-area">
         <div className="table-editor-body">
           {tab === "columns" && (
-            <ColumnsTab table={table} update={update} />
+            <ColumnsTab table={table} update={isReadonly ? () => {} : updateWithDraft} />
           )}
           {tab === "constraints" && (
-            <ConstraintsTab table={table} update={update} allTables={allTables} />
+            <ConstraintsTab table={table} update={isReadonly ? () => {} : updateWithDraft} allTables={allTables} />
           )}
           {tab === "indexes" && (
-            <IndexesTab key="indexes" table={table} update={update} />
+            <IndexesTab key="indexes" table={table} update={isReadonly ? () => {} : updateWithDraft} />
           )}
           {tab === "triggers" && (
-            <TriggersDefaultsTab table={table} update={update} />
+            <TriggersDefaultsTab table={table} update={isReadonly ? () => {} : updateWithDraft} />
           )}
           {tab === "comment" && (
-            <CommentTab table={table} update={update} />
+            <CommentTab table={table} update={isReadonly ? () => {} : updateWithDraft} />
           )}
         </div>
 

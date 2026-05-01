@@ -1089,6 +1089,52 @@ class McpBridgeImpl {
       respondError(e instanceof Error ? e.message : String(e));
     }
   }
+
+  // ── lock / draft wrapper (PR-4) ──────────────────────────────────────────
+
+  getSessionId(): string {
+    return this.clientId;
+  }
+
+  acquireLock(resourceType: string, resourceId: string, sessionId: string): Promise<unknown> {
+    return this.request("lock.acquire", { resourceType, resourceId, sessionId });
+  }
+
+  releaseLock(resourceType: string, resourceId: string, sessionId: string): Promise<unknown> {
+    return this.request("lock.release", { resourceType, resourceId, sessionId });
+  }
+
+  forceReleaseLock(resourceType: string, resourceId: string, sessionId: string): Promise<unknown> {
+    return this.request("lock.forceRelease", { resourceType, resourceId, sessionId });
+  }
+
+  getLock(resourceType: string, resourceId: string): Promise<unknown> {
+    return this.request("lock.get", { resourceType, resourceId });
+  }
+
+  readDraft(resourceType: string, id: string): Promise<unknown> {
+    return this.request("draft.read", { type: resourceType, id });
+  }
+
+  updateDraft(resourceType: string, id: string, payload: unknown): Promise<unknown> {
+    return this.request("draft.update", { type: resourceType, id, payload });
+  }
+
+  commitDraft(resourceType: string, id: string): Promise<unknown> {
+    return this.request("draft.commit", { type: resourceType, id });
+  }
+
+  discardDraft(resourceType: string, id: string): Promise<unknown> {
+    return this.request("draft.discard", { type: resourceType, id });
+  }
+
+  hasDraft(resourceType: string, id: string): Promise<unknown> {
+    return this.request("draft.has", { type: resourceType, id });
+  }
+
+  createDraft(resourceType: string, id: string): Promise<unknown> {
+    return this.request("draft.create", { type: resourceType, id });
+  }
 }
 
 // ── ヘルパー関数 ────────────────────────────────────────────────────────────

@@ -49,6 +49,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
@@ -63,6 +64,9 @@ import { DrawingOverlay } from "./DrawingOverlay";
 import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredFieldsEditor";
 import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { EditorHeader } from "../common/EditorHeader";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog } from "../editing/ConfirmDialogs";
+import "../../styles/editMode.css";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/processFlow.css";
 
@@ -174,7 +178,10 @@ export function ProcessFlowEditor() {
   } | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
 
-  const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+
+    const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
 
   const handleLoaded = useCallback((g: ProcessFlow) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
@@ -233,6 +240,15 @@ export function ProcessFlowEditor() {
     onLoaded: handleLoaded,
   });
 
+  const sessionId = mcpBridge.getSessionId();
+  const { mode, loading: sessionLoading, actions: editActions } = useEditSession({
+    resourceType: "process-flow",
+    resourceId: processFlowId ?? "",
+    sessionId,
+  });
+
+  const isReadonly = mode.kind !== "editing";
+
   // ProcessFlowEditor の live 状態を mcpBridge に公開 (#361 browser-first)
   const groupRef = useRef<ProcessFlow | null>(null);
 
@@ -251,11 +267,23 @@ export function ProcessFlowEditor() {
     return () => mcpBridge.setProcessFlowHandler(processFlowId, null);
   }, [processFlowId, updateGroup]);
 
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await editActions.discard();
+    await handleReset();
+  }, [editActions, handleReset]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await editActions.forceReleaseOther();
+  }, [editActions]);
+
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
-    if (!group || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions }))) return;
+    if (!group || isReadonly || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions }))) return;
     await hookHandleSave();
-  }, [group, hookHandleSave, tableDefs, conventions, extensions]);
+    await editActions.save();
+  }, [group, isReadonly, hookHandleSave, tableDefs, conventions, extensions, editActions]);
 
   // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
   const sensors = useSensors(
@@ -276,7 +304,7 @@ export function ProcessFlowEditor() {
   }, []);
 
   useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
+    if (isDirty && !isSaving && !isReadonly) handleSave();
   });
 
   const validationErrors = useMemo(
@@ -550,7 +578,9 @@ export function ProcessFlowEditor() {
     });
   }, []);
 
-  if (!group) return null;
+  if (!group || sessionLoading) return null;
+
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
   const handleCommitStrokes = (shape: {
     type: "path";
@@ -611,6 +641,38 @@ export function ProcessFlowEditor() {
   return (
     <div className="process-flow-page" onClick={() => closeContextMenu()} style={{ position: "relative" }}>
       <TableSubToolbar />
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={editActions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => editActions.handleForcedOut(choice)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
 
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
