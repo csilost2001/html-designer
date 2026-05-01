@@ -1,14 +1,18 @@
 /**
  * remoteStorage.ts
  *
- * GrapesJS カスタムストレージマネージャー。
- * store() はlocalStorageのみに書き込み、ドラフトマーカーをセットする（未保存状態）。
- * ファイルへの永続化は saveScreenToFile() を明示的に呼ぶことで行う。
- * 画面を閉じて再オープンしたときドラフトマーカーがあれば localStorage を優先して復元する。
+ * GrapesJS カスタムストレージマネージャー — edit-session-draft モデル (#689)。
+ *
+ * load():
+ *   - draft が存在する場合 → draft を読み込む (編集継続)
+ *   - draft がない場合 → 本体ファイルを読み込む
+ *
+ * store():
+ *   - autosave: false のため通常は呼ばれない
+ *   - 念のため no-op として残す (将来削除候補)
  */
 import type { Editor as GEditor } from "grapesjs";
 import { mcpBridge } from "../mcp/mcpBridge";
-import { screenStorageKey } from "../store/flowStore";
 import { recordError } from "../utils/errorLog";
 
 /**
@@ -51,89 +55,62 @@ function ensureValidProject(
   return raw;
 }
 
-/** ドラフトマーカーのキー（localStorage 内容が未保存であることを示す） */
-export function screenDraftMarkerKey(screenId: string): string {
-  return `gjs-screen-${screenId}-draft`;
-}
-
-/** 画面にドラフト（未保存編集）が残っているか */
-export function hasScreenDraft(screenId: string): boolean {
-  return localStorage.getItem(screenDraftMarkerKey(screenId)) === "1";
-}
-
-/** ドラフトマーカーを解除（明示保存成功時／リセット時に呼ぶ） */
-export function clearScreenDraft(screenId: string): void {
-  try { localStorage.removeItem(screenDraftMarkerKey(screenId)); } catch { /* ignore */ }
-}
-
-/** GrapesJS に "remote" ストレージタイプを登録 */
+/** GrapesJS に "remote" ストレージタイプを登録 (edit-session-draft モデル) */
 export function registerRemoteStorage(editor: GEditor, screenId: string): void {
-  const localKey = screenStorageKey(screenId);
-  const draftKey = screenDraftMarkerKey(screenId);
-
   editor.StorageManager.add("remote", {
     async load(): Promise<Record<string, unknown>> {
-      // ドラフトマーカーがあれば localStorage を優先（未保存の編集を復元）
-      if (localStorage.getItem(draftKey) === "1") {
-        const localRaw = localStorage.getItem(localKey);
-        if (localRaw) {
-          try {
-            return ensureValidProject(
-              JSON.parse(localRaw) as Record<string, unknown>,
-              screenId,
-              "draft-localStorage",
-            );
-          } catch { /* fallthrough */ }
+      // draft が存在すれば draft を優先して読み込む (編集セッション継続)
+      try {
+        const draftCheck = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+        if (draftCheck?.exists) {
+          const draftData = await mcpBridge.readDraft("screen", screenId) as Record<string, unknown> | null;
+          if (draftData && Object.keys(draftData).length > 0) {
+            return ensureValidProject(draftData, screenId, "draft-server");
+          }
         }
+      } catch {
+        // MCP 未接続などで draft チェックに失敗した場合は本体読み込みに fallthrough
       }
+
+      // draft なし or draft 読み込み失敗 → 本体ファイルを読み込む
       try {
         const data = await mcpBridge.request("loadScreen", { screenId }) as Record<string, unknown> | null;
         if (data && Object.keys(data).length > 0) {
-          try { localStorage.setItem(localKey, JSON.stringify(data)); } catch { /* ignore */ }
           return ensureValidProject(data, screenId, "mcp-loadScreen");
-        }
-        const localRaw = localStorage.getItem(localKey);
-        if (localRaw) {
-          try {
-            const localData = JSON.parse(localRaw) as Record<string, unknown>;
-            await mcpBridge.request("saveScreen", { screenId, data: localData });
-            return ensureValidProject(localData, screenId, "localStorage-fallback");
-          } catch { /* ignore */ }
         }
         return ensureValidProject(null, screenId, "no-data");
       } catch {
-        const raw = localStorage.getItem(localKey);
-        if (raw) {
-          try {
-            return ensureValidProject(
-              JSON.parse(raw) as Record<string, unknown>,
-              screenId,
-              "mcp-error-localStorage",
-            );
-          } catch { /* ignore */ }
-        }
         return ensureValidProject(null, screenId, "mcp-error-no-data");
       }
     },
 
-    async store(data: Record<string, unknown>): Promise<void> {
-      // localStorage のみ（変更キャッシュ）。ファイル書き込みは saveScreenToFile() で行う
-      try {
-        localStorage.setItem(localKey, JSON.stringify(data));
-        localStorage.setItem(draftKey, "1");
-      } catch { /* ignore */ }
+    // autosave: false のため通常は呼ばれない。念のため no-op。
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async store(_data: Record<string, unknown>): Promise<void> {
+      // no-op: 保存は editActions.save() → commitDraft 経由で行う
     },
   });
 }
 
-/** localStorageのキャッシュをファイルに永続化する（明示的保存） */
-export async function saveScreenToFile(screenId: string): Promise<void> {
-  const localKey = screenStorageKey(screenId);
-  const raw = localStorage.getItem(localKey);
-  if (!raw) {
-    throw new Error("保存するデータがありません");
-  }
-  const data = JSON.parse(raw) as Record<string, unknown>;
-  await mcpBridge.request("saveScreen", { screenId, data });
-  clearScreenDraft(screenId);
+// ---------------------------------------------------------------------------
+// Legacy compatibility exports
+// ---------------------------------------------------------------------------
+// 以前の localStorage ベースの API は廃止するが、呼び出し元のコード整理のために
+// stub を残す。Designer.tsx は新 API (editActions / mcpBridge) を直接使う。
+
+/** @deprecated 新モデルでは mcpBridge.hasDraft を使用する */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function hasScreenDraft(_screenId: string): boolean {
+  return false;
+}
+
+/** @deprecated 新モデルでは不要 */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function clearScreenDraft(_screenId: string): void {
+  // no-op
+}
+
+/** @deprecated 新モデルでは editActions.save() → commitDraft を使用する */
+export async function saveScreenToFile(_screenId: string): Promise<void> {
+  throw new Error("saveScreenToFile は廃止されました。editActions.save() を使用してください。");
 }

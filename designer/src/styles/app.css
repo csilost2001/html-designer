@@ -482,6 +482,54 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
 }
 
 /* ==========================================================================
+   Canvas read-only オーバーレイ (#689)
+   ========================================================================== */
+.canvas-readonly-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.canvas-readonly-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 32px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  background: #6366f1;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.6);
+  transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.canvas-readonly-start-btn:hover {
+  background: #7c7ff1;
+  box-shadow: 0 6px 28px rgba(99, 102, 241, 0.8);
+  transform: translateY(-1px);
+}
+.canvas-readonly-start-btn:active {
+  transform: translateY(0);
+}
+.canvas-readonly-start-btn i {
+  font-size: 20px;
+}
+
+/* read-only 時はパネルを半透明・操作不可にする */
+.designer-root.is-readonly .panel-left,
+.designer-root.is-readonly .panel-right {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* ==========================================================================
    Right Panel — Styles / Traits / Layers
    ========================================================================== */
 .panel-right {
