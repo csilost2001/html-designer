@@ -387,6 +387,15 @@ export function ScreenListView() {
 
   const columns = useMemo<DataListColumn<ScreenNode>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (s) => hasDraft("screen", s.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "画面名",
       sortable: true,
@@ -434,7 +443,7 @@ export function ScreenListView() {
       sortAccessor: (s) => s.updatedAt,
       render: (s) => <span className="screen-table-date">{formatDate(s.updatedAt)}</span>,
     },
-  ], []);
+  ], [hasDraft]);
 
   const renderCard = (s: ScreenNode) => (
     <div className="screen-card-content">

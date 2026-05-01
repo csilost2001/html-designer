@@ -349,6 +349,15 @@ export function SequenceListView() {
 
   const columns = useMemo<DataListColumn<SequenceEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (s) => hasDraft("sequence", s.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "表示名",
       sortable: true,
@@ -381,7 +390,7 @@ export function SequenceListView() {
       sortAccessor: (s) => s.updatedAt,
       render: (s) => <span className="seq-list-date">{formatDate(s.updatedAt)}</span>,
     },
-  ], []);
+  ], [hasDraft]);
 
   const renderCard = (s: SequenceEntry) => (
     <div className="seq-card-content">

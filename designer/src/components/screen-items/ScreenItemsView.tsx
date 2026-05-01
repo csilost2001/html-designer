@@ -49,7 +49,6 @@ import { ConvCompletionInput } from "../common/ConvCompletionInput";
 import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
 import { generateAutoId, getFieldTypePrefix } from "../../utils/screenItemNaming";
-import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/screen-items.css";
 import "../../styles/editMode.css";
 
@@ -321,7 +320,6 @@ async function saveFile(data: ScreenItemsDocument): Promise<void> {
 }
 
 export function ScreenItemsView() {
-  const { hasDraft } = useDraftRegistry();
   const [screens, setScreens] = useState<ScreenMeta[]>([]);
   const [selectedScreenId, setSelectedScreenId] = usePersistentState<string | undefined>(
     "screen-items:selectedScreenId",
@@ -822,7 +820,7 @@ export function ScreenItemsView() {
               {screens.length === 0 && <option value="">画面がありません</option>}
               {screens.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {hasDraft("screen-item", s.id) ? `● ${s.name}` : s.name}
+                  {s.name}
                 </option>
               ))}
             </select>

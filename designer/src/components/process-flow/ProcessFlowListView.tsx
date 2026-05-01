@@ -516,6 +516,15 @@ export function ProcessFlowListView() {
 
   const columns = useMemo<DataListColumn<ProcessFlowMeta>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (g) => hasDraft("process-flow", g.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "名前",
       sortable: true,
@@ -598,7 +607,7 @@ export function ProcessFlowListView() {
         return <i className="bi bi-check-lg process-flow-validation-ok" title="問題なし" />;
       },
     },
-  ], [validationMap, getErrorPriority, markerMap]);
+  ], [validationMap, getErrorPriority, markerMap, hasDraft]);
 
   const renderCard = (g: ProcessFlowMeta) => {
     const v = validationMap.get(g.id);

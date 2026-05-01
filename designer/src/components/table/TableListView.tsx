@@ -437,6 +437,15 @@ export function TableListView() {
 
   const columns = useMemo<DataListColumn<TableEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (t) => hasDraft("table", t.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "physicalName",
       header: "物理名",
       sortable: true,
@@ -502,7 +511,7 @@ export function TableListView() {
       sortAccessor: (t) => t.updatedAt,
       render: (t) => <span className="table-list-date">{formatDate(t.updatedAt)}</span>,
     },
-  ], [getErrorPriority, validationMap]);
+  ], [getErrorPriority, validationMap, hasDraft]);
 
   const renderCard = (t: TableEntry) => {
     const validation = validationMap.get(t.id);

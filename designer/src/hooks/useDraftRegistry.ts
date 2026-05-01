@@ -30,7 +30,7 @@ export function useDraftRegistry(): UseDraftRegistryResult {
   const [drafts, setDrafts] = useState<Map<DraftKey, true>>(new Map());
   const draftsRef = useRef<Map<DraftKey, true>>(new Map());
 
-  const refresh = useCallback(async () => {
+  const applyDraftList = useCallback(async (onLoaded: (next: Map<DraftKey, true>) => void) => {
     try {
       const res = await mcpBridge.request("draft.list") as DraftListResponse | null;
       const entries = res?.drafts ?? [];
@@ -40,15 +40,21 @@ export function useDraftRegistry(): UseDraftRegistryResult {
         next.set(key, true);
       }
       draftsRef.current = next;
-      setDrafts(new Map(next));
+      onLoaded(new Map(next));
     } catch {
       // MCP 未接続時は空 Map のまま
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
+  const refresh = useCallback(async () => {
+    await applyDraftList(setDrafts);
+  }, [applyDraftList]);
 
+  useEffect(() => {
+    void applyDraftList(setDrafts);
+  }, [applyDraftList]);
+
+  useEffect(() => {
     const unsub = mcpBridge.onBroadcast("draft.changed", (data) => {
       const d = data as DraftChangedPayload;
       const key = `${d.type}:${d.id}` as DraftKey;
@@ -65,7 +71,7 @@ export function useDraftRegistry(): UseDraftRegistryResult {
     return () => {
       unsub();
     };
-  }, [refresh]);
+  }, []);
 
   const hasDraft = useCallback(
     (resourceType: DraftResourceType, resourceId: string): boolean => {

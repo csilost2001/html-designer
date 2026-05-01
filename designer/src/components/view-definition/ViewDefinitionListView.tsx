@@ -444,6 +444,15 @@ export function ViewDefinitionListView() {
 
   const columns = useMemo<DataListColumn<ViewDefinitionEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (v) => hasDraft("view-definition", String(v.id))
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "表示名",
       sortable: true,
@@ -526,7 +535,7 @@ export function ViewDefinitionListView() {
       sortAccessor: (v) => v.updatedAt,
       render: (v) => <span className="seq-list-date">{formatDate(v.updatedAt)}</span>,
     },
-  ], [getErrorPriority, validationMap, tableNameMap]);
+  ], [getErrorPriority, validationMap, tableNameMap, hasDraft]);
 
   const renderCard = (v: ViewDefinitionEntry) => {
     const validation = validationMap.get(String(v.id));

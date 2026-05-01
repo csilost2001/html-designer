@@ -385,6 +385,15 @@ export function ViewListView() {
 
   const columns = useMemo<DataListColumn<ViewEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (v) => hasDraft("view", v.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "表示名",
       sortable: true,
@@ -439,7 +448,7 @@ export function ViewListView() {
         return <i className="bi bi-check-lg view-validation-ok" title="問題なし" />;
       },
     },
-  ], [getErrorPriority, validationMap]);
+  ], [getErrorPriority, validationMap, hasDraft]);
 
   const renderCard = (v: ViewEntry) => {
     const validation = validationMap.get(v.id);
