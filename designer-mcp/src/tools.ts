@@ -1281,4 +1281,94 @@ export const tools = [
       required: ["id"],
     },
   },
+  {
+    name: "draft__read",
+    description: "draft ファイルを読み込みます。draft が存在しない場合は exists: false を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        id: { type: "string", description: "リソース ID" },
+      },
+      required: ["type", "id"],
+    },
+  },
+  {
+    name: "draft__update",
+    description: "draft ファイルを更新します (atomic write)。draft が存在しない場合は新規作成します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        id: { type: "string", description: "リソース ID" },
+        payload: { type: "object", description: "保存する内容" },
+      },
+      required: ["type", "id", "payload"],
+    },
+  },
+  {
+    name: "draft__commit",
+    description: "draft を本体ファイルへ atomic に昇格し、draft を削除します。draft が存在しない場合は committed: false を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        id: { type: "string", description: "リソース ID" },
+      },
+      required: ["type", "id"],
+    },
+  },
+  {
+    name: "draft__discard",
+    description: "draft ファイルを削除します (本体ファイルは変更しません)。draft が存在しない場合は discarded: false を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        id: { type: "string", description: "リソース ID" },
+      },
+      required: ["type", "id"],
+    },
+  },
+  {
+    name: "draft__has",
+    description: "draft ファイルが存在するかを返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        id: { type: "string", description: "リソース ID" },
+      },
+      required: ["type", "id"],
+    },
+  },
+  {
+    name: "draft__list",
+    description: "active workspace 配下の全 draft を列挙します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];

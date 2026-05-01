@@ -17,6 +17,16 @@ import { tools } from "./tools.js";
 import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles } from "./projectStorage.js";
+import {
+  createDraft,
+  readDraft,
+  updateDraft,
+  commitDraft,
+  discardDraft,
+  hasDraft,
+  listDrafts,
+  type DraftResourceType,
+} from "./draftStore.js";
 import { mcpTableToSpecEntry } from "./specExport.js";
 import { initWorkspaceState, getActivePath, setActivePath, clearActive, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError } from "./workspaceState.js";
 import { listWorkspaces, upsertWorkspace, removeWorkspace, findById, findByPath, setLastActive } from "./recentStore.js";
@@ -1140,6 +1150,49 @@ function createMcpServer(): Server {
           return { content: [{ type: "text", text: `id ${a.id} のワークスペースは見つかりませんでした。` }] };
         }
         return { content: [{ type: "text", text: `id ${a.id} を recent から除外しました (ファイルは変更されません)。` }] };
+      }
+
+      // ── draft 管理 (#685) ─────────────────────────────────────────
+      case "draft__read": {
+        const a = argRecord as { type: DraftResourceType; id: string };
+        const payload = await readDraft(a.type, a.id);
+        return { content: [{ type: "text", text: JSON.stringify({ payload, exists: payload !== null }, null, 2) }] };
+      }
+
+      case "draft__update": {
+        const a = argRecord as { type: DraftResourceType; id: string; payload: unknown };
+        await updateDraft(a.type, a.id, a.payload);
+        wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "updated" });
+        return { content: [{ type: "text", text: JSON.stringify({ updated: true }) }] };
+      }
+
+      case "draft__commit": {
+        const a = argRecord as { type: DraftResourceType; id: string };
+        const r = await commitDraft(a.type, a.id);
+        if (r.committed) {
+          wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "committed" });
+        }
+        return { content: [{ type: "text", text: JSON.stringify(r) }] };
+      }
+
+      case "draft__discard": {
+        const a = argRecord as { type: DraftResourceType; id: string };
+        const r = await discardDraft(a.type, a.id);
+        if (r.discarded) {
+          wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "discarded" });
+        }
+        return { content: [{ type: "text", text: JSON.stringify(r) }] };
+      }
+
+      case "draft__has": {
+        const a = argRecord as { type: DraftResourceType; id: string };
+        const exists = await hasDraft(a.type, a.id);
+        return { content: [{ type: "text", text: JSON.stringify({ exists }) }] };
+      }
+
+      case "draft__list": {
+        const drafts = await listDrafts();
+        return { content: [{ type: "text", text: JSON.stringify({ drafts }, null, 2) }] };
       }
 
       default:

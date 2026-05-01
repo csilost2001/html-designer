@@ -1,6 +1,16 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { EventEmitter } from "events";
 import { randomUUID } from "crypto";
+import {
+  createDraft,
+  readDraft,
+  updateDraft,
+  commitDraft,
+  discardDraft,
+  hasDraft,
+  listDrafts,
+  type DraftResourceType,
+} from "./draftStore.js";
 import { execSync } from "child_process";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
@@ -797,6 +807,59 @@ class WsBridge extends EventEmitter {
           if (typeof id !== "string") { respondError("id は必須です"); break; }
           const removed = await removeWorkspaceEntry(id);
           respond({ removed });
+          break;
+        }
+
+        // ── draft 管理 (#685) ─────────────────────────────────────────
+        case "draft.read": {
+          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
+          const payload = await readDraft(dt, did);
+          respond({ payload, exists: payload !== null });
+          break;
+        }
+        case "draft.update": {
+          const { type: dt, id: did, payload: dp } = (params ?? {}) as { type: DraftResourceType; id: string; payload: unknown };
+          await updateDraft(dt, did, dp);
+          respond({ updated: true });
+          this.broadcast("draft.changed", { type: dt, id: did, op: "updated" }, clientId);
+          break;
+        }
+        case "draft.commit": {
+          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
+          const r = await commitDraft(dt, did);
+          respond(r);
+          if (r.committed) {
+            this.broadcast("draft.changed", { type: dt, id: did, op: "committed" }, clientId);
+          }
+          break;
+        }
+        case "draft.discard": {
+          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
+          const r = await discardDraft(dt, did);
+          respond(r);
+          if (r.discarded) {
+            this.broadcast("draft.changed", { type: dt, id: did, op: "discarded" }, clientId);
+          }
+          break;
+        }
+        case "draft.has": {
+          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
+          const exists = await hasDraft(dt, did);
+          respond({ exists });
+          break;
+        }
+        case "draft.list": {
+          const drafts = await listDrafts();
+          respond({ drafts });
+          break;
+        }
+        case "draft.create": {
+          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
+          const r = await createDraft(dt, did);
+          respond(r);
+          if (r.created) {
+            this.broadcast("draft.changed", { type: dt, id: did, op: "created" }, clientId);
+          }
           break;
         }
 

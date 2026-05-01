@@ -88,7 +88,7 @@ describe("designer-mcp HTTP transport (#302)", () => {
     expect(res.body).toContain("designer-mcp");
   });
 
-  it("tools/list で 20 件以上のツールが返る (stateless なので initialize 直後に呼べる)", async () => {
+  it("tools/list で 20 件以上のツールが返り draft__* 6 種を含む", async () => {
     const res = await mcpCall("tools/list", undefined, { id: 2 });
     let parsed: { result?: { tools: { name: string }[] }; error?: unknown };
     const dataLine = res.body.split("\n").find((l) => l.startsWith("data: "));
@@ -106,6 +106,46 @@ describe("designer-mcp HTTP transport (#302)", () => {
     expect(names).toContain("designer__list_process_flows");
     expect(names).toContain("designer__list_markers");
     expect(names).toContain("designer__find_all_markers");
+    expect(names).toContain("draft__read");
+    expect(names).toContain("draft__update");
+    expect(names).toContain("draft__commit");
+    expect(names).toContain("draft__discard");
+    expect(names).toContain("draft__has");
+    expect(names).toContain("draft__list");
+  });
+
+  it("draft E2E: update → has=true → discard → has=false", async () => {
+    async function callTool(toolName: string, args: Record<string, unknown>) {
+      const res = await mcpCall("tools/call", undefined, {
+        id: Math.floor(Math.random() * 100000),
+        params: { name: toolName, arguments: args },
+      });
+      const dataLine = res.body.split("\n").find((l) => l.startsWith("data: "));
+      let parsed: { result?: { content: Array<{ type: string; text: string }> }; error?: unknown };
+      if (dataLine) {
+        parsed = JSON.parse(dataLine.slice(6));
+      } else {
+        parsed = JSON.parse(res.body);
+      }
+      if (parsed.error) throw new Error(`MCP error: ${JSON.stringify(parsed.error)}`);
+      const text = parsed.result?.content?.[0]?.text ?? "";
+      return JSON.parse(text);
+    }
+
+    await callTool("draft__update", {
+      type: "table",
+      id: "e2e-test-tbl",
+      payload: { name: "e2e_table", columns: [] },
+    });
+
+    const hasResult = await callTool("draft__has", { type: "table", id: "e2e-test-tbl" });
+    expect(hasResult.exists).toBe(true);
+
+    const discardResult = await callTool("draft__discard", { type: "table", id: "e2e-test-tbl" });
+    expect(discardResult.discarded).toBe(true);
+
+    const hasAfter = await callTool("draft__has", { type: "table", id: "e2e-test-tbl" });
+    expect(hasAfter.exists).toBe(false);
   });
 
   it("同一 port で WebSocket も受け付ける (ws:// upgrade)", async () => {
