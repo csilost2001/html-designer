@@ -109,7 +109,7 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 | `/extensions` | ExtensionsPanel | 拡張管理 | ✅ singleton |
 | `/process-flow/edit/:processFlowId` | ProcessFlowEditor | 処理フロー編集 | ✅ per-resource |
 
-ワークスペース概念 (active workspace / lockdown / recent / 切替プロトコル) は [docs/spec/workspace.md](docs/spec/workspace.md) を参照。
+ワークスペース概念 (active workspace / lockdown / recent / 切替プロトコル) は [docs/spec/workspace.md](docs/spec/workspace.md) を参照。複数ワークスペースの**同時並行編集** (v2) は [docs/spec/workspace-multi.md](docs/spec/workspace-multi.md) を参照 (#679 シリーズ)。
 
 ### Tab policy
 
