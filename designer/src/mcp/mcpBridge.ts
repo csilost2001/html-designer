@@ -11,7 +11,6 @@ import {
   makeTabId,
   setDirty,
 } from "../store/tabStore";
-import { saveScreenToFile } from "../grapes/remoteStorage";
 import {
   loadProject,
   addScreen,
@@ -954,7 +953,11 @@ class McpBridgeImpl {
         case "saveScreen": {
           const { screenId: saveScreenId } = (params ?? {}) as { screenId: string };
           if (!saveScreenId) { respondError("screenId は必須です"); break; }
-          await saveScreenToFile(saveScreenId);
+          // edit-session モデル下では draft.commit 経由で本体ファイルに書き込む
+          const hasDraftResult = await this.hasDraft("screen", saveScreenId) as { exists: boolean } | null;
+          if (hasDraftResult?.exists) {
+            await this.commitDraft("screen", saveScreenId);
+          }
           setDirty(makeTabId("design", saveScreenId), false);
           respond({ success: true });
           break;
@@ -965,7 +968,11 @@ class McpBridgeImpl {
           const results: { screenId: string; success: boolean; error?: string }[] = [];
           for (const tab of dirtyTabs) {
             try {
-              await saveScreenToFile(tab.resourceId);
+              // edit-session モデル下では draft.commit 経由で本体ファイルに書き込む
+              const hasDraftResult = await this.hasDraft("screen", tab.resourceId) as { exists: boolean } | null;
+              if (hasDraftResult?.exists) {
+                await this.commitDraft("screen", tab.resourceId);
+              }
               setDirty(tab.id, false);
               results.push({ screenId: tab.resourceId, success: true });
             } catch (e) {

@@ -59,9 +59,11 @@ interface Props {
   onSaveToFile?: () => Promise<void>;
   onReset?: () => Promise<void>;
   screenId?: string;
+  /** 読み取り専用モードの場合 true — 保存/リセットボタンを非表示にする */
+  isReadonly?: boolean;
 }
 
-export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId }: Props) {
+export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId, isReadonly }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const editor = useEditor();
 
@@ -498,15 +500,19 @@ ${html}
               )}
             </div>
             <div className="divider" />
-            <SaveResetButtons
-              isDirty={!!isDirty}
-              isSaving={!!isSaving}
-              onSave={handleSaveNow}
-              onReset={() => { void onReset?.(); }}
-            />
-            <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden", marginLeft: 4 }}>
-              <i className="bi bi-check-circle-fill" /> 保存済み
-            </span>
+            {!isReadonly && (
+              <>
+                <SaveResetButtons
+                  isDirty={!!isDirty}
+                  isSaving={!!isSaving}
+                  onSave={handleSaveNow}
+                  onReset={() => { void onReset?.(); }}
+                />
+                <span className="save-indicator saved" style={{ visibility: saveState === "saved" ? "visible" : "hidden", marginLeft: 4 }}>
+                  <i className="bi bi-check-circle-fill" /> 保存済み
+                </span>
+              </>
+            )}
             <button className="btn-secondary-sm" onClick={handleExportHtml} title="HTMLファイルとしてダウンロード">
               <i className="bi bi-download" /> HTMLエクスポート
             </button>

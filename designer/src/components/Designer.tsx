@@ -13,8 +13,9 @@ import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
 import { attachDataItemIdAutoAssign } from "../grapes/dataItemId";
 import { attachScreenItemsSync, reconcileScreenItems } from "../grapes/screenItemsSync";
-import { registerRemoteStorage, saveScreenToFile, hasScreenDraft, clearScreenDraft } from "../grapes/remoteStorage";
-import { acknowledgeServerMtime, hasServerBeenUpdated } from "../utils/serverMtime";
+import { registerRemoteStorage } from "../grapes/remoteStorage";
+import { checkLegacyLocalStorage, executeRescue, clearLegacyLocalStorage } from "../grapes/legacyLocalStorageRescue";
+import { acknowledgeServerMtime } from "../utils/serverMtime";
 import { DesignSubToolbar } from "./design/DesignSubToolbar";
 import { BlocksPanel } from "./BlocksPanel";
 import { RightPanel } from "./RightPanel";
@@ -25,6 +26,16 @@ import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStor
 import { loadProject, updateScreenThumbnail } from "../store/flowStore";
 import { makeTabId, setDirty } from "../store/tabStore";
 import { clearItemsFromCache } from "../store/screenItemsStore";
+import { useEditSession } from "../hooks/useEditSession";
+import { EditModeToolbar } from "./editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "./editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "./editing/ResumeOrDiscardDialog";
+import "../styles/editMode.css";
 
 /**
  * editor.getComponents() は GrapesJS が load() 中の Frame.onRemove 経由で一時的に
@@ -100,15 +111,14 @@ function applyThemeToCanvas(editor: GEditor, themeId: ThemeId) {
   }
 }
 
-function buildGjsOptions(_screenId: string) {
+function buildGjsOptions() {
   return {
     height: "100%",
     width: "auto",
     storageManager: {
       type: "remote",
-      autosave: true,
+      autosave: false,
       autoload: true,
-      stepsBeforeSave: 1,
     },
     undoManager: { trackSelection: false },
     canvas: {
@@ -141,24 +151,34 @@ export interface DesignerProps {
 }
 
 export function Designer({ screenId, screenName, onBack, isActive }: DesignerProps) {
-  const gjsOptions = buildGjsOptions(screenId);
+  const gjsOptions = buildGjsOptions();
   const [ready, setReady] = useState(false);
   const [canvasEmpty, setCanvasEmpty] = useState(true);
-  const [isDirty, setIsDirtyState] = useState(() => hasScreenDraft(screenId));
+  const [isDirty, setIsDirtyState] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [serverChanged, setServerChanged] = useState(false);
   const isDirtyRef = useRef(false);
-  // 初期ロード中および handleReset 中の component:* イベントは「ユーザー編集」ではないので
+  // 初期ロード中および handleDiscard 中の component:* イベントは「ユーザー編集」ではないので
   // markDirty を抑制する。初期ロードも同様に抑制するため、初期値を true にし onReady で解除する。
   const isInternalLoadRef = useRef(true);
-  // マウント時点での draft 有無を記憶する。onReady で「autosave が初期ロード中に勝手に立てた
-  // draftKey」だけを取り除き、ユーザーが前セッションで未保存のまま残した正当な draft は保護するため。
-  const hadInitialDraftRef = useRef(hasScreenDraft(screenId));
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
+
+  // ダイアログ表示状態
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  // localStorage 救済確認ダイアログ
+  const [showLegacyRescueDialog, setShowLegacyRescueDialog] = useState(false);
+  const legacyDataRef = useRef<unknown>(null);
+  // localStorage 救済は mount 1 回のみ
+  const legacyRescueCheckedRef = useRef(false);
+
+  // draftUpdateTimer (300ms debounce で updateDraft を呼ぶ)
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [panelMode, setPanelModeState] = useState<PanelMode>(() => {
     const saved = localStorage.getItem(PANEL_MODE_KEY) as PanelMode | null;
@@ -183,6 +203,35 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const openPanel = useCallback(() => setPanelMode(prevMode), [prevMode, setPanelMode]);
 
   const editorRef = useRef<GEditor | null>(null);
+
+  // useEditSession — TableEditor:77 と同型
+  const sessionId = mcpBridge.getSessionId();
+  const { mode, loading: sessionLoading, isDirtyForTab, actions: editActions } = useEditSession({
+    resourceType: "screen",
+    resourceId: screenId,
+    sessionId,
+  });
+
+  const isReadonly = mode.kind !== "editing";
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
+
+  // dirty 連携: isDirtyForTab (編集セッション中) || isDirty (canvas 変更あり)
+  useEffect(() => {
+    setDirty(tabId, isDirtyForTab || isDirty);
+  }, [tabId, isDirtyForTab, isDirty]);
+
+  // resume ダイアログ: readonly + sessionLoading 解除後に draft があれば表示
+  useEffect(() => {
+    if (!screenId || sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [screenId, sessionLoading, mode.kind]);
 
   const handleThemeChange = useCallback((themeId: ThemeId) => {
     setActiveThemeState(themeId);
@@ -227,12 +276,19 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       document.body.removeAttribute("data-gjs-dragging");
     });
 
-    // 変更検知: component 操作または style 変更でdirtyフラグを立てる
+    // 変更検知: component 操作または style 変更で draft を更新する
     const markDirty = () => {
       if (isInternalLoadRef.current) return;
+      if (isReadonlyRef.current) return;
       setIsDirtyState(true);
       isDirtyRef.current = true;
-      setDirty(tabId, true);
+      // 300ms debounce で updateDraft を呼ぶ (TableEditor:91-98 と同型)
+      if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+      draftUpdateTimer.current = setTimeout(() => {
+        if (!editorRef.current) return;
+        const data = editorRef.current.getProjectData();
+        mcpBridge.updateDraft("screen", screenId, data).catch(console.error);
+      }, 300);
     };
     editor.on("component:add component:remove component:update style:change", markDirty);
 
@@ -251,24 +307,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     mcpBridge.start(editor);
 
     // 他タブ/クライアントで同じ画面が変更されたとき (broadcast: screenChanged)。
-    // - dirty 中: ServerChangeBanner を表示してユーザー判断に委ねる
-    // - clean: editor.load() で即時リロード
-    //
-    // 設計差異 (#576): `useResourceEditor` を使う他の editor (TableEditor / ProcessFlowEditor 等) は
-    // 上記の broadcast 受信に加えて、MCP 再接続時 (`onStatusChange("connected")`) にも clean なら
-    // 自動 reload する。Designer はこれを意図的に行わない:
-    //   - GrapesJS は canvas DOM / undo stack / 選択中コンポーネント / scroll 位置 / 適用中テーマ等の
-    //     内部 state を多く保持しており、`editor.load()` 1 回で全てが silently swap される
-    //   - 再接続イベント自体ではサーバ側に変更が起きたとは限らず、無条件 reload は UX 上の不連続が大きい
-    //   - 「他クライアントによる明示的な変更通知 (broadcast)」だけを clean 時の即時反映トリガにする
-    //
-    // ServerChangeBanner が立つ経路は 2 つだけで、MCP 再接続イベント自体はそのトリガに含めない:
-    //   (a) broadcast (`screenChanged`) を dirty 中に受信したとき (本ハンドラ下 if 分岐)
-    //   (b) タブ再オープン時の初回マウント後 `useEffect` (`Designer.tsx:415-426`) が
-    //       `hasServerBeenUpdated` を呼び差分が見つかったとき
-    // 注意: タブを開いたまま切断 → 再接続した間に他クライアントが screen を編集した場合、
-    // broadcast は接続中しか届かないため取りこぼされ、再接続時点では検知できない。
-    // この trade-off (silent swap を避ける代わりに取りこぼしを許容) は明示的な選択。
+    // dirty 中: ServerChangeBanner を表示してユーザー判断に委ねる
+    // clean: editor.load() で即時リロード
     const unsubScreenChanged = mcpBridge.onBroadcast("screenChanged", (data) => {
       const d = data as { screenId?: string; deleted?: boolean };
       if (d.screenId !== screenId || d.deleted) return;
@@ -282,30 +322,26 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
     return () => {
       editor.off("component:add component:remove component:update style:change", markDirty);
+      if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
       unsubDataItemId();
       unsubScreenItemsSync();
       unsubscribe();
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
       mcpBridge.setCurrentScreenId(null);
-      // mcpBridge.stop() は呼ばない (#676 review): WS ライフサイクルは AppShell が一括所有する。
-      // Designer タブを閉じても他タブ / Header の WorkspaceIndicator が WS を必要とし続けるため、
-      // ここで切断すると workspace 機能全体が壊れる。Designer 固有のハンドラはこの cleanup の
-      // 他行 (setThemeHandler/setCurrentScreenId(null) と上の各 unsub) で確実に外している。
       clearItemsFromCache(screenId);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenId, tabId]);
+
+  // isReadonly の ref 版 (onEditor closure からアクセスするため)
+  const isReadonlyRef = useRef(isReadonly);
+  useEffect(() => {
+    isReadonlyRef.current = isReadonly;
+  }, [isReadonly]);
 
   const onReady = useCallback(async () => {
     setReady(true);
-    // マウント時点で draft が無かった場合、初期ロード中の autosave が立てた draftKey は
-    // 偽陽性なので解除する。draft があった場合は正当な未保存編集なので維持する。
-    if (!hadInitialDraftRef.current) {
-      clearScreenDraft(screenId);
-      setIsDirtyState(false);
-      isDirtyRef.current = false;
-      setDirty(tabId, false);
-    }
     // GrapesJS が component:add を遅延発火するケース（ensureValidProject による
     // 最小 pages 補正で空データからでも load() 後に 1 回発火する）に備え、
     // 次のマクロタスクでガードを下げる (#131)。
@@ -326,7 +362,18 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         }
       } catch { /* ignore */ }
     }
-  }, [activeTheme, screenId, tabId]);
+
+    // localStorage 救済チェック (mount 1 回のみ)
+    if (!legacyRescueCheckedRef.current) {
+      legacyRescueCheckedRef.current = true;
+      checkLegacyLocalStorage(screenId).then((result) => {
+        if (result.hasLegacy) {
+          legacyDataRef.current = result.data;
+          setShowLegacyRescueDialog(true);
+        }
+      }).catch(console.error);
+    }
+  }, [activeTheme, screenId]);
 
   // タブがアクティブになったときにキャンバスをリフレッシュ（display:none から復帰）
   useEffect(() => {
@@ -335,30 +382,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     }
   }, [isActive]);
 
-  // 保存後にサムネイルを撮影してフローノードに反映
-  useEffect(() => {
-    if (!ready || !editorRef.current) return;
-    const editor = editorRef.current;
-
-    const onStoreEnd = () => {
-      // 空のキャンバスはスキップ
-      if (safeComponentsLength(editor) === 0) return;
-      captureThumbnail(editor).then(async (thumbnail) => {
-        if (!thumbnail) return;
-        try {
-          const project = await loadProject();
-          await updateScreenThumbnail(project, screenId, thumbnail);
-        } catch {
-          // サムネイル保存失敗は無視
-        }
-      });
-    };
-
-    editor.on("storage:end:store", onStoreEnd);
-    return () => {
-      editor.off("storage:end:store", onStoreEnd);
-    };
-  }, [ready, screenId]);
 
   // キャンバスの空状態を追跡
   useEffect(() => {
@@ -374,20 +397,39 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     };
   }, [ready]);
 
-  const handleSaveToFile = useCallback(async () => {
-    if (isSaving) return;
+  /** 保存: 保留中の debounce を flush してから commitDraft + releaseLock */
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
     setIsSaving(true);
     try {
-      // GrapesJS の最新状態を localStorage に書き出してからファイル保存
-      if (editorRef.current) await editorRef.current.store();
-      await saveScreenToFile(screenId);
+      // 保留中の debounce timer があれば即時 flush
+      if (draftUpdateTimer.current) {
+        clearTimeout(draftUpdateTimer.current);
+        draftUpdateTimer.current = null;
+        if (editorRef.current) {
+          await mcpBridge.updateDraft("screen", screenId, editorRef.current.getProjectData());
+        }
+      }
+      await editActions.save();
       setIsDirtyState(false);
       isDirtyRef.current = false;
       setDirty(tabId, false);
       setServerChanged(false);
       await acknowledgeServerMtime("screen", screenId);
+      // サムネイル生成 (旧 storage:end:store ハンドラから移植)
+      if (editorRef.current && safeComponentsLength(editorRef.current) > 0) {
+        captureThumbnail(editorRef.current).then(async (thumbnail) => {
+          if (!thumbnail) return;
+          try {
+            const project = await loadProject();
+            await updateScreenThumbnail(project, screenId, thumbnail);
+          } catch {
+            // サムネイル保存失敗は無視
+          }
+        });
+      }
     } catch (e) {
-      console.error("[Designer] saveToFile failed:", e);
+      console.error("[Designer] save failed:", e);
       showError({
         title: "画面の保存に失敗しました",
         error: e,
@@ -396,17 +438,70 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } finally {
       setIsSaving(false);
     }
-  }, [screenId, tabId, isSaving, showError]);
+  }, [screenId, tabId, isReadonly, isSaving, editActions, showError]);
 
-  const handleReset = useCallback(async () => {
+  /** 破棄: discardDraft + releaseLock → 本体ファイル再読込 */
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    const editor = editorRef.current;
+    isInternalLoadRef.current = true;
+    try {
+      await editActions.discard();
+      if (editor) {
+        await editor.load();
+        editor.UndoManager.clear();
+      }
+      setIsDirtyState(false);
+      isDirtyRef.current = false;
+      setDirty(tabId, false);
+      setServerChanged(false);
+      await acknowledgeServerMtime("screen", screenId);
+    } catch (e) {
+      console.error("[Designer] discard failed:", e);
+      showError({
+        title: "破棄に失敗しました",
+        error: e,
+        context: { screenId, tabId },
+      });
+    } finally {
+      setTimeout(() => {
+        isInternalLoadRef.current = false;
+        if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
+      }, 0);
+    }
+  }, [screenId, tabId, editActions, showError]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await editActions.forceReleaseOther();
+  }, [editActions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await editActions.startEditing();
+  }, [editActions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    await mcpBridge.discardDraft("screen", screenId);
+    const editor = editorRef.current;
+    if (editor) {
+      isInternalLoadRef.current = true;
+      await editor.load();
+      setTimeout(() => {
+        isInternalLoadRef.current = false;
+        if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
+      }, 0);
+    }
+  }, [screenId]);
+
+  // ServerChangeBanner からの reload はページ本体への戻り
+  const handleServerChangeReload = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor) return;
-    clearScreenDraft(screenId);
     isInternalLoadRef.current = true;
     try {
       await editor.load();
-      // autosave が store() を呼んで draftKey を復元するケースを防ぐ
-      clearScreenDraft(screenId);
       editor.UndoManager.clear();
       setIsDirtyState(false);
       isDirtyRef.current = false;
@@ -414,40 +509,48 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       setServerChanged(false);
       await acknowledgeServerMtime("screen", screenId);
     } catch (e) {
-      console.error("[Designer] reset failed:", e);
-      showError({
-        title: "リセットに失敗しました",
-        error: e,
-        context: { screenId, tabId },
-      });
+      console.error("[Designer] server change reload failed:", e);
     } finally {
-      // GrapesJS が component:add / autosave を遅延発火するケースに備えて
-      // 次のマクロタスクでガードを下げる。遅延中に発火した markDirty も抑制したい。
-      // リセット後も canvas ↔ screen-items の整合を保つため reconcile を実行する。
       setTimeout(() => {
         isInternalLoadRef.current = false;
         if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
       }, 0);
     }
-  }, [screenId, tabId, showError]);
+  }, [screenId, tabId]);
 
-  // タブを開いた時点でサーバーに新しい変更がないか確認（初回ロード完了後）
-  useEffect(() => {
-    if (!ready) return;
-    (async () => {
-      if (hasScreenDraft(screenId)) {
-        if (await hasServerBeenUpdated("screen", screenId)) {
-          setServerChanged(true);
-        }
-      } else {
-        await acknowledgeServerMtime("screen", screenId);
+  // localStorage 救済: 採用
+  const handleLegacyRescueAdopt = useCallback(async () => {
+    setShowLegacyRescueDialog(false);
+    try {
+      await executeRescue(screenId, "adopt", legacyDataRef.current);
+      legacyDataRef.current = null;
+      // draft が作成されたのでリロードして draft を表示
+      const editor = editorRef.current;
+      if (editor) {
+        isInternalLoadRef.current = true;
+        await editor.load();
+        setTimeout(() => {
+          isInternalLoadRef.current = false;
+          if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
+        }, 0);
       }
-    })();
-  }, [ready, screenId]);
+      // resume ダイアログを表示 (draft が存在するので続きを選ばせる)
+      setShowResumeDialog(true);
+    } catch (e) {
+      console.error("[Designer] legacy rescue adopt failed:", e);
+    }
+  }, [screenId]);
+
+  // localStorage 救済: 破棄
+  const handleLegacyRescueDiscard = useCallback(() => {
+    setShowLegacyRescueDialog(false);
+    clearLegacyLocalStorage(screenId);
+    legacyDataRef.current = null;
+  }, [screenId]);
 
   return (
     <GjsEditor
-      className="designer-root"
+      className={`designer-root${isReadonly ? " is-readonly" : ""}`}
       grapesjs={grapesjs}
       options={gjsOptions}
       onEditor={onEditor}
@@ -469,16 +572,72 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
             mcpStatus={mcpStatus}
             isDirty={isDirty}
             isSaving={isSaving}
-            onSaveToFile={handleSaveToFile}
-            onReset={handleReset}
+            onSaveToFile={handleSave}
+            onReset={async () => setShowDiscardDialog(true)}
             backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
             screenId={screenId}
+            isReadonly={isReadonly}
           />
         </WithEditor>
 
+        {/* 編集モードツールバー (EditModeToolbar) */}
+        <EditModeToolbar
+          mode={mode}
+          onStartEditing={editActions.startEditing}
+          onSave={handleSave}
+          onDiscardClick={() => setShowDiscardDialog(true)}
+          onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+          saving={isSaving}
+          ownerLabel={lockedByOther?.ownerSessionId}
+        />
+
+        {/* 強制解除 / ForcedOut / AfterForceUnlock ダイアログ */}
+        {mode.kind === "force-released-pending" && (
+          <ForcedOutChoiceDialog
+            previousDraftExists={mode.previousDraftExists}
+            onChoice={(choice) => editActions.handleForcedOut(choice)}
+          />
+        )}
+        {mode.kind === "after-force-unlock" && (
+          <AfterForceUnlockChoiceDialog
+            previousOwner={mode.previousOwner}
+            onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
+          />
+        )}
+
+        {showResumeDialog && (
+          <ResumeOrDiscardDialog
+            onResume={handleResumeContinue}
+            onDiscard={handleResumeDiscard}
+            onCancel={() => setShowResumeDialog(false)}
+          />
+        )}
+
+        {showDiscardDialog && (
+          <DiscardConfirmDialog
+            onConfirm={handleDiscard}
+            onCancel={() => setShowDiscardDialog(false)}
+          />
+        )}
+
+        {showForceReleaseDialog && lockedByOther && (
+          <ForceReleaseConfirmDialog
+            ownerSessionId={lockedByOther.ownerSessionId}
+            onConfirm={handleForceRelease}
+            onCancel={() => setShowForceReleaseDialog(false)}
+          />
+        )}
+
+        {showLegacyRescueDialog && (
+          <LegacyRescueDialog
+            onAdopt={handleLegacyRescueAdopt}
+            onDiscard={handleLegacyRescueDiscard}
+          />
+        )}
+
         {serverChanged && (
           <ServerChangeBanner
-            onReload={handleReset}
+            onReload={handleServerChangeReload}
             onDismiss={() => setServerChanged(false)}
           />
         )}
@@ -515,7 +674,21 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
           <main className="panel-canvas">
             <Canvas className="designer-canvas" />
-            {canvasEmpty && ready && (
+            {/* read-only オーバーレイ: 編集中でないときに canvas 中央に「編集開始」ボタンを表示 */}
+            {isReadonly && ready && (
+              <div className="canvas-readonly-overlay" data-testid="canvas-readonly-overlay">
+                <button
+                  type="button"
+                  className="canvas-readonly-start-btn"
+                  onClick={editActions.startEditing}
+                  data-testid="canvas-readonly-start"
+                >
+                  <i className="bi bi-pencil-fill" />
+                  編集開始
+                </button>
+              </div>
+            )}
+            {canvasEmpty && ready && !isReadonly && (
               <div className="canvas-empty-hint">
                 <i className="bi bi-grid-1x2" />
                 <p>左のパネルからブロックをここにドラッグしてください</p>
@@ -529,5 +702,83 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         </div>
       </div>
     </GjsEditor>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LocalStorage 救済確認ダイアログ
+// ---------------------------------------------------------------------------
+
+interface LegacyRescueDialogProps {
+  onAdopt: () => void;
+  onDiscard: () => void;
+}
+
+function LegacyRescueDialog({ onAdopt, onDiscard }: LegacyRescueDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDiscard();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onDiscard]);
+
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
+
+  return (
+    <div
+      className="edit-mode-modal-backdrop"
+      onClick={(e) => { if (e.target === e.currentTarget) onDiscard(); }}
+      role="presentation"
+    >
+      <div
+        className="edit-mode-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="legacy-rescue-title"
+        tabIndex={-1}
+        ref={dialogRef}
+      >
+        <div className="edit-mode-modal-header">
+          <h5 id="legacy-rescue-title" className="edit-mode-modal-title">
+            未保存の旧データが見つかりました
+          </h5>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={onDiscard}
+            aria-label="閉じる"
+          />
+        </div>
+        <div className="edit-mode-modal-body">
+          <p>
+            以前の編集セッションで保存されなかったデータ (localStorage) が残っています。
+            draft に変換して編集を継続しますか？
+          </p>
+          <div className="edit-mode-modal-footer">
+            <button
+              type="button"
+              className="btn btn-outline-danger btn-sm"
+              onClick={onDiscard}
+              data-testid="legacy-rescue-discard"
+            >
+              破棄する
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={onAdopt}
+              data-testid="legacy-rescue-adopt"
+            >
+              draft に変換して続ける
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
