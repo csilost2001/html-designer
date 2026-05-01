@@ -179,6 +179,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                     }
                     onBlur={onCommit}
                     placeholder="省略可"
+                    disabled={isReadonly}
                   />
                 </label>
                 <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
@@ -193,6 +194,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                     }
                     onBlur={onCommit}
                     placeholder="createdOrder.order_number"
+                    disabled={isReadonly}
                   />
                 </label>
               </>
@@ -217,6 +219,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
+                    disabled={isReadonly}
                   >
                     <option value="">— テーブル選択 —</option>
                     {tables.map((t) => (
@@ -238,7 +241,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
-                    disabled={!selectedTable}
+                    disabled={isReadonly || !selectedTable}
                   >
                     <option value="">— 列選択 —</option>
                     {selectedTable?.columns?.map((c) => (
@@ -268,6 +271,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
+                    disabled={isReadonly}
                   >
                     <option value="">— ビュー選択 —</option>
                     {views.map((v) => (
@@ -289,7 +293,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
-                    disabled={!selectedView}
+                    disabled={isReadonly || !selectedView}
                   >
                     <option value="">— 列選択 —</option>
                     {selectedView?.outputColumns.map((c) => (
@@ -311,6 +315,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly
                 onChange={(e) => handleValueFromPatch({ expression: e.target.value } as Partial<ValueSource>)}
                 onBlur={onCommit}
                 placeholder="@inputs.price * @inputs.qty"
+                disabled={isReadonly}
               />
             </label>
           )}

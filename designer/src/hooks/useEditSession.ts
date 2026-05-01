@@ -69,6 +69,9 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
 
   useEffect(() => {
     let cancelled = false;
+    // 切替前のリソース情報をキャプチャ (cleanup でゾンビロック解放に使う)
+    const prevResourceType = resourceType;
+    const prevResourceId = resourceId;
 
     const init = async () => {
       setLoading(true);
@@ -102,7 +105,15 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
 
     init().catch(console.error);
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // resourceId 変更時: 旧リソースのロックを保持していた場合はゾンビロックを解放する
+      if (modeRef.current.kind === "editing") {
+        mcpBridge.discardDraft(prevResourceType, prevResourceId).catch(() => {});
+        mcpBridge.releaseLock(prevResourceType, prevResourceId, sessionId).catch(() => {});
+        setMode({ kind: "readonly" });
+      }
+    };
   }, [resourceType, resourceId, sessionId]);
 
   useEffect(() => {

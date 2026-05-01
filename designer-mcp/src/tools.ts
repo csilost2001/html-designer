@@ -1289,7 +1289,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1305,7 +1305,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1326,7 +1326,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1346,7 +1346,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1366,7 +1366,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1393,7 +1393,7 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },
@@ -1414,7 +1414,7 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },
@@ -1435,7 +1435,7 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },
@@ -1452,7 +1452,7 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },

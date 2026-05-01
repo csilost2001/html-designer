@@ -15,6 +15,7 @@ import {
   writeProcessFlow,
   writeView,
   writeViewDefinition,
+  writeScreenItems,
   writeSequence,
   writeProject,
 } from "./projectStorage.js";
@@ -84,7 +85,7 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
     case "view-definition":
       return path.join(activeRoot, "view-definitions", `${id}.json`);
     case "screen-item":
-      return null;
+      return path.join(activeRoot, "screens", `${id}.design.json`);
     case "sequence":
       return path.join(activeRoot, "sequences", `${id}.json`);
     case "extension":
@@ -182,14 +183,9 @@ export async function commitDraft(
     case "view-definition":
       await writeViewDefinition(id, payload);
       break;
-    case "screen-item": {
-      const bodyPath = canonicalBodyPath(root, type, id);
-      if (!bodyPath) {
-        throw new Error("screen-item の本体パス解決に失敗しました (PR-7 で対応予定)");
-      }
-      await atomicWrite(bodyPath, payload);
+    case "screen-item":
+      await writeScreenItems(id, payload);
       break;
-    }
     case "sequence":
       await writeSequence(id, payload);
       break;

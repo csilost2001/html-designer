@@ -198,7 +198,7 @@ function FlowEditorInner() {
     setCanRedo(redoStackRef.current.length > 0);
   }, [setNodes, setEdges]);
 
-  useUndoKeyboard(handleUndo, handleRedo);
+  useUndoKeyboard(handleUndo, handleRedo, !isReadonly);
 
   // プロジェクトを読み込んで UI に反映
   const reloadProject = useCallback(async () => {

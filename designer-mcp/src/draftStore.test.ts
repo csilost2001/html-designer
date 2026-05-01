@@ -148,9 +148,13 @@ describe("draftStore", () => {
       expect(r.committed).toBe(false);
     });
 
-    it("screen-item: commitDraft は Error を throw する", async () => {
-      await updateDraft("screen-item", "si-001", { id: "si-001", label: "test" });
-      await expect(commitDraft("screen-item", "si-001")).rejects.toThrow(/screen-item/i);
+    it("screen-item: commitDraft は writeScreenItems を呼び出して committed: true を返す", async () => {
+      await updateDraft("screen-item", "si-001", { screenId: "si-001", items: [] });
+      const r = await commitDraft("screen-item", "si-001");
+      expect(r.committed).toBe(true);
+      // draft が削除されていること
+      const afterDraft = await readDraft("screen-item", "si-001");
+      expect(afterDraft).toBeNull();
     });
   });
 

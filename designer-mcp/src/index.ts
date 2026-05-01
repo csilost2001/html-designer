@@ -1172,6 +1172,9 @@ function createMcpServer(): Server {
       case "draft__update": {
         const a = argRecord as { type: DraftResourceType; id: string; payload: unknown; onBehalfOfSession?: string };
         if (a.onBehalfOfSession) {
+          if (!wsBridge.isActiveSession(a.onBehalfOfSession)) {
+            throw new McpError(ErrorCode.InvalidParams, `INVALID_ON_BEHALF_OF_SESSION: ${a.onBehalfOfSession}`);
+          }
           logAuditIfDelegated("draft__update", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
         await updateDraft(a.type, a.id, a.payload);
@@ -1182,6 +1185,9 @@ function createMcpServer(): Server {
       case "draft__commit": {
         const a = argRecord as { type: DraftResourceType; id: string; onBehalfOfSession?: string };
         if (a.onBehalfOfSession) {
+          if (!wsBridge.isActiveSession(a.onBehalfOfSession)) {
+            throw new McpError(ErrorCode.InvalidParams, `INVALID_ON_BEHALF_OF_SESSION: ${a.onBehalfOfSession}`);
+          }
           logAuditIfDelegated("draft__commit", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
         const r = await commitDraft(a.type, a.id);
@@ -1194,6 +1200,9 @@ function createMcpServer(): Server {
       case "draft__discard": {
         const a = argRecord as { type: DraftResourceType; id: string; onBehalfOfSession?: string };
         if (a.onBehalfOfSession) {
+          if (!wsBridge.isActiveSession(a.onBehalfOfSession)) {
+            throw new McpError(ErrorCode.InvalidParams, `INVALID_ON_BEHALF_OF_SESSION: ${a.onBehalfOfSession}`);
+          }
           logAuditIfDelegated("draft__discard", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
         const r = await discardDraft(a.type, a.id);
