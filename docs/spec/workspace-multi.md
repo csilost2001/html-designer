@@ -167,39 +167,41 @@ R-2 実装時に `grep -rn "broadcast(" designer-mcp/src/` で全件抽出し、
 
 ---
 
-## 7. Draft path に wsId (D-5)
+## 7. Draft の隔離 (D-5)
 
-### 7.1 新 draft path 規約
+draft は **ワークスペース毎にファイルシステム上で物理隔離** される設計を採用する。実装上の path:
 
-#683 で導入された draft path を以下に変更する:
+```
+<workspace_root>/.drafts/<resourceType>/<id>.json
+```
 
-| 旧 path | 新 path |
-|---------|---------|
-| `data/.drafts/<resourceType>/<id>.json` | `data/.drafts/<wsId>/<resourceType>/<id>.json` |
+### 7.1 wsId path prefix を採用しない理由
 
-例:
-- 旧: `data/.drafts/screens/home.json`
-- 新: `data/.drafts/abc-123-uuid/screens/home.json`
+メタ #679 / #683 D-12 では「global `data/.drafts/<wsId>/<resourceType>/<id>.json`」を想定していたが、以下の理由で **採用しない**:
 
-### 7.2 起動時 migrate
+- workspace folder が物理的な isolation 境界として既に機能している (path collision 不可能)
+- workspace 削除時に draft も自然に消える (lifecycle の整合)
+- enumeration の必要が生じれば path から workspace を辿れる (= 性能要件は workspace の中で完結)
+- per-workspace 設計の方が単純で理解しやすい
 
-起動時に 1 回だけ旧 path → 新 path へ移行する:
+### 7.2 migration
 
-1. `recent.lastActiveId` から wsId を解決
-2. 旧 path `data/.drafts/<resourceType>/<id>.json` が存在すれば新 path へ move
-3. `recent.lastActiveId` が null の場合は旧 path を残す + warn log 出力
-4. 移行ログは `console.info` で出力し、サイレント削除は行わない
+採用 path が **既存 (#683 PR-2 から)** と同一のため、**migration は発生しない**。
 
-### 7.3 lockdown 時
+### 7.3 gitignore
 
-lockdown 時は env path から安定した wsId として固定文字列 `lockdown` を使用する:
-- draft path: `data/.drafts/lockdown/<resourceType>/<id>.json`
+- リポジトリ直下の `.gitignore` で `data/.drafts/` を ignore (legacy workspace = `<repo>/data/` 用)
+- 各 workspace owner は **自身の workspace folder 内に `.drafts/` ignore ルール** を必要に応じて設定する責任がある (フレームワーク側では強制しない)
 
-### 7.4 gitignore
+### 7.4 lockdown 互換
 
-`data/.drafts/` 全体は引き続き gitignore 対象 (`.gitignore` の変更不要)。
+env `DESIGNER_DATA_DIR` 設定時、active workspace は env 値固定 (`<env_path>/.drafts/`)。他 workspace は存在しないので draft 隔離は自動的に成立。
 
-実装対象 PR: R-3 (#701)
+### 7.5 onBehalfOfSession (#683 D-7) との関係
+
+owner clientId と actor clientId が異なる場合でも、active workspace は actor (= MCP session) の context で解決される。draft path の隔離も actor の active workspace 単位。
+
+実装対象 PR: R-3 (#701) — spec 修正のみ (実装は #683 PR-2 で導入済み)
 
 ---
 
@@ -242,7 +244,7 @@ v1 の lockdown 仕様 ([workspace.md § 4](workspace.md)) と後方互換を保
 | broadcast 誤配信で別 workspace タブが reload | 高 | R-2 | wsId 必須化 + unit test で wsId フィルタ検証、grep で旧 broadcast 全件改修確認 |
 | MCP agent session で workspace 切替が他 agent 巻き込み | 高 | R-2 | session 単位完全隔離 + test、`httpTransport.test.ts` 拡張 (2 MCP session で別 workspace open) |
 | URL `/w/:wsId/` 切替時に AppShell guard が無限ループ | 中 | R-4 | initial hydration はリロードしない既存ガード (`AppShell.tsx:114-149`) を per-session 化、e2e で navigate チェック |
-| draft path migration の旧 path 残骸 | 中 | R-3 | 1 回 migrate 後に旧 path を ignore する logic、移行 log 出力、未確定キーは warn のみで削除しない |
+| draft path isolation | 低 | R-3 | per-workspace folder が物理 isolation 境界。migration 不要。workspace 隔離を unit test で確認 (#701) |
 | lockdown 時の per-session 動作 | 中 | R-2/R-4 | env `DESIGNER_DATA_DIR` 設定時 test ケース追加、全 session の activePath が env 値固定であることを assertion |
 | broadcast subscriber 多重登録 | 低 | R-5 | wsId 切替時に unsubscribe → subscribe しなおす |
 | `recentStore` write の per-session 競合 | 低 | R-2 | global `withWriteLock` で従来通り直列化、active 切替の write は session 識別子と一緒に upsert |
@@ -256,7 +258,7 @@ v1 の lockdown 仕様 ([workspace.md § 4](workspace.md)) と後方互換を保
 - per-session active 隔離: 2 clientId で別 workspace active → 各 `getActivePath(clientId)` が独立した値を返す
 - broadcast wsId フィルタ: wsId が異なる session には配信されないことを unit test で検証
 - `projectStorage` per-session スナップショット: in-flight 操作中の workspace 切替で書込み先が混在しないことを確認
-- draft path 解決: `data/.drafts/<wsId>/<resourceType>/<id>.json` の path 生成ロジック
+- draft path 隔離: 2 clientId (別 workspace) で同一 id の draft を作成 → 互いに独立、削除も独立 (`draftStore.test.ts` — workspace 隔離 describe)
 - URL `/w/:wsId/` parse: wsId 抽出と workspace.open への連携
 
 ### 11.2 integration (designer-mcp/src/httpTransport.test.ts 拡張)
@@ -281,7 +283,7 @@ v1 の lockdown 仕様 ([workspace.md § 4](workspace.md)) と後方互換を保
 | 項目 | 対応 PR | migration 内容 |
 |------|---------|----------------|
 | 旧 URL → 新 URL | R-4 | **migration なし** (リリース前のためブックマーク互換不要) |
-| 旧 draft path → 新 draft path | R-3 | 起動時 1 回 migrate (recent.lastActiveId で wsId 解決) |
+| 旧 draft path → 新 draft path | R-3 | **migration なし** (採用 path が #683 PR-2 導入時と同一。per-workspace folder が isolation 境界) |
 | WS broadcast 引数追加 | R-2 | 既存呼び出し全件 grep + wsId 引数追加 |
 | `getActivePath()` API 変更 | R-2 | 全呼び出し点を `getActivePath(clientId)` に書換 |
 
@@ -304,7 +306,7 @@ v1 の lockdown 仕様 ([workspace.md § 4](workspace.md)) と後方互換を保
 | 5.1 ConnectionContext | `designer-mcp/src/workspaceState.ts:1-97` | R-2 |
 | 5.4 projectStorage per-session | `designer-mcp/src/projectStorage.ts:1-104` | R-2 |
 | 6 broadcast scoping | `designer-mcp/src/wsBridge.ts:671-801` | R-2 |
-| 7 draft path | `designer-mcp/src/draftStorage.ts` (#683 で新設) | R-3 |
+| 7 draft path 隔離 | `designer-mcp/src/draftStore.ts:35-47` (#683 PR-2 で導入済) | R-3 (spec 修正のみ) |
 | 3 URL routing | `designer/src/App.tsx` (Route 定義) | R-4 |
 | 4.2 切替フロー | `designer/src/components/AppShell.tsx:106-148` | R-4 |
 | 4 WorkspaceIndicator | `designer/src/components/workspace/WorkspaceIndicator.tsx` | R-5 |

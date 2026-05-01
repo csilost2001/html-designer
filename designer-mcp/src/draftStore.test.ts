@@ -262,4 +262,88 @@ describe("draftStore", () => {
       expect(final).toMatchObject({ version: 9 });
     });
   });
+
+  describe("workspace 隔離 (#701 R-3)", () => {
+    const TMP_ROOT_A = path.join(os.tmpdir(), `draft-iso-A-${process.pid}-${Date.now()}`);
+    const TMP_ROOT_B = path.join(os.tmpdir(), `draft-iso-B-${process.pid}-${Date.now()}`);
+    const CLIENT_A = "test-client-iso-A";
+    const CLIENT_B = "test-client-iso-B";
+
+    beforeAll(async () => {
+      // 2 つのワークスペース root を作成
+      await fs.mkdir(TMP_ROOT_A, { recursive: true });
+      await fs.writeFile(path.join(TMP_ROOT_A, "project.json"), JSON.stringify({ name: "A" }), "utf-8");
+      await fs.mkdir(TMP_ROOT_B, { recursive: true });
+      await fs.writeFile(path.join(TMP_ROOT_B, "project.json"), JSON.stringify({ name: "B" }), "utf-8");
+
+      _resetForTest();
+      initWorkspaceState();
+      connect(CLIENT_A, TMP_ROOT_A);
+      connect(CLIENT_B, TMP_ROOT_B);
+    });
+
+    afterAll(async () => {
+      await fs.rm(TMP_ROOT_A, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(TMP_ROOT_B, { recursive: true, force: true }).catch(() => {});
+      _resetForTest();
+      // メインテストの TEST_CLIENT_ID を再登録
+      initWorkspaceState();
+      connect(TEST_CLIENT_ID, TMP_ROOT);
+    });
+
+    it("client A の draft は client B から見えない", async () => {
+      await createDraft(CLIENT_A, "table", "shared-id");
+      await updateDraft(CLIENT_A, "table", "shared-id", { name: "from-A" });
+
+      // B は同じ id でも独立
+      expect(await hasDraft(CLIENT_B, "table", "shared-id")).toBe(false);
+      expect(await readDraft(CLIENT_B, "table", "shared-id")).toBeNull();
+    });
+
+    it("client A と client B が独立に同じ id で draft を持てる", async () => {
+      await createDraft(CLIENT_A, "process-flow", "iso-test");
+      await updateDraft(CLIENT_A, "process-flow", "iso-test", { name: "A-flow" });
+
+      await createDraft(CLIENT_B, "process-flow", "iso-test");
+      await updateDraft(CLIENT_B, "process-flow", "iso-test", { name: "B-flow" });
+
+      const a = await readDraft(CLIENT_A, "process-flow", "iso-test");
+      const b = await readDraft(CLIENT_B, "process-flow", "iso-test");
+      expect(a).toMatchObject({ name: "A-flow" });
+      expect(b).toMatchObject({ name: "B-flow" });
+    });
+
+    it("client A の draft 削除は client B に影響しない", async () => {
+      await createDraft(CLIENT_A, "view", "delete-test");
+      await createDraft(CLIENT_B, "view", "delete-test");
+      await discardDraft(CLIENT_A, "view", "delete-test");
+
+      expect(await hasDraft(CLIENT_A, "view", "delete-test")).toBe(false);
+      expect(await hasDraft(CLIENT_B, "view", "delete-test")).toBe(true);
+    });
+
+    it("listDrafts は active workspace の draft のみ列挙する", async () => {
+      await createDraft(CLIENT_A, "table", "list-A");
+      await createDraft(CLIENT_B, "table", "list-B");
+
+      const listA = await listDrafts(CLIENT_A);
+      const listB = await listDrafts(CLIENT_B);
+
+      expect(listA.some((d) => d.id === "list-A")).toBe(true);
+      expect(listA.some((d) => d.id === "list-B")).toBe(false);
+      expect(listB.some((d) => d.id === "list-B")).toBe(true);
+      expect(listB.some((d) => d.id === "list-A")).toBe(false);
+    });
+
+    it("draft path は workspace root 内の .drafts 配下に作られる", async () => {
+      await createDraft(CLIENT_A, "table", "path-test");
+
+      const expectedPath = path.join(TMP_ROOT_A, ".drafts", "table", "path-test.json");
+      await fs.access(expectedPath); // throw しないこと
+
+      // workspace B には作られないこと
+      const bPath = path.join(TMP_ROOT_B, ".drafts", "table", "path-test.json");
+      await expect(fs.access(bPath)).rejects.toThrow();
+    });
+  });
 });
