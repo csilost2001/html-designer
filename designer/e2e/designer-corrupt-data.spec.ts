@@ -41,6 +41,7 @@ const dummyTab = {
 async function setupDesignerWithRawData(page: Page, rawData: unknown, withDraft: boolean) {
   await page.addInitScript(
     ({ project, screenId, tab, rawData, withDraft }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem(`gjs-screen-${screenId}`, JSON.stringify(rawData));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));

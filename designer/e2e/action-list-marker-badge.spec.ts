@@ -70,7 +70,8 @@ const dummyProject = {
 
 async function setup(page: Page) {
   await page.addInitScript((data) => {
-    localStorage.setItem("flow-project", JSON.stringify(data.project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(data.project));
     localStorage.setItem(`process-flow-${data.fullMarkers.id}`, JSON.stringify(data.fullMarkers));
     localStorage.setItem(`process-flow-${data.fullClean.id}`, JSON.stringify(data.fullClean));
     localStorage.removeItem("designer-open-tabs");

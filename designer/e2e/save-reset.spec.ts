@@ -66,6 +66,7 @@ const dummyTab = {
 async function setupTableEditor(page: Page) {
   await page.addInitScript(
     ({ project, table, tableId, tab }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem(`v3-table-${tableId}`, JSON.stringify(table));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));

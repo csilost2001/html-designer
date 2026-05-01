@@ -32,7 +32,8 @@ async function setup(page: Page, items: Array<{ id: string; label: string; type:
     items,
   };
   await page.addInitScript(({ project, siData, siKey }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.setItem(siKey, JSON.stringify(siData));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");

@@ -11,11 +11,12 @@ import { wsBridge } from "./wsBridge.js";
 import { writeProcessFlow } from "./projectStorage.js";
 import type { ProcessFlowDoc } from "./processFlowEdits.js";
 
-/** ProcessFlow を保存してブラウザに変更通知 (#700 R-2: root 必須) */
+/** ProcessFlow を保存してブラウザに変更通知 (#700 R-2: root 必須, #703 R-5: wsId=root で scope) */
 export async function saveAndBroadcast(agId: string, ag: ProcessFlowDoc, root: string): Promise<void> {
   ag.updatedAt = new Date().toISOString();
   await writeProcessFlow(agId, ag, root);
-  wsBridge.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId } });
+  // root が wsId = per-workspace scoping (#703 R-5 A-1)
+  wsBridge.broadcast({ wsId: root, event: "processFlowChanged", data: { id: agId } });
 }
 
 /**

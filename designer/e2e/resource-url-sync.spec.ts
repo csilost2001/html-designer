@@ -34,7 +34,8 @@ const projectWithScreen = {
 
 async function setupStorage(page: Page, opts: { tabs: unknown[]; active: string; project?: unknown }) {
   await page.addInitScript((o) => {
-    if (o.project) localStorage.setItem("flow-project", JSON.stringify(o.project));
+    if (o.project) localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(o.project));
     localStorage.setItem("designer-open-tabs", JSON.stringify(o.tabs));
     localStorage.setItem("designer-active-tab", o.active);
     // alert は goto をブロックするので握り潰す
@@ -66,7 +67,7 @@ test("存在しないスクリーン ID の URL はダッシュボードにフ�
   });
 
   await page.goto("/screen/design/non-existent-screen-id-xxxx");
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/w\/[^/]+\/$/);
   await expect(page.locator(".common-header")).toBeVisible();
 
   const errorLog = await page.evaluate(() => {

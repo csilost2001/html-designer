@@ -59,6 +59,7 @@ async function setupDesigner(page: Page) {
 
   await page.addInitScript(
     ({ project, screenId, tab, screenData }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem(`gjs-screen-${screenId}`, JSON.stringify(screenData));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));

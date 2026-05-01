@@ -76,7 +76,8 @@ const project = {
 
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group, tableDef, groupId, tableId }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.setItem(`process-flow-${groupId}`, JSON.stringify(group));
     localStorage.setItem(`v3-table-${tableId}`, JSON.stringify(tableDef));
     localStorage.removeItem("designer-open-tabs");

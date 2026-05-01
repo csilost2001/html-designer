@@ -38,6 +38,8 @@ async function setupDashboard(page: Page, options: { drafts?: Record<string, unk
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.removeItem("designer-open-tabs");
       localStorage.removeItem("designer-active-tab");
+      // R-4 以降: workspace guard を bypass して MCP なしでも dashboard を表示 (#703 R-5)
+      localStorage.setItem("workspace-e2e-bypass", "true");
       // 既存のドラフトをクリア
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
@@ -119,7 +121,7 @@ test.describe("ダッシュボード: UnsavedDraftsPanel", () => {
       },
     });
     await page.locator(".draft-btn-open").first().click();
-    await expect(page).toHaveURL(new RegExp(`/table/edit/${TABLE_ID}$`));
+    await expect(page).toHaveURL(new RegExp(`/w/[^/]+/table/edit/${TABLE_ID}$`));
   });
 
   test("破棄ボタンで確認後にドラフトが消える", async ({ page }) => {
@@ -178,7 +180,7 @@ test.describe("ダッシュボード: HeaderMenu 連携", () => {
     await page.locator(".header-menu-btn").click();
     await page.locator(".header-menu-item").filter({ hasText: "ダッシュボード" }).click();
 
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(/^\/w\/[^/]+\/$/);
     await expect(page.locator(".dashboard-view")).toBeVisible();
   });
 });

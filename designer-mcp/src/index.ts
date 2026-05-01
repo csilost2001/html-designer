@@ -900,12 +900,12 @@ function createMcpServer(sessionId: string): Server {
           throw new McpError(ErrorCode.InvalidParams, "screenId, oldId, newId は必須です");
         }
         const renameRes = await renameScreenItemId(a.screenId, a.oldId, a.newId, mcpRoot());
-        wsBridge.broadcast({ wsId: null, event: "screenItemsChanged", data: { screenId: a.screenId } });
+        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenItemsChanged", data: { screenId: a.screenId } });
         for (const agId of renameRes.processFlowsUpdated) {
-          wsBridge.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "processFlowChanged", data: { id: agId } });
         }
         if (renameRes.screenHtmlUpdated) {
-          wsBridge.broadcast({ wsId: null, event: "screenChanged", data: { screenId: a.screenId } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenChanged", data: { screenId: a.screenId } });
         }
         const lines = [
           `"${a.oldId}" → "${a.newId}" のリネームが完了しました。`,
@@ -972,7 +972,7 @@ function createMcpServer(sessionId: string): Server {
           // ブラウザ側で適用済み → process flow refs のみファイル更新
           const { processFlowsUpdated } = await updateProcessFlowRefs(a.screenId, mapping, mcpRoot());
           for (const agId of processFlowsUpdated) {
-            wsBridge.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId } });
+            wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "processFlowChanged", data: { id: agId } });
           }
           // screenChanged / screenItemsChanged は broadcast しない (browser dirty、ファイルは古いまま)
 
@@ -993,13 +993,13 @@ function createMcpServer(sessionId: string): Server {
         const result = await applyRenameMapping(a.screenId, mapping, mcpRoot());
 
         if (result.succeeded.length > 0) {
-          wsBridge.broadcast({ wsId: null, event: "screenItemsChanged", data: { screenId: a.screenId } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenItemsChanged", data: { screenId: a.screenId } });
           const allAgs = new Set(result.succeeded.flatMap((s) => s.processFlowsUpdated));
           for (const agId of allAgs) {
-            wsBridge.broadcast({ wsId: null, event: "processFlowChanged", data: { id: agId } });
+            wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "processFlowChanged", data: { id: agId } });
           }
           if (result.succeeded.some((s) => s.screenHtmlUpdated)) {
-            wsBridge.broadcast({ wsId: null, event: "screenChanged", data: { screenId: a.screenId } });
+            wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenChanged", data: { screenId: a.screenId } });
           }
         }
 
@@ -1114,7 +1114,8 @@ function createMcpServer(sessionId: string): Server {
         } catch { /* fallback to basename / init result */ }
         const entry = await upsertWorkspace(target, name);
         await setLastActive(entry.id);
-        wsBridge.broadcast({ wsId: null, event: "workspace.changed", data: {
+        // workspace.open broadcast: 同 path を active にしている session のみ受信 (#703 R-5 A-2)
+        wsBridge.broadcast({ wsId: entry.path, event: "workspace.changed", data: {
           activeId: entry.id,
           path: entry.path,
           name: entry.name,
@@ -1133,6 +1134,8 @@ function createMcpServer(sessionId: string): Server {
       }
 
       case "designer__workspace_close": {
+        // close 前に現在の path をキャプチャ (close 後は getActivePath が null になるため)
+        const closingPath = workspaceContextManager.getActivePath(sessionId);
         try {
           clearActive(sessionId);
         } catch (e) {
@@ -1142,7 +1145,8 @@ function createMcpServer(sessionId: string): Server {
           throw e;
         }
         await setLastActive(null);
-        wsBridge.broadcast({ wsId: null, event: "workspace.changed", data: {
+        // workspace.close broadcast: close 前の path を持つ session のみ受信 (#703 R-5 A-2)
+        wsBridge.broadcast({ wsId: closingPath, event: "workspace.changed", data: {
           activeId: null,
           path: null,
           name: null,
@@ -1182,7 +1186,7 @@ function createMcpServer(sessionId: string): Server {
           logAuditIfDelegated("draft__update", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
         await updateDraft(sessionId, a.type, a.id, a.payload);
-        wsBridge.broadcast({ wsId: null, event: "draft.changed", data: { type: a.type, id: a.id, op: "updated" } });
+        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "updated" } });
         return { content: [{ type: "text", text: JSON.stringify({ updated: true }) }] };
       }
 
@@ -1196,7 +1200,7 @@ function createMcpServer(sessionId: string): Server {
         }
         const r = await commitDraft(sessionId, a.type, a.id);
         if (r.committed) {
-          wsBridge.broadcast({ wsId: null, event: "draft.changed", data: { type: a.type, id: a.id, op: "committed" } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "committed" } });
         }
         return { content: [{ type: "text", text: JSON.stringify(r) }] };
       }
@@ -1211,7 +1215,7 @@ function createMcpServer(sessionId: string): Server {
         }
         const r = await discardDraft(sessionId, a.type, a.id);
         if (r.discarded) {
-          wsBridge.broadcast({ wsId: null, event: "draft.changed", data: { type: a.type, id: a.id, op: "discarded" } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "discarded" } });
         }
         return { content: [{ type: "text", text: JSON.stringify(r) }] };
       }
@@ -1239,7 +1243,7 @@ function createMcpServer(sessionId: string): Server {
         logAuditIfDelegated("lock__acquire", resolved, a.resourceType, a.resourceId);
         try {
           const entry = lockAcquire(a.resourceType, a.resourceId, resolved.owner, resolved.actor);
-          wsBridge.broadcast({ wsId: null, event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: resolved.actor } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: resolved.actor } });
           return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
         } catch (e) {
           if (e instanceof LockConflictError) {
@@ -1260,7 +1264,7 @@ function createMcpServer(sessionId: string): Server {
         logAuditIfDelegated("lock__release", resolved, a.resourceType, a.resourceId);
         try {
           const result = lockRelease(a.resourceType, a.resourceId, resolved.owner);
-          wsBridge.broadcast({ wsId: null, event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: resolved.owner, by: resolved.actor } });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: resolved.owner, by: resolved.actor } });
           return { content: [{ type: "text", text: JSON.stringify(result) }] };
         } catch (e) {
           if (e instanceof LockNotHeldError) {
@@ -1273,7 +1277,7 @@ function createMcpServer(sessionId: string): Server {
       case "lock__forceRelease": {
         const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
         const fr = lockForceRelease(a.resourceType, a.resourceId, a.sessionId);
-        wsBridge.broadcast({ wsId: null, event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "force-released", ownerSessionId: fr.previousOwner, by: a.sessionId, previousOwner: fr.previousOwner } });
+        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "force-released", ownerSessionId: fr.previousOwner, by: a.sessionId, previousOwner: fr.previousOwner } });
         return { content: [{ type: "text", text: JSON.stringify(fr) }] };
       }
 

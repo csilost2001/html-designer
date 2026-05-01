@@ -24,6 +24,7 @@ const toolbarReset = ".save-reset-buttons button.srb-btn-reset";
 async function setupFlowEditor(page: Page, draft: object | null = null) {
   await page.addInitScript(
     ({ project, draft }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.removeItem("designer-open-tabs");
       localStorage.removeItem("designer-active-tab");

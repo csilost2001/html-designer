@@ -54,6 +54,13 @@ export function WorkspaceIndicator() {
     }
   };
 
+  /** 新しいブラウザタブで指定 workspace を開く (#703 R-5 C-1) */
+  const handleOpenInNewTab = (id: string) => {
+    setOpen(false);
+    // ユーザー操作直接の click handler から呼ぶため popup blocker 回避
+    window.open(`/w/${id}/`, "_blank");
+  };
+
   const handleClose = async () => {
     setOpen(false);
     try {
@@ -99,12 +106,15 @@ export function WorkspaceIndicator() {
         ) : (
           <i className="bi bi-folder2" style={{ color: "#4dabf7" }} />
         )}
-        <span style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          maxWidth: "160px",
-          opacity: active ? 1 : 0.6,
-        }}>
+        <span
+          data-testid="workspace-indicator-name"
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "160px",
+            opacity: active ? 1 : 0.6,
+          }}
+        >
           {active?.name ?? (active?.path ? active.path : "ワークスペース未選択")}
         </span>
         <i className="bi bi-chevron-down" style={{ fontSize: "10px", opacity: 0.7 }} />
@@ -137,25 +147,43 @@ export function WorkspaceIndicator() {
             <>
               <div style={sectionLabelStyle}>最近使ったワークスペース</div>
               {recentWorkspaces.map((w) => (
-                <button
-                  key={w.id}
-                  onClick={() => handleOpenWorkspace(w.id)}
-                  style={{
-                    ...menuItemStyle,
-                    fontWeight: active?.id === w.id ? 600 : undefined,
-                  }}
-                  title={w.path}
-                >
-                  {active?.id === w.id && (
-                    <i className="bi bi-check2" style={{ marginRight: "4px", color: "#4ade80" }} />
-                  )}
-                  {active?.id !== w.id && (
-                    <span style={{ display: "inline-block", width: "18px" }} />
-                  )}
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                    {w.name}
-                  </span>
-                </button>
+                <div key={w.id} style={{ display: "flex", alignItems: "center", width: "100%" }}>
+                  <button
+                    onClick={() => handleOpenWorkspace(w.id)}
+                    style={{
+                      ...menuItemStyle,
+                      flex: 1,
+                      fontWeight: active?.id === w.id ? 600 : undefined,
+                    }}
+                    title={w.path}
+                  >
+                    {active?.id === w.id && (
+                      <i className="bi bi-check2" style={{ marginRight: "4px", color: "#4ade80" }} />
+                    )}
+                    {active?.id !== w.id && (
+                      <span style={{ display: "inline-block", width: "18px" }} />
+                    )}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      {w.name}
+                    </span>
+                  </button>
+                  {/* 新しいブラウザタブで開く (#703 R-5 C-1) */}
+                  <button
+                    onClick={() => handleOpenInNewTab(w.id)}
+                    title="新しいブラウザタブで開く"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#9a9db5",
+                      padding: "7px 8px",
+                      fontSize: "11px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <i className="bi bi-box-arrow-up-right" />
+                  </button>
+                </div>
               ))}
             </>
           )}

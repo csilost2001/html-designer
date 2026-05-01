@@ -51,6 +51,8 @@ async function seedRetailTable(page: Page) {
   await page.addInitScript(
     ({ project, table, tableId }) => {
       localStorage.clear();
+      // workspace guard をバイパス (MCP 未接続の e2e テスト用、#703 R-5)
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("v3-project", JSON.stringify(project));
       localStorage.setItem(`v3-table-${tableId}`, JSON.stringify(table));
       localStorage.removeItem("designer-open-tabs");
@@ -65,7 +67,7 @@ async function openViewDefinitionListFromHeader(page: Page) {
   await page.goto("/");
   await page.locator(".header-menu-btn").click();
   await page.getByRole("menuitem", { name: "ビュー定義一覧" }).click();
-  await expect(page).toHaveURL(/\/view-definition\/list$/);
+  await expect(page).toHaveURL(/\/w\/[^/]+\/view-definition\/list$/);
   await expect(page.getByText("ビュー定義一覧").first()).toBeVisible();
 }
 
@@ -88,7 +90,7 @@ test.describe("ビュー定義 E2E", () => {
     await page.getByLabel("ソーステーブル").selectOption(TABLE_ID);
     await page.getByRole("button", { name: "作成して編集" }).click();
 
-    await expect(page).toHaveURL(/\/view-definition\/edit\//);
+    await expect(page).toHaveURL(/\/w\/[^/]+\/view-definition\/edit\//);
     await expect(page.getByText("ビュー定義編集").first()).toBeVisible();
 
     await page.getByLabel(/表示名/).fill(UPDATED_NAME);
@@ -97,7 +99,7 @@ test.describe("ビュー定義 E2E", () => {
     await expect(page.getByRole("button", { name: /保存/ })).toBeDisabled();
 
     await page.getByTestId("editor-header-back").click();
-    await expect(page).toHaveURL(/\/view-definition\/list$/);
+    await expect(page).toHaveURL(/\/w\/[^/]+\/view-definition\/list$/);
     await expect(page.getByText(UPDATED_NAME).first()).toBeVisible();
   });
 });
