@@ -79,15 +79,14 @@ export function AppShell() {
     return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
   }, []);
 
-  // 起動時: MCP 接続を能動的に開始 + 接続後にワークスペースをロード、ブロードキャスト購読。
-  // / (Dashboard) のような MCP 接続を能動起動しないルートで初回ランディングしても guard が
-  // 動作するよう、AppShell が WS のライフサイクル責任を持つ:
-  //  - 起動時: startWithoutEditor() で能動起動。onStatusChange が即時に現状を発火するため、
-  //    "disconnected" 経由でも下記 disconnected ハンドラで起動が走る。
-  //  - "disconnected" 受信時: Designer unmount の stop() などで切断された後でも常に再起動する。
-  //    startWithoutEditor は readyState OPEN / status==="connecting" なら no-op なので idempotent。
-  //  - "connected" 受信時: loadWorkspaces で active state を最新化。
-  // Designer タブ等の start(editor) は既存接続があれば再利用するため衝突しない。
+  // AppShell が MCP 接続のライフサイクルを単一所有する (#676 review):
+  //  - mount 時に startWithoutEditor() を 1 度呼んで能動起動 (Dashboard 等で初回ランディング
+  //    した時にも bridge を必ず立ち上げる)。
+  //  - "connected" 受信で loadWorkspaces して active state を最新化。
+  //  - "disconnected" は mcpBridge 自身が RETRY_DELAY_MS の retry timer を回すので、AppShell は
+  //    何もしない (二重 reconnect で接続が在りえない遷移をするのを避けるため)。
+  //  - Designer は workspace 機能を破壊しないよう mcpBridge.stop() を呼ばない設計に変更済み
+  //    (Designer.tsx 参照)。なので AppShell が stop() の事後復帰を心配する必要は無い。
   useEffect(() => {
     const unsubBroadcast = subscribeWorkspaceChanges();
     const bridge = mcpBridge as unknown as {
@@ -97,11 +96,9 @@ export function AppShell() {
     const unsubStatus = bridge.onStatusChange((s) => {
       if (s === "connected") {
         loadWorkspaces().catch(console.error);
-      } else if (s === "disconnected") {
-        // 切断検知 → 再起動 (idempotent)。Designer unmount による stop() からの復帰経路。
-        bridge.startWithoutEditor();
       }
     });
+    bridge.startWithoutEditor();
     return () => { unsubBroadcast(); unsubStatus(); };
   }, []);
 

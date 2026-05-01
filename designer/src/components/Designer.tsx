@@ -288,7 +288,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       unsubScreenChanged();
       mcpBridge.setThemeHandler(null);
       mcpBridge.setCurrentScreenId(null);
-      mcpBridge.stop();
+      // mcpBridge.stop() は呼ばない (#676 review): WS ライフサイクルは AppShell が一括所有する。
+      // Designer タブを閉じても他タブ / Header の WorkspaceIndicator が WS を必要とし続けるため、
+      // ここで切断すると workspace 機能全体が壊れる。Designer 固有のハンドラはこの cleanup の
+      // 他行 (setThemeHandler/setCurrentScreenId(null) と上の各 unsub) で確実に外している。
       clearItemsFromCache(screenId);
     };
   }, [screenId, tabId]);
