@@ -5,6 +5,26 @@ import { execSync } from "child_process";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
 import {
+  isLockdown as isWorkspaceLockdown,
+  getLockdownPath as getWorkspaceLockdownPath,
+  getActivePath as getActiveWorkspacePath,
+  setActivePath as setActiveWorkspacePath,
+  clearActive as clearActiveWorkspace,
+  LockdownError as WorkspaceLockdownError,
+} from "./workspaceState.js";
+import {
+  listWorkspaces as listWorkspacesEntries,
+  upsertWorkspace as upsertWorkspaceEntry,
+  removeWorkspace as removeWorkspaceEntry,
+  findById as findWorkspaceById,
+  findByPath as findWorkspaceByPath,
+  setLastActive as setLastActiveWorkspace,
+} from "./recentStore.js";
+import {
+  inspectWorkspacePath,
+  initializeWorkspace as initializeWorkspaceFolder,
+} from "./workspaceInit.js";
+import {
   readProject,
   writeProject,
   readScreen,
@@ -647,6 +667,127 @@ class WsBridge extends EventEmitter {
           respond(result);
           break;
         }
+
+        // ── ワークスペース管理 (#671/#672/#673) ─────────────────────────
+        case "workspace.list": {
+          const { workspaces, lastActiveId } = await listWorkspacesEntries();
+          const activePath = getActiveWorkspacePath();
+          respond({
+            workspaces,
+            lastActiveId,
+            active: activePath
+              ? { path: activePath, name: (workspaces.find((w) => w.path === activePath)?.name ?? null) }
+              : null,
+            lockdown: isWorkspaceLockdown(),
+            lockdownPath: getWorkspaceLockdownPath(),
+          });
+          break;
+        }
+        case "workspace.status": {
+          const activePath = getActiveWorkspacePath();
+          let activeName: string | null = null;
+          if (activePath) {
+            const entry = await findWorkspaceByPath(activePath);
+            activeName = entry?.name ?? null;
+          }
+          respond({
+            active: activePath ? { path: activePath, name: activeName } : null,
+            lockdown: isWorkspaceLockdown(),
+            lockdownPath: getWorkspaceLockdownPath(),
+          });
+          break;
+        }
+        case "workspace.inspect": {
+          const { path: targetPath } = (params ?? {}) as { path?: string };
+          if (typeof targetPath !== "string") {
+            respondError("path は必須です");
+            break;
+          }
+          const r = await inspectWorkspacePath(targetPath);
+          respond(r);
+          break;
+        }
+        case "workspace.open": {
+          const { path: targetPath, id, init } = (params ?? {}) as { path?: string; id?: string; init?: boolean };
+          if (typeof targetPath !== "string" && typeof id !== "string") {
+            respondError("path または id のいずれかが必要です");
+            break;
+          }
+          const initFlag = init === true;
+          if (initFlag && typeof targetPath !== "string") {
+            respondError("init=true の場合は path が必須です");
+            break;
+          }
+          let resolved = typeof targetPath === "string" ? targetPath : null;
+          if (!resolved && typeof id === "string") {
+            const entry = await findWorkspaceById(id);
+            if (!entry) { respondError(`id ${id} のワークスペースが見つかりません`); break; }
+            resolved = entry.path;
+          }
+          if (!resolved) { respondError("path 解決に失敗しました"); break; }
+          let initName: string | null = null;
+          if (initFlag) {
+            if (isWorkspaceLockdown()) { respondError("lockdown モード中は新規ワークスペース初期化はできません"); break; }
+            try {
+              const initRes = await initializeWorkspaceFolder(resolved);
+              initName = initRes.name;
+              resolved = initRes.path;
+            } catch (e) {
+              respondError(`ワークスペース初期化失敗: ${e instanceof Error ? e.message : String(e)}`);
+              break;
+            }
+          }
+          try {
+            setActiveWorkspacePath(resolved);
+          } catch (e) {
+            if (e instanceof WorkspaceLockdownError) { respondError(e.message); break; }
+            throw e;
+          }
+          let name = initName ?? resolved.split(/[\\/]/).pop() ?? "";
+          try {
+            const proj = await readProject();
+            if (proj && typeof proj === "object" && proj !== null) {
+              const meta = (proj as Record<string, unknown>).meta;
+              if (meta && typeof meta === "object" && meta !== null) {
+                const n = (meta as Record<string, unknown>).name;
+                if (typeof n === "string" && n.trim().length > 0) name = n;
+              }
+            }
+          } catch { /* fallback */ }
+          const entry = await upsertWorkspaceEntry(resolved, name);
+          await setLastActiveWorkspace(entry.id);
+          respond({ active: { id: entry.id, path: entry.path, name: entry.name } });
+          this.broadcast("workspace.changed", {
+            activeId: entry.id,
+            path: entry.path,
+            name: entry.name,
+            lockdown: false,
+          }, clientId);
+          break;
+        }
+        case "workspace.close": {
+          try {
+            clearActiveWorkspace();
+          } catch (e) {
+            if (e instanceof WorkspaceLockdownError) { respondError(e.message); break; }
+            throw e;
+          }
+          await setLastActiveWorkspace(null);
+          respond({ success: true });
+          this.broadcast("workspace.changed", {
+            activeId: null, path: null, name: null, lockdown: false,
+          }, clientId);
+          break;
+        }
+        case "workspace.remove": {
+          if (isWorkspaceLockdown()) { respondError("lockdown モード中はワークスペースを除外できません"); break; }
+          const { id } = (params ?? {}) as { id?: string };
+          if (typeof id !== "string") { respondError("id は必須です"); break; }
+          const removed = await removeWorkspaceEntry(id);
+          respond({ removed });
+          break;
+        }
+
         default:
           respondError(`未知のリクエストメソッド: ${method}`);
       }
