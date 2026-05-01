@@ -307,4 +307,48 @@ describe("useEditSession", () => {
 
     expect(result.current.mode.kind).toBe("readonly");
   });
+
+  describe("isDirtyForTab", () => {
+    it("readonly モードでは false", async () => {
+      const { result } = renderHook(() => useEditSession(OPTS));
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await Promise.resolve(); });
+
+      expect(result.current.mode.kind).toBe("readonly");
+      expect(result.current.isDirtyForTab).toBe(false);
+    });
+
+    it("editing モードでは true", async () => {
+      (mcpBridge.getLock as ReturnType<typeof vi.fn>).mockResolvedValue({ entry: { ownerSessionId: SESSION_ID } });
+
+      const { result } = renderHook(() => useEditSession(OPTS));
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await Promise.resolve(); });
+
+      expect(result.current.mode.kind).toBe("editing");
+      expect(result.current.isDirtyForTab).toBe(true);
+    });
+
+    it("force-released-pending モードでは true", async () => {
+      (mcpBridge.getLock as ReturnType<typeof vi.fn>).mockResolvedValue({ entry: { ownerSessionId: SESSION_ID } });
+
+      const { result } = renderHook(() => useEditSession(OPTS));
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await Promise.resolve(); });
+
+      act(() => {
+        fireBroadcast("lock.changed", {
+          resourceType: "table",
+          resourceId: "tbl-001",
+          op: "force-released",
+          ownerSessionId: SESSION_ID,
+          by: "other-session",
+          previousOwner: SESSION_ID,
+        });
+      });
+
+      expect(result.current.mode.kind).toBe("force-released-pending");
+      expect(result.current.isDirtyForTab).toBe(true);
+    });
+  });
 });

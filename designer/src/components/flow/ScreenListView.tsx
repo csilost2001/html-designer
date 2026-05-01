@@ -21,8 +21,10 @@ import { useListSort } from "../../hooks/useListSort";
 import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/flow.css";
 import "../../styles/screenList.css";
+import "../../styles/editMode.css";
 
 const STORAGE_KEY = "list-view-mode:screen-list";
 const TAB_ID = makeTabId("screen-list", "main");
@@ -44,6 +46,7 @@ export function ScreenListView() {
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [screenModal, setScreenModal] = useState<{ open: boolean; editId?: string; initial?: Partial<ScreenFormData> }>({ open: false });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const { hasDraft } = useDraftRegistry();
 
   const loadScreens = useCallback(async (): Promise<ScreenNode[]> => {
     mcpBridge.startWithoutEditor();
@@ -384,6 +387,15 @@ export function ScreenListView() {
 
   const columns = useMemo<DataListColumn<ScreenNode>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (s) => hasDraft("screen", s.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "画面名",
       sortable: true,
@@ -431,7 +443,7 @@ export function ScreenListView() {
       sortAccessor: (s) => s.updatedAt,
       render: (s) => <span className="screen-table-date">{formatDate(s.updatedAt)}</span>,
     },
-  ], []);
+  ], [hasDraft]);
 
   const renderCard = (s: ScreenNode) => (
     <div className="screen-card-content">
@@ -439,6 +451,9 @@ export function ScreenListView() {
         <i className={`bi ${SCREEN_KIND_ICONS[s.kind] ?? "bi-circle"} screen-card-icon`} />
         <span className="screen-card-name">{s.name}</span>
         <span className="screen-type-badge">{SCREEN_KIND_LABELS[s.kind] ?? s.kind}</span>
+        {hasDraft("screen", s.id) && (
+          <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        )}
       </div>
       {s.path && <div className="screen-card-path">{s.path}</div>}
       <div className="screen-card-meta">

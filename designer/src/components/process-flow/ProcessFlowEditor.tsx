@@ -66,6 +66,8 @@ import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { EditorHeader } from "../common/EditorHeader";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import "../../styles/editMode.css";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/processFlow.css";
@@ -180,6 +182,7 @@ export function ProcessFlowEditor() {
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
 
   const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
 
@@ -241,7 +244,7 @@ export function ProcessFlowEditor() {
   });
 
   const sessionId = mcpBridge.getSessionId();
-  const { mode, loading: sessionLoading, actions: editActions } = useEditSession({
+  const { mode, loading: sessionLoading, isDirtyForTab, actions: editActions } = useEditSession({
     resourceType: "process-flow",
     resourceId: processFlowId ?? "",
     sessionId,
@@ -300,6 +303,17 @@ export function ProcessFlowEditor() {
     await editActions.forceReleaseOther();
   }, [editActions]);
 
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await editActions.startEditing();
+  }, [editActions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    if (processFlowId) await mcpBridge.discardDraft("process-flow", processFlowId);
+    await handleReset();
+  }, [processFlowId, handleReset]);
+
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
     if (!group || isReadonly || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions }))) return;
@@ -328,6 +342,24 @@ export function ProcessFlowEditor() {
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
   });
+
+  useEffect(() => {
+    if (!processFlowId) return;
+    const tabId = makeTabId("process-flow", processFlowId);
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [processFlowId, isDirtyForTab, isDirty]);
+
+  useEffect(() => {
+    if (!processFlowId || sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("process-flow", processFlowId) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [processFlowId, sessionLoading, mode.kind]);
 
   const validationErrors = useMemo(
     () => group ? aggregateValidation(group, { tables: tableDefs, conventions, extensions }) : [],
@@ -685,6 +717,14 @@ export function ProcessFlowEditor() {
         <AfterForceUnlockChoiceDialog
           previousOwner={mode.previousOwner}
           onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
         />
       )}
 

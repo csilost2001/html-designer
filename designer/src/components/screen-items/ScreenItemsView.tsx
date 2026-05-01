@@ -50,6 +50,7 @@ import { ScreenItemCandidatesModal } from "./ScreenItemCandidatesModal";
 import type { ExtractedCandidate } from "../../utils/screenItemExtractor";
 import { generateAutoId, getFieldTypePrefix } from "../../utils/screenItemNaming";
 import "../../styles/screen-items.css";
+import "../../styles/editMode.css";
 
 const PRIMITIVE_TYPES: FieldTypePrimitive[] =
   ["string", "number", "integer", "boolean", "date", "datetime", "json"];
@@ -818,7 +819,9 @@ export function ScreenItemsView() {
             >
               {screens.length === 0 && <option value="">画面がありません</option>}
               {screens.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
               ))}
             </select>
           </div>

@@ -38,7 +38,9 @@ import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { renumber } from "../../utils/listOrder";
 import type { TableEntry } from "../../types/v3";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/table.css";
+import "../../styles/editMode.css";
 
 const STORAGE_KEY = "list-view-mode:view-definition-list";
 const TAB_ID = makeTabId("view-definition-list", "main");
@@ -65,6 +67,7 @@ function formatDate(iso: string): string {
 
 export function ViewDefinitionListView() {
   const navigate = useNavigate();
+  const { hasDraft } = useDraftRegistry();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
@@ -441,6 +444,15 @@ export function ViewDefinitionListView() {
 
   const columns = useMemo<DataListColumn<ViewDefinitionEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (v) => hasDraft("view-definition", String(v.id))
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "表示名",
       sortable: true,
@@ -523,7 +535,7 @@ export function ViewDefinitionListView() {
       sortAccessor: (v) => v.updatedAt,
       render: (v) => <span className="seq-list-date">{formatDate(v.updatedAt)}</span>,
     },
-  ], [getErrorPriority, validationMap, tableNameMap]);
+  ], [getErrorPriority, validationMap, tableNameMap, hasDraft]);
 
   const renderCard = (v: ViewDefinitionEntry) => {
     const validation = validationMap.get(String(v.id));
@@ -535,6 +547,9 @@ export function ViewDefinitionListView() {
         <div className="seq-card-header">
           <MaturityBadge maturity={v.maturity} />
           <span className="seq-card-name">{v.name}</span>
+          {hasDraft("view-definition", String(v.id)) && (
+            <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+          )}
           {v.kind && (
             <span className="vd-kind-badge vd-kind-badge--card">
               {KIND_LABELS[v.kind] ?? v.kind}

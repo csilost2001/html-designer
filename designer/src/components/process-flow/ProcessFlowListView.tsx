@@ -35,7 +35,9 @@ import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/processFlow.css";
+import "../../styles/editMode.css";
 
 const ALL_TYPES: ProcessFlowType[] = ["screen", "batch", "scheduled", "system", "common", "other"];
 const STORAGE_KEY = "list-view-mode:process-flow-list";
@@ -63,6 +65,7 @@ const MARKER_BADGE_META: Array<{ kind: "todo" | "question" | "attention" | "chat
 
 export function ProcessFlowListView() {
   const navigate = useNavigate();
+  const { hasDraft } = useDraftRegistry();
   const [filterType, setFilterType] = useState<ProcessFlowType | "all">("all");
   const [filterErrorsOnly, setFilterErrorsOnly] = useState(false);
   const [filterMarkersOnly, setFilterMarkersOnly] = useState(false);
@@ -513,6 +516,15 @@ export function ProcessFlowListView() {
 
   const columns = useMemo<DataListColumn<ProcessFlowMeta>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (g) => hasDraft("process-flow", g.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "名前",
       sortable: true,
@@ -595,7 +607,7 @@ export function ProcessFlowListView() {
         return <i className="bi bi-check-lg process-flow-validation-ok" title="問題なし" />;
       },
     },
-  ], [validationMap, getErrorPriority, markerMap]);
+  ], [validationMap, getErrorPriority, markerMap, hasDraft]);
 
   const renderCard = (g: ProcessFlowMeta) => {
     const v = validationMap.get(g.id);
@@ -610,6 +622,9 @@ export function ProcessFlowListView() {
           </span>
           <MaturityBadge maturity={g.maturity} />
           <span className="process-flow-card-name">{g.name}</span>
+          {hasDraft("process-flow", g.id) && (
+            <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+          )}
           {v && (hasError || hasWarning) && (
             <span className="process-flow-validation-badges">
               <ValidationBadge severity="error" count={v.errors} />

@@ -24,7 +24,9 @@ import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/table.css";
+import "../../styles/editMode.css";
 
 const STORAGE_KEY = "list-view-mode:table-list";
 const TAB_ID = makeTabId("table-list", "main");
@@ -46,6 +48,7 @@ export function TableListView() {
   const navigate = useNavigate();
   const [projectName, setProjectName] = useState("プロジェクト");
   const [query, setQuery] = useState("");
+  const { hasDraft } = useDraftRegistry();
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
@@ -434,6 +437,15 @@ export function TableListView() {
 
   const columns = useMemo<DataListColumn<TableEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (t) => hasDraft("table", t.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "physicalName",
       header: "物理名",
       sortable: true,
@@ -499,7 +511,7 @@ export function TableListView() {
       sortAccessor: (t) => t.updatedAt,
       render: (t) => <span className="table-list-date">{formatDate(t.updatedAt)}</span>,
     },
-  ], [getErrorPriority, validationMap]);
+  ], [getErrorPriority, validationMap, hasDraft]);
 
   const renderCard = (t: TableEntry) => {
     const validation = validationMap.get(t.id);
@@ -511,6 +523,9 @@ export function TableListView() {
           <MaturityBadge maturity={t.maturity ?? "draft"} />
           <span className="table-card-name">{t.physicalName ?? ""}</span>
           {t.category && <span className="table-card-category">{t.category}</span>}
+          {hasDraft("table", t.id) && (
+            <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+          )}
           {validation && (hasError || hasWarning) && (
             <span className="table-validation-badges">
               <ValidationBadge severity="error" count={validation.errors} />

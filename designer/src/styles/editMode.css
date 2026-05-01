@@ -91,3 +91,11 @@
   gap: 8px;
   margin-top: 16px;
 }
+
+.list-item-draft-mark {
+  color: #dc3545;
+  font-size: 0.625rem;
+  vertical-align: middle;
+  margin-left: 4px;
+  cursor: default;
+}

@@ -33,6 +33,8 @@ import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
 import { renumber } from "../../utils/listOrder";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import "../../styles/table.css";
 import "../../styles/editMode.css";
 
@@ -48,6 +50,7 @@ export function TableEditor() {
   const [allTables, setAllTables] = useState<Table[]>([]);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
 
   const handleNotFound = useCallback(() => navigate("/table/list"), [navigate]);
 
@@ -71,7 +74,7 @@ export function TableEditor() {
     onNotFound: handleNotFound,
   });
 
-  const { mode, loading: sessionLoading, actions } = useEditSession({
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "table",
     resourceId: tableId ?? "",
     sessionId,
@@ -111,9 +114,38 @@ export function TableEditor() {
     await actions.forceReleaseOther();
   }, [actions]);
 
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    if (tableId) await mcpBridge.discardDraft("table", tableId);
+    await reload();
+  }, [tableId, reload]);
+
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
   });
+
+  useEffect(() => {
+    if (!tableId) return;
+    const tabId = makeTabId("table", tableId);
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [tableId, isDirtyForTab, isDirty]);
+
+  useEffect(() => {
+    if (!tableId || sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("table", tableId) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [tableId, sessionLoading, mode.kind]);
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
@@ -164,6 +196,14 @@ export function TableEditor() {
         <AfterForceUnlockChoiceDialog
           previousOwner={mode.previousOwner}
           onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
         />
       )}
 

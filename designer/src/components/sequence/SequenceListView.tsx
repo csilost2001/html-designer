@@ -19,6 +19,8 @@ import { useListSort } from "../../hooks/useListSort";
 import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { renumber } from "../../utils/listOrder";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
+import "../../styles/editMode.css";
 
 const STORAGE_KEY = "list-view-mode:sequence-list";
 const TAB_ID = makeTabId("sequence-list", "main");
@@ -33,6 +35,7 @@ function formatDate(iso: string): string {
 
 export function SequenceListView() {
   const navigate = useNavigate();
+  const { hasDraft } = useDraftRegistry();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
@@ -346,6 +349,15 @@ export function SequenceListView() {
 
   const columns = useMemo<DataListColumn<SequenceEntry>[]>(() => [
     {
+      key: "draft",
+      header: "",
+      width: "32px",
+      align: "center",
+      render: (s) => hasDraft("sequence", s.id)
+        ? <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        : null,
+    },
+    {
       key: "name",
       header: "表示名",
       sortable: true,
@@ -378,12 +390,15 @@ export function SequenceListView() {
       sortAccessor: (s) => s.updatedAt,
       render: (s) => <span className="seq-list-date">{formatDate(s.updatedAt)}</span>,
     },
-  ], []);
+  ], [hasDraft]);
 
   const renderCard = (s: SequenceEntry) => (
     <div className="seq-card-content">
       <div className="seq-card-header">
         <span className="seq-card-name">{s.name}</span>
+        {hasDraft("sequence", s.id) && (
+          <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+        )}
       </div>
       {s.physicalName && (
         <div className="seq-card-description"><code>{s.physicalName}</code></div>
