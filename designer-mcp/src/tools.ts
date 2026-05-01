@@ -1371,4 +1371,82 @@ export const tools = [
       required: [],
     },
   },
+
+  // ── per-resource ロック管理 (#686) ────────────────────────────────
+  {
+    name: "lock__acquire",
+    description: "指定リソースの編集ロックを取得します。既にロックが存在する場合はエラーを返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        resourceType: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        resourceId: { type: "string", description: "リソース ID" },
+        sessionId: { type: "string", description: "ロックを取得するセッション ID" },
+      },
+      required: ["resourceType", "resourceId", "sessionId"],
+    },
+  },
+  {
+    name: "lock__release",
+    description: "自分が保持する編集ロックを解放します。ロックの owner でない場合はエラーを返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        resourceType: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        resourceId: { type: "string", description: "リソース ID" },
+        sessionId: { type: "string", description: "ロックを解放するセッション ID (owner である必要があります)" },
+      },
+      required: ["resourceType", "resourceId", "sessionId"],
+    },
+  },
+  {
+    name: "lock__forceRelease",
+    description: "任意のセッションが編集ロックを強制解除します。draft は保持されます (D-5)。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        resourceType: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        resourceId: { type: "string", description: "リソース ID" },
+        sessionId: { type: "string", description: "強制解除を要求するセッション ID" },
+      },
+      required: ["resourceType", "resourceId", "sessionId"],
+    },
+  },
+  {
+    name: "lock__get",
+    description: "指定リソースの現在のロック情報を取得します。ロックが存在しない場合は entry: null を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        resourceType: {
+          type: "string",
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          description: "リソース種別",
+        },
+        resourceId: { type: "string", description: "リソース ID" },
+      },
+      required: ["resourceType", "resourceId"],
+    },
+  },
+  {
+    name: "lock__list",
+    description: "現在保持されている全ロックの一覧を返します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];

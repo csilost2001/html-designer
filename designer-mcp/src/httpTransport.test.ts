@@ -88,7 +88,7 @@ describe("designer-mcp HTTP transport (#302)", () => {
     expect(res.body).toContain("designer-mcp");
   });
 
-  it("tools/list で 20 件以上のツールが返り draft__* 6 種を含む", async () => {
+  it("tools/list で 20 件以上のツールが返り draft__* 6 種 + lock__* 5 種を含む", async () => {
     const res = await mcpCall("tools/list", undefined, { id: 2 });
     let parsed: { result?: { tools: { name: string }[] }; error?: unknown };
     const dataLine = res.body.split("\n").find((l) => l.startsWith("data: "));
@@ -101,7 +101,7 @@ describe("designer-mcp HTTP transport (#302)", () => {
     }
     expect(parsed.error, `MCP error: ${JSON.stringify(parsed.error)}`).toBeUndefined();
     expect(parsed.result?.tools).toBeInstanceOf(Array);
-    expect(parsed.result!.tools.length).toBeGreaterThanOrEqual(20);
+    expect(parsed.result!.tools.length).toBeGreaterThanOrEqual(25);
     const names = parsed.result!.tools.map((t) => t.name);
     expect(names).toContain("designer__list_process_flows");
     expect(names).toContain("designer__list_markers");
@@ -112,6 +112,11 @@ describe("designer-mcp HTTP transport (#302)", () => {
     expect(names).toContain("draft__discard");
     expect(names).toContain("draft__has");
     expect(names).toContain("draft__list");
+    expect(names).toContain("lock__acquire");
+    expect(names).toContain("lock__release");
+    expect(names).toContain("lock__forceRelease");
+    expect(names).toContain("lock__get");
+    expect(names).toContain("lock__list");
   });
 
   it("draft E2E: update → has=true → discard → has=false", async () => {
@@ -146,6 +151,53 @@ describe("designer-mcp HTTP transport (#302)", () => {
 
     const hasAfter = await callTool("draft__has", { type: "table", id: "e2e-test-tbl" });
     expect(hasAfter.exists).toBe(false);
+  });
+
+  it("lock E2E: acquire → get=locked → release → get=null", async () => {
+    async function callTool(toolName: string, args: Record<string, unknown>) {
+      const res = await mcpCall("tools/call", undefined, {
+        id: Math.floor(Math.random() * 100000),
+        params: { name: toolName, arguments: args },
+      });
+      const dataLine = res.body.split("\n").find((l) => l.startsWith("data: "));
+      let parsed: { result?: { content: Array<{ type: string; text: string }> }; error?: unknown };
+      if (dataLine) {
+        parsed = JSON.parse(dataLine.slice(6));
+      } else {
+        parsed = JSON.parse(res.body);
+      }
+      if (parsed.error) throw new Error(`MCP error: ${JSON.stringify(parsed.error)}`);
+      const text = parsed.result?.content?.[0]?.text ?? "";
+      return JSON.parse(text);
+    }
+
+    const acquireResult = await callTool("lock__acquire", {
+      resourceType: "table",
+      resourceId: "e2e-lock-tbl",
+      sessionId: "e2e-session-X",
+    });
+    expect(acquireResult.entry).toBeDefined();
+    expect(acquireResult.entry.ownerSessionId).toBe("e2e-session-X");
+
+    const getResult = await callTool("lock__get", {
+      resourceType: "table",
+      resourceId: "e2e-lock-tbl",
+    });
+    expect(getResult.entry).not.toBeNull();
+    expect(getResult.entry.ownerSessionId).toBe("e2e-session-X");
+
+    const releaseResult = await callTool("lock__release", {
+      resourceType: "table",
+      resourceId: "e2e-lock-tbl",
+      sessionId: "e2e-session-X",
+    });
+    expect(releaseResult.released).toBe(true);
+
+    const getAfter = await callTool("lock__get", {
+      resourceType: "table",
+      resourceId: "e2e-lock-tbl",
+    });
+    expect(getAfter.entry).toBeNull();
   });
 
   it("同一 port で WebSocket も受け付ける (ws:// upgrade)", async () => {
