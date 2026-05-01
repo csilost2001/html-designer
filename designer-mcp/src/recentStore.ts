@@ -94,9 +94,21 @@ function normalizePath(p: string): string {
 
 /**
  * read-modify-write 直列化用の write chain (#676 review: P1)。
- * upsert / setLastActive / removeWorkspace の同時呼び出しが interleave すると
- * 後発の write が先発の差分を上書き失う問題を防ぐ。chain.catch で next continuation を
- * 保護し、1 回の例外で chain が永久に停滞しないようにする。
+ * upsert / setLastActive / removeWorkspace の並行呼び出しが interleave すると、
+ * 後発の write が先発の差分を上書き失う問題 (例: A.upsert と B.setLastActive 並行で
+ * lastActiveId が消える) を防ぐ。
+ *
+ * セマンティクス (#676 Sonnet re-review P2):
+ * - `_writeChain.then(fn, fn)` は前段の成功・失敗どちらでも次の fn を実行する
+ *   (continue-on-error)。これは意図的な選択: 1 度の例外で chain が永続停滞し後続
+ *   全 RMW がブロックされる状況を回避するため。
+ * - 各 fn は `readRecent → modify → writeRecent` の独立 RMW で毎回 fresh に file を
+ *   読むので、前段が writeRecent の前で失敗しても次段に汚れた state は引き継がれない
+ *   (file 上の状態が真実)。
+ * - `result.catch(() => undefined)` は次 chain への接続のための rejection 抑制
+ *   (本来の caller は `result` を受け取るので個別エラーは見れる)。
+ * - 通常の mutex のように「前段失敗で残りを中断」を期待する用途では使えない。
+ *   本ファイル内には該当用途は無いため OK。
  */
 let _writeChain: Promise<unknown> = Promise.resolve();
 function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {

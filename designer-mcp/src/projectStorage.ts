@@ -119,7 +119,10 @@ async function writeJSON(filePath: string, data: unknown): Promise<void> {
 
 /** project.json を読み込み（存在しない場合は null） */
 export async function readProject(root?: string): Promise<unknown | null> {
-  return readJSON<unknown>(projectFile(root));
+  // 他の read 関数と一貫させるため明示的に root snapshot (#676 Sonnet re-review Nit)。
+  // 引数 root が指定されていればそれを優先、未指定時は requireActivePath() で確定。
+  const r = root ?? requireActivePath();
+  return readJSON<unknown>(projectFile(r));
 }
 
 /** project.json を書き込み */
