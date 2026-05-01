@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { HeaderMenu } from "./HeaderMenu";
+import { WorkspaceIndicator } from "./workspace/WorkspaceIndicator";
 import "../styles/commonHeader.css";
 
 interface Props {
@@ -14,6 +15,7 @@ export function CommonHeader({ notification, userName }: Props) {
         <HeaderMenu />
         <i className="bi bi-palette2 common-header-logo" />
         <span className="common-header-title">業務システム デザイナー</span>
+        <WorkspaceIndicator />
       </div>
       <div className="common-header-center">
         {notification}
