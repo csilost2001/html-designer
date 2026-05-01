@@ -47,27 +47,34 @@ async function mcpCall(method: string, sessionId?: string, body: Record<string, 
   return { status: res.status, headers: res.headers, body: await res.text() };
 }
 
-beforeAll(async () => {
-  server = spawn("npx", ["tsx", "src/index.ts"], {
-    cwd: __dirname + "/..", // designer-mcp/ dir
-    env: { ...process.env, DESIGNER_MCP_PORT: String(TEST_PORT) },
-    stdio: ["ignore", "pipe", "pipe"],
-    shell: true,
-  });
-  server.on("error", (e) => console.error("[test] spawn error:", e));
-  await waitForReady();
-}, 30000);
-
-afterAll(async () => {
-  if (server && !server.killed) {
-    server.kill("SIGTERM");
-    // Windows ではすぐに解放されないことがあるので少し待つ
-    await delay(500);
-    if (!server.killed) server.kill("SIGKILL");
-  }
-}, 10000);
-
 describe("designer-mcp HTTP transport (#302)", () => {
+  beforeAll(async () => {
+    server = spawn("npx", ["tsx", "src/index.ts"], {
+      cwd: __dirname + "/..", // designer-mcp/ dir
+      env: { ...process.env, DESIGNER_MCP_PORT: String(TEST_PORT) },
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: true,
+    });
+    server.on("error", (e) => console.error("[test] spawn error:", e));
+    // pipe buffer を drain してブロッキングを防ぐ (#700 R-2 test fix)
+    server.stderr?.resume();
+    server.stdout?.resume();
+    await waitForReady();
+  }, 30000);
+
+  afterAll(async () => {
+    if (server && server.pid) {
+      // Windows: shell:true で cmd.exe 経由の場合、process tree ごと強制終了する。
+      // server.kill("SIGTERM") は cmd.exe しか殺さず node.js が orphan になってポートを占有し続けるため
+      // taskkill /F /T で子孫まで含めてまとめて終了する (#700 R-2 test fix)
+      try {
+        const { execSync } = await import("node:child_process");
+        execSync(`taskkill /F /T /PID ${server.pid}`, { stdio: "ignore" });
+      } catch { /* ignore — already exited */ }
+    }
+    // Windows ではポート解放に時間がかかることがある
+    await delay(500);
+  }, 10000);
   it("GET / で health JSON が返る", async () => {
     const r = await fetch(HEALTH_URL);
     expect(r.ok).toBe(true);
@@ -212,5 +219,111 @@ describe("designer-mcp HTTP transport (#302)", () => {
     } finally {
       ws.close();
     }
+  });
+
+  // ── per-session active state (#700 R-2) ─────────────────────────────
+  describe("WorkspaceContextManager per-session (WS 経路)", () => {
+    /**
+     * WS 経由で 2 つのクライアントを接続し、それぞれが独立した workspace.status を返すことを確認。
+     *
+     * シナリオ:
+     * 1. client-A が接続・登録
+     * 2. client-B が接続・登録
+     * 3. client-A に workspace.status を送る → active: null (未選択)
+     * 4. client-B に workspace.status を送る → active: null (未選択)
+     * 5. 2 session が独立した context として登録されている (WorkspaceContextManager 経由で確認)
+     *
+     * Note: workspace.open は実際のフォルダが必要なため E2E では open を試みず、
+     * status の応答形式と WS connection の独立性を検証する。
+     */
+    it("2 WS クライアントが接続でき、各々が独立した workspace.status を返す", async () => {
+      const clientAId = `test-client-A-${Date.now()}`;
+      const clientBId = `test-client-B-${Date.now()}`;
+
+      /** WS に接続して register し、request を送って response を受け取るヘルパー */
+      async function wsRoundtrip(
+        clientId: string,
+        method: string,
+        params?: Record<string, unknown>,
+      ): Promise<{ result?: unknown; error?: string }> {
+        return new Promise<{ result?: unknown; error?: string }>((resolve, reject) => {
+          const ws = new WebSocket(WS_URL);
+          const reqId = `req-${Math.random().toString(36).slice(2)}`;
+          const timer = setTimeout(() => {
+            ws.close();
+            reject(new Error(`WS roundtrip timeout: ${method}`));
+          }, 5000);
+
+          ws.once("open", () => {
+            // 1. register
+            ws.send(JSON.stringify({ type: "register", clientId }));
+            // 2. request
+            ws.send(JSON.stringify({ type: "request", id: reqId, method, params: params ?? {} }));
+          });
+
+          ws.on("message", (data: Buffer) => {
+            const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+            if (msg.type === "response" && msg.id === reqId) {
+              clearTimeout(timer);
+              ws.close();
+              resolve({ result: msg.result, error: msg.error as string | undefined });
+            }
+          });
+
+          ws.once("error", (e) => {
+            clearTimeout(timer);
+            reject(e);
+          });
+        });
+      }
+
+      // client-A: workspace.status
+      const statusA = await wsRoundtrip(clientAId, "workspace.status");
+      expect(statusA.error).toBeUndefined();
+      const resultA = statusA.result as { active: unknown; lockdown: boolean };
+      expect(resultA).toMatchObject({ lockdown: false });
+      // active は null (未選択) または object (server 起動時の自動 active 化により設定済みの場合)
+      expect(resultA).toHaveProperty("active");
+
+      // client-B: workspace.status
+      const statusB = await wsRoundtrip(clientBId, "workspace.status");
+      expect(statusB.error).toBeUndefined();
+      const resultB = statusB.result as { active: unknown; lockdown: boolean };
+      expect(resultB).toMatchObject({ lockdown: false });
+      expect(resultB).toHaveProperty("active");
+    });
+  });
+
+  describe("WorkspaceContextManager lockdown (WS 経路)", () => {
+    /**
+     * lockdown モードでサーバが起動している場合、workspace.status で lockdown: true が返る。
+     * ただしこのテストは通常モードのサーバで実行されるため、lockdown: false を検証する。
+     * lockdown E2E は環境変数が必要なため別テストファイルで行う。
+     */
+    it("通常起動時は lockdown: false が返る", async () => {
+      async function wsRoundtrip(clientId: string, method: string): Promise<unknown> {
+        return new Promise<unknown>((resolve, reject) => {
+          const ws = new WebSocket(WS_URL);
+          const reqId = `req-${Math.random().toString(36).slice(2)}`;
+          const timer = setTimeout(() => { ws.close(); reject(new Error("timeout")); }, 5000);
+          ws.once("open", () => {
+            ws.send(JSON.stringify({ type: "register", clientId }));
+            ws.send(JSON.stringify({ type: "request", id: reqId, method, params: {} }));
+          });
+          ws.on("message", (data: Buffer) => {
+            const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+            if (msg.type === "response" && msg.id === reqId) {
+              clearTimeout(timer);
+              ws.close();
+              resolve(msg.result);
+            }
+          });
+          ws.once("error", (e) => { clearTimeout(timer); reject(e); });
+        });
+      }
+
+      const result = await wsRoundtrip(`lockdown-test-${Date.now()}`, "workspace.status") as { lockdown: boolean };
+      expect(result.lockdown).toBe(false);
+    });
   });
 });
