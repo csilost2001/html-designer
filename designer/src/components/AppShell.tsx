@@ -342,9 +342,18 @@ export function AppShell() {
   }, [location.pathname]);
 
   // アクティブタブ → URL 同期
+  // workspace 未選択中 (active=null) や /workspace/select 表示中は同期を停止する。
+  // localStorage に残った activeTabId が design:xxx 等を指していると、guard が
+  // /workspace/select に redirect → 直後に本 effect が /screen/design/xxx へ navigate
+  // を上書き → guard が再度 redirect、というループ / flicker を起こすため。
+  // workspace-list タブだけは select 画面からの誘導でも進入可能なので例外扱い。
   const activeTab = tabs.find((t) => t.id === activeTabId);
   useEffect(() => {
     if (!activeTab) return;
+    if (location.pathname === "/workspace/select") return;
+    if (workspaceState.active === null && !workspaceState.lockdown && activeTab.type !== "workspace-list") {
+      return;
+    }
     const expectedPath =
       activeTab.type === "design"             ? `/screen/design/${activeTab.resourceId}`
       : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
@@ -369,7 +378,7 @@ export function AppShell() {
     if (expectedPath && location.pathname !== expectedPath) {
       navigate(expectedPath, { replace: true });
     }
-  }, [activeTabId, activeTab?.type, activeTab?.resourceId]);
+  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname]);
 
   const designTabs = tabs.filter((t) => t.type === "design");
   const activeIsDesign = activeTab?.type === "design";
