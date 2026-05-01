@@ -140,14 +140,19 @@ type ConnectionContext = {
 
 ```ts
 broadcast({
-  wsId: string,
+  wsId: string | null,
   event: string,
-  payload: unknown,
+  data: unknown,
   excludeClientId?: string
 }) → void
 ```
 
-対象 wsId の context を持つ session のみに配信する。`wsId` は必須引数として強制する。
+`wsId` には actor session の `activePath` (絶対パス) を渡す。実装は以下:
+
+- `wsId` が path 文字列 → `WorkspaceContextManager.getClientIdsByPath(wsId)` で同 path を active にしている session のみに配信 (= 同 workspace を見ているブラウザタブ)
+- `wsId === null` → 全 active session に配信 (`extensionsChanged` のような workspace 横断イベントで使用、明示的に意図したケースのみ)
+
+通常の resource 系 broadcast (`screenChanged` / `tableChanged` 等) では `wsId: <actorActivePath>` を渡し、workspace 横断 broadcast では `wsId: null` を使う。
 
 ### 6.2 対象 broadcast (全件 wsId scoping 化)
 
