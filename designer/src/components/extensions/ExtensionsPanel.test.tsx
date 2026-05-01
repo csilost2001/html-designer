@@ -10,6 +10,17 @@ vi.mock("../../mcp/mcpBridge", () => ({
     request: vi.fn(),
     onExtensionsChanged: vi.fn(() => () => undefined),
     onBroadcast: vi.fn(() => () => undefined),
+    // useEditSession 用: editing モードでセッション所有
+    getSessionId: vi.fn(() => "test-session"),
+    getLock: vi.fn(async () => ({ entry: { ownerSessionId: "test-session" } })),
+    acquireLock: vi.fn(async () => undefined),
+    releaseLock: vi.fn(async () => undefined),
+    createDraft: vi.fn(async () => ({ created: true })),
+    updateDraft: vi.fn(async () => undefined),
+    commitDraft: vi.fn(async () => ({ committed: true })),
+    discardDraft: vi.fn(async () => ({ discarded: true })),
+    hasDraft: vi.fn(async () => ({ exists: false })),
+    forceReleaseLock: vi.fn(async () => undefined),
   },
 }));
 
@@ -20,6 +31,9 @@ describe("ExtensionsPanel", () => {
     bridgeMock.getExtensions.mockReset();
     bridgeMock.request.mockReset();
     bridgeMock.onExtensionsChanged.mockClear();
+    // セッション所有者として editing モードに設定
+    (bridgeMock.getLock as ReturnType<typeof vi.fn>).mockResolvedValue({ entry: { ownerSessionId: "test-session" } });
+    (bridgeMock.hasDraft as ReturnType<typeof vi.fn>).mockResolvedValue({ exists: false });
     bridgeMock.getExtensions.mockResolvedValue({
       responseTypes: {
         namespace: "",
@@ -46,7 +60,9 @@ describe("ExtensionsPanel", () => {
     expect(await screen.findByDisplayValue("ApiError")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "追加" }));
     fireEvent.change(screen.getAllByPlaceholderText("ApiError")[1], { target: { value: "Created" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    // EditModeToolbar の「保存」と tab の「保存」があるため getAllByRole で後者を選ぶ
+    const saveButtons = screen.getAllByRole("button", { name: "保存" });
+    fireEvent.click(saveButtons[saveButtons.length - 1]);
 
     await waitFor(() => {
       expect(bridgeMock.request).toHaveBeenCalledWith(

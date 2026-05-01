@@ -32,9 +32,6 @@ import {
   loadProject,
   saveProject,
   persistProject,
-  loadFlowDraft,
-  clearFlowDraft,
-  subscribeToFlowDraftSaves,
   addScreen,
   updateScreen,
   removeScreen,
@@ -52,11 +49,22 @@ import {
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useFlowProjectSync } from "../../hooks/useFlowProjectSync";
-import { openTab, makeTabId } from "../../store/tabStore";
+import { useEditSession } from "../../hooks/useEditSession";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { mcpBridge } from "../../mcp/mcpBridge";
+import { openTab, makeTabId, setDirty as setTabDirty } from "../../store/tabStore";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useErrorDialog } from "../common/ErrorDialogProvider";
 import { acknowledgeServerMtime } from "../../utils/serverMtime";
 import "../../styles/flow.css";
+import "../../styles/editMode.css";
 
 const nodeTypes = {
   screenNode: ScreenNodeComponent,
@@ -134,6 +142,20 @@ function FlowEditorInner() {
   const isDirtyRef = useRef(false);
   const needsFitViewRef = useRef(false);
 
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+
+  const sessionId = mcpBridge.getSessionId();
+
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "flow",
+    resourceId: "singleton",
+    sessionId,
+  });
+
+  const isReadonly = mode.kind !== "editing";
+
   // Undo/Redo スタック
   const undoStackRef = useRef<FlowProject[]>([]);
   const redoStackRef = useRef<FlowProject[]>([]);
@@ -178,25 +200,17 @@ function FlowEditorInner() {
 
   useUndoKeyboard(handleUndo, handleRedo);
 
-  // プロジェクトを読み込んで UI に反映（ドラフトがあれば優先的に復元）
-  // loadProject は draftMode の影響を受けないため、モード切替は不要。
+  // プロジェクトを読み込んで UI に反映
   const reloadProject = useCallback(async () => {
     const project = await loadProject();
-    const draft = loadFlowDraft();
-    const active = draft ?? project;
-    projectRef.current = active;
-    setNodes(toRFNodesWithGroups(active.screens, active.groups ?? []));
-    setEdges(toRFEdges(active.edges));
-    setProjectName(active.name);
-    needsFitViewRef.current = active.screens.length > 0;
+    projectRef.current = project;
+    setNodes(toRFNodesWithGroups(project.screens, project.groups ?? []));
+    setEdges(toRFEdges(project.edges));
+    setProjectName(project.name);
+    needsFitViewRef.current = project.screens.length > 0;
     setIsLoading(false);
-    if (draft) {
-      setIsDirty(true);
-      isDirtyRef.current = true;
-    } else {
-      setIsDirty(false);
-      isDirtyRef.current = false;
-    }
+    setIsDirty(false);
+    isDirtyRef.current = false;
   }, [setNodes, setEdges]);
 
   // ロード完了 or ノード変更後に全体フィット
@@ -215,11 +229,24 @@ function FlowEditorInner() {
     navigate,
   });
 
+  // タブ dirty マーク
   useEffect(() => {
-    return subscribeToFlowDraftSaves(() => {
-      setIsDirty(true);
-    });
-  }, []);
+    const tabId = makeTabId("screen-flow", "main");
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [isDirtyForTab, isDirty]);
+
+  // 復元ダイアログ (readonly + draft 存在時)
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("flow", "singleton") as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [sessionLoading, mode.kind]);
 
   // Modals
   const [screenModal, setScreenModal] = useState<{
@@ -251,9 +278,13 @@ function FlowEditorInner() {
     saveDebounceRef.current = setTimeout(() => {
       if (projectRef.current) {
         saveProject(projectRef.current).catch(console.error);
+        // ドラフト更新 (edit-session-draft)
+        if (!isReadonly) {
+          mcpBridge.updateDraft("flow", "singleton", projectRef.current).catch(console.error);
+        }
       }
     }, 300);
-  }, []);
+  }, [isReadonly]);
 
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
     if (!projectRef.current) return;
@@ -271,7 +302,7 @@ function FlowEditorInner() {
   }, [syncAndSave]);
 
   const onConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target || !projectRef.current) return;
+    if (isReadonly || !connection.source || !connection.target || !projectRef.current) return;
     pushUndoSnapshot();
     storeAddEdge(
       projectRef.current,
@@ -334,8 +365,9 @@ function FlowEditorInner() {
   // ── Screen Modal Actions ──
 
   const handleOpenAddScreen = useCallback(() => {
+    if (isReadonly) return;
     setScreenModal({ open: true });
-  }, []);
+  }, [isReadonly]);
 
   const handleScreenSave = useCallback(async (data: ScreenFormData) => {
     if (!projectRef.current) return;
@@ -698,10 +730,11 @@ function FlowEditorInner() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!projectRef.current || isSaving) return;
+    if (!projectRef.current || isSaving || isReadonly) return;
     setIsSaving(true);
     try {
       await persistProject(projectRef.current);
+      await actions.save();
       setIsDirty(false);
       isDirtyRef.current = false;
       dismissServerBanner();
@@ -715,10 +748,37 @@ function FlowEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, showError, dismissServerBanner]);
+  }, [isSaving, isReadonly, actions, showError, dismissServerBanner]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+    await reloadProject();
+    dismissServerBanner();
+    await acknowledgeServerMtime("project");
+  }, [actions, reloadProject, dismissServerBanner]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    await mcpBridge.discardDraft("flow", "singleton");
+    await reloadProject();
+  }, [reloadProject]);
 
   const handleReset = useCallback(async () => {
-    clearFlowDraft();
     undoStackRef.current = [];
     redoStackRef.current = [];
     setCanUndo(false);
@@ -729,14 +789,57 @@ function FlowEditorInner() {
   }, [reloadProject, dismissServerBanner]);
 
   useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
+    if (isDirty && !isSaving && !isReadonly) handleSave();
   });
 
   const isEmpty = !isLoading && nodes.filter((n) => n.type === "screenNode").length === 0;
   const screenCount = nodes.filter((n) => n.type === "screenNode").length;
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
   return (
-    <div className="flow-root">
+    <div className={`flow-root${isReadonly ? " readonly-mode" : ""}`}>
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={() => { void handleDiscard(); }}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          ownerLabel={lockedByOther.ownerLabel}
+          onConfirm={() => { void handleForceRelease(); }}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => { void actions.handleForcedOut(choice); if (choice !== "continue") void reloadProject(); }}
+        />
+      )}
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => { void actions.handleAfterForceUnlock(choice); if (choice === "discard") void reloadProject(); }}
+        />
+      )}
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={() => { void handleResumeContinue(); }}
+          onDiscard={() => { void handleResumeDiscard(); }}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={() => { void actions.startEditing(); }}
+        onSave={() => { void handleSave(); }}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
       {serverChanged && (
         <ServerChangeBanner
           onReload={handleReset}
@@ -777,21 +880,24 @@ function FlowEditorInner() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeDragStop={onNodeDragStop}
+            onNodesChange={isReadonly ? undefined : onNodesChange}
+            onEdgesChange={isReadonly ? undefined : onEdgesChange}
+            onConnect={isReadonly ? undefined : onConnect}
+            onNodeDragStop={isReadonly ? undefined : onNodeDragStop}
             onNodeDoubleClick={onNodeDoubleClick}
-            onNodeContextMenu={onNodeContextMenu}
-            onEdgeDoubleClick={onEdgeDoubleClick}
-            onEdgeContextMenu={onEdgeContextMenu}
-            onReconnect={onReconnect}
-            onEdgesDelete={onEdgesDelete}
-            onNodesDelete={onNodesDelete}
+            onNodeContextMenu={isReadonly ? undefined : onNodeContextMenu}
+            onEdgeDoubleClick={isReadonly ? undefined : onEdgeDoubleClick}
+            onEdgeContextMenu={isReadonly ? undefined : onEdgeContextMenu}
+            onReconnect={isReadonly ? undefined : onReconnect}
+            onEdgesDelete={isReadonly ? undefined : onEdgesDelete}
+            onNodesDelete={isReadonly ? undefined : onNodesDelete}
             onViewportChange={(vp) => setZoomLevel(vp.zoom)}
             nodeTypes={nodeTypes}
             connectionMode={ConnectionMode.Loose}
-            deleteKeyCode={["Backspace", "Delete"]}
+            nodesDraggable={!isReadonly}
+            nodesConnectable={!isReadonly}
+            edgesReconnectable={!isReadonly}
+            deleteKeyCode={isReadonly ? null : ["Backspace", "Delete"]}
             defaultEdgeOptions={{
               markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
               style: { strokeWidth: 2, stroke: "#94a3b8" },

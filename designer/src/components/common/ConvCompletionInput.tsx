@@ -10,6 +10,7 @@ interface ConvCompletionInputProps {
   className?: string;
   style?: React.CSSProperties;
   placeholder?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -25,6 +26,7 @@ export function ConvCompletionInput({
   className,
   style,
   placeholder,
+  disabled,
 }: ConvCompletionInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [cursorPos, setCursorPos] = useState(0);
@@ -83,6 +85,7 @@ export function ConvCompletionInput({
         value={value}
         placeholder={placeholder}
         autoComplete="off"
+        disabled={disabled}
         onChange={(e) => {
           const pos = e.target.selectionStart ?? e.target.value.length;
           setCursorPos(pos);

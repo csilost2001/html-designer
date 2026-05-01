@@ -16,6 +16,7 @@ import {
   writeView,
   writeViewDefinition,
   writeSequence,
+  writeProject,
 } from "./projectStorage.js";
 
 export type DraftResourceType =
@@ -27,7 +28,8 @@ export type DraftResourceType =
   | "screen-item"
   | "sequence"
   | "extension"
-  | "convention";
+  | "convention"
+  | "flow";  // #690 PR-7: 画面遷移図用
 
 const DRAFTS_SUBDIR = ".drafts";
 
@@ -89,6 +91,8 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
       return path.join(activeRoot, "extensions", `${id}.json`);
     case "convention":
       return path.join(activeRoot, "conventions", "catalog.json");
+    case "flow":
+      return path.join(activeRoot, "project.json");
     default:
       return null;
   }
@@ -199,6 +203,9 @@ export async function commitDraft(
       await atomicWrite(bodyPath, payload);
       break;
     }
+    case "flow":
+      await writeProject(payload);
+      break;
     default: {
       const _exhaustive: never = type;
       throw new Error(`未対応の resourceType: ${_exhaustive}`);

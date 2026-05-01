@@ -7,7 +7,16 @@ import { FieldTypesTab } from "./FieldTypesTab";
 import { TriggersTab } from "./TriggersTab";
 import { DbOperationsTab } from "./DbOperationsTab";
 import { ResponseTypesTab } from "./ResponseTypesTab";
-import { useDraftRegistry } from "../../hooks/useDraftRegistry";
+import { useEditSession } from "../../hooks/useEditSession";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import "../../styles/editMode.css";
 
 export type ExtensionKind = "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes";
@@ -16,6 +25,7 @@ export interface ExtensionTabProps {
   bundle: RawExtensionsBundle;
   saving: boolean;
   onSave: (kind: ExtensionKind, content: unknown) => Promise<void>;
+  isReadonly?: boolean;
 }
 
 const TABS: Array<{ key: ExtensionKind; label: string; icon: string }> = [
@@ -38,7 +48,21 @@ export function ExtensionsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const { hasDraft } = useDraftRegistry();
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  // tab switching confirm: pending tab to switch to after confirm
+  const [pendingTab, setPendingTab] = useState<ExtensionKind | null>(null);
+
+  const sessionId = mcpBridge.getSessionId();
+
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "extension",
+    resourceId: active,
+    sessionId,
+  });
+
+  const isReadonly = mode.kind !== "editing";
 
   const load = useCallback(async (forceReload = false) => {
     setLoading(true);
@@ -59,18 +83,46 @@ export function ExtensionsPanel() {
     if (isTabKey(tab) && tab !== active) setActive(tab);
   }, [active, searchParams]);
 
+  // タブ dirty マーク
+  useEffect(() => {
+    const tabId = makeTabId("extensions", "main");
+    setTabDirty(tabId, isDirtyForTab);
+  }, [isDirtyForTab]);
+
+  // 復元ダイアログ (readonly + draft 存在時)
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("extension", active) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [active, sessionLoading, mode.kind]);
+
   const setActiveTab = (key: ExtensionKind) => {
+    if (key === active) return;
+    // タブ切替: 編集中なら確認
+    if (isDirtyForTab) {
+      setPendingTab(key);
+      setShowDiscardDialog(true);
+      return;
+    }
     setActive(key);
     setSearchParams({ tab: key });
   };
 
   const summary = useMemo(() => loadExtensionsFromBundle(bundle), [bundle]);
 
-  const handleSave = async (kind: ExtensionKind, content: unknown) => {
+  const handleSave = useCallback(async (kind: ExtensionKind, content: unknown) => {
+    if (isReadonly) return;
     setSaving(true);
     setMessage(null);
     try {
       await mcpBridge.request("saveExtensionPackage", { type: kind, content });
+      await actions.save();
       setMessage("保存しました。");
       await load(true);
     } catch (e) {
@@ -78,12 +130,96 @@ export function ExtensionsPanel() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [isReadonly, actions, load]);
 
-  const tabProps: ExtensionTabProps = { bundle, saving, onSave: handleSave };
+  const handleDiscard = useCallback(async () => {
+    if (pendingTab) {
+      // タブ切替確認で「破棄して切替」
+      setShowDiscardDialog(false);
+      await actions.discard();
+      await mcpBridge.discardDraft("extension", active);
+      await load(true);
+      setActive(pendingTab);
+      setSearchParams({ tab: pendingTab });
+      setPendingTab(null);
+    } else {
+      setShowDiscardDialog(false);
+      await actions.discard();
+      await load(true);
+    }
+  }, [pendingTab, actions, active, load, setSearchParams]);
+
+  const handleDiscardCancel = useCallback(() => {
+    setShowDiscardDialog(false);
+    setPendingTab(null);
+  }, []);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    await mcpBridge.discardDraft("extension", active);
+    await load(true);
+  }, [active, load]);
+
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
+
+  const tabProps: ExtensionTabProps = { bundle, saving, onSave: handleSave, isReadonly };
 
   return (
-    <div className="container-fluid py-3 extensions-panel">
+    <div className={`container-fluid py-3 extensions-panel${isReadonly ? " readonly-mode" : ""}`}>
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={() => { void handleDiscard(); }}
+          onCancel={handleDiscardCancel}
+        />
+      )}
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          ownerLabel={lockedByOther.ownerLabel}
+          onConfirm={() => { void handleForceRelease(); }}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => { void actions.handleForcedOut(choice); if (choice !== "continue") void load(true); }}
+        />
+      )}
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => { void actions.handleAfterForceUnlock(choice); if (choice === "discard") void load(true); }}
+        />
+      )}
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={() => { void handleResumeContinue(); }}
+          onDiscard={() => { void handleResumeDiscard(); }}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={() => { void actions.startEditing(); }}
+        onSave={() => {/* extensions save is per-tab */}}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={saving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
       <div className="d-flex align-items-center justify-content-between mb-3">
         <div>
           <h1 className="h5 mb-1">拡張管理</h1>
@@ -118,9 +254,6 @@ export function ExtensionsPanel() {
             >
               <i className={`bi ${tab.icon} me-1`} />
               {tab.label}
-              {hasDraft("extension", tab.key) && (
-                <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
-              )}
             </button>
           </li>
         ))}
