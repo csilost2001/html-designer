@@ -270,7 +270,7 @@ export function WorkspaceListView() {
   }, []);
 
   useEffect(() => {
-    mcpBridge.startWithoutEditor();
+    // E: startWithoutEditor() は AppShell が起動時に呼んでいるため、ここでは呼ばない (重複削除)
     loadWorkspaces().catch(console.error);
     const unsubStatus = mcpBridge.onStatusChange((s) => {
       if (s === "connected") loadWorkspaces().catch(console.error);
