@@ -398,12 +398,17 @@ stateDiagram-v2
 
     Editing --> ReadOnly: 「保存」または「破棄」押下 (ロック解放)
     Editing --> Editing: 編集操作 (draft ファイル更新)
+    Editing --> ForcedOutPending: lock.changed force-released 受信 (自分が owner)
 
     OtherEditing --> AfterForceUnlock: 「強制解除」押下 + broadcast 通知
 
-    AfterForceUnlock --> ReadOnly: 引継ぎ選択: 「破棄」(draft 削除)
-    AfterForceUnlock --> Editing: 引継ぎ選択: 「自分で続き」(ロック取得 + draft 保持)
-    AfterForceUnlock --> ReadOnly: 元の編集者が戻り「採用 / 破棄」を選択
+    AfterForceUnlock --> ReadOnly: 引継ぎ「破棄」を選択 (draft 削除)
+    AfterForceUnlock --> Editing: 引継ぎ「自分で続き」を選択 (ロック取得 + draft 保持)
+    AfterForceUnlock --> ReadOnly: 引継ぎ「採用」を選択 (draft を採用し ReadOnly へ)
+
+    ForcedOutPending --> ReadOnly: 「破棄」を選択 (draft 削除)
+    ForcedOutPending --> Editing: 「自分で続き」を選択 (新規ロック取得 + draft 保持)
+    ForcedOutPending --> ReadOnly: 「採用」を選択 (解除者に draft を渡し ReadOnly へ)
 
     note right of ReadOnly
         編集開始ボタンのみ表示
@@ -412,7 +417,7 @@ stateDiagram-v2
 
     note right of Editing
         保存 / 破棄ボタン表示
-        タブに「●」マーク
+        タブに dirty マーク (●)
         draft ファイルを参照
     end note
 
@@ -425,8 +430,13 @@ stateDiagram-v2
     note right of AfterForceUnlock
         draft ファイルは保持
         引継ぎ判断 UI 表示
-        broadcast 受信側は
-        強制解除通知を表示
+        解除者側の状態
+    end note
+
+    note right of ForcedOutPending
+        強制解除通知を受けた
+        元の編集者が待機中
+        採用 / 破棄 / 続き を選択
     end note
 ```
 
@@ -437,7 +447,8 @@ stateDiagram-v2
 | `ReadOnly` | 誰もロックしていない初期状態。自分も他者もロックしていない | なし | 本体 |
 | `Editing` | 自分がロックを保有し編集中 | 自分 | draft |
 | `OtherEditing` | 他セッションがロックを保有している | 他者 | 本体 |
-| `AfterForceUnlock` | 強制解除直後の引継ぎ判断待ち状態 | なし (解除済) | draft (保持) |
+| `AfterForceUnlock` | 強制解除を実行した側の引継ぎ判断待ち状態 | なし (解除済) | draft (保持) |
+| `ForcedOutPending` | 強制解除を受けた側 (元の編集者) が「採用 / 破棄 / 続き」を選択する待機状態 | なし (剥奪済) | draft (保持) |
 
 ### 4.2 遷移トリガー
 
@@ -446,9 +457,13 @@ stateDiagram-v2
 | ReadOnly → Editing | 「編集開始」押下 | ロックが存在しないこと |
 | ReadOnly → OtherEditing | WS 通知受信 (他者がロック取得) | |
 | Editing → ReadOnly | 「保存」または「破棄」押下 | 自分がロック保有 |
+| Editing → ForcedOutPending | `lock.changed force-released` broadcast 受信 (自分が owner) | 自分がロック保有中に強制解除される |
 | OtherEditing → AfterForceUnlock | 「強制解除」押下 + 確認 | 自分がロックを持たないこと |
-| AfterForceUnlock → Editing | 「自分で続き」選択 | |
-| AfterForceUnlock → ReadOnly | 「破棄」選択 または 元の編集者が処理 | |
+| AfterForceUnlock → Editing | 引継ぎ「自分で続き」選択 | |
+| AfterForceUnlock → ReadOnly | 引継ぎ「破棄」選択 または 「採用」選択 | |
+| ForcedOutPending → ReadOnly | 「破棄」選択 (draft 削除) | 元の編集者が操作 |
+| ForcedOutPending → Editing | 「自分で続き」選択 (新規ロック取得 + draft 保持) | 元の編集者が操作 |
+| ForcedOutPending → ReadOnly | 「採用」選択 (解除者に draft を渡し自分は ReadOnly へ) | 元の編集者が操作 |
 
 ---
 
