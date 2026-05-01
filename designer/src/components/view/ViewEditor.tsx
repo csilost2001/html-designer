@@ -1,15 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { View, OutputColumn, PhysicalName, Uuid, Maturity, SemVer } from "../../types/v3";
 import { loadView, saveView } from "../../store/viewStore";
 import { listTables } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import { generateViewDdl } from "./generateViewDdl";
 import "../../styles/table.css";
+import "../../styles/editMode.css";
 
 interface TableOption {
   id: string;
@@ -29,13 +40,19 @@ export function ViewEditor() {
   const [addColDataType, setAddColDataType] = useState("");
   const [addColDesc, setAddColDesc] = useState("");
   const [addingCol, setAddingCol] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
 
   const handleNotFound = useCallback(() => navigate("/view/list"), [navigate]);
+
+  const sessionId = mcpBridge.getSessionId();
 
   const {
     state: view,
     isDirty, isSaving, serverChanged,
-    update, updateSilent, commit, handleSave, handleReset, dismissServerBanner,
+    update, updateSilent, commit, handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    reload,
   } = useResourceEditor<View>({
     tabType: "view",
     mtimeKind: "view",
@@ -48,9 +65,78 @@ export function ViewEditor() {
     onNotFound: handleNotFound,
   });
 
-  useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "view",
+    resourceId: viewId ?? "",
+    sessionId,
   });
+
+  const isReadonly = mode.kind !== "editing";
+
+  const viewRef = useRef<View | null>(null);
+  useEffect(() => { viewRef.current = view ?? null; }, [view]);
+
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateWithDraft = useCallback((fn: (s: View) => void) => {
+    if (isReadonly) return;
+    update(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!viewId || !viewRef.current) return;
+      mcpBridge.updateDraft("view", viewId, viewRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, update, viewId]);
+
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
+    await resourceHandleSave();
+    await actions.save();
+  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    await reload();
+  }, [actions, reload]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    if (viewId) await mcpBridge.discardDraft("view", viewId);
+    await reload();
+  }, [viewId, reload]);
+
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving && !isReadonly) handleSave();
+  });
+
+  useEffect(() => {
+    if (!viewId) return;
+    const tabId = makeTabId("view", viewId);
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [viewId, isDirtyForTab, isDirty]);
+
+  useEffect(() => {
+    if (!viewId || sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("view", viewId) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [viewId, sessionLoading, mode.kind]);
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
@@ -59,7 +145,7 @@ export function ViewEditor() {
     });
   }, [viewId]);
 
-  if (!view) {
+  if (!view || sessionLoading) {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
   }
 
@@ -71,18 +157,16 @@ export function ViewEditor() {
     const dep = addDepId.trim();
     if (!dep) return;
     if ((view.dependencies ?? []).includes(dep as Uuid)) return;
-    update((prev) => ({
-      ...prev,
-      dependencies: [...(prev.dependencies ?? []), dep as Uuid],
-    }));
+    updateWithDraft((prev) => {
+      (prev as unknown as { dependencies: string[] }).dependencies = [...(prev.dependencies ?? []), dep as Uuid];
+    });
     setAddDepId("");
   };
 
   const removeDependency = (dep: Uuid) => {
-    update((prev) => ({
-      ...prev,
-      dependencies: (prev.dependencies ?? []).filter((d) => d !== dep),
-    }));
+    updateWithDraft((prev) => {
+      (prev as unknown as { dependencies: string[] }).dependencies = (prev.dependencies ?? []).filter((d) => d !== dep);
+    });
   };
 
   const addOutputColumn = () => {
@@ -93,7 +177,7 @@ export function ViewEditor() {
       dataType: addColDataType.trim(),
       description: addColDesc.trim() || undefined,
     };
-    update((prev) => ({ ...prev, outputColumns: [...prev.outputColumns, col] }));
+    updateWithDraft((prev) => { prev.outputColumns = [...prev.outputColumns, col]; });
     setAddColPhysical("");
     setAddColName("");
     setAddColDataType("");
@@ -102,44 +186,92 @@ export function ViewEditor() {
   };
 
   const removeOutputColumn = (idx: number) => {
-    update((prev) => ({
-      ...prev,
-      outputColumns: prev.outputColumns.filter((_, i) => i !== idx),
-    }));
+    updateWithDraft((prev) => {
+      prev.outputColumns = prev.outputColumns.filter((_, i) => i !== idx);
+    });
   };
 
   const updateOutputColumn = (idx: number, field: keyof OutputColumn, value: string) => {
-    update((prev) => ({
-      ...prev,
-      outputColumns: prev.outputColumns.map((c, i) => {
+    updateWithDraft((prev) => {
+      prev.outputColumns = prev.outputColumns.map((c, i) => {
         if (i !== idx) return c;
         if (field === "physicalName") return { ...c, physicalName: (value || "") as PhysicalName };
         if (field === "name") return { ...c, name: value || undefined };
         if (field === "dataType") return { ...c, dataType: value };
         if (field === "description") return { ...c, description: value || undefined };
         return c;
-      }),
-    }));
+      });
+    });
   };
 
   const tableNameOf = (id: string): string => tableOptions.find((t) => t.id === id)?.name ?? id;
 
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
+
   return (
-    <div className="table-editor-page">
+    <div className={`table-editor-page${isReadonly ? " readonly-mode" : ""}`}>
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={actions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+
       <EditorHeader
         title={<><i className="bi bi-eye" /> ビュー編集: <code>{view.physicalName}</code></>}
         backLink={{
           label: "ビュー一覧",
           onClick: () => navigate("/view/list"),
         } satisfies EditorHeaderBackLink}
-        saveReset={{
+        saveReset={isReadonly ? undefined : {
           isDirty,
           isSaving,
           onSave: handleSave,
-          onReset: handleReset,
+          onReset: () => setShowDiscardDialog(true),
         } satisfies EditorHeaderSaveReset}
       />
 
@@ -166,8 +298,9 @@ export function ViewEditor() {
                 <input
                   type="text"
                   value={view.name}
-                  onChange={(e) => update((prev) => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => updateWithDraft((prev) => { prev.name = e.target.value; })}
                   placeholder="顧客最終購入日ビュー"
+                  disabled={isReadonly}
                 />
               </label>
               <label className="tbl-field">
@@ -175,8 +308,9 @@ export function ViewEditor() {
                 <input
                   type="text"
                   value={view.description ?? ""}
-                  onChange={(e) => update((prev) => ({ ...prev, description: e.target.value || undefined }))}
+                  onChange={(e) => updateWithDraft((prev) => { prev.description = e.target.value || undefined; })}
                   placeholder="顧客に最終購入日を結合した表示用ビュー"
+                  disabled={isReadonly}
                 />
               </label>
               <label className="tbl-field">
@@ -186,11 +320,9 @@ export function ViewEditor() {
                 <select
                   value={view.maturity ?? "draft"}
                   onChange={(e) =>
-                    update((prev) => ({
-                      ...prev,
-                      maturity: e.target.value as Maturity,
-                    }))
+                    updateWithDraft((prev) => { prev.maturity = e.target.value as Maturity; })
                   }
+                  disabled={isReadonly}
                 >
                   <option value="draft">draft（下書き）</option>
                   <option value="provisional">provisional（暫定）</option>
@@ -203,13 +335,11 @@ export function ViewEditor() {
                   type="text"
                   value={view.version ?? ""}
                   onChange={(e) =>
-                    update((prev) => ({
-                      ...prev,
-                      version: (e.target.value || undefined) as SemVer | undefined,
-                    }))
+                    updateWithDraft((prev) => { prev.version = (e.target.value || undefined) as SemVer | undefined; })
                   }
                   placeholder="1.0.0"
                   pattern="^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+                  disabled={isReadonly}
                 />
               </label>
               <label className="tbl-field seq-field-checkbox">
@@ -219,11 +349,9 @@ export function ViewEditor() {
                     type="checkbox"
                     checked={view.materialized ?? false}
                     onChange={(e) =>
-                      update((prev) => ({
-                        ...prev,
-                        materialized: e.target.checked || undefined,
-                      }))
+                      updateWithDraft((prev) => { prev.materialized = e.target.checked || undefined; })
                     }
+                    disabled={isReadonly}
                   />
                   実体テーブルとして保持 (CREATE MATERIALIZED VIEW)
                 </label>
@@ -242,11 +370,12 @@ export function ViewEditor() {
             <textarea
               className="view-editor-select-stmt"
               value={view.selectStatement}
-              onChange={(e) => updateSilent((prev) => ({ ...prev, selectStatement: e.target.value }))}
-              onBlur={commit}
+              onChange={(e) => { if (!isReadonly) updateSilent((prev) => { prev.selectStatement = e.target.value; }); }}
+              onBlur={() => { if (!isReadonly) commit(); }}
               rows={10}
               placeholder={`SELECT\n  c.customer_id,\n  c.customer_name,\n  MAX(o.created_at) AS last_order_at\nFROM customers c\nLEFT JOIN orders o ON c.customer_id = o.customer_id\nGROUP BY c.customer_id, c.customer_name`}
               spellCheck={false}
+              disabled={isReadonly}
             />
           </section>
 
@@ -264,6 +393,7 @@ export function ViewEditor() {
                       className="seq-used-by-del"
                       onClick={() => removeDependency(dep)}
                       title="削除"
+                      disabled={isReadonly}
                     >
                       <i className="bi bi-x" />
                     </button>
@@ -287,7 +417,7 @@ export function ViewEditor() {
               <button
                 className="tbl-btn tbl-btn-ghost"
                 onClick={addDependency}
-                disabled={!addDepId}
+                disabled={!addDepId || isReadonly}
               >
                 <i className="bi bi-plus-lg" /> 追加
               </button>
@@ -304,6 +434,7 @@ export function ViewEditor() {
               <button
                 className="tbl-btn tbl-btn-ghost view-editor-col-add-btn"
                 onClick={() => setAddingCol(true)}
+                disabled={isReadonly}
               >
                 <i className="bi bi-plus-lg" /> 追加
               </button>
@@ -319,6 +450,7 @@ export function ViewEditor() {
                       onChange={(e) => updateOutputColumn(i, "physicalName", e.target.value)}
                       placeholder="物理名 (snake_case)"
                       className="view-editor-col-name"
+                      disabled={isReadonly}
                     />
                     <input
                       type="text"
@@ -326,6 +458,7 @@ export function ViewEditor() {
                       onChange={(e) => updateOutputColumn(i, "name", e.target.value)}
                       placeholder="表示名（省略可）"
                       className="view-editor-col-name"
+                      disabled={isReadonly}
                     />
                     <input
                       type="text"
@@ -333,6 +466,7 @@ export function ViewEditor() {
                       onChange={(e) => updateOutputColumn(i, "dataType", e.target.value)}
                       placeholder="データ型 (例: VARCHAR, INTEGER)"
                       className="view-editor-col-type"
+                      disabled={isReadonly}
                     />
                     <input
                       type="text"
@@ -340,11 +474,13 @@ export function ViewEditor() {
                       onChange={(e) => updateOutputColumn(i, "description", e.target.value)}
                       placeholder="説明（省略可）"
                       className="view-editor-col-desc"
+                      disabled={isReadonly}
                     />
                     <button
                       className="seq-used-by-del"
                       onClick={() => removeOutputColumn(i)}
                       title="削除"
+                      disabled={isReadonly}
                     >
                       <i className="bi bi-x" />
                     </button>
@@ -383,7 +519,7 @@ export function ViewEditor() {
                 <button
                   className="tbl-btn tbl-btn-primary"
                   onClick={addOutputColumn}
-                  disabled={!addColPhysical.trim() || !addColDataType.trim()}
+                  disabled={!addColPhysical.trim() || !addColDataType.trim() || isReadonly}
                 >
                   追加
                 </button>

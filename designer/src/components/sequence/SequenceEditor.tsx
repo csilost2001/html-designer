@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { Sequence, TableColumnRef, TableId, LocalId, Maturity, SemVer } from "../../types/v3";
 import { loadSequence, saveSequence } from "../../store/sequenceStore";
@@ -6,11 +6,22 @@ import { loadConventions } from "../../store/conventionsStore";
 import { listTables, loadTable } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import { generateSequenceDdl } from "./generateSequenceDdl";
 import type { Table, NumberingEntry } from "../../types/v3";
+import "../../styles/editMode.css";
 
 interface TableColumnOption {
   tableId: string;
@@ -30,13 +41,19 @@ export function SequenceEditor() {
   const [addUsedByTableId, setAddUsedByTableId] = useState("");
   const [addUsedByColumnId, setAddUsedByColumnId] = useState("");
   const [addingUsedBy, setAddingUsedBy] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
 
   const handleNotFound = useCallback(() => navigate("/sequence/list"), [navigate]);
+
+  const sessionId = mcpBridge.getSessionId();
 
   const {
     state: seq,
     isDirty, isSaving, serverChanged,
-    update, handleSave, handleReset, dismissServerBanner,
+    update, handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    reload,
   } = useResourceEditor<Sequence>({
     tabType: "sequence",
     mtimeKind: "sequence",
@@ -49,9 +66,78 @@ export function SequenceEditor() {
     onNotFound: handleNotFound,
   });
 
-  useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "sequence",
+    resourceId: sequenceId ?? "",
+    sessionId,
   });
+
+  const isReadonly = mode.kind !== "editing";
+
+  const seqRef = useRef<Sequence | null>(null);
+  useEffect(() => { seqRef.current = seq ?? null; }, [seq]);
+
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateWithDraft = useCallback((fn: (s: Sequence) => void) => {
+    if (isReadonly) return;
+    update(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!sequenceId || !seqRef.current) return;
+      mcpBridge.updateDraft("sequence", sequenceId, seqRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, update, sequenceId]);
+
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
+    await resourceHandleSave();
+    await actions.save();
+  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    await reload();
+  }, [actions, reload]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    if (sequenceId) await mcpBridge.discardDraft("sequence", sequenceId);
+    await reload();
+  }, [sequenceId, reload]);
+
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving && !isReadonly) handleSave();
+  });
+
+  useEffect(() => {
+    if (!sequenceId) return;
+    const tabId = makeTabId("sequence", sequenceId);
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [sequenceId, isDirtyForTab, isDirty]);
+
+  useEffect(() => {
+    if (!sequenceId || sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("sequence", sequenceId) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [sequenceId, sessionLoading, mode.kind]);
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
@@ -81,12 +167,13 @@ export function SequenceEditor() {
     })();
   }, [sequenceId]);
 
-  if (!seq) {
+  if (!seq || sessionLoading) {
     return <div className="table-editor-loading"><i className="bi bi-hourglass-split" /> 読み込み中...</div>;
   }
 
   const selectedConvEntry = numberingKeys.find((k) => k.key === seq.conventionRef)?.entry ?? null;
   const ddl = generateSequenceDdl(seq);
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
   const addUsedBy = () => {
     if (!addUsedByTableId || !addUsedByColumnId) return;
@@ -94,20 +181,18 @@ export function SequenceEditor() {
       tableId: addUsedByTableId as TableId,
       columnId: addUsedByColumnId as LocalId,
     };
-    update((prev) => ({
-      ...prev,
-      usedBy: [...(prev.usedBy ?? []), entry],
-    }));
+    updateWithDraft((prev) => {
+      prev.usedBy = [...(prev.usedBy ?? []), entry];
+    });
     setAddUsedByTableId("");
     setAddUsedByColumnId("");
     setAddingUsedBy(false);
   };
 
   const removeUsedBy = (idx: number) => {
-    update((prev) => ({
-      ...prev,
-      usedBy: (prev.usedBy ?? []).filter((_, i) => i !== idx),
-    }));
+    updateWithDraft((prev) => {
+      prev.usedBy = (prev.usedBy ?? []).filter((_, i) => i !== idx);
+    });
   };
 
   const selectedTable = tableOptions.find((t) => t.tableId === addUsedByTableId);
@@ -119,21 +204,69 @@ export function SequenceEditor() {
   };
 
   return (
-    <div className="table-editor-page">
+    <div className={`table-editor-page${isReadonly ? " readonly-mode" : ""}`}>
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={actions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+
       <EditorHeader
         title={<><i className="bi bi-arrow-repeat" /> シーケンス編集: <code>{seq.physicalName}</code></>}
         backLink={{
           label: "シーケンス一覧",
           onClick: () => navigate("/sequence/list"),
         } satisfies EditorHeaderBackLink}
-        saveReset={{
+        saveReset={isReadonly ? undefined : {
           isDirty,
           isSaving,
           onSave: handleSave,
-          onReset: handleReset,
+          onReset: () => setShowDiscardDialog(true),
         } satisfies EditorHeaderSaveReset}
       />
 
@@ -159,8 +292,9 @@ export function SequenceEditor() {
               <input
                 type="text"
                 value={seq.name}
-                onChange={(e) => update((prev) => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => updateWithDraft((prev) => { prev.name = e.target.value; })}
                 placeholder="発注番号採番"
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field">
@@ -168,8 +302,9 @@ export function SequenceEditor() {
               <input
                 type="text"
                 value={seq.description ?? ""}
-                onChange={(e) => update((prev) => ({ ...prev, description: e.target.value || undefined }))}
+                onChange={(e) => updateWithDraft((prev) => { prev.description = e.target.value || undefined; })}
                 placeholder="発注番号の採番 (ORD-YYYY-NNNN)"
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field">
@@ -177,11 +312,9 @@ export function SequenceEditor() {
               <select
                 value={seq.maturity ?? ""}
                 onChange={(e) =>
-                  update((prev) => ({
-                    ...prev,
-                    maturity: (e.target.value || undefined) as Maturity | undefined,
-                  }))
+                  updateWithDraft((prev) => { prev.maturity = (e.target.value || undefined) as Maturity | undefined; })
                 }
+                disabled={isReadonly}
               >
                 <option value="">（未指定）</option>
                 <option value="draft">draft（下書き）</option>
@@ -195,13 +328,11 @@ export function SequenceEditor() {
                 type="text"
                 value={seq.version ?? ""}
                 onChange={(e) =>
-                  update((prev) => ({
-                    ...prev,
-                    version: (e.target.value || undefined) as SemVer | undefined,
-                  }))
+                  updateWithDraft((prev) => { prev.version = (e.target.value || undefined) as SemVer | undefined; })
                 }
                 placeholder="1.0.0"
                 pattern="^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+                disabled={isReadonly}
               />
             </label>
           </div>
@@ -216,7 +347,8 @@ export function SequenceEditor() {
               <input
                 type="number"
                 value={seq.startValue ?? 1}
-                onChange={(e) => update((prev) => ({ ...prev, startValue: Number(e.target.value) }))}
+                onChange={(e) => updateWithDraft((prev) => { prev.startValue = Number(e.target.value); })}
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field">
@@ -224,7 +356,8 @@ export function SequenceEditor() {
               <input
                 type="number"
                 value={seq.increment ?? 1}
-                onChange={(e) => update((prev) => ({ ...prev, increment: Number(e.target.value) }))}
+                onChange={(e) => updateWithDraft((prev) => { prev.increment = Number(e.target.value); })}
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field">
@@ -233,10 +366,10 @@ export function SequenceEditor() {
                 type="number"
                 value={seq.minValue ?? ""}
                 placeholder="（省略可）"
-                onChange={(e) => update((prev) => ({
-                  ...prev,
-                  minValue: e.target.value === "" ? undefined : Number(e.target.value),
-                }))}
+                onChange={(e) => updateWithDraft((prev) => {
+                  prev.minValue = e.target.value === "" ? undefined : Number(e.target.value);
+                })}
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field">
@@ -245,10 +378,10 @@ export function SequenceEditor() {
                 type="number"
                 value={seq.maxValue ?? ""}
                 placeholder="（省略可）"
-                onChange={(e) => update((prev) => ({
-                  ...prev,
-                  maxValue: e.target.value === "" ? undefined : Number(e.target.value),
-                }))}
+                onChange={(e) => updateWithDraft((prev) => {
+                  prev.maxValue = e.target.value === "" ? undefined : Number(e.target.value);
+                })}
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field">
@@ -257,7 +390,8 @@ export function SequenceEditor() {
                 type="number"
                 value={seq.cache ?? 1}
                 min={1}
-                onChange={(e) => update((prev) => ({ ...prev, cache: Number(e.target.value) }))}
+                onChange={(e) => updateWithDraft((prev) => { prev.cache = Number(e.target.value); })}
+                disabled={isReadonly}
               />
             </label>
             <label className="tbl-field seq-field-checkbox">
@@ -266,7 +400,8 @@ export function SequenceEditor() {
                 <input
                   type="checkbox"
                   checked={seq.cycle ?? false}
-                  onChange={(e) => update((prev) => ({ ...prev, cycle: e.target.checked }))}
+                  onChange={(e) => updateWithDraft((prev) => { prev.cycle = e.target.checked; })}
+                  disabled={isReadonly}
                 />
                 最大値到達後に最小値に戻る
               </label>
@@ -283,8 +418,9 @@ export function SequenceEditor() {
               type="text"
               list="numbering-keys"
               value={seq.conventionRef ?? ""}
-              onChange={(e) => update((prev) => ({ ...prev, conventionRef: e.target.value || undefined }))}
+              onChange={(e) => updateWithDraft((prev) => { prev.conventionRef = e.target.value || undefined; })}
               placeholder="@conv.numbering.orderNumber"
+              disabled={isReadonly}
             />
             <datalist id="numbering-keys">
               {numberingKeys.map((k) => (
@@ -328,6 +464,7 @@ export function SequenceEditor() {
                       className="seq-used-by-del"
                       onClick={() => removeUsedBy(i)}
                       title="削除"
+                      disabled={isReadonly}
                     >
                       <i className="bi bi-x" />
                     </button>
@@ -336,7 +473,7 @@ export function SequenceEditor() {
               })}
             </div>
           )}
-          {addingUsedBy ? (
+          {addingUsedBy && !isReadonly ? (
             <div className="seq-used-by-add-form">
               <select
                 value={addUsedByTableId}
@@ -375,6 +512,7 @@ export function SequenceEditor() {
             <button
               className="tbl-btn tbl-btn-ghost seq-add-used-by-btn"
               onClick={() => setAddingUsedBy(true)}
+              disabled={isReadonly}
             >
               <i className="bi bi-plus-lg" /> 使用先を追加
             </button>

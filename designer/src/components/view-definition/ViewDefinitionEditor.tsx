@@ -11,7 +11,7 @@
  * リアルタイム validator: checkViewDefinition() の結果を各フィールドの隣に inline 表示。
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type {
   ViewDefinition,
@@ -27,13 +27,24 @@ import { loadViewDefinition, saveViewDefinition } from "../../store/viewDefiniti
 import { listTables, loadTable } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink, type EditorHeaderUndoRedo } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import { MaturityBadge } from "../process-flow/MaturityBadge";
 import { ValidationBadge } from "../common/ValidationBadge";
 import { checkViewDefinition, type ViewDefinitionIssue, type TableDefinitionForView } from "../../schemas/viewDefinitionValidator";
 import "../../styles/table.css";
+import "../../styles/editMode.css";
 
 // ─── FieldType primitives available for display ──────────────────────────────
 
@@ -147,6 +158,10 @@ export function ViewDefinitionEditor() {
   // kind: 拡張参照モード (builtin 以外の場合は true で初期化)
   const [kindExtMode, setKindExtMode] = useState(false);
 
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+
   const handleNotFound = useCallback(() => navigate("/view-definition/list"), [navigate]);
 
   // onLoaded: viewDefinition 読み込み時に UI state を初期化 (useEffect の代わり)
@@ -160,11 +175,14 @@ export function ViewDefinitionEditor() {
     setColRefTableIds(nextIds);
   }, []);
 
+  const sessionId = mcpBridge.getSessionId();
+
   const {
     state: viewDefinition,
     isDirty, isSaving, serverChanged,
-    update, updateSilent, commit, handleSave, handleReset, dismissServerBanner,
+    update, updateSilent, commit, handleSave: resourceHandleSave, handleReset, dismissServerBanner,
     undo, redo, canUndo, canRedo,
+    reload,
   } = useResourceEditor<ViewDefinition>({
     tabType: "view-definition",
     mtimeKind: "viewDefinition",
@@ -178,9 +196,88 @@ export function ViewDefinitionEditor() {
     onLoaded: handleLoaded,
   });
 
-  useSaveShortcut(() => {
-    if (isDirty && !isSaving) handleSave();
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "view-definition",
+    resourceId: viewDefinitionId ?? "",
+    sessionId,
   });
+
+  const isReadonly = mode.kind !== "editing";
+
+  const viewDefRef = useRef<ViewDefinition | null>(null);
+  useEffect(() => { viewDefRef.current = viewDefinition ?? null; }, [viewDefinition]);
+
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateWithDraft = useCallback((fn: (s: ViewDefinition) => void) => {
+    if (isReadonly) return;
+    update(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!viewDefinitionId || !viewDefRef.current) return;
+      mcpBridge.updateDraft("view-definition", viewDefinitionId, viewDefRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, update, viewDefinitionId]);
+
+  const updateSilentWithDraft = useCallback((fn: (s: ViewDefinition) => void) => {
+    if (isReadonly) return;
+    updateSilent(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!viewDefinitionId || !viewDefRef.current) return;
+      mcpBridge.updateDraft("view-definition", viewDefinitionId, viewDefRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, updateSilent, viewDefinitionId]);
+
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
+    await resourceHandleSave();
+    await actions.save();
+  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    await reload();
+  }, [actions, reload]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    if (viewDefinitionId) await mcpBridge.discardDraft("view-definition", viewDefinitionId);
+    await reload();
+  }, [viewDefinitionId, reload]);
+
+  useSaveShortcut(() => {
+    if (isDirty && !isSaving && !isReadonly) handleSave();
+  });
+
+  useEffect(() => {
+    if (!viewDefinitionId) return;
+    const tabId = makeTabId("view-definition", viewDefinitionId);
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [viewDefinitionId, isDirtyForTab, isDirty]);
+
+  useEffect(() => {
+    if (!viewDefinitionId || sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("view-definition", viewDefinitionId) as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [viewDefinitionId, sessionLoading, mode.kind]);
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
@@ -233,7 +330,7 @@ export function ViewDefinitionEditor() {
   }
 
   // ─── 読み込み中 ────────────────────────────────────────────────────────────
-  if (!viewDefinition) {
+  if (!viewDefinition || sessionLoading) {
     return (
       <div className="table-editor-loading">
         <i className="bi bi-hourglass-split" /> 読み込み中...
@@ -254,7 +351,7 @@ export function ViewDefinitionEditor() {
       },
       type: "string" as FieldTypePrimitive,
     };
-    update((d) => { d.columns = [...(d.columns ?? []), newCol]; });
+    updateWithDraft((d) => { d.columns = [...(d.columns ?? []), newCol]; });
     setColRefTableIds((prev) => ({
       ...prev,
       [viewDefinition.columns.length]: viewDefinition.sourceTableId,
@@ -262,7 +359,7 @@ export function ViewDefinitionEditor() {
   };
 
   const removeColumn = (ci: number) => {
-    update((d) => { d.columns = d.columns.filter((_, i) => i !== ci); });
+    updateWithDraft((d) => { d.columns = d.columns.filter((_, i) => i !== ci); });
     setColRefTableIds((prev) => {
       const next: Record<number, string> = {};
       Object.entries(prev).forEach(([k, v]) => {
@@ -278,7 +375,7 @@ export function ViewDefinitionEditor() {
     const cols = [...(viewDefinition.columns ?? [])];
     const target = direction === "up" ? ci - 1 : ci + 1;
     if (target < 0 || target >= cols.length) return;
-    update((d) => {
+    updateWithDraft((d) => {
       const tmp = d.columns[ci];
       d.columns[ci] = d.columns[target];
       d.columns[target] = tmp;
@@ -293,7 +390,7 @@ export function ViewDefinitionEditor() {
   };
 
   const updateColumn = <K extends keyof ViewColumn>(ci: number, field: K, value: ViewColumn[K]) => {
-    update((d) => {
+    updateWithDraft((d) => {
       d.columns[ci] = { ...d.columns[ci], [field]: value };
     });
   };
@@ -301,7 +398,7 @@ export function ViewDefinitionEditor() {
   // tableColumnRef カスケード: テーブル選択
   const setColRefTable = (ci: number, tableId: string) => {
     setColRefTableIds((prev) => ({ ...prev, [ci]: tableId }));
-    update((d) => {
+    updateWithDraft((d) => {
       d.columns[ci] = {
         ...d.columns[ci],
         tableColumnRef: { tableId: tableId as TableId, columnId: "" as LocalId },
@@ -312,7 +409,7 @@ export function ViewDefinitionEditor() {
   // tableColumnRef カスケード: カラム選択
   const setColRefColumn = (ci: number, columnId: string) => {
     const tableId = colRefTableIds[ci] ?? viewDefinition.sourceTableId;
-    update((d) => {
+    updateWithDraft((d) => {
       d.columns[ci] = {
         ...d.columns[ci],
         tableColumnRef: { tableId: tableId as TableId, columnId: columnId as LocalId },
@@ -324,15 +421,15 @@ export function ViewDefinitionEditor() {
 
   const addSortSpec = () => {
     const spec: SortSpec = { columnName: "" as Identifier, order: "asc" };
-    update((d) => { d.sortDefaults = [...(d.sortDefaults ?? []), spec]; });
+    updateWithDraft((d) => { d.sortDefaults = [...(d.sortDefaults ?? []), spec]; });
   };
 
   const removeSortSpec = (si: number) => {
-    update((d) => { d.sortDefaults = (d.sortDefaults ?? []).filter((_, i) => i !== si); });
+    updateWithDraft((d) => { d.sortDefaults = (d.sortDefaults ?? []).filter((_, i) => i !== si); });
   };
 
   const updateSortSpec = <K extends keyof SortSpec>(si: number, field: K, value: SortSpec[K]) => {
-    update((d) => {
+    updateWithDraft((d) => {
       const specs = d.sortDefaults ?? [];
       specs[si] = { ...specs[si], [field]: value };
       d.sortDefaults = specs;
@@ -343,15 +440,15 @@ export function ViewDefinitionEditor() {
 
   const addFilterSpec = () => {
     const spec: FilterSpec = { columnName: "" as Identifier, operator: "eq" };
-    update((d) => { d.filterDefaults = [...(d.filterDefaults ?? []), spec]; });
+    updateWithDraft((d) => { d.filterDefaults = [...(d.filterDefaults ?? []), spec]; });
   };
 
   const removeFilterSpec = (fi: number) => {
-    update((d) => { d.filterDefaults = (d.filterDefaults ?? []).filter((_, i) => i !== fi); });
+    updateWithDraft((d) => { d.filterDefaults = (d.filterDefaults ?? []).filter((_, i) => i !== fi); });
   };
 
   const updateFilterSpec = <K extends keyof FilterSpec>(fi: number, field: K, value: FilterSpec[K]) => {
-    update((d) => {
+    updateWithDraft((d) => {
       const specs = d.filterDefaults ?? [];
       specs[fi] = { ...specs[fi], [field]: value };
       d.filterDefaults = specs;
@@ -363,10 +460,59 @@ export function ViewDefinitionEditor() {
 
   // ─── render ───────────────────────────────────────────────────────────────
 
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
+
   return (
-    <div className="table-editor-page">
+    <div className={`table-editor-page${isReadonly ? " readonly-mode" : ""}`}>
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
+      )}
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={actions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
       )}
 
       <EditorHeader
@@ -386,11 +532,11 @@ export function ViewDefinitionEditor() {
           canUndo,
           canRedo,
         } satisfies EditorHeaderUndoRedo}
-        saveReset={{
+        saveReset={isReadonly ? undefined : {
           isDirty,
           isSaving,
           onSave: handleSave,
-          onReset: handleReset,
+          onReset: () => setShowDiscardDialog(true),
           resetConfirmMessage: "未保存の変更を破棄してサーバの状態に戻しますか？",
         } satisfies EditorHeaderSaveReset}
       />
@@ -436,9 +582,10 @@ export function ViewDefinitionEditor() {
                 <input
                   type="text"
                   value={viewDefinition.name}
-                  onChange={(e) => updateSilent((d) => { d.name = e.target.value as ViewDefinition["name"]; })}
-                  onBlur={commit}
+                  onChange={(e) => updateSilentWithDraft((d) => { d.name = e.target.value as ViewDefinition["name"]; })}
+                  onBlur={() => { if (!isReadonly) commit(); }}
                   placeholder="顧客一覧"
+                  disabled={isReadonly}
                 />
               </label>
 
@@ -447,12 +594,13 @@ export function ViewDefinitionEditor() {
                 <span>説明</span>
                 <textarea
                   value={viewDefinition.description ?? ""}
-                  onChange={(e) => updateSilent((d) => {
+                  onChange={(e) => updateSilentWithDraft((d) => {
                     d.description = e.target.value || undefined;
                   })}
-                  onBlur={commit}
+                  onBlur={() => { if (!isReadonly) commit(); }}
                   rows={2}
                   placeholder="このビュー定義の用途を記述..."
+                  disabled={isReadonly}
                 />
               </label>
 
@@ -463,7 +611,8 @@ export function ViewDefinitionEditor() {
                   {!kindExtMode ? (
                     <select
                       value={isBuiltinKind(viewDefinition.kind) ? viewDefinition.kind : "list"}
-                      onChange={(e) => update((d) => { d.kind = e.target.value; })}
+                      onChange={(e) => updateWithDraft((d) => { d.kind = e.target.value; })}
+                      disabled={isReadonly}
                     >
                       {(Object.entries(KIND_LABELS) as [BuiltinViewDefinitionKind, string][]).map(([v, label]) => (
                         <option key={v} value={v}>{label}</option>
@@ -473,9 +622,10 @@ export function ViewDefinitionEditor() {
                     <input
                       type="text"
                       value={viewDefinition.kind}
-                      onChange={(e) => updateSilent((d) => { d.kind = e.target.value; })}
-                      onBlur={commit}
+                      onChange={(e) => updateSilentWithDraft((d) => { d.kind = e.target.value; })}
+                      onBlur={() => { if (!isReadonly) commit(); }}
                       placeholder="namespace:kindName (例: retail:storefront)"
+                      disabled={isReadonly}
                     />
                   )}
                   <button
@@ -484,10 +634,11 @@ export function ViewDefinitionEditor() {
                     onClick={() => {
                       setKindExtMode((v) => !v);
                       if (kindExtMode) {
-                        update((d) => { d.kind = "list"; });
+                        updateWithDraft((d) => { d.kind = "list"; });
                       }
                     }}
                     title={kindExtMode ? "組み込み種別に戻す" : "拡張参照を入力"}
+                    disabled={isReadonly}
                   >
                     {kindExtMode ? "組み込みに戻す" : "拡張参照"}
                   </button>
@@ -499,8 +650,9 @@ export function ViewDefinitionEditor() {
                 <span>ソーステーブル <span className="vd-editor-required">*</span></span>
                 <select
                   value={viewDefinition.sourceTableId}
-                  onChange={(e) => update((d) => { d.sourceTableId = e.target.value as TableId; })}
+                  onChange={(e) => updateWithDraft((d) => { d.sourceTableId = e.target.value as TableId; })}
                   className={getIssues(`ViewDefinition[${vdId}].sourceTableId`).length > 0 ? "input-error" : undefined}
+                  disabled={isReadonly}
                 >
                   <option value="">— テーブルを選択 —</option>
                   {tableOptions.map((t) => (
@@ -517,7 +669,7 @@ export function ViewDefinitionEditor() {
                   <MaturityBadge
                     maturity={viewDefinition.maturity}
                     size="md"
-                    onChange={(m: Maturity) => update((d) => { d.maturity = m; })}
+                    onChange={isReadonly ? undefined : (m: Maturity) => updateWithDraft((d) => { d.maturity = m; })}
                   />
                   <span className="vd-editor-maturity-label">
                     {viewDefinition.maturity ?? "draft"}
@@ -574,13 +726,14 @@ export function ViewDefinitionEditor() {
                           <input
                             type="text"
                             value={col.name as string}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               d.columns[ci] = { ...d.columns[ci], name: e.target.value as Identifier };
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="columnName"
                             className="vd-col-input-sm"
                             title="camelCase 識別子"
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* 参照テーブル (cascade step 1) */}
@@ -589,6 +742,7 @@ export function ViewDefinitionEditor() {
                             value={refTableId}
                             onChange={(e) => setColRefTable(ci, e.target.value)}
                             className="vd-col-select"
+                            disabled={isReadonly}
                           >
                             <option value="">— テーブル —</option>
                             {tableOptions.map((t) => (
@@ -602,7 +756,7 @@ export function ViewDefinitionEditor() {
                             value={col.tableColumnRef?.columnId ?? ""}
                             onChange={(e) => setColRefColumn(ci, e.target.value)}
                             className="vd-col-select"
-                            disabled={!refTableId}
+                            disabled={!refTableId || isReadonly}
                           >
                             <option value="">— カラム —</option>
                             {colOptions.map((c) => (
@@ -615,15 +769,16 @@ export function ViewDefinitionEditor() {
                           <input
                             type="text"
                             value={col.displayName ?? ""}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               d.columns[ci] = {
                                 ...d.columns[ci],
                                 displayName: (e.target.value || undefined) as ViewColumn["displayName"],
                               };
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="表示名"
                             className="vd-col-input-sm"
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* type */}
@@ -632,6 +787,7 @@ export function ViewDefinitionEditor() {
                             value={typeof col.type === "string" ? col.type : "string"}
                             onChange={(e) => updateColumn(ci, "type", e.target.value as FieldType)}
                             className="vd-col-select"
+                            disabled={isReadonly}
                           >
                             {FIELD_TYPE_OPTIONS.map((ft) => (
                               <option key={ft} value={ft}>{ft}</option>
@@ -643,12 +799,13 @@ export function ViewDefinitionEditor() {
                           <input
                             type="text"
                             value={col.displayFormat ?? ""}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               d.columns[ci] = { ...d.columns[ci], displayFormat: e.target.value || undefined };
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="#,##0"
                             className="vd-col-input-xs"
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* width */}
@@ -656,25 +813,27 @@ export function ViewDefinitionEditor() {
                           <input
                             type="text"
                             value={col.width ?? ""}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               d.columns[ci] = { ...d.columns[ci], width: e.target.value || undefined };
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="120px"
                             className="vd-col-input-xs"
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* align */}
                         <td>
                           <select
                             value={col.align ?? ""}
-                            onChange={(e) => update((d) => {
+                            onChange={(e) => updateWithDraft((d) => {
                               d.columns[ci] = {
                                 ...d.columns[ci],
                                 align: (e.target.value || undefined) as ViewColumn["align"],
                               };
                             })}
                             className="vd-col-select-xs"
+                            disabled={isReadonly}
                           >
                             <option value="">—</option>
                             <option value="left">left</option>
@@ -687,9 +846,10 @@ export function ViewDefinitionEditor() {
                           <input
                             type="checkbox"
                             checked={col.sortable ?? false}
-                            onChange={(e) => update((d) => {
+                            onChange={(e) => updateWithDraft((d) => {
                               d.columns[ci] = { ...d.columns[ci], sortable: e.target.checked || undefined };
                             })}
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* filterable */}
@@ -697,9 +857,10 @@ export function ViewDefinitionEditor() {
                           <input
                             type="checkbox"
                             checked={col.filterable ?? false}
-                            onChange={(e) => update((d) => {
+                            onChange={(e) => updateWithDraft((d) => {
                               d.columns[ci] = { ...d.columns[ci], filterable: e.target.checked || undefined };
                             })}
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* linkTo */}
@@ -707,12 +868,13 @@ export function ViewDefinitionEditor() {
                           <input
                             type="text"
                             value={col.linkTo ?? ""}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               d.columns[ci] = { ...d.columns[ci], linkTo: e.target.value || undefined };
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="/orders/:id"
                             className="vd-col-input-sm"
+                            disabled={isReadonly}
                           />
                         </td>
                         {/* 操作 */}
@@ -721,7 +883,7 @@ export function ViewDefinitionEditor() {
                             type="button"
                             className="tbl-btn-icon"
                             onClick={() => moveColumn(ci, "up")}
-                            disabled={ci === 0}
+                            disabled={ci === 0 || isReadonly}
                             title="上に移動"
                           >
                             <i className="bi bi-arrow-up" />
@@ -730,7 +892,7 @@ export function ViewDefinitionEditor() {
                             type="button"
                             className="tbl-btn-icon"
                             onClick={() => moveColumn(ci, "down")}
-                            disabled={ci === (viewDefinition.columns?.length ?? 0) - 1}
+                            disabled={ci === (viewDefinition.columns?.length ?? 0) - 1 || isReadonly}
                             title="下に移動"
                           >
                             <i className="bi bi-arrow-down" />
@@ -740,6 +902,7 @@ export function ViewDefinitionEditor() {
                             className="tbl-btn-icon danger"
                             onClick={() => removeColumn(ci)}
                             title="削除"
+                            disabled={isReadonly}
                           >
                             <i className="bi bi-trash" />
                           </button>
@@ -775,6 +938,7 @@ export function ViewDefinitionEditor() {
               type="button"
               className="tbl-btn tbl-btn-ghost vd-editor-add-row-btn"
               onClick={addColumn}
+              disabled={isReadonly}
             >
               <i className="bi bi-plus-lg" /> カラム追加
             </button>
@@ -806,6 +970,7 @@ export function ViewDefinitionEditor() {
                             value={spec.columnName as string}
                             onChange={(e) => updateSortSpec(si, "columnName", e.target.value as Identifier)}
                             className={siIssues.length > 0 ? "input-error" : undefined}
+                            disabled={isReadonly}
                           >
                             <option value="">— カラムを選択 —</option>
                             {columnNames.map((cn) => (
@@ -818,6 +983,7 @@ export function ViewDefinitionEditor() {
                           <select
                             value={spec.order}
                             onChange={(e) => updateSortSpec(si, "order", e.target.value as "asc" | "desc")}
+                            disabled={isReadonly}
                           >
                             <option value="asc">asc (昇順)</option>
                             <option value="desc">desc (降順)</option>
@@ -829,6 +995,7 @@ export function ViewDefinitionEditor() {
                             className="tbl-btn-icon danger"
                             onClick={() => removeSortSpec(si)}
                             title="削除"
+                            disabled={isReadonly}
                           >
                             <i className="bi bi-trash" />
                           </button>
@@ -844,6 +1011,7 @@ export function ViewDefinitionEditor() {
               type="button"
               className="tbl-btn tbl-btn-ghost vd-editor-add-row-btn"
               onClick={addSortSpec}
+              disabled={isReadonly}
             >
               <i className="bi bi-plus-lg" /> ソート条件追加
             </button>
@@ -887,6 +1055,7 @@ export function ViewDefinitionEditor() {
                             value={spec.columnName as string}
                             onChange={(e) => updateFilterSpec(fi, "columnName", e.target.value as Identifier)}
                             className={colIssues.length > 0 ? "input-error" : undefined}
+                            disabled={isReadonly}
                           >
                             <option value="">— カラムを選択 —</option>
                             {columnNames.map((cn) => (
@@ -900,6 +1069,7 @@ export function ViewDefinitionEditor() {
                             value={spec.operator}
                             onChange={(e) => updateFilterSpec(fi, "operator", e.target.value as FilterOperator)}
                             className={opIssues.length > 0 ? "input-error" : undefined}
+                            disabled={isReadonly}
                           >
                             {FILTER_OPERATORS.map((op) => (
                               <option key={op} value={op}>{op}</option>
@@ -911,28 +1081,30 @@ export function ViewDefinitionEditor() {
                           <input
                             type="text"
                             value={typeof spec.value === "string" ? spec.value : spec.value != null ? String(spec.value) : ""}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               const specs = d.filterDefaults ?? [];
                               specs[fi] = { ...specs[fi], value: e.target.value || undefined };
                               d.filterDefaults = specs;
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="比較値"
                             className="vd-col-input-sm"
+                            disabled={isReadonly}
                           />
                         </td>
                         <td>
                           <input
                             type="text"
                             value={spec.valueExpression ?? ""}
-                            onChange={(e) => updateSilent((d) => {
+                            onChange={(e) => updateSilentWithDraft((d) => {
                               const specs = d.filterDefaults ?? [];
                               specs[fi] = { ...specs[fi], valueExpression: (e.target.value || undefined) as FilterSpec["valueExpression"] };
                               d.filterDefaults = specs;
                             })}
-                            onBlur={commit}
+                            onBlur={() => { if (!isReadonly) commit(); }}
                             placeholder="@conv.numbering.threshold"
                             className="vd-col-input-sm"
+                            disabled={isReadonly}
                           />
                         </td>
                         <td>
@@ -941,6 +1113,7 @@ export function ViewDefinitionEditor() {
                             className="tbl-btn-icon danger"
                             onClick={() => removeFilterSpec(fi)}
                             title="削除"
+                            disabled={isReadonly}
                           >
                             <i className="bi bi-trash" />
                           </button>
@@ -956,6 +1129,7 @@ export function ViewDefinitionEditor() {
               type="button"
               className="tbl-btn tbl-btn-ghost vd-editor-add-row-btn"
               onClick={addFilterSpec}
+              disabled={isReadonly}
             >
               <i className="bi bi-plus-lg" /> フィルタ条件追加
             </button>
@@ -976,10 +1150,11 @@ export function ViewDefinitionEditor() {
                   max={1000}
                   onChange={(e) => {
                     const v = e.target.value ? Number(e.target.value) : undefined;
-                    update((d) => { d.pageSize = v; });
+                    updateWithDraft((d) => { d.pageSize = v; });
                   }}
                   placeholder="20"
                   className="vd-editor-number-input"
+                  disabled={isReadonly}
                 />
               </label>
 
@@ -988,10 +1163,11 @@ export function ViewDefinitionEditor() {
                 <span>groupBy</span>
                 <select
                   value={viewDefinition.groupBy ?? ""}
-                  onChange={(e) => update((d) => {
+                  onChange={(e) => updateWithDraft((d) => {
                     d.groupBy = (e.target.value || undefined) as Identifier | undefined;
                   })}
                   className={getIssues(`ViewDefinition[${vdId}].groupBy`).length > 0 ? "input-error" : undefined}
+                  disabled={isReadonly}
                 >
                   <option value="">— なし —</option>
                   {columnNames.map((cn) => (
