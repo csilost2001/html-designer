@@ -382,30 +382,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     }
   }, [isActive]);
 
-  // 保存後にサムネイルを撮影してフローノードに反映
-  useEffect(() => {
-    if (!ready || !editorRef.current) return;
-    const editor = editorRef.current;
-
-    const onStoreEnd = () => {
-      // 空のキャンバスはスキップ
-      if (safeComponentsLength(editor) === 0) return;
-      captureThumbnail(editor).then(async (thumbnail) => {
-        if (!thumbnail) return;
-        try {
-          const project = await loadProject();
-          await updateScreenThumbnail(project, screenId, thumbnail);
-        } catch {
-          // サムネイル保存失敗は無視
-        }
-      });
-    };
-
-    editor.on("storage:end:store", onStoreEnd);
-    return () => {
-      editor.off("storage:end:store", onStoreEnd);
-    };
-  }, [ready, screenId]);
 
   // キャンバスの空状態を追跡
   useEffect(() => {
@@ -440,6 +416,18 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       setDirty(tabId, false);
       setServerChanged(false);
       await acknowledgeServerMtime("screen", screenId);
+      // サムネイル生成 (旧 storage:end:store ハンドラから移植)
+      if (editorRef.current && safeComponentsLength(editorRef.current) > 0) {
+        captureThumbnail(editorRef.current).then(async (thumbnail) => {
+          if (!thumbnail) return;
+          try {
+            const project = await loadProject();
+            await updateScreenThumbnail(project, screenId, thumbnail);
+          } catch {
+            // サムネイル保存失敗は無視
+          }
+        });
+      }
     } catch (e) {
       console.error("[Designer] save failed:", e);
       showError({
