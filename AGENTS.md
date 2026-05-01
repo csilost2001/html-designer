@@ -105,6 +105,8 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 | `/extensions` | ExtensionsPanel | 拡張管理 | ✅ singleton |
 | `/process-flow/edit/:processFlowId` | ProcessFlowEditor | 処理フロー編集 | ✅ per-resource |
 
+ワークスペース概念 (active workspace / lockdown / recent / 切替プロトコル) は [docs/spec/workspace.md](docs/spec/workspace.md) を参照。
+
 ### Tab policy
 
 **HeaderMenu から到達できる画面と、個別リソース編集画面は、すべてタブ。**

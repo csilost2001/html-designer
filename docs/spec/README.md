@@ -31,6 +31,7 @@
 | **[schema-governance.md](schema-governance.md)** | **最重要**: グローバル定義スキーマ変更ガバナンス (AI による勝手拡張を構造的に禁止) | #511 |
 | **[sample-project-structure.md](sample-project-structure.md)** | サンプルプロジェクト構造 (v3) — 各サブディレクトリは独立した業務アプリで、規約カタログを含む成果物を個別に持つ。プロジェクト横断の単一ファイル配置は禁止 | #607 |
 | **[schema-design-principles.md](schema-design-principles.md)** | **schema を どう書くか の規範** — 命名 / 構造 / フォーマット / コード補完 / 拡張判断 / 後方互換 / テスト規約 / 既知課題 | #517 |
+| **[workspace.md](workspace.md)** | ワークスペース (project) のライフサイクル / lockdown / プロトコル / 並行制御 — 複数ワークスペース管理機能 v1 の正規仕様 | #27 / #671-#676 / #678 |
 | [schema-audit-2026-04-27.md](schema-audit-2026-04-27.md) | Schema 変更履歴監査レポート — 過去 102 コミット精査、(A) 正当 88% / (B) 不規則 2-3% / (C) 不適切 0% | #511 (Phase B-1) |
 | [schema-redesign-proposal-codex-2026-04-27.md](schema-redesign-proposal-codex-2026-04-27.md) | Codex (GPT-5.5) による schema 再設計セカンドオピニオン提案 (#517 の判断材料) | #517 |
 
