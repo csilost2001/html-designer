@@ -37,12 +37,23 @@ type Listener = () => void;
 // loading は初期 true: WS 未接続のうちはガードを発動させない。
 // 最初の loadWorkspaces() (成功 or 失敗) で false になる。WS が永続的に未接続でも
 // loading=true のままなので /workspace/select への誤強制遷移を起こさない。
+//
+// テスト環境向け: "workspace-e2e-bypass" フラグが立っている場合 loading=false で起動。
+// これにより MCP 未接続の既存 e2e テストが workspace guard をバイパスして
+// dashboard, screen-design 等に直接アクセスできる (#703 R-5)。
+//
+// 設定方法 (playwright addInitScript 内):
+//   localStorage.setItem("workspace-e2e-bypass", "true");
+const _initialLoading = typeof localStorage !== "undefined"
+  ? localStorage.getItem("workspace-e2e-bypass") !== "true"
+  : true;
+
 let _state: WorkspaceState = {
   workspaces: [],
   active: null,
   lockdown: false,
   lockdownPath: null,
-  loading: true,
+  loading: _initialLoading,
   error: null,
 };
 
@@ -71,6 +82,20 @@ let _loadChain: Promise<void> = Promise.resolve();
 /** @internal テスト専用: _loadChain を初期状態にリセットする */
 export function __resetLoadChainForTest(): void {
   _loadChain = Promise.resolve();
+}
+
+/** @internal テスト専用: _state を初期状態にリセットする (#703 R-5) */
+export function __resetStateForTest(): void {
+  _state = {
+    workspaces: [],
+    active: null,
+    lockdown: false,
+    lockdownPath: null,
+    loading: true,
+    error: null,
+  };
+  _broadcastUnsubscribe = null;
+  _listeners.clear();
 }
 
 export async function loadWorkspaces(): Promise<void> {
@@ -188,6 +213,17 @@ export function subscribeWorkspaceChanges(): () => void {
       name: string | null;
       lockdown: boolean;
     };
+
+    // Defense-in-depth: per-session フィルタ (#703 R-5 B)
+    // backend は wsId scoping で既にフィルタしているが、WS マルチプレックス環境の念のため:
+    // - 自分の active が null の場合 → hydration broadcast として受信 (初回 active 設定)
+    // - 自分の active が非 null かつ ev.path が一致しない場合 → 別 workspace のブロードキャストを無視
+    const currentActive = _state.active;
+    if (currentActive !== null && ev.path !== null && currentActive.path !== ev.path) {
+      // 別 workspace の workspace.changed broadcast → ignore
+      return;
+    }
+
     // B: payload だけで state を完成させる。loadWorkspaces() は呼ばない。
     // recent list の更新は次の明示的 loadWorkspaces() (ListView mount 等) まで遅延 — 許容範囲。
     if (ev.activeId === null || ev.path === null) {

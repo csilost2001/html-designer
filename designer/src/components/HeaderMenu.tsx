@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { clearActiveTab, getTabs, getActiveTabId } from "../store/tabStore";
+import { useWorkspacePath } from "../hooks/useWorkspacePath";
 import "../styles/headerMenu.css";
 
 type MenuItem = {
@@ -83,6 +84,7 @@ export function HeaderMenu() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { wsPath } = useWorkspacePath();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -110,13 +112,19 @@ export function HeaderMenu() {
     if (isDesignTabActive()) {
       clearActiveTab();
     }
-    navigate(route);
+    // /workspace/list は wsId なし、その他は /w/:wsId/ プレフィックス付き
+    const targetRoute = route.startsWith("/workspace/") ? route : wsPath(route);
+    navigate(targetRoute);
     setOpen(false);
   };
 
   const isActive = (item: MenuItem) => {
-    if (item.activePaths?.includes(location.pathname)) return true;
-    return item.activePrefixes?.some((p) => location.pathname.startsWith(p)) ?? false;
+    // /w/:wsId/ プレフィックス付きのパスでも一致判定するため、
+    // pathname から /w/<wsId> プレフィックスを除去して比較
+    const pathWithoutWs = location.pathname.replace(/^\/w\/[^/]+/, "");
+    const normalizedPath = pathWithoutWs || "/";
+    if (item.activePaths?.includes(normalizedPath)) return true;
+    return item.activePrefixes?.some((p) => normalizedPath.startsWith(p)) ?? false;
   };
 
   return (

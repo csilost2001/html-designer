@@ -58,6 +58,7 @@ async function setupWithScreens(page: Page, screenIds: string[]) {
 
   await page.addInitScript(
     ({ project, tabs, activeTabId }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       // タブを事前設定 — addInitScript は全ナビゲーションで実行されるため
       // ここで設定することで page.goto() をまたいでタブ状態が保持される
@@ -97,7 +98,7 @@ test.describe("タブ切り替え", () => {
   test("タブをクリックすると切り替わる", async ({ page }) => {
     await page.locator(".tabbar-tab").filter({ hasText: "画面A" }).click();
     await expect(page.locator(".tabbar-tab.active")).toContainText("画面A");
-    await expect(page).toHaveURL(`/screen/design/${SCREEN_A}`);
+    await expect(page).toHaveURL(new RegExp(`/w/[^/]+/screen/design/${SCREEN_A}`));
   });
 
   test("Ctrl+Tab で次のタブに移動する", async ({ page }) => {

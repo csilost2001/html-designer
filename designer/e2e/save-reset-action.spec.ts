@@ -56,6 +56,7 @@ const toolbarReset = ".save-reset-buttons button.srb-btn-reset";
 async function setupProcessFlowEditor(page: Page, draft: object | null = null) {
   await page.addInitScript(
     ({ project, group, groupId, tab, draft }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem(`process-flow-${groupId}`, JSON.stringify(group));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tab]));

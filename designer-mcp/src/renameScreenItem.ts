@@ -55,12 +55,12 @@ function countRefsInValue(val: unknown, screenId: string, itemId: string): numbe
   return Object.values(obj).reduce<number>((s, v) => s + countRefsInValue(v, screenId, itemId), 0);
 }
 
-export async function checkScreenItemRefs(screenId: string, itemId: string): Promise<CheckRefsResult> {
-  const ags = (await listProcessFlows()) as Array<{ id: string; name: string }>;
+export async function checkScreenItemRefs(screenId: string, itemId: string, root: string): Promise<CheckRefsResult> {
+  const ags = (await listProcessFlows(root)) as Array<{ id: string; name: string }>;
   const affected: Array<{ id: string; name: string; refCount: number }> = [];
   let totalRefs = 0;
   for (const agMeta of ags) {
-    const ag = await readProcessFlow(agMeta.id);
+    const ag = await readProcessFlow(agMeta.id, root);
     if (!ag) continue;
     const count = countRefsInValue(ag, screenId, itemId);
     if (count > 0) {
@@ -181,13 +181,14 @@ function renameInScreenValue(val: unknown, oldId: string, newId: string): { upda
 export async function updateProcessFlowRefs(
   screenId: string,
   mapping: Record<string, string>,
+  root: string,
 ): Promise<{ processFlowsUpdated: string[]; refsRenamed: number }> {
-  const ags = (await listProcessFlows()) as Array<{ id: string; name: string }>;
+  const ags = (await listProcessFlows(root)) as Array<{ id: string; name: string }>;
   const updatedAgs: string[] = [];
   let refsRenamed = 0;
 
   for (const agMeta of ags) {
-    const ag = await readProcessFlow(agMeta.id);
+    const ag = await readProcessFlow(agMeta.id, root);
     if (!ag) continue;
 
     let current = ag as unknown;
@@ -201,7 +202,7 @@ export async function updateProcessFlowRefs(
 
     if (count > 0) {
       (current as Record<string, unknown>).updatedAt = new Date().toISOString();
-      await writeProcessFlow(agMeta.id, current);
+      await writeProcessFlow(agMeta.id, current, root);
       updatedAgs.push(agMeta.id);
       refsRenamed += count;
     }
@@ -216,6 +217,7 @@ export async function renameScreenItemId(
   screenId: string,
   oldId: string,
   newId: string,
+  root: string,
 ): Promise<RenameResult> {
   const warnings: string[] = [];
 
@@ -232,7 +234,7 @@ export async function renameScreenItemId(
   }
 
   // screen-items ファイルを読み込み
-  const siFile = (await readScreenItems(screenId)) as {
+  const siFile = (await readScreenItems(screenId, root)) as {
     screenId: string;
     version: string;
     updatedAt: string;
@@ -250,30 +252,30 @@ export async function renameScreenItemId(
   // 1. screen-items JSON を更新
   siFile.items[itemIdx].id = newId;
   siFile.updatedAt = new Date().toISOString();
-  await writeScreenItems(screenId, siFile);
+  await writeScreenItems(screenId, siFile, root);
 
   // 2. 画面 HTML (GrapesJS JSON) を更新
   let screenHtmlUpdated = false;
-  const screenDoc = await readScreen(screenId);
+  const screenDoc = await readScreen(screenId, root);
   if (screenDoc) {
     const { updated, changed } = renameInScreenValue(screenDoc, oldId, newId);
     if (changed) {
-      await writeScreen(screenId, updated);
+      await writeScreen(screenId, updated, root);
       screenHtmlUpdated = true;
     }
   }
 
   // 3. 全処理フローの screenItemRef を更新
-  const ags = (await listProcessFlows()) as Array<{ id: string; name: string }>;
+  const ags = (await listProcessFlows(root)) as Array<{ id: string; name: string }>;
   const updatedAgs: string[] = [];
   let refsRenamed = 0;
   for (const agMeta of ags) {
-    const ag = await readProcessFlow(agMeta.id);
+    const ag = await readProcessFlow(agMeta.id, root);
     if (!ag) continue;
     const { updated, count } = renameRefsInValue(ag, screenId, oldId, newId);
     if (count > 0) {
       (updated as Record<string, unknown>).updatedAt = new Date().toISOString();
-      await writeProcessFlow(agMeta.id, updated);
+      await writeProcessFlow(agMeta.id, updated, root);
       updatedAgs.push(agMeta.id);
       refsRenamed += count;
     }

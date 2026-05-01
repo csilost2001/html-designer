@@ -24,17 +24,20 @@ function resetStore() {
   store.processFlows = {};
 }
 
+// #700 R-2: mocks accept `root` as ignored extra arg (signatures now require root)
 vi.mock("./projectStorage.js", () => ({
-  readScreenItems:  (id: string) => Promise.resolve(store.screenItems[id] ?? null),
-  writeScreenItems: (id: string, data: unknown) => { store.screenItems[id] = data; return Promise.resolve(); },
-  readScreen:       (id: string) => Promise.resolve(store.screens[id] ?? null),
-  writeScreen:      (id: string, data: unknown) => { store.screens[id] = data; return Promise.resolve(); },
-  listProcessFlows: () => Promise.resolve(Object.values(store.processFlows)),
-  readProcessFlow:  (id: string) => Promise.resolve(store.processFlows[id] ?? null),
-  writeProcessFlow: (id: string, data: unknown) => { store.processFlows[id] = data; return Promise.resolve(); },
+  readScreenItems:  (id: string, _root?: string) => Promise.resolve(store.screenItems[id] ?? null),
+  writeScreenItems: (id: string, data: unknown, _root?: string) => { store.screenItems[id] = data; return Promise.resolve(); },
+  readScreen:       (id: string, _root?: string) => Promise.resolve(store.screens[id] ?? null),
+  writeScreen:      (id: string, data: unknown, _root?: string) => { store.screens[id] = data; return Promise.resolve(); },
+  listProcessFlows: (_root?: string) => Promise.resolve(Object.values(store.processFlows)),
+  readProcessFlow:  (id: string, _root?: string) => Promise.resolve(store.processFlows[id] ?? null),
+  writeProcessFlow: (id: string, data: unknown, _root?: string) => { store.processFlows[id] = data; return Promise.resolve(); },
 }));
 
 import { checkScreenItemRefs, renameScreenItemId } from "./renameScreenItem.js";
+
+const TEST_ROOT = "/test-root";
 
 // ── フィクスチャ ─────────────────────────────────────────────────────────
 
@@ -95,7 +98,7 @@ beforeEach(() => resetStore());
 describe("checkScreenItemRefs", () => {
   it("ProcessFlow なし → totalRefs=0", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
-    const result = await checkScreenItemRefs(SCREEN_ID, "userName");
+    const result = await checkScreenItemRefs(SCREEN_ID, "userName", TEST_ROOT);
     expect(result.totalRefs).toBe(0);
     expect(result.affectedProcessFlows).toHaveLength(0);
   });
@@ -103,7 +106,7 @@ describe("checkScreenItemRefs", () => {
   it("1 AG に 1 参照 → 正しくカウント", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
     store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
-    const result = await checkScreenItemRefs(SCREEN_ID, "userName");
+    const result = await checkScreenItemRefs(SCREEN_ID, "userName", TEST_ROOT);
     expect(result.totalRefs).toBe(1);
     expect(result.affectedProcessFlows[0].id).toBe("ag-001");
     expect(result.affectedProcessFlows[0].refCount).toBe(1);
@@ -120,14 +123,14 @@ describe("checkScreenItemRefs", () => {
         }],
       }],
     };
-    const result = await checkScreenItemRefs(SCREEN_ID, "userName");
+    const result = await checkScreenItemRefs(SCREEN_ID, "userName", TEST_ROOT);
     expect(result.totalRefs).toBe(0);
   });
 
   it("参照していない項目 → 0", async () => {
     store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS();
     store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
-    const result = await checkScreenItemRefs(SCREEN_ID, "address");
+    const result = await checkScreenItemRefs(SCREEN_ID, "address", TEST_ROOT);
     expect(result.totalRefs).toBe(0);
   });
 });
@@ -139,38 +142,38 @@ describe("renameScreenItemId バリデーション", () => {
   beforeEach(() => { store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS(); });
 
   it("newId が空 → エラー", async () => {
-    await expect(renameScreenItemId(SCREEN_ID, "userName", "")).rejects.toThrow("newId");
+    await expect(renameScreenItemId(SCREEN_ID, "userName", "", TEST_ROOT)).rejects.toThrow("newId");
   });
 
   it("数字始まり → エラー", async () => {
-    await expect(renameScreenItemId(SCREEN_ID, "userName", "123abc")).rejects.toThrow("識別子");
+    await expect(renameScreenItemId(SCREEN_ID, "userName", "123abc", TEST_ROOT)).rejects.toThrow("識別子");
   });
 
   it("ハイフン含む → エラー", async () => {
-    await expect(renameScreenItemId(SCREEN_ID, "userName", "has-hyphen")).rejects.toThrow("識別子");
+    await expect(renameScreenItemId(SCREEN_ID, "userName", "has-hyphen", TEST_ROOT)).rejects.toThrow("識別子");
   });
 
   it("スペース含む → エラー", async () => {
-    await expect(renameScreenItemId(SCREEN_ID, "userName", "has space")).rejects.toThrow("識別子");
+    await expect(renameScreenItemId(SCREEN_ID, "userName", "has space", TEST_ROOT)).rejects.toThrow("識別子");
   });
 
   it("存在しない oldId → エラー", async () => {
-    await expect(renameScreenItemId(SCREEN_ID, "nonExistent", "newName")).rejects.toThrow("見つかりません");
+    await expect(renameScreenItemId(SCREEN_ID, "nonExistent", "newName", TEST_ROOT)).rejects.toThrow("見つかりません");
   });
 
   it("newId が既存 id と衝突 → エラー", async () => {
-    await expect(renameScreenItemId(SCREEN_ID, "userName", "password")).rejects.toThrow("既に");
+    await expect(renameScreenItemId(SCREEN_ID, "userName", "password", TEST_ROOT)).rejects.toThrow("既に");
   });
 
   it("JS 予約語 (let/const 等) → 警告付きで成功", async () => {
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "let");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "let", TEST_ROOT);
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.warnings[0]).toMatch(/予約語/);
     expect(result.screenItemsUpdated).toBe(true);
   });
 
   it("通常識別子 → 警告なし", async () => {
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.warnings).toHaveLength(0);
   });
 });
@@ -182,26 +185,26 @@ describe("renameScreenItemId 正常系", () => {
   beforeEach(() => { store.screenItems[SCREEN_ID] = BASE_SCREEN_ITEMS(); });
 
   it("screen-items の id が更新される", async () => {
-    await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     const updated = store.screenItems[SCREEN_ID] as { items: Array<{ id: string }> };
     expect(updated.items.map((i) => i.id)).toContain("loginId");
     expect(updated.items.map((i) => i.id)).not.toContain("userName");
   });
 
   it("他の項目は変更されない", async () => {
-    await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     const updated = store.screenItems[SCREEN_ID] as { items: Array<{ id: string }> };
     expect(updated.items.map((i) => i.id)).toContain("password");
   });
 
   it("screenItemsUpdated=true を返す", async () => {
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.screenItemsUpdated).toBe(true);
   });
 
   it("HTML の name/id 属性が更新される", async () => {
     store.screens[SCREEN_ID] = BASE_SCREEN_HTML();
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.screenHtmlUpdated).toBe(true);
     const html = (store.screens[SCREEN_ID] as { pages: [{ frames: [{ component: { components: string } }] }] })
       .pages[0].frames[0].component.components;
@@ -213,14 +216,14 @@ describe("renameScreenItemId 正常系", () => {
   });
 
   it("画面ファイルなし → screenHtmlUpdated=false で成功", async () => {
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.screenItemsUpdated).toBe(true);
     expect(result.screenHtmlUpdated).toBe(false);
   });
 
   it("AG の screenItemRef.itemId が更新される", async () => {
     store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.processFlowsUpdated).toContain("ag-001");
     expect(result.refsRenamed).toBe(1);
     const ag = store.processFlows["ag-001"] as {
@@ -231,7 +234,7 @@ describe("renameScreenItemId 正常系", () => {
 
   it("同一 AG 内の別項目参照は変更しない", async () => {
     store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
-    await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     const ag = store.processFlows["ag-001"] as {
       actions: [{ inputs: Array<{ screenItemRef: { itemId: string } }> }]
     };
@@ -250,20 +253,20 @@ describe("renameScreenItemId 正常系", () => {
     };
     store.processFlows["ag-other"] = otherAg;
     store.processFlows["ag-001"] = BASE_PROCESS_FLOW();
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.processFlowsUpdated).not.toContain("ag-other");
     expect((otherAg.actions[0].inputs[0].screenItemRef as { itemId: string }).itemId).toBe("userName");
   });
 
   it("AG がない場合でも正常に完了する", async () => {
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.refsRenamed).toBe(0);
     expect(result.processFlowsUpdated).toHaveLength(0);
   });
 
   it("連続リネーム (A→B → B→C) が正しく動作する", async () => {
-    await renameScreenItemId(SCREEN_ID, "userName", "loginId");
-    const result2 = await renameScreenItemId(SCREEN_ID, "loginId", "userId");
+    await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
+    const result2 = await renameScreenItemId(SCREEN_ID, "loginId", "userId", TEST_ROOT);
     expect(result2.screenItemsUpdated).toBe(true);
     const updated = store.screenItems[SCREEN_ID] as { items: Array<{ id: string }> };
     expect(updated.items.map((i) => i.id)).toContain("userId");
@@ -292,7 +295,7 @@ describe("HTML 属性置換 edge cases", () => {
         }],
       }],
     };
-    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId");
+    const result = await renameScreenItemId(SCREEN_ID, "userName", "loginId", TEST_ROOT);
     expect(result.screenHtmlUpdated).toBe(true);
     const comp = (store.screens[SCREEN_ID] as {
       pages: [{ frames: [{ component: { components: [{ attributes: { name: string; id: string } }] } }] }]
@@ -320,7 +323,7 @@ describe("HTML 属性置換 edge cases", () => {
       }],
     };
     // textInput だけリネーム、textInput1 は変わらないはず
-    await renameScreenItemId(SCREEN_ID, "textInput", "myField");
+    await renameScreenItemId(SCREEN_ID, "textInput", "myField", TEST_ROOT);
     const html = (store.screens[SCREEN_ID] as {
       pages: [{ frames: [{ component: { components: string } }] }]
     }).pages[0].frames[0].component.components;

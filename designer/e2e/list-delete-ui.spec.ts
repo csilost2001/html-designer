@@ -37,7 +37,8 @@ const dummyProject = {
 
 async function setupScreenListTable(page: Page) {
   await page.addInitScript((project) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
     localStorage.setItem("list-view-mode:screen-list", JSON.stringify("table"));
@@ -123,6 +124,7 @@ test.describe("#147 右クリックメニュー (§3.11 / §4.6 / §5.10)", () =
     // 0 件プロジェクトで .data-list-empty を明示的に右クリック (位置ずれによる偽陽性を避ける)
     const emptyProject = { ...dummyProject, screens: [] };
     await page.addInitScript((project) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.removeItem("designer-open-tabs");
       localStorage.removeItem("designer-active-tab");

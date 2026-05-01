@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type { Table, Column, BuiltinDataType, PhysicalName, DisplayName, LocalId, Maturity, SemVer } from "../../types/v3";
 import {
   DATA_TYPE_LABELS,
@@ -43,6 +44,7 @@ type TabId = "columns" | "constraints" | "indexes" | "triggers" | "comment";
 export function TableEditor() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [tab, setTab] = useState<TabId>("columns");
   const [ddlDialect, setDdlDialect] = useState<SqlDialect>("postgresql");
   const ddlOpen = window.innerWidth >= 2560;
@@ -52,7 +54,7 @@ export function TableEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate("/table/list"), [navigate]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/table/list")), [navigate, wsPath]);
 
   const sessionId = mcpBridge.getSessionId();
 
@@ -224,7 +226,7 @@ export function TableEditor() {
 
       <EditorHeader
         variant="dark"
-        backLink={{ label: "テーブル一覧", onClick: () => navigate("/table/list") }}
+        backLink={{ label: "テーブル一覧", onClick: () => navigate(wsPath("/table/list")) }}
         title={
           editingMeta && !isReadonly ? (
             <TableMetaEditor

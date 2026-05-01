@@ -71,7 +71,8 @@ const dummyProject = {
 
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
@@ -149,6 +150,7 @@ test.describe("メタバッジクリックで展開 (#236)", () => {
       ],
     };
     await page.addInitScript(({ project, group }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
       localStorage.removeItem("designer-open-tabs");

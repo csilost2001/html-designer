@@ -8,7 +8,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomBytes } from "node:crypto";
-import { requireActivePath } from "./workspaceState.js";
+import { resolveRoot } from "./projectStorage.js";
 import {
   writeScreen,
   writeTable,
@@ -105,10 +105,11 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
  * 既に draft が存在する場合は作成せず created: false を返す。
  */
 export async function createDraft(
+  clientId: string,
   type: DraftResourceType,
   id: string,
 ): Promise<{ created: boolean }> {
-  const root = requireActivePath();
+  const root = resolveRoot(clientId);
   const dp = draftPath(root, type, id);
 
   try {
@@ -135,20 +136,22 @@ export async function createDraft(
 
 /** draft ファイルを読み込む。存在しない場合は null を返す。 */
 export async function readDraft(
+  clientId: string,
   type: DraftResourceType,
   id: string,
 ): Promise<unknown | null> {
-  const root = requireActivePath();
+  const root = resolveRoot(clientId);
   return readJSON<unknown>(draftPath(root, type, id));
 }
 
 /** draft ファイルを更新する (atomic write)。draft が存在しない場合も書き込む。 */
 export async function updateDraft(
+  clientId: string,
   type: DraftResourceType,
   id: string,
   payload: unknown,
 ): Promise<void> {
-  const root = requireActivePath();
+  const root = resolveRoot(clientId);
   await ensureDraftDir(root, type);
   await atomicWrite(draftPath(root, type, id), payload);
 }
@@ -158,10 +161,11 @@ export async function updateDraft(
  * draft が存在しない場合は committed: false を返す。
  */
 export async function commitDraft(
+  clientId: string,
   type: DraftResourceType,
   id: string,
 ): Promise<{ committed: boolean }> {
-  const root = requireActivePath();
+  const root = resolveRoot(clientId);
   const dp = draftPath(root, type, id);
   const payload = await readJSON<unknown>(dp);
   if (payload === null) {
@@ -170,30 +174,30 @@ export async function commitDraft(
 
   switch (type) {
     case "screen":
-      await writeScreen(id, payload);
+      await writeScreen(id, payload, root);
       break;
     case "table":
-      await writeTable(id, payload);
+      await writeTable(id, payload, root);
       break;
     case "process-flow":
-      await writeProcessFlow(id, payload);
+      await writeProcessFlow(id, payload, root);
       break;
     case "view":
-      await writeView(id, payload);
+      await writeView(id, payload, root);
       break;
     case "view-definition":
-      await writeViewDefinition(id, payload);
+      await writeViewDefinition(id, payload, root);
       break;
     case "screen-item": {
       const siPayload = payload as { screenId?: string } | null;
       if (!siPayload || typeof siPayload.screenId !== "string" || !siPayload.screenId) {
         throw new Error("screen-item draft payload に screenId がありません");
       }
-      await writeScreenItems(siPayload.screenId, siPayload);
+      await writeScreenItems(siPayload.screenId, siPayload, root);
       break;
     }
     case "sequence":
-      await writeSequence(id, payload);
+      await writeSequence(id, payload, root);
       break;
     case "extension":
     case "convention": {
@@ -206,7 +210,7 @@ export async function commitDraft(
       break;
     }
     case "flow":
-      await writeProject(payload);
+      await writeProject(payload, root);
       break;
     default: {
       const _exhaustive: never = type;
@@ -225,10 +229,11 @@ export async function commitDraft(
 
 /** draft ファイルを削除する (本体には変更しない)。 */
 export async function discardDraft(
+  clientId: string,
   type: DraftResourceType,
   id: string,
 ): Promise<{ discarded: boolean }> {
-  const root = requireActivePath();
+  const root = resolveRoot(clientId);
   const dp = draftPath(root, type, id);
   try {
     await fs.unlink(dp);
@@ -239,8 +244,8 @@ export async function discardDraft(
 }
 
 /** draft ファイルが存在するかを返す。 */
-export async function hasDraft(type: DraftResourceType, id: string): Promise<boolean> {
-  const root = requireActivePath();
+export async function hasDraft(clientId: string, type: DraftResourceType, id: string): Promise<boolean> {
+  const root = resolveRoot(clientId);
   try {
     await fs.access(draftPath(root, type, id));
     return true;
@@ -250,8 +255,8 @@ export async function hasDraft(type: DraftResourceType, id: string): Promise<boo
 }
 
 /** 全 draft を列挙する。 */
-export async function listDrafts(): Promise<Array<{ type: DraftResourceType; id: string; mtimeMs: number }>> {
-  const root = requireActivePath();
+export async function listDrafts(clientId: string): Promise<Array<{ type: DraftResourceType; id: string; mtimeMs: number }>> {
+  const root = resolveRoot(clientId);
   const dr = draftsRoot(root);
   const result: Array<{ type: DraftResourceType; id: string; mtimeMs: number }> = [];
 

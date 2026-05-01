@@ -20,7 +20,8 @@ async function setupClipboardCapture(page: Page) {
       { id: "dashboard:main", type: "dashboard", resourceId: "main", label: "ダッシュボード", isDirty: false, isPinned: false },
     ]));
     localStorage.setItem("designer-active-tab", "dashboard:main");
-    localStorage.setItem("flow-project", JSON.stringify({
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify({
       version: 1, name: "E2E", screens: [], groups: [], edges: [], updatedAt: new Date().toISOString(),
     }));
   });

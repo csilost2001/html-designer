@@ -11,6 +11,7 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type { ProcessFlow, ProcessFlowType, Step } from "../../types/action";
 import { PROCESS_FLOW_TYPE_LABELS } from "../../types/action";
 import { MaturityBadge } from "./MaturityBadge";
@@ -66,6 +67,7 @@ interface Props {
 
 export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Props) {
   const [active, setActive] = useState<TabKey | null>(null);
+  const { wsPath } = useWorkspacePath();
   const setActiveFrom = (k: TabKey, v: boolean) => setActive(v ? k : null);
 
   const handleInfoChange = (field: string, value: string) => {
@@ -160,7 +162,7 @@ export function ActionMetaTabBar({ group, updateGroup, updateGroupSilent }: Prop
           expanded={active === "external"}
           onExpandedChange={(v) => setActiveFrom("external", v)}
         />
-        <Link className="btn btn-link btn-sm text-decoration-none" to="/extensions?tab=responseTypes" title="レスポンス型は拡張管理で編集します">
+        <Link className="btn btn-link btn-sm text-decoration-none" to={wsPath("/extensions?tab=responseTypes")} title="レスポンス型は拡張管理で編集します">
           <i className="bi bi-box-arrow-up-right me-1" />
           レスポンス型
         </Link>

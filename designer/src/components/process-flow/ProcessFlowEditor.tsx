@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
   ProcessFlow,
   ActionTrigger,
@@ -151,6 +152,7 @@ function CustomStepButton({ id, label, icon, description }: { id: string; label:
 export function ProcessFlowEditor() {
   const { processFlowId } = useParams<{ processFlowId: string }>();
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [showAddAction, setShowAddAction] = useState(false);
   // 画面項目ピッカー (#321) — Promise ベース: StructuredFieldsEditor に onPickScreenItem を渡す
@@ -184,7 +186,7 @@ export function ProcessFlowEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/process-flow/list")), [navigate, wsPath]);
 
   const handleLoaded = useCallback((g: ProcessFlow) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
@@ -750,7 +752,7 @@ export function ProcessFlowEditor() {
       <EditorHeader
         title={
           <div className="process-flow-editor-breadcrumb">
-            <Link to="/process-flow/list">処理フロー一覧</Link>
+            <Link to={wsPath("/process-flow/list")}>処理フロー一覧</Link>
             <span className="mx-2">/</span>
             <span className="fw-semibold text-dark">{group.meta?.name ?? ""}</span>
           </div>

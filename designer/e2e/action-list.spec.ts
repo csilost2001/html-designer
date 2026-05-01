@@ -45,7 +45,8 @@ const dummyProject = {
 
 async function setupActionList(page: Page) {
   await page.addInitScript(({ project, groups }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     for (const g of groups) {
       localStorage.setItem(`process-flow-${g.id}`, JSON.stringify({ ...g, actions: [] }));
     }
@@ -72,7 +73,7 @@ test.describe("処理フロー一覧", () => {
     await expect(page.locator(".filter-bar")).toBeVisible();
     // ダブルクリックで遷移
     await page.locator(".data-list-card").first().dblclick();
-    await expect(page).toHaveURL(/\/process-flow\/edit\//);
+    await expect(page).toHaveURL(/\/w\/[^/]+\/process-flow\/edit\//);
   });
 
   test("削除マークで ghost 表示、保存で確定", async ({ page }) => {

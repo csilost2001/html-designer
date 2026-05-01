@@ -7,24 +7,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listAllDrafts, clearDraft, type DraftMeta } from "../../../utils/draftStorage";
+import { useWorkspacePath } from "../../../hooks/useWorkspacePath";
 
 interface DraftView extends DraftMeta {
   kindLabel: string;
   route: string | null;
 }
 
-const KIND_META: Record<string, { label: string; route: (id: string) => string }> = {
-  table: { label: "テーブル", route: (id) => `/table/edit/${id}` },
-  action: { label: "処理フロー", route: (id) => `/process-flow/edit/${id}` },
-  flow: { label: "画面フロー", route: () => "/screen/flow" },
+const KIND_META: Record<string, { label: string; rawRoute: (id: string) => string }> = {
+  table: { label: "テーブル", rawRoute: (id) => `/table/edit/${id}` },
+  action: { label: "処理フロー", rawRoute: (id) => `/process-flow/edit/${id}` },
+  flow: { label: "画面フロー", rawRoute: () => "/screen/flow" },
 };
 
-function enrich(draft: DraftMeta): DraftView {
+function enrich(draft: DraftMeta, wsPath: (s: string) => string): DraftView {
   const meta = KIND_META[draft.kind];
   return {
     ...draft,
     kindLabel: meta?.label ?? draft.kind,
-    route: meta?.route(draft.id) ?? null,
+    route: meta ? wsPath(meta.rawRoute(draft.id)) : null,
   };
 }
 
@@ -41,11 +42,12 @@ function shortId(id: string): string {
 
 export function UnsavedDraftsPanel() {
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [drafts, setDrafts] = useState<DraftView[]>([]);
 
   const reload = useCallback(() => {
-    setDrafts(listAllDrafts().map(enrich));
-  }, []);
+    setDrafts(listAllDrafts().map((d) => enrich(d, wsPath)));
+  }, [wsPath]);
 
   useEffect(() => {
     reload();

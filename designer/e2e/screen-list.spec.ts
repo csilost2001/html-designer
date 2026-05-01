@@ -53,7 +53,8 @@ const dummyProject = {
 
 async function setupScreenList(page: Page) {
   await page.addInitScript((project) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
     localStorage.removeItem("list-view-mode:screen-list");
@@ -77,7 +78,7 @@ test.describe("画面一覧", () => {
     await setupScreenList(page);
     const card = page.locator(".data-list-card").first();
     await card.dblclick();
-    await expect(page).toHaveURL(/\/screen\/design\//);
+    await expect(page).toHaveURL(/\/w\/[^/]+\/screen\/design\//);
   });
 
   test("Delete で ghost 表示、リセットで戻る", async ({ page }) => {

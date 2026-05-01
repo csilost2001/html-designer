@@ -76,6 +76,7 @@ async function setupDesigner(
 ) {
   await page.addInitScript(
     ({ project, screenId, tab, withDraft, emptyScreen, screenData }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       // emptyScreen: GrapesJS 用の最小スクリーンデータ（ロード可能な空プロジェクト）
       // !emptyScreen: 実コンテンツ有り（component:add 発火を伴う初期ロードを再現）

@@ -28,7 +28,7 @@ import {
   type DraftResourceType,
 } from "./draftStore.js";
 import { mcpTableToSpecEntry } from "./specExport.js";
-import { initWorkspaceState, getActivePath, setActivePath, clearActive, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError } from "./workspaceState.js";
+import { initWorkspaceState, getActivePath, setActivePath, clearActive, connect as wsConnect, disconnect as wsDisconnect, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError, workspaceContextManager } from "./workspaceState.js";
 import { listWorkspaces, upsertWorkspace, removeWorkspace, findById, findByPath, setLastActive } from "./recentStore.js";
 import { autoActivateOnStartup, inspectWorkspacePath, initializeWorkspace } from "./workspaceInit.js";
 import {
@@ -86,10 +86,11 @@ await wsBridge.start();
 wsBridge.on("connected", () => console.error("[MCP] Designer connected via WebSocket"));
 wsBridge.on("disconnected", () => console.error("[MCP] Designer disconnected"));
 
-// MCPサーバーのファクトリ (#302): HTTP リクエスト毎に fresh な Server インスタンスを
+// MCPサーバーのファクトリ (#302, #700 R-2): HTTP リクエスト毎に fresh な Server インスタンスを
 // 作成することで、複数クライアントが同時接続しても互いの initialize 状態と干渉しない
 // (Server.connect(transport) は 1:1 関係、1 Server を複数 transport に share はできないため)
-function createMcpServer(): Server {
+// sessionId を受け取り、workspaceContextManager に connect して per-session active を解決する。
+function createMcpServer(sessionId: string): Server {
   const server = new Server(
     { name: "designer-mcp", version: "0.1.0" },
     { capabilities: { tools: {} } }
@@ -104,11 +105,14 @@ function createMcpServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   const argRecord = (args ?? {}) as Record<string, unknown>;
+  // MCP tool 内で resolveRoot を呼ぶために sessionId を使う (#700 R-2)
+  const mcpRoot = (): string => workspaceContextManager.requireActivePath(sessionId);
 
   // 分離済ハンドラーに委譲 (#302 後のリファクタ): 該当すれば結果を返す、無ければ下の switch へ
-  const markerResult = await handleMarkerTool(name, argRecord);
+  // #700 R-2: root と sessionId を pass-through する
+  const markerResult = await handleMarkerTool(name, argRecord, mcpRoot(), sessionId);
   if (markerResult) return markerResult;
-  const agResult = await handleProcessFlowTool(name, argRecord);
+  const agResult = await handleProcessFlowTool(name, argRecord, mcpRoot(), sessionId);
   if (agResult) return agResult;
 
   try {
@@ -245,7 +249,7 @@ function createMcpServer(): Server {
 
       case "designer__list_screens": {
         // ファイルから直接読み込み（ブラウザ不要）。ファイルがない場合はブラウザ経由
-        const fileProject = await readProject() as { screens?: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }> } | null;
+        const fileProject = await readProject(mcpRoot()) as { screens?: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }> } | null;
         let screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
         if (fileProject?.screens) {
           screens = fileProject.screens;
@@ -368,7 +372,7 @@ function createMcpServer(): Server {
           mermaid: string;
         };
         let result: FlowResult;
-        const fileData = await readProject() as FlowResult["project"] | null;
+        const fileData = await readProject(mcpRoot()) as FlowResult["project"] | null;
         if (fileData?.screens) {
           // ファイルから読んで Mermaid を生成
           const p = fileData;
@@ -483,7 +487,7 @@ function createMcpServer(): Server {
         // ファイルから直接読み込み。ファイルがない場合はブラウザ経由
         type BlockEntry = { id: string; label: string; category: string; styles?: string; hasStyles?: boolean };
         let blocks: BlockEntry[];
-        const fileBlocks = (await readCustomBlocks()) as BlockEntry[];
+        const fileBlocks = (await readCustomBlocks(mcpRoot())) as BlockEntry[];
         if (fileBlocks.length > 0) {
           blocks = fileBlocks.map((b) => ({ ...b, hasStyles: !!b.styles }));
         } else {
@@ -551,7 +555,7 @@ function createMcpServer(): Server {
       // ── テーブル設計書 ──
 
       case "designer__list_tables": {
-        const fileProject = await readProject() as { tables?: Array<{ id: string; name: string; logicalName: string; category?: string; columnCount: number; updatedAt: string }> } | null;
+        const fileProject = await readProject(mcpRoot()) as { tables?: Array<{ id: string; name: string; logicalName: string; category?: string; columnCount: number; updatedAt: string }> } | null;
         const tables = fileProject?.tables ?? [];
         if (tables.length === 0) {
           return { content: [{ type: "text", text: "テーブルはまだ定義されていません。" }] };
@@ -567,7 +571,7 @@ function createMcpServer(): Server {
         if (typeof a.tableId !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "tableId は必須です");
         }
-        const tableData = await readTable(a.tableId);
+        const tableData = await readTable(a.tableId, mcpRoot());
         if (!tableData) {
           throw new McpError(ErrorCode.InvalidParams, `テーブル ${a.tableId} が見つかりません`);
         }
@@ -592,14 +596,14 @@ function createMcpServer(): Server {
           createdAt: now,
           updatedAt: now,
         };
-        await writeTable(id, tableDef);
+        await writeTable(id, tableDef, mcpRoot());
         // project.json のテーブルメタも更新
-        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tables = (project.tables ?? []) as Array<Record<string, unknown>>;
         tables.push({ id, name: a.name, logicalName: a.logicalName, category: a.category, columnCount: 0, updatedAt: now });
         project.tables = tables;
         project.updatedAt = now;
-        await writeProject(project);
+        await writeProject(project, mcpRoot());
         return { content: [{ type: "text", text: `テーブル「${a.logicalName}」(${a.name}) を追加しました（ID: ${id}）` }] };
       }
 
@@ -610,9 +614,9 @@ function createMcpServer(): Server {
         }
         const def = a.definition as Record<string, unknown>;
         def.updatedAt = new Date().toISOString();
-        await writeTable(a.tableId, def);
+        await writeTable(a.tableId, def, mcpRoot());
         // project.json メタ更新
-        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tables = (project.tables ?? []) as Array<Record<string, unknown>>;
         const idx = tables.findIndex((t) => t.id === a.tableId);
         const columns = (def.columns ?? []) as unknown[];
@@ -620,7 +624,7 @@ function createMcpServer(): Server {
         if (idx >= 0) tables[idx] = meta; else tables.push(meta);
         project.tables = tables;
         project.updatedAt = def.updatedAt as string;
-        await writeProject(project);
+        await writeProject(project, mcpRoot());
         return { content: [{ type: "text", text: `テーブル ${a.tableId} を更新しました。` }] };
       }
 
@@ -629,25 +633,25 @@ function createMcpServer(): Server {
         if (typeof a.tableId !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "tableId は必須です");
         }
-        await deleteTableFile(a.tableId);
-        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        await deleteTableFile(a.tableId, mcpRoot());
+        const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tables = ((project.tables ?? []) as Array<Record<string, unknown>>).filter((t) => t.id !== a.tableId);
         project.tables = tables;
         project.updatedAt = new Date().toISOString();
-        await writeProject(project);
+        await writeProject(project, mcpRoot());
         return { content: [{ type: "text", text: `テーブル ${a.tableId} を削除しました。` }] };
       }
 
       case "designer__generate_ddl": {
         const a = (args ?? {}) as Record<string, unknown>;
         const dialect = (typeof a.dialect === "string" ? a.dialect : "standard") as string;
-        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tableMetas = ((project.tables ?? []) as Array<{ id: string; name: string }>);
         const tableIds = typeof a.tableId === "string" ? [a.tableId] : tableMetas.map((t) => t.id);
 
         const ddlParts: string[] = [];
         for (const tid of tableIds) {
-          const td = await readTable(tid) as Record<string, unknown> | null;
+          const td = await readTable(tid, mcpRoot()) as Record<string, unknown> | null;
           if (!td) continue;
           ddlParts.push(generateDdl(td, dialect));
         }
@@ -660,14 +664,14 @@ function createMcpServer(): Server {
       // ── ER図 ──
 
       case "designer__export_spec": {
-        const specProject = (await readProject() ?? {}) as Record<string, unknown>;
+        const specProject = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const specTableMetas = ((specProject.tables ?? []) as Array<{ id: string }>);
         const specTables: Array<Record<string, unknown>> = [];
         for (const tm of specTableMetas) {
-          const td = await readTable(tm.id);
+          const td = await readTable(tm.id, mcpRoot());
           if (td) specTables.push(td as Record<string, unknown>);
         }
-        const specErLayout = await readErLayout() as Record<string, unknown> | null;
+        const specErLayout = await readErLayout(mcpRoot()) as Record<string, unknown> | null;
 
         // Build spec
         const spec: Record<string, unknown> = {
@@ -719,14 +723,14 @@ function createMcpServer(): Server {
 
       case "designer__get_er_diagram":
       case "designer__generate_er_mermaid": {
-        const project = (await readProject() ?? {}) as Record<string, unknown>;
+        const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tableMetas = ((project.tables ?? []) as Array<{ id: string; name: string }>);
         const allTables: Array<Record<string, unknown>> = [];
         for (const tm of tableMetas) {
-          const td = await readTable(tm.id);
+          const td = await readTable(tm.id, mcpRoot());
           if (td) allTables.push(td as Record<string, unknown>);
         }
-        const erLayout = await readErLayout() as { logicalRelations?: Array<Record<string, unknown>> } | null;
+        const erLayout = await readErLayout(mcpRoot()) as { logicalRelations?: Array<Record<string, unknown>> } | null;
 
         // Derive relations from FK
         const relations: Array<{ source: string; sourceCol: string; target: string; targetCol: string; physical: boolean }> = [];
@@ -895,13 +899,13 @@ function createMcpServer(): Server {
         if (typeof a.screenId !== "string" || typeof a.oldId !== "string" || typeof a.newId !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "screenId, oldId, newId は必須です");
         }
-        const renameRes = await renameScreenItemId(a.screenId, a.oldId, a.newId);
-        wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
+        const renameRes = await renameScreenItemId(a.screenId, a.oldId, a.newId, mcpRoot());
+        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenItemsChanged", data: { screenId: a.screenId } });
         for (const agId of renameRes.processFlowsUpdated) {
-          wsBridge.broadcast("processFlowChanged", { id: agId });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "processFlowChanged", data: { id: agId } });
         }
         if (renameRes.screenHtmlUpdated) {
-          wsBridge.broadcast("screenChanged", { screenId: a.screenId });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenChanged", data: { screenId: a.screenId } });
         }
         const lines = [
           `"${a.oldId}" → "${a.newId}" のリネームが完了しました。`,
@@ -920,7 +924,7 @@ function createMcpServer(): Server {
         if (typeof a.screenId !== "string" || typeof a.itemId !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "screenId, itemId は必須です");
         }
-        const checkRes = await checkScreenItemRefs(a.screenId, a.itemId);
+        const checkRes = await checkScreenItemRefs(a.screenId, a.itemId, mcpRoot());
         if (checkRes.totalRefs === 0) {
           return { content: [{ type: "text", text: `"${a.itemId}" を参照する処理フローはありません。` }] };
         }
@@ -936,7 +940,7 @@ function createMcpServer(): Server {
         if (typeof a.screenId !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
         }
-        const ctx = await getRenameContext(a.screenId);
+        const ctx = await getRenameContext(a.screenId, mcpRoot());
         const summary = [
           `画面 ${a.screenId} の未命名項目: ${ctx.unnamedItems.length} 件 (命名済み: ${ctx.namedCount} 件)`,
         ];
@@ -966,9 +970,9 @@ function createMcpServer(): Server {
 
         if (browserResult) {
           // ブラウザ側で適用済み → process flow refs のみファイル更新
-          const { processFlowsUpdated } = await updateProcessFlowRefs(a.screenId, mapping);
+          const { processFlowsUpdated } = await updateProcessFlowRefs(a.screenId, mapping, mcpRoot());
           for (const agId of processFlowsUpdated) {
-            wsBridge.broadcast("processFlowChanged", { id: agId });
+            wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "processFlowChanged", data: { id: agId } });
           }
           // screenChanged / screenItemsChanged は broadcast しない (browser dirty、ファイルは古いまま)
 
@@ -986,16 +990,16 @@ function createMcpServer(): Server {
         }
 
         // fallback: 従来のファイル全書き
-        const result = await applyRenameMapping(a.screenId, mapping);
+        const result = await applyRenameMapping(a.screenId, mapping, mcpRoot());
 
         if (result.succeeded.length > 0) {
-          wsBridge.broadcast("screenItemsChanged", { screenId: a.screenId });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenItemsChanged", data: { screenId: a.screenId } });
           const allAgs = new Set(result.succeeded.flatMap((s) => s.processFlowsUpdated));
           for (const agId of allAgs) {
-            wsBridge.broadcast("processFlowChanged", { id: agId });
+            wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "processFlowChanged", data: { id: agId } });
           }
           if (result.succeeded.some((s) => s.screenHtmlUpdated)) {
-            wsBridge.broadcast("screenChanged", { screenId: a.screenId });
+            wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "screenChanged", data: { screenId: a.screenId } });
           }
         }
 
@@ -1015,7 +1019,7 @@ function createMcpServer(): Server {
       // ── ワークスペース管理 (#671) ─────────────────────────────────
       case "designer__workspace_list": {
         const { workspaces, lastActiveId } = await listWorkspaces();
-        const activePath = getActivePath();
+        const activePath = getActivePath(sessionId);
         const lockdown = isLockdown();
         const lockdownPath = getLockdownPath();
         const payload = {
@@ -1029,7 +1033,7 @@ function createMcpServer(): Server {
       }
 
       case "designer__workspace_status": {
-        const activePath = getActivePath();
+        const activePath = getActivePath(sessionId);
         let activeName: string | null = null;
         if (activePath) {
           const entry = await findByPath(activePath);
@@ -1089,7 +1093,7 @@ function createMcpServer(): Server {
         }
 
         try {
-          setActivePath(target);
+          setActivePath(sessionId, target);
         } catch (e) {
           if (e instanceof LockdownError) {
             throw new McpError(ErrorCode.InvalidParams, e.message);
@@ -1099,7 +1103,7 @@ function createMcpServer(): Server {
         // project.json を読んで name をキャッシュ。失敗時は basename にフォールバック
         let name = resolvedName ?? path.basename(target);
         try {
-          const proj = await readProject();
+          const proj = await readProject(mcpRoot());
           if (proj && typeof proj === "object" && proj !== null) {
             const meta = (proj as Record<string, unknown>).meta;
             if (meta && typeof meta === "object" && meta !== null) {
@@ -1110,12 +1114,13 @@ function createMcpServer(): Server {
         } catch { /* fallback to basename / init result */ }
         const entry = await upsertWorkspace(target, name);
         await setLastActive(entry.id);
-        wsBridge.broadcast("workspace.changed", {
+        // workspace.open broadcast: 同 path を active にしている session のみ受信 (#703 R-5 A-2)
+        wsBridge.broadcast({ wsId: entry.path, event: "workspace.changed", data: {
           activeId: entry.id,
           path: entry.path,
           name: entry.name,
           lockdown: isLockdown(),
-        });
+        } });
         return { content: [{ type: "text", text: `ワークスペース「${entry.name}」を開きました (${entry.path})` }] };
       }
 
@@ -1129,8 +1134,10 @@ function createMcpServer(): Server {
       }
 
       case "designer__workspace_close": {
+        // close 前に現在の path をキャプチャ (close 後は getActivePath が null になるため)
+        const closingPath = workspaceContextManager.getActivePath(sessionId);
         try {
-          clearActive();
+          clearActive(sessionId);
         } catch (e) {
           if (e instanceof LockdownError) {
             throw new McpError(ErrorCode.InvalidParams, e.message);
@@ -1138,12 +1145,13 @@ function createMcpServer(): Server {
           throw e;
         }
         await setLastActive(null);
-        wsBridge.broadcast("workspace.changed", {
+        // workspace.close broadcast: close 前の path を持つ session のみ受信 (#703 R-5 A-2)
+        wsBridge.broadcast({ wsId: closingPath, event: "workspace.changed", data: {
           activeId: null,
           path: null,
           name: null,
           lockdown: isLockdown(),
-        });
+        } });
         return { content: [{ type: "text", text: "ワークスペースを閉じました。" }] };
       }
 
@@ -1165,7 +1173,7 @@ function createMcpServer(): Server {
       // ── draft 管理 (#685) ─────────────────────────────────────────
       case "draft__read": {
         const a = argRecord as { type: DraftResourceType; id: string };
-        const payload = await readDraft(a.type, a.id);
+        const payload = await readDraft(sessionId, a.type, a.id);
         return { content: [{ type: "text", text: JSON.stringify({ payload, exists: payload !== null }, null, 2) }] };
       }
 
@@ -1177,8 +1185,8 @@ function createMcpServer(): Server {
           }
           logAuditIfDelegated("draft__update", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
-        await updateDraft(a.type, a.id, a.payload);
-        wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "updated" });
+        await updateDraft(sessionId, a.type, a.id, a.payload);
+        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "updated" } });
         return { content: [{ type: "text", text: JSON.stringify({ updated: true }) }] };
       }
 
@@ -1190,9 +1198,9 @@ function createMcpServer(): Server {
           }
           logAuditIfDelegated("draft__commit", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
-        const r = await commitDraft(a.type, a.id);
+        const r = await commitDraft(sessionId, a.type, a.id);
         if (r.committed) {
-          wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "committed" });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "committed" } });
         }
         return { content: [{ type: "text", text: JSON.stringify(r) }] };
       }
@@ -1205,21 +1213,21 @@ function createMcpServer(): Server {
           }
           logAuditIfDelegated("draft__discard", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
-        const r = await discardDraft(a.type, a.id);
+        const r = await discardDraft(sessionId, a.type, a.id);
         if (r.discarded) {
-          wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "discarded" });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "discarded" } });
         }
         return { content: [{ type: "text", text: JSON.stringify(r) }] };
       }
 
       case "draft__has": {
         const a = argRecord as { type: DraftResourceType; id: string };
-        const exists = await hasDraft(a.type, a.id);
+        const exists = await hasDraft(sessionId, a.type, a.id);
         return { content: [{ type: "text", text: JSON.stringify({ exists }) }] };
       }
 
       case "draft__list": {
-        const drafts = await listDrafts();
+        const drafts = await listDrafts(sessionId);
         return { content: [{ type: "text", text: JSON.stringify({ drafts }, null, 2) }] };
       }
 
@@ -1235,7 +1243,7 @@ function createMcpServer(): Server {
         logAuditIfDelegated("lock__acquire", resolved, a.resourceType, a.resourceId);
         try {
           const entry = lockAcquire(a.resourceType, a.resourceId, resolved.owner, resolved.actor);
-          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: resolved.actor });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: resolved.actor } });
           return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
         } catch (e) {
           if (e instanceof LockConflictError) {
@@ -1256,7 +1264,7 @@ function createMcpServer(): Server {
         logAuditIfDelegated("lock__release", resolved, a.resourceType, a.resourceId);
         try {
           const result = lockRelease(a.resourceType, a.resourceId, resolved.owner);
-          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: resolved.owner, by: resolved.actor });
+          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: resolved.owner, by: resolved.actor } });
           return { content: [{ type: "text", text: JSON.stringify(result) }] };
         } catch (e) {
           if (e instanceof LockNotHeldError) {
@@ -1269,7 +1277,7 @@ function createMcpServer(): Server {
       case "lock__forceRelease": {
         const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
         const fr = lockForceRelease(a.resourceType, a.resourceId, a.sessionId);
-        wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "force-released", ownerSessionId: fr.previousOwner, by: a.sessionId, previousOwner: fr.previousOwner });
+        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "force-released", ownerSessionId: fr.previousOwner, by: a.sessionId, previousOwner: fr.previousOwner } });
         return { content: [{ type: "text", text: JSON.stringify(fr) }] };
       }
 
@@ -1508,7 +1516,18 @@ function autoIncrementType(dt: string, dialect: string): string {
 // なので per-request コストは無視できる。
 async function main() {
   wsBridge.registerHttpHandler("/mcp", async (req, res) => {
-    const server = createMcpServer();
+    // #700 R-2: per-request sessionId を発行し workspaceContextManager に connect する。
+    // MCP は stateless (sessionIdGenerator: undefined) のため、各 HTTP request を 1 session として扱う。
+    // 初回 initialize から以降の tool/call まで同一 clientId を使うには session 管理が必要だが、
+    // stateless モードでは request 毎に fresh な server を作るため、lockdown 時は全 request が
+    // lockdownPath を解決できる (connect で lockdown path を自動設定)。
+    // non-lockdown 時は自動ActivateOnStartup で設定された global path を引き継ぐために
+    // last-active path を初期値として使う。
+    const sessionId = randomUUID();
+    // autoActivateOnStartup が設定した global active (lockdown or last-active) を引き継ぐ
+    // ために initialPath を渡す: isLockdown() → getLockdownPath()、それ以外は null (未選択)
+    wsConnect(sessionId);  // lockdown 時は initWorkspaceState() で設定済みなので connect で反映される
+    const server = createMcpServer(sessionId);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless
     });
@@ -1524,6 +1543,7 @@ async function main() {
     } finally {
       try { await transport.close(); } catch { /* ignore */ }
       try { await server.close(); } catch { /* ignore */ }
+      wsDisconnect(sessionId);  // session 終了時に context を削除
     }
   });
 

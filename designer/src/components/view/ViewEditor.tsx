@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type { View, OutputColumn, PhysicalName, Uuid, Maturity, SemVer } from "../../types/v3";
 import { loadView, saveView } from "../../store/viewStore";
 import { listTables } from "../../store/tableStore";
@@ -31,6 +32,7 @@ export function ViewEditor() {
   const { viewId: rawId } = useParams<{ viewId: string }>();
   const viewId = rawId ? decodeURIComponent(rawId) : rawId;
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
 
   const [ddlOpen, setDdlOpen] = useState(false);
   const [tableOptions, setTableOptions] = useState<TableOption[]>([]);
@@ -44,7 +46,7 @@ export function ViewEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate("/view/list"), [navigate]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/view/list")), [navigate, wsPath]);
 
   const sessionId = mcpBridge.getSessionId();
 
@@ -265,7 +267,7 @@ export function ViewEditor() {
         title={<><i className="bi bi-eye" /> ビュー編集: <code>{view.physicalName}</code></>}
         backLink={{
           label: "ビュー一覧",
-          onClick: () => navigate("/view/list"),
+          onClick: () => navigate(wsPath("/view/list")),
         } satisfies EditorHeaderBackLink}
         saveReset={isReadonly ? undefined : {
           isDirty,

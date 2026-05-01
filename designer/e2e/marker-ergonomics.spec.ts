@@ -31,7 +31,8 @@ const dummyProject = {
 
 async function setupEditor(page: Page) {
   await page.addInitScript(({ project, group }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
@@ -42,7 +43,8 @@ async function setupEditor(page: Page) {
 
 async function setupDashboard(page: Page) {
   await page.addInitScript(({ project, group }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
     const tabs = [{ id: "dashboard", type: "dashboard", pinned: true }];
     localStorage.setItem("designer-open-tabs", JSON.stringify(tabs));
@@ -111,7 +113,7 @@ test.describe("Dashboard marker summary (#261)", () => {
     await setupDashboard(page);
     const firstRecent = page.locator(".markers-summary-panel .markers-recent-list .markers-recent-btn").first();
     await firstRecent.click();
-    await expect(page).toHaveURL(/\/process-flow\/edit\//);
+    await expect(page).toHaveURL(/\/w\/[^/]+\/process-flow\/edit\//);
   });
 
   test("marker 0 件の AG は表示なし、未解決 0 件メッセージ表示", async ({ page }) => {
@@ -121,6 +123,7 @@ test.describe("Dashboard marker summary (#261)", () => {
       markers: dummyGroup.markers.map((m) => ({ ...m, resolvedAt: "2026-04-20T01:00:00Z" })),
     };
     await page.addInitScript(({ project, group }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
       const tabs = [{ id: "dashboard", type: "dashboard", pinned: true }];

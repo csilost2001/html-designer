@@ -38,6 +38,7 @@ async function setupWithTabs(page: Page, screenIds: string[], labels: Record<str
 
   await page.addInitScript(
     ({ project, tabs, activeTabId }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.setItem("designer-open-tabs", JSON.stringify(tabs));
       localStorage.setItem("designer-active-tab", activeTabId);
@@ -92,7 +93,8 @@ test.describe("isPinned の永続化", () => {
     ];
     await page.addInitScript(
       ({ project, tabs, activeTabId }) => {
-        localStorage.setItem("flow-project", JSON.stringify(project));
+        localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
         localStorage.setItem("designer-open-tabs", JSON.stringify(tabs));
         localStorage.setItem("designer-active-tab", activeTabId);
       },

@@ -14,7 +14,8 @@ const dummyProject = {
 
 async function setup(page: Page) {
   await page.addInitScript(({ project }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     localStorage.removeItem("designer-open-tabs");
     localStorage.removeItem("designer-active-tab");
     localStorage.removeItem("conventions-catalog");
@@ -155,6 +156,7 @@ test.describe("プロダクト規約タブ (#347)", () => {
   test("scope エントリを保存してリロード後も値が残る", async ({ page }) => {
     // conventions-catalog を消さずに setup — リロード後に localStorage から復元できることを検証
     await page.addInitScript(({ project }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(project));
       localStorage.removeItem("designer-open-tabs");
       localStorage.removeItem("designer-active-tab");

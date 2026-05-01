@@ -29,7 +29,8 @@ const dummyProject = {
 
 async function setupTableList(page: Page) {
   await page.addInitScript(({ project, tables }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+    localStorage.setItem("workspace-e2e-bypass", "true");
+      localStorage.setItem("flow-project", JSON.stringify(project));
     for (const t of tables) {
       localStorage.setItem(`v3-table-${t.id}`, JSON.stringify({ ...t, columns: [], indexes: [] }));
     }
@@ -64,7 +65,7 @@ test.describe("テーブル一覧 / 表示切替・検索", () => {
     await setupTableList(page);
     const card = page.locator(".data-list-card").first();
     await card.dblclick();
-    await expect(page).toHaveURL(/\/table\/edit\//);
+    await expect(page).toHaveURL(/\/w\/[^/]+\/table\/edit\//);
   });
 });
 
