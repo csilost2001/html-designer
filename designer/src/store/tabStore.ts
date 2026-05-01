@@ -24,12 +24,14 @@ export type TabType =
   | "sequence-list"      // シーケンス一覧 (#374)
   | "view-list"          // ビュー一覧 (#376)
   | "view-definition-list" // ビュー定義一覧 (#666)
+  | "workspace-list"     // ワークスペース一覧 (#673)
   | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
 
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
   "design", "table", "process-flow", "sequence", "view", "view-definition",
   "screen-flow", "screen-list", "table-list", "er", "process-flow-list",
-  "extensions", "conventions-catalog", "screen-items", "sequence-list", "view-list", "view-definition-list", "dashboard",
+  "extensions", "conventions-catalog", "screen-items", "sequence-list", "view-list", "view-definition-list",
+  "workspace-list", "dashboard",
 ]);
 
 export interface TabItem {
@@ -126,6 +128,18 @@ export function _resetForTests(): void {
 export function _reloadFromStorageForTests(): void {
   _tabs = _loadTabs();
   _activeTabId = _loadActiveId();
+}
+
+/**
+ * workspace 切替前の cleanup 用 (#671/#676 review): 永続化されたタブ一覧と
+ * activeTabId を localStorage から完全削除する。reload 直前に呼ぶ前提で、
+ * モジュール内の `_tabs` / `_activeTabId` 状態は更新しない (リロードで初期化されるため)。
+ */
+export function clearPersistedTabs(): void {
+  try {
+    localStorage.removeItem(TABS_KEY);
+    localStorage.removeItem(ACTIVE_KEY);
+  } catch { /* private browsing / quota error は無視 */ }
 }
 
 export function getTabs(): readonly TabItem[] {

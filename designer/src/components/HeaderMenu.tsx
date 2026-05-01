@@ -60,6 +60,10 @@ const MENU_ITEMS: MenuItem[] = [
     id: "view-definition-list", label: "ビュー定義一覧", icon: "bi-layout-text-window", route: "/view-definition/list",
     activePaths: ["/view-definition/list"], activePrefixes: ["/view-definition/edit/"],
   },
+  {
+    id: "workspace-list", label: "ワークスペース", icon: "bi-folder2-open", route: "/workspace/list",
+    activePaths: ["/workspace/list", "/workspace/select"],
+  },
 ];
 
 const DASHBOARD_ITEM: MenuItem = {

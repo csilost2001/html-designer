@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Routes, Route, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
 import { ScreenListView } from "./flow/ScreenListView";
@@ -16,10 +16,13 @@ import { ViewListView } from "./view/ViewListView";
 import { ViewEditor } from "./view/ViewEditor";
 import { ViewDefinitionListView } from "./view-definition/ViewDefinitionListView";
 import { ViewDefinitionEditor } from "./view-definition/ViewDefinitionEditor";
+import { WorkspaceListView } from "./workspace/WorkspaceListView";
+import { WorkspaceSelectView } from "./workspace/WorkspaceSelectView";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
 import { CommonHeader } from "./CommonHeader";
+import { mcpBridge } from "../mcp/mcpBridge";
 import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
 import { loadProcessFlow } from "../store/processFlowStore";
@@ -34,9 +37,16 @@ import {
   setActiveTab,
   closeTab,
   makeTabId,
+  clearPersistedTabs,
   type TabItem,
   type TabType,
 } from "../store/tabStore";
+import {
+  getState as getWorkspaceState,
+  subscribe as subscribeWorkspace,
+  loadWorkspaces,
+  subscribeWorkspaceChanges,
+} from "../store/workspaceStore";
 import { useTabKeyboard } from "../hooks/useTabKeyboard";
 import { ErrorBoundary } from "./common/ErrorBoundary";
 import { TabErrorFallback } from "./common/ErrorFallback";
@@ -62,6 +72,96 @@ export function AppShell() {
   const navigate = useNavigate();
   const { showError } = useErrorDialog();
   useTabKeyboard();
+
+  // ワークスペース状態管理
+  const [workspaceState, setWorkspaceState] = useState(getWorkspaceState());
+  useEffect(() => {
+    return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
+  }, []);
+
+  // AppShell が MCP 接続のライフサイクルを単一所有する (#676 review):
+  //  - mount 時に startWithoutEditor() を 1 度呼んで能動起動 (Dashboard 等で初回ランディング
+  //    した時にも bridge を必ず立ち上げる)。
+  //  - "connected" 受信で loadWorkspaces して active state を最新化。
+  //  - "disconnected" は mcpBridge 自身が RETRY_DELAY_MS の retry timer を回すので、AppShell は
+  //    何もしない (二重 reconnect で接続が在りえない遷移をするのを避けるため)。
+  //  - Designer は workspace 機能を破壊しないよう mcpBridge.stop() を呼ばない設計に変更済み
+  //    (Designer.tsx 参照)。なので AppShell が stop() の事後復帰を心配する必要は無い。
+  useEffect(() => {
+    const unsubBroadcast = subscribeWorkspaceChanges();
+    const bridge = mcpBridge as unknown as {
+      onStatusChange: (cb: (s: string) => void) => () => void;
+      startWithoutEditor: () => void;
+    };
+    const unsubStatus = bridge.onStatusChange((s) => {
+      if (s === "connected") {
+        loadWorkspaces().catch(console.error);
+      }
+    });
+    bridge.startWithoutEditor();
+    return () => { unsubBroadcast(); unsubStatus(); };
+  }, []);
+
+  // workspace.changed → ストア / 描画中 view を完全に破棄するためページ再読込。
+  // per-resource タブを閉じるだけでは singleton stores (flowStore, tableStore 等) と
+  // 現在マウント中の singleton view (DashboardView, ScreenListView 等) が旧 workspace の
+  // データを保持し、その状態から保存すると新 workspace に旧データが混入するため。
+  //
+  // 重要: 初回 hydration (起動時の自動 active 設定: store の初期 null → 復元された id) は
+  // 「切替」ではないのでリロードしない。リロード対象は prev が non-null だった場合のみ。
+  // null → non-null をリロードすると、リロード後また初期 null に戻り再 hydration → 再リロードで
+  // 無限ループになる。
+  const prevActiveWorkspaceIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const currentId = workspaceState.active?.id ?? null;
+    if (prevActiveWorkspaceIdRef.current === undefined) {
+      // 1 回目の effect 実行: 記録のみ
+      prevActiveWorkspaceIdRef.current = currentId;
+      return;
+    }
+    if (prevActiveWorkspaceIdRef.current === currentId) return;
+    if (prevActiveWorkspaceIdRef.current === null) {
+      // null → non-null: 初回 hydration (backend の auto-restore など)。
+      // 既存 store / view は new workspace のデータでまだ何も染まっていないのでリロード不要。
+      prevActiveWorkspaceIdRef.current = currentId;
+      return;
+    }
+    // non-null → 別の non-null / null: ユーザー操作による workspace 切替 / 閉じる
+    prevActiveWorkspaceIdRef.current = currentId;
+    const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition"];
+    const dirtyLabels = getTabs()
+      .filter((t) => t.isDirty && perResourceTypes.includes(t.type))
+      .map((t) => t.label);
+    if (dirtyLabels.length > 0) {
+      console.warn(`[workspace] 未保存タブを強制破棄: ${dirtyLabels.join(", ")}`);
+    }
+    // localStorage に永続化された旧 workspace のタブ / GrapesJS screen キャッシュを破棄してから reload。
+    // これを怠ると、reload 後にタブ復元 → URL sync で旧 resource ID へ navigate → 切替先 workspace に
+    // 同 ID があれば stale 表示・誤保存、無ければ dashboard fallback、というバグになる。
+    clearPersistedTabs();
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("gjs-")) localStorage.removeItem(k);
+      }
+    } catch { /* private browsing / quota error は無視 */ }
+    window.location.reload();
+  }, [workspaceState.active?.id]);
+
+  // ルーティングガード: active===null かつ /workspace/list でも /workspace/select でもない → /workspace/select へ
+  // backend オフライン時は error が立つ → ガードを停止して localStorage fallback 経路を温存する。
+  // (AGENTS.md "If WS disconnected → localStorage" の互換性確保)
+  useEffect(() => {
+    if (workspaceState.loading) return; // ロード中は判定しない
+    if (workspaceState.lockdown) return; // lockdown 時はガード不要 (常にアクティブ扱い)
+    if (workspaceState.error !== null) return; // load 失敗 (offline 等) は redirect しない
+    if (workspaceState.active === null) {
+      const excluded = ["/workspace/list", "/workspace/select"];
+      if (!excluded.includes(location.pathname)) {
+        navigate("/workspace/select", { replace: true });
+      }
+    }
+  }, [workspaceState.active, workspaceState.loading, workspaceState.lockdown, workspaceState.error, location.pathname]);
 
   // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
   useEffect(() => {
@@ -227,6 +327,9 @@ export function AppShell() {
       return;
     }
 
+    // /workspace/select はタブ対象外 (フルスクリーン選択画面)
+    if (location.pathname === "/workspace/select") return;
+
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
       { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
@@ -241,6 +344,7 @@ export function AppShell() {
       { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
       { path: "/view/list",          type: "view-list",           label: "ビュー一覧" },
       { path: "/view-definition/list", type: "view-definition-list", label: "ビュー定義一覧" },
+      { path: "/workspace/list",     type: "workspace-list",     label: "ワークスペース" },
     ];
     for (const { path, type, label } of singletonRoutes) {
       if (location.pathname === path) {
@@ -254,9 +358,18 @@ export function AppShell() {
   }, [location.pathname]);
 
   // アクティブタブ → URL 同期
+  // workspace 未選択中 (active=null) や /workspace/select 表示中は同期を停止する。
+  // localStorage に残った activeTabId が design:xxx 等を指していると、guard が
+  // /workspace/select に redirect → 直後に本 effect が /screen/design/xxx へ navigate
+  // を上書き → guard が再度 redirect、というループ / flicker を起こすため。
+  // workspace-list タブだけは select 画面からの誘導でも進入可能なので例外扱い。
   const activeTab = tabs.find((t) => t.id === activeTabId);
   useEffect(() => {
     if (!activeTab) return;
+    if (location.pathname === "/workspace/select") return;
+    if (workspaceState.active === null && !workspaceState.lockdown && activeTab.type !== "workspace-list") {
+      return;
+    }
     const expectedPath =
       activeTab.type === "design"             ? `/screen/design/${activeTab.resourceId}`
       : activeTab.type === "table"            ? `/table/edit/${activeTab.resourceId}`
@@ -275,12 +388,13 @@ export function AppShell() {
       : activeTab.type === "sequence-list"    ? "/sequence/list"
       : activeTab.type === "view-list"              ? "/view/list"
       : activeTab.type === "view-definition-list"   ? "/view-definition/list"
+      : activeTab.type === "workspace-list"         ? "/workspace/list"
       : activeTab.type === "dashboard"              ? "/"
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
       navigate(expectedPath, { replace: true });
     }
-  }, [activeTabId, activeTab?.type, activeTab?.resourceId]);
+  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname]);
 
   const designTabs = tabs.filter((t) => t.type === "design");
   const activeIsDesign = activeTab?.type === "design";
@@ -288,6 +402,30 @@ export function AppShell() {
   const handleCloseCrashedTab = (tabId: string) => {
     closeTab(tabId, true);
   };
+
+  // 初回ハイドレーション中はルートを描画しない (#676 review):
+  // workspaceState.loading=true の間に dashboard / 一覧系を描画すると、singleton stores
+  // (flowStore / tableStore 等) が WS 未接続のうちに localStorage fallback で初期化されて
+  // 旧 workspace のデータをキャッシュしてしまう。そのキャッシュは hydration 後も残り続け、
+  // その状態から保存すると active workspace に旧データが上書きされる。
+  // loading=false (= 初回 load 成功 or 失敗 or lockdown 確定) になるまで splash で遅延させる。
+  if (workspaceState.loading) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "100vh", flexDirection: "column", gap: "8px",
+        color: "var(--muted-text, #888)",
+      }}>
+        <i className="bi bi-hourglass-split" style={{ fontSize: "1.5rem" }} />
+        <p style={{ margin: 0 }}>ワークスペース情報を読み込み中...</p>
+      </div>
+    );
+  }
+
+  // /workspace/select はフルスクリーンで表示 (ヘッダー・タブバーなし)
+  if (location.pathname === "/workspace/select") {
+    return <WorkspaceSelectView />;
+  }
 
   return (
     <>
@@ -358,6 +496,7 @@ export function AppShell() {
             <Route path="/view/edit/:viewId" element={<ViewEditor />} />
             <Route path="/view-definition/list" element={<ViewDefinitionListView />} />
             <Route path="/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
+            <Route path="/workspace/list" element={<WorkspaceListView />} />
           </Routes>
         </ErrorBoundary>
       )}

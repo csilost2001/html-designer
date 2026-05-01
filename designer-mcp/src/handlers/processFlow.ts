@@ -21,7 +21,7 @@ import {
   listProcessFlows as listProcessFlowFiles,
   readProject,
   writeProject,
-  DATA_DIR,
+  dataDir,
   readExtensionsBundle,
   writeExtensionsFile,
   type ExtensionFileKind,
@@ -463,7 +463,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
 
       const outPath = path.isAbsolute(a.outputPath as string)
         ? (a.outputPath as string)
-        : path.join(DATA_DIR, a.outputPath as string);
+        : path.join(dataDir(), a.outputPath as string);
 
       const zip = new AdmZip();
       const manifest = {
@@ -495,13 +495,13 @@ export const handleProcessFlowTool: ToolHandler = async (name, args) => {
       }
       const inPath = path.isAbsolute(a.inputPath as string)
         ? (a.inputPath as string)
-        : path.join(DATA_DIR, a.inputPath as string);
+        : path.join(dataDir(), a.inputPath as string);
       const conflict = (a.conflictResolution as string | undefined) ?? "skip";
 
       const zip = new AdmZip(inPath);
       const entries = zip.getEntries().filter(e => e.entryName.startsWith("process-flows/") && e.entryName.endsWith(".json") && !e.isDirectory);
 
-      const actionsDir = path.join(DATA_DIR, "actions");
+      const actionsDir = path.join(dataDir(), "actions");
       const results: string[] = [];
 
       for (const entry of entries) {
