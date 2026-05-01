@@ -34,12 +34,15 @@ export interface WorkspaceInspectResult {
 
 type Listener = () => void;
 
+// loading は初期 true: WS 未接続のうちはガードを発動させない。
+// 最初の loadWorkspaces() (成功 or 失敗) で false になる。WS が永続的に未接続でも
+// loading=true のままなので /workspace/select への誤強制遷移を起こさない。
 let _state: WorkspaceState = {
   workspaces: [],
   active: null,
   lockdown: false,
   lockdownPath: null,
-  loading: false,
+  loading: true,
   error: null,
 };
 

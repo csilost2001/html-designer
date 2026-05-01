@@ -81,41 +81,43 @@ export function AppShell() {
   // 起動時: MCP 接続後にワークスペースをロード、ブロードキャスト購読
   useEffect(() => {
     const unsubBroadcast = subscribeWorkspaceChanges();
+    // onStatusChange は登録時に現在の status を即座にコールバックする (mcpBridge 仕様)。
+    // よって、登録後 1 回目のコールが現状を反映する。"connected" になるまで loadWorkspaces を
+    // 呼ばないことで、未接続状態での失敗 → active=null → /workspace/select 強制遷移
+    // という不正な誘導を防ぐ。loading=true 初期値 (workspaceStore) と組み合わせ、
+    // 初回 load 完了までガードを停止させる。
     const unsubStatus = (mcpBridge as unknown as { onStatusChange: (cb: (s: string) => void) => () => void }).onStatusChange((s) => {
       if (s === "connected") {
         loadWorkspaces().catch(console.error);
       }
     });
-    // 初回ロード試行
-    loadWorkspaces().catch(console.error);
     return () => { unsubBroadcast(); unsubStatus(); };
   }, []);
 
-  // workspace.changed → リソースタブをクローズ (per-resource tabs)
+  // workspace.changed → ストア / 描画中 view を完全に破棄するためページ再読込。
+  // per-resource タブを閉じるだけでは singleton stores (flowStore, tableStore 等) と
+  // 現在マウント中の singleton view (DashboardView, ScreenListView 等) が旧 workspace の
+  // データを保持し、その状態から保存すると新 workspace に旧データが混入するため。
   const prevActiveWorkspaceIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     const currentId = workspaceState.active?.id ?? null;
     if (prevActiveWorkspaceIdRef.current === undefined) {
-      // 初回: 記録のみ
+      // 初回: 記録のみ (起動時の自動 active 設定ではリロード不要)
       prevActiveWorkspaceIdRef.current = currentId;
       return;
     }
     if (prevActiveWorkspaceIdRef.current !== currentId) {
       prevActiveWorkspaceIdRef.current = currentId;
-      // ワークスペースが切り替わった: per-resource タブを全て強制クローズ
+      // dirty タブの数を確認 (再読込で全閉じになるので警告ログのみ)
       const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition"];
-      const allTabs = getTabs();
-      const dirtyTabsClosed: string[] = [];
-      for (const tab of allTabs) {
-        if (perResourceTypes.includes(tab.type)) {
-          if (tab.isDirty) dirtyTabsClosed.push(tab.label);
-          closeTab(tab.id, true);
-        }
+      const dirtyLabels = getTabs()
+        .filter((t) => t.isDirty && perResourceTypes.includes(t.type))
+        .map((t) => t.label);
+      if (dirtyLabels.length > 0) {
+        console.warn(`[workspace] 未保存タブを強制破棄: ${dirtyLabels.join(", ")}`);
       }
-      if (dirtyTabsClosed.length > 0) {
-        // 簡易通知: ブラウザ console + 将来的にはトーストへ
-        console.warn(`[workspace] 未保存タブを強制クローズ: ${dirtyTabsClosed.join(", ")}`);
-      }
+      // 全 store / 全 view を初期化するための full page reload
+      window.location.reload();
     }
   }, [workspaceState.active?.id]);
 
