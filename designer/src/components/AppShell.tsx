@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Routes, Route, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
 import { ScreenListView } from "./flow/ScreenListView";
@@ -16,10 +16,13 @@ import { ViewListView } from "./view/ViewListView";
 import { ViewEditor } from "./view/ViewEditor";
 import { ViewDefinitionListView } from "./view-definition/ViewDefinitionListView";
 import { ViewDefinitionEditor } from "./view-definition/ViewDefinitionEditor";
+import { WorkspaceListView } from "./workspace/WorkspaceListView";
+import { WorkspaceSelectView } from "./workspace/WorkspaceSelectView";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
 import { CommonHeader } from "./CommonHeader";
+import { mcpBridge } from "../mcp/mcpBridge";
 import { loadProject } from "../store/flowStore";
 import { loadTable } from "../store/tableStore";
 import { loadProcessFlow } from "../store/processFlowStore";
@@ -37,6 +40,12 @@ import {
   type TabItem,
   type TabType,
 } from "../store/tabStore";
+import {
+  getState as getWorkspaceState,
+  subscribe as subscribeWorkspace,
+  loadWorkspaces,
+  subscribeWorkspaceChanges,
+} from "../store/workspaceStore";
 import { useTabKeyboard } from "../hooks/useTabKeyboard";
 import { ErrorBoundary } from "./common/ErrorBoundary";
 import { TabErrorFallback } from "./common/ErrorFallback";
@@ -62,6 +71,65 @@ export function AppShell() {
   const navigate = useNavigate();
   const { showError } = useErrorDialog();
   useTabKeyboard();
+
+  // ワークスペース状態管理
+  const [workspaceState, setWorkspaceState] = useState(getWorkspaceState());
+  useEffect(() => {
+    return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
+  }, []);
+
+  // 起動時: MCP 接続後にワークスペースをロード、ブロードキャスト購読
+  useEffect(() => {
+    const unsubBroadcast = subscribeWorkspaceChanges();
+    const unsubStatus = (mcpBridge as unknown as { onStatusChange: (cb: (s: string) => void) => () => void }).onStatusChange((s) => {
+      if (s === "connected") {
+        loadWorkspaces().catch(console.error);
+      }
+    });
+    // 初回ロード試行
+    loadWorkspaces().catch(console.error);
+    return () => { unsubBroadcast(); unsubStatus(); };
+  }, []);
+
+  // workspace.changed → リソースタブをクローズ (per-resource tabs)
+  const prevActiveWorkspaceIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const currentId = workspaceState.active?.id ?? null;
+    if (prevActiveWorkspaceIdRef.current === undefined) {
+      // 初回: 記録のみ
+      prevActiveWorkspaceIdRef.current = currentId;
+      return;
+    }
+    if (prevActiveWorkspaceIdRef.current !== currentId) {
+      prevActiveWorkspaceIdRef.current = currentId;
+      // ワークスペースが切り替わった: per-resource タブを全て強制クローズ
+      const perResourceTypes: TabType[] = ["design", "table", "process-flow", "sequence", "view", "view-definition"];
+      const allTabs = getTabs();
+      const dirtyTabsClosed: string[] = [];
+      for (const tab of allTabs) {
+        if (perResourceTypes.includes(tab.type)) {
+          if (tab.isDirty) dirtyTabsClosed.push(tab.label);
+          closeTab(tab.id, true);
+        }
+      }
+      if (dirtyTabsClosed.length > 0) {
+        // 簡易通知: ブラウザ console + 将来的にはトーストへ
+        console.warn(`[workspace] 未保存タブを強制クローズ: ${dirtyTabsClosed.join(", ")}`);
+      }
+    }
+  }, [workspaceState.active?.id]);
+
+  // ルーティングガード: active===null かつ /workspace/list でも /workspace/select でもない → /workspace/select へ
+  useEffect(() => {
+    if (workspaceState.loading) return; // ロード中は判定しない
+    if (workspaceState.lockdown) return; // lockdown 時はガード不要 (常にアクティブ扱い)
+    if (workspaceState.active === null) {
+      const excluded = ["/workspace/list", "/workspace/select"];
+      if (!excluded.includes(location.pathname)) {
+        navigate("/workspace/select", { replace: true });
+      }
+    }
+  }, [workspaceState.active, workspaceState.loading, workspaceState.lockdown, location.pathname]);
 
   // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
   useEffect(() => {
@@ -227,6 +295,9 @@ export function AppShell() {
       return;
     }
 
+    // /workspace/select はタブ対象外 (フルスクリーン選択画面)
+    if (location.pathname === "/workspace/select") return;
+
     // シングルトンタブ: list / workspace 系は resourceId="main" で 1 インスタンスのみ
     const singletonRoutes: ReadonlyArray<{ path: string; type: TabType; label: string }> = [
       { path: "/",                   type: "dashboard",          label: "ダッシュボード" },
@@ -241,6 +312,7 @@ export function AppShell() {
       { path: "/sequence/list",      type: "sequence-list",      label: "シーケンス一覧" },
       { path: "/view/list",          type: "view-list",           label: "ビュー一覧" },
       { path: "/view-definition/list", type: "view-definition-list", label: "ビュー定義一覧" },
+      { path: "/workspace/list",     type: "workspace-list",     label: "ワークスペース" },
     ];
     for (const { path, type, label } of singletonRoutes) {
       if (location.pathname === path) {
@@ -275,6 +347,7 @@ export function AppShell() {
       : activeTab.type === "sequence-list"    ? "/sequence/list"
       : activeTab.type === "view-list"              ? "/view/list"
       : activeTab.type === "view-definition-list"   ? "/view-definition/list"
+      : activeTab.type === "workspace-list"         ? "/workspace/list"
       : activeTab.type === "dashboard"              ? "/"
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
@@ -288,6 +361,11 @@ export function AppShell() {
   const handleCloseCrashedTab = (tabId: string) => {
     closeTab(tabId, true);
   };
+
+  // /workspace/select はフルスクリーンで表示 (ヘッダー・タブバーなし)
+  if (location.pathname === "/workspace/select") {
+    return <WorkspaceSelectView />;
+  }
 
   return (
     <>
@@ -358,6 +436,7 @@ export function AppShell() {
             <Route path="/view/edit/:viewId" element={<ViewEditor />} />
             <Route path="/view-definition/list" element={<ViewDefinitionListView />} />
             <Route path="/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
+            <Route path="/workspace/list" element={<WorkspaceListView />} />
           </Routes>
         </ErrorBoundary>
       )}

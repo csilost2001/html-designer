@@ -24,12 +24,14 @@ export type TabType =
   | "sequence-list"      // シーケンス一覧 (#374)
   | "view-list"          // ビュー一覧 (#376)
   | "view-definition-list" // ビュー定義一覧 (#666)
+  | "workspace-list"     // ワークスペース一覧 (#673)
   | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
 
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
   "design", "table", "process-flow", "sequence", "view", "view-definition",
   "screen-flow", "screen-list", "table-list", "er", "process-flow-list",
-  "extensions", "conventions-catalog", "screen-items", "sequence-list", "view-list", "view-definition-list", "dashboard",
+  "extensions", "conventions-catalog", "screen-items", "sequence-list", "view-list", "view-definition-list",
+  "workspace-list", "dashboard",
 ]);
 
 export interface TabItem {
