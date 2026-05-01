@@ -37,6 +37,7 @@ import {
   setActiveTab,
   closeTab,
   makeTabId,
+  clearPersistedTabs,
   type TabItem,
   type TabType,
 } from "../store/tabStore";
@@ -137,6 +138,16 @@ export function AppShell() {
     if (dirtyLabels.length > 0) {
       console.warn(`[workspace] 未保存タブを強制破棄: ${dirtyLabels.join(", ")}`);
     }
+    // localStorage に永続化された旧 workspace のタブ / GrapesJS screen キャッシュを破棄してから reload。
+    // これを怠ると、reload 後にタブ復元 → URL sync で旧 resource ID へ navigate → 切替先 workspace に
+    // 同 ID があれば stale 表示・誤保存、無ければ dashboard fallback、というバグになる。
+    clearPersistedTabs();
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("gjs-")) localStorage.removeItem(k);
+      }
+    } catch { /* private browsing / quota error は無視 */ }
     window.location.reload();
   }, [workspaceState.active?.id]);
 

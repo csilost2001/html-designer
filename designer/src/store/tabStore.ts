@@ -130,6 +130,18 @@ export function _reloadFromStorageForTests(): void {
   _activeTabId = _loadActiveId();
 }
 
+/**
+ * workspace 切替前の cleanup 用 (#671/#676 review): 永続化されたタブ一覧と
+ * activeTabId を localStorage から完全削除する。reload 直前に呼ぶ前提で、
+ * モジュール内の `_tabs` / `_activeTabId` 状態は更新しない (リロードで初期化されるため)。
+ */
+export function clearPersistedTabs(): void {
+  try {
+    localStorage.removeItem(TABS_KEY);
+    localStorage.removeItem(ACTIVE_KEY);
+  } catch { /* private browsing / quota error は無視 */ }
+}
+
 export function getTabs(): readonly TabItem[] {
   return _tabs;
 }
