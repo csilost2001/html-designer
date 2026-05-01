@@ -1,15 +1,23 @@
 /**
  * recentStore 単体テスト (#671)
  *
- * RECENT_FILE は ~/.designer/recent-workspaces.json に固定されているため、
- * テストでは tmp dir を HOME として被せる手間を避け、テスト前後で実ファイルを
- * 退避 / 復元する戦略をとる。
+ * env DESIGNER_RECENT_FILE で永続化先を tmp に振り替えてテストする。
+ * 実 user の ~/.designer/recent-workspaces.json には一切触れない。
  */
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, beforeAll } from "vitest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
+
+const TMP_DIR = path.join(os.tmpdir(), `designer-recent-test-${process.pid}-${Date.now()}`);
+const TMP_FILE = path.join(TMP_DIR, "recent-workspaces.json");
+const ORIGINAL_ENV = process.env.DESIGNER_RECENT_FILE;
+
+// 環境変数を設定してから recentStore を import (環境変数は recentStore 内で関数経由で
+// 都度読まれる仕様にしてあるため、import 順は本来問わないが、明示性のため top で設定)。
+process.env.DESIGNER_RECENT_FILE = TMP_FILE;
+
+const {
   upsertWorkspace,
   removeWorkspace,
   findById,
@@ -18,42 +26,29 @@ import {
   setLastActive,
   readRecent,
   _internals,
-} from "./recentStore.js";
+} = await import("./recentStore.js");
 
-const RECENT_FILE = _internals.RECENT_FILE;
-const BACKUP = `${RECENT_FILE}.test-backup-${Date.now()}`;
-
-async function backupExistingFile(): Promise<void> {
-  try {
-    await fs.copyFile(RECENT_FILE, BACKUP);
-  } catch {
-    /* file does not exist, no backup needed */
-  }
-}
-
-async function restoreExistingFile(): Promise<void> {
-  try {
-    await fs.copyFile(BACKUP, RECENT_FILE);
-    await fs.unlink(BACKUP);
-  } catch {
-    try { await fs.unlink(RECENT_FILE); } catch { /* ignore */ }
-  }
-}
-
-async function clearFile(): Promise<void> {
-  try {
-    await fs.unlink(RECENT_FILE);
-  } catch { /* not found is OK */ }
-}
-
-await backupExistingFile();
+beforeAll(async () => {
+  await fs.mkdir(TMP_DIR, { recursive: true });
+});
 
 beforeEach(async () => {
-  await clearFile();
+  // 各テスト前に tmp file をクリア
+  try {
+    await fs.unlink(TMP_FILE);
+  } catch { /* not found is OK */ }
 });
 
 afterAll(async () => {
-  await restoreExistingFile();
+  // tmp ディレクトリ全削除 + env 復元
+  try {
+    await fs.rm(TMP_DIR, { recursive: true, force: true });
+  } catch { /* ignore */ }
+  if (ORIGINAL_ENV !== undefined) {
+    process.env.DESIGNER_RECENT_FILE = ORIGINAL_ENV;
+  } else {
+    delete process.env.DESIGNER_RECENT_FILE;
+  }
 });
 
 describe("recentStore", () => {
@@ -130,7 +125,19 @@ describe("recentStore", () => {
     expect(lastActiveId).toBe(e1.id);
   });
 
-  it("RECENT_FILE は ~/.designer/recent-workspaces.json", () => {
-    expect(RECENT_FILE).toBe(path.join(os.homedir(), ".designer", "recent-workspaces.json"));
+  it("recentFile() は env DESIGNER_RECENT_FILE を尊重 (現在値が TMP_FILE)", () => {
+    expect(_internals.recentFile()).toBe(path.resolve(TMP_FILE));
+  });
+
+  it("env 未設定時のデフォルトは ~/.designer/recent-workspaces.json", () => {
+    const original = process.env.DESIGNER_RECENT_FILE;
+    delete process.env.DESIGNER_RECENT_FILE;
+    try {
+      expect(_internals.recentFile()).toBe(
+        path.join(os.homedir(), ".designer", "recent-workspaces.json"),
+      );
+    } finally {
+      if (original !== undefined) process.env.DESIGNER_RECENT_FILE = original;
+    }
   });
 });

@@ -204,6 +204,9 @@ export type AutoActivateResult =
  *
  * 戻り値は呼び出し側 (index.ts) が console log 出力する用途。
  * broadcast はしない (この時点で WS クライアントは未接続)。
+ *
+ * lastActiveId 復元時は inspectWorkspacePath で ready 確認する (project.json が
+ * 削除・移動済みの stale エントリで起動しないようにする)。
  */
 export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
   if (isLockdown()) {
@@ -213,11 +216,13 @@ export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
   if (recent.lastActiveId) {
     const entry = await findById(recent.lastActiveId);
     if (entry) {
-      // path が実在するか再確認 (ユーザーがフォルダを移動・削除している可能性)
-      if (await pathExists(entry.path)) {
+      const inspect = await inspectWorkspacePath(entry.path);
+      if (inspect.status === "ready") {
         setActivePath(entry.path);
         return { status: "restored", entry };
       }
+      // フォルダが消えた / project.json が無い: stale エントリなのでスキップ。
+      // recent からの除去はしない (UI 側でユーザーが「リストから外す」できる前提)。
     }
   }
   const legacy = await tryAutoRegisterLegacyData();

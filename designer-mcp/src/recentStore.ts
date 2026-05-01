@@ -36,8 +36,21 @@ type RecentFile = {
 };
 
 const SCHEMA_TAG = "designer-recent-workspaces-v1";
-const RECENT_DIR = path.join(os.homedir(), ".designer");
-const RECENT_FILE = path.join(RECENT_DIR, "recent-workspaces.json");
+
+/**
+ * 永続化先の解決。env DESIGNER_RECENT_FILE で上書き可能 (テスト / VS Code 拡張等の
+ * sandbox 用途)。未指定なら ~/.designer/recent-workspaces.json。
+ * 関数化することで、テスト中の vi.stubEnv / 直接代入が即座に反映される。
+ */
+function recentFile(): string {
+  const override = process.env.DESIGNER_RECENT_FILE;
+  if (override && override.trim().length > 0) return path.resolve(override);
+  return path.join(os.homedir(), ".designer", "recent-workspaces.json");
+}
+
+function recentDir(): string {
+  return path.dirname(recentFile());
+}
 
 function emptyFile(): RecentFile {
   return { $schema: SCHEMA_TAG, version: 1, workspaces: [], lastActiveId: null };
@@ -61,7 +74,7 @@ function isRecentFile(value: unknown): value is RecentFile {
 
 export async function readRecent(): Promise<RecentFile> {
   try {
-    const raw = await fs.readFile(RECENT_FILE, "utf-8");
+    const raw = await fs.readFile(recentFile(), "utf-8");
     const parsed = JSON.parse(raw);
     if (isRecentFile(parsed)) return parsed;
   } catch {
@@ -71,8 +84,8 @@ export async function readRecent(): Promise<RecentFile> {
 }
 
 async function writeRecent(file: RecentFile): Promise<void> {
-  await fs.mkdir(RECENT_DIR, { recursive: true });
-  await fs.writeFile(RECENT_FILE, JSON.stringify(file, null, 2), "utf-8");
+  await fs.mkdir(recentDir(), { recursive: true });
+  await fs.writeFile(recentFile(), JSON.stringify(file, null, 2), "utf-8");
 }
 
 function normalizePath(p: string): string {
@@ -142,8 +155,8 @@ export async function listWorkspaces(): Promise<{
 
 /** test-only */
 export const _internals = {
-  RECENT_FILE,
-  RECENT_DIR,
+  recentFile,
+  recentDir,
   emptyFile,
   isRecentFile,
 };
