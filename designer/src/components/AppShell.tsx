@@ -133,16 +133,19 @@ export function AppShell() {
   }, [workspaceState.active?.id]);
 
   // ルーティングガード: active===null かつ /workspace/list でも /workspace/select でもない → /workspace/select へ
+  // backend オフライン時は error が立つ → ガードを停止して localStorage fallback 経路を温存する。
+  // (AGENTS.md "If WS disconnected → localStorage" の互換性確保)
   useEffect(() => {
     if (workspaceState.loading) return; // ロード中は判定しない
     if (workspaceState.lockdown) return; // lockdown 時はガード不要 (常にアクティブ扱い)
+    if (workspaceState.error !== null) return; // load 失敗 (offline 等) は redirect しない
     if (workspaceState.active === null) {
       const excluded = ["/workspace/list", "/workspace/select"];
       if (!excluded.includes(location.pathname)) {
         navigate("/workspace/select", { replace: true });
       }
     }
-  }, [workspaceState.active, workspaceState.loading, workspaceState.lockdown, location.pathname]);
+  }, [workspaceState.active, workspaceState.loading, workspaceState.lockdown, workspaceState.error, location.pathname]);
 
   // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
   useEffect(() => {

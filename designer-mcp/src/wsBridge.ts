@@ -736,6 +736,18 @@ class WsBridge extends EventEmitter {
               respondError(`ワークスペース初期化失敗: ${e instanceof Error ? e.message : String(e)}`);
               break;
             }
+          } else {
+            // init=false 時: stale recent エントリ / typo パスを active 化して fs を破壊しないよう、
+            // open 前に inspect で ready 状態を確認する (見つからない / project.json 無しは reject)
+            const inspect = await inspectWorkspacePath(resolved);
+            if (inspect.status !== "ready") {
+              respondError(
+                inspect.status === "notFound"
+                  ? `フォルダが見つかりません: ${resolved}`
+                  : `ワークスペースが初期化されていません (project.json が見つかりません): ${resolved}。init=true で初期化してください。`,
+              );
+              break;
+            }
           }
           try {
             setActiveWorkspacePath(resolved);

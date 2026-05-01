@@ -1041,6 +1041,8 @@ function createMcpServer(): Server {
         if (!target) throw new McpError(ErrorCode.InvalidParams, "path 解決に失敗しました");
 
         // init=true のとき: フォルダ作成 + project.json 初期化を行ってから open する (#672)
+        // init=false のとき: stale recent / typo path を active 化して fs を破壊しないよう、
+        // open 前に inspect で ready 状態を確認 (notFound / needsInit は reject)
         let resolvedName: string | null = null;
         if (initFlag) {
           if (isLockdown()) {
@@ -1053,6 +1055,16 @@ function createMcpServer(): Server {
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             throw new McpError(ErrorCode.InternalError, `ワークスペース初期化失敗: ${msg}`);
+          }
+        } else {
+          const inspect = await inspectWorkspacePath(target);
+          if (inspect.status !== "ready") {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              inspect.status === "notFound"
+                ? `フォルダが見つかりません: ${target}`
+                : `ワークスペースが初期化されていません (project.json なし): ${target}。init=true で初期化してください。`,
+            );
           }
         }
 

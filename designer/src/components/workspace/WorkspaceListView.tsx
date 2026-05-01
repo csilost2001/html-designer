@@ -196,16 +196,24 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
         {status === "notFound" && (
           <>
             <div style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}>
-              <i className="bi bi-x-circle" /> フォルダが見つかりません。パスを確認してください。
+              <i className="bi bi-x-circle" /> フォルダが見つかりません。パスを確認するか、このパスに新規作成できます。
             </div>
             <div className="tbl-modal-btns">
-              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>閉じる</button>
+              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
               <button
-                className="tbl-btn tbl-btn-primary"
+                className="tbl-btn tbl-btn-ghost"
                 onClick={handleInspect}
                 disabled={!path.trim()}
               >
                 <i className="bi bi-arrow-clockwise" /> 再確認
+              </button>
+              <button
+                className="tbl-btn tbl-btn-primary"
+                onClick={handleInit}
+                disabled={processing || !path.trim()}
+                title="このパスにフォルダを作成し、project.json を初期化します"
+              >
+                {processing ? "作成中..." : "フォルダを作成して初期化"}
               </button>
             </div>
           </>
