@@ -6,7 +6,8 @@ export type EditMode =
   | { kind: "readonly" }
   | { kind: "editing" }
   | { kind: "locked-by-other"; ownerSessionId: string; ownerLabel?: string }
-  | { kind: "force-released-pending"; previousDraftExists: boolean };
+  | { kind: "force-released-pending"; previousDraftExists: boolean }
+  | { kind: "after-force-unlock"; previousOwner: string };
 
 export interface UseEditSessionOptions {
   resourceType: DraftResourceType;
@@ -24,6 +25,7 @@ export interface UseEditSessionResult {
     discard: () => Promise<void>;
     forceReleaseOther: () => Promise<void>;
     handleForcedOut: (choice: "adopt" | "discard" | "continue") => Promise<void>;
+    handleAfterForceUnlock: (choice: "adopt" | "discard" | "continue") => Promise<void>;
     refreshLockState: () => Promise<void>;
   };
 }
@@ -60,6 +62,9 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
       setError(e instanceof Error ? e : new Error(String(e)));
     }
   }, [resourceType, resourceId, sessionId]);
+
+  const refreshLockStateRef = useRef(refreshLockState);
+  refreshLockStateRef.current = refreshLockState;
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +136,11 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
 
       if (d.op === "force-released") {
         if (d.previousOwner === sessionId) {
+          // 自分が強制解除を受けた側 (evicted)
           setMode({ kind: "force-released-pending", previousDraftExists: true });
+        } else if (d.by === sessionId) {
+          // 自分が強制解除を実行した側 (forcer)
+          setMode({ kind: "after-force-unlock", previousOwner: d.previousOwner ?? d.ownerSessionId });
         } else {
           setMode({ kind: "readonly" });
         }
@@ -147,6 +156,12 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
       };
 
       if (d.type !== resourceType || d.id !== resourceId) return;
+      // 自分が editing 中に他セッションが同じリソースの draft を更新した場合
+      // (通常発生しないが、競合検出のため lock state を再取得してログ出力する)
+      if (modeRef.current.kind === "editing") {
+        console.warn(`[useEditSession] draft.changed received for ${resourceType}/${resourceId} while editing — refreshing lock state`);
+        refreshLockStateRef.current().catch(console.error);
+      }
     });
 
     return () => {
@@ -209,7 +224,25 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
         await mcpBridge.acquireLock(resourceType, resourceId, sessionId);
         setMode({ kind: "editing" });
       } else {
+        // adopt: draft はそのまま保持し readonly に戻る (解除者に引き渡す)
         setMode({ kind: "readonly" });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+    }
+  }, [resourceType, resourceId, sessionId]);
+
+  const handleAfterForceUnlock = useCallback(async (choice: "adopt" | "discard" | "continue") => {
+    setError(null);
+    try {
+      if (choice === "discard") {
+        // 元の draft を削除して readonly に戻る
+        await mcpBridge.discardDraft(resourceType, resourceId);
+        setMode({ kind: "readonly" });
+      } else if (choice === "adopt" || choice === "continue") {
+        // 元の draft をそのまま自分のものとして lock を取得し editing へ
+        await mcpBridge.acquireLock(resourceType, resourceId, sessionId);
+        setMode({ kind: "editing" });
       }
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
@@ -226,6 +259,7 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
       discard,
       forceReleaseOther,
       handleForcedOut,
+      handleAfterForceUnlock,
       refreshLockState,
     },
   };

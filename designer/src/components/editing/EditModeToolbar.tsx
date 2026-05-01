@@ -104,5 +104,16 @@ export function EditModeToolbar({
     );
   }
 
+  if (mode.kind === "after-force-unlock") {
+    return (
+      <div className="edit-mode-toolbar edit-mode-toolbar--after-force-unlock">
+        <span className="edit-mode-alert" data-testid="edit-mode-after-force-unlock-notice">
+          <i className="bi bi-unlock-fill me-1" />
+          強制解除完了 — 引継ぎを選択してください
+        </span>
+      </div>
+    );
+  }
+
   return null;
 }

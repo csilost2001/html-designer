@@ -10,7 +10,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { generateUUID } from "../src/utils/uuid";
 
 const TABLE_ID = `tbl-e2e-edit-mode-${Date.now()}`;
 const PF_ID = `pf-e2e-edit-mode-${Date.now()}`;

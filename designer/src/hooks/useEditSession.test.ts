@@ -220,6 +220,76 @@ describe("useEditSession", () => {
     expect(result.current.mode.kind).toBe("readonly");
   });
 
+  it("broadcast lock.changed force-released: 自分が解除者 → after-force-unlock", async () => {
+    const { result } = renderHook(() => useEditSession(OPTS));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await Promise.resolve(); });
+
+    act(() => {
+      fireBroadcast("lock.changed", {
+        resourceType: "table",
+        resourceId: "tbl-001",
+        op: "force-released",
+        ownerSessionId: "other-session",
+        by: SESSION_ID,
+        previousOwner: "other-session",
+      });
+    });
+
+    expect(result.current.mode.kind).toBe("after-force-unlock");
+    if (result.current.mode.kind === "after-force-unlock") {
+      expect(result.current.mode.previousOwner).toBe("other-session");
+    }
+  });
+
+  it("handleAfterForceUnlock adopt: lock 取得して editing へ", async () => {
+    const { result } = renderHook(() => useEditSession(OPTS));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await Promise.resolve(); });
+
+    act(() => {
+      fireBroadcast("lock.changed", {
+        resourceType: "table",
+        resourceId: "tbl-001",
+        op: "force-released",
+        ownerSessionId: "other-session",
+        by: SESSION_ID,
+        previousOwner: "other-session",
+      });
+    });
+
+    await act(async () => {
+      await result.current.actions.handleAfterForceUnlock("adopt");
+    });
+
+    expect(mcpBridge.acquireLock).toHaveBeenCalledWith("table", "tbl-001", SESSION_ID);
+    expect(result.current.mode.kind).toBe("editing");
+  });
+
+  it("handleAfterForceUnlock discard: draft 削除して readonly へ", async () => {
+    const { result } = renderHook(() => useEditSession(OPTS));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await Promise.resolve(); });
+
+    act(() => {
+      fireBroadcast("lock.changed", {
+        resourceType: "table",
+        resourceId: "tbl-001",
+        op: "force-released",
+        ownerSessionId: "other-session",
+        by: SESSION_ID,
+        previousOwner: "other-session",
+      });
+    });
+
+    await act(async () => {
+      await result.current.actions.handleAfterForceUnlock("discard");
+    });
+
+    expect(mcpBridge.discardDraft).toHaveBeenCalledWith("table", "tbl-001");
+    expect(result.current.mode.kind).toBe("readonly");
+  });
+
   it("broadcast の resourceType / resourceId が異なる場合は無視", async () => {
     const { result } = renderHook(() => useEditSession(OPTS));
     await act(async () => { await Promise.resolve(); });

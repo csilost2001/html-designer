@@ -32,7 +32,7 @@ import { IndexesTab } from "./IndexesTab";
 import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
 import { renumber } from "../../utils/listOrder";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
-import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog } from "../editing/ConfirmDialogs";
+import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
 import "../../styles/table.css";
 import "../../styles/editMode.css";
 
@@ -79,6 +79,9 @@ export function TableEditor() {
 
   const isReadonly = mode.kind !== "editing";
 
+  const tableRef = useRef<Table | null>(null);
+  useEffect(() => { tableRef.current = table ?? null; }, [table]);
+
   const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateWithDraft = useCallback((fn: (t: Table) => void) => {
@@ -86,8 +89,8 @@ export function TableEditor() {
     update(fn);
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
-      if (!tableId) return;
-      mcpBridge.updateDraft("table", tableId, undefined).catch(console.error);
+      if (!tableId || !tableRef.current) return;
+      mcpBridge.updateDraft("table", tableId, tableRef.current).catch(console.error);
     }, 300);
   }, [isReadonly, update, tableId]);
 
@@ -154,6 +157,13 @@ export function TableEditor() {
         <ForcedOutChoiceDialog
           previousDraftExists={mode.previousDraftExists}
           onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
         />
       )}
 

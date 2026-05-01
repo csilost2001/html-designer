@@ -126,11 +126,46 @@ export function ForceReleaseConfirmDialog({
   );
 }
 
+export type ForceUnlockChoice = "adopt" | "discard" | "continue";
 export type ForcedOutChoice = "adopt" | "discard" | "continue";
 
 export interface ForcedOutChoiceDialogProps {
   previousDraftExists: boolean;
   onChoice: (choice: ForcedOutChoice) => void;
+}
+
+export interface AfterForceUnlockChoiceDialogProps {
+  previousOwner: string;
+  onChoice: (choice: ForceUnlockChoice) => void;
+}
+
+export function AfterForceUnlockChoiceDialog({ previousOwner, onChoice }: AfterForceUnlockChoiceDialogProps) {
+  return (
+    <SimpleModal title="強制解除完了 — 引継ぎ選択" onClose={() => onChoice("discard")}>
+      <p>
+        <strong>{previousOwner}</strong> の編集ロックを強制解除しました。
+        元の draft が保持されています。どうしますか？
+      </p>
+      <div className="edit-mode-modal-footer">
+        <button
+          type="button"
+          className="btn btn-outline-danger btn-sm"
+          onClick={() => onChoice("discard")}
+          data-testid="after-force-unlock-discard"
+        >
+          破棄する
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline-primary btn-sm"
+          onClick={() => onChoice("adopt")}
+          data-testid="after-force-unlock-adopt"
+        >
+          採用して編集継続
+        </button>
+      </div>
+    </SimpleModal>
+  );
 }
 
 export function ForcedOutChoiceDialog({ previousDraftExists, onChoice }: ForcedOutChoiceDialogProps) {

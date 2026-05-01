@@ -65,7 +65,7 @@ import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredF
 import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { EditorHeader } from "../common/EditorHeader";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
-import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog } from "../editing/ConfirmDialogs";
+import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
 import "../../styles/editMode.css";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/processFlow.css";
@@ -181,7 +181,7 @@ export function ProcessFlowEditor() {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
 
-    const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
+  const handleNotFound = useCallback(() => navigate("/process-flow/list"), [navigate]);
 
   const handleLoaded = useCallback((g: ProcessFlow) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
@@ -267,6 +267,28 @@ export function ProcessFlowEditor() {
     return () => mcpBridge.setProcessFlowHandler(processFlowId, null);
   }, [processFlowId, updateGroup]);
 
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleDraftUpdate = useCallback(() => {
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!processFlowId || !groupRef.current) return;
+      mcpBridge.updateDraft("process-flow", processFlowId, groupRef.current).catch(console.error);
+    }, 300);
+  }, [processFlowId]);
+
+  const updateGroupWithDraft = useCallback((fn: (g: ProcessFlow) => void) => {
+    if (isReadonly) return;
+    updateGroup(fn);
+    scheduleDraftUpdate();
+  }, [isReadonly, updateGroup, scheduleDraftUpdate]);
+
+  const updateGroupSilentWithDraft = useCallback((fn: (g: ProcessFlow) => void) => {
+    if (isReadonly) return;
+    updateGroupSilent(fn);
+    scheduleDraftUpdate();
+  }, [isReadonly, updateGroupSilent, scheduleDraftUpdate]);
+
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
     await editActions.discard();
@@ -327,7 +349,7 @@ export function ProcessFlowEditor() {
   const handleAddAction = () => {
     const name = newActionName.trim();
     if (!name || !group) return;
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = addAction(g, name, newActionTrigger);
       setActiveActionId(act.id);
     });
@@ -338,7 +360,7 @@ export function ProcessFlowEditor() {
 
   const handleDeleteAction = (actionId: string) => {
     if (!confirm("このアクションを削除しますか？")) return;
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       removeAction(g, actionId);
       if (activeActionId === actionId) {
         setActiveActionId(g.actions.length > 0 ? g.actions[0].id : null);
@@ -348,7 +370,7 @@ export function ProcessFlowEditor() {
 
   const handleAddStep = (type: StepType, insertIndex?: number) => {
     if (!activeAction) return;
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (act) {
         const step = addStep(act, type, insertIndex);
@@ -360,7 +382,7 @@ export function ProcessFlowEditor() {
   const handleAddTemplate = (templateId: string) => {
     const tpl = STEP_TEMPLATES.find((t) => t.id === templateId);
     if (!tpl || !activeAction) return;
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       for (const stepDef of tpl.steps) {
@@ -377,7 +399,7 @@ export function ProcessFlowEditor() {
   }, []);
 
   const handleDeleteStep = (stepId: string) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       clearJumpReferences(act.steps, stepId);
@@ -387,7 +409,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleIndentStep = (stepId: string) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const idx = act.steps.findIndex((s) => s.id === stepId);
@@ -401,7 +423,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleOutdentSubStep = (parentStepId: string, subStepId: string) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const parentIdx = act.steps.findIndex((s) => s.id === parentStepId);
@@ -416,7 +438,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleMoveStep = (fromIndex: number, toIndex: number) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (act) moveStep(act, fromIndex, toIndex);
     });
@@ -444,7 +466,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleStepChange = (stepId: string, changes: Partial<Step>) => {
-    updateGroupSilent((g) => {
+    updateGroupSilentWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const step = act.steps.find((s) => s.id === stepId);
@@ -453,7 +475,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleAddSubStep = (parentStepId: string, type: StepType) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const parent = act.steps.find((s) => s.id === parentStepId);
@@ -463,7 +485,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleDuplicateStep = (stepId: string) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const idx = act.steps.findIndex((s) => s.id === stepId);
@@ -513,7 +535,7 @@ export function ProcessFlowEditor() {
     if (selectedIds.size === 0 || !activeAction) return;
     const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
     setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "cut" });
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       for (const id of selectedIds) {
@@ -541,7 +563,7 @@ export function ProcessFlowEditor() {
       return activeAction.steps.length;
     })();
 
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const newSteps = clipboard.steps.map((s) => {
@@ -594,7 +616,7 @@ export function ProcessFlowEditor() {
       "描画マーカーへの指示を入力:\n(例: ここの SQL を affectedRowsCheck で補強して)",
     );
     if (!body || !body.trim()) return;
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       // anchor があれば Marker.stepId / fieldPath にも自動反映:
       // /designer-work スラッシュコマンドは stepId / fieldPath を既存で読むので、
       // AI 側は「どの step のどのフィールドへの指示か」を即座に把握できる。
@@ -617,7 +639,7 @@ export function ProcessFlowEditor() {
   };
 
   const handleEraseMarker = (markerId: string) => {
-    updateGroup((g) => {
+    updateGroupWithDraft((g) => {
       g.authoring = { ...(g.authoring ?? {}), markers: (g.authoring?.markers ?? []).filter((m) => m.id !== markerId) };
     });
   };
@@ -639,7 +661,7 @@ export function ProcessFlowEditor() {
   };
 
   return (
-    <div className="process-flow-page" onClick={() => closeContextMenu()} style={{ position: "relative" }}>
+    <div className={`process-flow-page${isReadonly ? " readonly-mode" : ""}`} onClick={() => closeContextMenu()} style={{ position: "relative" }}>
       <TableSubToolbar />
 
       <EditModeToolbar
@@ -656,6 +678,13 @@ export function ProcessFlowEditor() {
         <ForcedOutChoiceDialog
           previousDraftExists={mode.previousDraftExists}
           onChoice={(choice) => editActions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
         />
       )}
 
@@ -729,7 +758,7 @@ export function ProcessFlowEditor() {
             )}
           </>
         }
-        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+        saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
       />
 
       {/* 警告詳細パネル (#261 UI 統合) */}
@@ -762,7 +791,7 @@ export function ProcessFlowEditor() {
                   window.alert("全ての警告は既に AI 依頼済みです");
                   return;
                 }
-                updateGroup((g) => {
+                updateGroupWithDraft((g) => {
                   g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), ...newMarkers] };
                 });
                 window.alert(`${newMarkers.length} 件の警告を marker として起票しました。/designer-work で処理できます。`);
@@ -807,7 +836,7 @@ export function ProcessFlowEditor() {
                           author: "human" as const,
                           createdAt: new Date().toISOString(),
                         };
-                        updateGroup((g) => {
+                        updateGroupWithDraft((g) => {
                           g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), newMarker] };
                         });
                       }}
@@ -1033,7 +1062,7 @@ export function ProcessFlowEditor() {
                           onOutdentSubStep={(subId) => handleOutdentSubStep(step.id, subId)}
                           validationErrors={validationErrors}
                           onAddMarker={(body, kind = "todo") => {
-                            updateGroup((g) => {
+                            updateGroupWithDraft((g) => {
                               const m = {
                                 id: generateUUID(),
                                 kind,
