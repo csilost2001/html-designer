@@ -85,7 +85,8 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
     case "view-definition":
       return path.join(activeRoot, "view-definitions", `${id}.json`);
     case "screen-item":
-      return path.join(activeRoot, "screens", `${id}.design.json`);
+      // screen-item は singleton draft で body path が payload.screenId に依存するため null を返す
+      return null;
     case "sequence":
       return path.join(activeRoot, "sequences", `${id}.json`);
     case "extension":
@@ -183,9 +184,14 @@ export async function commitDraft(
     case "view-definition":
       await writeViewDefinition(id, payload);
       break;
-    case "screen-item":
-      await writeScreenItems(id, payload);
+    case "screen-item": {
+      const siPayload = payload as { screenId?: string } | null;
+      if (!siPayload || typeof siPayload.screenId !== "string" || !siPayload.screenId) {
+        throw new Error("screen-item draft payload に screenId がありません");
+      }
+      await writeScreenItems(siPayload.screenId, siPayload);
       break;
+    }
     case "sequence":
       await writeSequence(id, payload);
       break;
