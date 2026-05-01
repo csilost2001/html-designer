@@ -1243,14 +1243,26 @@ export const tools = [
   },
   {
     name: "designer__workspace_open",
-    description: "指定 path または id のワークスペースを active にし、recent に upsert します。lockdown モード時は error を返します。",
+    description: "指定 path または id のワークスペースを active にし、recent に upsert します。init=true 指定時は path のフォルダを作成し project.json を初期化してから open します。lockdown モード時は error を返します。",
     inputSchema: {
       type: "object" as const,
       properties: {
         path: { type: "string", description: "ワークスペースの絶対パス。id と排他、どちらか必須。" },
         id: { type: "string", description: "recent 上の workspace id。path と排他。" },
+        init: { type: "boolean", description: "true の場合、path のフォルダ作成と project.json 初期化を行ってから open します (path 必須)。" },
       },
       required: [],
+    },
+  },
+  {
+    name: "designer__workspace_inspect",
+    description: "指定 path のフォルダ状態を判定して返します。status は 'ready' (project.json あり), 'needsInit' (フォルダのみ), 'notFound' (フォルダ無し) のいずれか。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        path: { type: "string", description: "判定対象の絶対パス" },
+      },
+      required: ["path"],
     },
   },
   {
