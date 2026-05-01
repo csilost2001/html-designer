@@ -145,10 +145,15 @@ describe("resolveLegacyDataDir (C: 動的解決 + env override)", () => {
     }
   });
 
-  it("env 未設定の場合は process.cwd()/data が返る", () => {
+  it("env 未設定の場合はリポジトリ root の data/ (絶対パス、末尾が data) が返る", () => {
     delete process.env.DESIGNER_LEGACY_DATA_DIR;
     const result = _internals.resolveLegacyDataDir();
-    expect(result).toBe(path.resolve(process.cwd(), "data"));
+    // import.meta.dirname/../../data に相当する絶対パスが返る。
+    // テスト自体の dirname とは異なるが、絶対パスで末尾が "data" であることを検証する。
+    expect(path.isAbsolute(result)).toBe(true);
+    expect(path.basename(result)).toBe("data");
+    // process.cwd()/data ではないことを確認 (regression 防止)
+    expect(result).not.toBe(path.resolve(process.cwd(), "data"));
   });
 
   it("env DESIGNER_LEGACY_DATA_DIR 設定時はその値 (resolve 済み) が返る", () => {

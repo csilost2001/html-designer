@@ -68,6 +68,11 @@ export function subscribe(listener: Listener): () => void {
 // 並行呼び出しを直列化するための Promise チェーン (A: loadWorkspaces 直列化)
 let _loadChain: Promise<void> = Promise.resolve();
 
+/** @internal テスト専用: _loadChain を初期状態にリセットする */
+export function __resetLoadChainForTest(): void {
+  _loadChain = Promise.resolve();
+}
+
 export async function loadWorkspaces(): Promise<void> {
   _loadChain = _loadChain
     .catch(() => undefined) // 前回失敗でチェーンを切らない

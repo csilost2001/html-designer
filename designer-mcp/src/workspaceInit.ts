@@ -181,13 +181,13 @@ export async function initializeWorkspace(folderPath: string): Promise<Initializ
 
 /**
  * C: LEGACY_DATA_DIR を動的解決。
- * - env DESIGNER_LEGACY_DATA_DIR が設定されていればそれを使う (テスト・CI での override 用)
- * - 未設定なら process.cwd()/data (module-load 時の dirname 依存を排除)
+ * - env DESIGNER_LEGACY_DATA_DIR が設定されていればそれを使う (packaged 配布 / VS Code 拡張組み込み時の override 用)
+ * - 未設定なら元実装と同等のリポジトリ root data/ (import.meta.dirname/../../data)
  */
 function resolveLegacyDataDir(): string {
   const envPath = process.env.DESIGNER_LEGACY_DATA_DIR;
   if (envPath && envPath.trim().length > 0) return path.resolve(envPath);
-  return path.resolve(process.cwd(), "data");
+  return path.resolve(import.meta.dirname, "../../data");
 }
 
 async function tryAutoRegisterLegacyData(): Promise<WorkspaceEntry | null> {
