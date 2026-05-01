@@ -7,4 +7,5 @@ export type DraftResourceType =
   | "screen-item"
   | "sequence"
   | "extension"
-  | "convention";
+  | "convention"
+  | "flow";  // #690 PR-7: 画面遷移図用

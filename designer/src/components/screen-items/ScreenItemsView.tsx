@@ -15,6 +15,16 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import {
   loadScreenItems,
   saveScreenItems,
@@ -83,9 +93,10 @@ type OutputFieldsProps = {
   onCommit: () => void;
   tables: Table[];
   views: View[];
+  isReadonly?: boolean;
 };
 
-function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFieldsProps) {
+function OutputFields({ item, idx, onUpdate, onCommit, tables, views, isReadonly }: OutputFieldsProps) {
   const kind = item.valueFrom?.kind ?? "";
 
   const handleKindChange = (newKind: string) => {
@@ -132,6 +143,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
             onChange={(e) => onUpdate(idx, { displayFormat: e.target.value || undefined })}
             onBlur={onCommit}
             placeholder="YYYY/MM/DD"
+            disabled={isReadonly}
           />
         </label>
         <div className="screen-items-valuefrom">
@@ -141,6 +153,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
               className="form-select form-select-sm"
               value={kind}
               onChange={(e) => handleKindChange(e.target.value)}
+              disabled={isReadonly}
             >
               <option value="">— 未設定 —</option>
               {VALUE_SOURCE_KINDS.map((k) => (
@@ -166,6 +179,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                     }
                     onBlur={onCommit}
                     placeholder="省略可"
+                    disabled={isReadonly}
                   />
                 </label>
                 <label className="screen-items-detail-field" style={{ minWidth: "12em" }}>
@@ -180,6 +194,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                     }
                     onBlur={onCommit}
                     placeholder="createdOrder.order_number"
+                    disabled={isReadonly}
                   />
                 </label>
               </>
@@ -204,6 +219,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
+                    disabled={isReadonly}
                   >
                     <option value="">— テーブル選択 —</option>
                     {tables.map((t) => (
@@ -225,7 +241,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
-                    disabled={!selectedTable}
+                    disabled={isReadonly || !selectedTable}
                   >
                     <option value="">— 列選択 —</option>
                     {selectedTable?.columns?.map((c) => (
@@ -255,6 +271,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
+                    disabled={isReadonly}
                   >
                     <option value="">— ビュー選択 —</option>
                     {views.map((v) => (
@@ -276,7 +293,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                       } as Partial<ValueSource>)
                     }
                     onBlur={onCommit}
-                    disabled={!selectedView}
+                    disabled={isReadonly || !selectedView}
                   >
                     <option value="">— 列選択 —</option>
                     {selectedView?.outputColumns.map((c) => (
@@ -298,6 +315,7 @@ function OutputFields({ item, idx, onUpdate, onCommit, tables, views }: OutputFi
                 onChange={(e) => handleValueFromPatch({ expression: e.target.value } as Partial<ValueSource>)}
                 onBlur={onCommit}
                 placeholder="@inputs.price * @inputs.qty"
+                disabled={isReadonly}
               />
             </label>
           )}
@@ -333,6 +351,13 @@ export function ScreenItemsView() {
   const [processFlows, setProcessFlows] = useState<ProcessFlowMeta[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [views, setViews] = useState<View[]>([]);
+
+  // Edit session state
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+
+  const sessionId = mcpBridge.getSessionId();
 
   /** ID フィールドのフォーカス時の値 (行インデックス → 元の値) */
   const idFocusVals = useRef<Map<number, string>>(new Map());
@@ -408,7 +433,8 @@ export function ScreenItemsView() {
     isDirty, isSaving, serverChanged,
     update, updateSilent, commit,
     undo, redo, canUndo, canRedo,
-    handleSave, handleReset, dismissServerBanner,
+    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    reload,
   } = useResourceEditor<ScreenItemsDocument>({
     tabType: "screen-items",
     mtimeKind: "screenEntity",
@@ -420,6 +446,94 @@ export function ScreenItemsView() {
     broadcastIdField: "screenId",
   });
 
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "screen-item",
+    resourceId: "singleton",
+    sessionId,
+  });
+
+  const isReadonly = mode.kind !== "editing";
+  const fileRef = useRef<ScreenItemsDocument | null>(null);
+  useEffect(() => { fileRef.current = file ?? null; }, [file]);
+
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateWithDraft = useCallback((fn: (f: ScreenItemsDocument) => void) => {
+    if (isReadonly) return;
+    update(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!selectedScreenId || !fileRef.current) return;
+      mcpBridge.updateDraft("screen-item", "singleton", fileRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, update, selectedScreenId]);
+
+  const updateSilentWithDraft = useCallback((fn: (f: ScreenItemsDocument) => void) => {
+    if (isReadonly) return;
+    updateSilent(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!selectedScreenId || !fileRef.current) return;
+      mcpBridge.updateDraft("screen-item", "singleton", fileRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, updateSilent, selectedScreenId]);
+
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
+    // pending debounce があればキャンセルして即 flush
+    // 編集開始直後に保存した場合 draft が空のまま commitDraft に到達してゾンビロックになるのを防ぐ
+    if (draftUpdateTimer.current) {
+      clearTimeout(draftUpdateTimer.current);
+      draftUpdateTimer.current = null;
+    }
+    if (fileRef.current) {
+      await mcpBridge.updateDraft("screen-item", "singleton", fileRef.current);
+    }
+    await resourceHandleSave();
+    await actions.save();
+  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    await reload();
+  }, [actions, reload]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    await mcpBridge.discardDraft("screen-item", "singleton");
+    await reload();
+  }, [reload]);
+
+  // タブ dirty マーク
+  useEffect(() => {
+    const tabId = makeTabId("screen-items", "singleton");
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [isDirtyForTab, isDirty]);
+
+  // 復元ダイアログ (readonly + draft 存在時)
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("screen-item", "singleton") as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [sessionLoading, mode.kind]);
+
   const handleSwitchScreen = (nextId: string) => {
     if (isDirty) {
       const ok = window.confirm("未保存の変更があります。破棄して別の画面に切り替えますか?");
@@ -429,23 +543,23 @@ export function ScreenItemsView() {
   };
 
   const handleAddItem = useCallback(() => {
-    update((f) => {
+    updateWithDraft((f) => {
       f.items.push({
         id: "" as Identifier,
         label: "",
         type: "string",
       });
     });
-  }, [update]);
+  }, [updateWithDraft]);
 
   const handleUpdateItem = useCallback((idx: number, patch: Partial<ScreenItem>) => {
-    updateSilent((f) => {
+    updateSilentWithDraft((f) => {
       Object.assign(f.items[idx], patch);
     });
-  }, [updateSilent]);
+  }, [updateSilentWithDraft]);
 
   const handleRemoveItem = useCallback((idx: number) => {
-    update((f) => {
+    updateWithDraft((f) => {
       f.items.splice(idx, 1);
     });
     setSelectedIndices((prev) => {
@@ -472,7 +586,7 @@ export function ScreenItemsView() {
       }
       return next;
     });
-  }, [update]);
+  }, [updateWithDraft]);
 
   /** 複数インデックスのリセット用新 ID を計算 (バッチ内で重複しないよう pool を積み上げ) */
   const buildResets = useCallback((indices: number[]): Array<{ idx: number; oldId: string; newId: string }> => {
@@ -507,7 +621,7 @@ export function ScreenItemsView() {
     const toRename = resets.filter((r) => !!r.oldId);
 
     if (toLocalSet.length > 0) {
-      updateSilent((f) => {
+      updateSilentWithDraft((f) => {
         for (const { idx, newId } of toLocalSet) {
           f.items[idx].id = newId as Identifier;
         }
@@ -551,7 +665,7 @@ export function ScreenItemsView() {
           });
         }
         // ローカル state も同期 (保存操作で古い ID が上書きされるのを防ぐ)
-        updateSilent((f) => {
+        updateSilentWithDraft((f) => {
           for (const { idx, newId } of toRename) {
             f.items[idx].id = newId as Identifier;
           }
@@ -562,14 +676,14 @@ export function ScreenItemsView() {
       }
     } catch {
       // MCP 未接続等: ローカルのみ更新
-      updateSilent((f) => {
+      updateSilentWithDraft((f) => {
         for (const { idx, newId } of toRename) {
           f.items[idx].id = newId as Identifier;
         }
       });
       commit();
     }
-  }, [file, selectedScreenId, isDirty, buildResets, updateSilent, commit]);
+  }, [file, selectedScreenId, isDirty, buildResets, updateSilentWithDraft, commit]);
 
   /** リセット確認: renameScreenItem を順次実行 */
   const handleConfirmReset = useCallback(async () => {
@@ -585,7 +699,7 @@ export function ScreenItemsView() {
         });
       }
       // ローカル state も同期 (保存操作で古い ID が上書きされるのを防ぐ)
-      updateSilent((f) => {
+      updateSilentWithDraft((f) => {
         for (const { idx, newId } of resets) {
           f.items[idx].id = newId as Identifier;
         }
@@ -594,7 +708,7 @@ export function ScreenItemsView() {
     } catch (e) {
       alert(`IDリセットに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [pendingReset, selectedScreenId, updateSilent, commit]);
+  }, [pendingReset, selectedScreenId, updateSilentWithDraft, commit]);
 
   const handleCancelReset = useCallback(() => {
     setPendingReset(null);
@@ -614,7 +728,7 @@ export function ScreenItemsView() {
    *  HTML name 属性 (c.name) を業務識別子 ScreenItem.id として採用する。未設定なら空文字。 */
   const handleAddCandidates = useCallback((cands: ExtractedCandidate[]) => {
     if (cands.length === 0) return;
-    update((f) => {
+    updateWithDraft((f) => {
       for (const c of cands) {
         f.items.push({
           id: (c.name || "") as Identifier,
@@ -628,7 +742,7 @@ export function ScreenItemsView() {
         });
       }
     });
-  }, [update]);
+  }, [updateWithDraft]);
 
   /** ID フィールドの blur 時: 変更あり + 参照あり → 確認ダイアログを表示 */
   const handleIdBlur = useCallback(async (idx: number, e: React.FocusEvent<HTMLInputElement>) => {
@@ -643,7 +757,7 @@ export function ScreenItemsView() {
 
     // 空文字はリネーム不可 → 元の ID に戻す
     if (!newId) {
-      updateSilent((f) => { f.items[idx].id = originalId as Identifier; });
+      updateSilentWithDraft((f) => { f.items[idx].id = originalId as Identifier; });
       commit();
       return;
     }
@@ -651,7 +765,7 @@ export function ScreenItemsView() {
     // 無効な JS 識別子はバックエンドに送る前に弾く
     if (!JS_IDENTIFIER_RE.test(newId)) {
       alert(`"${newId}" は有効な ID ではありません。英字・_ ・$ で始まり、英数字・_ ・$ のみ使用できます。`);
-      updateSilent((f) => { f.items[idx].id = originalId as Identifier; });
+      updateSilentWithDraft((f) => { f.items[idx].id = originalId as Identifier; });
       commit();
       return;
     }
@@ -659,7 +773,7 @@ export function ScreenItemsView() {
     // 同画面内の他の項目との重複チェック
     if (file?.items.some((item, i) => i !== idx && item.id === newId)) {
       alert(`ID "${newId}" は既に同じ画面内で使用されています。`);
-      updateSilent((f) => { f.items[idx].id = originalId as Identifier; });
+      updateSilentWithDraft((f) => { f.items[idx].id = originalId as Identifier; });
       commit();
       return;
     }
@@ -685,7 +799,7 @@ export function ScreenItemsView() {
     } catch {
       commit();
     }
-  }, [selectedScreenId, file, updateSilent, commit]);
+  }, [selectedScreenId, file, updateSilentWithDraft, commit]);
 
   /** リネーム確認: バックエンドに実行を委譲 */
   const handleConfirmRename = useCallback(async () => {
@@ -704,18 +818,18 @@ export function ScreenItemsView() {
     } catch (e) {
       alert(`リネームに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
       // 失敗時はローカル状態を元に戻す
-      updateSilent((f) => { f.items[idx].id = oldId as Identifier; });
+      updateSilentWithDraft((f) => { f.items[idx].id = oldId as Identifier; });
       commit();
     }
-  }, [pendingRename, selectedScreenId, updateSilent, commit]);
+  }, [pendingRename, selectedScreenId, updateSilentWithDraft, commit]);
 
   /** リネームキャンセル: ローカル状態を元に戻す */
   const handleCancelRename = useCallback(() => {
     if (!pendingRename) return;
-    updateSilent((f) => { f.items[pendingRename.idx].id = pendingRename.oldId as Identifier; });
+    updateSilentWithDraft((f) => { f.items[pendingRename.idx].id = pendingRename.oldId as Identifier; });
     commit();
     setPendingRename(null);
-  }, [pendingRename, updateSilent, commit]);
+  }, [pendingRename, updateSilentWithDraft, commit]);
 
   // @conv.* lint (file または conventions 更新時)
   useEffect(() => {
@@ -755,13 +869,13 @@ export function ScreenItemsView() {
   }, [allSelected, itemCount]);
 
   const handleUpdateErrorMessage = useCallback((idx: number, key: string, val: string) => {
-    updateSilent((f) => {
+    updateSilentWithDraft((f) => {
       const em = { ...(f.items[idx].errorMessages ?? {}) };
       if (val) em[key] = val;
       else delete em[key];
       f.items[idx].errorMessages = Object.keys(em).length > 0 ? em : undefined;
     });
-  }, [updateSilent]);
+  }, [updateSilentWithDraft]);
 
   const handleToggleErrorRow = useCallback((idx: number) => {
     setExpandedErrorRows((prev) => {
@@ -790,12 +904,61 @@ export function ScreenItemsView() {
 
   const selectedScreenName = screens.find((s) => s.id === selectedScreenId)?.name;
 
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
+
   return (
-    <div className="screen-items-view">
+    <div className={`screen-items-view${isReadonly ? " readonly-mode" : ""}`}>
       <TableSubToolbar />
 
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
+      )}
+
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={actions.startEditing}
+        onSave={() => { handleSave().catch(console.error); }}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
       )}
 
       <EditorHeader
@@ -827,7 +990,7 @@ export function ScreenItemsView() {
           </div>
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
-        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+        saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
       />
 
       <div className="screen-items-content">
@@ -932,6 +1095,7 @@ export function ScreenItemsView() {
                         onFocus={(e) => idFocusVals.current.set(i, e.target.value)}
                         onBlur={(e) => handleIdBlur(i, e)}
                         placeholder="email"
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -941,6 +1105,7 @@ export function ScreenItemsView() {
                         onChange={(e) => handleUpdateItem(i, { label: e.target.value })}
                         onBlur={commit}
                         placeholder="メールアドレス"
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -965,6 +1130,7 @@ export function ScreenItemsView() {
                         }}
                         onBlur={commit}
                         placeholder="string"
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -974,6 +1140,7 @@ export function ScreenItemsView() {
                         onChange={(e) => handleUpdateItem(i, { direction: e.target.value === "output" ? "output" : undefined })}
                         onBlur={commit}
                         aria-label="方向"
+                        disabled={isReadonly}
                       >
                         <option value="input">入力</option>
                         <option value="output">出力</option>
@@ -986,6 +1153,7 @@ export function ScreenItemsView() {
                         checked={!!item.required}
                         onChange={(e) => handleUpdateItem(i, { required: e.target.checked || undefined })}
                         aria-label="必須"
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -996,6 +1164,7 @@ export function ScreenItemsView() {
                         min={0}
                         onChange={(e) => handleUpdateItem(i, { minLength: e.target.value === "" ? undefined : Number(e.target.value) })}
                         onBlur={commit}
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -1006,6 +1175,7 @@ export function ScreenItemsView() {
                         min={0}
                         onChange={(e) => handleUpdateItem(i, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
                         onBlur={commit}
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -1016,6 +1186,7 @@ export function ScreenItemsView() {
                         conventions={conventions}
                         className="form-control form-control-sm"
                         placeholder="@conv.regex.email-simple"
+                        disabled={isReadonly}
                       />
                     </td>
                     <td>
@@ -1024,6 +1195,7 @@ export function ScreenItemsView() {
                         value={item.description ?? ""}
                         onChange={(e) => handleUpdateItem(i, { description: e.target.value || undefined })}
                         onBlur={commit}
+                        disabled={isReadonly}
                       />
                     </td>
                     <td className="text-center screen-items-actions-cell">
@@ -1051,6 +1223,7 @@ export function ScreenItemsView() {
                         onClick={() => handleResetItems([i])}
                         title="IDをリセット (自動採番形式に戻す)"
                         aria-label="IDをリセット"
+                        disabled={isReadonly}
                       >
                         <i className="bi bi-arrow-counterclockwise" />
                       </button>
@@ -1060,6 +1233,7 @@ export function ScreenItemsView() {
                         onClick={() => handleRemoveItem(i)}
                         title="削除"
                         aria-label="削除"
+                        disabled={isReadonly}
                       >
                         <i className="bi bi-x" />
                       </button>
@@ -1077,6 +1251,7 @@ export function ScreenItemsView() {
                                 checked={!!item.readonly}
                                 onChange={(e) => { handleUpdateItem(i, { readonly: e.target.checked || undefined }); commit(); }}
                                 aria-label="readonly"
+                                disabled={isReadonly}
                               />
                               <span className="screen-items-detail-label">readonly</span>
                             </label>
@@ -1087,6 +1262,7 @@ export function ScreenItemsView() {
                                 checked={!!item.disabled}
                                 onChange={(e) => { handleUpdateItem(i, { disabled: e.target.checked || undefined }); commit(); }}
                                 aria-label="disabled"
+                                disabled={isReadonly}
                               />
                               <span className="screen-items-detail-label">disabled</span>
                             </label>
@@ -1099,6 +1275,7 @@ export function ScreenItemsView() {
                               onChange={(e) => handleUpdateItem(i, { placeholder: e.target.value || undefined })}
                               onBlur={commit}
                               aria-label="placeholder"
+                              disabled={isReadonly}
                             />
                           </label>
                           <label className="screen-items-detail-field">
@@ -1109,6 +1286,7 @@ export function ScreenItemsView() {
                               onChange={(e) => handleUpdateItem(i, { helperText: e.target.value || undefined })}
                               onBlur={commit}
                               aria-label="helperText"
+                              disabled={isReadonly}
                             />
                           </label>
                           <label className="screen-items-detail-field">
@@ -1120,6 +1298,7 @@ export function ScreenItemsView() {
                               onBlur={commit}
                               placeholder="@inputs.role === 'admin'"
                               aria-label="visibleWhen"
+                              disabled={isReadonly}
                             />
                           </label>
                           <label className="screen-items-detail-field">
@@ -1131,6 +1310,7 @@ export function ScreenItemsView() {
                               onBlur={commit}
                               placeholder="@inputs.status !== 'locked'"
                               aria-label="enabledWhen"
+                              disabled={isReadonly}
                             />
                           </label>
                           <label className="screen-items-detail-num">
@@ -1141,6 +1321,7 @@ export function ScreenItemsView() {
                               value={item.min ?? ""}
                               onChange={(e) => handleUpdateItem(i, { min: e.target.value === "" ? undefined : Number(e.target.value) })}
                               onBlur={commit}
+                              disabled={isReadonly}
                             />
                           </label>
                           <label className="screen-items-detail-num">
@@ -1151,6 +1332,7 @@ export function ScreenItemsView() {
                               value={item.max ?? ""}
                               onChange={(e) => handleUpdateItem(i, { max: e.target.value === "" ? undefined : Number(e.target.value) })}
                               onBlur={commit}
+                              disabled={isReadonly}
                             />
                           </label>
                           <label className="screen-items-detail-num">
@@ -1162,6 +1344,7 @@ export function ScreenItemsView() {
                               min={0}
                               onChange={(e) => handleUpdateItem(i, { step: e.target.value === "" ? undefined : Number(e.target.value) })}
                               onBlur={commit}
+                              disabled={isReadonly}
                             />
                           </label>
                         </div>
@@ -1173,6 +1356,7 @@ export function ScreenItemsView() {
                             onCommit={commit}
                             tables={tables}
                             views={views}
+                            isReadonly={isReadonly}
                           />
                         )}
                       </td>
@@ -1192,6 +1376,7 @@ export function ScreenItemsView() {
                                 conventions={conventions}
                                 className="form-control form-control-sm"
                                 placeholder={`@conv.msg.${key}`}
+                                disabled={isReadonly}
                               />
                             </label>
                           ))}
@@ -1208,6 +1393,7 @@ export function ScreenItemsView() {
                 type="button"
                 className="btn btn-sm btn-outline-primary screen-items-add"
                 onClick={handleAddItem}
+                disabled={isReadonly}
               >
                 <i className="bi bi-plus-lg me-1" /> 項目追加
               </button>
@@ -1216,6 +1402,7 @@ export function ScreenItemsView() {
                 className="btn btn-sm btn-outline-primary screen-items-add"
                 onClick={() => setCandidatesModalOpen(true)}
                 title="現在選択中の画面デザインから input/select/textarea を抽出してチェックで追加"
+                disabled={isReadonly}
               >
                 <i className="bi bi-ui-checks me-1" /> 画面デザインから追加
               </button>
@@ -1225,6 +1412,7 @@ export function ScreenItemsView() {
                   className="btn btn-sm btn-outline-secondary"
                   onClick={() => handleResetItems([...selectedIndices].sort((a, b) => a - b))}
                   title="選択行の ID を自動採番形式にリセット"
+                  disabled={isReadonly}
                 >
                   <i className="bi bi-arrow-counterclockwise me-1" />
                   選択行のIDをリセット ({selectedIndices.size} 件)

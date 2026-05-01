@@ -7,11 +7,21 @@
  *   - 役割・権限: role / permission
  *   - プロダクト規約: scope / currency / tax / auth / db / numbering / tx / externalOutcomeDefaults
  */
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
+import { useEditSession } from "../../hooks/useEditSession";
+import { EditModeToolbar } from "../editing/EditModeToolbar";
+import {
+  DiscardConfirmDialog,
+  ForceReleaseConfirmDialog,
+  ForcedOutChoiceDialog,
+  AfterForceUnlockChoiceDialog,
+} from "../editing/ConfirmDialogs";
+import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import {
   loadConventions,
   saveConventions,
@@ -35,7 +45,7 @@ import type {
   ExternalOutcomeEntry,
   SemVer,
 } from "../../types/v3";
-import { useDraftRegistry } from "../../hooks/useDraftRegistry";
+import { mcpBridge } from "../../mcp/mcpBridge";
 import "../../styles/conventions.css";
 import "../../styles/editMode.css";
 
@@ -85,7 +95,7 @@ const CATEGORY_ICONS: Record<Category, string> = {
 
 const RESOURCE_ID = "main";
 
-async function loadCatalog(_id: string): Promise<ConventionsCatalog> {
+async function loadCatalog(): Promise<ConventionsCatalog> {
   const cat = await loadConventions();
   return cat ?? createEmptyCatalog();
 }
@@ -101,14 +111,19 @@ function countCategoryEntries(catalog: ConventionsCatalog, cat: Category): numbe
 
 export function ConventionsCatalogView() {
   const [activeCategory, setActiveCategory] = useState<Category>("msg");
-  const { hasDraft } = useDraftRegistry();
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+
+  const sessionId = mcpBridge.getSessionId();
 
   const {
     state: catalog,
     isDirty, isSaving, serverChanged,
     update, updateSilent, commit,
     undo, redo, canUndo, canRedo,
-    handleSave, handleReset, dismissServerBanner,
+    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    reload,
   } = useResourceEditor<ConventionsCatalog>({
     tabType: "conventions-catalog",
     mtimeKind: "conventions",
@@ -119,63 +134,151 @@ export function ConventionsCatalogView() {
     broadcastName: "conventionsChanged",
   });
 
+  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+    resourceType: "convention",
+    resourceId: "singleton",
+    sessionId,
+  });
+
+  const isReadonly = mode.kind !== "editing";
+  const catalogRef = useRef<ConventionsCatalog | null>(null);
+  useEffect(() => { catalogRef.current = catalog ?? null; }, [catalog]);
+
+  const draftUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateWithDraft = useCallback((fn: (c: ConventionsCatalog) => void) => {
+    if (isReadonly) return;
+    update(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!catalogRef.current) return;
+      mcpBridge.updateDraft("convention", "singleton", catalogRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, update]);
+
+  const updateSilentWithDraft = useCallback((fn: (c: ConventionsCatalog) => void) => {
+    if (isReadonly) return;
+    updateSilent(fn);
+    if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+    draftUpdateTimer.current = setTimeout(() => {
+      if (!catalogRef.current) return;
+      mcpBridge.updateDraft("convention", "singleton", catalogRef.current).catch(console.error);
+    }, 300);
+  }, [isReadonly, updateSilent]);
+
+  const handleSave = useCallback(async () => {
+    if (isReadonly || isSaving) return;
+    // pending debounce があればキャンセルして即 flush
+    // 編集開始直後に保存した場合 draft が空のまま commitDraft に到達してゾンビロックになるのを防ぐ
+    if (draftUpdateTimer.current) {
+      clearTimeout(draftUpdateTimer.current);
+      draftUpdateTimer.current = null;
+    }
+    if (catalogRef.current) {
+      await mcpBridge.updateDraft("convention", "singleton", catalogRef.current);
+    }
+    await resourceHandleSave();
+    await actions.save();
+  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+
+  const handleDiscard = useCallback(async () => {
+    setShowDiscardDialog(false);
+    await actions.discard();
+    await reload();
+  }, [actions, reload]);
+
+  const handleForceRelease = useCallback(async () => {
+    setShowForceReleaseDialog(false);
+    await actions.forceReleaseOther();
+  }, [actions]);
+
+  const handleResumeContinue = useCallback(async () => {
+    setShowResumeDialog(false);
+    await actions.startEditing();
+  }, [actions]);
+
+  const handleResumeDiscard = useCallback(async () => {
+    setShowResumeDialog(false);
+    await mcpBridge.discardDraft("convention", "singleton");
+    await reload();
+  }, [reload]);
+
+  // タブ dirty マーク
+  useEffect(() => {
+    const tabId = makeTabId("conventions-catalog", "singleton");
+    setTabDirty(tabId, isDirtyForTab || isDirty);
+  }, [isDirtyForTab, isDirty]);
+
+  // 復元ダイアログ (readonly + draft 存在時)
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (mode.kind !== "readonly") return;
+    let cancelled = false;
+    (async () => {
+      const res = await mcpBridge.hasDraft("convention", "singleton") as { exists: boolean } | null;
+      if (cancelled) return;
+      if (res?.exists) setShowResumeDialog(true);
+    })().catch(console.error);
+    return () => { cancelled = true; };
+  }, [sessionLoading, mode.kind]);
+
   const addMsg = useCallback((key: string) => {
-    update((c) => { if (!c.msg) c.msg = {}; if (!c.msg[key]) c.msg[key] = { template: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.msg) c.msg = {}; if (!c.msg[key]) c.msg[key] = { template: "" }; });
+  }, [updateWithDraft]);
 
   const addRegex = useCallback((key: string) => {
-    update((c) => { if (!c.regex) c.regex = {}; if (!c.regex[key]) c.regex[key] = { pattern: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.regex) c.regex = {}; if (!c.regex[key]) c.regex[key] = { pattern: "" }; });
+  }, [updateWithDraft]);
 
   const addLimit = useCallback((key: string) => {
-    update((c) => { if (!c.limit) c.limit = {}; if (!c.limit[key]) c.limit[key] = { value: 0 }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.limit) c.limit = {}; if (!c.limit[key]) c.limit[key] = { value: 0 }; });
+  }, [updateWithDraft]);
 
   const addScope = useCallback((key: string) => {
-    update((c) => { if (!c.scope) c.scope = {}; if (!c.scope[key]) c.scope[key] = { value: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.scope) c.scope = {}; if (!c.scope[key]) c.scope[key] = { value: "" }; });
+  }, [updateWithDraft]);
 
   const addCurrency = useCallback((key: string) => {
-    update((c) => { if (!c.currency) c.currency = {}; if (!c.currency[key]) c.currency[key] = { code: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.currency) c.currency = {}; if (!c.currency[key]) c.currency[key] = { code: "" }; });
+  }, [updateWithDraft]);
 
   const addTax = useCallback((key: string) => {
-    update((c) => { if (!c.tax) c.tax = {}; if (!c.tax[key]) c.tax[key] = { kind: "exclusive", rate: 0 }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.tax) c.tax = {}; if (!c.tax[key]) c.tax[key] = { kind: "exclusive", rate: 0 }; });
+  }, [updateWithDraft]);
 
   const addAuth = useCallback((key: string) => {
-    update((c) => { if (!c.auth) c.auth = {}; if (!c.auth[key]) c.auth[key] = { scheme: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.auth) c.auth = {}; if (!c.auth[key]) c.auth[key] = { scheme: "" }; });
+  }, [updateWithDraft]);
 
   const addRole = useCallback((key: string) => {
-    update((c) => { if (!c.role) c.role = {}; if (!c.role[key]) c.role[key] = { permissions: [] }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.role) c.role = {}; if (!c.role[key]) c.role[key] = { permissions: [] }; });
+  }, [updateWithDraft]);
 
   const addPermission = useCallback((key: string) => {
-    update((c) => {
+    updateWithDraft((c) => {
       if (!c.permission) c.permission = {};
       if (!c.permission[key]) c.permission[key] = { resource: "", action: "" };
     });
-  }, [update]);
+  }, [updateWithDraft]);
 
   const addDb = useCallback((key: string) => {
-    update((c) => { if (!c.db) c.db = {}; if (!c.db[key]) c.db[key] = {}; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.db) c.db = {}; if (!c.db[key]) c.db[key] = {}; });
+  }, [updateWithDraft]);
 
   const addNumbering = useCallback((key: string) => {
-    update((c) => { if (!c.numbering) c.numbering = {}; if (!c.numbering[key]) c.numbering[key] = { format: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.numbering) c.numbering = {}; if (!c.numbering[key]) c.numbering[key] = { format: "" }; });
+  }, [updateWithDraft]);
 
   const addTx = useCallback((key: string) => {
-    update((c) => { if (!c.tx) c.tx = {}; if (!c.tx[key]) c.tx[key] = { policy: "" }; });
-  }, [update]);
+    updateWithDraft((c) => { if (!c.tx) c.tx = {}; if (!c.tx[key]) c.tx[key] = { policy: "" }; });
+  }, [updateWithDraft]);
 
   const addExternalOutcomeDefault = useCallback((key: string) => {
-    update((c) => {
+    updateWithDraft((c) => {
       if (!c.externalOutcomeDefaults) c.externalOutcomeDefaults = {};
       if (!c.externalOutcomeDefaults[key]) c.externalOutcomeDefaults[key] = { outcome: "failure", action: "abort" };
     });
-  }, [update]);
+  }, [updateWithDraft]);
 
   const integrityIssues = useMemo<ConventionIssue[]>(
     () => (catalog ? checkConventionsCatalogIntegrity(catalog) : []),
@@ -183,6 +286,8 @@ export function ConventionsCatalogView() {
   );
 
   if (!catalog) return null;
+
+  const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
   const renderTabGroup = (label: string, categories: Category[]) => (
     <div className="conventions-tab-group">
@@ -209,24 +314,71 @@ export function ConventionsCatalogView() {
   );
 
   return (
-    <div className="conventions-catalog-view">
+    <div className={`conventions-catalog-view${isReadonly ? " readonly-mode" : ""}`}>
       <TableSubToolbar />
 
       {serverChanged && (
         <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
       )}
 
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={actions.startEditing}
+        onSave={() => { handleSave().catch(console.error); }}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => actions.handleForcedOut(choice)}
+        />
+      )}
+
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => actions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+
       <EditorHeader
         title={
           <span className="fw-semibold">
             規約カタログ
-            {hasDraft("convention", "catalog") && (
+            {isDirtyForTab && (
               <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
             )}
           </span>
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
-        saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
+        saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
       />
 
       <div className="conventions-meta-bar">
@@ -235,18 +387,20 @@ export function ConventionsCatalogView() {
           type="text"
           className="form-control form-control-sm conventions-version-input"
           value={catalog.version ?? ""}
-          onChange={(e) => updateSilent((c) => { c.version = e.target.value as SemVer; })}
+          onChange={(e) => updateSilentWithDraft((c) => { c.version = e.target.value as SemVer; })}
           onBlur={commit}
           placeholder="1.0.0"
+          disabled={isReadonly}
         />
         <label className="small text-muted">description</label>
         <input
           type="text"
           className="form-control form-control-sm conventions-description-input"
           value={catalog.description ?? ""}
-          onChange={(e) => updateSilent((c) => { c.description = e.target.value || undefined; })}
+          onChange={(e) => updateSilentWithDraft((c) => { c.description = e.target.value || undefined; })}
           onBlur={commit}
           placeholder="カタログの用途 (任意)"
+          disabled={isReadonly}
         />
       </div>
 
@@ -261,63 +415,70 @@ export function ConventionsCatalogView() {
           <MsgEditor
             msg={catalog.msg ?? {}}
             onAdd={addMsg}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.msg?.[key]) Object.assign(c.msg[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.msg?.[key]) Object.assign(c.msg[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.msg) delete c.msg[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.msg) delete c.msg[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "regex" && (
           <RegexEditor
             regex={catalog.regex ?? {}}
             onAdd={addRegex}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.regex?.[key]) Object.assign(c.regex[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.regex?.[key]) Object.assign(c.regex[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.regex) delete c.regex[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.regex) delete c.regex[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "limit" && (
           <LimitEditor
             limit={catalog.limit ?? {}}
             onAdd={addLimit}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.limit?.[key]) Object.assign(c.limit[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.limit?.[key]) Object.assign(c.limit[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.limit) delete c.limit[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.limit) delete c.limit[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "scope" && (
           <ScopeEditor
             scope={catalog.scope ?? {}}
             onAdd={addScope}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.scope?.[key]) Object.assign(c.scope[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.scope?.[key]) Object.assign(c.scope[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.scope) delete c.scope[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.scope) delete c.scope[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "currency" && (
           <CurrencyEditor
             currency={catalog.currency ?? {}}
             onAdd={addCurrency}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.currency?.[key]) Object.assign(c.currency[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.currency?.[key]) Object.assign(c.currency[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.currency) delete c.currency[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.currency) delete c.currency[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "tax" && (
           <TaxEditor
             tax={catalog.tax ?? {}}
             onAdd={addTax}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.tax?.[key]) Object.assign(c.tax[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.tax?.[key]) Object.assign(c.tax[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.tax) delete c.tax[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.tax) delete c.tax[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "auth" && (
           <AuthEditor
             auth={catalog.auth ?? {}}
             onAdd={addAuth}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.auth?.[key]) Object.assign(c.auth[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.auth?.[key]) Object.assign(c.auth[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.auth) delete c.auth[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.auth) delete c.auth[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "role" && (
@@ -326,56 +487,62 @@ export function ConventionsCatalogView() {
             permissionKeys={Object.keys(catalog.permission ?? {})}
             issues={integrityIssues}
             onAdd={addRole}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.role?.[key]) Object.assign(c.role[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.role?.[key]) Object.assign(c.role[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.role) delete c.role[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.role) delete c.role[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "permission" && (
           <PermissionEditor
             permission={catalog.permission ?? {}}
             onAdd={addPermission}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.permission?.[key]) Object.assign(c.permission[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.permission?.[key]) Object.assign(c.permission[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.permission) delete c.permission[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.permission) delete c.permission[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "db" && (
           <DbEditor
             db={catalog.db ?? {}}
             onAdd={addDb}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.db?.[key]) Object.assign(c.db[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.db?.[key]) Object.assign(c.db[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.db) delete c.db[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.db) delete c.db[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "numbering" && (
           <NumberingEditor
             numbering={catalog.numbering ?? {}}
             onAdd={addNumbering}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.numbering?.[key]) Object.assign(c.numbering[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.numbering?.[key]) Object.assign(c.numbering[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.numbering) delete c.numbering[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.numbering) delete c.numbering[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "tx" && (
           <TxEditor
             tx={catalog.tx ?? {}}
             onAdd={addTx}
-            onUpdate={(key, patch) => updateSilent((c) => { if (c.tx?.[key]) Object.assign(c.tx[key], patch); })}
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => { if (c.tx?.[key]) Object.assign(c.tx[key], patch); })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.tx) delete c.tx[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.tx) delete c.tx[key]; })}
+            isReadonly={isReadonly}
           />
         )}
         {activeCategory === "externalOutcomeDefaults" && (
           <ExternalOutcomeDefaultEditor
             entries={catalog.externalOutcomeDefaults ?? {}}
             onAdd={addExternalOutcomeDefault}
-            onUpdate={(key, patch) => updateSilent((c) => {
+            onUpdate={(key, patch) => updateSilentWithDraft((c) => {
               if (c.externalOutcomeDefaults?.[key]) Object.assign(c.externalOutcomeDefaults[key], patch);
             })}
             onCommit={commit}
-            onRemove={(key) => update((c) => { if (c.externalOutcomeDefaults) delete c.externalOutcomeDefaults[key]; })}
+            onRemove={(key) => updateWithDraft((c) => { if (c.externalOutcomeDefaults) delete c.externalOutcomeDefaults[key]; })}
+            isReadonly={isReadonly}
           />
         )}
       </div>
@@ -433,7 +600,7 @@ function ExtensionCategoriesPanel({
 
 // ── 共通部品 ────────────────────────────────────────────────────────────
 
-function DeleteBtn({ onClick }: { onClick: () => void }) {
+function DeleteBtn({ onClick, isReadonly }: { onClick: () => void; isReadonly?: boolean }) {
   return (
     <button
       type="button"
@@ -441,6 +608,7 @@ function DeleteBtn({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       title="削除"
       aria-label="削除"
+      disabled={isReadonly}
     >
       <i className="bi bi-x" />
     </button>
@@ -448,13 +616,14 @@ function DeleteBtn({ onClick }: { onClick: () => void }) {
 }
 
 function NewKeyRow({
-  placeholder, value, setValue, onAdd, disabled,
+  placeholder, value, setValue, onAdd, disabled, isReadonly,
 }: {
   placeholder: string;
   value: string;
   setValue: (v: string) => void;
   onAdd: () => void;
   disabled: boolean;
+  isReadonly?: boolean;
 }) {
   return (
     <div className="conventions-new-key-row">
@@ -463,13 +632,14 @@ function NewKeyRow({
         placeholder={placeholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && !disabled) { e.preventDefault(); onAdd(); } }}
+        onKeyDown={(e) => { if (e.key === "Enter" && !disabled && !isReadonly) { e.preventDefault(); onAdd(); } }}
+        disabled={isReadonly}
       />
       <button
         type="button"
         className="btn btn-sm btn-outline-primary"
         onClick={onAdd}
-        disabled={disabled}
+        disabled={disabled || isReadonly}
       >
         <i className="bi bi-plus-lg" /> 追加
       </button>
@@ -495,13 +665,14 @@ interface MsgEntryLocal {
 }
 
 function MsgEditor({
-  msg, onAdd, onUpdate, onCommit, onRemove,
+  msg, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   msg: Record<string, MsgEntryLocal>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<MsgEntryLocal>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(msg);
@@ -558,7 +729,7 @@ function MsgEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -569,6 +740,7 @@ function MsgEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !msg[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(msg, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
@@ -581,13 +753,14 @@ interface RegexEntryLocal {
 }
 
 function RegexEditor({
-  regex, onAdd, onUpdate, onCommit, onRemove,
+  regex, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   regex: Record<string, RegexEntryLocal>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<RegexEntryLocal>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(regex);
@@ -641,7 +814,7 @@ function RegexEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -652,6 +825,7 @@ function RegexEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !regex[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(regex, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
@@ -664,13 +838,14 @@ interface LimitEntryLocal {
 }
 
 function LimitEditor({
-  limit, onAdd, onUpdate, onCommit, onRemove,
+  limit, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   limit: Record<string, LimitEntryLocal>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<LimitEntryLocal>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(limit);
@@ -724,7 +899,7 @@ function LimitEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -735,6 +910,7 @@ function LimitEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !limit[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(limit, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
@@ -764,13 +940,14 @@ function DefaultCell<T extends { default?: boolean }>({
 }
 
 function ScopeEditor({
-  scope, onAdd, onUpdate, onCommit, onRemove,
+  scope, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   scope: Record<string, ScopeEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<ScopeEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(scope);
@@ -820,7 +997,7 @@ function ScopeEditor({
                 onUpdate={(patch) => onUpdate(key, patch)}
                 onCommit={onCommit}
               />
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -831,6 +1008,7 @@ function ScopeEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !scope[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(scope, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
@@ -839,13 +1017,14 @@ function ScopeEditor({
 const ROUNDING_OPTIONS = ["", "floor", "ceil", "round"] as const;
 
 function CurrencyEditor({
-  currency, onAdd, onUpdate, onCommit, onRemove,
+  currency, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   currency: Record<string, CurrencyEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<CurrencyEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(currency);
@@ -922,7 +1101,7 @@ function CurrencyEditor({
                 onUpdate={(patch) => onUpdate(key, patch)}
                 onCommit={onCommit}
               />
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -933,19 +1112,21 @@ function CurrencyEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !currency[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(currency, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
 }
 
 function TaxEditor({
-  tax, onAdd, onUpdate, onCommit, onRemove,
+  tax, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   tax: Record<string, TaxEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<TaxEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(tax);
@@ -1025,7 +1206,7 @@ function TaxEditor({
                 onUpdate={(patch) => onUpdate(key, patch)}
                 onCommit={onCommit}
               />
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1036,19 +1217,21 @@ function TaxEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !tax[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(tax, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
 }
 
 function AuthEditor({
-  auth, onAdd, onUpdate, onCommit, onRemove,
+  auth, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   auth: Record<string, AuthEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<AuthEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(auth);
@@ -1120,7 +1303,7 @@ function AuthEditor({
                 onUpdate={(patch) => onUpdate(key, patch)}
                 onCommit={onCommit}
               />
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1131,13 +1314,14 @@ function AuthEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !auth[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(auth, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
 }
 
 function RoleEditor({
-  role, permissionKeys, issues, onAdd, onUpdate, onCommit, onRemove,
+  role, permissionKeys, issues, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   role: Record<string, RoleEntry>;
   permissionKeys: string[];
@@ -1146,6 +1330,7 @@ function RoleEditor({
   onUpdate: (key: string, patch: Partial<RoleEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(role);
@@ -1252,7 +1437,7 @@ function RoleEditor({
                       placeholder="customer"
                     />
                   </td>
-                  <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+                  <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
                 </tr>
                 {rowIssues.length > 0 && (
                   <tr className="conventions-row-issues">
@@ -1280,6 +1465,7 @@ function RoleEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !role[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(role, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
@@ -1288,13 +1474,14 @@ function RoleEditor({
 const SCOPE_OPTIONS = ["", "all", "own", "department"] as const;
 
 function PermissionEditor({
-  permission, onAdd, onUpdate, onCommit, onRemove,
+  permission, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   permission: Record<string, PermissionEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<PermissionEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(permission);
@@ -1362,7 +1549,7 @@ function PermissionEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1373,19 +1560,21 @@ function PermissionEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !permission[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(permission, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
 }
 
 function DbEditor({
-  db, onAdd, onUpdate, onCommit, onRemove,
+  db, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   db: Record<string, DbEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<DbEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(db);
@@ -1471,7 +1660,7 @@ function DbEditor({
                 onUpdate={(patch) => onUpdate(key, patch)}
                 onCommit={onCommit}
               />
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1482,19 +1671,21 @@ function DbEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !db[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(db, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
 }
 
 function NumberingEditor({
-  numbering, onAdd, onUpdate, onCommit, onRemove,
+  numbering, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   numbering: Record<string, NumberingEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<NumberingEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(numbering);
@@ -1548,7 +1739,7 @@ function NumberingEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1559,19 +1750,21 @@ function NumberingEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !numbering[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(numbering, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
 }
 
 function TxEditor({
-  tx, onAdd, onUpdate, onCommit, onRemove,
+  tx, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   tx: Record<string, TxEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<TxEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(tx);
@@ -1615,7 +1808,7 @@ function TxEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1626,6 +1819,7 @@ function TxEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !tx[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(tx, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );
@@ -1636,13 +1830,14 @@ const ACTION_OPTIONS: ExternalOutcomeEntry["action"][] = ["continue", "abort", "
 const RETRY_OPTIONS = ["", "none", "fixed", "exponential"] as const;
 
 function ExternalOutcomeDefaultEditor({
-  entries: entriesMap, onAdd, onUpdate, onCommit, onRemove,
+  entries: entriesMap, onAdd, onUpdate, onCommit, onRemove, isReadonly,
 }: {
   entries: Record<string, ExternalOutcomeEntry>;
   onAdd: (key: string) => void;
   onUpdate: (key: string, patch: Partial<ExternalOutcomeEntry>) => void;
   onCommit: () => void;
   onRemove: (key: string) => void;
+  isReadonly?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   const entries = Object.entries(entriesMap);
@@ -1710,7 +1905,7 @@ function ExternalOutcomeDefaultEditor({
                   onBlur={onCommit}
                 />
               </td>
-              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} /></td>
+              <td className="text-center"><DeleteBtn onClick={() => onRemove(key)} isReadonly={isReadonly} /></td>
             </tr>
           ))}
         </tbody>
@@ -1721,6 +1916,7 @@ function ExternalOutcomeDefaultEditor({
         setValue={setNewKey}
         onAdd={() => { const k = newKey.trim(); if (k && !entriesMap[k]) { onAdd(k); setNewKey(""); } }}
         disabled={!newKey.trim() || Object.hasOwn(entriesMap, newKey.trim())}
+        isReadonly={isReadonly}
       />
     </EntriesWrapper>
   );

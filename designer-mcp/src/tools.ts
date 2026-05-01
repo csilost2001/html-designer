@@ -1289,7 +1289,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1305,11 +1305,15 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
         payload: { type: "object", description: "保存する内容" },
+        onBehalfOfSession: {
+          type: "string",
+          description: "AI が人間セッションに代わって操作する際の owner session ID (optional, 省略時は caller が owner)",
+        },
       },
       required: ["type", "id", "payload"],
     },
@@ -1322,10 +1326,14 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
+        onBehalfOfSession: {
+          type: "string",
+          description: "AI が人間セッションに代わって操作する際の owner session ID (optional, 省略時は caller が owner)",
+        },
       },
       required: ["type", "id"],
     },
@@ -1338,10 +1346,14 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
+        onBehalfOfSession: {
+          type: "string",
+          description: "AI が人間セッションに代わって操作する際の owner session ID (optional, 省略時は caller が owner)",
+        },
       },
       required: ["type", "id"],
     },
@@ -1354,7 +1366,7 @@ export const tools = [
       properties: {
         type: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         id: { type: "string", description: "リソース ID" },
@@ -1381,11 +1393,15 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },
         sessionId: { type: "string", description: "ロックを取得するセッション ID" },
+        onBehalfOfSession: {
+          type: "string",
+          description: "AI が人間セッションに代わって操作する際の owner session ID (optional, 省略時は caller が owner)",
+        },
       },
       required: ["resourceType", "resourceId", "sessionId"],
     },
@@ -1398,11 +1414,15 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },
         sessionId: { type: "string", description: "ロックを解放するセッション ID (owner である必要があります)" },
+        onBehalfOfSession: {
+          type: "string",
+          description: "AI が人間セッションに代わって操作する際の owner session ID (optional, 省略時は caller が owner)",
+        },
       },
       required: ["resourceType", "resourceId", "sessionId"],
     },
@@ -1415,7 +1435,7 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },
@@ -1432,7 +1452,7 @@ export const tools = [
       properties: {
         resourceType: {
           type: "string",
-          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention"],
+          enum: ["screen", "table", "process-flow", "view", "view-definition", "screen-item", "sequence", "extension", "convention", "flow"],
           description: "リソース種別",
         },
         resourceId: { type: "string", description: "リソース ID" },

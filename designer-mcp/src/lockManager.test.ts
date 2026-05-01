@@ -9,6 +9,7 @@ import {
   LockConflictError,
   LockNotHeldError,
 } from "./lockManager.js";
+import type { DraftResourceType } from "./draftStore.js";
 
 beforeEach(() => {
   _resetForTest();
@@ -165,5 +166,22 @@ describe("owner != actor シナリオ (AI 委任)", () => {
   it("actor session (AI) は release できない (LockNotHeldError)", () => {
     acquire("process-flow", "pf-1", "human-session-H", "ai-session-A");
     expect(() => release("process-flow", "pf-1", "ai-session-A")).toThrow(LockNotHeldError);
+  });
+
+  it("entry has owner and actor separately when actor differs", () => {
+    const entry = acquire("table" as DraftResourceType, "t1", "human-X", "ai-Y");
+    expect(entry.ownerSessionId).toBe("human-X");
+    expect(entry.actorSessionId).toBe("ai-Y");
+  });
+
+  it("actor defaults to owner when omitted", () => {
+    const entry = acquire("table" as DraftResourceType, "t2", "human-X");
+    expect(entry.ownerSessionId).toBe("human-X");
+    expect(entry.actorSessionId).toBe("human-X");
+  });
+
+  it("non-owner cannot release", () => {
+    acquire("table" as DraftResourceType, "t3", "human-X");
+    expect(() => release("table" as DraftResourceType, "t3", "ai-Y")).toThrow(LockNotHeldError);
   });
 });

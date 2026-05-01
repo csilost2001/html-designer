@@ -148,9 +148,61 @@ describe("draftStore", () => {
       expect(r.committed).toBe(false);
     });
 
-    it("screen-item: commitDraft は Error を throw する", async () => {
-      await updateDraft("screen-item", "si-001", { id: "si-001", label: "test" });
-      await expect(commitDraft("screen-item", "si-001")).rejects.toThrow(/screen-item/i);
+    it("screen-item: commitDraft は writeScreenItems を呼び出して committed: true を返す", async () => {
+      await updateDraft("screen-item", "si-001", { screenId: "si-001", items: [] });
+      const r = await commitDraft("screen-item", "si-001");
+      expect(r.committed).toBe(true);
+      // draft が削除されていること
+      const afterDraft = await readDraft("screen-item", "si-001");
+      expect(afterDraft).toBeNull();
+    });
+
+    it("screen-item: payload.screenId が指す screen に書き込まれる", async () => {
+      const screenId = "scr-abc123";
+      // 書き込み先 screen が存在するよう事前にディレクトリを作成
+      const screensDir = path.join(TMP_ROOT, "screens");
+      await fs.mkdir(screensDir, { recursive: true });
+      await fs.writeFile(
+        path.join(screensDir, `${screenId}.design.json`),
+        JSON.stringify({ id: screenId, name: "テスト画面", items: [] }),
+        "utf-8",
+      );
+
+      // singleton id で draft を作成・commit
+      await updateDraft("screen-item", "singleton", {
+        screenId,
+        items: [{ id: "item-1", label: "ラベル" }],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      });
+      const r = await commitDraft("screen-item", "singleton");
+      expect(r.committed).toBe(true);
+
+      // draft が削除されていること
+      const afterDraft = await readDraft("screen-item", "singleton");
+      expect(afterDraft).toBeNull();
+
+      // 正しい screenId のファイルに書き込まれていること ("singleton" ではない)
+      // writeScreenItems → writeScreenEntity は screens/{screenId}.json に items を保存する
+      const bodyPath = path.join(TMP_ROOT, "screens", `${screenId}.json`);
+      const body = JSON.parse(await fs.readFile(bodyPath, "utf-8"));
+      expect(body).toMatchObject({ id: screenId, items: [{ id: "item-1" }] });
+    });
+
+    it("screen-item: payload.screenId が空文字のときエラーを投げる", async () => {
+      await updateDraft("screen-item", "singleton", {
+        screenId: "",
+        items: [],
+      });
+      await expect(commitDraft("screen-item", "singleton")).rejects.toThrow(
+        "screen-item draft payload に screenId がありません",
+      );
+    });
+
+    it("screen-item: payload.screenId が存在しないときエラーを投げる", async () => {
+      await updateDraft("screen-item", "singleton", { items: [] });
+      await expect(commitDraft("screen-item", "singleton")).rejects.toThrow(
+        "screen-item draft payload に screenId がありません",
+      );
     });
   });
 

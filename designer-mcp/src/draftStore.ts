@@ -15,7 +15,9 @@ import {
   writeProcessFlow,
   writeView,
   writeViewDefinition,
+  writeScreenItems,
   writeSequence,
+  writeProject,
 } from "./projectStorage.js";
 
 export type DraftResourceType =
@@ -27,7 +29,8 @@ export type DraftResourceType =
   | "screen-item"
   | "sequence"
   | "extension"
-  | "convention";
+  | "convention"
+  | "flow";  // #690 PR-7: 画面遷移図用
 
 const DRAFTS_SUBDIR = ".drafts";
 
@@ -82,6 +85,7 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
     case "view-definition":
       return path.join(activeRoot, "view-definitions", `${id}.json`);
     case "screen-item":
+      // screen-item は singleton draft で body path が payload.screenId に依存するため null を返す
       return null;
     case "sequence":
       return path.join(activeRoot, "sequences", `${id}.json`);
@@ -89,6 +93,8 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
       return path.join(activeRoot, "extensions", `${id}.json`);
     case "convention":
       return path.join(activeRoot, "conventions", "catalog.json");
+    case "flow":
+      return path.join(activeRoot, "project.json");
     default:
       return null;
   }
@@ -179,11 +185,11 @@ export async function commitDraft(
       await writeViewDefinition(id, payload);
       break;
     case "screen-item": {
-      const bodyPath = canonicalBodyPath(root, type, id);
-      if (!bodyPath) {
-        throw new Error("screen-item の本体パス解決に失敗しました (PR-7 で対応予定)");
+      const siPayload = payload as { screenId?: string } | null;
+      if (!siPayload || typeof siPayload.screenId !== "string" || !siPayload.screenId) {
+        throw new Error("screen-item draft payload に screenId がありません");
       }
-      await atomicWrite(bodyPath, payload);
+      await writeScreenItems(siPayload.screenId, siPayload);
       break;
     }
     case "sequence":
@@ -199,6 +205,9 @@ export async function commitDraft(
       await atomicWrite(bodyPath, payload);
       break;
     }
+    case "flow":
+      await writeProject(payload);
+      break;
     default: {
       const _exhaustive: never = type;
       throw new Error(`未対応の resourceType: ${_exhaustive}`);
