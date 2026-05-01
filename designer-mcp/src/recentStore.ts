@@ -93,45 +93,64 @@ function normalizePath(p: string): string {
 }
 
 /**
+ * read-modify-write 直列化用の write chain (#676 review: P1)。
+ * upsert / setLastActive / removeWorkspace の同時呼び出しが interleave すると
+ * 後発の write が先発の差分を上書き失う問題を防ぐ。chain.catch で next continuation を
+ * 保護し、1 回の例外で chain が永久に停滞しないようにする。
+ */
+let _writeChain: Promise<unknown> = Promise.resolve();
+function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+  const result = _writeChain.then(fn, fn);
+  _writeChain = result.catch(() => undefined);
+  return result;
+}
+
+/**
  * 指定 path のエントリを upsert (既存なら lastOpenedAt と name を更新、無ければ追加)。
  * 戻り値は upsert 後のエントリ。lastActiveId は呼び出し側で setLastActive を別途呼ぶ。
  */
-export async function upsertWorkspace(
+export function upsertWorkspace(
   workspacePath: string,
   name: string,
 ): Promise<WorkspaceEntry> {
-  const file = await readRecent();
-  const norm = normalizePath(workspacePath);
-  const now = new Date().toISOString();
-  const existing = file.workspaces.find((w) => normalizePath(w.path) === norm);
-  let entry: WorkspaceEntry;
-  if (existing) {
-    existing.path = norm;
-    existing.name = name;
-    existing.lastOpenedAt = now;
-    entry = existing;
-  } else {
-    entry = { id: randomUUID(), path: norm, name, lastOpenedAt: now };
-    file.workspaces.push(entry);
-  }
-  await writeRecent(file);
-  return entry;
+  return withWriteLock(async () => {
+    const file = await readRecent();
+    const norm = normalizePath(workspacePath);
+    const now = new Date().toISOString();
+    const existing = file.workspaces.find((w) => normalizePath(w.path) === norm);
+    let entry: WorkspaceEntry;
+    if (existing) {
+      existing.path = norm;
+      existing.name = name;
+      existing.lastOpenedAt = now;
+      entry = existing;
+    } else {
+      entry = { id: randomUUID(), path: norm, name, lastOpenedAt: now };
+      file.workspaces.push(entry);
+    }
+    await writeRecent(file);
+    return entry;
+  });
 }
 
-export async function setLastActive(id: string | null): Promise<void> {
-  const file = await readRecent();
-  file.lastActiveId = id;
-  await writeRecent(file);
+export function setLastActive(id: string | null): Promise<void> {
+  return withWriteLock(async () => {
+    const file = await readRecent();
+    file.lastActiveId = id;
+    await writeRecent(file);
+  });
 }
 
-export async function removeWorkspace(id: string): Promise<boolean> {
-  const file = await readRecent();
-  const before = file.workspaces.length;
-  file.workspaces = file.workspaces.filter((w) => w.id !== id);
-  if (file.lastActiveId === id) file.lastActiveId = null;
-  if (file.workspaces.length === before) return false;
-  await writeRecent(file);
-  return true;
+export function removeWorkspace(id: string): Promise<boolean> {
+  return withWriteLock(async () => {
+    const file = await readRecent();
+    const before = file.workspaces.length;
+    file.workspaces = file.workspaces.filter((w) => w.id !== id);
+    if (file.lastActiveId === id) file.lastActiveId = null;
+    if (file.workspaces.length === before) return false;
+    await writeRecent(file);
+    return true;
+  });
 }
 
 export async function findById(id: string): Promise<WorkspaceEntry | null> {

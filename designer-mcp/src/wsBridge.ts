@@ -773,7 +773,7 @@ class WsBridge extends EventEmitter {
             activeId: entry.id,
             path: entry.path,
             name: entry.name,
-            lockdown: false,
+            lockdown: isWorkspaceLockdown(),
           }, clientId);
           break;
         }
@@ -787,7 +787,7 @@ class WsBridge extends EventEmitter {
           await setLastActiveWorkspace(null);
           respond({ success: true });
           this.broadcast("workspace.changed", {
-            activeId: null, path: null, name: null, lockdown: false,
+            activeId: null, path: null, name: null, lockdown: isWorkspaceLockdown(),
           }, clientId);
           break;
         }

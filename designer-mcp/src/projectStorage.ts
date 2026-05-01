@@ -140,7 +140,8 @@ export async function writeProject(project: unknown): Promise<void> {
 
 /** 各種データファイルの更新時刻を取得（存在しないなら null） */
 export async function getFileMtime(kind: string, id?: string): Promise<number | null> {
-  const filePath = resolveDataFile(kind, id);
+  const root = requireActivePath();
+  const filePath = resolveDataFile(kind, root, id);
   if (!filePath) return null;
   try {
     const stat = await fs.stat(filePath);
@@ -150,20 +151,20 @@ export async function getFileMtime(kind: string, id?: string): Promise<number | 
   }
 }
 
-function resolveDataFile(kind: string, id?: string): string | null {
+function resolveDataFile(kind: string, root: string, id?: string): string | null {
   switch (kind) {
-    case "project": return projectFile();
-    case "erLayout": return erLayoutFile();
-    case "customBlocks": return customBlocksFile();
-    case "conventions": return conventionsFile();
-    case "screen": return id ? path.join(screensDir(), `${id}.design.json`) : null;
-    case "screenEntity": return id ? path.join(screensDir(), `${id}.json`) : null;
-    case "table": return id ? path.join(tablesDir(), `${id}.json`) : null;
-    case "processFlow": return id ? path.join(actionsDir(), `${id}.json`) : null;
-    case "screenItems": return id ? path.join(screenItemsDir(), `${id}.json`) : null;
-    case "sequence": return id ? path.join(sequencesDir(), `${id}.json`) : null;
-    case "view": return id ? path.join(viewsDir(), `${id}.json`) : null;
-    case "viewDefinition": return id ? path.join(viewDefsDir(), `${id}.json`) : null;
+    case "project": return projectFile(root);
+    case "erLayout": return erLayoutFile(root);
+    case "customBlocks": return customBlocksFile(root);
+    case "conventions": return conventionsFile(root);
+    case "screen": return id ? path.join(screensDir(root), `${id}.design.json`) : null;
+    case "screenEntity": return id ? path.join(screensDir(root), `${id}.json`) : null;
+    case "table": return id ? path.join(tablesDir(root), `${id}.json`) : null;
+    case "processFlow": return id ? path.join(actionsDir(root), `${id}.json`) : null;
+    case "screenItems": return id ? path.join(screenItemsDir(root), `${id}.json`) : null;
+    case "sequence": return id ? path.join(sequencesDir(root), `${id}.json`) : null;
+    case "view": return id ? path.join(viewsDir(root), `${id}.json`) : null;
+    case "viewDefinition": return id ? path.join(viewDefsDir(root), `${id}.json`) : null;
     default: return null;
   }
 }
@@ -381,7 +382,8 @@ export async function deleteScreen(screenId: string): Promise<void> {
 
 /** custom-blocks.json を読み込み */
 export async function readCustomBlocks(): Promise<unknown[]> {
-  return (await readJSON<unknown[]>(customBlocksFile())) ?? [];
+  const root = requireActivePath();
+  return (await readJSON<unknown[]>(customBlocksFile(root))) ?? [];
 }
 
 /** custom-blocks.json を書き込み */
@@ -393,7 +395,8 @@ export async function writeCustomBlocks(blocks: unknown[]): Promise<void> {
 
 /** er-layout.json を読み込み */
 export async function readErLayout(): Promise<unknown | null> {
-  return readJSON<unknown>(erLayoutFile());
+  const root = requireActivePath();
+  return readJSON<unknown>(erLayoutFile(root));
 }
 
 /** er-layout.json を書き込み */
@@ -405,7 +408,8 @@ export async function writeErLayout(data: unknown): Promise<void> {
 
 /** screen-layout.json を読み込み (Phase 3-β、#561) */
 export async function readScreenLayout(): Promise<unknown | null> {
-  return readJSON<unknown>(screenLayoutFile());
+  const root = requireActivePath();
+  return readJSON<unknown>(screenLayoutFile(root));
 }
 
 /** screen-layout.json を書き込み (Phase 3-β、#561) */
@@ -417,7 +421,8 @@ export async function writeScreenLayout(data: unknown): Promise<void> {
 
 /** tables/{tableId}.json を読み込み */
 export async function readTable(tableId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(tablesDir(), `${tableId}.json`));
+  const root = requireActivePath();
+  return readJSON<unknown>(path.join(tablesDir(root), `${tableId}.json`));
 }
 
 /** tables/{tableId}.json を書き込み */
@@ -429,8 +434,9 @@ export async function writeTable(tableId: string, data: unknown): Promise<void> 
 
 /** tables/{tableId}.json を削除（存在しない場合は無視） */
 export async function deleteTable(tableId: string): Promise<void> {
+  const root = requireActivePath();
   try {
-    await fs.unlink(path.join(tablesDir(), `${tableId}.json`));
+    await fs.unlink(path.join(tablesDir(root), `${tableId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -455,7 +461,8 @@ export async function listAllTables(): Promise<unknown[]> {
 
 /** actions/{processFlowId}.json を読み込み */
 export async function readProcessFlow(processFlowId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(actionsDir(), `${processFlowId}.json`));
+  const root = requireActivePath();
+  return readJSON<unknown>(path.join(actionsDir(root), `${processFlowId}.json`));
 }
 
 /** actions/{processFlowId}.json を書き込み */
@@ -467,14 +474,16 @@ export async function writeProcessFlow(processFlowId: string, data: unknown): Pr
 
 /** actions/{processFlowId}.json を削除（存在しない場合は無視） */
 export async function deleteProcessFlow(processFlowId: string): Promise<void> {
+  const root = requireActivePath();
   try {
-    await fs.unlink(path.join(actionsDir(), `${processFlowId}.json`));
+    await fs.unlink(path.join(actionsDir(root), `${processFlowId}.json`));
   } catch { /* file not found is OK */ }
 }
 
 /** conventions/catalog.json を読み込み (#317) */
 export async function readConventions(): Promise<unknown | null> {
-  return readJSON<unknown>(conventionsFile());
+  const root = requireActivePath();
+  return readJSON<unknown>(conventionsFile(root));
 }
 
 /** conventions/catalog.json を書き込み (#317) */
@@ -524,7 +533,8 @@ export async function deleteScreenItems(screenId: string): Promise<void> {
 
 /** sequences/{sequenceId}.json を読み込み (#374) */
 export async function readSequence(sequenceId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(sequencesDir(), `${sequenceId}.json`));
+  const root = requireActivePath();
+  return readJSON<unknown>(path.join(sequencesDir(root), `${sequenceId}.json`));
 }
 
 /** sequences/{sequenceId}.json を書き込み (#374) */
@@ -536,8 +546,9 @@ export async function writeSequence(sequenceId: string, data: unknown): Promise<
 
 /** sequences/{sequenceId}.json を削除（存在しない場合は無視） (#374) */
 export async function deleteSequence(sequenceId: string): Promise<void> {
+  const root = requireActivePath();
   try {
-    await fs.unlink(path.join(sequencesDir(), `${sequenceId}.json`));
+    await fs.unlink(path.join(sequencesDir(root), `${sequenceId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -562,7 +573,8 @@ export async function listAllViews(): Promise<unknown[]> {
 
 /** views/{viewId}.json を読み込み (v3 per-entity #549) */
 export async function readView(viewId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(viewsDir(), `${viewId}.json`));
+  const root = requireActivePath();
+  return readJSON<unknown>(path.join(viewsDir(root), `${viewId}.json`));
 }
 
 /** views/{viewId}.json を書き込み (v3 per-entity #549) */
@@ -574,8 +586,9 @@ export async function writeView(viewId: string, data: unknown): Promise<void> {
 
 /** views/{viewId}.json を削除（存在しない場合は無視） (v3 per-entity #549) */
 export async function deleteView(viewId: string): Promise<void> {
+  const root = requireActivePath();
   try {
-    await fs.unlink(path.join(viewsDir(), `${viewId}.json`));
+    await fs.unlink(path.join(viewsDir(root), `${viewId}.json`));
   } catch { /* file not found is OK */ }
 }
 
@@ -598,7 +611,8 @@ export async function listAllViewDefinitions(): Promise<unknown[]> {
 }
 
 export async function readViewDefinition(viewDefinitionId: string): Promise<unknown | null> {
-  return readJSON<unknown>(path.join(viewDefsDir(), `${viewDefinitionId}.json`));
+  const root = requireActivePath();
+  return readJSON<unknown>(path.join(viewDefsDir(root), `${viewDefinitionId}.json`));
 }
 
 export async function writeViewDefinition(viewDefinitionId: string, data: unknown): Promise<void> {
@@ -608,8 +622,9 @@ export async function writeViewDefinition(viewDefinitionId: string, data: unknow
 }
 
 export async function deleteViewDefinition(viewDefinitionId: string): Promise<void> {
+  const root = requireActivePath();
   try {
-    await fs.unlink(path.join(viewDefsDir(), `${viewDefinitionId}.json`));
+    await fs.unlink(path.join(viewDefsDir(root), `${viewDefinitionId}.json`));
   } catch { /* file not found is OK */ }
 }
 

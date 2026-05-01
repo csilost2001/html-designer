@@ -1094,7 +1094,7 @@ function createMcpServer(): Server {
           activeId: entry.id,
           path: entry.path,
           name: entry.name,
-          lockdown: false,
+          lockdown: isLockdown(),
         });
         return { content: [{ type: "text", text: `ワークスペース「${entry.name}」を開きました (${entry.path})` }] };
       }
@@ -1122,7 +1122,7 @@ function createMcpServer(): Server {
           activeId: null,
           path: null,
           name: null,
-          lockdown: false,
+          lockdown: isLockdown(),
         });
         return { content: [{ type: "text", text: "ワークスペースを閉じました。" }] };
       }
