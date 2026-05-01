@@ -48,6 +48,9 @@ data/
 !data/extensions/
 !data/extensions/**
 
+# 編集中 draft ファイル (個人の作業中間状態、git 管理対象外)
+data/.drafts/
+
 # Playwright test artifacts
 designer/test-results/
 designer/playwright-report/
