@@ -7,6 +7,8 @@ import { FieldTypesTab } from "./FieldTypesTab";
 import { TriggersTab } from "./TriggersTab";
 import { DbOperationsTab } from "./DbOperationsTab";
 import { ResponseTypesTab } from "./ResponseTypesTab";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
+import "../../styles/editMode.css";
 
 export type ExtensionKind = "steps" | "fieldTypes" | "triggers" | "dbOperations" | "responseTypes";
 
@@ -36,6 +38,7 @@ export function ExtensionsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const { hasDraft } = useDraftRegistry();
 
   const load = useCallback(async (forceReload = false) => {
     setLoading(true);
@@ -115,6 +118,9 @@ export function ExtensionsPanel() {
             >
               <i className={`bi ${tab.icon} me-1`} />
               {tab.label}
+              {hasDraft("extension", tab.key) && (
+                <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+              )}
             </button>
           </li>
         ))}

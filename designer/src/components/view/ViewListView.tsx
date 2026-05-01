@@ -21,7 +21,9 @@ import { useListSort } from "../../hooks/useListSort";
 import { useListEditor } from "../../hooks/useListEditor";
 import { usePersistentState } from "../../hooks/usePersistentState";
 import { renumber } from "../../utils/listOrder";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/table.css";
+import "../../styles/editMode.css";
 
 const STORAGE_KEY = "list-view-mode:view-list";
 const TAB_ID = makeTabId("view-list", "main");
@@ -41,6 +43,7 @@ function formatDate(iso: string): string {
 
 export function ViewListView() {
   const navigate = useNavigate();
+  const { hasDraft } = useDraftRegistry();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
@@ -447,6 +450,9 @@ export function ViewListView() {
         <div className="seq-card-header">
           <MaturityBadge maturity={v.maturity} />
           <span className="seq-card-name">{v.name}</span>
+          {hasDraft("view", v.id) && (
+            <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+          )}
           {validation && (hasError || hasWarning) && (
             <span className="view-validation-badges">
               <ValidationBadge severity="error" count={validation.errors} />

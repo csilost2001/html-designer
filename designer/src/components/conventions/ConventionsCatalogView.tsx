@@ -35,7 +35,9 @@ import type {
   ExternalOutcomeEntry,
   SemVer,
 } from "../../types/v3";
+import { useDraftRegistry } from "../../hooks/useDraftRegistry";
 import "../../styles/conventions.css";
+import "../../styles/editMode.css";
 
 type Category =
   | "msg" | "regex" | "limit"
@@ -99,6 +101,7 @@ function countCategoryEntries(catalog: ConventionsCatalog, cat: Category): numbe
 
 export function ConventionsCatalogView() {
   const [activeCategory, setActiveCategory] = useState<Category>("msg");
+  const { hasDraft } = useDraftRegistry();
 
   const {
     state: catalog,
@@ -214,7 +217,14 @@ export function ConventionsCatalogView() {
       )}
 
       <EditorHeader
-        title={<span className="fw-semibold">規約カタログ</span>}
+        title={
+          <span className="fw-semibold">
+            規約カタログ
+            {hasDraft("convention", "catalog") && (
+              <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
+            )}
+          </span>
+        }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
         saveReset={{ isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
       />

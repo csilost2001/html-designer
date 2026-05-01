@@ -19,6 +19,7 @@ export interface UseEditSessionResult {
   mode: EditMode;
   loading: boolean;
   error: Error | null;
+  isDirtyForTab: boolean;
   actions: {
     startEditing: () => Promise<void>;
     save: () => Promise<void>;
@@ -249,10 +250,15 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     }
   }, [resourceType, resourceId, sessionId]);
 
+  const isDirtyForTab =
+    mode.kind === "editing" ||
+    mode.kind === "force-released-pending";
+
   return {
     mode,
     loading,
     error,
+    isDirtyForTab,
     actions: {
       startEditing,
       save,

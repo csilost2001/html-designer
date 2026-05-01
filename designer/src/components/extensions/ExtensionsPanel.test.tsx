@@ -9,6 +9,7 @@ vi.mock("../../mcp/mcpBridge", () => ({
     getExtensions: vi.fn(),
     request: vi.fn(),
     onExtensionsChanged: vi.fn(() => () => undefined),
+    onBroadcast: vi.fn(() => () => undefined),
   },
 }));
 
