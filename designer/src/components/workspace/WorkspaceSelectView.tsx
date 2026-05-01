@@ -30,6 +30,7 @@ export function WorkspaceSelectView() {
 
   const { workspaces, lockdown } = state;
   const recentWorkspaces = workspaces.slice(0, 5);
+  const hiddenCount = workspaces.length - 5;
 
   const handleOpenById = async (id: string) => {
     setActionError(null);
@@ -185,6 +186,25 @@ export function WorkspaceSelectView() {
                 </button>
               ))}
             </div>
+            {/* D: 5 件超のヒントリンク */}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => navigate("/workspace/list")}
+                style={{
+                  marginTop: "8px",
+                  background: "none",
+                  border: "none",
+                  color: "#4dabf7",
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                  padding: "2px 0",
+                  textAlign: "left",
+                  textDecoration: "underline",
+                }}
+              >
+                他 {hiddenCount} 件はワークスペース一覧へ
+              </button>
+            )}
           </div>
         )}
 
