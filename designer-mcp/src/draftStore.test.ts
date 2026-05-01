@@ -147,6 +147,11 @@ describe("draftStore", () => {
       const r = await commitDraft("table", "no-such-draft");
       expect(r.committed).toBe(false);
     });
+
+    it("screen-item: commitDraft は Error を throw する", async () => {
+      await updateDraft("screen-item", "si-001", { id: "si-001", label: "test" });
+      await expect(commitDraft("screen-item", "si-001")).rejects.toThrow(/screen-item/i);
+    });
   });
 
   describe("discardDraft", () => {

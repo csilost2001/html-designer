@@ -7,6 +7,7 @@
  */
 import fs from "fs/promises";
 import path from "path";
+import { randomBytes } from "node:crypto";
 import { requireActivePath } from "./workspaceState.js";
 import {
   writeScreen,
@@ -15,7 +16,6 @@ import {
   writeView,
   writeViewDefinition,
   writeSequence,
-  writeConventions,
 } from "./projectStorage.js";
 
 export type DraftResourceType =
@@ -48,10 +48,16 @@ async function ensureDraftDir(activeRoot: string, type: DraftResourceType): Prom
 }
 
 async function atomicWrite(targetPath: string, data: unknown): Promise<void> {
-  const tmp = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
+  const rand = randomBytes(4).toString("hex");
+  const tmp = `${targetPath}.tmp-${process.pid}-${Date.now()}-${rand}`;
   const json = JSON.stringify(data, null, 2);
-  await fs.writeFile(tmp, json, "utf-8");
-  await fs.rename(tmp, targetPath);
+  try {
+    await fs.writeFile(tmp, json, "utf-8");
+    await fs.rename(tmp, targetPath);
+  } catch (err) {
+    await fs.unlink(tmp).catch(() => {});
+    throw err;
+  }
 }
 
 async function readJSON<T>(filePath: string): Promise<T | null> {
