@@ -42,7 +42,7 @@ async function setup(page: Page, items: Array<{ id: string; label: string; type:
     siData: screenItemsData,
     siKey: `screen-items-${screenId}`,
   });
-  await page.goto("/screen-items");
+  await page.goto(`/w/ws-e2e/screen/items/${screenId}`);
   await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
 }
 

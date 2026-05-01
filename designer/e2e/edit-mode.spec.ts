@@ -258,9 +258,21 @@ test.describe("編集モード UI — SequenceEditor (PR-7)", () => {
   });
 });
 
-test.describe("編集モード UI — ScreenItemsView singleton (PR-7)", () => {
+test.describe("編集モード UI — ScreenItemsView per-screen (#696)", () => {
+  const SCREEN_ID = `scr-e2e-edit-mode-${Date.now()}`;
   test("編集開始 → 確認", async ({ page }) => {
-    await page.goto("/screen-items");
+    await page.addInitScript(({ sid }) => {
+      localStorage.setItem("workspace-e2e-bypass", "true");
+      const project = {
+        version: 1, name: "edit-mode-si-test",
+        screens: [{ id: sid, no: 1, name: "編集モードテスト画面", type: "standard", updatedAt: new Date().toISOString() }],
+        groups: [], edges: [], tables: [], processFlows: [], updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem("flow-project", JSON.stringify(project));
+      localStorage.removeItem("designer-open-tabs");
+      localStorage.removeItem("designer-active-tab");
+    }, { sid: SCREEN_ID });
+    await page.goto(`/w/ws-e2e/screen/items/${SCREEN_ID}`);
     const started = await startEditOrSkip(page);
     if (!started) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });

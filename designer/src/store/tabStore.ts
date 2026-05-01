@@ -12,6 +12,7 @@ export type TabType =
   | "sequence"        // シーケンス編集 (#374)
   | "view"            // ビュー編集 (#376)
   | "view-definition" // ビュー定義編集 (#666)
+  | "screen-items"    // 画面項目定義 (#318 / #696 per-screen タブ化)
   // シングルトン（1 インスタンス固定。resourceId は "main" で統一）
   | "screen-flow"        // 画面フロー図
   | "screen-list"        // 画面一覧 (#133 Phase C)
@@ -20,7 +21,6 @@ export type TabType =
   | "process-flow-list"  // 処理フロー一覧
   | "extensions"         // 拡張管理 (#447)
   | "conventions-catalog" // 規約カタログ (#317)
-  | "screen-items"       // 画面項目定義 (#318 プロトタイプ)
   | "sequence-list"      // シーケンス一覧 (#374)
   | "view-list"          // ビュー一覧 (#376)
   | "view-definition-list" // ビュー定義一覧 (#666)
@@ -28,9 +28,9 @@ export type TabType =
   | "dashboard";         // ダッシュボード（#86 PR-3 で有効化）
 
 const KNOWN_TAB_TYPES: ReadonlySet<TabType> = new Set([
-  "design", "table", "process-flow", "sequence", "view", "view-definition",
+  "design", "table", "process-flow", "sequence", "view", "view-definition", "screen-items",
   "screen-flow", "screen-list", "table-list", "er", "process-flow-list",
-  "extensions", "conventions-catalog", "screen-items", "sequence-list", "view-list", "view-definition-list",
+  "extensions", "conventions-catalog", "sequence-list", "view-list", "view-definition-list",
   "workspace-list", "dashboard",
 ]);
 
@@ -56,12 +56,17 @@ function _notify() {
 function _isValidTab(t: unknown): t is TabItem {
   if (!t || typeof t !== "object") return false;
   const o = t as Record<string, unknown>;
-  return (
-    typeof o.id === "string" && o.id.length > 0 &&
-    typeof o.type === "string" && KNOWN_TAB_TYPES.has(o.type as TabType) &&
-    typeof o.resourceId === "string" && o.resourceId.length > 0 &&
-    typeof o.label === "string"
-  );
+  if (
+    !(typeof o.id === "string" && o.id.length > 0 &&
+      typeof o.type === "string" && KNOWN_TAB_TYPES.has(o.type as TabType) &&
+      typeof o.resourceId === "string" && o.resourceId.length > 0 &&
+      typeof o.label === "string")
+  ) {
+    return false;
+  }
+  // #696: screen-items は per-screen タブ化されたため、旧 singleton 形式 (resourceId="singleton") は無効
+  if (o.type === "screen-items" && o.resourceId === "singleton") return false;
+  return true;
 }
 
 function _loadTabs(): TabItem[] {

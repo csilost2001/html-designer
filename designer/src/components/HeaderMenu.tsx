@@ -46,10 +46,6 @@ const MENU_ITEMS: MenuItem[] = [
     activePaths: ["/conventions/catalog"],
   },
   {
-    id: "screen-items", label: "画面項目定義 (ドラフト)", icon: "bi-ui-checks-grid", route: "/screen-items",
-    activePaths: ["/screen-items"],
-  },
-  {
     id: "sequence-list", label: "シーケンス一覧", icon: "bi-arrow-repeat", route: "/sequence/list",
     activePaths: ["/sequence/list"], activePrefixes: ["/sequence/edit/"],
   },
