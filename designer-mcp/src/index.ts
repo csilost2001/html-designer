@@ -31,6 +31,15 @@ import { mcpTableToSpecEntry } from "./specExport.js";
 import { initWorkspaceState, getActivePath, setActivePath, clearActive, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError } from "./workspaceState.js";
 import { listWorkspaces, upsertWorkspace, removeWorkspace, findById, findByPath, setLastActive } from "./recentStore.js";
 import { autoActivateOnStartup, inspectWorkspacePath, initializeWorkspace } from "./workspaceInit.js";
+import {
+  acquire as lockAcquire,
+  release as lockRelease,
+  forceRelease as lockForceRelease,
+  getLock,
+  listLocks,
+  LockConflictError,
+  LockNotHeldError,
+} from "./lockManager.js";
 
 // 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
 // stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
@@ -1193,6 +1202,53 @@ function createMcpServer(): Server {
       case "draft__list": {
         const drafts = await listDrafts();
         return { content: [{ type: "text", text: JSON.stringify({ drafts }, null, 2) }] };
+      }
+
+      // ── per-resource ロック管理 (#686) ─────────────────────────────
+      case "lock__acquire": {
+        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
+        try {
+          const entry = lockAcquire(a.resourceType, a.resourceId, a.sessionId);
+          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: a.sessionId });
+          return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
+        } catch (e) {
+          if (e instanceof LockConflictError) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: e.message, entry: e.entry }) }], isError: true };
+          }
+          throw e;
+        }
+      }
+
+      case "lock__release": {
+        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
+        try {
+          const result = lockRelease(a.resourceType, a.resourceId, a.sessionId);
+          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: a.sessionId, by: a.sessionId });
+          return { content: [{ type: "text", text: JSON.stringify(result) }] };
+        } catch (e) {
+          if (e instanceof LockNotHeldError) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
+          }
+          throw e;
+        }
+      }
+
+      case "lock__forceRelease": {
+        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
+        const fr = lockForceRelease(a.resourceType, a.resourceId, a.sessionId);
+        wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "force-released", ownerSessionId: fr.previousOwner, by: a.sessionId, previousOwner: fr.previousOwner });
+        return { content: [{ type: "text", text: JSON.stringify(fr) }] };
+      }
+
+      case "lock__get": {
+        const a = argRecord as { resourceType: DraftResourceType; resourceId: string };
+        const entry = getLock(a.resourceType, a.resourceId);
+        return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
+      }
+
+      case "lock__list": {
+        const locks = listLocks();
+        return { content: [{ type: "text", text: JSON.stringify({ locks }, null, 2) }] };
       }
 
       default:

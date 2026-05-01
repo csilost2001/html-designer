@@ -11,6 +11,15 @@ import {
   listDrafts,
   type DraftResourceType,
 } from "./draftStore.js";
+import {
+  acquire as lockAcquire,
+  release as lockRelease,
+  forceRelease as lockForceRelease,
+  getLock,
+  listLocks,
+  LockConflictError,
+  LockNotHeldError,
+} from "./lockManager.js";
 import { execSync } from "child_process";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
@@ -860,6 +869,56 @@ class WsBridge extends EventEmitter {
           if (r.created) {
             this.broadcast("draft.changed", { type: dt, id: did, op: "created" }, clientId);
           }
+          break;
+        }
+
+        // ── per-resource ロック管理 (#686) ─────────────────────────────
+        case "lock.acquire": {
+          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          try {
+            const entry = lockAcquire(lrt, lrid, clientId);
+            respond({ entry });
+            this.broadcast("lock.changed", { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId });
+          } catch (e) {
+            if (e instanceof LockConflictError) {
+              respondError(e.message);
+            } else {
+              throw e;
+            }
+          }
+          break;
+        }
+        case "lock.release": {
+          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          try {
+            const result = lockRelease(lrt, lrid, clientId);
+            respond(result);
+            this.broadcast("lock.changed", { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId });
+          } catch (e) {
+            if (e instanceof LockNotHeldError) {
+              respondError(e.message);
+            } else {
+              throw e;
+            }
+          }
+          break;
+        }
+        case "lock.forceRelease": {
+          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const fr = lockForceRelease(lrt, lrid, clientId);
+          respond(fr);
+          this.broadcast("lock.changed", { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner });
+          break;
+        }
+        case "lock.get": {
+          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const entry = getLock(lrt, lrid);
+          respond({ entry });
+          break;
+        }
+        case "lock.list": {
+          const locks = listLocks();
+          respond({ locks });
           break;
         }
 
