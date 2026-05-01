@@ -403,6 +403,25 @@ export function AppShell() {
     closeTab(tabId, true);
   };
 
+  // 初回ハイドレーション中はルートを描画しない (#676 review):
+  // workspaceState.loading=true の間に dashboard / 一覧系を描画すると、singleton stores
+  // (flowStore / tableStore 等) が WS 未接続のうちに localStorage fallback で初期化されて
+  // 旧 workspace のデータをキャッシュしてしまう。そのキャッシュは hydration 後も残り続け、
+  // その状態から保存すると active workspace に旧データが上書きされる。
+  // loading=false (= 初回 load 成功 or 失敗 or lockdown 確定) になるまで splash で遅延させる。
+  if (workspaceState.loading) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "100vh", flexDirection: "column", gap: "8px",
+        color: "var(--muted-text, #888)",
+      }}>
+        <i className="bi bi-hourglass-split" style={{ fontSize: "1.5rem" }} />
+        <p style={{ margin: 0 }}>ワークスペース情報を読み込み中...</p>
+      </div>
+    );
+  }
+
   // /workspace/select はフルスクリーンで表示 (ヘッダー・タブバーなし)
   if (location.pathname === "/workspace/select") {
     return <WorkspaceSelectView />;
