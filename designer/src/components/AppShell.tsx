@@ -80,19 +80,27 @@ export function AppShell() {
 
   // 起動時: MCP 接続を能動的に開始 + 接続後にワークスペースをロード、ブロードキャスト購読。
   // / (Dashboard) のような MCP 接続を能動起動しないルートで初回ランディングしても guard が
-  // 動作するよう、ここで startWithoutEditor() を呼ぶ。
-  // Designer タブ等の start(editor) は既存接続があれば再利用するため衝突しない (mcpBridge.start 内で
-  // readyState OPEN なら early return する仕様)。
+  // 動作するよう、AppShell が WS のライフサイクル責任を持つ:
+  //  - 起動時: startWithoutEditor() で能動起動。onStatusChange が即時に現状を発火するため、
+  //    "disconnected" 経由でも下記 disconnected ハンドラで起動が走る。
+  //  - "disconnected" 受信時: Designer unmount の stop() などで切断された後でも常に再起動する。
+  //    startWithoutEditor は readyState OPEN / status==="connecting" なら no-op なので idempotent。
+  //  - "connected" 受信時: loadWorkspaces で active state を最新化。
+  // Designer タブ等の start(editor) は既存接続があれば再利用するため衝突しない。
   useEffect(() => {
     const unsubBroadcast = subscribeWorkspaceChanges();
-    const unsubStatus = (mcpBridge as unknown as { onStatusChange: (cb: (s: string) => void) => () => void }).onStatusChange((s) => {
+    const bridge = mcpBridge as unknown as {
+      onStatusChange: (cb: (s: string) => void) => () => void;
+      startWithoutEditor: () => void;
+    };
+    const unsubStatus = bridge.onStatusChange((s) => {
       if (s === "connected") {
         loadWorkspaces().catch(console.error);
+      } else if (s === "disconnected") {
+        // 切断検知 → 再起動 (idempotent)。Designer unmount による stop() からの復帰経路。
+        bridge.startWithoutEditor();
       }
     });
-    // bridge を能動起動 (既に接続中なら no-op)。これにより onStatusChange が "connected" を
-    // 受信して loadWorkspaces が走る → loading=false に落ちる → guard が判定可能になる。
-    (mcpBridge as unknown as { startWithoutEditor: () => void }).startWithoutEditor();
     return () => { unsubBroadcast(); unsubStatus(); };
   }, []);
 
