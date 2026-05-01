@@ -30,6 +30,10 @@ Claude Code 向けの補足ガイダンス。
 
 Codex CLI 利用時はこれらのスキルは直接呼び出せません。等価機能は Codex plugin の `/codex:review` 等で代替するか、Opus が briefing で代替指示を出します。
 
+### ワークスペース機能
+
+複数ワークスペース管理機能の仕様は [docs/spec/workspace.md](docs/spec/workspace.md) を参照。`designer-mcp` は **active workspace** 1 つに対応し、env `DESIGNER_DATA_DIR` が指定されている場合は lockdown モードで固定される (recent への読み書きなし)。
+
 ### Schema ガバナンス (最重要、#511)
 
 `schemas/process-flow.schema.json` / `schemas/extensions-*.schema.json` / `schemas/conventions.schema.json` 等の **グローバル定義スキーマは、フレームワーク製作者 (設計者) の専権事項**。
