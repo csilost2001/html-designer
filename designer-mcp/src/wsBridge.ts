@@ -154,6 +154,12 @@ class WsBridge extends EventEmitter {
     return this.clients.size > 0;
   }
 
+  /** 指定 sessionId が接続中かつ OPEN 状態かを返す (AI 委任の owner 検証用) */
+  isActiveSession(sessionId: string): boolean {
+    const ws = this.clients.get(sessionId);
+    return ws !== undefined && ws.readyState === WebSocket.OPEN;
+  }
+
   /** MCP コマンドを送る先: 最後に接続した有効なクライアント */
   private get activeClient(): WebSocket | null {
     for (let i = this.clientOrder.length - 1; i >= 0; i--) {

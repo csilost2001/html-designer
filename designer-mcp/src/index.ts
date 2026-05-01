@@ -40,6 +40,7 @@ import {
   LockConflictError,
   LockNotHeldError,
 } from "./lockManager.js";
+import { resolveOnBehalfOfSession, logAuditIfDelegated } from "./onBehalfOfSession.js";
 
 // 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
 // stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
@@ -1169,14 +1170,20 @@ function createMcpServer(): Server {
       }
 
       case "draft__update": {
-        const a = argRecord as { type: DraftResourceType; id: string; payload: unknown };
+        const a = argRecord as { type: DraftResourceType; id: string; payload: unknown; onBehalfOfSession?: string };
+        if (a.onBehalfOfSession) {
+          logAuditIfDelegated("draft__update", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
+        }
         await updateDraft(a.type, a.id, a.payload);
         wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "updated" });
         return { content: [{ type: "text", text: JSON.stringify({ updated: true }) }] };
       }
 
       case "draft__commit": {
-        const a = argRecord as { type: DraftResourceType; id: string };
+        const a = argRecord as { type: DraftResourceType; id: string; onBehalfOfSession?: string };
+        if (a.onBehalfOfSession) {
+          logAuditIfDelegated("draft__commit", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
+        }
         const r = await commitDraft(a.type, a.id);
         if (r.committed) {
           wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "committed" });
@@ -1185,7 +1192,10 @@ function createMcpServer(): Server {
       }
 
       case "draft__discard": {
-        const a = argRecord as { type: DraftResourceType; id: string };
+        const a = argRecord as { type: DraftResourceType; id: string; onBehalfOfSession?: string };
+        if (a.onBehalfOfSession) {
+          logAuditIfDelegated("draft__discard", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
+        }
         const r = await discardDraft(a.type, a.id);
         if (r.discarded) {
           wsBridge.broadcast("draft.changed", { type: a.type, id: a.id, op: "discarded" });
@@ -1206,10 +1216,17 @@ function createMcpServer(): Server {
 
       // ── per-resource ロック管理 (#686) ─────────────────────────────
       case "lock__acquire": {
-        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
+        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string; onBehalfOfSession?: string };
+        let resolved;
         try {
-          const entry = lockAcquire(a.resourceType, a.resourceId, a.sessionId);
-          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: a.sessionId });
+          resolved = resolveOnBehalfOfSession(a.sessionId, a.onBehalfOfSession, (id) => wsBridge.isActiveSession(id));
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
+        logAuditIfDelegated("lock__acquire", resolved, a.resourceType, a.resourceId);
+        try {
+          const entry = lockAcquire(a.resourceType, a.resourceId, resolved.owner, resolved.actor);
+          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: resolved.actor });
           return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
         } catch (e) {
           if (e instanceof LockConflictError) {
@@ -1220,10 +1237,17 @@ function createMcpServer(): Server {
       }
 
       case "lock__release": {
-        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
+        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string; onBehalfOfSession?: string };
+        let resolved;
         try {
-          const result = lockRelease(a.resourceType, a.resourceId, a.sessionId);
-          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: a.sessionId, by: a.sessionId });
+          resolved = resolveOnBehalfOfSession(a.sessionId, a.onBehalfOfSession, (id) => wsBridge.isActiveSession(id));
+        } catch (e) {
+          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
+        }
+        logAuditIfDelegated("lock__release", resolved, a.resourceType, a.resourceId);
+        try {
+          const result = lockRelease(a.resourceType, a.resourceId, resolved.owner);
+          wsBridge.broadcast("lock.changed", { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: resolved.owner, by: resolved.actor });
           return { content: [{ type: "text", text: JSON.stringify(result) }] };
         } catch (e) {
           if (e instanceof LockNotHeldError) {
