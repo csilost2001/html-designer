@@ -104,6 +104,20 @@
         "additionalProperties": false
       }
     },
+    "DashboardKpiResponse": {
+      "description": "ダッシュボード KPI 集計レスポンス。todaySales / ordersToday / lowStockCount / dispatchPending の 4 KPI 値を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["todaySales", "ordersToday", "lowStockCount", "dispatchPending"],
+        "properties": {
+          "todaySales": { "type": "integer", "description": "本日累計売上金額 (税込)" },
+          "ordersToday": { "type": "integer", "description": "本日注文件数 (cancelled 除外)" },
+          "lowStockCount": { "type": "integer", "description": "低在庫 (@conv.limit.lowStockThreshold 以下) 商品件数" },
+          "dispatchPending": { "type": "integer", "description": "配送指示待ち (status IN ('pending', 'confirmed')) 注文件数" }
+        },
+        "additionalProperties": false
+      }
+    },
     "InventorySearchResponse": {
       "description": "店舗在庫照会レスポンス (S-1)。指定商品コード / 店舗の在庫情報を items 配列で返す。0 件でも 200 OK で items: []。",
       "schema": {

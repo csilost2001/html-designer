@@ -125,6 +125,17 @@
       "notNull": true,
       "defaultValue": "CURRENT_TIMESTAMP",
       "comment": "最終更新日時"
+    },
+    {
+      "id": "col-payment-method",
+      "no": 12,
+      "physicalName": "payment_method",
+      "name": "支払方法",
+      "dataType": "VARCHAR",
+      "length": 30,
+      "notNull": false,
+      "comment": "支払方法 (credit_card / bank_transfer / cod)",
+      "description": "S-3 注文確定で顧客が選択した支払方法。NULL は移行前データ用。"
     }
   ],
   "constraints": [
@@ -159,6 +170,13 @@
       "onDelete": "restrict",
       "onUpdate": "cascade",
       "description": "customers テーブルへの FK。注文が残る場合は顧客削除を禁止"
+    },
+    {
+      "id": "chk-payment-method",
+      "kind": "check",
+      "physicalName": "chk_orders_payment_method",
+      "expression": "payment_method IS NULL OR payment_method IN ('credit_card', 'bank_transfer', 'cod')",
+      "description": "支払方法値制約 (NULL 許容)"
     }
   ],
   "indexes": [
