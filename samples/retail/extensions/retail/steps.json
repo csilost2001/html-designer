@@ -1,0 +1,80 @@
+{
+  "$schema": "../../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "retail",
+  "version": "1.0.0",
+  "description": "リテール業態向け拡張定義 — Step 拡張 (配送指示など複合 step・外部 API 連携)。",
+  "stepKinds": {
+    "DispatchShipment": {
+      "label": "配送指示",
+      "icon": "bi-truck",
+      "description": "外部キャリア API に配送指示を送信する拡張 Step。注文情報・配送先住所・希望配送日をキャリア API エンドポイントに POST し、追跡番号 (tracking_number) を受け取る。配送指示フロー (S-4) で使用する。",
+      "schema": {
+        "type": "object",
+        "required": ["carrierId", "orderId", "shippingAddress"],
+        "properties": {
+          "carrierId": {
+            "type": "string",
+            "description": "キャリア識別子 (例: yamato / sagawa / jp-post)"
+          },
+          "orderId": {
+            "type": "string",
+            "description": "注文 ID (変数参照可)"
+          },
+          "shippingAddress": {
+            "type": "string",
+            "description": "配送先住所 (変数参照可)"
+          },
+          "preferredDate": {
+            "type": "string",
+            "description": "希望配送日 (YYYY-MM-DD、任意)"
+          },
+          "timeSlot": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "evening", "any"],
+            "description": "希望時間帯"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "object",
+        "fields": [
+          { "name": "trackingNumber", "type": "string", "label": "追跡番号" },
+          { "name": "estimatedDelivery", "type": "date", "label": "配達予定日" },
+          { "name": "carrierId", "type": "string", "label": "キャリア識別子" }
+        ]
+      }
+    },
+    "SendOrderConfirmEmail": {
+      "label": "注文確定メール送信",
+      "icon": "bi-envelope-check",
+      "description": "注文確定後に顧客へ確認メールを送信する拡張 Step。注文番号・明細・合計金額をテンプレートに展開して送信する。注文確定フロー (S-3) の完了後に実行する。",
+      "schema": {
+        "type": "object",
+        "required": ["toEmail", "orderNumber"],
+        "properties": {
+          "toEmail": {
+            "type": "string",
+            "description": "送信先メールアドレス (customers.email)"
+          },
+          "orderNumber": {
+            "type": "string",
+            "description": "注文番号 (orders.order_number)"
+          },
+          "templateId": {
+            "type": "string",
+            "description": "メールテンプレート ID (省略時はデフォルトテンプレート)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "object",
+        "fields": [
+          { "name": "messageId", "type": "string", "label": "メッセージ ID" },
+          { "name": "sentAt", "type": "datetime", "label": "送信日時" }
+        ]
+      }
+    }
+  }
+}

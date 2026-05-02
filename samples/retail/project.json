@@ -17,7 +17,88 @@
     "screens": [],
     "screenGroups": [],
     "screenTransitions": [],
-    "tables": [],
+    "tables": [
+      {
+        "id": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+        "no": 1,
+        "name": "商品マスタ",
+        "physicalName": "products",
+        "category": "マスタ",
+        "columnCount": 11,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "605bbc9d-810a-4b9c-a83a-cc2e59bca37a",
+        "no": 2,
+        "name": "顧客マスタ",
+        "physicalName": "customers",
+        "category": "マスタ",
+        "columnCount": 9,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
+        "no": 3,
+        "name": "店舗マスタ",
+        "physicalName": "stores",
+        "category": "マスタ",
+        "columnCount": 10,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
+        "no": 4,
+        "name": "店舗別在庫",
+        "physicalName": "inventory",
+        "category": "トランザクション",
+        "columnCount": 6,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+        "no": 5,
+        "name": "カート",
+        "physicalName": "carts",
+        "category": "トランザクション",
+        "columnCount": 5,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+        "no": 6,
+        "name": "カート明細",
+        "physicalName": "cart_items",
+        "category": "トランザクション",
+        "columnCount": 7,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
+        "no": 7,
+        "name": "注文",
+        "physicalName": "orders",
+        "category": "トランザクション",
+        "columnCount": 11,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
+        "no": 8,
+        "name": "注文明細",
+        "physicalName": "order_items",
+        "category": "トランザクション",
+        "columnCount": 9,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      }
+    ],
     "processFlows": [],
     "views": [],
     "viewDefinitions": [],
