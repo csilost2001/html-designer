@@ -212,3 +212,117 @@ describe("checkDesignFilePresence — designFileRef 未指定", () => {
     expect(missingIssues).toHaveLength(0);
   });
 });
+
+// ─── Case 9 以降: kind 別の条件付き発報 (#723) ────────────────────────────
+
+describe("checkScreenItemsEmbedded — kind=form items 空 → 発報", () => {
+  it("kind が 'form' かつ items 空のとき EMPTY_SCREEN_ITEMS warning が 1 件", () => {
+    const dir = makeTempProject();
+    const id = "11111111-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, { kind: "form", items: [] })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(1);
+    expect(emptyIssues[0].severity).toBe("warning");
+    expect(emptyIssues[0].message).toContain("kind=form");
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=dashboard items 空 → 発報なし", () => {
+  it("kind が 'dashboard' かつ items 空のとき EMPTY_SCREEN_ITEMS は出ない", () => {
+    const dir = makeTempProject();
+    const id = "22222222-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, { kind: "dashboard" as Screen["kind"], items: [] })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(0);
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=complete items 空 → 発報なし", () => {
+  it("kind が 'complete' かつ items 空のとき EMPTY_SCREEN_ITEMS は出ない", () => {
+    const dir = makeTempProject();
+    const id = "33333333-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, { kind: "complete" as Screen["kind"], items: [] })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(0);
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=list items 空 viewDefinitionRefs あり → 発報なし", () => {
+  it("kind が 'list' かつ items 空 かつ viewDefinitionRefs に UUID あり → EMPTY_SCREEN_ITEMS は出ない", () => {
+    const dir = makeTempProject();
+    const id = "44444444-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, {
+      kind: "list" as Screen["kind"],
+      items: [],
+      viewDefinitionRefs: ["44444444-0000-4000-8000-000000000099"] as Screen["viewDefinitionRefs"],
+    })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(0);
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=list items 空 viewDefinitionRefs 空配列 → 発報", () => {
+  it("kind が 'list' かつ items 空 かつ viewDefinitionRefs も空配列のとき EMPTY_SCREEN_ITEMS warning が 1 件", () => {
+    const dir = makeTempProject();
+    const id = "55555555-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, {
+      kind: "list" as Screen["kind"],
+      items: [],
+      viewDefinitionRefs: [] as Screen["viewDefinitionRefs"],
+    })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(1);
+    expect(emptyIssues[0].severity).toBe("warning");
+    expect(emptyIssues[0].message).toContain("viewDefinitionRefs");
+    expect(emptyIssues[0].message).toContain("kind=list");
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=list items 空 viewDefinitionRefs 未指定 → 発報", () => {
+  it("kind が 'list' かつ items 空 かつ viewDefinitionRefs 未指定のとき EMPTY_SCREEN_ITEMS warning が 1 件", () => {
+    const dir = makeTempProject();
+    const id = "66666666-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, { kind: "list" as Screen["kind"], items: [] })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(1);
+    expect(emptyIssues[0].severity).toBe("warning");
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=retail:storefront (拡張) items 空 → 発報なし", () => {
+  it("拡張 kind '<ns>:<name>' は判定不能のため EMPTY_SCREEN_ITEMS は出ない", () => {
+    const dir = makeTempProject();
+    const id = "77777777-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, { kind: "retail:storefront" as Screen["kind"], items: [] })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(0);
+  });
+});
+
+describe("checkScreenItemsEmbedded — kind=detail items 空 → 発報", () => {
+  it("kind が 'detail' かつ items 空のとき EMPTY_SCREEN_ITEMS warning が 1 件", () => {
+    const dir = makeTempProject();
+    const id = "88888888-0000-4000-8000-000000000001";
+    const screens = [makeScreen(id, { kind: "detail" as Screen["kind"], items: [] })];
+    const project = makeProject(dir, screens);
+    const issues = checkScreenItemsEmbedded(project);
+    const emptyIssues = issues.filter((i) => i.code === "EMPTY_SCREEN_ITEMS");
+    expect(emptyIssues).toHaveLength(1);
+    expect(emptyIssues[0].severity).toBe("warning");
+    expect(emptyIssues[0].message).toContain("kind=detail");
+  });
+});
