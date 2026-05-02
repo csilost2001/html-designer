@@ -285,9 +285,10 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 
 | code | severity | 検出内容 |
 |---|---|---|
-| `UNKNOWN_SOURCE_TABLE` | error | ViewDefinition.sourceTableId が同プロジェクトのテーブルに実在しない |
+| `UNKNOWN_SOURCE_TABLE` | error | sourceTableId / query.from.tableId / query.joins[].tableId が同プロジェクトのテーブルに実在しない |
 | `UNKNOWN_TABLE_COLUMN_REF` | error | ViewColumn.tableColumnRef が指す {tableId, columnId} が実在しない |
-| `COLUMN_REF_NOT_IN_SOURCE_TABLE` | warning | tableColumnRef.tableId が sourceTableId と異なる (joined view 参照) |
+| `UNKNOWN_TABLE_REF_IN_VIEW` | error | Level 2: ViewColumn.tableColumnRef.tableId が query.from / query.joins[] のいずれにも含まれない (#745) |
+| `JOIN_NOT_DECLARED` | warning | Level 1: tableColumnRef.tableId が sourceTableId と異なる (暗黙 join、Level 2 アップグレード推奨。#745、旧 `COLUMN_REF_NOT_IN_SOURCE_TABLE` を再定義) |
 | `DUPLICATE_VIEW_COLUMN_NAME` | error | ViewColumn.name が同 ViewDefinition 内で重複 |
 | `FIELD_TYPE_INCOMPATIBLE` | warning | ViewColumn.type (FieldType) と DB Column.dataType が互換しない |
 | `UNKNOWN_SORT_COLUMN` | error | sortDefaults[].columnName が columns[].name に存在しない |

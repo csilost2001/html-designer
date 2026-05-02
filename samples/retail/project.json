@@ -445,6 +445,15 @@
         "columnCount": 6,
         "maturity": "committed",
         "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "37a3af9a-f240-4fbb-b33d-6937305b430b",
+        "no": 6,
+        "name": "カテゴリ別 売れ筋商品 上位 N (Level 3 サンプル)",
+        "kind": "list",
+        "columnCount": 6,
+        "maturity": "draft",
+        "updatedAt": "2026-05-03T00:00:00.000Z"
       }
     ],
     "sequences": [

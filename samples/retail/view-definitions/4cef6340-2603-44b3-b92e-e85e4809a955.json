@@ -7,7 +7,17 @@
   "createdAt": "2026-05-02T00:00:00.000Z",
   "updatedAt": "2026-05-02T00:00:00.000Z",
   "kind": "list",
-  "sourceTableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
+  "query": {
+    "from": { "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "alias": "o" },
+    "joins": [
+      {
+        "kind": "LEFT",
+        "tableId": "605bbc9d-810a-4b9c-a83a-cc2e59bca37a",
+        "alias": "c",
+        "on": ["o.customer_id = c.id"]
+      }
+    ]
+  },
   "columns": [
     {
       "name": "orderNumber",

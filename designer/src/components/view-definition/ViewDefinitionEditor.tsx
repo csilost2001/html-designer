@@ -171,8 +171,11 @@ export function ViewDefinitionEditor() {
     const builtin = ["list", "detail", "kanban", "calendar"];
     setKindExtMode(!builtin.includes(vd.kind));
     const nextIds: Record<number, string> = {};
+    // Level 2/3 (#745): tableColumnRef が無いか sourceTableId 不在のケースは空文字で埋める
+    // (UI Editor は現状 Level 1 編集のみ対応、Level 2/3 は別 PR で UI 拡張)
     (vd.columns ?? []).forEach((col, i) => {
-      nextIds[i] = (col.tableColumnRef?.tableId as string) || (vd.sourceTableId as string);
+      nextIds[i] =
+        (col.tableColumnRef?.tableId as string | undefined) ?? (vd.sourceTableId as string | undefined) ?? "";
     });
     setColRefTableIds(nextIds);
   }, []);
@@ -348,7 +351,8 @@ export function ViewDefinitionEditor() {
     const newCol: ViewColumn = {
       name: "" as Identifier,
       tableColumnRef: {
-        tableId: viewDefinition.sourceTableId as TableId,
+        // Level 1 想定: sourceTableId が undefined のときは空文字で初期化 (#745)。
+        tableId: ((viewDefinition.sourceTableId as string | undefined) ?? "") as TableId,
         columnId: "" as LocalId,
       },
       type: "string" as FieldTypePrimitive,
@@ -356,7 +360,7 @@ export function ViewDefinitionEditor() {
     updateWithDraft((d) => { d.columns = [...(d.columns ?? []), newCol]; });
     setColRefTableIds((prev) => ({
       ...prev,
-      [viewDefinition.columns.length]: viewDefinition.sourceTableId,
+      [viewDefinition.columns.length]: (viewDefinition.sourceTableId as string | undefined) ?? "",
     }));
   };
 

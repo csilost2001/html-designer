@@ -124,8 +124,8 @@ npm run validate:dogfood
 
 - **exit 0**: 8 バリデータ全 pass → Step 1 へ進む
 - **exit 1**: 1 件以上の validator issue 検出 → Step 1 を中止せず、issue 内容を Step 2 のカバレッジ表に「validator 検出済」として記録して進む (実行セマンティクス観点が AI 目視のみで残るため)
-- **ViewDefinition 関連 Must-fix 候補**: `UNKNOWN_SOURCE_TABLE` / `UNKNOWN_TABLE_COLUMN_REF` / `DUPLICATE_VIEW_COLUMN_NAME` / `UNKNOWN_SORT_COLUMN` / `UNKNOWN_FILTER_COLUMN` / `UNKNOWN_GROUP_BY_COLUMN`
-- **ViewDefinition 関連 Should-fix (warning)**: `COLUMN_REF_NOT_IN_SOURCE_TABLE` / `FIELD_TYPE_INCOMPATIBLE` / `FILTER_OPERATOR_TYPE_MISMATCH`
+- **ViewDefinition 関連 Must-fix 候補**: `UNKNOWN_SOURCE_TABLE` / `UNKNOWN_TABLE_COLUMN_REF` / `UNKNOWN_TABLE_REF_IN_VIEW` (#745) / `DUPLICATE_VIEW_COLUMN_NAME` / `UNKNOWN_SORT_COLUMN` / `UNKNOWN_FILTER_COLUMN` / `UNKNOWN_GROUP_BY_COLUMN`
+- **ViewDefinition 関連 Should-fix (warning)**: `JOIN_NOT_DECLARED` (Level 2 アップグレード推奨、#745) / `FIELD_TYPE_INCOMPATIBLE` / `FILTER_OPERATOR_TYPE_MISMATCH`
 - **exit 2**: 引数異常 / ファイル不在 / JSON parse 失敗 → エラーメッセージを報告し AI 目視のみで Step 1 に進む
 
 ### バリデータが動かない場合
