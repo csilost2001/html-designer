@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "c2254dd6-ab5d-4428-931f-d27c71e89951",
+  "name": "配送指示",
+  "description": "注文の配送指示を登録する (S-4)。注文詳細 (読み取り専用) にキャリア・配送希望日・時間帯を入力し指示を確定する。",
+  "kind": "form",
+  "path": "/orders/:id/dispatch",
+  "auth": "required",
+  "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/c2254dd6-ab5d-4428-931f-d27c71e89951.html"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "2e23d129-1d53-4e30-b54c-97f90b910578",
+  "name": "商品マスター",
+  "description": "商品マスタの一覧・検索・新規登録・編集・削除を行う補助画面。productCode / name / unitPrice / isActive を管理する。",
+  "kind": "list",
+  "path": "/master/products",
+  "auth": "required",
+  "groupId": "8c592e1b-dfa4-4fc6-8a0c-e584996b0075",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/2e23d129-1d53-4e30-b54c-97f90b910578.html"
+  }
+}

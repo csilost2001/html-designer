@@ -1,0 +1,10 @@
+{
+  "id": "orderNumberFilter",
+  "label": "注文番号",
+  "type": "string",
+  "direction": "input",
+  "required": false,
+  "maxLength": 20,
+  "placeholder": "例: ORD-2026-000001",
+  "description": "S-4 注文一覧の検索条件: 注文番号。"
+}

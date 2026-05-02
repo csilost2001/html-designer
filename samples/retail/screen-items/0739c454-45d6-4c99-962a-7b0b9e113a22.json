@@ -1,0 +1,12 @@
+{
+  "id": "orderNumber",
+  "label": "注文番号",
+  "type": "string",
+  "direction": "output",
+  "description": "S-3 注文確定後に発行された注文番号 (ORD-YYYY-NNNNNN 形式)。",
+  "valueFrom": {
+    "kind": "flowVariable",
+    "processFlowId": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
+    "variableName": "orderNumber"
+  }
+}

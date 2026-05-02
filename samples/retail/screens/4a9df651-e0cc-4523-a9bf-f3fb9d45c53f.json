@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
+  "name": "在庫一覧",
+  "description": "店舗別在庫を一覧表示する (S-1)。店舗フィルタ・低在庫フィルタを提供し、補充ボタンから補充フローへ遷移できる。",
+  "kind": "list",
+  "path": "/inventory",
+  "auth": "required",
+  "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/4a9df651-e0cc-4523-a9bf-f3fb9d45c53f.html"
+  }
+}

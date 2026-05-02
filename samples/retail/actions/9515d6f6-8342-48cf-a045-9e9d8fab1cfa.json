@@ -1,0 +1,467 @@
+{
+  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "9515d6f6-8342-48cf-a045-9e9d8fab1cfa",
+    "name": "カート追加",
+    "description": "指定商品をログイン顧客のカートに追加する。products 存在確認 → carts UPSERT → cart_items UPSERT (retail:UPSERT_CART_ITEM) の順で実行し、重複商品の場合は数量を加算する。",
+    "kind": "screen",
+    "maturity": "committed",
+    "createdAt": "2026-05-02T00:00:00.000Z",
+    "updatedAt": "2026-05-02T00:00:00.000Z"
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "VALIDATION_ERROR": {
+          "httpStatus": 400,
+          "defaultMessage": "入力値が不正です。",
+          "responseId": "400-validation",
+          "description": "productCode 未指定、quantity 範囲外等のバリデーションエラー。"
+        },
+        "PRODUCT_NOT_FOUND": {
+          "httpStatus": 404,
+          "defaultMessage": "指定の商品が見つかりません。",
+          "responseId": "404-product-not-found",
+          "description": "productCode に該当する販売中商品が存在しない。"
+        },
+        "CART_ITEMS_LIMIT_EXCEEDED": {
+          "httpStatus": 422,
+          "defaultMessage": "カート内の商品点数が上限に達しています。",
+          "responseId": "422-cart-limit",
+          "description": "cart_items 件数が @conv.limit.cartMaxItems を超える場合に返す。"
+        }
+      },
+      "events": {
+        "retail.cart.item_added": {
+          "description": "カート追加が正常完了した時点で発行する。新規追加・数量加算いずれの場合も発行する。",
+          "payload": {
+            "type": "object",
+            "required": ["cartId", "productId", "quantity"],
+            "properties": {
+              "cartId": { "type": "number" },
+              "productId": { "type": "number" },
+              "quantity": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "ambientVariables": [
+      {
+        "name": "sessionCustomerId",
+        "type": "integer",
+        "required": true,
+        "description": "セッションから取得したログイン顧客 ID。未ログインの場合は 401 を先に返すこと (ゲートウェイ層で保証)。"
+      }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "カートへ商品追加",
+      "trigger": "submit",
+      "description": "productCode と quantity を受け取り、顧客カートに商品を追加 (または数量加算) する。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/retail/cart/items",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "productCode",
+          "label": "商品コード",
+          "type": "string",
+          "required": true,
+          "description": "追加する商品の商品コード。@conv.regex.productCode 準拠。"
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "type": "integer",
+          "required": true,
+          "description": "追加数量。1 以上 @conv.limit.cartItemMaxQuantity 以下。"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "cartId",
+          "label": "カートID",
+          "type": "integer",
+          "description": "追加先のカート ID。"
+        },
+        {
+          "name": "cartItemId",
+          "label": "カート明細ID",
+          "type": "integer",
+          "description": "追加 (または更新) された cart_items の ID。"
+        },
+        {
+          "name": "productName",
+          "label": "商品名",
+          "type": "string",
+          "description": "追加した商品の表示名 (確認メッセージ用)。"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": { "typeRef": "retail:CartAddResponse" },
+          "description": "カート追加成功。",
+          "when": "商品が正常にカートに追加 (または数量加算) された場合。"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "バリデーションエラー。",
+          "when": "productCode や quantity が不正な場合。"
+        },
+        {
+          "id": "404-product-not-found",
+          "status": 404,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "商品が存在しない。",
+          "when": "productCode に対応する販売中商品が products に存在しない場合。"
+        },
+        {
+          "id": "422-cart-limit",
+          "status": 422,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "カート明細上限超過。",
+          "when": "追加後の cart_items 件数が @conv.limit.cartMaxItems を超える場合。"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "kind": "validation",
+          "description": "productCode 必須チェック + パターン検証。quantity 範囲チェック (1 以上 @conv.limit.cartItemMaxQuantity 以下)。",
+          "conditions": "productCode は必須かつ @conv.regex.productCode 準拠。quantity は 1〜999 の整数。",
+          "rules": [
+            {
+              "field": "productCode",
+              "type": "required",
+              "severity": "error",
+              "message": "商品コードは必須です。"
+            },
+            {
+              "field": "productCode",
+              "type": "regex",
+              "patternRef": "@conv.regex.productCode",
+              "severity": "error",
+              "message": "商品コードの形式が不正です。"
+            },
+            {
+              "field": "quantity",
+              "type": "required",
+              "severity": "error",
+              "message": "数量は必須です。"
+            },
+            {
+              "field": "quantity",
+              "type": "range",
+              "min": 1,
+              "maxRef": "@conv.limit.cartItemMaxQuantity",
+              "severity": "error",
+              "message": "数量は 1 以上 999 以下で指定してください。"
+            }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": [],
+            "ng": [
+              {
+                "id": "step-01-ng-01",
+                "kind": "return",
+                "description": "400 バリデーションエラーを返す。",
+                "responseId": "400-validation",
+                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', fieldErrors: @fieldErrors }"
+              }
+            ]
+          }
+        },
+        {
+          "id": "step-02",
+          "kind": "dbAccess",
+          "description": "products テーブルで商品の存在確認と単価取得を行う。is_active=TRUE の販売中商品のみ対象。",
+          "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+          "operation": "SELECT",
+          "sql": "SELECT id, product_code, name, unit_price FROM products WHERE product_code = @inputs.productCode AND is_active = TRUE",
+          "outputBinding": { "name": "product" },
+          "lineage": {
+            "reads": [{ "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-03",
+          "kind": "branch",
+          "description": "商品が存在しない場合は 404 を返す。",
+          "branches": [
+            {
+              "id": "br-03-a",
+              "code": "A",
+              "label": "商品なし",
+              "condition": {
+                "kind": "expression",
+                "expression": "@product == null || @product === undefined"
+              },
+              "steps": [
+                {
+                  "id": "step-03-a-01",
+                  "kind": "return",
+                  "description": "404 商品なしを返す。",
+                  "responseId": "404-product-not-found",
+                  "bodyExpression": "{ code: 'PRODUCT_NOT_FOUND', message: '商品コード ' + @inputs.productCode + ' の商品が見つかりません。' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-03-else",
+            "code": "B",
+            "label": "商品あり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-04",
+          "kind": "dbAccess",
+          "description": "sessionCustomerId に紐づくカートを取得する。存在しない場合は null が返る。",
+          "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+          "operation": "SELECT",
+          "sql": "SELECT id, customer_id, status FROM carts WHERE customer_id = @sessionCustomerId AND status = 'active'",
+          "outputBinding": { "name": "cart" },
+          "lineage": {
+            "reads": [{ "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-05",
+          "kind": "branch",
+          "description": "カートが存在しない場合は新規作成する。",
+          "branches": [
+            {
+              "id": "br-05-a",
+              "code": "A",
+              "label": "カートなし — 新規作成",
+              "condition": {
+                "kind": "expression",
+                "expression": "@cart == null || @cart === undefined"
+              },
+              "steps": [
+                {
+                  "id": "step-05-a-01",
+                  "kind": "dbAccess",
+                  "description": "新規カートを INSERT する。",
+                  "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+                  "operation": "INSERT",
+                  "sql": "INSERT INTO carts (customer_id, status) VALUES (@sessionCustomerId, 'active') RETURNING id, customer_id, status",
+                  "outputBinding": { "name": "cart" },
+                  "lineage": {
+                    "writes": [{ "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" }]
+                  }
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-05-else",
+            "code": "B",
+            "label": "カートあり — そのまま使用",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-06",
+          "kind": "dbAccess",
+          "description": "現在の cart_items 件数を取得して上限チェックに使用する。",
+          "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+          "operation": "SELECT",
+          "sql": "SELECT COUNT(*) AS item_count FROM cart_items WHERE cart_id = @cart.id",
+          "outputBinding": { "name": "cartItemCount" },
+          "lineage": {
+            "reads": [{ "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-07",
+          "kind": "branch",
+          "description": "cart_items 件数が @conv.limit.cartMaxItems に達している場合は 422 を返す。既存商品の数量加算は上限カウント対象外 (UPSERT_CART_ITEM が判定)。",
+          "branches": [
+            {
+              "id": "br-07-a",
+              "code": "A",
+              "label": "上限超過",
+              "condition": {
+                "kind": "expression",
+                "expression": "@cartItemCount.item_count >= @conv.limit.cartMaxItems"
+              },
+              "steps": [
+                {
+                  "id": "step-07-a-01",
+                  "kind": "return",
+                  "description": "422 カート上限超過を返す。",
+                  "responseId": "422-cart-limit",
+                  "bodyExpression": "{ code: 'CART_ITEMS_LIMIT_EXCEEDED', message: 'カート内の商品点数が上限 (' + @conv.limit.cartMaxItems + ' 件) に達しています。' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-07-else",
+            "code": "B",
+            "label": "上限未満 — 追加続行",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-08",
+          "kind": "dbAccess",
+          "description": "cart_items に (cart_id, product_id) で UPSERT する。重複の場合は quantity を加算し unit_price_snapshot を最新値で更新する。",
+          "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+          "operation": "retail:UPSERT_CART_ITEM",
+          "sql": "INSERT INTO cart_items (cart_id, product_id, unit_price_snapshot, quantity) VALUES (@cart.id, @product.id, @product.unit_price, @inputs.quantity) ON CONFLICT (cart_id, product_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity, unit_price_snapshot = EXCLUDED.unit_price_snapshot, updated_at = CURRENT_TIMESTAMP RETURNING id",
+          "outputBinding": { "name": "upsertedCartItem" },
+          "affectedRowsCheck": {
+            "operator": "=",
+            "expected": 1,
+            "onViolation": "throw",
+            "errorCode": "VALIDATION_ERROR",
+            "description": "UPSERT_CART_ITEM は必ず 1 行を返す。0 行は異常。"
+          },
+          "lineage": {
+            "writes": [{ "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-09",
+          "kind": "eventPublish",
+          "description": "retail.cart.item_added イベントを発行する。",
+          "topic": "retail.cart.item_added",
+          "payload": "{ cartId: @cart.id, productId: @product.id, quantity: @inputs.quantity }"
+        },
+        {
+          "id": "step-10",
+          "kind": "return",
+          "description": "200 OK — カート追加成功を返す。",
+          "responseId": "200-ok",
+          "bodyExpression": "{ cartId: @cart.id, cartItemId: @upsertedCartItem.id, productName: @product.name, message: @product.name + ' をカートに追加しました。' }"
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-001",
+        "title": "UPSERT_CART_ITEM で重複排除を行う",
+        "status": "accepted",
+        "context": "同一商品を複数回カートに追加した場合の挙動を決定する必要があった。",
+        "decision": "retail:UPSERT_CART_ITEM (ON CONFLICT DO UPDATE) で quantity を加算し、重複行を作らない。unit_price_snapshot は最新値で更新する。",
+        "consequences": "複数回追加しても cart_items は 1 行に集約される。上限カウントは UPSERT 前に行うため、既存商品の数量加算は上限対象外となる。",
+        "date": "2026-05-02"
+      },
+      {
+        "id": "ADR-002",
+        "title": "カート取得/作成は TX なし — ロスト更新はセッション 1:1 設計で防ぐ",
+        "status": "accepted",
+        "context": "カート取得と作成の間に別セッションが同時に INSERT する競合を検討した。",
+        "decision": "carts テーブルには customer_id UNIQUE 制約があるため、重複 INSERT は DB 側で弾かれる。エラー時は再取得して続行するのが実装容易で十分。",
+        "consequences": "同一顧客の並行リクエスト時に稀に DB エラーが発生するが、リトライで解決できる。",
+        "date": "2026-05-02"
+      }
+    ],
+    "glossary": {
+      "カート追加": {
+        "definition": "ログイン顧客のカートに指定商品と数量を追加する操作。既に同じ商品がカートにある場合は数量を加算する (重複排除)。",
+        "aliases": ["AddToCart", "カートへ追加"],
+        "domainRef": "cart_items"
+      },
+      "単価スナップショット": {
+        "definition": "カート追加時点の products.unit_price を cart_items.unit_price_snapshot に記録する値。注文確定時も同値を order_items にコピーするため、マスタ変更の影響を受けない。",
+        "aliases": ["UnitPriceSnapshot"],
+        "domainRef": "cart_items.unit_price_snapshot"
+      }
+    },
+    "testScenarios": [
+      {
+        "id": "happy-path-new-item",
+        "name": "新規商品をカートに追加する",
+        "description": "カートに存在しない商品を初回追加する正常系。カートも初回作成。",
+        "given": [
+          {
+            "kind": "sessionContext",
+            "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+            "rows": [{ "id": 1, "product_code": "P-0001", "name": "サンプル商品A", "unit_price": 1000, "is_active": true }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+            "rows": []
+          },
+          {
+            "kind": "dbState",
+            "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+            "rows": []
+          }
+        ],
+        "when": { "actionId": "act-001", "input": { "productCode": "P-0001", "quantity": 2 } },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "output", "path": "$.productName", "equals": "サンプル商品A" }
+        ],
+        "tags": ["happy", "s2"]
+      },
+      {
+        "id": "duplicate-item-quantity-added",
+        "name": "同一商品の重複追加は数量加算になる",
+        "description": "カートに既に存在する商品を追加した場合、UPSERT で quantity が加算される。",
+        "given": [
+          {
+            "kind": "sessionContext",
+            "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+            "rows": [{ "id": 1, "product_code": "P-0001", "name": "サンプル商品A", "unit_price": 1000, "is_active": true }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+            "rows": [{ "id": 50, "customer_id": 100, "status": "active" }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+            "rows": [{ "id": 200, "cart_id": 50, "product_id": 1, "unit_price_snapshot": 1000, "quantity": 3 }]
+          }
+        ],
+        "when": { "actionId": "act-001", "input": { "productCode": "P-0001", "quantity": 2 } },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" }
+        ],
+        "tags": ["upsert", "s2"]
+      },
+      {
+        "id": "validation-error-invalid-quantity",
+        "name": "quantity=0 で 400",
+        "description": "数量 0 は range バリデーションで拒否される。",
+        "given": [
+          { "kind": "sessionContext", "context": { "sessionCustomerId": 100 } }
+        ],
+        "when": { "actionId": "act-001", "input": { "productCode": "P-0001", "quantity": 0 } },
+        "then": [
+          { "kind": "outcome", "expected": "400-validation" }
+        ],
+        "tags": ["error", "validation", "s2"]
+      }
+    ]
+  }
+}

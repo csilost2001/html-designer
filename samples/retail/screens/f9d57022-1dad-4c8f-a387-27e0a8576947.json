@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "f9d57022-1dad-4c8f-a387-27e0a8576947",
+  "name": "店舗マスター",
+  "description": "店舗マスタの一覧・検索画面。storeCode / name / 地域 / 営業中フラグを表示する。",
+  "kind": "list",
+  "path": "/master/stores",
+  "auth": "required",
+  "groupId": "8c592e1b-dfa4-4fc6-8a0c-e584996b0075",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/f9d57022-1dad-4c8f-a387-27e0a8576947.html"
+  }
+}

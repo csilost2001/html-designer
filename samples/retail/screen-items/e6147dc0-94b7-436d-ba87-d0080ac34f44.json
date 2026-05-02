@@ -1,0 +1,26 @@
+{
+  "id": "productCode",
+  "label": "商品コード",
+  "type": "string",
+  "direction": "input",
+  "required": false,
+  "maxLength": 20,
+  "pattern": "@conv.regex.productCode",
+  "placeholder": "例: P-0001",
+  "helperText": "P- で始まる 4〜6 桁の商品コードを入力してください。",
+  "errorMessages": {
+    "invalidFormat": "商品コードは P-XXXX〜P-XXXXXX 形式で入力してください。"
+  },
+  "events": [
+    {
+      "id": "submit",
+      "label": "在庫照会",
+      "handlerFlowId": "efa7ac6e-e295-416e-b68d-17c4739b5097",
+      "argumentMapping": {
+        "productCode": "@screen.productCode",
+        "storeCode": "@screen.storeCode"
+      }
+    }
+  ],
+  "description": "S-1 在庫照会の検索入力: 商品コード。"
+}

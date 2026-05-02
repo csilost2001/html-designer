@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "f9faa724-e080-4308-bc14-bb93631c9e78",
+  "name": "注文一覧",
+  "description": "バックオフィス向け注文一覧画面 (S-4)。注文番号・顧客・日付範囲で絞り込み、注文テーブルのステータスと配送指示ボタンを表示する。",
+  "kind": "list",
+  "path": "/orders",
+  "auth": "required",
+  "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/f9faa724-e080-4308-bc14-bb93631c9e78.html"
+  }
+}

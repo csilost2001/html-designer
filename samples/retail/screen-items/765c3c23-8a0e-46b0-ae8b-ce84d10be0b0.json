@@ -1,0 +1,12 @@
+{
+  "id": "todaySales",
+  "label": "今日の売上",
+  "type": "integer",
+  "direction": "output",
+  "displayFormat": "¥#,##0",
+  "description": "ダッシュボード KPI: 本日の累計売上金額 (税込)。",
+  "valueFrom": {
+    "kind": "flowVariable",
+    "variableName": "todaySales"
+  }
+}

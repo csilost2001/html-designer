@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "c73fa05c-4a71-4593-800d-b9814e97be83",
+  "name": "カート",
+  "description": "商品コードと数量を入力してカートに追加する (S-2/S-3)。カート明細テーブルで削除・数量変更ができ、合計金額を表示する。注文確認画面への導線を提供する。",
+  "kind": "retail:cart",
+  "path": "/cart",
+  "auth": "required",
+  "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/c73fa05c-4a71-4593-800d-b9814e97be83.html"
+  }
+}

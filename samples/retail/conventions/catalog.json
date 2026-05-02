@@ -1,0 +1,143 @@
+{
+  "$schema": "../../../schemas/v3/conventions.v3.schema.json",
+  "version": "1.0.0",
+  "description": "リテール総合サンプルの横断規約カタログ。採番・正規表現・メッセージ・境界値・DB 規約・税率・通貨・TX 方針を集約する。",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "i18n": {
+    "supportedLocales": ["ja-JP"],
+    "defaultLocale": "ja-JP",
+    "dateFormat": { "ja-JP": "YYYY/MM/DD" },
+    "timeFormat": { "ja-JP": "HH:mm" },
+    "currencyDisplay": { "ja-JP": "symbol" },
+    "numberGrouping": { "ja-JP": true }
+  },
+  "numbering": {
+    "orderNumber": {
+      "format": "ORD-YYYY-NNNNNN",
+      "implementation": "DB sequence (seq_order_number) + アプリ層で YYYY を現在年に置換して採番。シーケンス自体は CYCLE=false で連続インクリメントするため、毎年 1/1 0:00 にスケジュールタスク (DBA 運用) で seq_order_number を 1 にリセットする運用前提。シーケンス値が 999,999 を超える年商規模ではゼロ埋め桁数を増やす ALTER と併せて catalog 更新する。",
+      "description": "注文番号の採番規約。YYYY は注文確定年 (西暦 4 桁)、NNNNNN はシーケンス 6 桁ゼロ埋め。例: ORD-2026-000001。注文確定 TX (S-3) 内で 1 TX に 1 番号を発行する。"
+    }
+  },
+  "regex": {
+    "productCode": {
+      "pattern": "^P-[0-9]{4,6}$",
+      "description": "商品コードの正規表現。'P-' プレフィックス + 4〜6 桁数字。例: P-0001, P-123456。",
+      "exampleValid": ["P-0001", "P-9999", "P-123456"],
+      "exampleInvalid": ["0001", "P-001", "P-1234567", "p-0001"]
+    },
+    "janCode": {
+      "pattern": "^[0-9]{13}$",
+      "description": "JAN/EAN-13 バーコードの正規表現。13 桁数字のみ。チェックデジットの検証はアプリ層で行う。",
+      "exampleValid": ["4901234567890", "4912345678901"],
+      "exampleInvalid": ["490123456789", "49012345678901", "490123456789X"]
+    },
+    "storeCode": {
+      "pattern": "^S-[0-9]{3,5}$",
+      "description": "店舗コードの正規表現。'S-' プレフィックス + 3〜5 桁数字。例: S-001, S-10001。",
+      "exampleValid": ["S-001", "S-999", "S-10001"],
+      "exampleInvalid": ["001", "S-01", "S-123456"]
+    },
+    "postalCode": {
+      "pattern": "^[0-9]{7}$",
+      "description": "郵便番号の正規表現。ハイフンなし 7 桁数字。UI 表示時は 3-4 で区切る。",
+      "exampleValid": ["1600022", "5310073"],
+      "exampleInvalid": ["160-0022", "16000", "160002X"]
+    }
+  },
+  "msg": {
+    "stockShortage": {
+      "template": "{productName} の在庫が不足しています (在庫: {available} 個、注文: {requested} 個)。数量を減らすか、別の商品をお選びください。",
+      "params": ["productName", "available", "requested"],
+      "description": "在庫不足エラーメッセージ。注文確定フロー (S-3) で在庫引き当て失敗時に表示する。"
+    },
+    "cartItemAdded": {
+      "template": "{productName} をカートに追加しました。",
+      "params": ["productName"],
+      "description": "カート追加成功メッセージ (S-2)。"
+    },
+    "orderConfirmed": {
+      "template": "注文が確定しました。注文番号: {orderNumber}",
+      "params": ["orderNumber"],
+      "description": "注文確定完了メッセージ (S-3)。"
+    },
+    "shipmentDispatched": {
+      "template": "注文 {orderNumber} の配送指示が完了しました。追跡番号: {trackingNumber}",
+      "params": ["orderNumber", "trackingNumber"],
+      "description": "配送指示完了メッセージ (S-4)。"
+    },
+    "productNotFound": {
+      "template": "商品コード {productCode} の商品が見つかりません。",
+      "params": ["productCode"],
+      "description": "商品検索で該当なし時のメッセージ (S-1)。"
+    }
+  },
+  "limit": {
+    "lowStockThreshold": {
+      "value": 10,
+      "unit": "integer",
+      "description": "低在庫警告閾値。inventory.quantity_available がこの値以下になった場合、在庫一覧 (S-1) で警告バッジを表示する。"
+    },
+    "cartMaxItems": {
+      "value": 50,
+      "unit": "integer",
+      "description": "1 カート内の最大明細件数。これを超えた場合はカート追加を拒否する。"
+    },
+    "cartItemMaxQuantity": {
+      "value": 999,
+      "unit": "integer",
+      "description": "1 カート明細の最大数量。"
+    },
+    "productCodeMaxLength": {
+      "value": 20,
+      "unit": "char",
+      "description": "商品コードの最大文字数 (@conv.regex.productCode と整合)。"
+    }
+  },
+  "currency": {
+    "jpy": {
+      "code": "JPY",
+      "subunit": 0,
+      "roundingMode": "floor",
+      "default": true,
+      "description": "日本円。小数点以下なし、切り捨て。"
+    }
+  },
+  "tax": {
+    "standard": {
+      "kind": "exclusive",
+      "rate": 0.1,
+      "roundingMode": "floor",
+      "default": true,
+      "description": "消費税 10%。税抜金額に対して外税で計算し、円未満は切り捨て。"
+    },
+    "reduced": {
+      "kind": "exclusive",
+      "rate": 0.08,
+      "description": "軽減税率 8%。食料品など対象商品に適用。"
+    }
+  },
+  "db": {
+    "primary": {
+      "engine": "postgresql@15",
+      "namingConvention": "snake_case",
+      "timestampColumns": ["created_at", "updated_at"],
+      "logicalDeleteColumn": "is_active",
+      "default": true,
+      "description": "本サンプルの主 DB。PostgreSQL 15 を想定。全テーブルに created_at / updated_at を付与し、論理削除は is_active フラグで管理する。"
+    }
+  },
+  "tx": {
+    "orderConfirm": {
+      "policy": "注文確定 (S-3) は単一 DB トランザクション内で 在庫引き当て (DECREMENT_STOCK) → orders INSERT → order_items BULK_INSERT → carts CLEAR の順に実行する。いずれかで失敗した場合は全体をロールバックする。",
+      "description": "注文確定フローのトランザクション方針。在庫減算と注文登録を原子的に実行する。"
+    }
+  },
+  "auth": {
+    "sessionCookie": {
+      "scheme": "session-cookie",
+      "sessionStorage": "server-side (Redis)",
+      "default": true,
+      "description": "セッション Cookie 認証。ログイン状態はサーバ側 Redis セッションで管理する。"
+    }
+  }
+}

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>顧客マスター — リテール総合</title>
+  <meta name="viewport" content="width=1280">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header">
+    <h1 class="app-title"><i class="bi bi-shop"></i> リテール総合システム</h1>
+  </header>
+
+  <div class="app-body">
+    <aside class="app-sidebar">
+      <ul>
+        <li><a href="/"><i class="bi bi-speedometer2"></i> ダッシュボード</a></li>
+        <li><a href="/products/search"><i class="bi bi-search"></i> 商品検索</a></li>
+        <li><a href="/inventory"><i class="bi bi-box-seam"></i> 在庫管理</a></li>
+        <li><a href="/orders"><i class="bi bi-receipt"></i> 注文一覧</a></li>
+        <li><a href="/master/products"><i class="bi bi-box"></i> 商品マスター</a></li>
+        <li><a href="#" class="active"><i class="bi bi-people"></i> 顧客マスター</a></li>
+        <li><a href="/master/stores"><i class="bi bi-shop-window"></i> 店舗マスター</a></li>
+      </ul>
+    </aside>
+
+    <main class="app-main">
+      <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-people me-2"></i>顧客マスター</h1>
+        <nav class="breadcrumb-area">ホーム &gt; マスター管理 &gt; 顧客マスター</nav>
+      </div>
+
+      <!-- 検索条件 -->
+      <section class="search-area">
+        <div class="search-fields">
+          <div class="search-field">
+            <label for="emailSearch" class="form-label">メールアドレス</label>
+            <input
+              type="text"
+              id="emailSearch"
+              name="emailSearch"
+              data-item-id="emailSearch"
+              class="form-control form-control-sm"
+              placeholder="例: customer@example.com"
+              maxlength="254"
+              style="width:220px"
+            >
+          </div>
+          <div class="search-field">
+            <label for="customerNameSearch" class="form-label">顧客名</label>
+            <input
+              type="text"
+              id="customerNameSearch"
+              name="customerNameSearch"
+              data-item-id="customerNameSearch"
+              class="form-control form-control-sm"
+              placeholder="顧客名で検索"
+              maxlength="100"
+              style="width:160px"
+            >
+          </div>
+          <div class="search-field">
+            <label for="isActiveFilter" class="form-label">有効/無効</label>
+            <select
+              id="isActiveFilter"
+              name="isActiveFilter"
+              data-item-id="isActiveFilter"
+              class="form-select form-select-sm"
+              style="width:120px"
+            >
+              <option value="">全て</option>
+              <option value="true" selected>有効</option>
+              <option value="false">無効</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label for="registeredFrom" class="form-label">登録日 (開始)</label>
+            <input
+              type="date"
+              id="registeredFrom"
+              name="registeredFrom"
+              data-item-id="registeredFrom"
+              class="form-control form-control-sm"
+              style="width:150px"
+            >
+          </div>
+        </div>
+        <div class="search-buttons">
+          <button type="button" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x-circle"></i> クリア
+          </button>
+          <button type="button" class="btn btn-primary btn-sm">
+            <i class="bi bi-search"></i> 検索
+          </button>
+        </div>
+      </section>
+
+      <!-- 顧客一覧テーブル -->
+      <section class="data-table-wrap">
+        <div class="data-table-toolbar">
+          <span>表示中: <strong>3,142</strong> 件</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-download"></i> CSV 出力
+          </button>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="sortable sort-asc" style="width:130px">顧客 ID</th>
+              <th class="sortable">顧客名</th>
+              <th class="sortable">メールアドレス</th>
+              <th class="sortable num" style="width:100px">注文回数</th>
+              <th style="width:80px">有効</th>
+              <th class="sortable num" style="width:120px">登録日</th>
+              <th style="width:80px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="fw-mono">C-000001</td>
+              <td>田中 太郎</td>
+              <td>tanaka.taro@example.com</td>
+              <td class="num">24</td>
+              <td><span class="badge bg-success">有効</span></td>
+              <td class="num">2025/04/12</td>
+              <td><a href="/master/customers/1" class="btn btn-sm btn-outline-primary">詳細</a></td>
+            </tr>
+            <tr>
+              <td class="fw-mono">C-000002</td>
+              <td>鈴木 花子</td>
+              <td>suzuki.hanako@example.com</td>
+              <td class="num">8</td>
+              <td><span class="badge bg-success">有効</span></td>
+              <td class="num">2025/06/30</td>
+              <td><a href="/master/customers/2" class="btn btn-sm btn-outline-primary">詳細</a></td>
+            </tr>
+            <tr>
+              <td class="fw-mono">C-000003</td>
+              <td>佐藤 一郎</td>
+              <td>sato.ichiro@example.com</td>
+              <td class="num">3</td>
+              <td><span class="badge bg-success">有効</span></td>
+              <td class="num">2025/11/05</td>
+              <td><a href="/master/customers/3" class="btn btn-sm btn-outline-primary">詳細</a></td>
+            </tr>
+            <tr>
+              <td class="fw-mono">C-000004</td>
+              <td>山田 次郎</td>
+              <td>yamada.jiro@example.com</td>
+              <td class="num">15</td>
+              <td><span class="badge bg-success">有効</span></td>
+              <td class="num">2025/08/22</td>
+              <td><a href="/master/customers/4" class="btn btn-sm btn-outline-primary">詳細</a></td>
+            </tr>
+            <tr class="table-secondary">
+              <td class="fw-mono">C-000005</td>
+              <td>伊藤 美奈 (旧名)</td>
+              <td>ito.mina.old@example.com</td>
+              <td class="num">1</td>
+              <td><span class="badge bg-secondary">無効</span></td>
+              <td class="num">2024/12/01</td>
+              <td><a href="/master/customers/5" class="btn btn-sm btn-outline-secondary">詳細</a></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="paging-area">
+          <span class="paging-count">1 - 10 / 3,142 件</span>
+          <span class="spacer"></span>
+          <nav aria-label="ページネーション">
+            <ul class="pagination pagination-sm mb-0">
+              <li class="page-item disabled"><a class="page-link" href="#">&laquo;</a></li>
+              <li class="page-item active"><a class="page-link" href="#">1</a></li>
+              <li class="page-item"><a class="page-link" href="#">2</a></li>
+              <li class="page-item"><a class="page-link" href="#">3</a></li>
+              <li class="page-item"><a class="page-link" href="#">315</a></li>
+              <li class="page-item"><a class="page-link" href="#">&raquo;</a></li>
+            </ul>
+          </nav>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

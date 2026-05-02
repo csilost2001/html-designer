@@ -1,0 +1,5 @@
+# 各 sample workspace の draft / 一時ファイルは除外 (data/ 同様)
+# 参照: project_samples_strategy_2026_05_02.md
+**/.drafts/
+**/*.bak.*
+**/.mtime/

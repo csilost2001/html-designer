@@ -1,0 +1,48 @@
+{
+  "$schema": "../../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "retail",
+  "version": "1.0.0",
+  "description": "リテール業態向け拡張定義 — FieldType 拡張 (商品コード型・JAN コード型等)。",
+  "fieldTypes": [
+    {
+      "kind": "productCode",
+      "label": "商品コード",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^P-[0-9]{4,6}$" },
+        { "type": "maxLength", "value": 20 }
+      ],
+      "description": "リテール業態の商品コード型。@conv.regex.productCode 正規表現準拠 (例: P-0001)。"
+    },
+    {
+      "kind": "janCode",
+      "label": "JAN コード",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^[0-9]{13}$" },
+        { "type": "length", "value": 13 }
+      ],
+      "description": "JAN/EAN-13 バーコード型。13 桁数字のみ。@conv.regex.janCode 準拠。"
+    },
+    {
+      "kind": "orderNumber",
+      "label": "注文番号",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^ORD-[0-9]{4}-[0-9]{4,8}$" },
+        { "type": "maxLength", "value": 30 }
+      ],
+      "description": "採番済み注文番号型。@conv.numbering.orderNumber 規約で生成される。例: ORD-2026-0001。"
+    },
+    {
+      "kind": "storeCode",
+      "label": "店舗コード",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^S-[0-9]{3,5}$" },
+        { "type": "maxLength", "value": 20 }
+      ],
+      "description": "店舗識別コード型。例: S-001。"
+    }
+  ]
+}

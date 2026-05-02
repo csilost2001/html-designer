@@ -1,0 +1,11 @@
+{
+  "id": "storeCodeSearch",
+  "label": "店舗コード",
+  "type": "string",
+  "direction": "input",
+  "required": false,
+  "maxLength": 10,
+  "pattern": "@conv.regex.storeCode",
+  "placeholder": "例: S-001",
+  "description": "店舗マスター一覧の検索条件: 店舗コード。"
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "../../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "retail",
+  "version": "1.0.0",
+  "description": "リテール業態向け拡張定義 — Response type 拡張 (在庫切れ等のドメインレスポンス)。",
+  "responseTypes": {
+    "StockShortageError": {
+      "description": "在庫不足エラーレスポンス。注文確定 TX (S-3) の在庫引き当て失敗時に返す。エラーコード STOCK_SHORTAGE と不足している商品一覧を含む。",
+      "schema": {
+        "type": "object",
+        "required": ["code", "shortages"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["STOCK_SHORTAGE"],
+            "description": "エラーコード"
+          },
+          "message": {
+            "type": "string",
+            "description": "ユーザー向けエラーメッセージ (@conv.msg.stockShortage 参照)"
+          },
+          "shortages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productId", "productCode", "requested", "available"],
+              "properties": {
+                "productId": { "type": "integer" },
+                "productCode": { "type": "string" },
+                "productName": { "type": "string" },
+                "requested": { "type": "integer" },
+                "available": { "type": "integer" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "CartItemAdded": {
+      "description": "カート明細追加成功レスポンス (S-2)。追加後のカート状態 (明細数・合計金額) を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["cartId", "itemCount", "totalAmount"],
+        "properties": {
+          "cartId": { "type": "integer" },
+          "itemCount": { "type": "integer", "description": "カート内明細件数" },
+          "totalAmount": { "type": "number", "description": "カート合計金額 (税抜)" },
+          "addedItem": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "integer" },
+              "productCode": { "type": "string" },
+              "quantity": { "type": "integer" },
+              "unitPrice": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "OrderConfirmed": {
+      "description": "注文確定成功レスポンス (S-3)。採番された注文番号・合計金額・注文日時を返す。注文完了画面での表示に使用する。",
+      "schema": {
+        "type": "object",
+        "required": ["orderId", "orderNumber", "totalAmount", "orderedAt"],
+        "properties": {
+          "orderId": { "type": "integer" },
+          "orderNumber": { "type": "string", "description": "採番済み注文番号 (例: ORD-2026-0001)" },
+          "totalAmount": { "type": "number", "description": "税抜合計金額" },
+          "taxAmount": { "type": "number", "description": "消費税額" },
+          "orderedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ShipmentDispatched": {
+      "description": "配送指示完了レスポンス (S-4)。外部キャリアから取得した追跡番号と配達予定日を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["orderId", "trackingNumber", "carrierId"],
+        "properties": {
+          "orderId": { "type": "integer" },
+          "orderNumber": { "type": "string" },
+          "trackingNumber": { "type": "string", "description": "キャリアの追跡番号" },
+          "carrierId": { "type": "string" },
+          "estimatedDelivery": { "type": "string", "format": "date" }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
