@@ -318,6 +318,7 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
         if (r.minRef) texts.push({ src: r.minRef, field: `rules[${ri}].minRef` });
         if (r.maxRef) texts.push({ src: r.maxRef, field: `rules[${ri}].maxRef` });
         if (r.lengthRef) texts.push({ src: r.lengthRef, field: `rules[${ri}].lengthRef` });
+        if (r.patternRef) texts.push({ src: r.patternRef, field: `rules[${ri}].patternRef` });
       });
       if (step.inlineBranch?.ngBodyExpression) {
         texts.push({ src: step.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
