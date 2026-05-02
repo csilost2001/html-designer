@@ -2113,3 +2113,186 @@ describe("観点 5: TX_CIRCULAR_DEPENDENCY", () => {
     expect(target[0].severity).toBe("warning");
   });
 });
+
+// ─── 観点 1+2: loop step の collectionItemName を boundVars 登録 (#729) ──────
+
+describe("loop step collectionItemName boundVars 登録 (#729)", () => {
+  const tables: OrderTableDefinition[] = [
+    makeTable("tbl-orders", "orders", [
+      { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+      { physicalName: "user_id", notNull: true },
+    ]),
+    makeTable(
+      "tbl-order-items",
+      "order_items",
+      [
+        { physicalName: "id", notNull: true, autoIncrement: true, primaryKey: true },
+        { physicalName: "order_id", notNull: true },
+        { physicalName: "product_id", notNull: true },
+      ],
+      [{ columnPhysicalNames: ["order_id"], referencedTableId: "tbl-orders" }],
+    ),
+  ];
+
+  it("ケース 1: ループ inner INSERT で @<itemName>.<field> 参照 → false positive なし", () => {
+    // collectionItemName = "item" をループ内 INSERT で参照
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文登録",
+          trigger: "submit",
+          inputs: [
+            { name: "cartItems", type: "string", required: true },
+            { name: "newOrder", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-01",
+              kind: "dbAccess",
+              description: "orders に INSERT",
+              tableId: "tbl-orders",
+              operation: "INSERT",
+              sql: "INSERT INTO orders (user_id) VALUES (@newOrder.user_id)",
+            },
+            {
+              id: "step-loop",
+              kind: "loop",
+              description: "カートアイテムをループ",
+              loopKind: "collection",
+              collectionSource: "@cartItems",
+              collectionItemName: "item",
+              steps: [
+                {
+                  id: "step-loop-a",
+                  kind: "dbAccess",
+                  description: "order_items に INSERT",
+                  tableId: "tbl-order-items",
+                  operation: "INSERT",
+                  // @item.product_id は collectionItemName "item" 由来 → boundVars 登録済みのはず
+                  sql: "INSERT INTO order_items (order_id, product_id) VALUES (@newOrder.id, @item.product_id)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT" || i.code === "FK_REFERENCE_NOT_INSERTED",
+    );
+    // @item.product_id は loop collectionItemName により boundVars 登録済み → false positive 発生しない
+    const falsePositive = target.filter((i) => i.message.includes("item"));
+    expect(falsePositive).toHaveLength(0);
+  });
+
+  it("ケース 2: ループ外で @<itemName>.<field> を参照 → scope leak しない (false positive が出る)", () => {
+    // ループ外では "item" は boundVars にない → NOT NULL カラムへの参照は検出されるべき
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "注文登録",
+          trigger: "submit",
+          inputs: [
+            { name: "cartItems", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-loop",
+              kind: "loop",
+              description: "カートアイテムをループ (中身は何もしない)",
+              loopKind: "collection",
+              collectionSource: "@cartItems",
+              collectionItemName: "item",
+              steps: [
+                {
+                  id: "step-loop-noop",
+                  kind: "compute",
+                  description: "何もしない compute",
+                  expression: "1",
+                },
+              ],
+            },
+            {
+              id: "step-after-loop",
+              kind: "dbAccess",
+              description: "ループ外で @item.product_id を参照 → 未バインド",
+              tableId: "tbl-order-items",
+              operation: "INSERT",
+              // ループ外なので "item" は boundVars にない → NULL_NOT_ALLOWED_AT_INSERT 発生するべき
+              sql: "INSERT INTO order_items (order_id, product_id) VALUES (@inputs.orderId, @item.product_id)",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter((i) => i.code === "NULL_NOT_ALLOWED_AT_INSERT");
+    // @item.product_id はループ外で未バインド → 検出される
+    expect(target.some((i) => i.message.includes("item"))).toBe(true);
+  });
+
+  it("ケース 3: ネスト loop で同名 collectionItemName — 内側終了後も外側スコープが壊れない", () => {
+    // 外側 loop = "x", 内側 loop = "x" → 内側終了後も外側では "x" が有効であること
+    const flow = makeFlow({
+      actions: [
+        {
+          id: "act-001",
+          name: "ネストループテスト",
+          trigger: "submit",
+          inputs: [
+            { name: "outerList", type: "string", required: true },
+            { name: "innerList", type: "string", required: true },
+          ],
+          steps: [
+            {
+              id: "step-outer",
+              kind: "loop",
+              description: "外側ループ",
+              loopKind: "collection",
+              collectionSource: "@outerList",
+              collectionItemName: "x",
+              steps: [
+                {
+                  id: "step-inner",
+                  kind: "loop",
+                  description: "内側ループ (同名 x)",
+                  loopKind: "collection",
+                  collectionSource: "@innerList",
+                  collectionItemName: "x",
+                  steps: [
+                    {
+                      id: "step-inner-noop",
+                      kind: "compute",
+                      description: "何もしない",
+                      expression: "1",
+                    },
+                  ],
+                },
+                // 内側ループ終了後も外側 "x" は有効 → INSERT で @x.product_id が boundVars にある
+                {
+                  id: "step-after-inner",
+                  kind: "dbAccess",
+                  description: "内側ループ後の INSERT — 外側 @x は有効のまま",
+                  tableId: "tbl-order-items",
+                  operation: "INSERT",
+                  sql: "INSERT INTO order_items (order_id, product_id) VALUES (@inputs.orderId, @x.product_id)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const issues = checkSqlOrder(flow, tables);
+    const target = issues.filter(
+      (i) =>
+        (i.code === "NULL_NOT_ALLOWED_AT_INSERT" || i.code === "FK_REFERENCE_NOT_INSERTED") &&
+        i.message.includes("x"),
+    );
+    // 外側ループ内 (@x は外側スコープで有効) → false positive なし
+    expect(target).toHaveLength(0);
+  });
+});
