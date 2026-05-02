@@ -7,23 +7,33 @@
   "$ref": "#/$defs/ViewDefinition",
   "$defs": {
     "ViewDefinition": {
-      "description": "ViewDefinition entity 本体。EntityMeta + viewer 種別 + source table + columns + sort/filter defaults + authoring。",
+      "description": "ViewDefinition entity 本体。3 レベル DSL (#745): Level 1 (Simple, sourceTableId) / Level 2 (Structured, query.from + joins) / Level 3 (Raw SQL, query.sql)。sourceTableId と query は排他。",
       "allOf": [
-        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
+        { "$ref": "common.v3.schema.json#/$defs/EntityMeta" },
+        {
+          "oneOf": [
+            { "required": ["sourceTableId"] },
+            { "required": ["query"] }
+          ]
+        }
       ],
       "type": "object",
-      "required": ["kind", "sourceTableId", "columns"],
+      "required": ["kind", "columns"],
       "properties": {
         "$schema": { "type": "string", "description": "instance JSON が参照する schema 文書への URL/相対パス。" },
         "kind": { "$ref": "#/$defs/ViewDefinitionKind" },
         "sourceTableId": {
           "$ref": "common.v3.schema.json#/$defs/Uuid",
-          "description": "viewer の主要ソーステーブル。1 ViewDefinition = 1 ベース table。joined view を表現する場合は別 column の tableColumnRef.tableId が異なる値を持ってよい (warning)。"
+          "description": "Level 1 (Simple) の主要ソーステーブル。1 ViewDefinition = 1 ベース table。Level 2/3 では query フィールドを使う (排他)。"
+        },
+        "query": {
+          "$ref": "#/$defs/ViewQuery",
+          "description": "Level 2 (Structured: from + joins + where/groupBy/having/orderBy) または Level 3 (Raw SQL: sql + parameterRefs) の query 定義。sourceTableId と排他。"
         },
         "columns": {
           "type": "array",
           "minItems": 1,
-          "description": "viewer に表示する列定義。表示順は配列順。",
+          "description": "viewer に表示する列定義。表示順は配列順。Level 1/2 では tableColumnRef 必須、Level 3 (Raw SQL) では省略可 (name + type のみで宣言)。",
           "items": { "$ref": "#/$defs/ViewColumn" }
         },
         "sortDefaults": {
@@ -51,6 +61,114 @@
       "unevaluatedProperties": false
     },
 
+    "ViewQuery": {
+      "description": "Level 2 (Structured) または Level 3 (Raw SQL) の query 定義。from と sql は排他。",
+      "type": "object",
+      "oneOf": [
+        {
+          "description": "Level 2: Structured (from + joins + where/groupBy/having/orderBy)。validator が join 範囲で columns[].tableColumnRef.tableId を解決する。",
+          "required": ["from"],
+          "additionalProperties": false,
+          "properties": {
+            "from": { "$ref": "#/$defs/ViewQueryFrom" },
+            "joins": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ViewQueryJoin" }
+            },
+            "where": {
+              "type": "array",
+              "description": "WHERE 条件式 (SQL fragment)。複数要素は AND 結合。例: \"o.status = 'active'\" / \"o.amount > 100\"。",
+              "items": { "type": "string" }
+            },
+            "groupBy": {
+              "type": "array",
+              "description": "GROUP BY 列式 (SQL fragment)。例: \"o.customer_id\"。",
+              "items": { "type": "string" }
+            },
+            "having": {
+              "type": "array",
+              "description": "HAVING 条件式 (SQL fragment、複数要素は AND 結合)。",
+              "items": { "type": "string" }
+            },
+            "orderBy": {
+              "type": "array",
+              "description": "ORDER BY 式 (SQL fragment)。例: \"o.created_at DESC\"。runtime ソートは sortDefaults を優先利用、orderBy は SQL 段の固定ソートに用途を限る。",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        {
+          "description": "Level 3: Raw SQL escape hatch。window 関数 / CTE / 再帰 / UNION 等 Level 2 で書けない SQL を直接記述する。",
+          "required": ["sql"],
+          "additionalProperties": false,
+          "properties": {
+            "sql": {
+              "type": "string",
+              "description": "完全 SQL 文。式補間は @<var> / @conv.* / @env.* / @param.<name> (項目は parameterRefs で宣言)。validator は SQL 構文解析せず columns[] の宣言を信頼する (実行時保証)。"
+            },
+            "parameterRefs": {
+              "type": "array",
+              "description": "@param.<name> で参照する外部パラメータの宣言 (画面 filter / Screen binding 等から渡される値)。",
+              "items": { "$ref": "#/$defs/ViewQueryParameterRef" }
+            }
+          }
+        }
+      ]
+    },
+
+    "ViewQueryFrom": {
+      "description": "Level 2 の起点テーブル。alias は WHERE / JOIN / columns[].displayFormat 等の SQL fragment 内で参照される。",
+      "type": "object",
+      "required": ["tableId", "alias"],
+      "additionalProperties": false,
+      "properties": {
+        "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "alias": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "テーブル別名 (snake_case 推奨、SQL 識別子)。"
+        }
+      }
+    },
+
+    "ViewQueryJoin": {
+      "description": "Level 2 の join 1 件。on 条件式は SQL fragment の配列 (AND 結合)。",
+      "type": "object",
+      "required": ["kind", "tableId", "alias", "on"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["INNER", "LEFT", "RIGHT", "FULL"],
+          "description": "join 種別。"
+        },
+        "tableId": { "$ref": "common.v3.schema.json#/$defs/Uuid" },
+        "alias": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "join 先テーブル別名。from.alias / 他 joins[].alias と重複不可 (validator が検査)。"
+        },
+        "on": {
+          "type": "array",
+          "minItems": 1,
+          "description": "ON 条件式 (SQL fragment)。複数要素は AND 結合。例: \"o.customer_id = c.id\"。",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "ViewQueryParameterRef": {
+      "description": "Level 3 raw SQL の @param.<name> 参照を宣言する。fieldType は呼び出し側 (画面 filter 等) が値の型整合を判断するために使う。",
+      "type": "object",
+      "required": ["name", "fieldType"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+        "fieldType": { "$ref": "common.v3.schema.json#/$defs/FieldType" },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      }
+    },
+
     "ViewDefinitionKind": {
       "description": "viewer 種別。組み込み 4 種 (list / detail / kanban / calendar) + 拡張参照 (namespace:kindName)。",
       "oneOf": [
@@ -67,9 +185,9 @@
     },
 
     "ViewColumn": {
-      "description": "viewer 1 列の定義。table カラムへの複合参照 + 画面表示型 (FieldType)。",
+      "description": "viewer 1 列の定義。table カラムへの複合参照 + 画面表示型 (FieldType)。Level 3 (Raw SQL) では tableColumnRef を省略可 (列を SQL 結果として name + type のみで宣言)。",
       "type": "object",
-      "required": ["name", "tableColumnRef", "type"],
+      "required": ["name", "type"],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -78,12 +196,12 @@
         },
         "tableColumnRef": {
           "$ref": "common.v3.schema.json#/$defs/TableColumnRef",
-          "description": "参照する table カラム (Pattern B)。tableId は通常 sourceTableId と一致。"
+          "description": "参照する table カラム (Pattern B)。Level 1 では sourceTableId と一致、Level 2 では query.from / query.joins[] のいずれかの tableId を指す、Level 3 では省略可。"
         },
         "displayName": { "$ref": "common.v3.schema.json#/$defs/DisplayName" },
         "type": {
           "$ref": "common.v3.schema.json#/$defs/FieldType",
-          "description": "画面表示型 (FieldType)。Column.dataType (DB 型) と互換であること (validator が検査)。"
+          "description": "画面表示型 (FieldType)。Level 1/2 では Column.dataType (DB 型) と互換であること (validator が検査)、Level 3 では SQL 結果と一致することを設計者が保証する。"
         },
         "displayFormat": {
           "type": "string",

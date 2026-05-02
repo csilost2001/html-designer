@@ -62,14 +62,20 @@ export interface FilterSpec {
   valueExpression?: ExpressionString;
 }
 
-/** viewer 1 列。table カラムへの複合参照 + 画面表示型 (FieldType)。 */
+/**
+ * viewer 1 列。table カラムへの複合参照 + 画面表示型 (FieldType)。
+ *
+ * - Level 1: `tableColumnRef.tableId === ViewDefinition.sourceTableId`。
+ * - Level 2: `tableColumnRef.tableId` は `query.from.tableId` / `query.joins[].tableId` のいずれか。
+ * - Level 3 (Raw SQL): `tableColumnRef` 省略可 (`name` + `type` のみで列を宣言)。
+ */
 export interface ViewColumn {
   /** 列識別子 (camelCase)。同 ViewDefinition 内で一意。 */
   name: Identifier;
-  /** 参照する table カラム (Pattern B)。 */
-  tableColumnRef: TableColumnRef;
+  /** 参照する table カラム (Pattern B)。Level 3 では省略可。 */
+  tableColumnRef?: TableColumnRef;
   displayName?: DisplayName;
-  /** 画面表示型 (FieldType)。Column.dataType (DB 型) と互換であること (validator が検査)。 */
+  /** 画面表示型 (FieldType)。Level 1/2 では Column.dataType と互換であること (validator が検査)。 */
   type: FieldType;
   /** 表示書式。例: `'#,##0'`, `'YYYY-MM-DD'`。 */
   displayFormat?: string;
@@ -84,12 +90,84 @@ export interface ViewColumn {
   linkTo?: string;
 }
 
-/** ViewDefinition entity 本体。 */
+/**
+ * Level 2 (Structured) の起点テーブル (#745)。
+ *
+ * `alias` は WHERE / JOIN / columns[].displayFormat の SQL fragment 内で参照される。
+ */
+export interface ViewQueryFrom {
+  tableId: TableId;
+  alias: string;
+}
+
+/** Level 2 (Structured) の join 1 件 (#745)。on は AND 結合される SQL fragment 配列。 */
+export interface ViewQueryJoin {
+  kind: "INNER" | "LEFT" | "RIGHT" | "FULL";
+  tableId: TableId;
+  alias: string;
+  /** ON 条件式 (SQL fragment、複数要素は AND 結合)。例: `"o.customer_id = c.id"`。 */
+  on: string[];
+}
+
+/**
+ * Level 3 (Raw SQL) の `@param.<name>` 参照宣言 (#745)。
+ *
+ * fieldType は呼び出し側 (画面 filter 等) が値の型整合を判断するために使う。
+ */
+export interface ViewQueryParameterRef {
+  name: Identifier;
+  fieldType: FieldType;
+  description?: string;
+}
+
+/**
+ * Level 2 (Structured) の query 定義 (#745)。
+ *
+ * sql は持たない (持つ場合は ViewQueryRawSql として Level 3 扱い)。
+ */
+export interface ViewQueryStructured {
+  from: ViewQueryFrom;
+  joins?: ViewQueryJoin[];
+  /** WHERE 条件式 (SQL fragment、複数要素は AND 結合)。 */
+  where?: string[];
+  /** GROUP BY 列式 (SQL fragment)。 */
+  groupBy?: string[];
+  /** HAVING 条件式 (SQL fragment、複数要素は AND 結合)。 */
+  having?: string[];
+  /** ORDER BY 式 (SQL fragment)。runtime ソートは sortDefaults を優先利用、orderBy は SQL 段の固定ソートに用途を限る。 */
+  orderBy?: string[];
+}
+
+/**
+ * Level 3 (Raw SQL) の query 定義 (#745)。
+ *
+ * window 関数 / CTE / 再帰 / UNION 等 Level 2 で書けない SQL を直接記述する。
+ * 式補間は ProcessFlow.dbAccess と同じく `@<var>` / `@conv.*` / `@env.*` / `@param.<name>`。
+ */
+export interface ViewQueryRawSql {
+  sql: string;
+  parameterRefs?: ViewQueryParameterRef[];
+}
+
+/** Level 2 または Level 3 の query 定義 (#745)。from と sql は排他。 */
+export type ViewQuery = ViewQueryStructured | ViewQueryRawSql;
+
+/**
+ * ViewDefinition entity 本体 (#745: 3 レベル DSL)。
+ *
+ * - Level 1 (Simple): `sourceTableId` のみ (既存形式)。
+ * - Level 2 (Structured): `query: { from, joins, where, ... }`。
+ * - Level 3 (Raw SQL): `query: { sql, parameterRefs }`。
+ *
+ * sourceTableId と query は排他 (oneOf)。
+ */
 export interface ViewDefinition extends EntityMeta {
   $schema?: string;
   kind: ViewDefinitionKind;
-  /** viewer の主要ソーステーブル。1 ViewDefinition = 1 ベース table。 */
-  sourceTableId: TableId;
+  /** Level 1 (Simple) の主要ソーステーブル。Level 2/3 では使わない。 */
+  sourceTableId?: TableId;
+  /** Level 2 (Structured) または Level 3 (Raw SQL) の query 定義。sourceTableId と排他。 */
+  query?: ViewQuery;
   columns: ViewColumn[];
   /** 既定ソート順 (複数列対応)。 */
   sortDefaults?: SortSpec[];
