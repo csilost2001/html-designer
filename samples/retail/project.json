@@ -14,9 +14,207 @@
     { "namespace": "retail", "version": ">=1.0.0" }
   ],
   "entities": {
-    "screens": [],
-    "screenGroups": [],
-    "screenTransitions": [],
+    "screens": [
+      {
+        "id": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "no": 1,
+        "name": "ダッシュボード",
+        "kind": "dashboard",
+        "path": "/",
+        "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
+        "no": 2,
+        "name": "商品検索",
+        "kind": "search",
+        "path": "/products/search",
+        "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
+        "no": 3,
+        "name": "在庫一覧",
+        "kind": "list",
+        "path": "/inventory",
+        "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "c73fa05c-4a71-4593-800d-b9814e97be83",
+        "no": 4,
+        "name": "カート",
+        "kind": "retail:cart",
+        "path": "/cart",
+        "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
+        "no": 5,
+        "name": "カート確認",
+        "kind": "confirm",
+        "path": "/cart/confirm",
+        "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "0739c454-45d6-4c99-962a-7b0b9e113a22",
+        "no": 6,
+        "name": "注文完了",
+        "kind": "complete",
+        "path": "/order/complete",
+        "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "f9faa724-e080-4308-bc14-bb93631c9e78",
+        "no": 7,
+        "name": "注文一覧",
+        "kind": "list",
+        "path": "/orders",
+        "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "c2254dd6-ab5d-4428-931f-d27c71e89951",
+        "no": 8,
+        "name": "配送指示",
+        "kind": "form",
+        "path": "/orders/:id/dispatch",
+        "groupId": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "2e23d129-1d53-4e30-b54c-97f90b910578",
+        "no": 9,
+        "name": "商品マスター",
+        "kind": "list",
+        "path": "/master/products",
+        "groupId": "8c592e1b-dfa4-4fc6-8a0c-e584996b0075",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "f05fd315-2c78-48e5-9968-2633255b286e",
+        "no": 10,
+        "name": "顧客マスター",
+        "kind": "list",
+        "path": "/master/customers",
+        "groupId": "8c592e1b-dfa4-4fc6-8a0c-e584996b0075",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "f9d57022-1dad-4c8f-a387-27e0a8576947",
+        "no": 11,
+        "name": "店舗マスター",
+        "kind": "list",
+        "path": "/master/stores",
+        "groupId": "8c592e1b-dfa4-4fc6-8a0c-e584996b0075",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      }
+    ],
+    "screenGroups": [
+      {
+        "id": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+        "name": "顧客向け",
+        "color": "#0d6efd"
+      },
+      {
+        "id": "a7285b88-9e12-4d2c-94c6-ef6bd788685d",
+        "name": "バックオフィス",
+        "color": "#198754"
+      },
+      {
+        "id": "8c592e1b-dfa4-4fc6-8a0c-e584996b0075",
+        "name": "マスター管理",
+        "color": "#6c757d"
+      }
+    ],
+    "screenTransitions": [
+      {
+        "id": "tr-search-to-cart",
+        "sourceScreenId": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
+        "targetScreenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
+        "label": "カートに追加",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-cart-to-confirm",
+        "sourceScreenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
+        "targetScreenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
+        "label": "注文確認へ",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-confirm-to-complete",
+        "sourceScreenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
+        "targetScreenId": "0739c454-45d6-4c99-962a-7b0b9e113a22",
+        "label": "注文確定",
+        "trigger": "submit"
+      },
+      {
+        "id": "tr-orderlist-to-dispatch",
+        "sourceScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
+        "targetScreenId": "c2254dd6-ab5d-4428-931f-d27c71e89951",
+        "label": "配送指示",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-dashboard-to-search",
+        "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "targetScreenId": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
+        "label": "商品検索 (S-1)",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-dashboard-to-cart",
+        "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "targetScreenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
+        "label": "カート (S-2/S-3)",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-dashboard-to-orderlist",
+        "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
+        "label": "注文一覧 (S-4)",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-dashboard-to-inventory",
+        "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "targetScreenId": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
+        "label": "在庫一覧",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-complete-to-dashboard",
+        "sourceScreenId": "0739c454-45d6-4c99-962a-7b0b9e113a22",
+        "targetScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "label": "ダッシュボードへ",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-complete-to-orderlist",
+        "sourceScreenId": "0739c454-45d6-4c99-962a-7b0b9e113a22",
+        "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
+        "label": "注文履歴へ",
+        "trigger": "click"
+      }
+    ],
     "tables": [
       {
         "id": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",

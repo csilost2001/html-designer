@@ -1,0 +1,27 @@
+{
+  "id": "shippingPostalCode",
+  "label": "郵便番号",
+  "type": "string",
+  "direction": "input",
+  "required": true,
+  "maxLength": 7,
+  "pattern": "@conv.regex.postalCode",
+  "placeholder": "例: 1600022 (ハイフンなし7桁)",
+  "errorMessages": {
+    "required": "郵便番号は必須です。",
+    "invalidFormat": "郵便番号はハイフンなし 7 桁の数字で入力してください。"
+  },
+  "events": [
+    {
+      "id": "submit",
+      "label": "注文確定",
+      "handlerFlowId": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
+      "argumentMapping": {
+        "shippingPostalCode": "@screen.shippingPostalCode",
+        "shippingAddress": "@screen.shippingAddress",
+        "note": "@screen.note"
+      }
+    }
+  ],
+  "description": "S-3 注文確定の配送先郵便番号。"
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
+  "name": "商品検索",
+  "description": "商品コード・店舗を条件に在庫を照会する (S-1)。検索結果一覧に在庫数と低在庫バッジを表示し、カート画面への導線を提供する。",
+  "kind": "search",
+  "path": "/products/search",
+  "auth": "required",
+  "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/e6147dc0-94b7-436d-ba87-d0080ac34f44.html"
+  }
+}

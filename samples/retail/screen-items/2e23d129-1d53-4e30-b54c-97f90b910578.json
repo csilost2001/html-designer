@@ -1,0 +1,11 @@
+{
+  "id": "productCodeSearch",
+  "label": "商品コード",
+  "type": "string",
+  "direction": "input",
+  "required": false,
+  "maxLength": 20,
+  "pattern": "@conv.regex.productCode",
+  "placeholder": "例: P-0001",
+  "description": "商品マスター一覧の検索条件: 商品コード。"
+}

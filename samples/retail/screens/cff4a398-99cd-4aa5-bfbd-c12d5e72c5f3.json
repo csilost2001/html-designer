@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "id": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
+  "name": "カート確認",
+  "description": "カート明細 (読み取り専用) と配送先住所を確認・入力する (S-3)。注文確定ボタンで注文確定フローを実行する。",
+  "kind": "confirm",
+  "path": "/cart/confirm",
+  "auth": "required",
+  "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
+  "maturity": "committed",
+  "createdAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "design": {
+    "designFileRef": "../designs/cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3.html"
+  }
+}

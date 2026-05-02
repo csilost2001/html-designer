@@ -1,0 +1,26 @@
+{
+  "id": "addProductCode",
+  "label": "商品コード",
+  "type": "string",
+  "direction": "input",
+  "required": true,
+  "maxLength": 20,
+  "pattern": "@conv.regex.productCode",
+  "placeholder": "例: P-0001",
+  "errorMessages": {
+    "required": "商品コードは必須です。",
+    "invalidFormat": "商品コードは P-XXXX〜P-XXXXXX 形式で入力してください。"
+  },
+  "events": [
+    {
+      "id": "submit",
+      "label": "カートに追加",
+      "handlerFlowId": "9515d6f6-8342-48cf-a045-9e9d8fab1cfa",
+      "argumentMapping": {
+        "productCode": "@screen.addProductCode",
+        "quantity": "@screen.addQuantity"
+      }
+    }
+  ],
+  "description": "S-2 カート追加フォームの商品コード入力。"
+}
