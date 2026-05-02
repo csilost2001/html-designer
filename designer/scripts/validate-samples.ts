@@ -67,7 +67,7 @@ interface ProjectValidationResult {
   issues: ValidationIssue[];
 }
 
-interface ValidationSummary {
+export interface ValidationSummary {
   totalFlows: number;
   passedFlows: number;
   failedFlows: number;
@@ -447,7 +447,7 @@ const validatorDisplayOrder = [
   "runtimeContractValidator",
 ];
 
-function printSummary(summary: ValidationSummary): void {
+export function printSummary(summary: ValidationSummary): void {
   console.log("samples dogfood validation");
   console.log();
   console.log(
@@ -491,28 +491,47 @@ function printSummary(summary: ValidationSummary): void {
   console.log();
   console.log("---------------------------------------------------------");
 
-  const totalByValidator = new Map<string, number>();
-  let totalIssues = 0;
+  const totalByValidator = new Map<string, number>();    // error
+  const totalWarnByValidator = new Map<string, number>(); // warning
+  let totalErrors = 0;
+  let totalWarnings = 0;
   for (const result of summary.results) {
-    for (const i of result.issues.filter((item) => item.severity === "error")) {
-      totalByValidator.set(i.validator, (totalByValidator.get(i.validator) ?? 0) + 1);
-      totalIssues++;
+    for (const i of result.issues) {
+      const map = i.severity === "warning" ? totalWarnByValidator : totalByValidator;
+      map.set(i.validator, (map.get(i.validator) ?? 0) + 1);
+      if (i.severity === "warning") totalWarnings++;
+      else totalErrors++;
     }
   }
   for (const pr of summary.projectResults) {
-    for (const i of pr.issues.filter((item) => item.severity === "error")) {
-      totalByValidator.set(i.validator, (totalByValidator.get(i.validator) ?? 0) + 1);
-      totalIssues++;
+    for (const i of pr.issues) {
+      const map = i.severity === "warning" ? totalWarnByValidator : totalByValidator;
+      map.set(i.validator, (map.get(i.validator) ?? 0) + 1);
+      if (i.severity === "warning") totalWarnings++;
+      else totalErrors++;
     }
   }
 
   console.log(`Summary: ${summary.passedFlows} / ${summary.totalFlows} flows passed.`);
-  if (totalIssues === 0) {
+  if (totalErrors === 0 && totalWarnings === 0) {
     console.log("All validations passed.");
-  } else {
-    console.log(`${summary.failedFlows} flow${summary.failedFlows > 1 ? "s" : ""} failed with ${totalIssues} issues:`);
+  } else if (totalErrors === 0) {
+    console.log(`All errors resolved (${totalWarnings} warning${totalWarnings > 1 ? "s remain" : " remains"}):`);
     for (const validator of validatorDisplayOrder) {
-      console.log(`  - [${validator}] ${totalByValidator.get(validator) ?? 0} issue(s)`);
+      const w = totalWarnByValidator.get(validator) ?? 0;
+      if (w > 0) console.log(`  - [${validator}] ${w} warning${w > 1 ? "s" : ""}`);
+    }
+  } else {
+    console.log(`${summary.failedFlows} flow${summary.failedFlows > 1 ? "s" : ""} failed with ${totalErrors} error${totalErrors > 1 ? "s" : ""}${totalWarnings > 0 ? ` and ${totalWarnings} warning${totalWarnings > 1 ? "s" : ""}` : ""}:`);
+    for (const validator of validatorDisplayOrder) {
+      const e = totalByValidator.get(validator) ?? 0;
+      const w = totalWarnByValidator.get(validator) ?? 0;
+      if (e > 0 || w > 0) {
+        const parts: string[] = [];
+        if (e > 0) parts.push(`${e} error${e > 1 ? "s" : ""}`);
+        if (w > 0) parts.push(`${w} warning${w > 1 ? "s" : ""}`);
+        console.log(`  - [${validator}] ${parts.join(", ")}`);
+      }
     }
   }
   console.log("---------------------------------------------------------");
