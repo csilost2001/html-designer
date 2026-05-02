@@ -273,6 +273,7 @@
             "id": "br-03-else",
             "code": "B",
             "label": "カート明細あり",
+            "description": "カート明細あり — step-04 (totalAmount 計算) へ fallthrough。",
             "steps": []
           }
         },
@@ -302,7 +303,7 @@
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
           "timeoutMs": 10000,
-          "rollbackOn": ["STOCK_SHORTAGE", "ORDER_CONFIRM_FAILED", "ORDER_NUMBER_CONFLICT"],
+          "rollbackOn": ["STOCK_SHORTAGE", "ORDER_NUMBER_CONFLICT"],
           "steps": [
             {
               "id": "step-06-01",
@@ -440,27 +441,8 @@
               ]
             },
             {
-              "id": "br-07-fail",
-              "code": "B",
-              "label": "その他 TX エラー",
-              "condition": {
-                "kind": "tryCatch",
-                "errorCode": "ORDER_CONFIRM_FAILED",
-                "description": "在庫不足以外の TX 内エラー。"
-              },
-              "steps": [
-                {
-                  "id": "step-07-b-01",
-                  "kind": "return",
-                  "description": "422 注文確定失敗を返す。",
-                  "responseId": "422-order-confirm-failed",
-                  "bodyExpression": "{ code: 'ORDER_CONFIRM_FAILED', message: '注文確定に失敗しました。しばらく経ってから再試行してください。' }"
-                }
-              ]
-            },
-            {
               "id": "br-07-conflict",
-              "code": "C",
+              "code": "B",
               "label": "注文番号競合エラー",
               "condition": {
                 "kind": "tryCatch",
@@ -480,8 +462,9 @@
           ],
           "elseBranch": {
             "id": "br-07-else",
-            "code": "D",
+            "code": "C",
             "label": "TX 成功 — 後続処理へ",
+            "description": "TX 成功 — step-08 (persistedOrder 再取得) へ fallthrough。",
             "steps": []
           }
         },
@@ -525,6 +508,7 @@
             "id": "br-08b-else",
             "code": "B",
             "label": "persistedOrder あり — 後続へ",
+            "description": "persistedOrder あり — step-09 (eventPublish) / step-10 (return) へ fallthrough。",
             "steps": []
           }
         },
@@ -536,7 +520,7 @@
           "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, customerId: @persistedOrder.customer_id, totalAmount: @persistedOrder.total_amount }"
         },
         {
-          "id": "step-11",
+          "id": "step-10",
           "kind": "return",
           "description": "200 OK — 注文確定完了を返す。",
           "responseId": "200-ok",
@@ -581,6 +565,15 @@
         "context": "S-3 注文確定で支払方法 (credit_card / bank_transfer / cod) を受け取る必要がある。@conv.regex / @conv.limit で表現できないため、フロー内 ValidationRule (type='enum') で値域を強制する。",
         "decision": "ValidationRule の type='enum' + values: ['credit_card', 'bank_transfer', 'cod'] で受け付け、orders.payment_method (VARCHAR(30) NULL 許容) に保存する。NULL 許容は移行前注文 (paymentMethod 未指定) との互換のため。",
         "consequences": "DB 制約 (chk_orders_payment_method) と enum rule の両方で値域を担保する。新支払方法追加時は (1) cff4a398 paymentMethod options / (2) f81dd9e0 step-01 enum values / (3) orders.chk_orders_payment_method の 3 箇所同時更新が必要。",
+        "date": "2026-05-02"
+      },
+      {
+        "id": "ADR-005",
+        "title": "rollbackOn から ORDER_CONFIRM_FAILED を除外、catch-all は step-08b に集約",
+        "status": "accepted",
+        "context": "TX inner で ORDER_CONFIRM_FAILED を明示的に throw する step は存在せず、step-07.br-07-fail は dead branch だった (#726 /review-flow 検出)。",
+        "decision": "rollbackOn には実際に TX inner から throw されるエラーコード (STOCK_SHORTAGE / ORDER_NUMBER_CONFLICT) のみを列挙する。予期しない TX rollback (DB 制約違反等の汎用エラー) は step-08b の persistedOrder == null 検出で catch-all として 422-order-confirm-failed を返す。",
+        "consequences": "rollbackOn の意図 (= TX inner で throw される具体エラー) と実装が一致し、死コードがなくなる。汎用 catch-all は step-08b に集約され、ADR-002 の TX 後再取得設計と整合する。",
         "date": "2026-05-02"
       }
     ],
