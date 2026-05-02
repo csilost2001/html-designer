@@ -12,6 +12,7 @@
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "validate:dogfood": "tsx scripts/validate-dogfood.ts",
+    "validate:samples": "tsx scripts/validate-samples.ts",
     "generate:dogfood": "tsx scripts/generate-dogfood.ts"
   },
   "dependencies": {

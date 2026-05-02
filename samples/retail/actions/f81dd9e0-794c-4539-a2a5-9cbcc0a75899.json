@@ -5,6 +5,7 @@
     "name": "注文確定",
     "description": "カート内容を 1 TX (@conv.tx.orderConfirm) で確定する。在庫減算 (retail:DECREMENT_STOCK) → 注文番号採番 (@conv.numbering.orderNumber) → orders INSERT → order_items BULK_INSERT → カートクリア (retail:CLEAR_CART) の順に原子的に実行する。TX 失敗時は 422 を返す。TX 後に persistedOrder を再取得してから注文確定イベントを発行する。",
     "kind": "screen",
+    "screenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
     "maturity": "committed",
     "createdAt": "2026-05-02T00:00:00.000Z",
     "updatedAt": "2026-05-02T00:00:00.000Z"
@@ -35,6 +36,12 @@
           "defaultMessage": "注文確定に失敗しました。",
           "responseId": "422-order-confirm-failed",
           "description": "注文確定 TX 内で予期しないエラーが発生した場合。"
+        },
+        "ORDER_NUMBER_CONFLICT": {
+          "httpStatus": 422,
+          "defaultMessage": "注文番号の採番で競合が発生しました。",
+          "responseId": "422-order-confirm-failed",
+          "description": "orders.order_number の UNIQUE 制約違反。採番直後に同一番号が INSERT された場合 (理論上まれ)。TX はロールバックされ、422 を返す。"
         }
       },
       "events": {
@@ -258,10 +265,15 @@
         },
         {
           "id": "step-05",
-          "kind": "compute",
-          "description": "注文番号を採番する。@conv.numbering.orderNumber 規約 (ORD-YYYY-NNNNNN) に従い生成する。",
-          "expression": "'ORD-' + new Date().getFullYear() + '-' + String(@conv.numbering.orderNumber.nextSeq()).padStart(6, '0')",
-          "outputBinding": { "name": "newOrderNumber" }
+          "kind": "dbAccess",
+          "description": "注文番号を DB シーケンス (seq_order_number) から採番する。@conv.numbering.orderNumber 規約 (ORD-YYYY-NNNNNN) に従い NEXTVAL で取得。TX 外採番のため void (スキップ番号) は許容 (ADR-001)。",
+          "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
+          "operation": "SELECT",
+          "sql": "SELECT 'ORD-' || EXTRACT(YEAR FROM CURRENT_DATE)::text || '-' || LPAD(nextval('seq_order_number')::text, 6, '0') AS order_number",
+          "outputBinding": { "name": "newOrderNumber", "path": "[0].order_number" },
+          "lineage": {
+            "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
+          }
         },
         {
           "id": "step-06",
@@ -270,7 +282,7 @@
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
           "timeoutMs": 10000,
-          "rollbackOn": ["STOCK_SHORTAGE", "ORDER_CONFIRM_FAILED"],
+          "rollbackOn": ["STOCK_SHORTAGE", "ORDER_CONFIRM_FAILED", "ORDER_NUMBER_CONFLICT"],
           "steps": [
             {
               "id": "step-06-01",
@@ -303,37 +315,66 @@
             {
               "id": "step-06-02",
               "kind": "dbAccess",
-              "description": "orders テーブルに注文レコードを INSERT する。注文番号は step-05 で採番済みの値を使用する。",
+              "description": "orders テーブルに注文レコードを INSERT する。注文番号は step-05 で採番済みの値を使用する。order_number は UNIQUE 制約列のため、INSERT 成功 (1 行) を affectedRowsCheck で確認する。",
               "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
               "operation": "INSERT",
               "sql": "INSERT INTO orders (order_number, customer_id, status, total_amount, tax_amount, shipping_postal_code, shipping_address, note, ordered_at) VALUES (@newOrderNumber, @sessionCustomerId, 'pending', @totalAmount, FLOOR(@totalAmount * @conv.tax.standard.rate), @inputs.shippingPostalCode, @inputs.shippingAddress, @inputs.note, CURRENT_TIMESTAMP) RETURNING id, order_number",
               "outputBinding": { "name": "insertedOrder" },
+              "affectedRowsCheck": {
+                "operator": "=",
+                "expected": 1,
+                "onViolation": "throw",
+                "errorCode": "ORDER_NUMBER_CONFLICT",
+                "description": "INSERT が 0 件 = order_number UNIQUE 制約違反またはその他の制約エラー。TX はロールバックされる。"
+              },
               "lineage": {
                 "writes": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "insert" }]
               }
             },
             {
               "id": "step-06-03",
+              "kind": "loop",
+              "description": "cart_items を 1 行ずつ order_items に INSERT する。単価・商品名はスナップショットとしてコピーする。node-sql-parser が :bulkValues 構文をサポートしないため、ループで 1 行ずつ INSERT する方式を採用する。",
+              "loopKind": "collection",
+              "collectionSource": "@cartItems",
+              "collectionItemName": "cartItem",
+              "outputBinding": { "name": "cartItem" },
+              "steps": [
+                {
+                  "id": "step-06-03-a",
+                  "kind": "dbAccess",
+                  "description": "order_items に 1 行 INSERT する。order_id は step-06-02 で取得した insertedOrder.id を使用する。",
+                  "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
+                  "operation": "INSERT",
+                  "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES (@insertedOrder.id, @cartItem.product_id, @cartItem.product_code, @cartItem.product_name, @cartItem.unit_price_snapshot, @cartItem.quantity, @cartItem.unit_price_snapshot * @cartItem.quantity)",
+                  "lineage": {
+                    "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "insert" }]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "step-06-04-a",
               "kind": "dbAccess",
-              "description": "order_items を cart_items から一括 INSERT する (retail:BULK_INSERT)。単価・商品名はスナップショットとしてコピーする。",
-              "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
-              "operation": "retail:BULK_INSERT",
-              "bulkValues": "@cartItems.map(item => ({ order_id: @insertedOrder.id, product_id: item.product_id, product_code_snapshot: item.product_code, product_name_snapshot: item.product_name, unit_price_snapshot: item.unit_price_snapshot, quantity: item.quantity, line_amount: item.unit_price_snapshot * item.quantity }))",
-              "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES :bulkValues",
+              "description": "cart_items を全削除する (CLEAR_CART step 1/2)。顧客のアクティブカートに紐づく全明細を削除する。",
+              "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+              "operation": "DELETE",
+              "sql": "DELETE FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE customer_id = @sessionCustomerId AND status = 'active')",
               "lineage": {
-                "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "bulk-insert" }]
+                "writes": [
+                  { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "delete" }
+                ]
               }
             },
             {
-              "id": "step-06-04",
+              "id": "step-06-04-b",
               "kind": "dbAccess",
-              "description": "カートをクリアする (retail:CLEAR_CART)。cart_items を全削除し、carts.status を 'ordered' に更新する。",
+              "description": "carts.status を 'ordered' に更新する (CLEAR_CART step 2/2)。",
               "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
-              "operation": "retail:CLEAR_CART",
-              "sql": "DELETE FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE customer_id = @sessionCustomerId AND status = 'active'); UPDATE carts SET status = 'ordered', updated_at = CURRENT_TIMESTAMP WHERE customer_id = @sessionCustomerId AND status = 'active'",
+              "operation": "UPDATE",
+              "sql": "UPDATE carts SET status = 'ordered', updated_at = CURRENT_TIMESTAMP WHERE customer_id = @sessionCustomerId AND status = 'active'",
               "lineage": {
                 "writes": [
-                  { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "delete" },
                   { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "update" }
                 ]
               }
@@ -374,7 +415,7 @@
                   "kind": "return",
                   "description": "422 在庫不足を返す。",
                   "responseId": "422-stock-shortage",
-                  "bodyExpression": "{ code: 'STOCK_SHORTAGE', message: '@conv.msg.stockShortage' }"
+                  "bodyExpression": "{ code: 'STOCK_SHORTAGE', message: @conv.msg.stockShortage.template }"
                 }
               ]
             },
@@ -396,11 +437,30 @@
                   "bodyExpression": "{ code: 'ORDER_CONFIRM_FAILED', message: '注文確定に失敗しました。しばらく経ってから再試行してください。' }"
                 }
               ]
+            },
+            {
+              "id": "br-07-conflict",
+              "code": "C",
+              "label": "注文番号競合エラー",
+              "condition": {
+                "kind": "tryCatch",
+                "errorCode": "ORDER_NUMBER_CONFLICT",
+                "description": "orders.order_number UNIQUE 制約違反。TX はロールバック済み。"
+              },
+              "steps": [
+                {
+                  "id": "step-07-c-01",
+                  "kind": "return",
+                  "description": "422 注文番号競合を返す。再試行で解消できる。",
+                  "responseId": "422-order-confirm-failed",
+                  "bodyExpression": "{ code: 'ORDER_NUMBER_CONFLICT', message: '注文番号の採番で競合が発生しました。再度お試しください。' }"
+                }
+              ]
             }
           ],
           "elseBranch": {
             "id": "br-07-else",
-            "code": "C",
+            "code": "D",
             "label": "TX 成功 — 後続処理へ",
             "steps": []
           }
@@ -418,6 +478,37 @@
           }
         },
         {
+          "id": "step-08b",
+          "kind": "branch",
+          "description": "TX コミット後の orders 再取得で null の場合は内部エラーとして 422 を返す (TX コミット直後なので理論上は発生しないが安全ガード)。",
+          "branches": [
+            {
+              "id": "br-08b-a",
+              "code": "A",
+              "label": "persistedOrder が null (異常)",
+              "condition": {
+                "kind": "expression",
+                "expression": "@persistedOrder == null"
+              },
+              "steps": [
+                {
+                  "id": "step-08b-a-01",
+                  "kind": "return",
+                  "description": "422 注文確定後の再取得失敗を返す。",
+                  "responseId": "422-order-confirm-failed",
+                  "bodyExpression": "{ code: 'ORDER_CONFIRM_FAILED', message: '注文の登録は完了しましたが、注文情報の取得に失敗しました。しばらく経ってから注文履歴を確認してください。' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-08b-else",
+            "code": "B",
+            "label": "persistedOrder あり — 後続へ",
+            "steps": []
+          }
+        },
+        {
           "id": "step-09",
           "kind": "eventPublish",
           "description": "retail.order.confirmed イベントを発行する。TX コミット後 + persistedOrder 再取得後に発行するため、イベントペイロードは確定済み値のみ参照する。",
@@ -425,11 +516,11 @@
           "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, customerId: @persistedOrder.customer_id, totalAmount: @persistedOrder.total_amount }"
         },
         {
-          "id": "step-10",
+          "id": "step-11",
           "kind": "return",
           "description": "200 OK — 注文確定完了を返す。",
           "responseId": "200-ok",
-          "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, totalAmount: @persistedOrder.total_amount, message: '注文が確定しました。注文番号: ' + @persistedOrder.order_number }"
+          "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, totalAmount: @persistedOrder.total_amount, orderedAt: @persistedOrder.ordered_at, message: '注文が確定しました。注文番号: ' + @persistedOrder.order_number }"
         }
       ]
     }

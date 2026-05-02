@@ -14,7 +14,7 @@
         "properties": {
           "carrierId": {
             "type": "string",
-            "description": "キャリア識別子 (例: yamato / sagawa / jp-post)"
+            "description": "キャリア識別子 (例: yamato / sagawa / japanpost)"
           },
           "orderId": {
             "type": "string",

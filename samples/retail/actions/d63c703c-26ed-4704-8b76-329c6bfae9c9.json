@@ -5,6 +5,7 @@
     "name": "配送指示",
     "description": "バックオフィス担当者が注文一覧から対象注文を選択し、外部キャリア API (retail:DispatchShipment) に配送指示を送信する。成功時は orders.status を 'shipped' に更新し、retail.shipment.dispatched イベントを発行する。外部 API 失敗時は補償処理を実行してエラーを返す。",
     "kind": "screen",
+    "screenId": "c2254dd6-ab5d-4428-931f-d27c71e89951",
     "maturity": "committed",
     "createdAt": "2026-05-02T00:00:00.000Z",
     "updatedAt": "2026-05-02T00:00:00.000Z"
@@ -107,7 +108,7 @@
           "label": "キャリア",
           "type": "string",
           "required": true,
-          "description": "使用する配送キャリアの識別子 (例: yamato / sagawa / jp-post)。"
+          "description": "使用する配送キャリアの識別子 (例: yamato / sagawa / japanpost)。"
         },
         {
           "name": "preferredDate",
@@ -215,7 +216,7 @@
           "description": "注文を取得する。配送指示対象は status が 'pending' または 'confirmed' のみ。",
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
-          "sql": "SELECT id, order_number, customer_id, status, total_amount, shipping_postal_code, shipping_address FROM orders WHERE id = @inputs.orderId AND status IN ('pending', 'confirmed')",
+          "sql": "SELECT id, order_number, customer_id, status, total_amount, shipping_address FROM orders WHERE id = @inputs.orderId AND status IN ('pending', 'confirmed')",
           "outputBinding": { "name": "order" },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
@@ -255,20 +256,19 @@
         {
           "id": "step-04",
           "kind": "audit",
-          "description": "配送指示操作を監査ログに記録する。担当者 ID と注文情報を含む。",
+          "description": "配送指示操作を監査ログに記録する。担当者 ID と注文情報を含む。操作開始段階なので result は pending。",
           "action": "order.dispatch",
           "resource": {
             "type": "order",
             "id": "@inputs.orderId"
           },
-          "result": "success",
+          "result": "pending",
           "reason": "配送指示操作開始 by @sessionUserId"
         },
         {
           "id": "step-05",
-          "kind": "ExtensionStep",
-          "description": "外部キャリア API に配送指示を送信する (retail:DispatchShipment)。追跡番号と配達予定日を受け取る。失敗時は 502 を返し、orders.status を変更しない。",
           "kind": "retail:DispatchShipment",
+          "description": "外部キャリア API に配送指示を送信する (retail:DispatchShipment)。追跡番号と配達予定日を受け取る。失敗時は 502 を返し、orders.status を変更しない。",
           "config": {
             "carrierId": "@inputs.carrierId",
             "orderId": "@order.id",
@@ -280,7 +280,8 @@
           "sla": {
             "timeoutMs": 15000,
             "onTimeout": "throw",
-            "errorCode": "CARRIER_API_FAILED"
+            "errorCode": "CARRIER_API_FAILED",
+            "responseId": "502-carrier-api-failed"
           }
         },
         {
@@ -354,7 +355,7 @@
             "description": "0 件更新 = 注文が存在しないか既に shipped に変更済み。"
           },
           "lineage": {
-            "writes": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
+            "writes": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "statusUpdate" }]
           }
         },
         {
@@ -365,11 +366,11 @@
           "payload": "{ orderId: @order.id, orderNumber: @order.order_number, trackingNumber: @dispatchResult.trackingNumber, carrierId: @inputs.carrierId }"
         },
         {
-          "id": "step-09",
+          "id": "step-10",
           "kind": "return",
           "description": "200 OK — 配送指示成功を返す。",
           "responseId": "200-ok",
-          "bodyExpression": "{ trackingNumber: @dispatchResult.trackingNumber, estimatedDelivery: @dispatchResult.estimatedDelivery, message: '注文 ' + @order.order_number + ' の配送指示が完了しました。追跡番号: ' + @dispatchResult.trackingNumber }"
+          "bodyExpression": "{ orderId: @order.id, orderNumber: @order.order_number, trackingNumber: @dispatchResult.trackingNumber, carrierId: @inputs.carrierId, estimatedDelivery: @dispatchResult.estimatedDelivery }"
         }
       ]
     }
@@ -556,7 +557,7 @@
         ],
         "when": {
           "actionId": "act-001",
-          "input": { "orderId": 302, "carrierId": "jp-post" }
+          "input": { "orderId": 302, "carrierId": "japanpost" }
         },
         "then": [
           { "kind": "outcome", "expected": "404-order-not-found" }

@@ -213,6 +213,20 @@
         "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
         "label": "注文履歴へ",
         "trigger": "click"
+      },
+      {
+        "id": "tr-inventory-to-dashboard",
+        "sourceScreenId": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
+        "targetScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
+        "label": "ダッシュボードへ",
+        "trigger": "click"
+      },
+      {
+        "id": "tr-dispatch-to-orderlist",
+        "sourceScreenId": "c2254dd6-ab5d-4428-931f-d27c71e89951",
+        "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
+        "label": "注文一覧へ",
+        "trigger": "click"
       }
     ],
     "tables": [
