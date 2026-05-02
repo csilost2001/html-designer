@@ -35,7 +35,7 @@
           "httpStatus": 422,
           "defaultMessage": "注文確定に失敗しました。",
           "responseId": "422-order-confirm-failed",
-          "description": "注文確定 TX 内で予期しないエラーが発生した場合。"
+          "description": "注文確定の catch-all エラーコード。TX inner からの直接 throw はなく、step-08b の persistedOrder == null ガード経由で発行される (ADR-005 参照)。orders.order_number UNIQUE 制約違反は ORDER_NUMBER_CONFLICT で個別 catch、それ以外の予期しない TX rollback はこのコードに集約される。"
         },
         "ORDER_NUMBER_CONFLICT": {
           "httpStatus": 422,
@@ -451,7 +451,7 @@
               },
               "steps": [
                 {
-                  "id": "step-07-c-01",
+                  "id": "step-07-b-01",
                   "kind": "return",
                   "description": "422 注文番号競合を返す。再試行で解消できる。",
                   "responseId": "422-order-confirm-failed",
