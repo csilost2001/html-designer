@@ -32,7 +32,8 @@
           "argumentMapping": {
             "shippingPostalCode": "@screen.shippingPostalCode",
             "shippingAddress": "@screen.shippingAddress",
-            "note": "@screen.note"
+            "note": "@screen.note",
+            "paymentMethod": "@screen.paymentMethod"
           }
         }
       ],
@@ -75,7 +76,7 @@
       "errorMessages": {
         "required": "支払方法を選択してください。"
       },
-      "description": "S-3 注文確定の支払方法選択。注: 注文確定フロー (f81dd9e0) の inputs 拡張は別 ISSUE で対応予定 (本 PR では画面項目側のみ追加)。"
+      "description": "S-3 注文確定の支払方法選択。注文確定フロー (f81dd9e0) の paymentMethod input にマッピングされる。フロー側でも enum バリデーション (credit_card / bank_transfer / cod) を行う。"
     },
     {
       "id": "confirmTotalAmount",
