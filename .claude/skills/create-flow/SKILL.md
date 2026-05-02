@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 23 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621) + runtime 契約整合性 (#714)
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 29 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621) + runtime 契約整合性 (#714) + retail dogfood 既知パターン (#740)
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -355,6 +355,75 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 
 **Step 5.2 で `validate:samples` の `runtimeContractValidator` により機械的に検出される**
 
+### Rule 24: `'@conv.*'` シングルクォート内リテラル化禁止 (#740 / retail 落とし穴 16)
+
+- `'@conv.msg.X'.replace(...)` のように `@conv.*` をシングルクォート (またはダブルクォート) 文字列で囲むと、評価エンジンがリテラル文字列扱いするため **conv 解決が起きない**
+- 結果: レスポンス message に `"@conv.msg.productNotFound"` という生の文字列が露出する
+- 正しい形: `@conv.msg.X.replace(...)` (クォート除去)
+- 典型ミス: `'@conv.msg.productNotFound'.replace('{x}', @inputs.y)` → `@conv.msg.productNotFound.replace('{x}', @inputs.y)` に修正
+
+**Step 5.2 で `validate:samples` の `processFlowAntipatternValidator` (`LITERAL_CONV_REFERENCE`) により機械的に検出される**
+
+### Rule 25: JSON 重複 `kind` キー禁止 (#740 / retail 落とし穴 17)
+
+- 同 step オブジェクト内で `"kind": "extensionStep"` と `"kind": "retail:DispatchShipment"` のように `kind` フィールドを 2 つ並存させない
+- JSON 仕様 (RFC 8259) では後者で前者を上書きするが、フレームワーク前読み validator が前者を採用する場合に不整合発生
+- 正しい形: schemas/v3 で許容される 1 形式に統一:
+  - `"kind": "<extensionId>"` 単独 (例: `"kind": "retail:DispatchShipment"`)
+  - もしくは `"kind": "extensionStep", "extensionId": "..."` のいずれか
+- 検出: 単純な `JSON.parse` では検出不能 (重複キー許容)、raw 文字列 scan が必要
+
+**Step 5.2 で `validate:samples` の `processFlowAntipatternValidator` (`DUPLICATE_KIND_KEY`) により機械的に検出される**
+
+### Rule 26: `httpRoute` API への `screenTransition` step 混入禁止 (#740 / retail 落とし穴 18)
+
+- action が `httpRoute: { method: "POST", path: "/api/..." }` で **API として定義** されているのに step に `kind: "screenTransition"` を含めない (意味論衝突)
+- API はレスポンスを返すだけで画面遷移はできない:
+  - `screenTransition` が return より前 → 「レスポンス前に画面遷移命令」で実行不能
+  - `screenTransition` が return の後 → dead code
+- 正しい形:
+  - API フローには `screenTransition` を入れない
+  - 画面遷移は呼び出し側 (画面項目の event ハンドラ) で行う
+  - `tr-*` (`ORPHAN_FLOW_EDGE`) は project.json に残し純 UI 遷移として扱う (warning 受容)
+- 検出: action.httpRoute が存在 + step に kind: screenTransition がある組合せ (機械検出可能だが意味論判断を含むため AI 目視も併用)
+
+### Rule 27: `@conv.numbering.X.nextSeq()` 構文禁止 → DB sequence 利用 (#740 / retail 落とし穴 19)
+
+- `compute` step の expression に `String(@conv.numbering.orderNumber.nextSeq()).padStart(6, '0')` のような呼び出し構文を書かない
+- conventions catalog のオブジェクトはメソッドを持たないため **実行不能**
+- 正しい形: シーケンスは DB の sequence object を `dbAccess` step + `SELECT nextval('seq_X')` で取得する。例:
+
+```sql
+SELECT 'ORD-' || EXTRACT(YEAR FROM CURRENT_DATE)::text || '-' || LPAD(nextval('seq_order_number')::text, 6, '0') AS order_number
+```
+
+**Step 5.2 で `validate:samples` の `processFlowAntipatternValidator` (`INVALID_SEQUENCE_CALL_SYNTAX`) により機械的に検出される**
+
+### Rule 28: `rollbackOn` 発火可能性 + `lineage.writes.purpose` 整合 (#740 / retail 落とし穴 20 + 21)
+
+#### Rule 28a: rollbackOn 欠落禁止 (落とし穴 20)
+
+- TX 内 step の `affectedRowsCheck.errorCode` / `inlineBranch.errorCode` で発火する **全 errorCode** を `transactionScope.rollbackOn` に列挙
+- 欠落していると TX rollback がトリガーされず、catch-all (例: `ORDER_CONFIRM_FAILED`) に吸収されるか unhandled exception で 500 になる
+- Rule 8 (死コード rollbackOn 禁止) と対をなす — 「足りない」「余分」両方 NG
+- 検出: `grep -P '"errorCode"\s*:\s*"' flow.json` で抽出した errorCode 集合と `rollbackOn` の集合を比較し差分を確認 (Phase 2 で機械検出候補)
+
+#### Rule 28b: lineage.writes.purpose と実操作の整合 (落とし穴 21)
+
+- `lineage.writes[0].purpose` は SQL 操作種別と一致させる:
+  - `"insert"` / `"update"` / `"statusUpdate"` / `"delete"` / `"upsert"`
+- `"lookup"` は SELECT (`lineage.reads`) 専用。INSERT / UPDATE 操作の `purpose` を `"lookup"` にしない
+- 誤値だとドキュメント生成・依存分析が壊れる
+- 検出: SQL 構文解析が必要なため Phase 2 で機械検出候補
+
+### Rule 29: 単一 `dbAccess.sql` への複数文 SQL 詰め込み禁止 (#740 / retail 落とし穴 23)
+
+- `"sql": "DELETE FROM cart_items WHERE ...; UPDATE carts SET status = 'ordered' WHERE ..."` のように セミコロン区切りで 2 文を 1 step の sql に書かない
+- PostgreSQL は許容するが多くの ORM / DB ライブラリが **単一文しか実行しない** ため、2 文目が silent skip されるリスク
+- 正しい形: 1 step = 1 SQL 文。複数操作は step を分ける (`step-04-a` で DELETE、`step-04-b` で UPDATE)
+
+**Step 5.2 で `validate:samples` の `processFlowAntipatternValidator` (`MULTIPLE_STATEMENTS_IN_SQL` warning) により機械的に検出される**
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -390,12 +459,17 @@ npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.s
 npm run build
 ```
 
-### 5.2 バリデータ横断検証 (Rule 9 / 10 / 16 / 17 / 19 の機械的検出、Rule 18 は AI 目視)
+### 5.2 バリデータ横断検証 (機械的検出、Rule 18 / 26 / 28 のみ AI 目視)
 
-作成したフローを `docs/sample-project/process-flows/<flowId>.json` に配置した状態で:
+作成したフローの配置先で実行コマンドが分かれる:
+
+- `samples/<projectId>/` 配置 → `npm run validate:samples -- ../samples/<projectId>` (`runtimeContractValidator` / `processFlowAntipatternValidator` も実行)
+- `docs/sample-project/` 配置 → `npm run validate:dogfood` (legacy 経路)
 
 ```bash
 cd designer
+npm run validate:samples -- ../samples/<projectId>
+# または
 npm run validate:dogfood
 ```
 
@@ -409,8 +483,12 @@ npm run validate:dogfood
 | identifierScope | 識別子スコープ違反 (root レベル) | Rule 1 補強 |
 | screenItemFlowValidator | 画面項目イベント ↔ 処理フロー連携の整合 (handlerFlowId 実在 / argumentMapping 整合 / primaryInvoker 双方向) | Rule 16 |
 | screenItemFieldTypeValidator | 画面項目 ↔ 処理フロー 値レベル整合 (options 包含 / domainKey / 型 / pattern / range / length) | Rule 17 |
-| sqlOrderValidator | NOT NULL × INSERT 順序 (NULL_NOT_ALLOWED_AT_INSERT) / FK × INSERT 順序 (FK_REFERENCE_NOT_INSERTED) | Rule 19 |
+| sqlOrderValidator | NOT NULL × INSERT 順序 (NULL_NOT_ALLOWED_AT_INSERT) / FK × INSERT 順序 (FK_REFERENCE_NOT_INSERTED) / UNIQUE / CASCADE / TX 循環 | Rule 19 |
+| viewDefinitionValidator | ViewDefinition 整合 (sourceTableId / tableColumnRef / sortDefaults / filterDefaults 等) | Rule 20 |
+| screenNavigationValidator | 画面遷移三者整合 (targetScreenId / forward edges / auth 整合 / path) | Rule 21 |
 | screenItemRefKeyValidator | ScreenItem.refKey 横断整合 (型一致 / conventions.fieldKeys 宣言 / ORPHAN 検出) | Rule 22 |
+| runtimeContractValidator (validate:samples 専用) | 画面項目 embed (`EMPTY_SCREEN_ITEMS` / `LEGACY_SCREEN_ITEMS_DIR`) + design ファイル配置 (`MISSING_DESIGN_FILE` / `EXTERNAL_DESIGN_REF`) | Rule 23 |
+| processFlowAntipatternValidator (validate:samples 専用) | retail dogfood 既知パターン (`LITERAL_CONV_REFERENCE` / `DUPLICATE_KIND_KEY` / `INVALID_SEQUENCE_CALL_SYNTAX` / `MULTIPLE_STATEMENTS_IN_SQL`) | Rule 24 / 25 / 27 / 29 |
 
 **fail した場合の対処**:
 - `UNKNOWN_COLUMN` → SELECT 句を見直す or テーブル定義を更新
@@ -471,7 +549,7 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 | 5. compensatesFor 参照健全性 | ✓ / 該当なし |
 | 6. eventsCatalog ⇄ eventPublish | ✓ / ❌ |
 | 7. 外部呼び出しと TX 位置関係 | ✓ / ❌ |
-| 8. rollbackOn 発火可能性 | ✓ / 該当なし |
+| 8. rollbackOn 発火可能性 (死コード禁止) | ✓ / 該当なし |
 | 9. SQL SELECT カラム整合 | ✓ / ❌ (参照しているのに SELECT に無いカラム) |
 | 10. `@conv.*` 参照の catalog 整合 | ✓ / ❌ (catalog 未登録キーがあれば list) |
 | 11. TX 内 branch return 後制御 | ✓ / 該当なし (TX 内 branch を使っていない) |
@@ -482,11 +560,22 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 | 16. 画面項目イベント連携整合 | ✓ / 該当なし (画面起点でない) / ❌ |
 | 17. 画面項目値レベル整合 | ✓ / 該当なし (画面起点でない) / ❌ (options / domainKey / 型 / pattern / range / length 不一致) |
 | 18. testScenarios fixture バリエーション網羅 | ✓ / 該当なし (DB 操作なし) / ❌ (行ありのみで行なしパターン未網羅) |
+| 19. DB 制約 × INSERT/DELETE 操作順序 | ✓ / 該当なし (DB 操作なし) / ❌ |
+| 20. ViewDefinition 整合 | ✓ / 該当なし (一覧系画面でない) / ❌ |
+| 21. 画面遷移三者整合 | ✓ / 該当なし (画面遷移なし) / ❌ |
+| 22. 画面項目 refKey 横断整合 | ✓ / 該当なし (refKey 未使用) / ❌ |
+| 23. 画面項目 embed + design ファイル配置 | ✓ / 該当なし (画面 JSON 不変更) / ❌ |
+| 24. `'@conv.*'` シングルクォート内リテラル化禁止 | ✓ / 該当なし |
+| 25. JSON 重複 `kind` キー禁止 | ✓ / 該当なし |
+| 26. `httpRoute` API への `screenTransition` 混入禁止 | ✓ / 該当なし (httpRoute なし) |
+| 27. `@conv.numbering.X.nextSeq()` 構文禁止 → DB sequence | ✓ / 該当なし (採番なし) |
+| 28. rollbackOn 発火可能性 (欠落検査) + lineage.writes.purpose 整合 | ✓ / 該当なし (TX なし / lineage なし) |
+| 29. `dbAccess.sql` への複数文 SQL 詰め込み禁止 | ✓ / 該当なし (DB 操作なし) |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
 - build: <pass/fail>
-- validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope / screenItemFlowValidator / screenItemFieldTypeValidator)
+- validate:samples / validate:dogfood: <pass/fail 件数> (sqlColumnValidator / conventionsValidator / referentialIntegrity / identifierScope / screenItemFlowValidator / screenItemFieldTypeValidator / sqlOrderValidator / viewDefinitionValidator / screenNavigationValidator / screenItemRefKeyValidator / runtimeContractValidator / processFlowAntipatternValidator)
 - /review-flow: <Must-fix 件数 / Should-fix 件数>
 
 ### 推奨: 次の手順
@@ -501,11 +590,11 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **23 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **29 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
 - スキル肥大化を避けるため、spec 本文は転記しない (要約のみ)
 - 業務概要が短すぎて不明瞭な場合は、ユーザーに「もう少し詳しく」と聞き返すのも可
 - 既存サンプル (`dddddddd-0001-*` / `eeeeeeee-0001-*` / `ffffffff-0001-*` 等) は 5/5 達成済の良サンプル、構造を参考にする
-- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 18 ルールを遵守すること」が含まれているはず
+- `/issues` オーケストレーターから委譲される場合、briefing に「`/create-flow` の 29 ルールを遵守すること」が含まれているはず
