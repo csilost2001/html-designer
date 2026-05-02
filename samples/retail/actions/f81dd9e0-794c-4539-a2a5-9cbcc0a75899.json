@@ -366,7 +366,6 @@
               "loopKind": "collection",
               "collectionSource": "@cartItems",
               "collectionItemName": "cartItem",
-              "outputBinding": { "name": "cartItem" },
               "steps": [
                 {
                   "id": "step-06-03-a",

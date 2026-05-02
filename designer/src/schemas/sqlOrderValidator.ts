@@ -31,7 +31,7 @@
  */
 
 import { Parser } from "node-sql-parser";
-import type { ProcessFlow, Step, TransactionScopeStep } from "../types/v3";
+import type { ProcessFlow, LoopStep, Step, TransactionScopeStep } from "../types/v3";
 import { isBuiltinStep } from "./stepGuards";
 
 // ─── 入力型: テーブル定義 (v3 形式) ────────────────────────────────────────
@@ -238,6 +238,7 @@ function walkStepsInOrder(
   steps: Step[],
   basePath: string,
   visitor: (step: Step, path: string) => void,
+  loopHooks?: { onEnter: (loop: LoopStep) => void; onExit: (loop: LoopStep) => void },
 ): void {
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
@@ -246,29 +247,33 @@ function walkStepsInOrder(
     if (!isBuiltinStep(step)) continue;
     if (step.kind === "branch") {
       step.branches.forEach((b, bi) =>
-        walkStepsInOrder(b.steps, `${path}.branches[${bi}].steps`, visitor),
+        walkStepsInOrder(b.steps, `${path}.branches[${bi}].steps`, visitor, loopHooks),
       );
-      if (step.elseBranch) walkStepsInOrder(step.elseBranch.steps, `${path}.elseBranch.steps`, visitor);
+      if (step.elseBranch) walkStepsInOrder(step.elseBranch.steps, `${path}.elseBranch.steps`, visitor, loopHooks);
     }
-    if (step.kind === "loop") walkStepsInOrder(step.steps, `${path}.steps`, visitor);
+    if (step.kind === "loop") {
+      if (loopHooks) loopHooks.onEnter(step);
+      walkStepsInOrder(step.steps, `${path}.steps`, visitor, loopHooks);
+      if (loopHooks) loopHooks.onExit(step);
+    }
     if (step.kind === "transactionScope") {
-      walkStepsInOrder(step.steps, `${path}.steps`, visitor);
-      if (step.onCommit) walkStepsInOrder(step.onCommit, `${path}.onCommit`, visitor);
-      if (step.onRollback) walkStepsInOrder(step.onRollback, `${path}.onRollback`, visitor);
+      walkStepsInOrder(step.steps, `${path}.steps`, visitor, loopHooks);
+      if (step.onCommit) walkStepsInOrder(step.onCommit, `${path}.onCommit`, visitor, loopHooks);
+      if (step.onRollback) walkStepsInOrder(step.onRollback, `${path}.onRollback`, visitor, loopHooks);
     }
     if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
-        if (spec?.sideEffects) walkStepsInOrder(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, visitor);
+        if (spec?.sideEffects) walkStepsInOrder(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, visitor, loopHooks);
       });
     }
     if (step.kind === "workflow") {
-      if (step.onApproved) walkStepsInOrder(step.onApproved, `${path}.onApproved`, visitor);
-      if (step.onRejected) walkStepsInOrder(step.onRejected, `${path}.onRejected`, visitor);
-      if (step.onTimeout) walkStepsInOrder(step.onTimeout, `${path}.onTimeout`, visitor);
+      if (step.onApproved) walkStepsInOrder(step.onApproved, `${path}.onApproved`, visitor, loopHooks);
+      if (step.onRejected) walkStepsInOrder(step.onRejected, `${path}.onRejected`, visitor, loopHooks);
+      if (step.onTimeout) walkStepsInOrder(step.onTimeout, `${path}.onTimeout`, visitor, loopHooks);
     }
     if (step.kind === "validation" && step.inlineBranch) {
-      walkStepsInOrder(step.inlineBranch.ok, `${path}.inlineBranch.ok`, visitor);
-      walkStepsInOrder(step.inlineBranch.ng, `${path}.inlineBranch.ng`, visitor);
+      walkStepsInOrder(step.inlineBranch.ok, `${path}.inlineBranch.ok`, visitor, loopHooks);
+      walkStepsInOrder(step.inlineBranch.ng, `${path}.inlineBranch.ng`, visitor, loopHooks);
     }
   }
 }
@@ -736,6 +741,10 @@ function checkAction(
   const deletedTableIds = new Set<string>();
   // 観点 3: INSERT より前に見た SELECT の WHERE カラム集合 (テーブル物理名 → カラム集合)
   const priorSelectWhereColumnsByTable = new Map<string, Set<string>>();
+  // loop step の collectionItemName を scope 管理するスタック
+  // push: ループ開始時に name を登録 (既存なら null を push してスコープ変更なし)
+  // pop: ループ終了時に登録した name を boundVars から削除
+  const loopScopeStack: Array<string | null> = [];
 
   // 平坦化した step のシーケンスを順走査
   // (branch 内部は楽観的に両パスを走査してバインドを union する — 保守的な偽陽性抑止)
@@ -1007,6 +1016,21 @@ function checkAction(
       const metaById = tableIdIndex.get(tableIdRef);
       if (metaById) insertedTableIds.add(metaById.id);
     }
+  }, {
+    onEnter: (loop) => {
+      const name = loop.collectionItemName;
+      if (name && !boundVars.has(name)) {
+        boundVars.add(name);
+        loopScopeStack.push(name);
+      } else {
+        // 既に boundVars に存在する (ネスト同名ループ等) → 追加しない
+        loopScopeStack.push(null);
+      }
+    },
+    onExit: () => {
+      const popped = loopScopeStack.pop();
+      if (popped) boundVars.delete(popped);
+    },
   });
 }
 
