@@ -3,7 +3,7 @@
   "meta": {
     "id": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
     "name": "注文確定",
-    "description": "カート内容を 1 TX (@conv.tx.orderConfirm) で確定する。在庫減算 (retail:DECREMENT_STOCK) → 注文番号採番 (@conv.numbering.orderNumber) → orders INSERT → order_items BULK_INSERT → カートクリア (retail:CLEAR_CART) の順に原子的に実行する。TX 失敗時は 422 を返す。TX 後に persistedOrder を再取得してから注文確定イベントを発行する。",
+    "description": "カート内容を 1 TX (@conv.tx.orderConfirm) で確定する。在庫減算 (retail:DECREMENT_STOCK) → 注文番号採番 (@conv.numbering.orderNumber) → orders INSERT → order_items loop INSERT → カートクリア (retail:CLEAR_CART) の順に原子的に実行する。TX 失敗時は 422 を返す。TX 後に persistedOrder を再取得してから注文確定イベントを発行する。",
     "kind": "screen",
     "screenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
     "maturity": "committed",
@@ -204,7 +204,7 @@
                 "kind": "return",
                 "description": "400 バリデーションエラーを返す。",
                 "responseId": "400-validation",
-                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', fieldErrors: @fieldErrors }"
+                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', details: @fieldErrors }"
               }
             ]
           }
@@ -278,7 +278,7 @@
         {
           "id": "step-06",
           "kind": "transactionScope",
-          "description": "注文確定 TX (@conv.tx.orderConfirm)。在庫減算 → orders INSERT → order_items BULK_INSERT → カートクリアを原子的に実行する。いずれかが失敗した場合は全体をロールバックする。",
+          "description": "注文確定 TX (@conv.tx.orderConfirm)。在庫減算 → orders INSERT → order_items loop INSERT → カートクリアを原子的に実行する。いずれかが失敗した場合は全体をロールバックする。",
           "isolationLevel": "READ_COMMITTED",
           "propagation": "REQUIRED",
           "timeoutMs": 10000,
@@ -529,7 +529,7 @@
     "decisions": [
       {
         "id": "ADR-001",
-        "title": "注文確定 TX の順序: 在庫減算 → orders INSERT → order_items BULK_INSERT → カートクリア",
+        "title": "注文確定 TX の順序: 在庫減算 → orders INSERT → order_items loop INSERT → カートクリア",
         "status": "accepted",
         "context": "@conv.tx.orderConfirm で定める TX 内の操作順序を決定する必要があった。",
         "decision": "在庫減算を最初に実行する。在庫不足で TX を早期中断できるため、orders/order_items の無用な INSERT を防げる。カートクリアは最後に実行し、失敗しても TX ロールバックで元に戻る。",

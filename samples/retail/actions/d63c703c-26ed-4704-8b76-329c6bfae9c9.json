@@ -205,7 +205,7 @@
                 "kind": "return",
                 "description": "400 バリデーションエラーを返す。",
                 "responseId": "400-validation",
-                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', fieldErrors: @fieldErrors }"
+                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', details: @fieldErrors }"
               }
             ]
           }
