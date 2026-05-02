@@ -103,7 +103,8 @@ function loadConventionsFromFile(filePath: string): ConventionsCatalog | null {
 function loadScreensFromDir(dir: string): Screen[] {
   if (!existsSync(dir)) return [];
   try {
-    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    // `.design.json` は GrapesJS 状態ファイルのため除外 (Screen 定義ではない)
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json") && !f.endsWith(".design.json"));
     return files.map((f) => JSON.parse(readFileSync(join(dir, f), "utf-8")) as Screen);
   } catch {
     return [];
@@ -249,6 +250,92 @@ function issue(
   return { validator, code, path, message, severity };
 }
 
+/**
+ * Check 1: Screen.items embed check (#714)
+ *
+ * - screens/<id>.json の items が空または未定義 → warning (EMPTY_SCREEN_ITEMS)
+ * - screen-items/ ディレクトリに .json ファイルが存在 → error (LEGACY_SCREEN_ITEMS_DIR)
+ */
+export function checkScreenItemsEmbedded(project: ProjectResources): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  // Check 1a: items が空または未定義の screen
+  for (const screen of project.screens) {
+    if (!screen.items || screen.items.length === 0) {
+      const id = screen.id ?? "unknown";
+      issues.push({
+        validator: "runtimeContractValidator",
+        severity: "warning",
+        code: "EMPTY_SCREEN_ITEMS",
+        path: `screens/${id}.json`,
+        message: `Screen.items が空です。runtime は別ファイル \`screen-items/${id}.json\` を読まないため UI で空フォームになります。\`screens/${id}.json#items\` 配列に画面項目を embed してください`,
+      });
+    }
+  }
+
+  // Check 1b: legacy screen-items/ ディレクトリが存在する場合
+  const screenItemsDir = join(project.projectDir, "screen-items");
+  if (existsSync(screenItemsDir)) {
+    try {
+      const files = readdirSync(screenItemsDir).filter((f) => f.endsWith(".json"));
+      for (const file of files) {
+        issues.push({
+          validator: "runtimeContractValidator",
+          severity: "error",
+          code: "LEGACY_SCREEN_ITEMS_DIR",
+          path: `screen-items/${file}`,
+          message: `legacy 配置 \`screen-items/${file}\` を検出しました。runtime はこのディレクトリを読みません。\`screens/<id>.json#items\` に embed してください (#714)`,
+        });
+      }
+    } catch {
+      // ディレクトリ読み取りエラーは無視
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Check 2: Design file presence check (#714)
+ *
+ * - screens/<id>.design.json が存在しない → warning (MISSING_DESIGN_FILE)
+ * - screen.design?.designFileRef が外部参照 (basename が <id>.design.json と不一致) → error (EXTERNAL_DESIGN_REF)
+ */
+export function checkDesignFilePresence(project: ProjectResources): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const screen of project.screens) {
+    const id = screen.id ?? "unknown";
+    const expectedDesignFile = `${id}.design.json`;
+
+    // Check 2a: design.json ファイルが存在するか
+    const designFilePath = join(project.projectDir, "screens", expectedDesignFile);
+    if (!existsSync(designFilePath)) {
+      issues.push({
+        validator: "runtimeContractValidator",
+        severity: "warning",
+        code: "MISSING_DESIGN_FILE",
+        path: `screens/${id}.json`,
+        message: `\`screens/${expectedDesignFile}\` が存在しません。UI で空キャンバスになります (recoverable)`,
+      });
+    }
+
+    // Check 2b: designFileRef が外部参照でないか
+    const designFileRef = screen.design?.designFileRef;
+    if (typeof designFileRef === "string" && basename(designFileRef) !== expectedDesignFile) {
+      issues.push({
+        validator: "runtimeContractValidator",
+        severity: "error",
+        code: "EXTERNAL_DESIGN_REF",
+        path: `screens/${id}.json`,
+        message: `designFileRef='${designFileRef}' は外部参照です。runtime はこれを読まず hard-coded path 'screens/${expectedDesignFile}' のみ参照します (#714)`,
+      });
+    }
+  }
+
+  return issues;
+}
+
 export async function runValidation(projectDirArg: string): Promise<ValidationSummary> {
   const project = discoverProject(projectDirArg);
   const { extensions, fileCount: extensionFileCount } = loadExtensions(project.projectDir);
@@ -311,6 +398,14 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
     projectIssues.push(issue("screenNavigationValidator", i.code, i.path, i.message, i.severity));
   }
 
+  for (const i of checkScreenItemsEmbedded(project)) {
+    projectIssues.push(i);
+  }
+
+  for (const i of checkDesignFilePresence(project)) {
+    projectIssues.push(i);
+  }
+
   if (projectIssues.length > 0) {
     projectResults.push({
       projectId: project.projectId,
@@ -349,6 +444,7 @@ const validatorDisplayOrder = [
   "screenItemRefKeyValidator",
   "viewDefinitionValidator",
   "screenNavigationValidator",
+  "runtimeContractValidator",
 ];
 
 function printSummary(summary: ValidationSummary): void {
@@ -430,19 +526,22 @@ function parseArgs(argv: string[]): { projectDir: string } {
   return { projectDir };
 }
 
-(async () => {
-  try {
-    const { projectDir } = parseArgs(process.argv.slice(2));
-    const summary = await runValidation(projectDir);
-    printSummary(summary);
-    const projectErrorCount = summary.projectResults.reduce(
-      (acc, pr) => acc + pr.issues.filter((i) => i.severity === "error").length,
-      0,
-    );
-    process.exit(summary.failedFlows > 0 || projectErrorCount > 0 ? 1 : 0);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`ERROR ${message}`);
-    process.exit(1);
-  }
-})();
+// CLI エントリポイント: tsx で直接実行された場合のみ起動する
+if (process.argv[1]?.endsWith("validate-samples.ts") || process.argv[1]?.endsWith("validate-samples.js")) {
+  (async () => {
+    try {
+      const { projectDir } = parseArgs(process.argv.slice(2));
+      const summary = await runValidation(projectDir);
+      printSummary(summary);
+      const projectErrorCount = summary.projectResults.reduce(
+        (acc, pr) => acc + pr.issues.filter((i) => i.severity === "error").length,
+        0,
+      );
+      process.exit(summary.failedFlows > 0 || projectErrorCount > 0 ? 1 : 0);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`ERROR ${message}`);
+      process.exit(1);
+    }
+  })();
+}
