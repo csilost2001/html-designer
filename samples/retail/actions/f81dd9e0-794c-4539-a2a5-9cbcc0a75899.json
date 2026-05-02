@@ -295,7 +295,7 @@
                     "description": "0 件更新 = 在庫不足。TX がロールバックされ STOCK_SHORTAGE エラーを返す。"
                   },
                   "lineage": {
-                    "writes": [{ "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a", "purpose": "lookup" }]
+                    "writes": [{ "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a", "purpose": "decrement" }]
                   }
                 }
               ]
@@ -309,7 +309,7 @@
               "sql": "INSERT INTO orders (order_number, customer_id, status, total_amount, tax_amount, shipping_postal_code, shipping_address, note, ordered_at) VALUES (@newOrderNumber, @sessionCustomerId, 'pending', @totalAmount, FLOOR(@totalAmount * @conv.tax.standard.rate), @inputs.shippingPostalCode, @inputs.shippingAddress, @inputs.note, CURRENT_TIMESTAMP) RETURNING id, order_number",
               "outputBinding": { "name": "insertedOrder" },
               "lineage": {
-                "writes": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
+                "writes": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "insert" }]
               }
             },
             {
@@ -321,7 +321,7 @@
               "bulkValues": "@cartItems.map(item => ({ order_id: @insertedOrder.id, product_id: item.product_id, product_code_snapshot: item.product_code, product_name_snapshot: item.product_name, unit_price_snapshot: item.unit_price_snapshot, quantity: item.quantity, line_amount: item.unit_price_snapshot * item.quantity }))",
               "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES :bulkValues",
               "lineage": {
-                "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "lookup" }]
+                "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "bulk-insert" }]
               }
             },
             {
@@ -333,8 +333,8 @@
               "sql": "DELETE FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE customer_id = @sessionCustomerId AND status = 'active'); UPDATE carts SET status = 'ordered', updated_at = CURRENT_TIMESTAMP WHERE customer_id = @sessionCustomerId AND status = 'active'",
               "lineage": {
                 "writes": [
-                  { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" },
-                  { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" }
+                  { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "delete" },
+                  { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "update" }
                 ]
               }
             }

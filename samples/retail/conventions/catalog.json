@@ -14,7 +14,7 @@
   "numbering": {
     "orderNumber": {
       "format": "ORD-YYYY-NNNNNN",
-      "implementation": "DB sequence (seq_order_number) + アプリ層で YYYY を現在年に置換して採番",
+      "implementation": "DB sequence (seq_order_number) + アプリ層で YYYY を現在年に置換して採番。シーケンス自体は CYCLE=false で連続インクリメントするため、毎年 1/1 0:00 にスケジュールタスク (DBA 運用) で seq_order_number を 1 にリセットする運用前提。シーケンス値が 999,999 を超える年商規模ではゼロ埋め桁数を増やす ALTER と併せて catalog 更新する。",
       "description": "注文番号の採番規約。YYYY は注文確定年 (西暦 4 桁)、NNNNNN はシーケンス 6 桁ゼロ埋め。例: ORD-2026-000001。注文確定 TX (S-3) 内で 1 TX に 1 番号を発行する。"
     }
   },
