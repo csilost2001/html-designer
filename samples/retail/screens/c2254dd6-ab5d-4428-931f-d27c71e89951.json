@@ -61,7 +61,7 @@
       "description": "S-4 配送指示の希望時間帯選択 (任意)。"
     },
     {
-      "id": "dispatchedTrackingNumber",
+      "id": "trackingNumber",
       "label": "追跡番号",
       "type": "string",
       "direction": "output",
