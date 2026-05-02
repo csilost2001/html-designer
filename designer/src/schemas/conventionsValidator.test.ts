@@ -664,6 +664,7 @@ describe("#734 checkStep — validation rules[].minRef/maxRef/lengthRef 検査",
     limit: {
       cartItemMaxQuantity: { value: 999, unit: "integer" },
     },
+    regex: {},
   };
 
   it("rules[].lengthRef が未登録 → UNKNOWN_CONV_LIMIT 検出 (#734 review S-1)", () => {
@@ -721,6 +722,25 @@ describe("#734 checkStep — validation rules[].minRef/maxRef/lengthRef 検査",
     const hit = issues.find((i) => i.path === "actions[0].steps[0].rules[0].maxRef");
     expect(hit).toBeDefined();
     expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+
+  it("rules[].patternRef が未登録 → UNKNOWN_CONV_REGEX 検出", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{
+            id: "s1", kind: "validation", description: "", conditions: "",
+            rules: [{ field: "x", type: "pattern", message: "エラー", patternRef: "@conv.regex.unknownKey" }],
+          }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "actions[0].steps[0].rules[0].patternRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_REGEX");
   });
 });
 
