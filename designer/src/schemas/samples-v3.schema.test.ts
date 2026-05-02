@@ -107,6 +107,8 @@ function collectFiles(projectDir: string): FileEntry[] {
     if (!existsSync(dir)) continue;
     for (const f of readdirSync(dir)) {
       if (!f.endsWith(".json")) continue;
+      // *.design.json は GrapesJS state ファイルで entity schema とは別形式 — スキップ
+      if (f.endsWith(".design.json")) continue;
       entries.push({
         filePath: join(dir, f),
         schemaFile: schema,
