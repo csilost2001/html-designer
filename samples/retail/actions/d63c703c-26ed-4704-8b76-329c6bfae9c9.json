@@ -256,13 +256,12 @@
         {
           "id": "step-04",
           "kind": "audit",
-          "description": "配送指示操作を監査ログに記録する。担当者 ID と注文情報を含む。操作開始段階なので result は pending。",
+          "description": "配送指示操作を監査ログに記録する。担当者 ID と注文情報を含む。result は省略 (操作完了前のため確定値なし)。",
           "action": "order.dispatch",
           "resource": {
             "type": "order",
             "id": "@inputs.orderId"
           },
-          "result": "pending",
           "reason": "配送指示操作開始 by @sessionUserId"
         },
         {
@@ -280,8 +279,7 @@
           "sla": {
             "timeoutMs": 15000,
             "onTimeout": "throw",
-            "errorCode": "CARRIER_API_FAILED",
-            "responseId": "502-carrier-api-failed"
+            "errorCode": "CARRIER_API_FAILED"
           }
         },
         {

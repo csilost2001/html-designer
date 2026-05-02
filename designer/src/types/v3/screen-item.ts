@@ -99,6 +99,14 @@ export interface ScreenItem {
   maxLength?: number;
   min?: number;
   max?: number;
+  /** `@conv.limit.<key>` 参照 (minLength の代替)。loader 段階で integer 値に展開される。 */
+  minLengthRef?: string;
+  /** `@conv.limit.<key>` 参照 (maxLength の代替)。loader 段階で integer 値に展開される。 */
+  maxLengthRef?: string;
+  /** `@conv.limit.<key>` 参照 (min の代替)。loader 段階で number 値に展開される。 */
+  minRef?: string;
+  /** `@conv.limit.<key>` 参照 (max の代替)。loader 段階で number 値に展開される。 */
+  maxRef?: string;
   step?: number;
   /** 正規表現または `@conv.regex.<key>` 参照。 */
   pattern?: string;

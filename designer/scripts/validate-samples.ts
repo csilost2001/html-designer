@@ -24,6 +24,7 @@ import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFi
 import { checkScreenItemRefKeyConsistency } from "../src/schemas/screenItemRefKeyValidator.js";
 import { checkViewDefinitions } from "../src/schemas/viewDefinitionValidator.js";
 import { checkScreenNavigation } from "../src/schemas/screenNavigationValidator.js";
+import { resolveScreenItemRefs } from "../src/schemas/screenItemRefResolver.js";
 import { loadExtensionsFromBundle, type ExtensionsBundle, type LoadedExtensions } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
 import type { Conventions } from "../src/types/v3/conventions.js";
@@ -438,7 +439,14 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
     projectIssues.push(issue("screenItemFlowValidator", i.code, i.path, i.message, i.severity));
   }
 
-  for (const i of checkScreenItemFieldTypeConsistency(flows.map((f) => f.flow), project.screens)) {
+  // #734: *Ref フィールドを plain 値に展開した版で screenItemFieldTypeValidator を実行
+  // (plain min/max/minLength/maxLength が undefined の場合のみ Ref を解決して補完)
+  const screensWithRefsResolved: Screen[] = project.screens.map((screen) => ({
+    ...screen,
+    items: (screen.items ?? []).map((item) => resolveScreenItemRefs(item, project.conventionsV3)),
+  }));
+
+  for (const i of checkScreenItemFieldTypeConsistency(flows.map((f) => f.flow), screensWithRefsResolved)) {
     projectIssues.push(issue("screenItemFieldTypeValidator", i.code, i.path, i.message, i.severity));
   }
 

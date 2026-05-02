@@ -315,6 +315,9 @@ function checkStep(step: Step, path: string, catalog: ConventionsCatalog, issues
         if (r.condition) texts.push({ src: r.condition, field: `rules[${ri}].condition` });
         if (r.message) texts.push({ src: r.message, field: `rules[${ri}].message` });
         if (r.pattern) texts.push({ src: r.pattern, field: `rules[${ri}].pattern` });
+        if (r.minRef) texts.push({ src: r.minRef, field: `rules[${ri}].minRef` });
+        if (r.maxRef) texts.push({ src: r.maxRef, field: `rules[${ri}].maxRef` });
+        if (r.lengthRef) texts.push({ src: r.lengthRef, field: `rules[${ri}].lengthRef` });
       });
       if (step.inlineBranch?.ngBodyExpression) {
         texts.push({ src: step.inlineBranch.ngBodyExpression, field: "inlineBranch.ngBodyExpression" });
@@ -350,6 +353,11 @@ export function checkScreenItemConventionReferences(
         if (val) checkValue(val, `items[${i}].errorMessages.${key}`, catalog, issues);
       });
     }
+    // #734: *Ref フィールドの @conv.limit.<key> 参照存在を検査
+    if (item.minLengthRef) checkValue(item.minLengthRef, `items[${i}].minLengthRef`, catalog, issues);
+    if (item.maxLengthRef) checkValue(item.maxLengthRef, `items[${i}].maxLengthRef`, catalog, issues);
+    if (item.minRef) checkValue(item.minRef, `items[${i}].minRef`, catalog, issues);
+    if (item.maxRef) checkValue(item.maxRef, `items[${i}].maxRef`, catalog, issues);
   });
 
   return issues;

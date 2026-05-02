@@ -291,10 +291,17 @@
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
           "sql": "SELECT 'ORD-' || EXTRACT(YEAR FROM CURRENT_DATE)::text || '-' || LPAD(nextval('seq_order_number')::text, 6, '0') AS order_number",
-          "outputBinding": { "name": "newOrderNumber", "path": "[0].order_number" },
+          "outputBinding": { "name": "newOrderNumberRows" },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
           }
+        },
+        {
+          "id": "step-05a",
+          "kind": "compute",
+          "description": "newOrderNumberRows[0].order_number を newOrderNumber に展開する (dbAccess は配列で返るため)。",
+          "expression": "@newOrderNumberRows[0].order_number",
+          "outputBinding": { "name": "newOrderNumber" }
         },
         {
           "id": "step-06",
