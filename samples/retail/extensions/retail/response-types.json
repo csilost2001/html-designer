@@ -38,7 +38,7 @@
         "additionalProperties": false
       }
     },
-    "CartItemAdded": {
+    "CartAddResponse": {
       "description": "カート明細追加成功レスポンス (S-2)。追加後のカート状態 (明細数・合計金額) を返す。",
       "schema": {
         "type": "object",
@@ -61,7 +61,7 @@
         "additionalProperties": false
       }
     },
-    "OrderConfirmed": {
+    "OrderConfirmResponse": {
       "description": "注文確定成功レスポンス (S-3)。採番された注文番号・合計金額・注文日時を返す。注文完了画面での表示に使用する。",
       "schema": {
         "type": "object",
@@ -76,17 +76,61 @@
         "additionalProperties": false
       }
     },
-    "ShipmentDispatched": {
+    "DispatchShipmentResponse": {
       "description": "配送指示完了レスポンス (S-4)。外部キャリアから取得した追跡番号と配達予定日を返す。",
       "schema": {
         "type": "object",
-        "required": ["orderId", "trackingNumber", "carrierId"],
+        "required": ["orderId", "orderNumber", "trackingNumber", "carrierId"],
         "properties": {
           "orderId": { "type": "integer" },
           "orderNumber": { "type": "string" },
           "trackingNumber": { "type": "string", "description": "キャリアの追跡番号" },
           "carrierId": { "type": "string" },
           "estimatedDelivery": { "type": "string", "format": "date" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ApiError": {
+      "description": "汎用 API エラーレスポンス。バリデーションエラー / 認証エラー / 外部 API 失敗等の共通エラー応答に使う。",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "description": "エラーコード (例: VALIDATION_ERROR / NOT_FOUND / EXTERNAL_API_FAILURE)" },
+          "message": { "type": "string", "description": "ユーザー向けエラーメッセージ" },
+          "details": { "type": "array", "items": { "type": "string" }, "description": "詳細情報 (任意)" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "InventorySearchResponse": {
+      "description": "店舗在庫照会レスポンス (S-1)。指定商品コード / 店舗の在庫情報を items 配列で返す。0 件でも 200 OK で items: []。",
+      "schema": {
+        "type": "object",
+        "required": ["items", "totalCount"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productId", "productCode", "productName", "storeId", "storeCode", "storeName", "quantityAvailable"],
+              "properties": {
+                "productId": { "type": "integer" },
+                "productCode": { "type": "string" },
+                "productName": { "type": "string" },
+                "storeId": { "type": "integer" },
+                "storeCode": { "type": "string" },
+                "storeName": { "type": "string" },
+                "quantityAvailable": { "type": "integer", "description": "引き当て可能在庫数" },
+                "quantityReserved": { "type": "integer", "description": "予約済み在庫数" },
+                "minStock": { "type": "integer", "description": "最低在庫数 (閾値以下は警告)" },
+                "isLowStock": { "type": "boolean", "description": "低在庫閾値以下フラグ (@conv.limit.lowStockThreshold 以下で true)" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "totalCount": { "type": "integer" }
         },
         "additionalProperties": false
       }

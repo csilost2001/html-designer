@@ -5,6 +5,7 @@
     "name": "店舗在庫照会",
     "description": "商品コード + 店舗コードで inventory を検索し、低在庫閾値 (@conv.limit.lowStockThreshold) を満たす行に警告フラグを付与して返す。読取専用フロー (TX 不要)。",
     "kind": "screen",
+    "screenId": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
     "maturity": "committed",
     "createdAt": "2026-05-02T00:00:00.000Z",
     "updatedAt": "2026-05-02T00:00:00.000Z"
@@ -188,7 +189,7 @@
                 "kind": "return",
                 "description": "400 バリデーションエラーを返す。",
                 "responseId": "400-validation",
-                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', fieldErrors: @fieldErrors }"
+                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', details: @fieldErrors }"
               }
             ]
           }
@@ -225,7 +226,7 @@
                   "kind": "return",
                   "description": "404 商品なし を返す。",
                   "responseId": "404-product-not-found",
-                  "bodyExpression": "{ code: 'PRODUCT_NOT_FOUND', message: '@conv.msg.productNotFound'.replace('{productCode}', @inputs.productCode) }"
+                  "bodyExpression": "{ code: 'PRODUCT_NOT_FOUND', message: @conv.msg.productNotFound.replace('{productCode}', @inputs.productCode) }"
                 }
               ]
             }
@@ -243,7 +244,7 @@
           "description": "inventory + products を JOIN して在庫一覧を取得する。productCode が指定された場合は product_id でフィルタ。",
           "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
           "operation": "SELECT",
-          "sql": "SELECT i.id, p.product_code, p.name AS product_name, s.store_code, i.quantity_available, i.quantity_reserved FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE ORDER BY p.product_code ASC",
+          "sql": "SELECT i.id, p.id AS product_id, p.product_code, p.name AS product_name, s.id AS store_id, s.store_code, s.name AS store_name, i.quantity_available, i.quantity_reserved FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
           "outputBinding": { "name": "inventoryRows" },
           "lineage": {
             "reads": [
@@ -295,13 +296,13 @@
           "id": "step-06",
           "kind": "compute",
           "description": "各在庫行に isLowStock フラグを付与する。quantity_available が lowStockThreshold 以下 (>=) の場合に true とすることでオフバイワンを回避する。",
-          "expression": "@inventoryRows.map(r => ({ ...r, isLowStock: r.quantity_available <= @conv.limit.lowStockThreshold }))",
+          "expression": "@inventoryRows.map(r => ({ id: r.id, productId: r.product_id, productCode: r.product_code, productName: r.product_name, storeId: r.store_id, storeCode: r.store_code, storeName: r.store_name, quantityAvailable: r.quantity_available, quantityReserved: r.quantity_reserved, isLowStock: r.quantity_available <= @conv.limit.lowStockThreshold }))",
           "outputBinding": { "name": "inventoryItems" }
         },
         {
           "id": "step-07",
           "kind": "branch",
-          "description": "低在庫行が 1 件以上存在する場合、retail.inventory.low_stock_detected イベントを発行する (ベストエフォート)。",
+          "description": "低在庫行が 1 件以上存在する場合、retail.inventory.low_stock_detected イベントを発行する (ベストエフォート: 最初の 1 件のみ発行。複数低在庫行がある場合は補充発注フロー等の下流が冪等に処理する前提)。",
           "branches": [
             {
               "id": "br-07-a",
@@ -344,7 +345,7 @@
           "payload": "{ storeCode: @inputs.storeCode, productCode: @inputs.productCode, resultCount: @inventoryItems.length }"
         },
         {
-          "id": "step-09",
+          "id": "step-10",
           "kind": "return",
           "description": "200 OK — isLowStock フラグ付きの在庫一覧を返す。",
           "responseId": "200-ok",
