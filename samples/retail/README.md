@@ -36,20 +36,33 @@ samples/retail/
 
 ## 開き方 (動作確認)
 
-designer UI から:
+`samples/retail/` は **git 管理の正本サンプル**。直接開くと編集が git 差分になるため、動作確認は **コピーして使う** ことを推奨します (デプロイ相当)。
 
-1. ヘッダーの「ワークスペース」 → 「フォルダを追加」
-2. `samples/retail` を指定 (絶対 path 推奨)
-3. **lockdown read-only で開く** (git 差分が出ない)
+### 推奨: data/ にコピーして使う (試行錯誤・編集 OK)
 
-編集して試したい場合は `samples/retail/` を `data/` にコピーして開き直す (data/ は gitignore 済)。
+```bash
+# samples/retail/ を data/ にコピー (Windows PowerShell の例)
+Copy-Item -Recurse -Force samples\retail\* data\
+
+# designer-mcp / designer を起動
+cd designer-mcp && npm run dev   # 別ターミナル
+cd designer && npm run dev
+```
+
+`data/` は gitignored なので自由に編集できます。
+
+### 直接開く (見るだけの動作確認)
+
+designer UI のヘッダー「ワークスペース」 → 「フォルダを追加」 → `samples/retail` の絶対パス を指定。**ただし編集して保存するとファイルが書き換わり git 差分が出ます (自己責任)**。本プロジェクトのサンプル更新作業以外では編集を避けてください。
 
 ## テスト fixture としての利用
 
 ```bash
-# E2E / vitest で固定データとして使う
+# 固定 workspace で designer-mcp 起動 (lockdown モード = workspace 切替禁止)
 DESIGNER_DATA_DIR=samples/retail npm run dev:mcp
 ```
+
+注: lockdown モードは「workspace 切替を禁止する固定モード」であり、データの read-only モードではありません。データ編集は通常通り可能なので、test 終了後に `git restore samples/retail/` で戻すか、別フォルダにコピーしてから fixture 化することを推奨します。
 
 ## 検証 (AJV)
 
