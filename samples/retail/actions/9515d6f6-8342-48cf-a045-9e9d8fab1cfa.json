@@ -5,7 +5,7 @@
     "name": "カート追加",
     "description": "指定商品をログイン顧客のカートに追加する。products 存在確認 → carts UPSERT → cart_items UPSERT (retail:UPSERT_CART_ITEM) の順で実行し、重複商品の場合は数量を加算する。",
     "kind": "screen",
-    "screenId": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
+    "screenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
     "maturity": "committed",
     "createdAt": "2026-05-02T00:00:00.000Z",
     "updatedAt": "2026-05-02T00:00:00.000Z"
