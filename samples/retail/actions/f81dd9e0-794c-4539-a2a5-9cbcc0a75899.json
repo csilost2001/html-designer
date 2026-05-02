@@ -1,0 +1,633 @@
+{
+  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "meta": {
+    "id": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
+    "name": "注文確定",
+    "description": "カート内容を 1 TX (@conv.tx.orderConfirm) で確定する。在庫減算 (retail:DECREMENT_STOCK) → 注文番号採番 (@conv.numbering.orderNumber) → orders INSERT → order_items BULK_INSERT → カートクリア (retail:CLEAR_CART) の順に原子的に実行する。TX 失敗時は 422 を返す。TX 後に persistedOrder を再取得してから注文確定イベントを発行する。",
+    "kind": "screen",
+    "maturity": "committed",
+    "createdAt": "2026-05-02T00:00:00.000Z",
+    "updatedAt": "2026-05-02T00:00:00.000Z"
+  },
+  "context": {
+    "catalogs": {
+      "errors": {
+        "VALIDATION_ERROR": {
+          "httpStatus": 400,
+          "defaultMessage": "入力値が不正です。",
+          "responseId": "400-validation",
+          "description": "配送先住所未入力などのバリデーションエラー。"
+        },
+        "CART_EMPTY": {
+          "httpStatus": 422,
+          "defaultMessage": "カートが空です。",
+          "responseId": "422-cart-empty",
+          "description": "注文確定時にカート明細が 0 件だった場合。"
+        },
+        "STOCK_SHORTAGE": {
+          "httpStatus": 422,
+          "defaultMessage": "在庫が不足しています。",
+          "responseId": "422-stock-shortage",
+          "description": "在庫減算時に quantity_available が不足していた場合。TX 全体がロールバックされる。"
+        },
+        "ORDER_CONFIRM_FAILED": {
+          "httpStatus": 422,
+          "defaultMessage": "注文確定に失敗しました。",
+          "responseId": "422-order-confirm-failed",
+          "description": "注文確定 TX 内で予期しないエラーが発生した場合。"
+        }
+      },
+      "events": {
+        "retail.order.confirmed": {
+          "description": "注文確定 TX が正常にコミットされ、persistedOrder の再取得が完了した後に発行する。",
+          "payload": {
+            "type": "object",
+            "required": ["orderId", "orderNumber", "customerId", "totalAmount"],
+            "properties": {
+              "orderId": { "type": "number" },
+              "orderNumber": { "type": "string" },
+              "customerId": { "type": "number" },
+              "totalAmount": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "ambientVariables": [
+      {
+        "name": "sessionCustomerId",
+        "type": "integer",
+        "required": true,
+        "description": "セッションから取得したログイン顧客 ID。"
+      }
+    ]
+  },
+  "actions": [
+    {
+      "id": "act-001",
+      "name": "注文確定実行",
+      "trigger": "submit",
+      "description": "カート確認画面の「注文確定」ボタン押下で起動。配送先情報を入力として受け取り、1 TX で在庫引き当て・注文登録・カートクリアを原子的に実行する。",
+      "maturity": "committed",
+      "httpRoute": {
+        "method": "POST",
+        "path": "/api/retail/orders",
+        "auth": "required"
+      },
+      "inputs": [
+        {
+          "name": "shippingPostalCode",
+          "label": "配送先郵便番号",
+          "type": "string",
+          "required": true,
+          "description": "ハイフンなし 7 桁。@conv.regex.postalCode 準拠。"
+        },
+        {
+          "name": "shippingAddress",
+          "label": "配送先住所",
+          "type": "string",
+          "required": true,
+          "description": "都道府県から番地まで。300 文字以内。"
+        },
+        {
+          "name": "note",
+          "label": "備考",
+          "type": "string",
+          "required": false,
+          "description": "顧客からの連絡事項。"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "orderId",
+          "label": "注文ID",
+          "type": "integer",
+          "description": "確定した注文の DB ID。"
+        },
+        {
+          "name": "orderNumber",
+          "label": "注文番号",
+          "type": "string",
+          "description": "採番された注文番号 (@conv.numbering.orderNumber 形式)。"
+        },
+        {
+          "name": "totalAmount",
+          "label": "合計金額",
+          "type": "integer",
+          "description": "注文合計金額 (税抜)。"
+        }
+      ],
+      "responses": [
+        {
+          "id": "200-ok",
+          "status": 200,
+          "bodySchema": { "typeRef": "retail:OrderConfirmResponse" },
+          "description": "注文確定成功。",
+          "when": "TX が正常にコミットされた場合。"
+        },
+        {
+          "id": "400-validation",
+          "status": 400,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "バリデーションエラー。",
+          "when": "配送先情報が不正な場合。"
+        },
+        {
+          "id": "422-cart-empty",
+          "status": 422,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "カートが空。",
+          "when": "cart_items が 0 件の場合。"
+        },
+        {
+          "id": "422-stock-shortage",
+          "status": 422,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "在庫不足。TX はロールバック済み。",
+          "when": "在庫減算時に quantity_available が注文数量未満だった場合。"
+        },
+        {
+          "id": "422-order-confirm-failed",
+          "status": 422,
+          "bodySchema": { "typeRef": "retail:ApiError" },
+          "description": "注文確定 TX 失敗。TX はロールバック済み。",
+          "when": "在庫不足以外の TX 内エラーが発生した場合。"
+        }
+      ],
+      "steps": [
+        {
+          "id": "step-01",
+          "kind": "validation",
+          "description": "配送先郵便番号 + 住所の必須チェック。郵便番号は @conv.regex.postalCode パターン検証。",
+          "conditions": "shippingPostalCode は必須かつハイフンなし 7 桁数字。shippingAddress は必須。",
+          "rules": [
+            {
+              "field": "shippingPostalCode",
+              "type": "required",
+              "severity": "error",
+              "message": "配送先郵便番号は必須です。"
+            },
+            {
+              "field": "shippingPostalCode",
+              "type": "regex",
+              "patternRef": "@conv.regex.postalCode",
+              "severity": "error",
+              "message": "郵便番号はハイフンなし 7 桁の数字で入力してください。"
+            },
+            {
+              "field": "shippingAddress",
+              "type": "required",
+              "severity": "error",
+              "message": "配送先住所は必須です。"
+            },
+            {
+              "field": "shippingAddress",
+              "type": "maxLength",
+              "length": 300,
+              "severity": "error",
+              "message": "配送先住所は 300 文字以内で入力してください。"
+            }
+          ],
+          "fieldErrorsVar": "fieldErrors",
+          "inlineBranch": {
+            "ok": [],
+            "ng": [
+              {
+                "id": "step-01-ng-01",
+                "kind": "return",
+                "description": "400 バリデーションエラーを返す。",
+                "responseId": "400-validation",
+                "bodyExpression": "{ code: 'VALIDATION_ERROR', message: '入力値が不正です。', fieldErrors: @fieldErrors }"
+              }
+            ]
+          }
+        },
+        {
+          "id": "step-02",
+          "kind": "dbAccess",
+          "description": "顧客のアクティブカートと cart_items を取得する。",
+          "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+          "operation": "SELECT",
+          "sql": "SELECT c.id AS cart_id, ci.id AS item_id, ci.product_id, ci.unit_price_snapshot, ci.quantity, p.product_code, p.name AS product_name, p.unit_price FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
+          "outputBinding": { "name": "cartItems" },
+          "lineage": {
+            "reads": [
+              { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" },
+              { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" },
+              { "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" }
+            ]
+          }
+        },
+        {
+          "id": "step-03",
+          "kind": "branch",
+          "description": "カートが空 (明細 0 件) の場合は 422 を返す。",
+          "branches": [
+            {
+              "id": "br-03-a",
+              "code": "A",
+              "label": "カート空",
+              "condition": {
+                "kind": "expression",
+                "expression": "@cartItems == null || @cartItems.length === 0"
+              },
+              "steps": [
+                {
+                  "id": "step-03-a-01",
+                  "kind": "return",
+                  "description": "422 カート空を返す。",
+                  "responseId": "422-cart-empty",
+                  "bodyExpression": "{ code: 'CART_EMPTY', message: 'カートが空です。商品をカートに追加してから注文確定してください。' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-03-else",
+            "code": "B",
+            "label": "カート明細あり",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-04",
+          "kind": "compute",
+          "description": "cart_items から注文合計金額 (税抜) を計算する。各行の line_amount = unit_price_snapshot * quantity の合計。",
+          "expression": "@cartItems.reduce((sum, item) => sum + (item.unit_price_snapshot * item.quantity), 0)",
+          "outputBinding": { "name": "totalAmount" }
+        },
+        {
+          "id": "step-05",
+          "kind": "compute",
+          "description": "注文番号を採番する。@conv.numbering.orderNumber 規約 (ORD-YYYY-NNNNNN) に従い生成する。",
+          "expression": "'ORD-' + new Date().getFullYear() + '-' + String(@conv.numbering.orderNumber.nextSeq()).padStart(6, '0')",
+          "outputBinding": { "name": "newOrderNumber" }
+        },
+        {
+          "id": "step-06",
+          "kind": "transactionScope",
+          "description": "注文確定 TX (@conv.tx.orderConfirm)。在庫減算 → orders INSERT → order_items BULK_INSERT → カートクリアを原子的に実行する。いずれかが失敗した場合は全体をロールバックする。",
+          "isolationLevel": "READ_COMMITTED",
+          "propagation": "REQUIRED",
+          "timeoutMs": 10000,
+          "rollbackOn": ["STOCK_SHORTAGE", "ORDER_CONFIRM_FAILED"],
+          "steps": [
+            {
+              "id": "step-06-01",
+              "kind": "loop",
+              "description": "カート明細を 1 件ずつ在庫減算する。DECREMENT_STOCK は quantity_available < 注文数量の場合に STOCK_SHORTAGE エラーを発生させる。",
+              "loopKind": "collection",
+              "collectionSource": "@cartItems",
+              "collectionItemName": "cartItem",
+              "steps": [
+                {
+                  "id": "step-06-01-a",
+                  "kind": "dbAccess",
+                  "description": "在庫を注文数量分だけ減算する。0 未満になる場合は DB の CHECK 制約で弾かれ、STOCK_SHORTAGE エラーが発生する。",
+                  "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
+                  "operation": "retail:DECREMENT_STOCK",
+                  "sql": "UPDATE inventory SET quantity_available = quantity_available - @cartItem.quantity, updated_at = CURRENT_TIMESTAMP WHERE product_id = @cartItem.product_id AND store_id = (SELECT id FROM stores WHERE store_code = 'DEFAULT' LIMIT 1) AND quantity_available >= @cartItem.quantity",
+                  "affectedRowsCheck": {
+                    "operator": "=",
+                    "expected": 1,
+                    "onViolation": "throw",
+                    "errorCode": "STOCK_SHORTAGE",
+                    "description": "0 件更新 = 在庫不足。TX がロールバックされ STOCK_SHORTAGE エラーを返す。"
+                  },
+                  "lineage": {
+                    "writes": [{ "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a", "purpose": "lookup" }]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "step-06-02",
+              "kind": "dbAccess",
+              "description": "orders テーブルに注文レコードを INSERT する。注文番号は step-05 で採番済みの値を使用する。",
+              "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
+              "operation": "INSERT",
+              "sql": "INSERT INTO orders (order_number, customer_id, status, total_amount, tax_amount, shipping_postal_code, shipping_address, note, ordered_at) VALUES (@newOrderNumber, @sessionCustomerId, 'pending', @totalAmount, FLOOR(@totalAmount * @conv.tax.standard.rate), @inputs.shippingPostalCode, @inputs.shippingAddress, @inputs.note, CURRENT_TIMESTAMP) RETURNING id, order_number",
+              "outputBinding": { "name": "insertedOrder" },
+              "lineage": {
+                "writes": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
+              }
+            },
+            {
+              "id": "step-06-03",
+              "kind": "dbAccess",
+              "description": "order_items を cart_items から一括 INSERT する (retail:BULK_INSERT)。単価・商品名はスナップショットとしてコピーする。",
+              "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
+              "operation": "retail:BULK_INSERT",
+              "bulkValues": "@cartItems.map(item => ({ order_id: @insertedOrder.id, product_id: item.product_id, product_code_snapshot: item.product_code, product_name_snapshot: item.product_name, unit_price_snapshot: item.unit_price_snapshot, quantity: item.quantity, line_amount: item.unit_price_snapshot * item.quantity }))",
+              "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES :bulkValues",
+              "lineage": {
+                "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "lookup" }]
+              }
+            },
+            {
+              "id": "step-06-04",
+              "kind": "dbAccess",
+              "description": "カートをクリアする (retail:CLEAR_CART)。cart_items を全削除し、carts.status を 'ordered' に更新する。",
+              "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+              "operation": "retail:CLEAR_CART",
+              "sql": "DELETE FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE customer_id = @sessionCustomerId AND status = 'active'); UPDATE carts SET status = 'ordered', updated_at = CURRENT_TIMESTAMP WHERE customer_id = @sessionCustomerId AND status = 'active'",
+              "lineage": {
+                "writes": [
+                  { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" },
+                  { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" }
+                ]
+              }
+            }
+          ],
+          "onRollback": [
+            {
+              "id": "step-06-rb-01",
+              "kind": "log",
+              "description": "TX ロールバック発生を記録する。",
+              "level": "error",
+              "message": "注文確定 TX がロールバックされました。",
+              "category": "order.confirm",
+              "structuredData": {
+                "customerId": "@sessionCustomerId",
+                "orderNumber": "@newOrderNumber"
+              }
+            }
+          ]
+        },
+        {
+          "id": "step-07",
+          "kind": "branch",
+          "description": "TX 成功/失敗に応じてレスポンスを分岐する。",
+          "branches": [
+            {
+              "id": "br-07-stock",
+              "code": "A",
+              "label": "在庫不足エラー",
+              "condition": {
+                "kind": "tryCatch",
+                "errorCode": "STOCK_SHORTAGE",
+                "description": "在庫減算で affectedRowsCheck 違反が発生した場合。"
+              },
+              "steps": [
+                {
+                  "id": "step-07-a-01",
+                  "kind": "return",
+                  "description": "422 在庫不足を返す。",
+                  "responseId": "422-stock-shortage",
+                  "bodyExpression": "{ code: 'STOCK_SHORTAGE', message: '@conv.msg.stockShortage' }"
+                }
+              ]
+            },
+            {
+              "id": "br-07-fail",
+              "code": "B",
+              "label": "その他 TX エラー",
+              "condition": {
+                "kind": "tryCatch",
+                "errorCode": "ORDER_CONFIRM_FAILED",
+                "description": "在庫不足以外の TX 内エラー。"
+              },
+              "steps": [
+                {
+                  "id": "step-07-b-01",
+                  "kind": "return",
+                  "description": "422 注文確定失敗を返す。",
+                  "responseId": "422-order-confirm-failed",
+                  "bodyExpression": "{ code: 'ORDER_CONFIRM_FAILED', message: '注文確定に失敗しました。しばらく経ってから再試行してください。' }"
+                }
+              ]
+            }
+          ],
+          "elseBranch": {
+            "id": "br-07-else",
+            "code": "C",
+            "label": "TX 成功 — 後続処理へ",
+            "steps": []
+          }
+        },
+        {
+          "id": "step-08",
+          "kind": "dbAccess",
+          "description": "TX コミット後に orders を再取得する。TX 内の insertedOrder の変数をそのまま参照するとネスト変数問題が起きるため、TX 後に SELECT で再取得する。",
+          "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
+          "operation": "SELECT",
+          "sql": "SELECT id, order_number, customer_id, status, total_amount, ordered_at FROM orders WHERE order_number = @newOrderNumber",
+          "outputBinding": { "name": "persistedOrder" },
+          "lineage": {
+            "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
+          }
+        },
+        {
+          "id": "step-09",
+          "kind": "eventPublish",
+          "description": "retail.order.confirmed イベントを発行する。TX コミット後 + persistedOrder 再取得後に発行するため、イベントペイロードは確定済み値のみ参照する。",
+          "topic": "retail.order.confirmed",
+          "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, customerId: @persistedOrder.customer_id, totalAmount: @persistedOrder.total_amount }"
+        },
+        {
+          "id": "step-10",
+          "kind": "return",
+          "description": "200 OK — 注文確定完了を返す。",
+          "responseId": "200-ok",
+          "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, totalAmount: @persistedOrder.total_amount, message: '注文が確定しました。注文番号: ' + @persistedOrder.order_number }"
+        }
+      ]
+    }
+  ],
+  "authoring": {
+    "decisions": [
+      {
+        "id": "ADR-001",
+        "title": "注文確定 TX の順序: 在庫減算 → orders INSERT → order_items BULK_INSERT → カートクリア",
+        "status": "accepted",
+        "context": "@conv.tx.orderConfirm で定める TX 内の操作順序を決定する必要があった。",
+        "decision": "在庫減算を最初に実行する。在庫不足で TX を早期中断できるため、orders/order_items の無用な INSERT を防げる。カートクリアは最後に実行し、失敗しても TX ロールバックで元に戻る。",
+        "consequences": "在庫減算が失敗すると orders INSERT は実行されない。注文番号の採番 (step-05) は TX 外で行うため、TX ロールバック時に番号がスキップされる可能性がある (採番に void は許容)。",
+        "date": "2026-05-02"
+      },
+      {
+        "id": "ADR-002",
+        "title": "TX 後に persistedOrder を再取得する (TX 内変数ネスト参照回避)",
+        "status": "accepted",
+        "context": "transactionScope 内で生成した insertedOrder を TX 後のステップで参照するとネスト変数問題が発生するケースがある (memory feedback_codex_brief_concrete_pattern_reference.md)。",
+        "decision": "TX 後に SELECT で orders を再取得し persistedOrder 変数に格納する。イベント発行とレスポンスは persistedOrder のみを参照する。",
+        "consequences": "余分な SELECT が 1 回増えるが、TX コミット後の確定値を参照できる安全な設計となる。",
+        "date": "2026-05-02"
+      },
+      {
+        "id": "ADR-003",
+        "title": "TX 失敗時は 422 を返す (PR #460 / Phase 4 retail 確立パターン準拠)",
+        "status": "accepted",
+        "context": "注文確定 TX が失敗した場合の HTTP ステータスを決定する必要があった。",
+        "decision": "在庫不足も含む TX 失敗は 422 Unprocessable Entity を返す。500 は予期しないサーバエラーのみに使用する。",
+        "consequences": "クライアントは 422 を受け取ったら在庫不足メッセージを表示し、カートを再確認するフローに誘導できる。",
+        "date": "2026-05-02"
+      }
+    ],
+    "glossary": {
+      "注文確定": {
+        "definition": "カート内容を 1 DB トランザクションで注文テーブルに登録し、在庫を引き当て、カートをクリアする一連の業務操作。",
+        "aliases": ["OrderConfirm", "Checkout"],
+        "domainRef": "orders"
+      },
+      "在庫引き当て": {
+        "definition": "注文数量分だけ inventory.quantity_available を減算する操作。0 未満にはできない。",
+        "aliases": ["StockDecrement", "StockAllocation"],
+        "domainRef": "inventory.quantity_available"
+      },
+      "注文番号": {
+        "definition": "@conv.numbering.orderNumber 規約で採番される顧客向け識別子。形式: ORD-YYYY-NNNNNN。",
+        "aliases": ["OrderNumber", "受注番号"],
+        "domainRef": "orders.order_number"
+      }
+    },
+    "testScenarios": [
+      {
+        "id": "happy-path-order-confirm",
+        "name": "カート 2 商品の注文確定が成功する",
+        "description": "在庫十分・配送先情報正常で注文確定 TX が正常コミットされる正常系。",
+        "given": [
+          {
+            "kind": "sessionContext",
+            "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+            "rows": [
+              { "id": 1, "product_code": "P-0001", "name": "商品A", "unit_price": 1000, "is_active": true },
+              { "id": 2, "product_code": "P-0002", "name": "商品B", "unit_price": 2000, "is_active": true }
+            ]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+            "rows": [{ "id": 50, "customer_id": 100, "status": "active" }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+            "rows": [
+              { "id": 200, "cart_id": 50, "product_id": 1, "unit_price_snapshot": 1000, "quantity": 2 },
+              { "id": 201, "cart_id": 50, "product_id": 2, "unit_price_snapshot": 2000, "quantity": 1 }
+            ]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
+            "rows": [
+              { "id": 101, "store_id": 1, "product_id": 1, "quantity_available": 50, "quantity_reserved": 0 },
+              { "id": 102, "store_id": 1, "product_id": 2, "quantity_available": 30, "quantity_reserved": 0 }
+            ]
+          }
+        ],
+        "when": {
+          "actionId": "act-001",
+          "input": {
+            "shippingPostalCode": "1600022",
+            "shippingAddress": "東京都新宿区新宿1-1-1",
+            "note": ""
+          }
+        },
+        "then": [
+          { "kind": "outcome", "expected": "200-ok" },
+          { "kind": "output", "path": "$.orderNumber", "matches": "^ORD-\\d{4}-\\d{6}$" }
+        ],
+        "tags": ["happy", "s3", "tx"]
+      },
+      {
+        "id": "stock-shortage-422",
+        "name": "在庫不足で 422 — TX ロールバック",
+        "description": "quantity_available (3) < 注文数量 (5) で STOCK_SHORTAGE エラーが発生し TX がロールバックされる。",
+        "given": [
+          {
+            "kind": "sessionContext",
+            "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+            "rows": [{ "id": 1, "product_code": "P-0001", "name": "商品A", "unit_price": 1000, "is_active": true }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+            "rows": [{ "id": 50, "customer_id": 100, "status": "active" }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+            "rows": [{ "id": 200, "cart_id": 50, "product_id": 1, "unit_price_snapshot": 1000, "quantity": 5 }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
+            "rows": [{ "id": 101, "store_id": 1, "product_id": 1, "quantity_available": 3, "quantity_reserved": 0 }]
+          }
+        ],
+        "when": {
+          "actionId": "act-001",
+          "input": {
+            "shippingPostalCode": "1600022",
+            "shippingAddress": "東京都新宿区新宿1-1-1"
+          }
+        },
+        "then": [
+          { "kind": "outcome", "expected": "422-stock-shortage" }
+        ],
+        "tags": ["error", "stock", "tx", "s3"]
+      },
+      {
+        "id": "cart-empty-422",
+        "name": "カートが空で 422",
+        "description": "cart_items が 0 件の場合は CART_EMPTY エラーを返す。",
+        "given": [
+          {
+            "kind": "sessionContext",
+            "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
+            "rows": [{ "id": 50, "customer_id": 100, "status": "active" }]
+          },
+          {
+            "kind": "dbState",
+            "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+            "rows": []
+          }
+        ],
+        "when": {
+          "actionId": "act-001",
+          "input": {
+            "shippingPostalCode": "1600022",
+            "shippingAddress": "東京都新宿区新宿1-1-1"
+          }
+        },
+        "then": [
+          { "kind": "outcome", "expected": "422-cart-empty" }
+        ],
+        "tags": ["error", "empty-cart", "s3"]
+      },
+      {
+        "id": "validation-error-invalid-postal",
+        "name": "郵便番号不正で 400",
+        "description": "郵便番号がハイフンありの場合はバリデーションエラー。",
+        "given": [
+          { "kind": "sessionContext", "context": { "sessionCustomerId": 100 } }
+        ],
+        "when": {
+          "actionId": "act-001",
+          "input": {
+            "shippingPostalCode": "160-0022",
+            "shippingAddress": "東京都新宿区新宿1-1-1"
+          }
+        },
+        "then": [
+          { "kind": "outcome", "expected": "400-validation" }
+        ],
+        "tags": ["error", "validation", "s3"]
+      }
+    ]
+  }
+}
