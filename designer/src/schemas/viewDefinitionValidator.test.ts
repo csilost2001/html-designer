@@ -134,7 +134,7 @@ describe("viewDefinitionValidator — 2. UNKNOWN_TABLE_COLUMN_REF", () => {
       ],
     });
     const issues = checkViewDefinition(vd, TABLES);
-    // COLUMN_REF_NOT_IN_SOURCE_TABLE (warning) も出るが UNKNOWN_TABLE_COLUMN_REF (error) も出る
+    // JOIN_NOT_DECLARED (warning、Level 1 暗黙 join) も出るが UNKNOWN_TABLE_COLUMN_REF (error) も出る
     expect(issues.some((i) => i.code === "UNKNOWN_TABLE_COLUMN_REF")).toBe(true);
   });
 
@@ -147,7 +147,7 @@ describe("viewDefinitionValidator — 2. UNKNOWN_TABLE_COLUMN_REF", () => {
 
 // ─── 3-4. UNKNOWN_TABLE_REF_IN_VIEW (Level 2) / JOIN_NOT_DECLARED (Level 1) ──
 
-describe("viewDefinitionValidator — 4. JOIN_NOT_DECLARED (Level 1 暗黙 join)", () => {
+describe("viewDefinitionValidator — 3+4. UNKNOWN_TABLE_REF_IN_VIEW & JOIN_NOT_DECLARED", () => {
   it("Level 1 で別テーブルの列参照を warning で検出する (Level 2 アップグレード推奨)", () => {
     const vd = makeViewDefinition({
       columns: [
@@ -173,7 +173,7 @@ describe("viewDefinitionValidator — 4. JOIN_NOT_DECLARED (Level 1 暗黙 join)
 
 // ─── 4. DUPLICATE_VIEW_COLUMN_NAME ───────────────────────────────────────────
 
-describe("viewDefinitionValidator — 4. DUPLICATE_VIEW_COLUMN_NAME", () => {
+describe("viewDefinitionValidator — 5. DUPLICATE_VIEW_COLUMN_NAME", () => {
   it("同 name が 2 回出てくる場合を検出する", () => {
     const vd = makeViewDefinition({
       columns: [
@@ -203,7 +203,7 @@ describe("viewDefinitionValidator — 4. DUPLICATE_VIEW_COLUMN_NAME", () => {
 
 // ─── 5. FIELD_TYPE_INCOMPATIBLE ──────────────────────────────────────────────
 
-describe("viewDefinitionValidator — 5. FIELD_TYPE_INCOMPATIBLE", () => {
+describe("viewDefinitionValidator — 6. FIELD_TYPE_INCOMPATIBLE", () => {
   it("VARCHAR に boolean 型は warning 検出", () => {
     const vd = makeViewDefinition({
       columns: [
@@ -250,7 +250,7 @@ describe("viewDefinitionValidator — 5. FIELD_TYPE_INCOMPATIBLE", () => {
 
 // ─── 6. UNKNOWN_SORT_COLUMN ───────────────────────────────────────────────────
 
-describe("viewDefinitionValidator — 6. UNKNOWN_SORT_COLUMN", () => {
+describe("viewDefinitionValidator — 7. UNKNOWN_SORT_COLUMN", () => {
   it("columns に存在しない columnName は error 検出", () => {
     const vd = makeViewDefinition({
       sortDefaults: [
@@ -275,7 +275,7 @@ describe("viewDefinitionValidator — 6. UNKNOWN_SORT_COLUMN", () => {
 
 // ─── 7. UNKNOWN_FILTER_COLUMN ────────────────────────────────────────────────
 
-describe("viewDefinitionValidator — 7. UNKNOWN_FILTER_COLUMN", () => {
+describe("viewDefinitionValidator — 8. UNKNOWN_FILTER_COLUMN", () => {
   it("columns に存在しない columnName は error 検出", () => {
     const vd = makeViewDefinition({
       filterDefaults: [
@@ -300,7 +300,7 @@ describe("viewDefinitionValidator — 7. UNKNOWN_FILTER_COLUMN", () => {
 
 // ─── 8. FILTER_OPERATOR_TYPE_MISMATCH ────────────────────────────────────────
 
-describe("viewDefinitionValidator — 8. FILTER_OPERATOR_TYPE_MISMATCH", () => {
+describe("viewDefinitionValidator — 9. FILTER_OPERATOR_TYPE_MISMATCH", () => {
   it("string 型カラムに between は warning 検出", () => {
     const vd = makeViewDefinition({
       filterDefaults: [
@@ -344,7 +344,7 @@ describe("viewDefinitionValidator — 8. FILTER_OPERATOR_TYPE_MISMATCH", () => {
 
 // ─── 9. UNKNOWN_GROUP_BY_COLUMN ──────────────────────────────────────────────
 
-describe("viewDefinitionValidator — 9. UNKNOWN_GROUP_BY_COLUMN", () => {
+describe("viewDefinitionValidator — 10. UNKNOWN_GROUP_BY_COLUMN", () => {
   it("columns に存在しない groupBy は error 検出", () => {
     const vd = makeViewDefinition({
       groupBy: "missingColumn" as unknown as import("../types/v3/common").Identifier,
@@ -499,6 +499,13 @@ describe("viewDefinitionValidator — #745 Level 2 (Structured)", () => {
     const vd = makeLevel2("inv", OTHER_TABLE_ID);
     const issues = checkViewDefinition(vd, TABLES);
     expect(issues.filter((i) => i.code === "JOIN_NOT_DECLARED")).toHaveLength(0);
+  });
+
+  it("from.alias と joins[].alias の重複は DUPLICATE_QUERY_ALIAS (error) で検出する", () => {
+    const vd = makeLevel2("p", OTHER_TABLE_ID); // from.alias='p' と join.alias='p' で衝突
+    const issues = checkViewDefinition(vd, TABLES);
+    expect(issues.some((i) => i.code === "DUPLICATE_QUERY_ALIAS")).toBe(true);
+    expect(issues.find((i) => i.code === "DUPLICATE_QUERY_ALIAS")?.severity).toBe("error");
   });
 });
 

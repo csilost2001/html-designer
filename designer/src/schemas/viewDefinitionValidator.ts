@@ -1,18 +1,19 @@
 /**
  * ViewDefinition 整合検証 (#649、Phase 4 子 1 / #745 で 3 レベル DSL 拡張)
  *
- * 検査観点 (10 件、#745 で再定義):
- * 1. UNKNOWN_SOURCE_TABLE         — sourceTableId が同プロジェクト内に実在しない
+ * 検査観点 (11 件、#745 で再定義):
+ * 1. UNKNOWN_SOURCE_TABLE         — sourceTableId / query.from.tableId / query.joins[].tableId が同プロジェクト内に実在しない
  * 2. UNKNOWN_TABLE_COLUMN_REF     — ViewColumn.tableColumnRef が実在しない
  * 3. UNKNOWN_TABLE_REF_IN_VIEW    — Level 2: tableColumnRef.tableId が from/joins いずれにも無い (#745、error)
  * 4. JOIN_NOT_DECLARED            — Level 1: tableColumnRef.tableId が sourceTableId と異なる (暗黙 join、warning)
  *                                   #745 で旧 COLUMN_REF_NOT_IN_SOURCE_TABLE を再定義 (Level 2 アップグレードを推奨)
- * 5. DUPLICATE_VIEW_COLUMN_NAME   — ViewColumn.name が同 ViewDefinition 内で重複
- * 6. FIELD_TYPE_INCOMPATIBLE      — ViewColumn.type (FieldType) と DB Column.dataType が互換しない (warning)
- * 7. UNKNOWN_SORT_COLUMN          — sortDefaults[].columnName が columns[].name に存在しない
- * 8. UNKNOWN_FILTER_COLUMN        — filterDefaults[].columnName が columns[].name に存在しない
- * 9. FILTER_OPERATOR_TYPE_MISMATCH — filter operator が column type と不整合 (warning)
- * 10. UNKNOWN_GROUP_BY_COLUMN     — groupBy が columns[].name に存在しない
+ * 5. DUPLICATE_QUERY_ALIAS        — Level 2: query.from.alias と query.joins[].alias 間で別名が重複 (#745、error)
+ * 6. DUPLICATE_VIEW_COLUMN_NAME   — ViewColumn.name が同 ViewDefinition 内で重複
+ * 7. FIELD_TYPE_INCOMPATIBLE      — ViewColumn.type (FieldType) と DB Column.dataType が互換しない (warning)
+ * 8. UNKNOWN_SORT_COLUMN          — sortDefaults[].columnName が columns[].name に存在しない
+ * 9. UNKNOWN_FILTER_COLUMN        — filterDefaults[].columnName が columns[].name に存在しない
+ * 10. FILTER_OPERATOR_TYPE_MISMATCH — filter operator が column type と不整合 (warning)
+ * 11. UNKNOWN_GROUP_BY_COLUMN     — groupBy が columns[].name に存在しない
  *
  * Level 別の column ref 検査:
  * - Level 1 (sourceTableId): tableColumnRef.tableId === sourceTableId なら正常、異なるなら JOIN_NOT_DECLARED (warning)
@@ -32,6 +33,7 @@ export type ViewDefinitionIssueCode =
   | "UNKNOWN_TABLE_COLUMN_REF"
   | "UNKNOWN_TABLE_REF_IN_VIEW"
   | "JOIN_NOT_DECLARED"
+  | "DUPLICATE_QUERY_ALIAS"
   | "DUPLICATE_VIEW_COLUMN_NAME"
   | "FIELD_TYPE_INCOMPATIBLE"
   | "UNKNOWN_SORT_COLUMN"
@@ -183,6 +185,28 @@ export function checkViewDefinition(
           viewDefinitionId: viewId,
           message: `query.joins[${ji}].tableId '${j.tableId}' が同プロジェクト内のテーブルに存在しません。`,
         });
+      }
+    });
+
+    // ─── 5. DUPLICATE_QUERY_ALIAS (#745、Level 2 のみ) ────────────────────
+    // from.alias と joins[].alias の集合で重複がないか検査。
+    const aliasSeen = new Map<string, string>(); // alias → 最初に出てきた path
+    if (sq.from?.alias) {
+      aliasSeen.set(sq.from.alias, `query.from.alias`);
+    }
+    (sq.joins ?? []).forEach((j, ji) => {
+      const a = j.alias;
+      if (!a) return;
+      if (aliasSeen.has(a)) {
+        issues.push({
+          path: `ViewDefinition[${viewId}].query.joins[${ji}].alias`,
+          code: "DUPLICATE_QUERY_ALIAS",
+          severity: "error",
+          viewDefinitionId: viewId,
+          message: `query.joins[${ji}].alias '${a}' が ${aliasSeen.get(a)} と重複しています。alias は from / joins[] 全体で一意にしてください。`,
+        });
+      } else {
+        aliasSeen.set(a, `query.joins[${ji}].alias`);
       }
     });
   }
