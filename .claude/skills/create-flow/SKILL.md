@@ -310,7 +310,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 |---|---|---|
 | `UNKNOWN_TARGET_SCREEN` | error | ScreenTransitionStep.targetScreenId が同プロジェクトの画面に実在しない |
 | `MISSING_FLOW_EDGE` | warning | ScreenTransitionStep が遷移するが Project.screenTransitions[] に対応 edge が無い |
-| `ORPHAN_FLOW_EDGE` | warning | Project.screenTransitions[] が宣言されているが ScreenTransitionStep / forward が無い |
+| `MISSING_FLOW_TRANSITION` | error | `kind: "flow-driven"` な edge に対応する ScreenTransitionStep が無い (#744、純 UI 遷移は `kind: "navigation"` で検出対象外) |
 | `DEAD_END_SCREEN` | warning | 画面に遷移先 (forward / ScreenTransitionStep) が無い (login / error 等の固定終端は除外) |
 | `AUTH_TRANSITION_VIOLATION` | error | `auth: optional / none` 画面から `auth: required` 画面への直接遷移 (kind=login/error は例外) |
 | `PATH_PARAM_MISMATCH` | warning | source.path に対応する `:param` が無いまま target.path のパラメータを要求 (軽量判定) |
@@ -385,7 +385,7 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) を作成するとき
 - 正しい形:
   - API フローには `screenTransition` を入れない
   - 画面遷移は呼び出し側 (画面項目の event ハンドラ) で行う
-  - `tr-*` (`ORPHAN_FLOW_EDGE`) は project.json に残し純 UI 遷移として扱う (warning 受容)
+  - `tr-*` は project.json に残し `kind: "navigation"` で純 UI 遷移として宣言する (#744、warning 出さず)
 - 検出: action.httpRoute が存在 + step に kind: screenTransition がある組合せ (機械検出可能だが意味論判断を含むため AI 目視も併用)
 
 ### Rule 27: `@conv.numbering.X.nextSeq()` 構文禁止 → DB sequence 利用 (#740 / retail 落とし穴 19)

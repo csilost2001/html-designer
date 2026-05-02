@@ -8,8 +8,9 @@
  *   1. UNKNOWN_TARGET_SCREEN     — error   ScreenTransitionStep.targetScreenId が画面実在しない
  *   2. MISSING_FLOW_EDGE         — warning step の (source→target) を指す ScreenTransitionEntry が無い
  *                                          (グラフ図に出ない実行時遷移)
- *   3. ORPHAN_FLOW_EDGE          — warning ScreenTransitionEntry はあるが、対応する
- *                                          ScreenTransitionStep が同 namespace 内にない
+ *   3. MISSING_FLOW_TRANSITION   — error   kind="flow-driven" な edge に対応する
+ *                                          ScreenTransitionStep が一切ない (#744、旧 ORPHAN_FLOW_EDGE
+ *                                          を再定義: kind="navigation" は純 UI 遷移なので検出対象外)
  *   4. DUPLICATE_SCREEN_PATH     — error   複数 Screen が同一 path を宣言 (URL 衝突)
  *   5. PATH_PARAM_MISMATCH       — warning target.path に :param があり source.path に同 :param が
  *                                          存在しない (実行時パラメータ取得不能の候補)
@@ -27,7 +28,9 @@
  * source 不要 (target のみ / edge 一覧のみ / 全画面 / 全画面 + 全 source 集合) で実施可能。
  *
  * (e)(f)(g)(h)(i) 設計判断 (設計者承認済):
- *   (e) MISSING_FLOW_EDGE / ORPHAN_FLOW_EDGE — 両者 warning (draft-state ポリシー準拠)
+ *   (e) MISSING_FLOW_EDGE — warning (draft-state ポリシー準拠)。
+ *       旧 ORPHAN_FLOW_EDGE は #744 で MISSING_FLOW_TRANSITION (error) に再定義
+ *       (kind="flow-driven" のみ対象、kind="navigation" は純 UI 遷移として検出対象外)
  *   (f) forward / replace / popup の遷移種別拡張 — 本 ISSUE スコープ外
  *   (g) AUTH_TRANSITION_VIOLATION 例外 — kind=login / kind=error のみ例外
  *   (h) PATH_PARAM_MISMATCH 厳密度 — 軽量 (source.path に同 :param が無ければ warning のみ)
@@ -43,7 +46,7 @@ import { isBuiltinStep } from "./stepGuards";
 export type ScreenNavigationIssueCode =
   | "UNKNOWN_TARGET_SCREEN"
   | "MISSING_FLOW_EDGE"
-  | "ORPHAN_FLOW_EDGE"
+  | "MISSING_FLOW_TRANSITION"
   | "DUPLICATE_SCREEN_PATH"
   | "PATH_PARAM_MISMATCH"
   | "AUTH_TRANSITION_VIOLATION"
@@ -270,7 +273,7 @@ export function checkScreenNavigation(
     });
   });
 
-  // ── 観点 2: MISSING_FLOW_EDGE / 観点 3: ORPHAN_FLOW_EDGE ──
+  // ── 観点 2: MISSING_FLOW_EDGE / 観点 3: MISSING_FLOW_TRANSITION ──
   // edge 集合 (sourceScreenId → targetScreenId) の Set
   const edgeSet = new Set<string>();
   for (const entry of screenTransitions) {
@@ -302,18 +305,21 @@ export function checkScreenNavigation(
     }
   }
 
-  // 観点 3: edge が step に存在しない
+  // 観点 3: MISSING_FLOW_TRANSITION (kind="flow-driven" のみ対象、#744)
+  // kind 省略 / "navigation" は純 UI 遷移として処理不要なので検出対象外。
   for (const entry of screenTransitions) {
     const src = entry.sourceScreenId as string;
     const tgt = entry.targetScreenId as string;
     if (!src || !tgt) continue;
+    const kind = entry.kind ?? "navigation";
+    if (kind !== "flow-driven") continue;
     const key = `${src}→${tgt}`;
     if (!stepEdgeSet.has(key)) {
       issues.push({
         path: `screenTransitions[${entry.id}]`,
-        code: "ORPHAN_FLOW_EDGE",
-        severity: "warning",
-        message: `画面フロー edge (${src} → ${tgt}) が宣言されていますが、対応する ScreenTransitionStep がいずれの ProcessFlow にも存在しません。`,
+        code: "MISSING_FLOW_TRANSITION",
+        severity: "error",
+        message: `kind="flow-driven" な画面フロー edge (${src} → ${tgt}) に対応する ScreenTransitionStep がいずれの ProcessFlow にも存在しません。処理を伴わない純 UI 遷移なら kind="navigation" にしてください。`,
       });
     }
   }

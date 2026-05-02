@@ -97,6 +97,12 @@ export interface ScreenTransitionEntry {
   targetScreenId: ScreenId;
   label?: DisplayName;
   trigger: "click" | "submit" | "select" | "cancel" | "auto" | "back" | "other";
+  /**
+   * 遷移種別 (#744)。
+   * - `"navigation"` (default) — 純 UI 遷移、ScreenTransitionStep 不要。
+   * - `"flow-driven"` — 処理を伴う遷移、対応する ScreenTransitionStep が必要。
+   */
+  kind?: "navigation" | "flow-driven";
 }
 
 /** プロジェクトが保持する各 entity への参照一覧。 */
