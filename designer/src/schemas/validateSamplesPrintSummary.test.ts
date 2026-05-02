@@ -139,7 +139,7 @@ describe("printSummary — error = 0, warning > 0", () => {
     expect(output).not.toContain("All validations passed.");
   });
 
-  it("warning が 1 件のとき単数形 'warning remain' を出力する", () => {
+  it("warning が 1 件のとき単数形 'warning remains' を出力する", () => {
     const summary = makeSummary({
       totalFlows: 1,
       passedFlows: 1,
@@ -156,7 +156,7 @@ describe("printSummary — error = 0, warning > 0", () => {
     });
     printSummary(summary);
     const output = consoleSpy.mock.calls.map((c) => c[0]).join("\n");
-    expect(output).toContain("All errors resolved (1 warning remain):");
+    expect(output).toContain("All errors resolved (1 warning remains):");
   });
 });
 

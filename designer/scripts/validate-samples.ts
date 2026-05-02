@@ -516,7 +516,7 @@ export function printSummary(summary: ValidationSummary): void {
   if (totalErrors === 0 && totalWarnings === 0) {
     console.log("All validations passed.");
   } else if (totalErrors === 0) {
-    console.log(`All errors resolved (${totalWarnings} warning${totalWarnings > 1 ? "s" : ""} remain):`);
+    console.log(`All errors resolved (${totalWarnings} warning${totalWarnings > 1 ? "s remain" : " remains"}):`);
     for (const validator of validatorDisplayOrder) {
       const w = totalWarnByValidator.get(validator) ?? 0;
       if (w > 0) console.log(`  - [${validator}] ${w} warning${w > 1 ? "s" : ""}`);
