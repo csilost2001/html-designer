@@ -17,9 +17,10 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "¥#,##0",
-      "description": "ダッシュボード KPI: 本日の累計売上金額 (税込)。集計元はダッシュボード集計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "ダッシュボード KPI: 本日の累計売上金額 (税込)。集計元はダッシュボード KPI 集計フロー (a3659922-3932-4857-a906-26dd605254fe) の todaySales 出力。",
       "valueFrom": {
         "kind": "flowVariable",
+        "processFlowId": "a3659922-3932-4857-a906-26dd605254fe",
         "variableName": "todaySales"
       }
     },
@@ -29,9 +30,10 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "#,##0 件",
-      "description": "ダッシュボード KPI: 本日の受注件数。集計元はダッシュボード集計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "ダッシュボード KPI: 本日の受注件数。集計元はダッシュボード KPI 集計フロー (a3659922-3932-4857-a906-26dd605254fe) の ordersToday 出力。",
       "valueFrom": {
         "kind": "flowVariable",
+        "processFlowId": "a3659922-3932-4857-a906-26dd605254fe",
         "variableName": "ordersToday"
       }
     },
@@ -41,9 +43,10 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "#,##0 件",
-      "description": "ダッシュボード KPI: 低在庫しきい値以下 (@conv.limit.lowStockThreshold) の商品件数。集計元はダッシュボード集計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "ダッシュボード KPI: 低在庫しきい値以下 (@conv.limit.lowStockThreshold) の商品件数。集計元はダッシュボード KPI 集計フロー (a3659922-3932-4857-a906-26dd605254fe) の lowStockCount 出力。",
       "valueFrom": {
         "kind": "flowVariable",
+        "processFlowId": "a3659922-3932-4857-a906-26dd605254fe",
         "variableName": "lowStockCount"
       }
     },
@@ -53,9 +56,10 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "#,##0 件",
-      "description": "ダッシュボード KPI: 配送指示待ちの注文件数。集計元はダッシュボード集計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "ダッシュボード KPI: 配送指示待ちの注文件数 (status IN ('pending', 'confirmed'))。集計元はダッシュボード KPI 集計フロー (a3659922-3932-4857-a906-26dd605254fe) の dispatchPending 出力。",
       "valueFrom": {
         "kind": "flowVariable",
+        "processFlowId": "a3659922-3932-4857-a906-26dd605254fe",
         "variableName": "dispatchPending"
       }
     }
