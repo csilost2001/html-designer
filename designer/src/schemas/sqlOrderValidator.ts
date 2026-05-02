@@ -252,10 +252,9 @@ function walkStepsInOrder(
       if (step.elseBranch) walkStepsInOrder(step.elseBranch.steps, `${path}.elseBranch.steps`, visitor, loopHooks);
     }
     if (step.kind === "loop") {
-      const loopStep = step as LoopStep;
-      if (loopHooks) loopHooks.onEnter(loopStep);
+      if (loopHooks) loopHooks.onEnter(step);
       walkStepsInOrder(step.steps, `${path}.steps`, visitor, loopHooks);
-      if (loopHooks) loopHooks.onExit(loopStep);
+      if (loopHooks) loopHooks.onExit(step);
     }
     if (step.kind === "transactionScope") {
       walkStepsInOrder(step.steps, `${path}.steps`, visitor, loopHooks);

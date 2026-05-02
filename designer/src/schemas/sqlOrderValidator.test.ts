@@ -2218,11 +2218,12 @@ describe("loop step collectionItemName boundVars 登録 (#729)", () => {
             {
               id: "step-after-loop",
               kind: "dbAccess",
-              description: "ループ外で @item.product_id を参照 → 未バインド",
+              description: "ループ外で @item.order_id / @item.product_id を参照 → 未バインド",
               tableId: "tbl-order-items",
               operation: "INSERT",
               // ループ外なので "item" は boundVars にない → NULL_NOT_ALLOWED_AT_INSERT 発生するべき
-              sql: "INSERT INTO order_items (order_id, product_id) VALUES (@inputs.orderId, @item.product_id)",
+              // (@inputs は ALWAYS_BOUND のため除外し、@item.* のみで scope leak 検証を明確化)
+              sql: "INSERT INTO order_items (order_id, product_id) VALUES (@item.order_id, @item.product_id)",
             },
           ],
         },
