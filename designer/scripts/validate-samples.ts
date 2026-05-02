@@ -251,26 +251,85 @@ function issue(
 }
 
 /**
+ * items 必須 kind 白リスト — 該当しない kind は warning 発報をスキップ。
+ *
+ * 各 kind の選定根拠 (schemas/v3/screen.v3.schema.json#/$defs/ScreenKind):
+ * - form: フォーム入力画面 — 必ず項目が必要
+ * - detail: 詳細表示 — 表示するフィールドが必要
+ * - search: 検索条件入力 — 検索条件項目が必要
+ * - confirm: 確認画面 — 確認する内容を表示する項目が必要 (modal と異なり画面遷移を伴う独立画面)
+ * - wizard: ステップ式入力 — 各ステップで項目が必要
+ *
+ * 除外理由:
+ * - dashboard / complete / error / login: 通常 items を持たない (固定表示やナビゲーションのみ)
+ * - list: items または viewDefinitionRefs どちらかで OK (ITEMS_OR_VIEW_DEF_KINDS で別扱い)
+ * - modal: 一般的に簡易ダイアログで items を持たないことが多い (持つ場合は kind: form 等で別画面化が望ましい)
+ * - other: 用途不明、判定不能のため安全側
+ */
+const ITEMS_REQUIRED_KINDS: ReadonlySet<string> = new Set([
+  "form",
+  "detail",
+  "search",
+  "confirm",
+  "wizard",
+]);
+
+/** items 代替として viewDefinitionRefs を持てる kind */
+const ITEMS_OR_VIEW_DEF_KINDS: ReadonlySet<string> = new Set([
+  "list",
+]);
+
+/**
  * Check 1: Screen.items embed check (#714)
  *
  * - screens/<id>.json の items が空または未定義 → warning (EMPTY_SCREEN_ITEMS)
+ *   ただし kind に応じた条件付き発報 (#723):
+ *   - ITEMS_REQUIRED_KINDS (form/detail/search/confirm/wizard): items 空なら発報
+ *   - ITEMS_OR_VIEW_DEF_KINDS (list): items 空 かつ viewDefinitionRefs も空/未定義なら発報
+ *   - 拡張 kind (<ns>:<name>): 判定不能のため warning スキップ (安全側)
+ *   - その他の kind (dashboard/complete/error 等): warning スキップ
  * - screen-items/ ディレクトリに .json ファイルが存在 → error (LEGACY_SCREEN_ITEMS_DIR)
  */
 export function checkScreenItemsEmbedded(project: ProjectResources): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Check 1a: items が空または未定義の screen
+  // Check 1a: items が空または未定義の screen (kind 別の条件付き発報 #723)
   for (const screen of project.screens) {
-    if (!screen.items || screen.items.length === 0) {
-      const id = screen.id ?? "unknown";
-      issues.push({
-        validator: "runtimeContractValidator",
-        severity: "warning",
-        code: "EMPTY_SCREEN_ITEMS",
-        path: `screens/${id}.json`,
-        message: `Screen.items が空です。runtime は別ファイル \`screen-items/${id}.json\` を読まないため UI で空フォームになります。\`screens/${id}.json#items\` 配列に画面項目を embed してください`,
-      });
+    if (screen.items && screen.items.length > 0) continue; // items あり → skip
+
+    const id = screen.id ?? "unknown";
+    const kind = typeof screen.kind === "string" ? screen.kind : "";
+
+    // 拡張 ScreenKind (<ns>:<name>) は判定不能 → warning スキップ (安全側)
+    if (kind.includes(":")) continue;
+
+    // items 必須 kind にも viewDefinitionRefs 代替 kind にも該当しなければ warning スキップ。
+    // kind が空文字列 (= undefined/null を "" に正規化した場合) もここで skip される —
+    // 種別不明の画面で false positive を出すより安全側に倒す意図。
+    if (!ITEMS_REQUIRED_KINDS.has(kind) && !ITEMS_OR_VIEW_DEF_KINDS.has(kind)) {
+      continue;
     }
+
+    // list 系で viewDefinitionRefs が 1+ 件あれば items 空でも OK
+    if (
+      ITEMS_OR_VIEW_DEF_KINDS.has(kind) &&
+      Array.isArray(screen.viewDefinitionRefs) &&
+      screen.viewDefinitionRefs.length > 0
+    ) {
+      continue;
+    }
+
+    // ここまで到達 → 真に items が必要なのに空
+    const isViewDefKind = ITEMS_OR_VIEW_DEF_KINDS.has(kind);
+    issues.push({
+      validator: "runtimeContractValidator",
+      severity: "warning",
+      code: "EMPTY_SCREEN_ITEMS",
+      path: `screens/${id}.json`,
+      message: isViewDefKind
+        ? `Screen.items が空です (kind=${kind})。viewDefinitionRefs も空または未定義のため UI で表示する内容がありません。\`items\` または \`viewDefinitionRefs\` を定義してください`
+        : `Screen.items が空です (kind=${kind || "<undefined>"})。runtime は別ファイル \`screen-items/${id}.json\` を読まないため UI で空フォームになります。\`screens/${id}.json#items\` 配列に画面項目を embed してください`,
+    });
   }
 
   // Check 1b: legacy screen-items/ ディレクトリが存在する場合
