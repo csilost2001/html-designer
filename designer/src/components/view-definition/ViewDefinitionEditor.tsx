@@ -194,11 +194,17 @@ export function ViewDefinitionEditor() {
     const builtin = ["list", "detail", "kanban", "calendar"];
     setKindExtMode(!builtin.includes(vd.kind));
     const nextIds: Record<number, string> = {};
-    // Level 2/3 (#745): tableColumnRef が無いか sourceTableId 不在のケースは空文字で埋める
-    // (UI Editor は現状 Level 1 編集のみ対応、Level 2/3 は別 PR で UI 拡張)
+    // Level 別 fallback (#748):
+    //  L1: sourceTableId / L2: query.from.tableId / L3: tableColumnRef は省略可なので空
+    const lv = detectLevel(vd);
+    const fallbackTableId =
+      lv === 1
+        ? ((vd.sourceTableId as string | undefined) ?? "")
+        : lv === 2
+          ? (((vd.query as ViewQueryStructured | undefined)?.from?.tableId as string | undefined) ?? "")
+          : "";
     (vd.columns ?? []).forEach((col, i) => {
-      nextIds[i] =
-        (col.tableColumnRef?.tableId as string | undefined) ?? (vd.sourceTableId as string | undefined) ?? "";
+      nextIds[i] = (col.tableColumnRef?.tableId as string | undefined) ?? fallbackTableId;
     });
     setColRefTableIds(nextIds);
   }, []);
@@ -483,9 +489,17 @@ export function ViewDefinitionEditor() {
     });
   };
 
-  // tableColumnRef カスケード: カラム選択
+  // tableColumnRef カスケード: カラム選択 (Level 別フォールバック)
+  // Level 1: sourceTableId / Level 2: query.from.tableId / Level 3: 既存値そのまま
   const setColRefColumn = (ci: number, columnId: string) => {
-    const tableId = colRefTableIds[ci] ?? viewDefinition.sourceTableId;
+    const fallbackTableId =
+      currentLevel === 1
+        ? (viewDefinition.sourceTableId as string | undefined)
+        : currentLevel === 2
+          ? ((viewDefinition.query as ViewQueryStructured | undefined)?.from?.tableId as string | undefined)
+          : undefined;
+    const existing = viewDefinition.columns[ci]?.tableColumnRef?.tableId as string | undefined;
+    const tableId = colRefTableIds[ci] || existing || fallbackTableId || "";
     updateWithDraft((d) => {
       d.columns[ci] = {
         ...d.columns[ci],
