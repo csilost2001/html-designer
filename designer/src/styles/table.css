@@ -2385,3 +2385,135 @@
     max-width: 900px;
   }
 }
+
+/* ─── ViewDefinition Editor: 3 レベル DSL UI (#748) ─────────────────────── */
+
+.vd-editor-level-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 4px;
+}
+.vd-editor-level-radio {
+  font-size: 12px;
+  color: #ccc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.vd-editor-level-radio input[type="radio"] {
+  margin: 0;
+}
+.vd-editor-level-hint {
+  display: block;
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+}
+.vd-editor-level-hint code {
+  background: #222;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #aaa;
+}
+.vd-editor-level-tag {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  color: #6da9ff;
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+
+.vd-query-structured,
+.vd-query-rawsql {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.vd-query-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vd-query-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6da9ff;
+  min-width: 60px;
+}
+.vd-query-as {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+}
+.vd-query-block {
+  background: #111;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vd-query-block-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6da9ff;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.vd-query-join-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px;
+  background: #15151f;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+}
+.vd-query-on-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.vd-query-fragment-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vd-query-fragment-input {
+  flex: 1;
+  min-width: 200px;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+  font-size: 12px;
+}
+.vd-query-fragment-input--full {
+  width: 100%;
+}
+.vd-query-alias-input {
+  width: 80px;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 12px;
+}
+.vd-query-sql-textarea {
+  width: 100%;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #0a0a14;
+  color: #d8d8d8;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  padding: 8px;
+  resize: vertical;
+}

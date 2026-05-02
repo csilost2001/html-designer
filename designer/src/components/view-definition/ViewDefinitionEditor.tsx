@@ -1,12 +1,14 @@
 /**
- * ViewDefinitionEditor — ビュー定義編集画面 (#666 S5)
+ * ViewDefinitionEditor — ビュー定義編集画面 (#666 S5 / #748 で 3 レベル DSL 編集対応)
  *
- * 5 セクション構成:
- *  1. 基本情報 (id / name / physicalName / description / kind / sourceTableId)
- *  2. columns 編集テーブル (TableEditor のカラム編集パターンを参考)
- *  3. sortDefaults 編集テーブル
- *  4. filterDefaults 編集テーブル
- *  5. その他 (pageSize / groupBy)
+ * 6 セクション構成:
+ *  1. 基本情報 (id / name / description / kind / Level 切替 / maturity)
+ *  2. Query — Level 1 (sourceTableId) / Level 2 (Structured: from + joins + where/...) /
+ *             Level 3 (Raw SQL: sql + parameterRefs)
+ *  3. columns 編集テーブル (Level に応じて tableColumnRef 列を切替)
+ *  4. sortDefaults 編集テーブル
+ *  5. filterDefaults 編集テーブル
+ *  6. その他 (pageSize / groupBy)
  *
  * リアルタイム validator: checkViewDefinition() の結果を各フィールドの隣に inline 表示。
  */
@@ -21,6 +23,10 @@ import type {
   FilterSpec,
   FilterOperator,
   BuiltinViewDefinitionKind,
+  ViewQueryStructured,
+  ViewQueryRawSql,
+  ViewQueryJoin,
+  ViewQueryParameterRef,
 } from "../../types/v3/view-definition";
 import type { Table, TableEntry, Maturity, Identifier, FieldType, FieldTypePrimitive } from "../../types/v3";
 import type { TableId, LocalId } from "../../types/v3/common";
@@ -67,6 +73,23 @@ const KIND_LABELS: Record<BuiltinViewDefinitionKind, string> = {
   detail: "detail — 詳細",
   kanban: "kanban — カンバン",
   calendar: "calendar — カレンダー",
+};
+
+// ─── Level 検出 + 切替ヘルパー (#748、3 レベル DSL UI 対応) ───────────────
+// テスト容易性のため別 module に切り出し済み (viewDefinitionLevels.ts)。
+import {
+  detectLevel,
+  migrateToLevel,
+  suggestAlias,
+  type ViewLevel,
+} from "./viewDefinitionLevels";
+
+const JOIN_KIND_OPTIONS: ViewQueryJoin["kind"][] = ["INNER", "LEFT", "RIGHT", "FULL"];
+
+const LEVEL_LABELS: Record<ViewLevel, string> = {
+  1: "Level 1 — Simple (1 テーブル)",
+  2: "Level 2 — Structured (joins + where)",
+  3: "Level 3 — Raw SQL (CTE / window 等)",
 };
 
 // ─── useTablesForValidator hook ───────────────────────────────────────────────
@@ -293,6 +316,37 @@ export function ViewDefinitionEditor() {
   const tableOptions = useTableOptions();
 
 
+  // 現在の Level (#748)
+  const currentLevel: ViewLevel = useMemo<ViewLevel>(() => {
+    return viewDefinition ? detectLevel(viewDefinition) : 1;
+  }, [viewDefinition]);
+
+  // Level 2 で利用可能なテーブル + alias 一覧 (columns の tableColumnRef 選択肢生成用)
+  // 各 entry = { tableId, alias, label } を返す。Level 1/3 では空配列 (UI 側で別経路を使う)。
+  const inScopeTables = useMemo<Array<{ tableId: string; alias: string; label: string; tableName: string }>>(() => {
+    if (!viewDefinition || currentLevel !== 2) return [];
+    const sq = viewDefinition.query as ViewQueryStructured | undefined;
+    if (!sq?.from) return [];
+    const out: Array<{ tableId: string; alias: string; label: string; tableName: string }> = [];
+    const fromTblName = tableOptions.find((t) => t.id === (sq.from.tableId as string))?.name ?? sq.from.tableId;
+    out.push({
+      tableId: sq.from.tableId as string,
+      alias: sq.from.alias,
+      label: `${sq.from.alias}: ${fromTblName}`,
+      tableName: fromTblName,
+    });
+    for (const j of sq.joins ?? []) {
+      const tName = tableOptions.find((t) => t.id === (j.tableId as string))?.name ?? (j.tableId as string);
+      out.push({
+        tableId: j.tableId as string,
+        alias: j.alias,
+        label: `${j.alias}: ${tName} (${j.kind} JOIN)`,
+        tableName: tName,
+      });
+    }
+    return out;
+  }, [viewDefinition, currentLevel, tableOptions]);
+
   // リアルタイム validator
   const issues = useMemo<ViewDefinitionIssue[]>(() => {
     if (!viewDefinition) return [];
@@ -348,19 +402,36 @@ export function ViewDefinitionEditor() {
   // ─── columns 操作 ──────────────────────────────────────────────────────────
 
   const addColumn = () => {
-    const newCol: ViewColumn = {
-      name: "" as Identifier,
-      tableColumnRef: {
-        // Level 1 想定: sourceTableId が undefined のときは空文字で初期化 (#745)。
-        tableId: ((viewDefinition.sourceTableId as string | undefined) ?? "") as TableId,
-        columnId: "" as LocalId,
-      },
-      type: "string" as FieldTypePrimitive,
-    };
+    // Level 別の初期 tableColumnRef:
+    //  Level 1: sourceTableId
+    //  Level 2: query.from.tableId (最初の in-scope テーブル)
+    //  Level 3: tableColumnRef は不要 (省略)
+    let initialTableId = "";
+    if (currentLevel === 1) {
+      initialTableId = (viewDefinition.sourceTableId as string | undefined) ?? "";
+    } else if (currentLevel === 2) {
+      const sq = viewDefinition.query as ViewQueryStructured | undefined;
+      initialTableId = (sq?.from?.tableId as string | undefined) ?? "";
+    }
+
+    const newCol: ViewColumn =
+      currentLevel === 3
+        ? {
+            name: "" as Identifier,
+            type: "string" as FieldTypePrimitive,
+          }
+        : {
+            name: "" as Identifier,
+            tableColumnRef: {
+              tableId: initialTableId as TableId,
+              columnId: "" as LocalId,
+            },
+            type: "string" as FieldTypePrimitive,
+          };
     updateWithDraft((d) => { d.columns = [...(d.columns ?? []), newCol]; });
     setColRefTableIds((prev) => ({
       ...prev,
-      [viewDefinition.columns.length]: (viewDefinition.sourceTableId as string | undefined) ?? "",
+      [viewDefinition.columns.length]: initialTableId,
     }));
   };
 
@@ -651,21 +722,35 @@ export function ViewDefinitionEditor() {
                 </div>
               </div>
 
-              {/* ソーステーブル */}
+              {/* Level 切替 (#748、3 レベル DSL) */}
               <div className="tbl-field">
-                <span>ソーステーブル <span className="vd-editor-required">*</span></span>
-                <select
-                  value={viewDefinition.sourceTableId}
-                  onChange={(e) => updateWithDraft((d) => { d.sourceTableId = e.target.value as TableId; })}
-                  className={getIssues(`ViewDefinition[${vdId}].sourceTableId`).length > 0 ? "input-error" : undefined}
-                  disabled={isReadonly}
-                >
-                  <option value="">— テーブルを選択 —</option>
-                  {tableOptions.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                <span>クエリ Level <span className="vd-editor-required">*</span></span>
+                <div className="vd-editor-level-row">
+                  {([1, 2, 3] as ViewLevel[]).map((lv) => (
+                    <label key={lv} className="vd-editor-level-radio" title={LEVEL_LABELS[lv]}>
+                      <input
+                        type="radio"
+                        name="vd-level"
+                        checked={currentLevel === lv}
+                        onChange={() => {
+                          if (currentLevel === lv || isReadonly) return;
+                          const tableName = (id: string) =>
+                            tableOptions.find((t) => t.id === id)?.name;
+                          updateWithDraft((d) => {
+                            const migrated = migrateToLevel(d, lv, tableName);
+                            d.sourceTableId = migrated.sourceTableId;
+                            d.query = migrated.query;
+                          });
+                        }}
+                        disabled={isReadonly}
+                      />
+                      {" "}{LEVEL_LABELS[lv]}
+                    </label>
                   ))}
-                </select>
-                <IssueHints issues={getIssues(`ViewDefinition[${vdId}].sourceTableId`)} />
+                </div>
+                <small className="vd-editor-level-hint">
+                  Level 切替時は <code>sourceTableId</code> と <code>query</code> が排他的に書き換わります (既存の columns / sort / filter は維持)。
+                </small>
               </div>
 
               {/* 成熟度 */}
@@ -686,7 +771,372 @@ export function ViewDefinitionEditor() {
             </div>
           </section>
 
-          {/* ───── Section 2: columns 編集 ────────────────────────────────── */}
+          {/* ───── Section 2: Query (Level 別) (#748) ──────────────────────── */}
+          <section className="seq-editor-section">
+            <h3 className="seq-editor-section-title">
+              クエリ <small className="vd-editor-level-tag">{LEVEL_LABELS[currentLevel]}</small>
+            </h3>
+
+            {currentLevel === 1 && (
+              <div className="seq-editor-grid">
+                <div className="tbl-field">
+                  <span>ソーステーブル <span className="vd-editor-required">*</span></span>
+                  <select
+                    value={(viewDefinition.sourceTableId as string | undefined) ?? ""}
+                    onChange={(e) => updateWithDraft((d) => { d.sourceTableId = e.target.value as TableId; })}
+                    className={getIssues(`ViewDefinition[${vdId}].sourceTableId`).length > 0 ? "input-error" : undefined}
+                    disabled={isReadonly}
+                  >
+                    <option value="">— テーブルを選択 —</option>
+                    {tableOptions.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <IssueHints issues={getIssues(`ViewDefinition[${vdId}].sourceTableId`)} />
+                </div>
+              </div>
+            )}
+
+            {currentLevel === 2 && (() => {
+              const sq = (viewDefinition.query as ViewQueryStructured | undefined) ?? {
+                from: { tableId: "" as TableId, alias: "a" },
+              };
+              const fromIssuePath = `ViewDefinition[${vdId}].query.from.tableId`;
+              return (
+                <div className="vd-query-structured">
+                  {/* FROM */}
+                  <div className="vd-query-row">
+                    <span className="vd-query-label">FROM</span>
+                    <select
+                      value={(sq.from?.tableId as string | undefined) ?? ""}
+                      onChange={(e) => updateWithDraft((d) => {
+                        const cur = (d.query as ViewQueryStructured | undefined) ?? { from: { tableId: "" as TableId, alias: "a" } };
+                        d.query = { ...cur, from: { ...cur.from, tableId: e.target.value as TableId } };
+                      })}
+                      className={getIssues(fromIssuePath).length > 0 ? "input-error" : undefined}
+                      disabled={isReadonly}
+                    >
+                      <option value="">— テーブル —</option>
+                      {tableOptions.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <span className="vd-query-as">AS</span>
+                    <input
+                      type="text"
+                      value={sq.from?.alias ?? ""}
+                      onChange={(e) => updateSilentWithDraft((d) => {
+                        const cur = (d.query as ViewQueryStructured | undefined) ?? { from: { tableId: "" as TableId, alias: "" } };
+                        d.query = { ...cur, from: { ...cur.from, alias: e.target.value } };
+                      })}
+                      onBlur={() => { if (!isReadonly) commit(); }}
+                      placeholder="alias"
+                      className="vd-query-alias-input"
+                      pattern="^[a-z][a-z0-9_]*$"
+                      title="snake_case (^[a-z][a-z0-9_]*$)"
+                      disabled={isReadonly}
+                    />
+                  </div>
+                  <IssueHints issues={getIssues(fromIssuePath)} />
+
+                  {/* JOINS */}
+                  <div className="vd-query-block">
+                    <div className="vd-query-block-title">JOINS</div>
+                    {(sq.joins ?? []).map((j, ji) => {
+                      const joinIssuePath = `ViewDefinition[${vdId}].query.joins[${ji}].tableId`;
+                      const aliasIssuePath = `ViewDefinition[${vdId}].query.joins[${ji}].alias`;
+                      return (
+                        <div key={ji} className="vd-query-join-row">
+                          <select
+                            value={j.kind}
+                            onChange={(e) => updateWithDraft((d) => {
+                              const cur = d.query as ViewQueryStructured;
+                              const joins = [...(cur.joins ?? [])];
+                              joins[ji] = { ...joins[ji], kind: e.target.value as ViewQueryJoin["kind"] };
+                              d.query = { ...cur, joins };
+                            })}
+                            disabled={isReadonly}
+                          >
+                            {JOIN_KIND_OPTIONS.map((k) => (
+                              <option key={k} value={k}>{k}</option>
+                            ))}
+                          </select>
+                          <span className="vd-query-as">JOIN</span>
+                          <select
+                            value={(j.tableId as string | undefined) ?? ""}
+                            onChange={(e) => updateWithDraft((d) => {
+                              const cur = d.query as ViewQueryStructured;
+                              const joins = [...(cur.joins ?? [])];
+                              joins[ji] = { ...joins[ji], tableId: e.target.value as TableId };
+                              d.query = { ...cur, joins };
+                            })}
+                            className={getIssues(joinIssuePath).length > 0 ? "input-error" : undefined}
+                            disabled={isReadonly}
+                          >
+                            <option value="">— テーブル —</option>
+                            {tableOptions.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                          <span className="vd-query-as">AS</span>
+                          <input
+                            type="text"
+                            value={j.alias}
+                            onChange={(e) => updateSilentWithDraft((d) => {
+                              const cur = d.query as ViewQueryStructured;
+                              const joins = [...(cur.joins ?? [])];
+                              joins[ji] = { ...joins[ji], alias: e.target.value };
+                              d.query = { ...cur, joins };
+                            })}
+                            onBlur={() => { if (!isReadonly) commit(); }}
+                            placeholder="alias"
+                            className={`vd-query-alias-input${getIssues(aliasIssuePath).length > 0 ? " input-error" : ""}`}
+                            disabled={isReadonly}
+                          />
+                          <span className="vd-query-as">ON</span>
+                          <div className="vd-query-on-list">
+                            {j.on.map((cond, oi) => (
+                              <input
+                                key={oi}
+                                type="text"
+                                value={cond}
+                                onChange={(e) => updateSilentWithDraft((d) => {
+                                  const cur = d.query as ViewQueryStructured;
+                                  const joins = [...(cur.joins ?? [])];
+                                  const on = [...(joins[ji].on ?? [])];
+                                  on[oi] = e.target.value;
+                                  joins[ji] = { ...joins[ji], on };
+                                  d.query = { ...cur, joins };
+                                })}
+                                onBlur={() => { if (!isReadonly) commit(); }}
+                                placeholder="o.customer_id = c.id"
+                                className="vd-query-fragment-input"
+                                disabled={isReadonly}
+                              />
+                            ))}
+                            <button
+                              type="button"
+                              className="tbl-btn-icon"
+                              onClick={() => updateWithDraft((d) => {
+                                const cur = d.query as ViewQueryStructured;
+                                const joins = [...(cur.joins ?? [])];
+                                const on = [...(joins[ji].on ?? []), ""];
+                                joins[ji] = { ...joins[ji], on };
+                                d.query = { ...cur, joins };
+                              })}
+                              disabled={isReadonly}
+                              title="ON 条件追加 (AND 結合)"
+                            >
+                              <i className="bi bi-plus-lg" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="tbl-btn-icon danger"
+                            onClick={() => updateWithDraft((d) => {
+                              const cur = d.query as ViewQueryStructured;
+                              const joins = (cur.joins ?? []).filter((_, i) => i !== ji);
+                              d.query = { ...cur, joins: joins.length ? joins : undefined };
+                            })}
+                            disabled={isReadonly}
+                            title="JOIN 削除"
+                          >
+                            <i className="bi bi-trash" />
+                          </button>
+                          <IssueHints issues={[...getIssues(joinIssuePath), ...getIssues(aliasIssuePath)]} />
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className="tbl-btn tbl-btn-ghost"
+                      onClick={() => updateWithDraft((d) => {
+                        const cur = (d.query as ViewQueryStructured | undefined) ?? { from: { tableId: "" as TableId, alias: "a" } };
+                        const usedAliases = new Set<string>([cur.from?.alias ?? ""]);
+                        (cur.joins ?? []).forEach((j) => usedAliases.add(j.alias));
+                        const newJoin: ViewQueryJoin = {
+                          kind: "INNER",
+                          tableId: "" as TableId,
+                          alias: suggestAlias(undefined, usedAliases),
+                          on: [""],
+                        };
+                        d.query = { ...cur, joins: [...(cur.joins ?? []), newJoin] };
+                      })}
+                      disabled={isReadonly}
+                    >
+                      <i className="bi bi-plus-lg" /> JOIN 追加
+                    </button>
+                  </div>
+
+                  {/* WHERE / GROUP BY / HAVING / ORDER BY */}
+                  {(["where", "groupBy", "having", "orderBy"] as const).map((kw) => {
+                    const items = (sq[kw] ?? []) as string[];
+                    const labelMap = {
+                      where: ["WHERE", "AND 結合される条件式 (例: \"o.status = 'active'\")"],
+                      groupBy: ["GROUP BY", "GROUP BY 列式 (例: \"o.customer_id\")"],
+                      having: ["HAVING", "AND 結合される HAVING 条件 (例: \"COUNT(*) > 10\")"],
+                      orderBy: ["ORDER BY", "ORDER BY 式 (例: \"o.created_at DESC\")"],
+                    } as const;
+                    const [label, hint] = labelMap[kw];
+                    return (
+                      <div key={kw} className="vd-query-block">
+                        <div className="vd-query-block-title" title={hint}>{label}</div>
+                        {items.map((cond, idx) => (
+                          <div key={idx} className="vd-query-fragment-row">
+                            <input
+                              type="text"
+                              value={cond}
+                              onChange={(e) => updateSilentWithDraft((d) => {
+                                const cur = d.query as ViewQueryStructured;
+                                const arr = [...((cur[kw] as string[] | undefined) ?? [])];
+                                arr[idx] = e.target.value;
+                                d.query = { ...cur, [kw]: arr };
+                              })}
+                              onBlur={() => { if (!isReadonly) commit(); }}
+                              placeholder={hint}
+                              className="vd-query-fragment-input vd-query-fragment-input--full"
+                              disabled={isReadonly}
+                            />
+                            <button
+                              type="button"
+                              className="tbl-btn-icon danger"
+                              onClick={() => updateWithDraft((d) => {
+                                const cur = d.query as ViewQueryStructured;
+                                const arr = ((cur[kw] as string[] | undefined) ?? []).filter((_, i) => i !== idx);
+                                d.query = { ...cur, [kw]: arr.length ? arr : undefined };
+                              })}
+                              disabled={isReadonly}
+                              title="削除"
+                            >
+                              <i className="bi bi-trash" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          className="tbl-btn tbl-btn-ghost tbl-btn-sm"
+                          onClick={() => updateWithDraft((d) => {
+                            const cur = d.query as ViewQueryStructured;
+                            const arr = [...((cur[kw] as string[] | undefined) ?? []), ""];
+                            d.query = { ...cur, [kw]: arr };
+                          })}
+                          disabled={isReadonly}
+                        >
+                          <i className="bi bi-plus-lg" /> {label} 追加
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {currentLevel === 3 && (() => {
+              const rq = (viewDefinition.query as ViewQueryRawSql | undefined) ?? { sql: "", parameterRefs: [] };
+              return (
+                <div className="vd-query-rawsql">
+                  <div className="vd-query-block">
+                    <div className="vd-query-block-title">SQL</div>
+                    <textarea
+                      value={rq.sql ?? ""}
+                      onChange={(e) => updateSilentWithDraft((d) => {
+                        const cur = (d.query as ViewQueryRawSql | undefined) ?? { sql: "", parameterRefs: [] };
+                        d.query = { ...cur, sql: e.target.value };
+                      })}
+                      onBlur={() => { if (!isReadonly) commit(); }}
+                      placeholder={"WITH ranked AS (\n  SELECT id, name, ROW_NUMBER() OVER (PARTITION BY category ORDER BY price DESC) AS rn FROM products\n)\nSELECT * FROM ranked WHERE rn <= @param.topN"}
+                      rows={12}
+                      className="vd-query-sql-textarea"
+                      disabled={isReadonly}
+                    />
+                    <small className="vd-editor-level-hint">
+                      式補間は ProcessFlow と同じく <code>@&lt;var&gt;</code> / <code>@conv.*</code> / <code>@env.*</code> / <code>@param.&lt;name&gt;</code>。
+                    </small>
+                  </div>
+
+                  <div className="vd-query-block">
+                    <div className="vd-query-block-title">parameterRefs</div>
+                    {(rq.parameterRefs ?? []).map((p, pi) => (
+                      <div key={pi} className="vd-query-fragment-row">
+                        <input
+                          type="text"
+                          value={p.name as string}
+                          onChange={(e) => updateSilentWithDraft((d) => {
+                            const cur = d.query as ViewQueryRawSql;
+                            const params = [...(cur.parameterRefs ?? [])];
+                            params[pi] = { ...params[pi], name: e.target.value as Identifier };
+                            d.query = { ...cur, parameterRefs: params };
+                          })}
+                          onBlur={() => { if (!isReadonly) commit(); }}
+                          placeholder="paramName"
+                          className="vd-query-fragment-input"
+                          disabled={isReadonly}
+                        />
+                        <select
+                          value={typeof p.fieldType === "string" ? p.fieldType : "string"}
+                          onChange={(e) => updateWithDraft((d) => {
+                            const cur = d.query as ViewQueryRawSql;
+                            const params = [...(cur.parameterRefs ?? [])];
+                            params[pi] = { ...params[pi], fieldType: e.target.value as FieldType };
+                            d.query = { ...cur, parameterRefs: params };
+                          })}
+                          disabled={isReadonly}
+                        >
+                          {FIELD_TYPE_OPTIONS.map((ft) => (
+                            <option key={ft} value={ft}>{ft}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={p.description ?? ""}
+                          onChange={(e) => updateSilentWithDraft((d) => {
+                            const cur = d.query as ViewQueryRawSql;
+                            const params = [...(cur.parameterRefs ?? [])];
+                            params[pi] = { ...params[pi], description: e.target.value || undefined };
+                            d.query = { ...cur, parameterRefs: params };
+                          })}
+                          onBlur={() => { if (!isReadonly) commit(); }}
+                          placeholder="description (任意)"
+                          className="vd-query-fragment-input vd-query-fragment-input--full"
+                          disabled={isReadonly}
+                        />
+                        <button
+                          type="button"
+                          className="tbl-btn-icon danger"
+                          onClick={() => updateWithDraft((d) => {
+                            const cur = d.query as ViewQueryRawSql;
+                            const params = (cur.parameterRefs ?? []).filter((_, i) => i !== pi);
+                            d.query = { ...cur, parameterRefs: params.length ? params : undefined };
+                          })}
+                          disabled={isReadonly}
+                          title="削除"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="tbl-btn tbl-btn-ghost tbl-btn-sm"
+                      onClick={() => updateWithDraft((d) => {
+                        const cur = (d.query as ViewQueryRawSql | undefined) ?? { sql: "" };
+                        const newParam: ViewQueryParameterRef = {
+                          name: "" as Identifier,
+                          fieldType: "string" as FieldType,
+                        };
+                        d.query = { ...cur, parameterRefs: [...(cur.parameterRefs ?? []), newParam] };
+                      })}
+                      disabled={isReadonly}
+                    >
+                      <i className="bi bi-plus-lg" /> parameterRef 追加
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </section>
+
+          {/* ───── Section 3: columns 編集 ────────────────────────────────── */}
           <section className="seq-editor-section">
             <h3 className="seq-editor-section-title">
               カラム定義
@@ -700,8 +1150,14 @@ export function ViewDefinitionEditor() {
                 <thead>
                   <tr>
                     <th>name <span className="vd-editor-required">*</span></th>
-                    <th>参照テーブル</th>
-                    <th>参照カラム</th>
+                    {currentLevel !== 3 && (
+                      <>
+                        <th title={currentLevel === 2 ? "from / joins[] のテーブルから選択" : "参照テーブル"}>
+                          {currentLevel === 2 ? "alias.テーブル" : "参照テーブル"}
+                        </th>
+                        <th>参照カラム</th>
+                      </>
+                    )}
                     <th>表示名</th>
                     <th>type <span className="vd-editor-required">*</span></th>
                     <th>書式</th>
@@ -742,34 +1198,44 @@ export function ViewDefinitionEditor() {
                             disabled={isReadonly}
                           />
                         </td>
-                        {/* 参照テーブル (cascade step 1) */}
-                        <td>
-                          <select
-                            value={refTableId}
-                            onChange={(e) => setColRefTable(ci, e.target.value)}
-                            className="vd-col-select"
-                            disabled={isReadonly}
-                          >
-                            <option value="">— テーブル —</option>
-                            {tableOptions.map((t) => (
-                              <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                          </select>
-                        </td>
-                        {/* 参照カラム (cascade step 2) */}
-                        <td>
-                          <select
-                            value={col.tableColumnRef?.columnId ?? ""}
-                            onChange={(e) => setColRefColumn(ci, e.target.value)}
-                            className="vd-col-select"
-                            disabled={!refTableId || isReadonly}
-                          >
-                            <option value="">— カラム —</option>
-                            {colOptions.map((c) => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                        </td>
+                        {currentLevel !== 3 && (
+                          <>
+                            {/* 参照テーブル (cascade step 1) — Level 2 では in-scope alias リスト */}
+                            <td>
+                              <select
+                                value={refTableId ?? ""}
+                                onChange={(e) => setColRefTable(ci, e.target.value)}
+                                className="vd-col-select"
+                                disabled={isReadonly}
+                              >
+                                <option value="">— テーブル —</option>
+                                {currentLevel === 2
+                                  ? inScopeTables.map((s) => (
+                                      <option key={`${s.alias}-${s.tableId}`} value={s.tableId}>
+                                        {s.label}
+                                      </option>
+                                    ))
+                                  : tableOptions.map((t) => (
+                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                              </select>
+                            </td>
+                            {/* 参照カラム (cascade step 2) */}
+                            <td>
+                              <select
+                                value={col.tableColumnRef?.columnId ?? ""}
+                                onChange={(e) => setColRefColumn(ci, e.target.value)}
+                                className="vd-col-select"
+                                disabled={!refTableId || isReadonly}
+                              >
+                                <option value="">— カラム —</option>
+                                {colOptions.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                          </>
+                        )}
                         {/* displayName */}
                         <td>
                           <input
