@@ -335,8 +335,118 @@
         "updatedAt": "2026-05-02T00:00:00.000Z"
       }
     ],
-    "views": [],
-    "viewDefinitions": [],
-    "sequences": []
+    "views": [
+      {
+        "id": "6e6a9612-85c8-4541-a497-8851cea28f56",
+        "no": 1,
+        "name": "商品付き在庫ビュー",
+        "physicalName": "v_inventory_with_product",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "feb6d55d-33bc-4f25-adac-b5fa18b2a579",
+        "no": 2,
+        "name": "顧客付き注文ビュー",
+        "physicalName": "v_orders_with_customer",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "ce75dd91-3e55-4e0b-ac2c-11108943a8cf",
+        "no": 3,
+        "name": "注文明細詳細ビュー",
+        "physicalName": "v_order_items_detail",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "822d5a83-1c06-4650-97fa-35a62bca3d5e",
+        "no": 4,
+        "name": "カートサマリビュー",
+        "physicalName": "v_cart_summary",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      }
+    ],
+    "viewDefinitions": [
+      {
+        "id": "db10b1f4-459c-4bd3-bb27-76394209671d",
+        "no": 1,
+        "name": "商品マスター一覧",
+        "kind": "list",
+        "sourceTableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
+        "columnCount": 5,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "7b01161a-d6bc-41d9-b60d-25ed33c8bf5d",
+        "no": 2,
+        "name": "顧客マスター一覧",
+        "kind": "list",
+        "sourceTableId": "605bbc9d-810a-4b9c-a83a-cc2e59bca37a",
+        "columnCount": 4,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "97354753-765a-449e-85ad-d23acad53a76",
+        "no": 3,
+        "name": "店舗マスター一覧",
+        "kind": "list",
+        "sourceTableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
+        "columnCount": 4,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "fbd95d09-4ac4-44e0-a6a7-44affff128a0",
+        "no": 4,
+        "name": "在庫一覧",
+        "kind": "list",
+        "sourceTableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
+        "columnCount": 6,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "4cef6340-2603-44b3-b92e-e85e4809a955",
+        "no": 5,
+        "name": "注文一覧",
+        "kind": "list",
+        "sourceTableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
+        "columnCount": 6,
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      }
+    ],
+    "sequences": [
+      {
+        "id": "e2fde820-35f8-4c39-a724-646e07580946",
+        "no": 1,
+        "name": "注文番号採番",
+        "physicalName": "seq_order_number",
+        "conventionRef": "@conv.numbering.orderNumber",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "af8f14b0-b6d7-4661-ac4b-bdf0a196e0b2",
+        "no": 2,
+        "name": "顧客ID採番",
+        "physicalName": "seq_customer_id",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "536a2528-8cde-4bd2-8884-e3e3c53c57dd",
+        "no": 3,
+        "name": "配送ID採番",
+        "physicalName": "seq_shipment_id",
+        "maturity": "committed",
+        "updatedAt": "2026-05-02T00:00:00.000Z"
+      }
+    ]
   }
 }
