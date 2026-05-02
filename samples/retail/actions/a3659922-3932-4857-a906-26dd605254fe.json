@@ -31,7 +31,7 @@
     },
     "ambientVariables": [
       { "name": "requestId", "type": "string", "description": "リクエスト単位の追跡 ID (ミドルウェア自動付与)。" },
-      { "name": "sessionUserId", "type": "string", "required": false, "description": "ログイン中ユーザー ID。ダッシュボード閲覧は session 必須。" }
+      { "name": "sessionUserId", "type": "string", "required": true, "description": "ログイン中ユーザー ID。ダッシュボード閲覧は session 必須 (httpRoute.auth='required' と整合)。" }
     ]
   },
   "actions": [
@@ -157,6 +157,16 @@
         "definition": "orders.status が 'pending' または 'confirmed' の注文件数。'shipped' / 'delivered' / 'cancelled' は除外。",
         "aliases": ["dispatchPending"],
         "domainRef": "orders.status"
+      },
+      "本日注文件数": {
+        "definition": "DATE(orders.ordered_at) = CURRENT_DATE かつ status != 'cancelled' な orders の件数。",
+        "aliases": ["ordersToday"],
+        "domainRef": "orders.id"
+      },
+      "低在庫商品数": {
+        "definition": "inventory.quantity_available <= @conv.limit.lowStockThreshold (= 10) を満たす行数。補充発注の判断材料。",
+        "aliases": ["lowStockCount"],
+        "domainRef": "inventory.quantity_available"
       }
     },
     "testScenarios": [
