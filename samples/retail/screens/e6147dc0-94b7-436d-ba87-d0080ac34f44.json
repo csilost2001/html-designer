@@ -24,17 +24,6 @@
       "errorMessages": {
         "invalidFormat": "商品コードは P-XXXX〜P-XXXXXX 形式で入力してください。"
       },
-      "events": [
-        {
-          "id": "submit",
-          "label": "在庫照会",
-          "handlerFlowId": "efa7ac6e-e295-416e-b68d-17c4739b5097",
-          "argumentMapping": {
-            "productCode": "@screen.productCode",
-            "storeCode": "@screen.storeCode"
-          }
-        }
-      ],
       "description": "S-1 在庫照会の検索入力: 商品コード。"
     },
     {
@@ -61,6 +50,25 @@
         "kind": "expression",
         "expression": "@now"
       }
+    },
+    {
+      "id": "searchInventoryButton",
+      "label": "在庫照会",
+      "type": { "kind": "extension", "extensionRef": "retail:button" },
+      "direction": "output",
+      "readonly": true,
+      "events": [
+        {
+          "id": "submit",
+          "label": "在庫照会",
+          "handlerFlowId": "efa7ac6e-e295-416e-b68d-17c4739b5097",
+          "argumentMapping": {
+            "productCode": "@screen.productCode",
+            "storeCode": "@screen.storeCode"
+          }
+        }
+      ],
+      "description": "S-1 商品検索の在庫照会ボタン。クリック時に店舗在庫照会フロー (efa7ac6e) を起動する。"
     }
   ],
   "design": {

@@ -24,17 +24,6 @@
         "required": "商品コードは必須です。",
         "invalidFormat": "商品コードは P-XXXX〜P-XXXXXX 形式で入力してください。"
       },
-      "events": [
-        {
-          "id": "submit",
-          "label": "カートに追加",
-          "handlerFlowId": "9515d6f6-8342-48cf-a045-9e9d8fab1cfa",
-          "argumentMapping": {
-            "productCode": "@screen.addProductCode",
-            "quantity": "@screen.addQuantity"
-          }
-        }
-      ],
       "description": "S-2 カート追加フォームの商品コード入力。"
     },
     {
@@ -74,6 +63,25 @@
         "kind": "flowVariable",
         "variableName": "cartTotalAmount"
       }
+    },
+    {
+      "id": "addToCartButton",
+      "label": "カートに追加",
+      "type": { "kind": "extension", "extensionRef": "retail:button" },
+      "direction": "output",
+      "readonly": true,
+      "events": [
+        {
+          "id": "submit",
+          "label": "カートに追加",
+          "handlerFlowId": "9515d6f6-8342-48cf-a045-9e9d8fab1cfa",
+          "argumentMapping": {
+            "productCode": "@screen.addProductCode",
+            "quantity": "@screen.addQuantity"
+          }
+        }
+      ],
+      "description": "S-2 カートに追加ボタン。クリック時にカート追加フロー (9515d6f6) を起動する。"
     }
   ],
   "design": {
