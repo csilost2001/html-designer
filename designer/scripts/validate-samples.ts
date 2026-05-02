@@ -26,6 +26,7 @@ import { checkViewDefinitions } from "../src/schemas/viewDefinitionValidator.js"
 import { checkScreenNavigation } from "../src/schemas/screenNavigationValidator.js";
 import { resolveScreenItemRefs } from "../src/schemas/screenItemRefResolver.js";
 import { loadExtensionsFromBundle, type ExtensionsBundle, type LoadedExtensions } from "../src/schemas/loadExtensions.js";
+import { checkAntipatterns } from "../src/schemas/processFlowAntipatternValidator.js";
 import type { Screen } from "../src/types/v3/screen.js";
 import type { Conventions } from "../src/types/v3/conventions.js";
 import type { ViewDefinition } from "../src/types/v3/view-definition.js";
@@ -228,15 +229,17 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
   return { extensions: loadExtensionsFromBundle(extBundle).extensions, fileCount };
 }
 
-function loadFlowsForProject(project: ProjectResources): Array<{ filePath: string; displayName: string; flow: ProcessFlow }> {
+function loadFlowsForProject(project: ProjectResources): Array<{ filePath: string; displayName: string; flow: ProcessFlow; rawJson: string }> {
   if (!existsSync(project.flowsDir)) return [];
   const files = readdirSync(project.flowsDir).filter((f) => f.endsWith(".json")).sort();
   return files.map((f) => {
     const filePath = join(project.flowsDir, f);
+    const rawJson = readFileSync(filePath, "utf-8");
     return {
       filePath,
       displayName: relative(repoRoot, filePath).replace(/\\/g, "/"),
-      flow: JSON.parse(readFileSync(filePath, "utf-8")) as ProcessFlow,
+      flow: JSON.parse(rawJson) as ProcessFlow,
+      rawJson,
     };
   });
 }
@@ -403,7 +406,7 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
   const results: FlowValidationResult[] = [];
   const projectResults: ProjectValidationResult[] = [];
 
-  function validateOne(filePath: string, displayName: string, flow: ProcessFlow): FlowValidationResult {
+  function validateOne(filePath: string, displayName: string, flow: ProcessFlow, rawJson: string): FlowValidationResult {
     const issues: ValidationIssue[] = [];
 
     for (const i of checkSqlColumns(flow, project.tables)) {
@@ -426,11 +429,15 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
       issues.push(issue("identifierScope", i.code, i.path, `@${i.identifier} - ${i.message}`));
     }
 
+    for (const i of checkAntipatterns(flow, rawJson)) {
+      issues.push(issue("processFlowAntipatternValidator", i.code, i.path, i.message, i.severity));
+    }
+
     return { filePath, displayName, projectId: project.projectId, issues };
   }
 
-  for (const { filePath, displayName, flow } of flows) {
-    results.push(validateOne(filePath, displayName, flow));
+  for (const { filePath, displayName, flow, rawJson } of flows) {
+    results.push(validateOne(filePath, displayName, flow, rawJson));
   }
 
   const projectIssues: ValidationIssue[] = [];
@@ -512,6 +519,7 @@ const validatorDisplayOrder = [
   "viewDefinitionValidator",
   "screenNavigationValidator",
   "runtimeContractValidator",
+  "processFlowAntipatternValidator",
 ];
 
 export function printSummary(summary: ValidationSummary): void {
