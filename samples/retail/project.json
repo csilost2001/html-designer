@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "b8894d2c-d0b5-4a14-8068-64b66011c29e",
+    "name": "リテール総合 (EC + 店舗 POS + 在庫管理)",
+    "description": "EC・店舗 POS・在庫管理のミックス業態の業務システムサンプル。商品検索、カート、注文確定、配送指示の 4 シナリオを軸に画面・処理フロー・テーブル・規約・拡張を完結させた **リリース時 examples 候補** (#680 / #706)。",
+    "createdAt": "2026-05-02T00:00:00.000Z",
+    "updatedAt": "2026-05-02T00:00:00.000Z",
+    "mode": "upstream",
+    "maturity": "draft"
+  },
+  "extensionsApplied": [
+    { "namespace": "retail", "version": ">=1.0.0" }
+  ],
+  "entities": {
+    "screens": [],
+    "screenGroups": [],
+    "screenTransitions": [],
+    "tables": [],
+    "processFlows": [],
+    "views": [],
+    "viewDefinitions": [],
+    "sequences": []
+  }
+}
