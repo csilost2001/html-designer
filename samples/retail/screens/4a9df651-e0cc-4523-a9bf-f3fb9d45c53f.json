@@ -11,6 +11,6 @@
   "createdAt": "2026-05-02T00:00:00.000Z",
   "updatedAt": "2026-05-02T00:00:00.000Z",
   "design": {
-    "designFileRef": "../designs/4a9df651-e0cc-4523-a9bf-f3fb9d45c53f.html"
+    "designFileRef": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f.design.json"
   }
 }
