@@ -10,6 +10,59 @@
   "maturity": "committed",
   "createdAt": "2026-05-02T00:00:00.000Z",
   "updatedAt": "2026-05-02T00:00:00.000Z",
+  "items": [
+    {
+      "id": "productCode",
+      "label": "商品コード",
+      "type": "string",
+      "direction": "input",
+      "required": false,
+      "maxLength": 20,
+      "pattern": "@conv.regex.productCode",
+      "placeholder": "例: P-0001",
+      "helperText": "P- で始まる 4〜6 桁の商品コードを入力してください。",
+      "errorMessages": {
+        "invalidFormat": "商品コードは P-XXXX〜P-XXXXXX 形式で入力してください。"
+      },
+      "events": [
+        {
+          "id": "submit",
+          "label": "在庫照会",
+          "handlerFlowId": "efa7ac6e-e295-416e-b68d-17c4739b5097",
+          "argumentMapping": {
+            "productCode": "@screen.productCode",
+            "storeCode": "@screen.storeCode"
+          }
+        }
+      ],
+      "description": "S-1 在庫照会の検索入力: 商品コード。"
+    },
+    {
+      "id": "storeCode",
+      "label": "店舗",
+      "type": "string",
+      "direction": "input",
+      "required": false,
+      "options": [
+        { "value": "S-001", "label": "東京本店" },
+        { "value": "S-002", "label": "大阪支店" },
+        { "value": "S-003", "label": "名古屋支店" }
+      ],
+      "description": "S-1 在庫照会の検索条件: 店舗。"
+    },
+    {
+      "id": "inquiredAt",
+      "label": "照会日時",
+      "type": "datetime",
+      "direction": "output",
+      "displayFormat": "YYYY/MM/DD HH:mm",
+      "description": "S-1 在庫照会を実行した日時 (表示専用)。",
+      "valueFrom": {
+        "kind": "expression",
+        "expression": "@now"
+      }
+    }
+  ],
   "design": {
     "designFileRef": "e6147dc0-94b7-436d-ba87-d0080ac34f44.design.json"
   }

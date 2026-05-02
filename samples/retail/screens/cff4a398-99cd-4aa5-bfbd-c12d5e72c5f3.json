@@ -10,6 +10,87 @@
   "maturity": "committed",
   "createdAt": "2026-05-02T00:00:00.000Z",
   "updatedAt": "2026-05-02T00:00:00.000Z",
+  "items": [
+    {
+      "id": "shippingPostalCode",
+      "label": "郵便番号",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "maxLength": 7,
+      "pattern": "@conv.regex.postalCode",
+      "placeholder": "例: 1600022 (ハイフンなし7桁)",
+      "errorMessages": {
+        "required": "郵便番号は必須です。",
+        "invalidFormat": "郵便番号はハイフンなし 7 桁の数字で入力してください。"
+      },
+      "events": [
+        {
+          "id": "submit",
+          "label": "注文確定",
+          "handlerFlowId": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
+          "argumentMapping": {
+            "shippingPostalCode": "@screen.shippingPostalCode",
+            "shippingAddress": "@screen.shippingAddress",
+            "note": "@screen.note"
+          }
+        }
+      ],
+      "description": "S-3 注文確定の配送先郵便番号。"
+    },
+    {
+      "id": "shippingAddress",
+      "label": "配送先住所",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "maxLength": 300,
+      "errorMessages": {
+        "required": "配送先住所は必須です。",
+        "maxLength": "配送先住所は 300 文字以内で入力してください。"
+      },
+      "description": "S-3 注文確定の配送先住所 (都道府県・市区町村・番地・建物名)。"
+    },
+    {
+      "id": "note",
+      "label": "備考",
+      "type": "string",
+      "direction": "input",
+      "required": false,
+      "maxLength": 500,
+      "placeholder": "配送時の注意事項など",
+      "description": "S-3 注文確定の備考欄 (任意)。"
+    },
+    {
+      "id": "paymentMethod",
+      "label": "支払方法",
+      "type": "string",
+      "direction": "input",
+      "required": true,
+      "options": [
+        { "value": "credit_card", "label": "クレジットカード" },
+        { "value": "bank_transfer", "label": "銀行振込" },
+        { "value": "cod", "label": "代金引換" }
+      ],
+      "errorMessages": {
+        "required": "支払方法を選択してください。"
+      },
+      "description": "S-3 注文確定の支払方法選択。"
+    },
+    {
+      "id": "confirmTotalAmount",
+      "label": "注文合計 (税込)",
+      "type": "integer",
+      "direction": "output",
+      "displayFormat": "¥#,##0",
+      "readonly": true,
+      "description": "S-3 注文確定確認画面の注文合計金額 (表示専用)。",
+      "valueFrom": {
+        "kind": "flowVariable",
+        "variableName": "confirmTotalAmount"
+      }
+    }
+  ],
   "design": {
     "designFileRef": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3.design.json"
   }
