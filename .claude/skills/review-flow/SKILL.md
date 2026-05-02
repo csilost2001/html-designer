@@ -243,7 +243,8 @@ UI 起点フロー (`type: "screen"` / `mode: "upstream"`) について、画面
 
 画面遷移を含むフローについて、**画面フロー edges × ProcessFlow の `ScreenTransitionStep.targetScreenId` × 画面 path (URL ルーティング)** の三者整合を検証する。**機械検出は Step 0.5 の `screenNavigationValidator` でカバー** されるため、AI 目視は **「validator では届かない業務文脈の妥当性」** に絞る:
 
-- `MISSING_FLOW_EDGE` / `ORPHAN_FLOW_EDGE` warning は **業務遷移として意図的か再確認** (画面フロー edges を後で追加すべき遷移か、単に不要なら ScreenTransitionStep 側を削除)
+- `MISSING_FLOW_EDGE` warning は **業務遷移として意図的か再確認** (画面フロー edges を後で追加すべき遷移か、単に不要なら ScreenTransitionStep 側を削除)
+- `MISSING_FLOW_TRANSITION` error (#744) は **edge が `kind: "flow-driven"` なのに対応 ScreenTransitionStep が無い**。純 UI 遷移なら `kind: "navigation"` に修正、処理を伴うなら ProcessFlow に ScreenTransitionStep を追加 (Must-fix 候補)
 - `AUTH_TRANSITION_VIOLATION` の例外運用 (login / error 画面以外で auth 不一致を許容するべき業務シナリオが妥当か)
 - `DEAD_END_SCREEN` warning が **業務として終端でよい画面か** (確認画面 / 完了画面は終端で正当、それ以外は遷移欠落の可能性)
 - `PATH_PARAM_MISMATCH` warning は path 設計の業務的整合性を再確認 (param 名の業務表現が source / target で一致しているか)

@@ -149,84 +149,96 @@
         "sourceScreenId": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
         "targetScreenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
         "label": "カートに追加",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-cart-to-confirm",
         "sourceScreenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
         "targetScreenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
         "label": "注文確認へ",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-confirm-to-complete",
         "sourceScreenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
         "targetScreenId": "0739c454-45d6-4c99-962a-7b0b9e113a22",
         "label": "注文確定",
-        "trigger": "submit"
+        "trigger": "submit",
+        "kind": "navigation"
       },
       {
         "id": "tr-orderlist-to-dispatch",
         "sourceScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
         "targetScreenId": "c2254dd6-ab5d-4428-931f-d27c71e89951",
         "label": "配送指示",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-dashboard-to-search",
         "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
         "targetScreenId": "e6147dc0-94b7-436d-ba87-d0080ac34f44",
         "label": "商品検索 (S-1)",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-dashboard-to-cart",
         "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
         "targetScreenId": "c73fa05c-4a71-4593-800d-b9814e97be83",
         "label": "カート (S-2/S-3)",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-dashboard-to-orderlist",
         "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
         "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
         "label": "注文一覧 (S-4)",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-dashboard-to-inventory",
         "sourceScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
         "targetScreenId": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
         "label": "在庫一覧",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-complete-to-dashboard",
         "sourceScreenId": "0739c454-45d6-4c99-962a-7b0b9e113a22",
         "targetScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
         "label": "ダッシュボードへ",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-complete-to-orderlist",
         "sourceScreenId": "0739c454-45d6-4c99-962a-7b0b9e113a22",
         "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
         "label": "注文履歴へ",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-inventory-to-dashboard",
         "sourceScreenId": "4a9df651-e0cc-4523-a9bf-f3fb9d45c53f",
         "targetScreenId": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
         "label": "ダッシュボードへ",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       },
       {
         "id": "tr-dispatch-to-orderlist",
         "sourceScreenId": "c2254dd6-ab5d-4428-931f-d27c71e89951",
         "targetScreenId": "f9faa724-e080-4308-bc14-bb93631c9e78",
         "label": "注文一覧へ",
-        "trigger": "click"
+        "trigger": "click",
+        "kind": "navigation"
       }
     ],
     "tables": [

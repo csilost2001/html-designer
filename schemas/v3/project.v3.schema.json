@@ -160,6 +160,12 @@
           "type": "string",
           "enum": ["click", "submit", "select", "cancel", "auto", "back", "other"],
           "description": "遷移トリガー種別。"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["navigation", "flow-driven"],
+          "default": "navigation",
+          "description": "遷移種別。'navigation' = 純 UI 遷移 (戻るボタン / リンク / シンプルナビ)、ScreenTransitionStep 不要。'flow-driven' = 処理を伴う遷移、対応する ScreenTransitionStep が必要 (#744)。省略時は 'navigation' とみなす。"
         }
       }
     }

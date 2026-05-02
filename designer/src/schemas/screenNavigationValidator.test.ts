@@ -112,24 +112,40 @@ describe("MISSING_FLOW_EDGE", () => {
   });
 });
 
-// ─── 観点 3: ORPHAN_FLOW_EDGE ─────────────────────────────────────────────
+// ─── 観点 3: MISSING_FLOW_TRANSITION (kind="flow-driven" のみ、#744) ─────
 
-describe("ORPHAN_FLOW_EDGE", () => {
-  it("edge にあって step がない遷移を warning で検出する", () => {
+describe("MISSING_FLOW_TRANSITION", () => {
+  it("kind='flow-driven' で step が無い遷移を error で検出する", () => {
     const screens = [makeScreen({ id: "screen-A", path: "/a" }), makeScreen({ id: "screen-B", path: "/b" })];
-    const edges = [makeEdge("e1", "screen-A", "screen-B")]; // step なし
+    const edges = [{ ...makeEdge("e1", "screen-A", "screen-B"), kind: "flow-driven" as const }];
     const issues = checkScreenNavigation([], screens, edges);
-    const found = issues.filter((i) => i.code === "ORPHAN_FLOW_EDGE");
+    const found = issues.filter((i) => i.code === "MISSING_FLOW_TRANSITION");
     expect(found.length).toBeGreaterThan(0);
-    expect(found[0].severity).toBe("warning");
+    expect(found[0].severity).toBe("error");
   });
 
-  it("対応する step があれば検出しない", () => {
+  it("kind='flow-driven' で対応する step があれば検出しない", () => {
     const flow = makeFlowWithStep("flow-1", "screen-A", "screen-B");
     const screens = [makeScreen({ id: "screen-A", path: "/a" }), makeScreen({ id: "screen-B", path: "/b" })];
-    const edges = [makeEdge("e1", "screen-A", "screen-B")];
+    const edges = [{ ...makeEdge("e1", "screen-A", "screen-B"), kind: "flow-driven" as const }];
     const issues = checkScreenNavigation([flow], screens, edges);
-    const found = issues.filter((i) => i.code === "ORPHAN_FLOW_EDGE");
+    const found = issues.filter((i) => i.code === "MISSING_FLOW_TRANSITION");
+    expect(found).toHaveLength(0);
+  });
+
+  it("kind='navigation' は step が無くても検出しない (純 UI 遷移)", () => {
+    const screens = [makeScreen({ id: "screen-A", path: "/a" }), makeScreen({ id: "screen-B", path: "/b" })];
+    const edges = [{ ...makeEdge("e1", "screen-A", "screen-B"), kind: "navigation" as const }];
+    const issues = checkScreenNavigation([], screens, edges);
+    const found = issues.filter((i) => i.code === "MISSING_FLOW_TRANSITION");
+    expect(found).toHaveLength(0);
+  });
+
+  it("kind 省略時は 'navigation' とみなして検出しない (default)", () => {
+    const screens = [makeScreen({ id: "screen-A", path: "/a" }), makeScreen({ id: "screen-B", path: "/b" })];
+    const edges = [makeEdge("e1", "screen-A", "screen-B")]; // kind 省略
+    const issues = checkScreenNavigation([], screens, edges);
+    const found = issues.filter((i) => i.code === "MISSING_FLOW_TRANSITION");
     expect(found).toHaveLength(0);
   });
 });
