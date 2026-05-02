@@ -75,7 +75,7 @@
       "errorMessages": {
         "required": "支払方法を選択してください。"
       },
-      "description": "S-3 注文確定の支払方法選択。"
+      "description": "S-3 注文確定の支払方法選択。注: 注文確定フロー (f81dd9e0) の inputs 拡張は別 ISSUE で対応予定 (本 PR では画面項目側のみ追加)。"
     },
     {
       "id": "confirmTotalAmount",
@@ -84,7 +84,7 @@
       "direction": "output",
       "displayFormat": "¥#,##0",
       "readonly": true,
-      "description": "S-3 注文確定確認画面の注文合計金額 (表示専用)。",
+      "description": "S-3 注文確定確認画面の注文合計金額 (表示専用)。集計元はカート明細合計フロー (別途定義予定、processFlowId は将来明示予定)。",
       "valueFrom": {
         "kind": "flowVariable",
         "variableName": "confirmTotalAmount"

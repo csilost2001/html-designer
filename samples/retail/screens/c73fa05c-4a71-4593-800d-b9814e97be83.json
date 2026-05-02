@@ -49,7 +49,7 @@
         "required": "数量は必須です。",
         "outOfRange": "数量は 1〜999 の範囲で入力してください。"
       },
-      "description": "S-2 カート追加フォームの数量入力。"
+      "description": "S-2 カート追加フォームの数量入力。max=999 は @conv.limit.cartItemMaxQuantity 準拠 (schema 上 max は number 必須のため数値展開)。"
     },
     {
       "id": "cartItemCount",
@@ -57,7 +57,7 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "#,##0 点",
-      "description": "S-2 カート内の商品合計点数 (表示専用)。",
+      "description": "S-2 カート内の商品合計点数 (表示専用)。集計元はカート集計フロー (別途定義予定、processFlowId は将来明示予定)。",
       "valueFrom": {
         "kind": "flowVariable",
         "variableName": "cartItemCount"
@@ -69,7 +69,7 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "¥#,##0",
-      "description": "S-2 カート内の税抜合計金額 (表示専用)。",
+      "description": "S-2 カート内の税抜合計金額 (表示専用)。集計元はカート集計フロー (別途定義予定、processFlowId は将来明示予定)。",
       "valueFrom": {
         "kind": "flowVariable",
         "variableName": "cartTotalAmount"
