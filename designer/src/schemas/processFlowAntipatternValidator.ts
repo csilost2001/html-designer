@@ -152,10 +152,85 @@ function hasInvalidSequenceSyntax(value: string): boolean {
 
 /**
  * sql フィールド内にセミコロンで区切られた複数文が含まれるか検出する。
- * 末尾のセミコロンのみは許容 (= 末尾 ; を除去した後に ; が残れば複数文)。
+ *
+ * 文字列リテラル (`'...'`) / 行コメント (`-- ...`) / ブロックコメント (`/* ... *\/`) /
+ * PL/pgSQL ドル引用 (`$$ ... $$` / `$tag$ ... $tag$`) 内の `;` は false positive を
+ * 避けるため除外する。末尾のセミコロンのみも許容 (single statement の正常終端)。
  */
 function hasMultipleStatements(sql: string): boolean {
-  return sql.replace(/;\s*$/, "").includes(";");
+  // 末尾の空白 + セミコロンを剥がす
+  const trimmed = sql.replace(/[\s;]+$/, "");
+
+  let inString = false;
+  let inDollar = false;
+  let dollarTag = "";
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    const next = trimmed[i + 1];
+
+    if (inLineComment) {
+      if (ch === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inString) {
+      // SQL 標準のエスケープ '' (シングルクォート 2 連続)
+      if (ch === "'" && next === "'") {
+        i++;
+        continue;
+      }
+      if (ch === "'") inString = false;
+      continue;
+    }
+    if (inDollar) {
+      if (ch === "$" && trimmed.slice(i, i + dollarTag.length) === dollarTag) {
+        inDollar = false;
+        i += dollarTag.length - 1;
+        dollarTag = "";
+      }
+      continue;
+    }
+
+    // コメント / 文字列 / ドル引用の開始
+    if (ch === "-" && next === "-") {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+    if (ch === "'") {
+      inString = true;
+      continue;
+    }
+    if (ch === "$") {
+      // $$ または $tag$ パターン
+      const m = trimmed.slice(i).match(/^\$([a-zA-Z_]\w*)?\$/);
+      if (m) {
+        dollarTag = m[0];
+        inDollar = true;
+        i += dollarTag.length - 1;
+        continue;
+      }
+    }
+
+    // クォート / コメント / ドル引用の外側で `;` 検出 → 複数文
+    if (ch === ";") return true;
+  }
+
+  return false;
 }
 
 // ─── walkSteps ──────────────────────────────────────────────────────────────

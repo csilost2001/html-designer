@@ -228,4 +228,95 @@ describe("Check 23: MULTIPLE_STATEMENTS_IN_SQL", () => {
     const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
     expect(found).toHaveLength(0);
   });
+
+  it("negative: 文字列リテラル内の `;` は単一文扱い (false positive 防止)", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "SELECT * FROM users WHERE name = 'a;b' AND status = 'ok'",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found).toHaveLength(0);
+  });
+
+  it("negative: SQL 標準のエスケープシングルクォート '' を含む文字列リテラル", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "SELECT * FROM users WHERE comment = 'it''s a; test'",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found).toHaveLength(0);
+  });
+
+  it("negative: 行コメント `--` 内の `;` は単一文扱い", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "SELECT id FROM orders -- TODO: optimize; index hint\nWHERE customer_id = @customerId",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found).toHaveLength(0);
+  });
+
+  it("negative: ブロックコメント `/* */` 内の `;` は単一文扱い", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "SELECT id /* multi-line; with; semicolons */ FROM orders WHERE id = @orderId",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found).toHaveLength(0);
+  });
+
+  it("negative: PL/pgSQL ドル引用 `$$ ... $$` 内の `;` は単一文扱い", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "DO $$ BEGIN UPDATE accounts SET balance = balance + 100; UPDATE accounts SET locked = true; END $$",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found).toHaveLength(0);
+  });
+
+  it("negative: タグ付きドル引用 `$tag$ ... $tag$` 内の `;` は単一文扱い", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "CREATE FUNCTION f() RETURNS void AS $body$ BEGIN UPDATE x SET v = 1; END $body$ LANGUAGE plpgsql",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found).toHaveLength(0);
+  });
+
+  it("positive: ドル引用ブロックの後に別文がある場合は複数文として検出", () => {
+    const step = {
+      kind: "dbAccess",
+      id: "step-1",
+      sql: "DO $$ BEGIN UPDATE x SET v = 1; END $$; SELECT 1",
+    };
+    const flow = makeFlow([step]);
+    const rawJson = JSON.stringify(flow, null, 2);
+    const issues = checkAntipatterns(flow, rawJson);
+    const found = issues.filter((i) => i.code === "MULTIPLE_STATEMENTS_IN_SQL");
+    expect(found.length).toBeGreaterThan(0);
+  });
 });
