@@ -657,6 +657,73 @@ describe("#734 screen-item Ref フィールド検証", () => {
   });
 });
 
+describe("#734 checkStep — validation rules[].minRef/maxRef/lengthRef 検査", () => {
+  // checkConventionReferences 経由で checkStep 内の rules Ref フィールドを検査する
+  const catalog: ConventionsCatalog = {
+    version: "1.0.0",
+    limit: {
+      cartItemMaxQuantity: { value: 999, unit: "integer" },
+    },
+  };
+
+  it("rules[].lengthRef が未登録 → UNKNOWN_CONV_LIMIT 検出 (#734 review S-1)", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{
+            id: "s1", kind: "validation", description: "", conditions: "",
+            rules: [{ field: "x", type: "maxLength", message: "エラー", lengthRef: "@conv.limit.unknownKey" }],
+          }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "actions[0].steps[0].rules[0].lengthRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+
+  it("rules[].minRef が未登録 → UNKNOWN_CONV_LIMIT 検出 (#734 review S-1)", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{
+            id: "s1", kind: "validation", description: "", conditions: "",
+            rules: [{ field: "x", type: "min", message: "エラー", minRef: "@conv.limit.unknownKey" }],
+          }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "actions[0].steps[0].rules[0].minRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+
+  it("rules[].maxRef が未登録 → UNKNOWN_CONV_LIMIT 検出 (#734 review S-1)", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{
+            id: "s1", kind: "validation", description: "", conditions: "",
+            rules: [{ field: "x", type: "max", message: "エラー", maxRef: "@conv.limit.unknownKey" }],
+          }],
+        }],
+      }),
+      catalog,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "actions[0].steps[0].rules[0].maxRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+});
+
 describe("checkConventionReferences — サンプル (docs/sample-project/process-flows/*.json) 横断", () => {
   const catalog = loadCatalog();
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
