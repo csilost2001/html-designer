@@ -32,6 +32,10 @@
         "maxLength": { "type": "integer", "minimum": 0 },
         "min": { "type": "number" },
         "max": { "type": "number" },
+        "minLengthRef": { "type": "string", "description": "@conv.limit.<key> 参照 (minLength の代替)。loader が integer 値に展開する。" },
+        "maxLengthRef": { "type": "string", "description": "@conv.limit.<key> 参照 (maxLength の代替)。loader が integer 値に展開する。" },
+        "minRef": { "type": "string", "description": "@conv.limit.<key> 参照 (min の代替)。loader が number 値に展開する。" },
+        "maxRef": { "type": "string", "description": "@conv.limit.<key> 参照 (max の代替)。loader が number 値に展開する。" },
         "step": { "type": "number" },
         "pattern": { "type": "string", "description": "正規表現または @conv.regex.<key> 参照。" },
         "options": {

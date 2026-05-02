@@ -33,12 +33,12 @@
       "direction": "input",
       "required": true,
       "min": 1,
-      "max": 999,
+      "maxRef": "@conv.limit.cartItemMaxQuantity",
       "errorMessages": {
         "required": "数量は必須です。",
         "outOfRange": "数量は 1〜999 の範囲で入力してください。"
       },
-      "description": "S-2 カート追加フォームの数量入力。max=999 は @conv.limit.cartItemMaxQuantity 準拠 (schema 上 max は number 必須のため数値展開)。"
+      "description": "S-2 カート追加フォームの数量入力。maxRef で @conv.limit.cartItemMaxQuantity (999) を参照 (#734)。"
     },
     {
       "id": "cartItemCount",

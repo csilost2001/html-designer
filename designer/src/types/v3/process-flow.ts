@@ -173,6 +173,8 @@ export interface ValidationRule {
   minRef?: string;
   /** `@conv.limit.<key>` 参照。 */
   maxRef?: string;
+  /** `@conv.limit.<key>` 参照 (length の代替)。loader 段階で integer 値に展開される。 */
+  lengthRef?: string;
   values?: string[];
   condition?: ExpressionString;
   /** 違反メッセージ (`@conv.msg.<key>` 推奨)。 */

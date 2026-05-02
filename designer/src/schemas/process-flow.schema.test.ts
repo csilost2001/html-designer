@@ -2465,3 +2465,68 @@ describe("process-flow.schema.json — extensions 合成 (#444)", () => {
     expect(ok).toBe(true);
   });
 });
+
+// ── v3 schema テスト (#734) ────────────────────────────────────────────────
+
+describe("process-flow.v3.schema.json — ValidationRule.lengthRef (#734)", () => {
+  let validateV3: ValidateFunction;
+
+  beforeAll(() => {
+    const v3Dir = resolve(repoRoot, "schemas/v3");
+    const localAjv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(localAjv);
+    // common.v3 と screen-item.v3 を addSchema して $ref 解決
+    localAjv.addSchema(
+      JSON.parse(readFileSync(resolve(v3Dir, "common.v3.schema.json"), "utf-8")) as object,
+    );
+    localAjv.addSchema(
+      JSON.parse(readFileSync(resolve(v3Dir, "screen-item.v3.schema.json"), "utf-8")) as object,
+    );
+    validateV3 = localAjv.compile(
+      JSON.parse(readFileSync(resolve(v3Dir, "process-flow.v3.schema.json"), "utf-8")) as object,
+    );
+  });
+
+  /** v3 ProcessFlow の最小有効フィクスチャ */
+  const baseV3Meta = () => ({
+    id: "aaaaaaaa-0000-4000-8000-000000000001",
+    name: "テストフロー",
+    kind: "screen",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  /** ValidationStep 1 件を含む v3 ProcessFlow フィクスチャ */
+  const makeV3WithValidationRules = (rules: unknown[]) => ({
+    $schema: "../../../schemas/v3/process-flow.v3.schema.json",
+    meta: baseV3Meta(),
+    actions: [{
+      id: "act-001",
+      name: "テスト",
+      trigger: "submit",
+      description: "テスト用アクション",
+      steps: [{
+        id: "s-001",
+        kind: "validation",
+        description: "入力バリデーション",
+        rules,
+      }],
+    }],
+  });
+
+  it("ValidationRule.lengthRef accept — @conv.limit 参照文字列 (length と併用)", () => {
+    const ok = validateV3(makeV3WithValidationRules([
+      { field: "productCode", type: "maxLength", length: 20, lengthRef: "@conv.limit.productCodeMaxLength" },
+    ]));
+    if (!ok) throw new Error(JSON.stringify(validateV3.errors));
+    expect(ok).toBe(true);
+  });
+
+  it("ValidationRule.lengthRef のみ (length 省略) も accept", () => {
+    const ok = validateV3(makeV3WithValidationRules([
+      { field: "productCode", type: "maxLength", lengthRef: "@conv.limit.productCodeMaxLength" },
+    ]));
+    if (!ok) throw new Error(JSON.stringify(validateV3.errors));
+    expect(ok).toBe(true);
+  });
+});

@@ -551,6 +551,7 @@
         "max": { "type": "number" },
         "minRef": { "type": "string", "description": "@conv.limit.<key> 参照 (min の代替)。" },
         "maxRef": { "type": "string", "description": "@conv.limit.<key> 参照 (max の代替)。" },
+        "lengthRef": { "type": "string", "description": "@conv.limit.<key> 参照 (length の代替)。loader が integer 値に展開する。" },
         "values": { "type": "array", "items": { "type": "string" } },
         "condition": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
         "message": { "type": "string", "description": "違反メッセージ (@conv.msg.<key> 推奨)。" }

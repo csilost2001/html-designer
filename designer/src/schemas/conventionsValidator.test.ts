@@ -566,6 +566,97 @@ describe("checkScreenItemConventionReferences", () => {
   });
 });
 
+describe("#734 screen-item Ref フィールド検証", () => {
+  // catalog に limit.cartItemMaxQuantity (value: 999) が存在することを前提とする inline catalog
+  const catalog: ConventionsCatalog = {
+    version: "1.0.0",
+    limit: {
+      cartItemMaxQuantity: { value: 999, unit: "integer" },
+      productCodeMaxLength: { value: 20, unit: "char" },
+    },
+  };
+
+  it("items[].maxRef が @conv.limit.<key> として参照存在検査 — 有効 key → pass", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("qty"), label: "数量", type: "integer", maxRef: "@conv.limit.cartItemMaxQuantity" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("items[].maxRef に未登録 key → UNKNOWN_CONV_LIMIT 検出", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("qty"), label: "数量", type: "integer", maxRef: "@conv.limit.noSuchKey" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_LIMIT");
+    expect(issues[0].path).toBe("items[0].maxRef");
+  });
+
+  it("items[].minRef が @conv.limit.<key> として参照存在検査 — 有効 key → pass", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("qty"), label: "数量", type: "integer", minRef: "@conv.limit.cartItemMaxQuantity" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("items[].minRef に未登録 key → UNKNOWN_CONV_LIMIT 検出", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("qty"), label: "数量", type: "integer", minRef: "@conv.limit.noSuchKey" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_LIMIT");
+    expect(issues[0].path).toBe("items[0].minRef");
+  });
+
+  it("items[].maxLengthRef が @conv.limit.<key> として参照存在検査 — 有効 key → pass", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("code"), label: "コード", type: "string", maxLengthRef: "@conv.limit.productCodeMaxLength" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("items[].maxLengthRef に未登録 key → UNKNOWN_CONV_LIMIT 検出", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("code"), label: "コード", type: "string", maxLengthRef: "@conv.limit.noSuchKey" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_LIMIT");
+    expect(issues[0].path).toBe("items[0].maxLengthRef");
+  });
+
+  it("items[].minLengthRef が @conv.limit.<key> として参照存在検査 — 有効 key → pass", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("code"), label: "コード", type: "string", minLengthRef: "@conv.limit.cartItemMaxQuantity" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("items[].minLengthRef に未登録 key → UNKNOWN_CONV_LIMIT 検出", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("code"), label: "コード", type: "string", minLengthRef: "@conv.limit.noSuchKey" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_LIMIT");
+    expect(issues[0].path).toBe("items[0].minLengthRef");
+  });
+
+  it("Ref フィールドが文字列でない場合 (undefined) は検査スキップ", () => {
+    const file = makeScreenItemsDocument({
+      items: [{ id: id("qty"), label: "数量", type: "integer" }],
+    });
+    const issues = checkScreenItemConventionReferences(file, catalog);
+    expect(issues).toHaveLength(0);
+  });
+});
+
 describe("checkConventionReferences — サンプル (docs/sample-project/process-flows/*.json) 横断", () => {
   const catalog = loadCatalog();
   const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
