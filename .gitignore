@@ -49,6 +49,11 @@ data/
 !data/extensions/
 !data/extensions/**
 
+# User / AI workspace area (gitignored, default for new workspace)
+/workspaces/
+!/workspaces/README.md
+!/workspaces/.gitkeep
+
 # 編集中 draft ファイル (個人の作業中間状態、git 管理対象外)
 data/.drafts/
 

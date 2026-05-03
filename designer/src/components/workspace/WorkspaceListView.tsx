@@ -52,6 +52,11 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
   const [processing, setProcessing] = useState(false);
   const [pickedFolderHint, setPickedFolderHint] = useState<string | null>(null);
 
+  // デフォルトの新規作成推奨パス (サーバ側 workspaces/ ディレクトリ) をヒントとして表示するだけ。
+  // ブラウザの file picker では絶対パスを取得できないため、ここではプレースホルダ文字列のみ使用。
+  // 推奨パスは workspaces/<新規 wsId>/ (例: workspaces/my-project)
+  const defaultPathHint = "workspaces/my-project";
+
   const handleInspect = async () => {
     const trimmed = path.trim();
     if (!trimmed) return;
@@ -130,7 +135,7 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
               type="text"
               value={path}
               onChange={(e) => { setPath(e.target.value); setStatus("idle"); setInspectName(null); setErrorMsg(null); }}
-              placeholder="C:\work\my-project または /home/user/my-project"
+              placeholder={`workspaces/my-project (例: C:\\repos\\my-app\\${defaultPathHint})`}
               autoFocus
               style={{ flex: 1 }}
               onKeyDown={(e) => { if (e.key === "Enter") handleInspect(); }}
@@ -142,6 +147,11 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
             )}
           </div>
         </label>
+
+        <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
+          推奨: リポジトリ直下の <code>workspaces/</code> フォルダに新規作成してください (例: <code>workspaces/{defaultPathHint.split("/")[1]}</code>)。
+          任意の絶対パスも使用できます。
+        </p>
 
         {hasPickerSupport && (
           <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
