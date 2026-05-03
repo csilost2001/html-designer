@@ -21,17 +21,17 @@ examples/retail/
 ├── README.md                 # 本ファイル
 ├── screens/                  # 画面 (entity + GrapesJS design、画面項目定義 items[] を内包)
 ├── tables/                   # テーブル定義
-├── actions/                  # 処理フロー (旧称 process-flows、#393-#395 でリネーム)
+├── process-flows/            # 処理フロー
 ├── views/                    # SQL VIEW 定義
 ├── view-definitions/         # 一覧 UI viewer 定義
 ├── sequences/                # 採番シーケンス
-├── extensions/retail/        # retail namespace 拡張定義
+├── extensions/retail.v3.json # retail namespace 拡張定義 (v3 canonical combined format)
 └── conventions/              # 業務規約カタログ (retail 拡張含む)
 ```
 
 ## 採用拡張 namespace
 
-- `retail` — db-operations / field-types / steps / triggers / response-types を retail 業態に最適化
+- `retail` — fieldTypes / actionTriggers / dbOperations / stepKinds / responseTypes を v3 canonical combined format (`extensions/retail.v3.json`) に統合
 
 ## 開き方 (動作確認)
 

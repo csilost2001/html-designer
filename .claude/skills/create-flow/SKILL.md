@@ -52,8 +52,8 @@ ProcessFlow `$ARGUMENTS` を品質ガード付きで作成します。
 1. `docs/spec/process-flow-transaction.md` の §8 (TX 制御フロー)
 2. `docs/spec/process-flow-extensions.md` の §15 (拡張機構)
 3. `docs/spec/process-flow-runtime-conventions.md` の §13 (runtime conventions)
-4. 既存サンプル 1-2 件: `examples/retail/actions/` 配下の適切なシナリオと業務概要に近いシナリオ
-5. namespace 指定があれば `examples/<project-id>/extensions/<namespace>/*.json` を Read で確認 (既存拡張定義の把握)
+4. 既存サンプル 1-2 件: `examples/retail/process-flows/` 配下の適切なシナリオと業務概要に近いシナリオ
+5. namespace 指定があれば `examples/<project-id>/extensions/<namespace>.v3.json` を Read で確認 (既存拡張定義の把握)
 
 ## Step 2: 必須セクション チェックリスト
 

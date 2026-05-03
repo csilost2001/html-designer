@@ -9,7 +9,7 @@
  *  - examples/<project>/screens/<uuid>.json
  *  - examples/<project>/screen-items/<screenId>.json
  *  - examples/<project>/tables/<uuid>.json
- *  - examples/<project>/actions/<uuid>.json (= process-flows)
+ *  - examples/<project>/process-flows/<uuid>.json
  *  - examples/<project>/views/<uuid>.json
  *  - examples/<project>/view-definitions/<uuid>.json
  *  - examples/<project>/sequences/<uuid>.json
@@ -35,7 +35,7 @@ const ENTITY_TO_SCHEMA: Record<string, string> = {
   screens: "screen.v3.schema.json",
   "screen-items": "screen-item.v3.schema.json",
   tables: "table.v3.schema.json",
-  actions: "process-flow.v3.schema.json",
+  "process-flows": "process-flow.v3.schema.json",
   views: "view.v3.schema.json",
   "view-definitions": "view-definition.v3.schema.json",
   sequences: "sequence.v3.schema.json",
@@ -117,18 +117,27 @@ function collectFiles(projectDir: string): FileEntry[] {
     }
   }
 
-  // extensions/<namespace>/*.json
+  // extensions/ — v3 canonical format: <namespace>.v3.json (flat) or legacy <namespace>/<type>.json (subdirectory)
   const extDir = join(projectDir, "extensions");
   if (existsSync(extDir)) {
-    for (const ns of readdirSync(extDir)) {
-      const nsDir = join(extDir, ns);
-      if (!statSync(nsDir).isDirectory()) continue;
-      for (const f of readdirSync(nsDir)) {
-        if (!f.endsWith(".json")) continue;
+    for (const entry of readdirSync(extDir)) {
+      const entryPath = join(extDir, entry);
+      if (statSync(entryPath).isDirectory()) {
+        // legacy per-type subdirectory format
+        for (const f of readdirSync(entryPath)) {
+          if (!f.endsWith(".json")) continue;
+          entries.push({
+            filePath: join(entryPath, f),
+            schemaFile: "extensions.v3.schema.json",
+            relativePath: `extensions/${entry}/${f}`,
+          });
+        }
+      } else if (entry.endsWith(".json")) {
+        // v3 canonical combined format: <namespace>.v3.json
         entries.push({
-          filePath: join(nsDir, f),
+          filePath: entryPath,
           schemaFile: "extensions.v3.schema.json",
-          relativePath: `extensions/${ns}/${f}`,
+          relativePath: `extensions/${entry}`,
         });
       }
     }

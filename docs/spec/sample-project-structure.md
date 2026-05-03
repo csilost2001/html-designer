@@ -20,10 +20,8 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 
 | 現行プロジェクト | 配置先 | 備考 |
 |---|---|---|
-| retail | `examples/retail/` | v3 schema / actions/ ディレクトリ |
+| retail | `examples/retail/` | v3 schema / process-flows/ ディレクトリ |
 | realestate | `examples/realestate/` | v3 schema / process-flows/ ディレクトリ |
-
-> **注意**: `examples/retail/` は `actions/` ディレクトリを使用し、`examples/realestate/` は `process-flows/` ディレクトリを使用する。現状 2 つの命名が混在しているが、本 PR では統一しない (将来の別 ISSUE で対処)。
 
 ## プロジェクトに含まれる成果物
 
@@ -35,7 +33,7 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 |---|---|---|
 | `project.json` | `schemas/v3/project.v3.schema.json` | プロジェクトメタデータ (ID / 名称 / 説明 / 成熟度 / 作成日 / 更新日) |
 | `tables/*.json` | `schemas/v3/table.v3.schema.json` | テーブル定義群 |
-| `actions/*.json` または `process-flows/*.json` | `schemas/v3/process-flow.v3.schema.json` | 処理フロー群 |
+| `process-flows/*.json` | `schemas/v3/process-flow.v3.schema.json` | 処理フロー群 |
 | `extensions/<namespace>.v3.json` | `schemas/v3/extensions.v3.schema.json` | 拡張定義 (namespace 単位、v3 canonical combined format) |
 | `conventions/catalog.json` | `schemas/v3/conventions.v3.schema.json` | 規約カタログ (v3 canonical パス) |
 
@@ -52,7 +50,8 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 |---|---|---|
 | `screen-items/<screenId>.json` | Phase 4-β で廃止 (#712) | `screens/<screenId>.json` の `items[]` に embed |
 | `conventions-catalog.v3.json` (プロジェクトルート直下) | #774 で非推奨 (旧 dogfood パス) | `conventions/catalog.json` |
-| `extensions/<namespace>/<type>.json` (種別ごと別ファイル) | レガシー形式 (retail で残存、別 ISSUE で migrate 候補) | `extensions/<namespace>.v3.json` (combined format) |
+| `extensions/<namespace>/<type>.json` (種別ごと別ファイル) | 廃止 — retail で v3 canonical combined に移行済み | `extensions/<namespace>.v3.json` (combined format) |
+| `actions/` (旧フロー DIR 命名) | 廃止 — retail で process-flows/ に移行済み | `process-flows/` |
 | `docs/sample-project-v3/<project>/` | #774 で廃止 | `examples/<project-id>/` |
 | `docs/sample-project/` (v1) | #774 で廃止 | 削除 (git log で参照可) |
 | `docs/legacy-sample-project/` | #774 で廃止 | 削除 (git log で参照可) |
@@ -93,9 +92,9 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 - `validate:samples` は `*.v3.json` ファイルをこの形式として読み込む
 - `namespace` フィールドが必須 (referentialIntegrity 検証で `<namespace>:<name>` 形式の参照解決に使用)
 
-### レガシー形式 (retail で残存、migrate 候補)
+### レガシー形式 (廃止済み)
 
-`extensions/<namespace>/field-types.json` / `triggers.json` / `db-operations.json` / `steps.json` / `response-types.json` — 種別ごと別ファイルの旧形式。`validate:samples` はこの形式も読み込むが、新規サンプルでは combined format を使用すること。
+`extensions/<namespace>/field-types.json` / `triggers.json` / `db-operations.json` / `steps.json` / `response-types.json` — 種別ごと別ファイルの旧形式。retail サンプルは `retail.v3.json` への移行が完了済み。新規サンプルでは combined format のみ使用すること。
 
 ## 規約カタログ (conventions) の canonical パス
 
