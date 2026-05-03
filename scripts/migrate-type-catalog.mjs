@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULT_TARGET = "data/process-flows";
-const SAMPLE_TARGET = "docs/sample-project/process-flows";
+const SAMPLE_TARGET = "examples/retail/actions";
 const TARGET_FILE_RE = /^cccccccc-000[5-8]-.*\.json$/;
 
 function parseArgs(argv) {

@@ -14,7 +14,7 @@
  *   node scripts/migrate-response-body-schema.mjs [--apply] [dir...]
  *
  *   --apply  : ファイルを上書き (省略時は dry-run)
- *   dir...   : 対象ディレクトリ (省略時は docs/sample-project/process-flows data/process-flows)
+ *   dir...   : 対象ディレクトリ (省略時は examples/retail/actions data/process-flows)
  */
 
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
@@ -27,7 +27,7 @@ const dirs = process.argv
 
 if (dirs.length === 0) {
   dirs.push(
-    resolve("docs/sample-project/process-flows"),
+    resolve("examples/retail/actions"),
     resolve("data/process-flows"),
   );
 }
