@@ -342,7 +342,7 @@ ProcessFlow 内部にある `typeCatalog` を本仕様の `response-types.json` 
 | TypeScript 型 | `designer/src/types/action.ts` | `ProcessFlow.typeCatalog` 削除 |
 | **クロスリファレンス検証** | `designer/src/schemas/referentialIntegrity.ts` | `typeRef` の解決先を `group.typeCatalog` から**グローバル extensions** に変更 |
 | 同テスト | `designer/src/schemas/referentialIntegrity.test.ts` | typeCatalog ベースのテスト 2 件を extensions ベースに書き換え |
-| Schema テスト | `designer/src/schemas/process-flow.schema.test.ts` | typeCatalog 関連 2 ブロック (#261 v1.3) 削除 or 書き換え |
+| Schema テスト | `designer/src/schemas/samples-v3.schema.test.ts` | typeCatalog 関連テストを v3 extensions ベースに更新 (v1 凍結テストは削除済み — 現行は `samples-v3.schema.test.ts` / `v3-variant-coverage.test.ts`) |
 | UI コンポーネント | `designer/src/components/process-flow/TypeCatalogPanel.tsx` | 削除 |
 | UI 統合 | `designer/src/components/process-flow/ActionMetaTabBar.tsx` | typeCatalog タブ削除 |
 | MCP ツール | `designer-mcp/src/tools.ts` | `CatalogName` enum から `typeCatalog` 削除 + 新 `add_response_type_extension` 追加 |

@@ -5,7 +5,7 @@
  * - Branded types が正しく解決される
  * - Step discriminated union が kind narrowing で機能する
  * - WorkflowApprover の order semantics が JSDoc で参照可能 (型は number)
- * - sample-project-v3 の実 JSON と TS 型の互換性 (parseable)
+ * - examples/<project-id>/ (現行 canonical サンプル) の実 JSON と TS 型の互換性 (parseable)
  */
 
 import { describe, it, expect } from "vitest";

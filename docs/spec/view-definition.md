@@ -320,9 +320,24 @@ Screen は `items[]` の `direction: "viewer"` screen-item から `viewDefinitio
 - Level 3 では SQL 結果に対応する table 列が必ずしも 1:1 で対応しないため (例: ROW_NUMBER の rn 列は table 由来ではない)。
 - 省略時は `name + type` のみで列を宣言する。型整合は設計者が保証 (validator は走らせない)。
 
+### (D-5) SQL SELECT 句の列は `AS "<camelCase>"` alias 必須 (#775)
+
+ProcessFlow の `dbAccess.sql` で SELECT した列が ViewDefinition の `columns[].name` (camelCase Identifier) へ直接バインドされる場合 (viewer screen-item の `valueFrom.flowVariable` 経由) は、**SQL 内で明示 alias により名前を一致させる**。
+
+> **規約**: SQL SELECT 句で DB 物理名 (snake_case) と `columns[].name` (camelCase) が異なる列は `AS "<camelCase>"` で alias 必須。
+>
+> 例: `SELECT p.unit_price AS "unitPrice", p.product_code AS "productCode" FROM products p`
+
+**理由**: snake_case 物理名 (`unit_price`) と camelCase Identifier (`unitPrice`) を runtime で暗黙変換すると validator で検出不能なバインドミスが発生する。明示 alias で SQL ↔ ViewDefinition binding を構文上確定させ、sqlColumnValidator の整合チェック対象に含める。
+
+**適用範囲**:
+- `dbAccess` の SQL 出力が ViewDefinition `columns[].name` と直接バインドされる SELECT 句のみ
+- 中間 compute step を挟む場合は compute 式の key で変換してもよいが、SQL alias で統一する方が明示的
+- 既存フローへの適用例: `examples/retail/process-flows/267e94bf-...json` / `examples/realestate/process-flows/d4b5c6e7-...json`
+
 ## validator 観点 (11 件、#745 反映)
 
-`viewDefinitionValidator.ts` が次の観点を検出する。Phase 4 PR #656 で 9 件登録され、PR #745 で Level 2 / Level 3 対応に伴い 2 件追加 (合計 11 観点)。`validate-dogfood` の登録 8 番目。
+`viewDefinitionValidator.ts` が次の観点を検出する。Phase 4 PR #656 で 9 件登録され、PR #745 で Level 2 / Level 3 対応に伴い 2 件追加 (合計 11 観点)。`validate:samples` の登録 9 番目 (`npm run validate:samples -- <projectDir>`)。
 
 | issue code | severity | 検出内容 |
 |---|---|---|
