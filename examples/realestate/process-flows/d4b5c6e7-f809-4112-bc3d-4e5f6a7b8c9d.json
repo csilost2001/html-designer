@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "d4b5c6e7-f809-4112-bc3d-4e5f6a7b8c9d",
     "name": "物件検索",

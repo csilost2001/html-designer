@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../schemas/v3/table.v3.schema.json",
   "id": "c3a4b5d6-e7f8-4091-ab2c-3d4e5f6a7b8c",
   "name": "物件マスタ",
   "physicalName": "properties",
