@@ -167,7 +167,7 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `examples/retail/actions/*.json` は `samples-v3.schema.test.ts` が担当。サンプル全体の runtime 契約検証は `npm run validate:samples -- ../examples/<project-id>` で実行。
+検証テスト: `examples/retail/process-flows/*.json` は `samples-v3.schema.test.ts` が担当。サンプル全体の runtime 契約検証は `npm run validate:samples -- ../examples/<project-id>` で実行。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 

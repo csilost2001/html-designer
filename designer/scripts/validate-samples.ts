@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * examples/<project-id>/ 形式 (examples/retail 等) を 1 プロジェクトとして検証するスクリプト (#709)。
- * actions/ または process-flows/ ディレクトリ命名と conventions/catalog.json 配置に対応したプロジェクト単位検証スクリプト。
+ * process-flows/ ディレクトリ命名と conventions/catalog.json 配置に対応したプロジェクト単位検証スクリプト。
  * examples/<project-id>/ を canonical サンプル領域として検証する (#774)。
  *
  * 使用法:
@@ -153,9 +153,7 @@ function discoverProject(projectDirArg: string): ProjectResources {
     screens: loadScreensFromDir(join(projectDir, "screens")),
     viewDefinitions: loadViewDefinitionsFromDir(join(projectDir, "view-definitions")),
     screenTransitions: loadScreenTransitionsFromProjectJson(projectDir),
-    flowsDir: existsSync(join(projectDir, "actions"))
-      ? join(projectDir, "actions")
-      : join(projectDir, "process-flows"),
+    flowsDir: join(projectDir, "process-flows"),
   };
 }
 
@@ -174,19 +172,6 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
     dbOperations: { namespace: "", dbOperations: [] },
     responseTypes: { namespace: "", responseTypes: {} },
   };
-
-  function withNamespace(namespace: string, key: string): string {
-    return namespace ? `${namespace}:${key}` : key;
-  }
-
-  function mergeObjectExtension(target: Record<string, unknown>, raw: Record<string, unknown>, bodyKey: string): void {
-    const namespace = typeof raw.namespace === "string" ? raw.namespace : "";
-    const body = raw[bodyKey];
-    if (!body || typeof body !== "object" || Array.isArray(body)) return;
-    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
-      target[withNamespace(namespace, key)] = value;
-    }
-  }
 
   const extDir = join(projectDir, "extensions");
   if (existsSync(extDir)) {
@@ -213,11 +198,12 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
             bundle.responseTypes.namespace = namespace;
           }
           if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
-          if (Array.isArray(raw.triggers)) bundle.triggers.triggers.push(...raw.triggers);
+          // v3 schema では actionTriggers キーを使用 (TriggerDef 配列)
+          if (Array.isArray(raw.actionTriggers)) bundle.triggers.triggers.push(...raw.actionTriggers);
           if (Array.isArray(raw.dbOperations)) bundle.dbOperations.dbOperations.push(...raw.dbOperations);
-          if (raw.steps && typeof raw.steps === "object" && !Array.isArray(raw.steps)) {
-            // steps は Record — load* が namespace prefix を付けるため ここでは raw.steps の中身をそのまま積む
-            for (const [key, value] of Object.entries(raw.steps as Record<string, unknown>)) {
+          if (raw.stepKinds && typeof raw.stepKinds === "object" && !Array.isArray(raw.stepKinds)) {
+            // stepKinds は Record — load* が namespace prefix を付けるため ここでは raw.stepKinds の中身をそのまま積む
+            for (const [key, value] of Object.entries(raw.stepKinds as Record<string, unknown>)) {
               bundle.steps.steps[key] = value;
             }
           }
@@ -227,25 +213,6 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
               bundle.responseTypes.responseTypes[key] = value;
             }
           }
-          continue; // legacy switch 経路をスキップ
-        }
-
-        switch (basename(file)) {
-          case "field-types.json":
-            if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
-            break;
-          case "triggers.json":
-            if (Array.isArray(raw.triggers)) bundle.triggers.triggers.push(...raw.triggers);
-            break;
-          case "db-operations.json":
-            if (Array.isArray(raw.dbOperations)) bundle.dbOperations.dbOperations.push(...raw.dbOperations);
-            break;
-          case "steps.json":
-            mergeObjectExtension(bundle.steps.steps, raw, "steps");
-            break;
-          case "response-types.json":
-            mergeObjectExtension(bundle.responseTypes.responseTypes, raw, "responseTypes");
-            break;
         }
       } catch {
         // 個別 extension の読み込みエラーは validator 側の互換性維持のため無視する。
@@ -490,11 +457,11 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
     results.push(validateOne(filePath, displayName, flow, rawJson));
   }
 
-  // ProcessFlow が 1 件も見つからない場合は構造エラー (actions/ / process-flows/ の欠落または空)
+  // ProcessFlow が 1 件も見つからない場合は構造エラー (process-flows/ の欠落または空)
   if (flows.length === 0) {
     throw new Error(
       `[validate:samples] 必須リソース不足: ${project.displayName} に ProcessFlow が 0 件です。` +
-      `actions/ または process-flows/ ディレクトリに .json ファイルを配置してください。` +
+      `process-flows/ ディレクトリに .json ファイルを配置してください。` +
       `(docs/spec/sample-project-structure.md の必須リソース表を参照)`,
     );
   }

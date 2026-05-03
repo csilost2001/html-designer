@@ -205,7 +205,7 @@ describe("v3 TS 型 と examples/ JSON の compatibility", () => {
 
   it("retail 在庫照会フローを ProcessFlow 型として parse できる + Step narrow", () => {
     const flow = loadJson<ProcessFlow>(
-      join(examplesDir, "retail/actions/267e94bf-0397-44b8-b665-d3c40c38935b.json"),
+      join(examplesDir, "retail/process-flows/267e94bf-0397-44b8-b665-d3c40c38935b.json"),
     );
     expect(flow.meta.kind).toBe("common");
     const firstStep: Step = flow.actions[0].steps[0];

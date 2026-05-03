@@ -9,11 +9,11 @@
  *  - examples/<project>/screens/<uuid>.json
  *  - examples/<project>/screen-items/<screenId>.json
  *  - examples/<project>/tables/<uuid>.json
- *  - examples/<project>/actions/<uuid>.json (= process-flows)
+ *  - examples/<project>/process-flows/<uuid>.json
  *  - examples/<project>/views/<uuid>.json
  *  - examples/<project>/view-definitions/<uuid>.json
  *  - examples/<project>/sequences/<uuid>.json
- *  - examples/<project>/extensions/<namespace>/*.json
+ *  - examples/<project>/extensions/<namespace>.v3.json (canonical combined format)
  *  - examples/<project>/conventions/*.json
  *  - examples/<project>/screen-layout.json (任意)
  */
@@ -35,7 +35,7 @@ const ENTITY_TO_SCHEMA: Record<string, string> = {
   screens: "screen.v3.schema.json",
   "screen-items": "screen-item.v3.schema.json",
   tables: "table.v3.schema.json",
-  actions: "process-flow.v3.schema.json",
+  "process-flows": "process-flow.v3.schema.json",
   views: "view.v3.schema.json",
   "view-definitions": "view-definition.v3.schema.json",
   sequences: "sequence.v3.schema.json",
@@ -117,20 +117,16 @@ function collectFiles(projectDir: string): FileEntry[] {
     }
   }
 
-  // extensions/<namespace>/*.json
+  // extensions/ — v3 canonical format: <namespace>.v3.json (flat combined)
   const extDir = join(projectDir, "extensions");
   if (existsSync(extDir)) {
-    for (const ns of readdirSync(extDir)) {
-      const nsDir = join(extDir, ns);
-      if (!statSync(nsDir).isDirectory()) continue;
-      for (const f of readdirSync(nsDir)) {
-        if (!f.endsWith(".json")) continue;
-        entries.push({
-          filePath: join(nsDir, f),
-          schemaFile: "extensions.v3.schema.json",
-          relativePath: `extensions/${ns}/${f}`,
-        });
-      }
+    for (const entry of readdirSync(extDir)) {
+      if (!entry.endsWith(".json")) continue;
+      entries.push({
+        filePath: join(extDir, entry),
+        schemaFile: "extensions.v3.schema.json",
+        relativePath: `extensions/${entry}`,
+      });
     }
   }
 
