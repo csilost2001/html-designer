@@ -133,6 +133,12 @@
           "label": "件数",
           "type": "integer",
           "description": "返却された在庫レコードの総件数。"
+        },
+        {
+          "name": "rows",
+          "label": "在庫一覧 (viewer 用)",
+          "type": { "kind": "array", "itemType": "json" },
+          "description": "isLowStock フラグ付き在庫行の配列。画面 viewer 項目 (inventoryRows) の valueFrom.variableName='rows' で参照する (#771)。内容は items と同一 (inventoryItems 変数の alias)。"
         }
       ],
       "responses": [
@@ -343,6 +349,13 @@
           "description": "retail.inventory.searched イベントを発行する。",
           "topic": "retail.inventory.searched",
           "payload": "{ storeCode: @inputs.storeCode, productCode: @inputs.productCode, resultCount: @inventoryItems.length }"
+        },
+        {
+          "id": "step-09",
+          "kind": "compute",
+          "description": "viewer 用 rows 変数に inventoryItems を代入する。画面 viewer 項目 (inventoryRows) の valueFrom.variableName='rows' から参照される (#771)。",
+          "expression": "@inventoryItems",
+          "outputBinding": { "name": "rows" }
         },
         {
           "id": "step-10",
