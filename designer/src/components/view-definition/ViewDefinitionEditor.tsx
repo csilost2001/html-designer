@@ -187,7 +187,7 @@ export function ViewDefinitionEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate(wsPath("/view-definition/list")), [navigate, wsPath]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/view-definition/list"), { replace: true }), [navigate, wsPath]);
 
   // onLoaded: viewDefinition 読み込み時に UI state を初期化 (useEffect の代わり)
   const handleLoaded = useCallback((vd: ViewDefinition) => {

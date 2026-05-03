@@ -47,7 +47,7 @@ export function SequenceEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate(wsPath("/sequence/list")), [navigate, wsPath]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/sequence/list"), { replace: true }), [navigate, wsPath]);
 
   const sessionId = mcpBridge.getSessionId();
 

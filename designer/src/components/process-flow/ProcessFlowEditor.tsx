@@ -186,7 +186,7 @@ export function ProcessFlowEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate(wsPath("/process-flow/list")), [navigate, wsPath]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/process-flow/list"), { replace: true }), [navigate, wsPath]);
 
   const handleLoaded = useCallback((g: ProcessFlow) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));

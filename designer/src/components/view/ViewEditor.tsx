@@ -46,7 +46,7 @@ export function ViewEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate(wsPath("/view/list")), [navigate, wsPath]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/view/list"), { replace: true }), [navigate, wsPath]);
 
   const sessionId = mcpBridge.getSessionId();
 

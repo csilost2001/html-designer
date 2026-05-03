@@ -54,7 +54,7 @@ export function TableEditor() {
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
-  const handleNotFound = useCallback(() => navigate(wsPath("/table/list")), [navigate, wsPath]);
+  const handleNotFound = useCallback(() => navigate(wsPath("/table/list"), { replace: true }), [navigate, wsPath]);
 
   const sessionId = mcpBridge.getSessionId();
 

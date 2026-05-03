@@ -1,4 +1,5 @@
 import { recordError } from "../utils/errorLog";
+import { uiInfo } from "../utils/uiLog";
 
 const TABS_KEY = "designer-open-tabs";
 const ACTIVE_KEY = "designer-active-tab";
@@ -162,6 +163,7 @@ export function subscribe(listener: Listener): () => void {
 
 export function openTab(item: Omit<TabItem, "isDirty" | "isPinned">): void {
   const existing = _tabs.find((t) => t.id === item.id);
+  uiInfo("tabsync", existing ? "tab re-activate" : "tab open", { id: item.id, type: item.type, resourceId: item.resourceId });
   if (existing) {
     _tabs = _tabs.map((t) => (t.id === item.id ? { ...t, label: item.label } : t));
     _activeTabId = item.id;
@@ -179,6 +181,7 @@ export function closeTab(id: string, force = false): boolean {
   if (!tab) return true;
   if (tab.isDirty && !force) return false;
 
+  uiInfo("tabsync", "tab close", { id, type: tab.type, force, isDirty: tab.isDirty });
   const idx = _tabs.findIndex((t) => t.id === id);
   const newTabs = _tabs.filter((t) => t.id !== id);
   _tabs = newTabs;
@@ -193,6 +196,7 @@ export function closeTab(id: string, force = false): boolean {
 
 export function setActiveTab(id: string): void {
   if (_activeTabId === id) return;
+  uiInfo("tabsync", "setActiveTab", { from: _activeTabId, to: id });
   _activeTabId = id;
   _persist();
   _notify();
