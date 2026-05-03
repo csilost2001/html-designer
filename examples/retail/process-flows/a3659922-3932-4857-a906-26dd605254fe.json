@@ -65,7 +65,7 @@
           "description": "本日の注文件数と当日売上 (税込) を 1 クエリで集計する。COALESCE で 0 件時の NULL を 0 に正規化する。",
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
-          "sql": "SELECT COALESCE(SUM(total_amount + tax_amount), 0) AS today_sales, COUNT(*) AS orders_today FROM orders WHERE DATE(ordered_at) = CURRENT_DATE AND status != 'cancelled'",
+          "sql": "SELECT COALESCE(SUM(total_amount + tax_amount), 0) AS \"todaySales\", COUNT(*) AS \"ordersToday\" FROM orders WHERE DATE(ordered_at) = CURRENT_DATE AND status != 'cancelled'",
           "outputBinding": { "name": "ordersAgg" },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
@@ -77,7 +77,7 @@
           "description": "低在庫しきい値 (@conv.limit.lowStockThreshold) 以下の inventory 行数を集計する。",
           "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
           "operation": "SELECT",
-          "sql": "SELECT COUNT(*) AS low_stock_count FROM inventory WHERE quantity_available <= @conv.limit.lowStockThreshold",
+          "sql": "SELECT COUNT(*) AS \"lowStockCount\" FROM inventory WHERE quantity_available <= @conv.limit.lowStockThreshold",
           "outputBinding": { "name": "lowStockAgg" },
           "lineage": {
             "reads": [{ "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a", "purpose": "lookup" }]
@@ -89,7 +89,7 @@
           "description": "配送指示待ち (status IN ('pending', 'confirmed')) の注文件数を集計する。配送指示完了で 'shipped' に遷移するため、それ以前を待ち件数として扱う。",
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
-          "sql": "SELECT COUNT(*) AS dispatch_pending FROM orders WHERE status IN ('pending', 'confirmed')",
+          "sql": "SELECT COUNT(*) AS \"dispatchPending\" FROM orders WHERE status IN ('pending', 'confirmed')",
           "outputBinding": { "name": "dispatchAgg" },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
@@ -100,14 +100,14 @@
           "kind": "eventPublish",
           "description": "retail.dashboard.refreshed イベントを発行する。下流のメトリクス収集系で 4 KPI を参照可能にする。",
           "topic": "retail.dashboard.refreshed",
-          "payload": "{ todaySales: @ordersAgg.today_sales, ordersToday: @ordersAgg.orders_today, lowStockCount: @lowStockAgg.low_stock_count, dispatchPending: @dispatchAgg.dispatch_pending, requestId: @requestId }"
+          "payload": "{ todaySales: @ordersAgg.todaySales, ordersToday: @ordersAgg.ordersToday, lowStockCount: @lowStockAgg.lowStockCount, dispatchPending: @dispatchAgg.dispatchPending, requestId: @requestId }"
         },
         {
           "id": "step-05",
           "kind": "return",
           "description": "200 OK — 4 KPI を返す。",
           "responseId": "200-ok",
-          "bodyExpression": "{ todaySales: @ordersAgg.today_sales, ordersToday: @ordersAgg.orders_today, lowStockCount: @lowStockAgg.low_stock_count, dispatchPending: @dispatchAgg.dispatch_pending }"
+          "bodyExpression": "{ todaySales: @ordersAgg.todaySales, ordersToday: @ordersAgg.ordersToday, lowStockCount: @lowStockAgg.lowStockCount, dispatchPending: @dispatchAgg.dispatchPending }"
         }
       ]
     }

@@ -250,7 +250,7 @@
           "description": "inventory + products を JOIN して在庫一覧を取得する。productCode が指定された場合は product_id でフィルタ。",
           "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
           "operation": "SELECT",
-          "sql": "SELECT i.id, p.id AS product_id, p.product_code, p.name AS product_name, p.unit_price, s.id AS store_id, s.store_code, s.name AS store_name, i.quantity_available, i.quantity_reserved FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
+          "sql": "SELECT i.id, p.id AS \"productId\", p.product_code AS \"productCode\", p.name AS \"productName\", p.unit_price AS \"unitPrice\", s.id AS \"storeId\", s.store_code AS \"storeCode\", s.name AS \"storeName\", i.quantity_available AS \"quantityAvailable\", i.quantity_reserved AS \"quantityReserved\" FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
           "outputBinding": { "name": "inventoryRows" },
           "lineage": {
             "reads": [
@@ -301,8 +301,8 @@
         {
           "id": "step-06",
           "kind": "compute",
-          "description": "各在庫行に isLowStock フラグを付与する。quantity_available が lowStockThreshold 以下 (>=) の場合に true とすることでオフバイワンを回避する。",
-          "expression": "@inventoryRows.map(r => ({ id: r.id, productId: r.product_id, productCode: r.product_code, productName: r.product_name, unitPrice: r.unit_price, storeId: r.store_id, storeCode: r.store_code, storeName: r.store_name, quantityAvailable: r.quantity_available, quantityReserved: r.quantity_reserved, isLowStock: r.quantity_available <= @conv.limit.lowStockThreshold }))",
+          "description": "各在庫行に isLowStock フラグを付与する。SQL で AS alias 済のため camelCase キーを直接参照する。quantityAvailable が lowStockThreshold 以下の場合に true とすることでオフバイワンを回避する。",
+          "expression": "@inventoryRows.map(r => ({ ...r, isLowStock: r.quantityAvailable <= @conv.limit.lowStockThreshold }))",
           "outputBinding": { "name": "inventoryItems" }
         },
         {
@@ -331,7 +331,7 @@
                   "kind": "eventPublish",
                   "description": "retail.inventory.low_stock_detected イベントを発行する。下流コンシューマ (補充発注フロー等) が冪等に処理する前提。",
                   "topic": "retail.inventory.low_stock_detected",
-                  "payload": "{ storeCode: @inputs.storeCode, productId: @firstLowStockRow.id, quantityAvailable: @firstLowStockRow.quantity_available }"
+                  "payload": "{ storeCode: @inputs.storeCode, productId: @firstLowStockRow.id, quantityAvailable: @firstLowStockRow.quantityAvailable }"
                 }
               ]
             }

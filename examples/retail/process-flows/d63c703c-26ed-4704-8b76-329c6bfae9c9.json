@@ -216,7 +216,7 @@
           "description": "注文を取得する。配送指示対象は status が 'pending' または 'confirmed' のみ。",
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
-          "sql": "SELECT id, order_number, customer_id, status, total_amount, shipping_address FROM orders WHERE id = @inputs.orderId AND status IN ('pending', 'confirmed')",
+          "sql": "SELECT id, order_number AS \"orderNumber\", customer_id AS \"customerId\", status, total_amount AS \"totalAmount\", shipping_address AS \"shippingAddress\" FROM orders WHERE id = @inputs.orderId AND status IN ('pending', 'confirmed')",
           "outputBinding": { "name": "order" },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
@@ -271,7 +271,7 @@
           "config": {
             "carrierId": "@inputs.carrierId",
             "orderId": "@order.id",
-            "shippingAddress": "@order.shipping_address",
+            "shippingAddress": "@order.shippingAddress",
             "preferredDate": "@inputs.preferredDate",
             "timeSlot": "@inputs.timeSlot"
           },
@@ -361,14 +361,14 @@
           "kind": "eventPublish",
           "description": "retail.shipment.dispatched イベントを発行する。下流の出荷通知メール (retail:SendOrderConfirmEmail) や在庫 CDC が購読する。",
           "topic": "retail.shipment.dispatched",
-          "payload": "{ orderId: @order.id, orderNumber: @order.order_number, trackingNumber: @dispatchResult.trackingNumber, carrierId: @inputs.carrierId }"
+          "payload": "{ orderId: @order.id, orderNumber: @order.orderNumber, trackingNumber: @dispatchResult.trackingNumber, carrierId: @inputs.carrierId }"
         },
         {
           "id": "step-10",
           "kind": "return",
           "description": "200 OK — 配送指示成功を返す。",
           "responseId": "200-ok",
-          "bodyExpression": "{ orderId: @order.id, orderNumber: @order.order_number, trackingNumber: @dispatchResult.trackingNumber, carrierId: @inputs.carrierId, estimatedDelivery: @dispatchResult.estimatedDelivery }"
+          "bodyExpression": "{ orderId: @order.id, orderNumber: @order.orderNumber, trackingNumber: @dispatchResult.trackingNumber, carrierId: @inputs.carrierId, estimatedDelivery: @dispatchResult.estimatedDelivery }"
         }
       ]
     }
