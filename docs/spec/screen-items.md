@@ -5,7 +5,8 @@
 **凍結日 v1.0**: 2026-04-23
 **更新 v1.1**: 2026-04-24 — 出力項目の `displayFormat` / `valueFrom` 追加 (#377)
 **改訂日: 2026-04-28 (v3 反映)**: schema を `schemas/v3/screen-item.v3.schema.json` に整合、`FieldType` を v3 確定形 (custom 廃止 / integer / datetime / json / domain / file / extension 追加)、`ValueSource.flowVariable.variableName` を `IdentifierPath` (#533 R3-1)、`tableColumn` / `viewColumn` を `TableColumnRef` / `ViewColumnRef` (Pattern B 複合参照、物理名直書き廃止)
-**関連 issue**: #318 #354 #377 #533 (R3-1) #539 (spec v3 反映)
+**改訂日: 2026-05-03 (Phase 4-β reversal 反映)**: A-1 独立ファイル方式 (`screen-items/<screenId>.json`) を **廃止**、`screens/<screenId>.json` の `items[]` への **embed のみ** に統一 (#712)。runtime (`designer-mcp`) は `screen-items/` を読まず、新規 workspace 作成時にも生成しない。validator (`runtimeContractValidator [LEGACY_SCREEN_ITEMS_DIR]`, #714) が legacy 配置を検出する
+**関連 issue**: #318 #354 #377 #533 (R3-1) #539 (spec v3 反映) #712 (Phase 4-β embed 統一) #714 (runtime 契約 validator)
 
 本書は画面項目定義 (画面 UI のフォーム項目に宣言的にバリデーション・ラベル・表示制御を紐付ける設計書) の仕様を定める。
 
@@ -34,16 +35,18 @@
 
 #### (A-1) ファイル配置: 画面ごとに独立 or 画面ファイル同梱
 
-**案 A-1a 独立ファイル (推奨)**: `data/screen-items/{screenId}.json` を別ファイルに
+**案 A-1a 独立ファイル**: `data/screen-items/{screenId}.json` を別ファイルに
 - ✅ 画面デザインと粒度を揃えて CRUD しやすい
 - ✅ 既存の `data/screens/{id}.json` (GrapesJS 生データ) は触らず追加だけで済む
 - ✅ wsBridge で `loadScreenItems` / `saveScreenItems` ハンドラを対称に追加できる
+- ❌ **2026-05-03 reversal**: GrapesJS 視覚状態は `screens/<id>.design.json` に分離されたため「画面ファイルが肥大」懸念は解消。runtime 契約 (#711 / #712) も embed 形式のみを読むため独立ファイル運用は不可
 
-**案 A-1b 画面同梱**: `data/screens/{id}.json` に `items[]` を追加
-- 1 ファイルで完結するがファイルが肥大 + GrapesJS 生データとの責務混在
-- ❌ 不採用
+**案 A-1b 画面同梱 (現行採用)**: `data/screens/{id}.json` に `items[]` を埋め込み
+- ✅ runtime (`designer-mcp`) が直接 `Screen.items[]` を読む (legacy 配置は無視)
+- ✅ 業務 (画面項目定義) と視覚 (`screens/<id>.design.json`) のファイル分離は別軸で達成済
+- ✅ 1 画面 = 1 entity ファイル + 1 design ファイルで完結
 
-→ **(A-1a) 独立ファイル案**
+→ **(A-1b) 画面同梱案** (Phase 4-β migration #712 で確定)
 
 #### (A-2) 項目 1 件のスキーマ (v3)
 
@@ -136,9 +139,9 @@ type ValueSource =
 
 **v3 ファイル配置**:
 
-ScreenItem は v3 schema 上は **Screen entity の `items[]` として埋め込み** (`schemas/v3/screen.v3.schema.json` の `Screen.items[]`)。
+ScreenItem は v3 schema 上 **Screen entity の `items[]` として埋め込み** (`schemas/v3/screen.v3.schema.json` の `Screen.items[]`)、runtime (`designer-mcp`) もこの形式のみ読む。
 
-ただし運用上は **独立ファイル** (`data/screen-items/{screenId}.json`) として保持し、loader が Screen 読み込み時に items[] として合成する 2 通りを許容。本仕様の (A-1a) 案は維持。
+Phase 4-β migration (#712) で **embed 形式に統一**。`data/screen-items/{screenId}.json` の独立ファイル方式は廃止 (runtime 無視 + validator 警告 + 新規 workspace 作成時に未生成)。
 
 **決定済み** (#330):
 - `ScreenItem.name` は廃止。`id` が業務識別子 (実装コードのフィールド名) を兼ねる。
@@ -426,7 +429,8 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 ## 決定事項 (v1.0 確定内容)
 
 ### (A) データモデル
-- **A-1**: 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用 (v3 schema 上は `Screen.items[]` 埋め込み、loader が合成)
+- **A-1** (v1.0 当初): 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用
+- **A-1 (2026-05-03 reversal、#712)**: 独立ファイル方式を廃止し、`Screen entity` への embed (`screens/<id>.json#items[]`) のみに統一。runtime / validator / 新規 workspace 生成すべて embed 前提
 - **A-2**: `ScreenItem` スキーマは上記の通り。一次成果物は `schemas/v3/screen-item.v3.schema.json`。`direction?: "input" | "output"` を追加 (#359 連動)
 - **A-3 (v1.1)**: `displayFormat?: string` / `valueFrom?: ValueSource` を追加 (#377)。`direction="output"` のときのみ使用。
   - `displayFormat`: 自由記述 + datalist 補完 (日付 / 数値 / 金額 / パーセント プリセット)

@@ -32,13 +32,20 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 
 | ファイル / ディレクトリ | schema | 役割 |
 |---|---|---|
-| `screens/*.json` | `screen.v3.schema.json` | 画面 |
-| `screen-items/*.json` | `screen-item.v3.schema.json` | 画面項目定義 |
+| `screens/*.json` | `screen.v3.schema.json` | 画面 (画面項目定義 `items[]` を内包) |
 | `screen-layouts/*.json` | `screen-layout.v3.schema.json` | 画面レイアウト |
 | `views/*.json` | `view.v3.schema.json` | 画面フロー / 一覧定義 |
 | `er-layout.json` | `er-layout.v3.schema.json` | ER 図レイアウト |
 | `sequences/*.json` | `sequence.v3.schema.json` | シーケンス図 |
 | `custom-blocks.json` | `custom-block.v3.schema.json` | カスタムブロック |
+
+### ❌ 廃止された配置 (Phase 4-β migration 後)
+
+| 旧配置 | 状態 | 移行先 |
+|---|---|---|
+| `screen-items/<screenId>.json` | Phase 4-β で廃止 (#712) | `screens/<screenId>.json` の `items[]` に embed |
+
+runtime (`designer-mcp`) は `screen-items/` ディレクトリを読まず、新規 workspace 作成時にも生成しない。サンプル / data ディレクトリにこの配置で残っているファイルは無視される (validator: `runtimeContractValidator [LEGACY_SCREEN_ITEMS_DIR]`)。
 
 ## 反パターン
 
