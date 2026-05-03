@@ -8,11 +8,18 @@
  * - WebSocket も同一 port で待機している (ws:// で接続できる)
  *
  * テストは 5200 番台の port を使用 (本番 5179 と衝突しないため)。
+ *
+ * #758: draft__* / lock__* ツールは active workspace を要求するため、
+ * spawn 時に DESIGNER_DATA_DIR=<tmpDir> を渡して lockdown モード固定で起動する。
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { WebSocket } from "ws";
 import { setTimeout as delay } from "node:timers/promises";
+import os from "node:os";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 const TEST_PORT = 5201;
 const MCP_URL = `http://localhost:${TEST_PORT}/mcp`;
@@ -20,6 +27,49 @@ const HEALTH_URL = `http://localhost:${TEST_PORT}/`;
 const WS_URL = `ws://localhost:${TEST_PORT}/`;
 
 let server: ChildProcess | null = null;
+let tempFixtureDir: string | null = null;
+
+/**
+ * テスト用 fixture workspace を os.tmpdir() 配下に作成する (#758)。
+ * schemas/v3/project.v3.schema.json 準拠の最小 project.json を生成する。
+ */
+async function createFixtureWorkspace(): Promise<string> {
+  const tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "designer-mcp-httpTransport-test-"),
+  );
+
+  // workspaceInit.ts:initializeWorkspace と同形式のサブディレクトリ群を作成
+  const subdirs = ["screens", "tables", "actions", "conventions", "sequences", "views", "view-definitions", "extensions"];
+  await Promise.all(subdirs.map((d) => fs.mkdir(path.join(tmpDir, d), { recursive: true })));
+
+  // 最小 project.json (schemas/v3/project.v3.schema.json 準拠)
+  const ts = new Date().toISOString();
+  const projectId = randomUUID();
+  const name = "httpTransport-test-fixture";
+  const project = {
+    $schema: "../schemas/v3/project.v3.schema.json",
+    schemaVersion: "v3",
+    meta: {
+      id: projectId,
+      name,
+      createdAt: ts,
+      updatedAt: ts,
+      mode: "upstream",
+      maturity: "draft",
+    },
+    extensionsApplied: [],
+    entities: {
+      screens: [],
+      screenGroups: [],
+      screenTransitions: [],
+      tables: [],
+      sequences: [],
+      views: [],
+    },
+  };
+  await fs.writeFile(path.join(tmpDir, "project.json"), JSON.stringify(project, null, 2), "utf-8");
+  return tmpDir;
+}
 
 async function waitForReady(timeoutMs = 10000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -49,9 +99,18 @@ async function mcpCall(method: string, sessionId?: string, body: Record<string, 
 
 describe("designer-mcp HTTP transport (#302)", () => {
   beforeAll(async () => {
+    // #758: lockdown モード fixture workspace を作成し DESIGNER_DATA_DIR で渡す。
+    // draft__* / lock__* ツールは active workspace を要求するため、
+    // lockdown 固定で起動することで per-session active state の問題を回避する。
+    tempFixtureDir = await createFixtureWorkspace();
+
     server = spawn("npx", ["tsx", "src/index.ts"], {
       cwd: __dirname + "/..", // designer-mcp/ dir
-      env: { ...process.env, DESIGNER_MCP_PORT: String(TEST_PORT) },
+      env: {
+        ...process.env,
+        DESIGNER_MCP_PORT: String(TEST_PORT),
+        DESIGNER_DATA_DIR: tempFixtureDir,
+      },
       stdio: ["ignore", "pipe", "pipe"],
       shell: true,
     });
@@ -74,6 +133,13 @@ describe("designer-mcp HTTP transport (#302)", () => {
     }
     // Windows ではポート解放に時間がかかることがある
     await delay(500);
+    // #758: fixture workspace の cleanup
+    if (tempFixtureDir) {
+      try {
+        await fs.rm(tempFixtureDir, { recursive: true, force: true });
+      } catch { /* ignore — OS が後で GC する */ }
+      tempFixtureDir = null;
+    }
   }, 10000);
   it("GET / で health JSON が返る", async () => {
     const r = await fetch(HEALTH_URL);
@@ -281,26 +347,27 @@ describe("designer-mcp HTTP transport (#302)", () => {
       const statusA = await wsRoundtrip(clientAId, "workspace.status");
       expect(statusA.error).toBeUndefined();
       const resultA = statusA.result as { active: unknown; lockdown: boolean };
-      expect(resultA).toMatchObject({ lockdown: false });
-      // active は null (未選択) または object (server 起動時の自動 active 化により設定済みの場合)
+      // #758: DESIGNER_DATA_DIR で lockdown 固定起動するため lockdown: true
+      expect(resultA).toMatchObject({ lockdown: true });
+      // active は lockdown パスが固定される
       expect(resultA).toHaveProperty("active");
 
       // client-B: workspace.status
       const statusB = await wsRoundtrip(clientBId, "workspace.status");
       expect(statusB.error).toBeUndefined();
       const resultB = statusB.result as { active: unknown; lockdown: boolean };
-      expect(resultB).toMatchObject({ lockdown: false });
+      // #758: DESIGNER_DATA_DIR で lockdown 固定起動するため lockdown: true
+      expect(resultB).toMatchObject({ lockdown: true });
       expect(resultB).toHaveProperty("active");
     });
   });
 
   describe("WorkspaceContextManager lockdown (WS 経路)", () => {
     /**
-     * lockdown モードでサーバが起動している場合、workspace.status で lockdown: true が返る。
-     * ただしこのテストは通常モードのサーバで実行されるため、lockdown: false を検証する。
-     * lockdown E2E は環境変数が必要なため別テストファイルで行う。
+     * DESIGNER_DATA_DIR を渡して lockdown モードでサーバが起動している場合、
+     * workspace.status で lockdown: true が返ることを確認する (#758)。
      */
-    it("通常起動時は lockdown: false が返る", async () => {
+    it("DESIGNER_DATA_DIR 指定時は lockdown: true が返る", async () => {
       async function wsRoundtrip(clientId: string, method: string): Promise<unknown> {
         return new Promise<unknown>((resolve, reject) => {
           const ws = new WebSocket(WS_URL);
@@ -323,7 +390,8 @@ describe("designer-mcp HTTP transport (#302)", () => {
       }
 
       const result = await wsRoundtrip(`lockdown-test-${Date.now()}`, "workspace.status") as { lockdown: boolean };
-      expect(result.lockdown).toBe(false);
+      // #758: DESIGNER_DATA_DIR で lockdown 固定起動するため lockdown: true
+      expect(result.lockdown).toBe(true);
     });
   });
 });
