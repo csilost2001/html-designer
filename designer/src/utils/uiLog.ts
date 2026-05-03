@@ -95,6 +95,8 @@ export function uiLog(
 ): void {
   pushRecent(category, msg, ctx);
   detectFlooding(category, msg);
+  // warn/error はサーバ flush キューにも入れる (#750 follow-up: 物理ログ統合)
+  _enqueueForFlush(category, msg, level, ctx);
   if (!shouldLog(level)) return;
   const prefix = `[${ts()}][${category}]`;
   // eslint-disable-next-line no-console
@@ -144,5 +146,60 @@ if (typeof window !== "undefined") {
   window.__uiLogDump = () => _recent.slice();
   window.__uiLogSetLevel = (l: UiLogLevel) => {
     try { localStorage.setItem("ui-log", l); } catch { /* private mode */ }
+  };
+}
+
+// ─── サーバ側物理ログへの定期 flush (#750 follow-up) ──────────────────────
+// warn / error レベルのイベントはブラウザリフレッシュで消えてしまうため
+// designer-mcp の logs/ に統合する。送信は非同期 + best-effort (失敗時は黙って破棄)。
+
+const _flushQueue: RecentEvent[] = [];
+
+function _enqueueForFlush(category: UiLogCategory, msg: string, level: UiLogLevel, ctx?: Record<string, unknown>): void {
+  if (level !== "warn" && level !== "error") return;
+  _flushQueue.push({ ts: Date.now(), category, msg, ctx });
+  // キューが大きくなりすぎないよう上限 (バックエンド disconnect 中の保護)
+  if (_flushQueue.length > 500) _flushQueue.splice(0, _flushQueue.length - 500);
+}
+
+/**
+ * サーバ側に flush する hook。mcpBridge が "client.log.flush" を呼べる前提で使う。
+ * mcpBridge.ts の startWithoutEditor() 直後に setupServerLogFlush() を呼ぶ。
+ *
+ * sendFn は mcpBridge.request("client.log.flush", { entries }) を期待。
+ */
+let _lastFlushFailLogTs = 0;
+const FLUSH_FAIL_LOG_INTERVAL_MS = 30_000; // disconnect 中の console spam 防止
+
+export function setupServerLogFlush(
+  sendFn: (entries: ReadonlyArray<RecentEvent>) => Promise<unknown>,
+  intervalMs = 5000,
+): () => void {
+  const flush = async () => {
+    if (_flushQueue.length === 0) return;
+    const batch = _flushQueue.splice(0, _flushQueue.length);
+    try {
+      await sendFn(batch);
+    } catch {
+      // 失敗時はキューに戻す (transient disconnect のリトライ機会を残す)。
+      // ただし上限 (500) を超えないように先頭 (古いほう) から切り捨てる。
+      _flushQueue.unshift(...batch);
+      if (_flushQueue.length > 500) _flushQueue.splice(0, _flushQueue.length - 500);
+      // console.warn は disconnect ループ中に大量出力されるため rate-limit (30 秒)
+      const now = Date.now();
+      if (now - _lastFlushFailLogTs > FLUSH_FAIL_LOG_INTERVAL_MS) {
+        _lastFlushFailLogTs = now;
+        // eslint-disable-next-line no-console
+        console.warn(`[uiLog] server flush failed; ${_flushQueue.length} entries queued for retry`);
+      }
+    }
+  };
+  const timer = setInterval(flush, intervalMs);
+  // ページ離脱時に同期送信 (sendBeacon は使えないので best-effort)
+  const onUnload = () => { void flush(); };
+  window.addEventListener("beforeunload", onUnload);
+  return () => {
+    clearInterval(timer);
+    window.removeEventListener("beforeunload", onUnload);
   };
 }

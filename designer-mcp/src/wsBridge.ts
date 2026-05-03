@@ -973,12 +973,32 @@ class WsBridge extends EventEmitter {
           break;
         }
 
-        default:
+        default: {
+          // 動的に登録されたハンドラ (#750 follow-up: client.log.flush 等)
+          const dynHandler = this._browserHandlers.get(method);
+          if (dynHandler) {
+            const result = await dynHandler(params, { clientId });
+            respond(result);
+            break;
+          }
           respondError(`未知のリクエストメソッド: ${method}`);
+        }
       }
     } catch (e) {
       respondError(e instanceof Error ? e.message : String(e));
     }
+  }
+
+  /** 動的にブラウザリクエストハンドラを登録する (#750 follow-up: client.log.flush 等)。 */
+  private _browserHandlers = new Map<
+    string,
+    (params: unknown, ctx: { clientId: string }) => Promise<unknown> | unknown
+  >();
+  registerBrowserHandler(
+    method: string,
+    handler: (params: unknown, ctx: { clientId: string }) => Promise<unknown> | unknown,
+  ): void {
+    this._browserHandlers.set(method, handler);
   }
 
   /**
