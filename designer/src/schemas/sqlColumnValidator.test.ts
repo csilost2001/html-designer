@@ -2,18 +2,6 @@ import { describe, it, expect } from "vitest";
 import { validateSql, checkSqlColumns } from "./sqlColumnValidator";
 import type { TableDefinition } from "./sqlColumnValidator";
 import type { ProcessFlow } from "../types/action";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
-
-const repoRoot = resolve(__dirname, "../../../");
-const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
-const tablesDir = resolve(repoRoot, "docs/sample-project/tables");
-
-function loadTables(): TableDefinition[] {
-  return readdirSync(tablesDir)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => JSON.parse(readFileSync(join(tablesDir, f), "utf-8")) as TableDefinition);
-}
 
 function makeSpec(name: string, cols: string[]): Map<string, { name: string; columns: Set<string> }> {
   return new Map([[name.toLowerCase(), { name: name.toLowerCase(), columns: new Set(cols.map((c) => c.toLowerCase())) }]]);
@@ -86,26 +74,3 @@ describe("validateSql — 単体 SQL 検査", () => {
   });
 });
 
-describe("checkSqlColumns — サンプル (docs/sample-project) 横断", () => {
-  const tables = loadTables();
-  const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
-
-  it("テーブル定義ロード (防御)", () => {
-    expect(tables.length).toBeGreaterThan(0);
-    expect(tables.every((t) => Array.isArray(t.columns))).toBe(true);
-  });
-
-  for (const f of files) {
-    it(`${f} の全 SQL 列参照が整合`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
-      const issues = checkSqlColumns(group, tables);
-      const columnIssues = issues.filter((i) => i.code === "UNKNOWN_COLUMN");
-      if (columnIssues.length > 0) {
-        throw new Error(
-          `SQL 列違反:\n${columnIssues.map((i) => `  - ${i.path}: ${i.message}`).join("\n")}`,
-        );
-      }
-      expect(columnIssues).toHaveLength(0);
-    });
-  }
-});

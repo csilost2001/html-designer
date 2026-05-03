@@ -218,7 +218,7 @@ describe("migrateStep — BranchStep legacy → new", () => {
 
 describe("migrateProcessFlow — ProcessFlow 全体", () => {
   it("既存サンプルの認証チェック ProcessFlow を正しく変換する", () => {
-    // docs/sample-project/process-flows/cccccccc-0003 相当のデータ (v1 形式)
+    // 旧 v1 形式サンプル相当のデータ (インライン)
     const sample = {
       id: "cccccccc-0003-4000-8000-cccccccccccc",
       name: "認証チェック",

@@ -2,10 +2,6 @@ import { describe, it, expect } from "vitest";
 import { checkReferentialIntegrity } from "./referentialIntegrity";
 import { loadExtensionsFromBundle } from "./loadExtensions";
 import type { ProcessFlow } from "../types/action";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
-
-const samplesDir = resolve(__dirname, "../../../docs/sample-project/process-flows");
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
@@ -297,18 +293,3 @@ describe("checkReferentialIntegrity — systemRef (#261)", () => {
   });
 });
 
-describe("checkReferentialIntegrity — サンプル (docs/sample-project/process-flows/*.json)", () => {
-  const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
-  for (const f of files) {
-    it(`${f} は参照整合性を満たす`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
-      const issues = checkReferentialIntegrity(group);
-      if (issues.length > 0) {
-        throw new Error(
-          `参照整合性違反:\n${issues.map((i) => `  - [${i.code}] ${i.path}: ${i.message}`).join("\n")}`,
-        );
-      }
-      expect(issues).toHaveLength(0);
-    });
-  }
-});

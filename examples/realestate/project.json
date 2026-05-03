@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "a1e2f3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+    "name": "不動産仲介システム",
+    "description": "不動産仲介業務サンプル。物件検索・顧客検索・取引履歴を軸に、viewer screen-item (#762) の direction=viewer パターンを実証する。",
+    "version": "1.0.0",
+    "maturity": "provisional",
+    "createdAt": "2026-05-03T00:00:00.000Z",
+    "updatedAt": "2026-05-03T00:00:00.000Z",
+    "mode": "upstream"
+  },
+  "extensionsApplied": [
+    {
+      "namespace": "realestate",
+      "version": ">=1.0.0"
+    }
+  ],
+  "entities": {
+    "screens": [
+      {
+        "id": "b2f3a4c5-d6e7-4f80-9a1b-2c3d4e5f6a7b",
+        "no": 1,
+        "name": "物件検索",
+        "kind": "search",
+        "path": "/properties/search",
+        "maturity": "committed",
+        "updatedAt": "2026-05-03T00:00:00.000Z"
+      }
+    ],
+    "tables": [
+      {
+        "id": "c3a4b5d6-e7f8-4091-ab2c-3d4e5f6a7b8c",
+        "no": 1,
+        "name": "物件マスタ",
+        "physicalName": "properties",
+        "category": "マスタ",
+        "columnCount": 7,
+        "maturity": "committed",
+        "updatedAt": "2026-05-03T00:00:00.000Z"
+      }
+    ],
+    "processFlows": [
+      {
+        "id": "d4b5c6e7-f809-4112-bc3d-4e5f6a7b8c9d",
+        "no": 1,
+        "name": "物件検索",
+        "kind": "screen",
+        "actionCount": 1,
+        "maturity": "committed",
+        "updatedAt": "2026-05-03T00:00:00.000Z"
+      }
+    ],
+    "viewDefinitions": [
+      {
+        "id": "e5c6d7f8-0912-4223-8d4e-5f6a7b8c9d0e",
+        "no": 1,
+        "name": "物件一覧",
+        "kind": "list",
+        "sourceTableId": "c3a4b5d6-e7f8-4091-ab2c-3d4e5f6a7b8c",
+        "columnCount": 6,
+        "maturity": "committed",
+        "updatedAt": "2026-05-03T00:00:00.000Z"
+      }
+    ]
+  }
+}

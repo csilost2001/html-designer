@@ -1,6 +1,0 @@
-{
-  "namespace": "manufacturing",
-  "triggers": [
-    { "value": "qualityIncident", "label": "品質異常検知時" }
-  ]
-}

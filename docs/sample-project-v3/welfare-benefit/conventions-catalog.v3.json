@@ -1,6 +1,0 @@
-{
-  "$schema": "../../../schemas/v3/conventions.v3.schema.json",
-  "version": "1.0.0",
-  "description": "welfare-benefit サンプルプロジェクトの規約カタログ (#607 で空配置として補充)。エントリ追加は Phase 3 ドッグフード作業で対応予定。",
-  "updatedAt": "2026-04-30T00:00:00.000Z"
-}

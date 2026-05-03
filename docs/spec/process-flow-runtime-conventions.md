@@ -499,4 +499,4 @@ Step-level の `requiredPermissions` は Action-level と AND 条件で評価す
 - `docs/spec/process-flow-expression-language.md` — 式言語 BNF
 - `docs/spec/process-flow-variables.md` — 変数・outputBinding
 - `docs/spec/process-flow-maturity.md` — 成熟度・モード
-- `docs/sample-project-v3/<project>/process-flows/` — v3 形式の実サンプル
+- `examples/<project-id>/actions/` または `examples/<project-id>/process-flows/` — v3 形式の実サンプル (canonical 置き場: `examples/retail/`, `examples/realestate/`)

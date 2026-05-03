@@ -1,6 +1,4 @@
 import { describe, it, expect } from "vitest";
-import Ajv2020 from "ajv/dist/2020";
-import addFormats from "ajv-formats";
 import {
   checkConventionReferences,
   checkConventionsCatalogIntegrity,
@@ -10,17 +8,88 @@ import {
 import type { ProcessFlow } from "../types/action";
 import type { ScreenItemsDocument } from "../store/screenItemsStore";
 import type { Identifier, ScreenId, Timestamp } from "../types/v3";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
 
-const repoRoot = resolve(__dirname, "../../../");
-const catalogPath = resolve(repoRoot, "docs/sample-project/conventions/conventions-catalog.json");
-// v1 凍結 (#519): schemas/v1/ に退避済み。v2 移行が完了するまで本テストは v1 を検証する。
-const catalogSchemaPath = resolve(repoRoot, "schemas/v1/conventions.schema.json");
-const samplesDir = resolve(repoRoot, "docs/sample-project/process-flows");
+/**
+ * テスト用インライン規約カタログ (v1 サンプルから抽出した最小有効インスタンス)。
+ * v1/v2 スキーマファイル削除 (#774) に伴い、ファイル読み込みからインライン化。
+ */
+const INLINE_CATALOG: ConventionsCatalog = {
+  version: "1.0.0",
+  msg: {
+    required: { template: "{label}は必須入力です", params: ["label"] },
+    maxLength: { template: "{label}は{max}文字以内で入力してください", params: ["label", "max"] },
+    invalidFormat: { template: "{label}の形式が正しくありません", params: ["label"] },
+    outOfRange: { template: "{label}は{min}〜{max}の範囲で入力してください", params: ["label", "min", "max"] },
+    mustBePositive: { template: "{label}は1以上の数値を入力してください", params: ["label"] },
+    insufficientInventory: { template: "{label}の在庫が不足しています (要求: {required}, 在庫: {available})", params: ["label", "required", "available"] },
+    cartExpired: { template: "カートの有効期限が切れています", params: [] },
+  },
+  regex: {
+    "email-simple": { pattern: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$" },
+    "phone-jp": { pattern: "^0\\d{1,4}-\\d{1,4}-\\d{4}$" },
+    "postal-jp": { pattern: "^\\d{3}-?\\d{4}$" },
+    "product-code": { pattern: "^[A-Z0-9]{3,20}$" },
+  },
+  limit: {
+    nameMax: { value: 100, unit: "char" },
+    emailMax: { value: 255, unit: "char" },
+    phoneMax: { value: 20, unit: "char" },
+    addressMax: { value: 500, unit: "char" },
+    quantityMax: { value: 9999, unit: "integer" },
+    quantityMin: { value: 1, unit: "integer" },
+    amountMax: { value: 999999999999, unit: "yen" },
+    cartItemMax: { value: 50, unit: "integer" },
+    cartRetentionDays: { value: 30, unit: "days" },
+    maxDeliveryAttempts: { value: 3, unit: "integer" },
+    lowStockThreshold: { value: 10, unit: "integer" },
+  },
+  scope: {
+    customerRegion: { value: "domestic" },
+    timezone: { value: "Asia/Tokyo" },
+    language: { value: "ja" },
+  },
+  currency: {
+    jpy: { code: "JPY", subunit: 0, roundingMode: "floor", default: true },
+  },
+  tax: {
+    standard: { kind: "exclusive", rate: 0.10, roundingMode: "floor", default: true },
+    reducedFood: { kind: "exclusive", rate: 0.08, roundingMode: "floor" },
+  },
+  auth: {
+    default: { scheme: "session-cookie", default: true },
+  },
+  permission: {
+    "order.create": { resource: "Order", action: "create", scope: "own" },
+    "order.read": { resource: "Order", action: "read", scope: "own" },
+    "inventory.read": { resource: "Inventory", action: "read", scope: "all" },
+    "shipment.create": { resource: "Shipment", action: "create", scope: "department" },
+  },
+  role: {
+    customer: { name: "顧客", permissions: ["inventory.read", "order.create", "order.read"] },
+    operationsSystem: { name: "業務システム", permissions: ["inventory.read", "shipment.create"] },
+  },
+  db: {
+    default: { engine: "postgresql@14", namingConvention: "snake_case", default: true },
+  },
+  numbering: {
+    customerCode: { format: "C-NNNN", implementation: "PG sequence + DEFAULT" },
+    orderNumber: { format: "RO-YYYY-NNNN", implementation: "PG sequence + trigger" },
+    cartCode: { format: "UUID-v4", implementation: "application-layer UUID" },
+    shipmentId: { format: "UUID-v4", implementation: "application-layer UUID" },
+  },
+  tx: {
+    singleOperation: { policy: "単一操作は 1 TX" },
+    externalApi: { policy: "外部 API 呼出は TX 外を原則とする" },
+  },
+  externalOutcomeDefaults: {
+    success: { outcome: "success", action: "continue", retry: "none" },
+    failure: { outcome: "failure", action: "abort", retry: "none" },
+    timeout: { outcome: "timeout", action: "abort", retry: "none" },
+  },
+};
 
 function loadCatalog(): ConventionsCatalog {
-  return JSON.parse(readFileSync(catalogPath, "utf-8")) as ConventionsCatalog;
+  return INLINE_CATALOG;
 }
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
@@ -31,18 +100,6 @@ function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   } as ProcessFlow;
 }
 
-describe("conventions-catalog.json がスキーマに適合", () => {
-  it("ajv でスキーマ検証 pass", () => {
-    const ajv = new Ajv2020({ allErrors: true, strict: false });
-    addFormats(ajv);
-    const schema = JSON.parse(readFileSync(catalogSchemaPath, "utf-8"));
-    const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
-    const validate = ajv.compile(schema);
-    const ok = validate(catalog);
-    if (!ok) throw new Error(JSON.stringify(validate.errors));
-    expect(ok).toBe(true);
-  });
-});
 
 describe("checkConventionReferences", () => {
   const catalog = loadCatalog();
@@ -744,20 +801,3 @@ describe("#734 checkStep — validation rules[].minRef/maxRef/lengthRef 検査",
   });
 });
 
-describe("checkConventionReferences — サンプル (docs/sample-project/process-flows/*.json) 横断", () => {
-  const catalog = loadCatalog();
-  const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
-
-  for (const f of files) {
-    it(`${f} の @conv.* 参照が全て解決`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
-      const issues = checkConventionReferences(group, catalog);
-      if (issues.length > 0) {
-        throw new Error(
-          `@conv.* 違反:\n${issues.map((i) => `  - ${i.path}: ${i.value} (${i.message})`).join("\n")}`,
-        );
-      }
-      expect(issues).toHaveLength(0);
-    });
-  }
-});

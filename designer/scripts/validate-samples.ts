@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * examples/<project-id>/ 形式 (examples/retail 等) を 1 プロジェクトとして検証するスクリプト (#709)。
- * 既存 validate-dogfood.ts (docs/sample-project-v3/ 専用) を踏襲しつつ、
- * actions/ ディレクトリ命名と conventions/catalog.json 配置に対応した薄いラッパー。
+ * actions/ または process-flows/ ディレクトリ命名と conventions/catalog.json 配置に対応したプロジェクト単位検証スクリプト。
+ * examples/<project-id>/ を canonical サンプル領域として検証する (#774)。
  *
  * 使用法:
  *   cd designer && npm run validate:samples -- ../data
@@ -153,7 +153,9 @@ function discoverProject(projectDirArg: string): ProjectResources {
     screens: loadScreensFromDir(join(projectDir, "screens")),
     viewDefinitions: loadViewDefinitionsFromDir(join(projectDir, "view-definitions")),
     screenTransitions: loadScreenTransitionsFromProjectJson(projectDir),
-    flowsDir: join(projectDir, "actions"),
+    flowsDir: existsSync(join(projectDir, "actions"))
+      ? join(projectDir, "actions")
+      : join(projectDir, "process-flows"),
   };
 }
 
@@ -195,6 +197,39 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
       try {
         const raw = JSON.parse(readFileSync(fullPath, "utf-8")) as Record<string, unknown>;
         fileCount++;
+
+        // v3 canonical combined format: <namespace>.v3.json
+        // 1 namespace = 1 ファイルで全拡張種別を含む形式 (schemas/v3/extensions.v3.schema.json)
+        // bundle の各種別に { namespace, <bodyKey>: [...] } 形式で分解して積む。
+        // namespace プレフィックスは loadExtensionsFromBundle 内の load* 関数が付与するため、
+        // ここでは付与しない (二重プレフィックス回避)。
+        if (basename(file).endsWith(".v3.json")) {
+          const namespace = typeof raw.namespace === "string" ? raw.namespace : "";
+          if (namespace) {
+            bundle.fieldTypes.namespace = namespace;
+            bundle.triggers.namespace = namespace;
+            bundle.dbOperations.namespace = namespace;
+            bundle.steps.namespace = namespace;
+            bundle.responseTypes.namespace = namespace;
+          }
+          if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
+          if (Array.isArray(raw.triggers)) bundle.triggers.triggers.push(...raw.triggers);
+          if (Array.isArray(raw.dbOperations)) bundle.dbOperations.dbOperations.push(...raw.dbOperations);
+          if (raw.steps && typeof raw.steps === "object" && !Array.isArray(raw.steps)) {
+            // steps は Record — load* が namespace prefix を付けるため ここでは raw.steps の中身をそのまま積む
+            for (const [key, value] of Object.entries(raw.steps as Record<string, unknown>)) {
+              bundle.steps.steps[key] = value;
+            }
+          }
+          if (raw.responseTypes && typeof raw.responseTypes === "object" && !Array.isArray(raw.responseTypes)) {
+            // responseTypes は Record — load* が namespace prefix を付けるため raw.responseTypes の中身をそのまま積む
+            for (const [key, value] of Object.entries(raw.responseTypes as Record<string, unknown>)) {
+              bundle.responseTypes.responseTypes[key] = value;
+            }
+          }
+          continue; // legacy switch 経路をスキップ
+        }
+
         switch (basename(file)) {
           case "field-types.json":
             if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
@@ -402,6 +437,25 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
   const results: FlowValidationResult[] = [];
   const projectResults: ProjectValidationResult[] = [];
 
+  // ─── 必須リソース欠落チェック (docs/spec/sample-project-structure.md) ───────
+  // conventions/catalog.json が欠落 → @conv.* 参照検証が全スキップされサイレント pass になるため error
+  if (project.conventions === null) {
+    const err = new Error(
+      `[validate:samples] 必須リソース不足: ${project.displayName} に conventions/catalog.json が見つかりません。` +
+      `docs/spec/sample-project-structure.md の必須リソース表を参照してください。`,
+    );
+    throw err;
+  }
+
+  // tables/ ディレクトリが欠落 → SQL カラム検証が空配列で動作するためサイレント pass になる → warning
+  const tablesDir = join(project.projectDir, "tables");
+  if (!existsSync(tablesDir)) {
+    console.warn(
+      `[validate:samples] 警告: ${project.displayName} に tables/ ディレクトリが見つかりません。` +
+      `テーブル定義なしで検証を続行します (sqlColumnValidator / sqlOrderValidator は無効化)。`,
+    );
+  }
+
   function validateOne(filePath: string, displayName: string, flow: ProcessFlow, rawJson: string): FlowValidationResult {
     const issues: ValidationIssue[] = [];
 
@@ -434,6 +488,15 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
 
   for (const { filePath, displayName, flow, rawJson } of flows) {
     results.push(validateOne(filePath, displayName, flow, rawJson));
+  }
+
+  // ProcessFlow が 1 件も見つからない場合は構造エラー (actions/ / process-flows/ の欠落または空)
+  if (flows.length === 0) {
+    throw new Error(
+      `[validate:samples] 必須リソース不足: ${project.displayName} に ProcessFlow が 0 件です。` +
+      `actions/ または process-flows/ ディレクトリに .json ファイルを配置してください。` +
+      `(docs/spec/sample-project-structure.md の必須リソース表を参照)`,
+    );
   }
 
   const projectIssues: ValidationIssue[] = [];

@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { aggregateValidation } from "./aggregatedValidation";
 import type { ProcessFlow } from "../types/v3";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
-const repoRoot = resolve(__dirname, "../../../");
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
@@ -103,18 +99,6 @@ describe("aggregateValidation — 統合テスト", () => {
     const w = errors.find((e) => e.code === "UNKNOWN_SECRET_REF");
     expect(w).toBeDefined();
     expect(w?.path).toContain("context.catalogs.externalSystems");
-  });
-
-  it("legacy サンプル 0005 は clean (structural error なし + warning 最小)", () => {
-    // Phase 4-2 で docs/sample-project は retail (gggggggg-*) に置き換え、
-    // 既存 cccccccc-* は docs/legacy-sample-project に退避済。
-    const group = JSON.parse(readFileSync(
-      resolve(repoRoot, "docs/legacy-sample-project/process-flows/cccccccc-0005-4000-8000-cccccccccccc.json"),
-      "utf-8",
-    )) as ProcessFlow;
-    const errors = aggregateValidation(group);
-    const structuralErrors = errors.filter((e) => e.severity === "error");
-    expect(structuralErrors).toHaveLength(0);
   });
 
   it("options.tables / conventions 未指定時は SQL/conv 検査はスキップ", () => {

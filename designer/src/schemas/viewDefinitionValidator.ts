@@ -49,7 +49,7 @@ export interface ViewDefinitionIssue {
   message: string;
 }
 
-/** テーブル定義の最小インターフェース (validate-dogfood からも利用) */
+/** テーブル定義の最小インターフェース (validate-samples からも利用) */
 export interface TableDefinitionForView {
   id: string;
   physicalName?: string;

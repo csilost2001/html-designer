@@ -1,9 +1,0 @@
-{
-  "namespace": "manufacturing",
-  "fieldTypes": [
-    { "kind": "lotId", "label": "ロット ID" },
-    { "kind": "workOrderId", "label": "製造指示書 ID" },
-    { "kind": "partNumber", "label": "部品番号" },
-    { "kind": "serialNumber", "label": "シリアル番号" }
-  ]
-}
