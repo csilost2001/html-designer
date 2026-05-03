@@ -1,5 +1,5 @@
 /**
- * workspaceInit 単体テスト (#672, #677-C)
+ * workspaceInit 単体テスト (#672, #677-C, #754)
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import fs from "node:fs/promises";
@@ -8,6 +8,7 @@ import os from "node:os";
 import {
   inspectWorkspacePath,
   initializeWorkspace,
+  autoActivateOnStartup,
   _internals,
 } from "./workspaceInit.js";
 
@@ -133,33 +134,114 @@ describe("initializeWorkspace", () => {
   });
 });
 
-describe("resolveLegacyDataDir (C: 動的解決 + env override)", () => {
-  const origEnv = process.env.DESIGNER_LEGACY_DATA_DIR;
+/**
+ * autoActivateOnStartup テスト (#754)
+ *
+ * DESIGNER_RECENT_FILE env で recent ファイルを一時ファイルに向けることで
+ * ~/.designer/recent-workspaces.json を汚染せずテストする。
+ * DESIGNER_DATA_DIR は未設定 (lockdown モード回避)。
+ */
+describe("autoActivateOnStartup (#754)", () => {
+  const recentFilePath = path.join(TMP_ROOT, "recent-workspaces.json");
+  const origRecentFile = process.env.DESIGNER_RECENT_FILE;
+  const origDataDir = process.env.DESIGNER_DATA_DIR;
+
+  beforeEach(async () => {
+    // テスト用 recent ファイルを向ける
+    process.env.DESIGNER_RECENT_FILE = recentFilePath;
+    // lockdown モードを確実に無効化
+    delete process.env.DESIGNER_DATA_DIR;
+    // recent ファイルが存在すれば削除 (テスト間独立)
+    try { await fs.unlink(recentFilePath); } catch { /* ignore */ }
+  });
 
   afterEach(() => {
     // 環境変数を元に戻す
-    if (origEnv === undefined) {
-      delete process.env.DESIGNER_LEGACY_DATA_DIR;
+    if (origRecentFile === undefined) {
+      delete process.env.DESIGNER_RECENT_FILE;
     } else {
-      process.env.DESIGNER_LEGACY_DATA_DIR = origEnv;
+      process.env.DESIGNER_RECENT_FILE = origRecentFile;
+    }
+    if (origDataDir === undefined) {
+      delete process.env.DESIGNER_DATA_DIR;
+    } else {
+      process.env.DESIGNER_DATA_DIR = origDataDir;
     }
   });
 
-  it("env 未設定の場合はリポジトリ root の data/ (絶対パス、末尾が data) が返る", () => {
-    delete process.env.DESIGNER_LEGACY_DATA_DIR;
-    const result = _internals.resolveLegacyDataDir();
-    // import.meta.dirname/../../data に相当する絶対パスが返る。
-    // テスト自体の dirname とは異なるが、絶対パスで末尾が "data" であることを検証する。
-    expect(path.isAbsolute(result)).toBe(true);
-    expect(path.basename(result)).toBe("data");
-    // process.cwd()/data ではないことを確認 (regression 防止)
-    expect(result).not.toBe(path.resolve(process.cwd(), "data"));
+  it("recent 空 + lockdown 無し → status: none (data/project.json が存在しても auto-activate されない)", async () => {
+    // data/project.json を模倣 (レポジトリ root の data/ 直下) — legacy auto-activate がないことを確認
+    // recent は空 (ファイル未作成) なので status は none になるはず
+    const r = await autoActivateOnStartup();
+    expect(r.status).toBe("none");
   });
 
-  it("env DESIGNER_LEGACY_DATA_DIR 設定時はその値 (resolve 済み) が返る", () => {
-    const custom = path.join(os.tmpdir(), "my-legacy-data");
-    process.env.DESIGNER_LEGACY_DATA_DIR = custom;
-    const result = _internals.resolveLegacyDataDir();
-    expect(result).toBe(path.resolve(custom));
+  it("recent 空 + lockdown 無し → active = null (UI が /workspace/select に redirect すべき状態)", async () => {
+    const r = await autoActivateOnStartup();
+    // none = active 未設定
+    expect(r.status).toBe("none");
+    // AutoActivateResult の型から "registeredLegacy" が無いことを型レベルで保証
+    // (TypeScript が compile 時にチェック — runtime では確認不要だが念のため)
+    const statuses = ["lockdown", "restored", "none"] as const;
+    expect(statuses).toContain(r.status);
+  });
+
+  it("recent に ready な workspace が登録されていれば status: restored", async () => {
+    // workspace を作成
+    const wsDir = path.join(TMP_ROOT, "my-workspace");
+    await initializeWorkspace(wsDir);
+
+    // recent ファイルに直接書き込む (recentStore API を使わず fs で)
+    const wsId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const recentData = {
+      $schema: "designer-recent-workspaces-v1",
+      version: 1,
+      workspaces: [
+        {
+          id: wsId,
+          path: path.resolve(wsDir),
+          name: "my-workspace",
+          lastOpenedAt: new Date().toISOString(),
+        },
+      ],
+      lastActiveId: wsId,
+    };
+    await fs.mkdir(path.dirname(recentFilePath), { recursive: true });
+    await fs.writeFile(recentFilePath, JSON.stringify(recentData, null, 2), "utf-8");
+
+    const r = await autoActivateOnStartup();
+    expect(r.status).toBe("restored");
+    if (r.status === "restored") {
+      expect(r.entry.id).toBe(wsId);
+    }
+  });
+
+  it("recent の lastActiveId が stale (workspace が消えている) → status: none", async () => {
+    const staleId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const recentData = {
+      $schema: "designer-recent-workspaces-v1",
+      version: 1,
+      workspaces: [
+        {
+          id: staleId,
+          path: path.join(TMP_ROOT, "deleted-workspace"),
+          name: "Deleted",
+          lastOpenedAt: new Date().toISOString(),
+        },
+      ],
+      lastActiveId: staleId,
+    };
+    await fs.mkdir(path.dirname(recentFilePath), { recursive: true });
+    await fs.writeFile(recentFilePath, JSON.stringify(recentData, null, 2), "utf-8");
+    // deleted-workspace は作らない
+
+    const r = await autoActivateOnStartup();
+    expect(r.status).toBe("none");
+  });
+});
+
+describe("_internals", () => {
+  it("PROJECT_SCHEMA_REF は schemas/v3/project.v3.schema.json への相対パスを含む", () => {
+    expect(_internals.PROJECT_SCHEMA_REF).toContain("project.v3.schema.json");
   });
 });

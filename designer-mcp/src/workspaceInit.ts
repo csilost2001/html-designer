@@ -6,8 +6,10 @@
  * - autoActivateOnStartup: designer-mcp 起動時の自動 active 設定
  *   1. lockdown 中なら何もしない (env で active 固定済み)
  *   2. recent.lastActiveId が指す workspace があれば setActivePath
- *   3. 旧来の <designer-mcp親>/data/ に project.json があれば recent に upsert + active 化
- *   4. 何もなければ active 未設定のまま (UI 側で /workspace/select に誘導)
+ *   3. 何もなければ active 未設定のまま (UI 側で /workspace/select に誘導)
+ *
+ * #754: legacy data/ auto-activate を削除。data/ は data/extensions/ 専用。
+ * ユーザープロジェクトは workspaces/ または任意フォルダ。
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -19,9 +21,7 @@ import {
 } from "./workspaceState.js";
 import {
   readRecent,
-  upsertWorkspace,
   findById,
-  setLastActive,
   type WorkspaceEntry,
 } from "./recentStore.js";
 // projectStorage の関数群は active workspace 必須なので本モジュールでは使わず、
@@ -174,49 +174,22 @@ export async function initializeWorkspace(folderPath: string): Promise<Initializ
   return { path: abs, name, projectId };
 }
 
-/**
- * 旧来の <designer-mcp 親>/data/ ディレクトリを default workspace として扱う。
- * project.json があれば recent に upsert、無ければ何もしない。
- */
-
-/**
- * C: LEGACY_DATA_DIR を動的解決。
- * - env DESIGNER_LEGACY_DATA_DIR が設定されていればそれを使う (packaged 配布 / VS Code 拡張組み込み時の override 用)
- * - 未設定なら元実装と同等のリポジトリ root data/ (import.meta.dirname/../../data)
- */
-function resolveLegacyDataDir(): string {
-  const envPath = process.env.DESIGNER_LEGACY_DATA_DIR;
-  if (envPath && envPath.trim().length > 0) return path.resolve(envPath);
-  return path.resolve(import.meta.dirname, "../../data");
-}
-
-async function tryAutoRegisterLegacyData(): Promise<WorkspaceEntry | null> {
-  const legacy = resolveLegacyDataDir();
-  if (!(await pathExists(legacy))) return null;
-  const project = await readProjectAt(legacy);
-  if (!project) return null;
-  const name = extractName(project, path.basename(legacy));
-  const entry = await upsertWorkspace(legacy, name);
-  await setLastActive(entry.id);
-  return entry;
-}
-
 export type AutoActivateResult =
   | { status: "lockdown"; path: string }
   | { status: "restored"; entry: WorkspaceEntry }
-  | { status: "registeredLegacy"; entry: WorkspaceEntry }
   | { status: "none" };
 
 /**
  * 起動時の自動 active 設定。lockdown 中はスキップ。
- * recent.lastActiveId が指す workspace があれば優先、無ければ legacy data/ 自動登録、
- * それも無ければ active 未設定で UI 側に委ねる。
+ * recent.lastActiveId が指す workspace があれば復元、なければ active 未設定で UI 側に委ねる。
  *
  * 戻り値は呼び出し側 (index.ts) が console log 出力する用途。
  * broadcast はしない (この時点で WS クライアントは未接続)。
  *
  * lastActiveId 復元時は inspectWorkspacePath で ready 確認する (project.json が
  * 削除・移動済みの stale エントリで起動しないようにする)。
+ *
+ * #754: data/ legacy auto-activate は削除済。data/ は data/extensions/ 専用。
  */
 export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
   if (isLockdown()) {
@@ -235,16 +208,10 @@ export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
       // recent からの除去はしない (UI 側でユーザーが「リストから外す」できる前提)。
     }
   }
-  const legacy = await tryAutoRegisterLegacyData();
-  if (legacy) {
-    setGlobalDefaultPath(legacy.path);
-    return { status: "registeredLegacy", entry: legacy };
-  }
   return { status: "none" };
 }
 
 /** test-only */
 export const _internals = {
-  resolveLegacyDataDir,
   PROJECT_SCHEMA_REF,
 };

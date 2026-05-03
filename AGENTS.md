@@ -17,7 +17,7 @@ Claude Code 固有の補足は `CLAUDE.md`、Codex 固有の設定は `.codex/co
 
 - **AI (Claude/Codex/その他) が勝手に変更するのは禁止** — 権限外行為、フレームワークの統一性を損なう
 - 業務記述で表現できない場合の対処順序:
-  1. 拡張機構 (`docs/sample-project/extensions/<namespace>/*.json`) で代替できないか確認
+  1. 拡張機構 (`samples/<project-id>/extensions/<namespace>/*.json` または `workspaces/<id>/extensions/<namespace>/*.json`) で代替できないか確認
   2. 既存 schema フィールドで代替表現できないか確認 (`type: "other"` + outputSchema パターン等)
   3. それでも無理なら **ISSUE 起票して作業停止**、設計者承認待ち
 - **テスト pass を理由に schema を勝手に拡張するのは絶対禁止**
@@ -64,11 +64,17 @@ Both servers must run simultaneously for file-based persistence. Without designe
 ### Test Data
 
 ```bash
-node docs/sample-project/seed.mjs            # Generate 10 sample screens + screen-items into data/
-node scripts/migrate-screen-items.mjs        # Dry-run: show screens missing data-item-id/name attrs
-node scripts/migrate-screen-items.mjs --apply  # Apply: add id/data-item-id attrs to existing screens
-node scripts/migrate-screen-items-rename.mjs        # Dry-run: show screen-items with old name field (#330)
-node scripts/migrate-screen-items-rename.mjs --apply  # Apply: rename name→id in data/screen-items/
+node docs/legacy-sample-project/seed.mjs            # Generate 10 sample screens + screen-items into workspaces/seed/ (default)
+node docs/legacy-sample-project/seed.mjs <path>     # Generate into custom path (e.g. workspaces/my-test/)
+```
+
+### ドッグフード deploy 先
+
+AI ドッグフード時のサンプル展開先は **`workspaces/dogfood-<目的-YYYYMMDD>/`** を使用する。`data/` への deploy は禁止 (`data/` はデザイナー本体組み込み拡張定義 `data/extensions/` 専用、#753 で責務縮退済み)。`samples/<project-id>/` を作業領域にコピーする際も `workspaces/<project-id>/` を使う。
+
+```bash
+# samples/retail/ を dogfood 領域にコピーする例 (Windows PowerShell)
+Copy-Item -Recurse -Force samples\retail\* workspaces\retail\
 ```
 
 ## Architecture
@@ -80,12 +86,15 @@ AI Agent ──(http://localhost:5179/mcp)──┐
                                         ▼
                                    designer-mcp ←──(ws://0.0.0.0:5179)──→ Browser
                                         ▼
-                                    data/ folder
+                          ┌─────────────────────────────┐
+                          │  data/extensions/  (本体)   │  ← git tracked
+                          │  workspaces/<id>/  (作業)   │  ← gitignored
+                          └─────────────────────────────┘
 ```
 
 - **MCP (HTTP Streamable, port 5179):** AI エージェントは MCP 設定 (Claude Code は `.mcp.json`、Codex は `.codex/config.toml`) で HTTP URL エントリ経由接続 (#302)。常駐サーバなので複数セッション同時接続可、orphan 問題も解消
 - **WebSocket (port 5179):** Browser reads/writes screen data via wsBridge — MCP と同一 port に同居
-- **Shared storage:** Both access `data/` directory (project.json + screens/*.json)
+- **Shared storage:** `data/extensions/` (デザイナー本体組み込み拡張定義、git tracked) + active workspace の `workspaces/<wsId>/` (ユーザープロジェクトデータ、gitignored)
 
 ### 起動
 
@@ -136,7 +145,7 @@ URL 規約: **`/category/feature[/:id]`** 形式（Java 風階層）。ルート
 
 ### Data Flow
 
-- **Save:** GrapesJS autosave → remoteStorage → mcpBridge (WS) → wsBridge → `data/screens/{id}.json`
+- **Save:** GrapesJS autosave → remoteStorage → mcpBridge (WS) → wsBridge → active workspace の `screens/{id}.json` (path は active workspace 依存)
 - **Fallback:** If WS disconnected → localStorage (`gjs-screen-{id}`)
 - **Sync:** wsBridge broadcasts changes to all connected browser tabs
 
@@ -165,7 +174,7 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/process-flows/*.json` の全件をスキーマで検証する。
+検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — 現状は旧 `docs/sample-project/process-flows/*.json` を参照する (`process-flow.schema.test.ts:11` const `samplesDir`)。`samples/<project-id>/actions/*.json` への参照先移行は別 ISSUE 候補 (#753 follow-up F-1/F-2 で skill / scripts と同時に処理予定)。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 
@@ -197,9 +206,9 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
   ```
   **NG**: `Closes #A, #B, #C` は**先頭しか自動 close されない** (PR #340 で実例あり)。コミットは ISSUE 単位で分ける。独立レビューは**統合 PR 単位で 1 回**。Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
 - PRs are squash-merged into `main`. The PR title should include the issue number (e.g., `feat(ui): ... (#83)`) so the merge commit references it.
-- `data/` directory is gitignored — runtime data only
+- `data/` は本体専用 (`data/extensions/` のみ git tracked) + `workspaces/` がユーザー作業領域 (両方 gitignored)
 - Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
-- Custom blocks persist to `data/custom-blocks.json` via customBlockStore
+- Custom blocks persist to active workspace の `custom-blocks.json` via customBlockStore
 
 ## PR 作成・レビューの規約
 

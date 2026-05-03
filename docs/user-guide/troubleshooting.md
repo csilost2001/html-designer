@@ -6,7 +6,7 @@
 
 ### ブラウザで処理フローが見えない (一覧が空)
 
-- `data/project.json` に `processFlows[]` があるか確認
+- active workspace の `project.json` に `processFlows[]` があるか確認 (workspace 配置は #753 で `data/` から `workspaces/<id>/` または任意フォルダに変更)
 - designer-mcp (ws://localhost:5179) が起動しているか: `netstat -ano | grep :5179`
 - ブラウザ DevTools Console で `[mcpBridge] connected` ログがあるか
 - localStorage が古い可能性: Application タブから `flow-project` を削除して reload
@@ -70,18 +70,18 @@ taskkill /F /PID <PID>     # Windows
 
 ## データ周り
 
-### data/ フォルダが gitignored なのでバックアップ方法は?
+### workspace フォルダが gitignored なのでバックアップ方法は?
 
-- 設計上 data/ はランタイム。正本は `docs/sample-project/` のサンプル
-- 実データは wsBridge 経由で保存されるため、別の場所に data/ 全体をコピーすればバックアップ
-- designer-mcp を停止してから data/ をコピー推奨
+- 設計上 `data/` はデザイナー本体組み込み拡張定義 (`data/extensions/`) 専用、ユーザープロジェクトは `workspaces/<id>/` または任意フォルダに配置 (#753)。正本サンプルは `samples/<project-id>/` (git tracked)
+- 実データは wsBridge 経由で active workspace 配下に保存されるため、active workspace ディレクトリ全体をコピーすればバックアップ
+- designer-mcp を停止してから workspace ディレクトリをコピー推奨
 
-### project.json と process-flow ファイルが整合しない
+### project.json と処理フローファイルが整合しない
 
 - project.json: 一覧表示用の軽量メタ
-- data/process-flows/*.json: 実体
+- active workspace の `actions/*.json`: 実体 (#393-#395 で旧 `process-flows/` から `actions/` にリネーム済)
 - どちらかだけ編集した場合、不整合で「処理フローが見つかりません」等のエラーに
-- 復旧: project.json に該当 ID があるか、data/process-flows/<ID>.json が存在するか、両方確認
+- 復旧: project.json に該当 ID があるか、active workspace の `actions/<ID>.json` が存在するか、両方確認
 
 ## Playwright E2E
 

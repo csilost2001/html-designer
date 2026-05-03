@@ -1,13 +1,15 @@
 /**
- * docs/sample-project/seed.mjs
+ * docs/legacy-sample-project/seed.mjs
  *
  * 顧客管理システム サンプルデータ生成スクリプト
  *
  * 使用方法:
- *   node docs/sample-project/seed.mjs
+ *   node docs/legacy-sample-project/seed.mjs
+ *     → workspaces/seed/ にデータを生成 (デフォルト)
+ *   node docs/legacy-sample-project/seed.mjs <path>
+ *     → 指定パスにデータを生成 (例: node ... workspaces/my-test/)
  *
- * 実行すると data/project.json と data/screens/*.json を上書き生成します。
- * テストで削除してしまった場合も、このスクリプトを再実行すれば元に戻ります。
+ * 注意: data/ への直接 deploy は禁止 (#753)。deploy 先は workspaces/ を使ってください。
  */
 
 import fs from "fs";
@@ -15,7 +17,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, "../../data");
+const DATA_DIR = process.argv[2]
+  ? path.resolve(process.cwd(), process.argv[2])
+  : path.resolve(__dirname, "../../workspaces/seed");
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
 const TABLES_DIR = path.join(DATA_DIR, "tables");
 const PROCESS_FLOWS_DIR = path.join(DATA_DIR, "process-flows");
@@ -1156,11 +1160,11 @@ if (fs.existsSync(SEED_CONVENTIONS_DIR)) {
 }
 
 console.log("\n✅ シードデータ生成完了");
-console.log(`   data/screens/        → ${count} ファイル`);
-console.log(`   data/screen-items/   → ${siCount} ファイル`);
-console.log(`   data/tables/         → ${tableCount} ファイル`);
-console.log(`   data/process-flows/        → ${actionCount} ファイル`);
-console.log(`   data/conventions/    → ${conventionsCount} ファイル`);
-console.log(`   docs/sample-project/ → バックアップ済み`);
+console.log(`   ${DATA_DIR}/screens/        → ${count} ファイル`);
+console.log(`   ${DATA_DIR}/screen-items/   → ${siCount} ファイル`);
+console.log(`   ${DATA_DIR}/tables/         → ${tableCount} ファイル`);
+console.log(`   ${DATA_DIR}/process-flows/  → ${actionCount} ファイル`);
+console.log(`   ${DATA_DIR}/conventions/    → ${conventionsCount} ファイル`);
+console.log(`   docs/legacy-sample-project/ → バックアップ済み`);
 console.log("\n復元方法:");
-console.log("   node docs/sample-project/seed.mjs");
+console.log("   node docs/legacy-sample-project/seed.mjs");
