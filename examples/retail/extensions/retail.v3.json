@@ -1,0 +1,320 @@
+{
+  "$schema": "../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "retail",
+  "version": "1.0.0",
+  "requiresCoreSchema": ">=3.0.0",
+  "description": "リテール業態 (EC + 店舗 POS + 在庫管理) 向け v3 canonical 拡張定義。fieldTypes / actionTriggers / dbOperations / stepKinds / responseTypes を統合。",
+  "fieldTypes": [
+    {
+      "kind": "productCode",
+      "label": "商品コード",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^P-[0-9]{4,6}$" },
+        { "type": "maxLength", "value": 20 }
+      ],
+      "description": "リテール業態の商品コード型。@conv.regex.productCode 正規表現準拠 (例: P-0001)。"
+    },
+    {
+      "kind": "janCode",
+      "label": "JAN コード",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^[0-9]{13}$" },
+        { "type": "length", "value": 13 }
+      ],
+      "description": "JAN/EAN-13 バーコード型。13 桁数字のみ。@conv.regex.janCode 準拠。"
+    },
+    {
+      "kind": "orderNumber",
+      "label": "注文番号",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^ORD-[0-9]{4}-[0-9]{4,8}$" },
+        { "type": "maxLength", "value": 30 }
+      ],
+      "description": "採番済み注文番号型。@conv.numbering.orderNumber 規約で生成される。例: ORD-2026-0001。"
+    },
+    {
+      "kind": "storeCode",
+      "label": "店舗コード",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^S-[0-9]{3,5}$" },
+        { "type": "maxLength", "value": 20 }
+      ],
+      "description": "店舗識別コード型。例: S-001。"
+    },
+    {
+      "kind": "button",
+      "label": "ボタン",
+      "baseType": "string",
+      "description": "クリック操作を発火する button-like 要素。直接のデータ binding は持たず、events[] で handlerFlow を起動する。typically direction='output' + readonly=true で使い、value はラベル文字列を流用する。"
+    }
+  ],
+  "actionTriggers": [
+    {
+      "value": "orderConfirmed",
+      "label": "注文確定後",
+      "description": "注文確定 TX 完了直後に発火するトリガー。在庫補充チェック・確認メール送信などの後続処理を起動する。ProcessFlow の trigger に指定する。"
+    },
+    {
+      "value": "lowStockDetected",
+      "label": "低在庫検出時",
+      "description": "inventory.quantity_available が @conv.limit.lowStockThreshold 以下になった時点で発火するトリガー。仕入れ発注フロー (将来拡張) への連携入口。"
+    },
+    {
+      "value": "cartAbandoned",
+      "label": "カート放棄時",
+      "description": "カートが一定時間更新されずに放棄された状態を検出した時点で発火するトリガー。リマインドメール送信などに使用 (将来拡張)。"
+    },
+    {
+      "value": "shipmentDispatched",
+      "label": "配送指示完了後",
+      "description": "外部キャリア API への配送指示が正常完了し、追跡番号を取得した後に発火するトリガー。出荷通知メール送信に使用する。"
+    }
+  ],
+  "dbOperations": [
+    {
+      "value": "DECREMENT_STOCK",
+      "label": "在庫減算",
+      "description": "inventory.quantity_available を指定数量だけ減算する。0 未満になる場合は STOCK_SHORTAGE エラーを返す。注文確定 TX (S-3) 内で使用する。"
+    },
+    {
+      "value": "UPSERT_CART_ITEM",
+      "label": "カート明細追加/更新",
+      "description": "cart_items に (cart_id, product_id) で UPSERT する。重複の場合は quantity を加算し unit_price_snapshot を最新値で更新する。カート追加 (S-2) で使用する。"
+    },
+    {
+      "value": "CLEAR_CART",
+      "label": "カートクリア",
+      "description": "cart_items の cart_id に紐付く全明細を DELETE し、carts.status を 'ordered' に更新する。注文確定 TX (S-3) 完了後に実行する。"
+    },
+    {
+      "value": "BULK_INSERT",
+      "label": "一括 INSERT",
+      "description": "配列データを一括 INSERT する。注文確定時の order_items 登録で使用する。"
+    }
+  ],
+  "stepKinds": {
+    "DispatchShipment": {
+      "label": "配送指示",
+      "icon": "bi-truck",
+      "description": "外部キャリア API に配送指示を送信する拡張 Step。注文情報・配送先住所・希望配送日をキャリア API エンドポイントに POST し、追跡番号 (tracking_number) を受け取る。配送指示フロー (S-4) で使用する。",
+      "schema": {
+        "type": "object",
+        "required": ["carrierId", "orderId", "shippingAddress"],
+        "properties": {
+          "carrierId": {
+            "type": "string",
+            "description": "キャリア識別子 (例: yamato / sagawa / japanpost)"
+          },
+          "orderId": {
+            "type": "string",
+            "description": "注文 ID (変数参照可)"
+          },
+          "shippingAddress": {
+            "type": "string",
+            "description": "配送先住所 (変数参照可)"
+          },
+          "preferredDate": {
+            "type": "string",
+            "description": "希望配送日 (YYYY-MM-DD、任意)"
+          },
+          "timeSlot": {
+            "type": "string",
+            "enum": ["morning", "afternoon", "evening", "any"],
+            "description": "希望時間帯"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "object",
+        "fields": [
+          { "name": "trackingNumber", "type": "string", "label": "追跡番号" },
+          { "name": "estimatedDelivery", "type": "date", "label": "配達予定日" },
+          { "name": "carrierId", "type": "string", "label": "キャリア識別子" }
+        ]
+      }
+    },
+    "SendOrderConfirmEmail": {
+      "label": "注文確定メール送信",
+      "icon": "bi-envelope-check",
+      "description": "注文確定後に顧客へ確認メールを送信する拡張 Step。注文番号・明細・合計金額をテンプレートに展開して送信する。注文確定フロー (S-3) の完了後に実行する。",
+      "schema": {
+        "type": "object",
+        "required": ["toEmail", "orderNumber"],
+        "properties": {
+          "toEmail": {
+            "type": "string",
+            "description": "送信先メールアドレス (customers.email)"
+          },
+          "orderNumber": {
+            "type": "string",
+            "description": "注文番号 (orders.order_number)"
+          },
+          "templateId": {
+            "type": "string",
+            "description": "メールテンプレート ID (省略時はデフォルトテンプレート)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "object",
+        "fields": [
+          { "name": "messageId", "type": "string", "label": "メッセージ ID" },
+          { "name": "sentAt", "type": "datetime", "label": "送信日時" }
+        ]
+      }
+    }
+  },
+  "responseTypes": {
+    "StockShortageError": {
+      "description": "在庫不足エラーレスポンス。注文確定 TX (S-3) の在庫引き当て失敗時に返す。エラーコード STOCK_SHORTAGE と不足している商品一覧を含む。",
+      "schema": {
+        "type": "object",
+        "required": ["code", "shortages"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["STOCK_SHORTAGE"],
+            "description": "エラーコード"
+          },
+          "message": {
+            "type": "string",
+            "description": "ユーザー向けエラーメッセージ (@conv.msg.stockShortage 参照)"
+          },
+          "shortages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productId", "productCode", "requested", "available"],
+              "properties": {
+                "productId": { "type": "integer" },
+                "productCode": { "type": "string" },
+                "productName": { "type": "string" },
+                "requested": { "type": "integer" },
+                "available": { "type": "integer" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "CartAddResponse": {
+      "description": "カート明細追加成功レスポンス (S-2)。追加後のカート状態 (明細数・合計金額) を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["cartId", "itemCount", "totalAmount"],
+        "properties": {
+          "cartId": { "type": "integer" },
+          "itemCount": { "type": "integer", "description": "カート内明細件数" },
+          "totalAmount": { "type": "number", "description": "カート合計金額 (税抜)" },
+          "addedItem": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "integer" },
+              "productCode": { "type": "string" },
+              "quantity": { "type": "integer" },
+              "unitPrice": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "OrderConfirmResponse": {
+      "description": "注文確定成功レスポンス (S-3)。採番された注文番号・合計金額・注文日時を返す。注文完了画面での表示に使用する。",
+      "schema": {
+        "type": "object",
+        "required": ["orderId", "orderNumber", "totalAmount", "orderedAt"],
+        "properties": {
+          "orderId": { "type": "integer" },
+          "orderNumber": { "type": "string", "description": "採番済み注文番号 (例: ORD-2026-0001)" },
+          "totalAmount": { "type": "number", "description": "税抜合計金額" },
+          "taxAmount": { "type": "number", "description": "消費税額" },
+          "orderedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "DispatchShipmentResponse": {
+      "description": "配送指示完了レスポンス (S-4)。外部キャリアから取得した追跡番号と配達予定日を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["orderId", "orderNumber", "trackingNumber", "carrierId"],
+        "properties": {
+          "orderId": { "type": "integer" },
+          "orderNumber": { "type": "string" },
+          "trackingNumber": { "type": "string", "description": "キャリアの追跡番号" },
+          "carrierId": { "type": "string" },
+          "estimatedDelivery": { "type": "string", "format": "date" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ApiError": {
+      "description": "汎用 API エラーレスポンス。バリデーションエラー / 認証エラー / 外部 API 失敗等の共通エラー応答に使う。",
+      "schema": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "description": "エラーコード (例: VALIDATION_ERROR / NOT_FOUND / EXTERNAL_API_FAILURE)" },
+          "message": { "type": "string", "description": "ユーザー向けエラーメッセージ" },
+          "details": { "type": "array", "items": { "type": "string" }, "description": "詳細情報 (任意)" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "DashboardKpiResponse": {
+      "description": "ダッシュボード KPI 集計レスポンス。todaySales / ordersToday / lowStockCount / dispatchPending の 4 KPI 値を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["todaySales", "ordersToday", "lowStockCount", "dispatchPending"],
+        "properties": {
+          "todaySales": { "type": "integer", "description": "本日累計売上金額 (税込)" },
+          "ordersToday": { "type": "integer", "description": "本日注文件数 (cancelled 除外)" },
+          "lowStockCount": { "type": "integer", "description": "低在庫 (@conv.limit.lowStockThreshold 以下) 商品件数" },
+          "dispatchPending": { "type": "integer", "description": "配送指示待ち (status IN ('pending', 'confirmed')) 注文件数" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "InventorySearchResponse": {
+      "description": "店舗在庫照会レスポンス (S-1)。指定商品コード / 店舗の在庫情報を items 配列で返す。0 件でも 200 OK で items: []。",
+      "schema": {
+        "type": "object",
+        "required": ["items", "totalCount"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["productId", "productCode", "productName", "storeId", "storeCode", "storeName", "quantityAvailable"],
+              "properties": {
+                "productId": { "type": "integer" },
+                "productCode": { "type": "string" },
+                "productName": { "type": "string" },
+                "storeId": { "type": "integer" },
+                "storeCode": { "type": "string" },
+                "storeName": { "type": "string" },
+                "quantityAvailable": { "type": "integer", "description": "引き当て可能在庫数" },
+                "quantityReserved": { "type": "integer", "description": "予約済み在庫数" },
+                "minStock": { "type": "integer", "description": "最低在庫数 (閾値以下は警告)" },
+                "isLowStock": { "type": "boolean", "description": "低在庫閾値以下フラグ (@conv.limit.lowStockThreshold 以下で true)" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "totalCount": { "type": "integer" }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
