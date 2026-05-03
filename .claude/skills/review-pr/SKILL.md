@@ -100,7 +100,7 @@ gh pr diff <PR番号> --name-only | grep -E "^schemas/"
 変更がある場合は以下を Must-fix として指摘:
 
 1. **設計者承認 ISSUE が紐付いているか確認** (PR description / 元 ISSUE で明示的に schema 改修を承認していなければ NG)
-2. **拡張機構 (namespace 拡張定義) で代替できないか確認** (`docs/sample-project/extensions/<namespace>/*.json` で表現可能なら schema 変更不要)
+2. **拡張機構 (namespace 拡張定義) で代替できないか確認** (`examples/<project-id>/extensions/<namespace>/*.json` で表現可能なら schema 変更不要)
 3. **既存 schema フィールドで代替表現できないか確認** (`type: "other"` + outputSchema パターン等)
 4. テスト pass を理由に schema を勝手に拡張するのは**絶対 NG**
 

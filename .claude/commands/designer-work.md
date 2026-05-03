@@ -31,7 +31,7 @@ ProcessFlow `$ARGUMENTS` の未解決マーカーを処理します。
 - `designer__list_markers` を呼び、未解決マーカー一覧を取得する (unresolvedOnly: true、既定)
 - `designer__get_process_flow` で現在の ProcessFlow 全体を取得し、コンテキストを把握する
 - 必要に応じて関連テーブル定義 (`designer__get_table`) や規約カタログ
-  (`docs/sample-project/conventions/conventions-catalog.json`) を参照する
+  (`examples/<project-id>/conventions/catalog.json`) を参照する
 - マーカー件数と種別 (chat/attention/todo/question) の要約を**まず人間に報告**する
 
 ### 2. 1 件ずつ対応
@@ -64,7 +64,7 @@ catalog エントリ追加や step 編集で以下を参照する場合、対象
 - `typeRef` → `data/extensions/response-types.json` の responseTypes キー
 - `systemRef` → ProcessFlow.externalSystemCatalog キー
 - `@secret.*` → ProcessFlow.secretsCatalog キー
-- `@conv.*` → `docs/sample-project/conventions/conventions-catalog.json` キー
+- `@conv.*` → `examples/<project-id>/conventions/catalog.json` キー
 
 **参照先が未定義なら、値から当該フィールドを省き、不足分を `add_marker(kind="attention")` で別起票**してから元を resolve する。ダングリング参照を新規作成しない。
 

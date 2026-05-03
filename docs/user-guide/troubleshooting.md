@@ -72,7 +72,7 @@ taskkill /F /PID <PID>     # Windows
 
 ### workspace フォルダが gitignored なのでバックアップ方法は?
 
-- 設計上 `data/` はデザイナー本体組み込み拡張定義 (`data/extensions/`) 専用、ユーザープロジェクトは `workspaces/<id>/` または任意フォルダに配置 (#753)。正本サンプルは `samples/<project-id>/` (git tracked)
+- 設計上 `data/` はデザイナー本体組み込み拡張定義 (`data/extensions/`) 専用、ユーザープロジェクトは `workspaces/<id>/` または任意フォルダに配置 (#753)。正本サンプルは `examples/<project-id>/` (git tracked)
 - 実データは wsBridge 経由で active workspace 配下に保存されるため、active workspace ディレクトリ全体をコピーすればバックアップ
 - designer-mcp を停止してから workspace ディレクトリをコピー推奨
 

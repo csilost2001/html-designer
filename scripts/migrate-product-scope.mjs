@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
 
 const catalogPath = resolve(repoRoot, "data/conventions/catalog.json");
-const seedPath = resolve(repoRoot, "docs/sample-project/conventions/conventions-catalog.json");
+const seedPath = resolve(repoRoot, "examples/retail/conventions/catalog.json");
 
 const NEW_CATEGORIES = [
   "scope",

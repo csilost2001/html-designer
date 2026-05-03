@@ -4,8 +4,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULT_TARGET = "data/process-flows";
-const SAMPLE_TARGET = "docs/sample-project/process-flows";
-const TARGET_FILE_RE = /^cccccccc-000[5-8]-.*\.json$/;
+const SAMPLE_TARGET = "examples/retail/actions";
+// retail actions は random UUID 命名のため、SAMPLE_TARGET 時は全 .json を対象とする (旧 cccccccc-000[5-8] パターンは PR #759 で廃止)
+const TARGET_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.json$/i;
 
 function parseArgs(argv) {
   const options = { apply: false, target: DEFAULT_TARGET };
@@ -80,8 +81,10 @@ function mergeCompatibleEntry(existing, incoming) {
 
 function responseTypesPathFor(targetDir) {
   const normalized = path.normalize(targetDir);
+  // SAMPLE_TARGET (examples/<project>/actions) は extensions/<namespace>/response-types.json の namespaced 配置を使う。
+  // retail サンプルでは namespace=retail なので examples/retail/extensions/retail/response-types.json を返す。
   if (normalized.endsWith(path.normalize(SAMPLE_TARGET))) {
-    return path.join(path.dirname(normalized), "extensions", "response-types.json");
+    return path.join(path.dirname(normalized), "extensions", "retail", "response-types.json");
   }
   const parent = path.dirname(normalized);
   return path.join(parent, "extensions", "response-types.json");

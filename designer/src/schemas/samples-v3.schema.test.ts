@@ -1,21 +1,21 @@
 /**
- * samples/**\/\*.json を v3 schema で全件 AJV 検証 (#680 / #706)。
+ * examples/**\/\*.json を v3 schema で全件 AJV 検証 (#680 / #706)。
  *
- * samples/<project>/ 直下のディレクトリをエンティティ種別と見なし、対応する schemas/v3/*.v3.schema.json で
- * 各 json を検証する。schema 進化時に samples/ が breakage したら本テストで検出。
+ * examples/<project>/ 直下のディレクトリをエンティティ種別と見なし、対応する schemas/v3/*.v3.schema.json で
+ * 各 json を検証する。schema 進化時に examples/ が breakage したら本テストで検出。
  *
- * 配置ルール (docs/spec/samples-retail.md § 2 / `project_samples_strategy_2026_05_02.md`):
- *  - samples/<project>/project.json
- *  - samples/<project>/screens/<uuid>.json
- *  - samples/<project>/screen-items/<screenId>.json
- *  - samples/<project>/tables/<uuid>.json
- *  - samples/<project>/actions/<uuid>.json (= process-flows)
- *  - samples/<project>/views/<uuid>.json
- *  - samples/<project>/view-definitions/<uuid>.json
- *  - samples/<project>/sequences/<uuid>.json
- *  - samples/<project>/extensions/<namespace>/*.json
- *  - samples/<project>/conventions/*.json
- *  - samples/<project>/screen-layout.json (任意)
+ * 配置ルール (docs/spec/examples-retail.md § 2 / `project_samples_strategy_2026_05_02.md`):
+ *  - examples/<project>/project.json
+ *  - examples/<project>/screens/<uuid>.json
+ *  - examples/<project>/screen-items/<screenId>.json
+ *  - examples/<project>/tables/<uuid>.json
+ *  - examples/<project>/actions/<uuid>.json (= process-flows)
+ *  - examples/<project>/views/<uuid>.json
+ *  - examples/<project>/view-definitions/<uuid>.json
+ *  - examples/<project>/sequences/<uuid>.json
+ *  - examples/<project>/extensions/<namespace>/*.json
+ *  - examples/<project>/conventions/*.json
+ *  - examples/<project>/screen-layout.json (任意)
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
@@ -25,7 +25,7 @@ import { resolve, join } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
 const v3Dir = join(repoRoot, "schemas/v3");
-const samplesDir = join(repoRoot, "samples");
+const samplesDir = join(repoRoot, "examples");
 
 function loadJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf-8"));
@@ -158,7 +158,7 @@ function dumpErrors(v: ValidateFunction, file: string): string {
     .join("\n")}`;
 }
 
-describe("samples/**/*.json (v3 全件 AJV 検証)", () => {
+describe("examples/**/*.json (v3 全件 AJV 検証)", () => {
   const projects = listSampleProjects();
 
   if (projects.length === 0) {
@@ -169,7 +169,7 @@ describe("samples/**/*.json (v3 全件 AJV 検証)", () => {
   }
 
   for (const projectName of projects) {
-    describe(`samples/${projectName}`, () => {
+    describe(`examples/${projectName}`, () => {
       const projectDir = join(samplesDir, projectName);
       const entries = collectFiles(projectDir);
 
