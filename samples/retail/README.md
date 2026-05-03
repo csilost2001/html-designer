@@ -38,18 +38,21 @@ samples/retail/
 
 `samples/retail/` は **git 管理の正本サンプル**。直接開くと編集が git 差分になるため、動作確認は **コピーして使う** ことを推奨します (デプロイ相当)。
 
-### 推奨: data/ にコピーして使う (試行錯誤・編集 OK)
+### 推奨: workspaces/retail/ にコピーして使う (試行錯誤・編集 OK)
 
 ```bash
-# samples/retail/ を data/ にコピー (Windows PowerShell の例)
-Copy-Item -Recurse -Force samples\retail\* data\
+# workspaces/retail/ ディレクトリを作成してコピー (Windows PowerShell の例)
+New-Item -ItemType Directory -Force -Path workspaces\retail
+Copy-Item -Recurse -Force samples\retail\* workspaces\retail\
 
 # designer-mcp / designer を起動
 cd designer-mcp && npm run dev   # 別ターミナル
 cd designer && npm run dev
 ```
 
-`data/` は gitignored なので自由に編集できます。
+`workspaces/` は gitignored なので自由に編集できます。
+
+> **注意**: `data/` への直接 deploy は禁止 (#753)。`data/` はデザイナー本体組み込み拡張定義 (`data/extensions/`) 専用です。
 
 ### 直接開く (見るだけの動作確認)
 
