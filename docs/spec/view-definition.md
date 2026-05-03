@@ -219,7 +219,7 @@ interface FilterSpec {
 - WHERE で同テーブル内の列で絞り込みたい (e.g. `o.status != 'cancelled'`)
 - GROUP BY / HAVING で集計が必要 (ただし window 関数や CTE は Level 3)
 
-`alias` は snake_case 識別子、`from.alias` と `joins[].alias` は重複不可 (validator が検査)。
+`alias` の pattern は `^[a-z][a-z0-9_]*$` (先頭小文字 + 小文字英数 / アンダースコア)、`from.alias` と `joins[].alias` の組合せ重複は不可 (validator `DUPLICATE_QUERY_ALIAS` が検査)。
 
 ### Level 3 (Raw SQL)
 
@@ -314,7 +314,7 @@ interface FilterSpec {
 
 ## validator 観点 (11 件、#745 反映)
 
-`viewDefinitionValidator.ts` が次の観点を検出する。10 件目 / `validate-dogfood` で 8 番目に登録。
+`viewDefinitionValidator.ts` が次の観点を検出する。Phase 4 PR #656 で 9 件登録され、PR #745 で Level 2 / Level 3 対応に伴い 2 件追加 (合計 11 観点)。`validate-dogfood` の登録 8 番目。
 
 | issue code | severity | 検出内容 |
 |---|---|---|
@@ -322,8 +322,8 @@ interface FilterSpec {
 | `UNKNOWN_TABLE_COLUMN_REF` | error | `ViewColumn.tableColumnRef` が存在しないテーブル列を参照 |
 | `UNKNOWN_TABLE_REF_IN_VIEW` | error | Level 2: `ViewColumn.tableColumnRef.tableId` が `query.from` / `query.joins[]` のいずれにも含まれない (#745) |
 | `JOIN_NOT_DECLARED` | warning | Level 1: `tableColumnRef.tableId` が `sourceTableId` と異なる (暗黙 join、Level 2 アップグレード推奨。#745、旧 `COLUMN_REF_NOT_IN_SOURCE_TABLE` を再定義) |
-| `DUPLICATE_VIEW_COLUMN_NAME` | error | ViewDefinition 内で `ViewColumn.name` が重複 |
 | `DUPLICATE_QUERY_ALIAS` | error | Level 2: `query.from.alias` と `query.joins[].alias` の組合せに重複 (#745) |
+| `DUPLICATE_VIEW_COLUMN_NAME` | error | ViewDefinition 内で `ViewColumn.name` が重複 |
 | `FIELD_TYPE_INCOMPATIBLE` | warning | `ViewColumn.type` が参照先テーブル列の DataType と互換なし |
 | `UNKNOWN_SORT_COLUMN` | error | `sortDefaults` が `ViewDefinition.columns` に存在しない列を参照 |
 | `UNKNOWN_FILTER_COLUMN` | error | `filterDefaults` が `ViewDefinition.columns` に存在しない列を参照 |
