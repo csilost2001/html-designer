@@ -67,15 +67,16 @@
     },
     {
       "id": "confirmTotalAmount",
-      "label": "注文合計 (税込)",
+      "label": "注文合計 (税抜)",
       "type": "integer",
       "direction": "output",
       "displayFormat": "¥#,##0",
       "readonly": true,
-      "description": "S-3 注文確定確認画面の注文合計金額 (表示専用)。集計元はカート明細合計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "S-3 注文確定確認画面の注文合計金額 (税抜、表示専用)。集計元はカート集計フロー (267e94bf) の totalAmount。税込表示が必要な場合は呼び出し側で @conv.tax.standard.rate を適用する。",
       "valueFrom": {
         "kind": "flowVariable",
-        "variableName": "confirmTotalAmount"
+        "processFlowId": "267e94bf-0397-44b8-b665-d3c40c38935b",
+        "variableName": "totalAmount"
       }
     },
     {

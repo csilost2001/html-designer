@@ -359,6 +359,15 @@
         "actionCount": 1,
         "maturity": "committed",
         "updatedAt": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "267e94bf-0397-44b8-b665-d3c40c38935b",
+        "no": 5,
+        "name": "カート集計",
+        "kind": "common",
+        "actionCount": 1,
+        "maturity": "committed",
+        "updatedAt": "2026-05-03T00:00:00.000Z"
       }
     ],
     "views": [

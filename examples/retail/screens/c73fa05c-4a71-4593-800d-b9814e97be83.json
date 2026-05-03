@@ -46,10 +46,11 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "#,##0 点",
-      "description": "S-2 カート内の商品合計点数 (表示専用)。集計元はカート集計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "S-2 カート内の商品合計点数 (表示専用)。集計元はカート集計フロー (267e94bf) の itemCount。",
       "valueFrom": {
         "kind": "flowVariable",
-        "variableName": "cartItemCount"
+        "processFlowId": "267e94bf-0397-44b8-b665-d3c40c38935b",
+        "variableName": "itemCount"
       }
     },
     {
@@ -58,10 +59,11 @@
       "type": "integer",
       "direction": "output",
       "displayFormat": "¥#,##0",
-      "description": "S-2 カート内の税抜合計金額 (表示専用)。集計元はカート集計フロー (別途定義予定、processFlowId は将来明示予定)。",
+      "description": "S-2 カート内の税抜合計金額 (表示専用)。集計元はカート集計フロー (267e94bf) の totalAmount。",
       "valueFrom": {
         "kind": "flowVariable",
-        "variableName": "cartTotalAmount"
+        "processFlowId": "267e94bf-0397-44b8-b665-d3c40c38935b",
+        "variableName": "totalAmount"
       }
     },
     {
