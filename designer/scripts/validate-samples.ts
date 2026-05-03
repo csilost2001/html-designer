@@ -437,6 +437,25 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
   const results: FlowValidationResult[] = [];
   const projectResults: ProjectValidationResult[] = [];
 
+  // ─── 必須リソース欠落チェック (docs/spec/sample-project-structure.md) ───────
+  // conventions/catalog.json が欠落 → @conv.* 参照検証が全スキップされサイレント pass になるため error
+  if (project.conventions === null) {
+    const err = new Error(
+      `[validate:samples] 必須リソース不足: ${project.displayName} に conventions/catalog.json が見つかりません。` +
+      `docs/spec/sample-project-structure.md の必須リソース表を参照してください。`,
+    );
+    throw err;
+  }
+
+  // tables/ ディレクトリが欠落 → SQL カラム検証が空配列で動作するためサイレント pass になる → warning
+  const tablesDir = join(project.projectDir, "tables");
+  if (!existsSync(tablesDir)) {
+    console.warn(
+      `[validate:samples] 警告: ${project.displayName} に tables/ ディレクトリが見つかりません。` +
+      `テーブル定義なしで検証を続行します (sqlColumnValidator / sqlOrderValidator は無効化)。`,
+    );
+  }
+
   function validateOne(filePath: string, displayName: string, flow: ProcessFlow, rawJson: string): FlowValidationResult {
     const issues: ValidationIssue[] = [];
 
@@ -469,6 +488,15 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
 
   for (const { filePath, displayName, flow, rawJson } of flows) {
     results.push(validateOne(filePath, displayName, flow, rawJson));
+  }
+
+  // ProcessFlow が 1 件も見つからない場合は構造エラー (actions/ / process-flows/ の欠落または空)
+  if (flows.length === 0) {
+    throw new Error(
+      `[validate:samples] 必須リソース不足: ${project.displayName} に ProcessFlow が 0 件です。` +
+      `actions/ または process-flows/ ディレクトリに .json ファイルを配置してください。` +
+      `(docs/spec/sample-project-structure.md の必須リソース表を参照)`,
+    );
   }
 
   const projectIssues: ValidationIssue[] = [];
