@@ -9,7 +9,6 @@
 
 import type { Authoring, EntityMeta, ScreenGroupId } from "./common";
 import type { ScreenItem } from "./screen-item";
-import type { ViewDefinitionId } from "./view-definition";
 
 /** 組み込み画面種別 (12 種)。 */
 export type BuiltinScreenKind =
@@ -60,7 +59,5 @@ export interface Screen extends EntityMeta {
   permissions?: string[];
   /** 画面デザイン (GrapesJS 生 HTML への参照)。 */
   design?: ScreenDesign;
-  /** 本画面が参照する ViewDefinition ID 一覧 (1:N)。 */
-  viewDefinitionRefs?: ViewDefinitionId[];
   authoring?: Authoring;
 }

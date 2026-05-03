@@ -36,11 +36,6 @@
           "items": { "type": "string" },
           "description": "本画面表示に必要な permission キー (@conv.permission.<key>)。"
         },
-        "viewDefinitionRefs": {
-          "type": "array",
-          "description": "本画面が表示する一覧 UI viewer (ViewDefinition) の参照一覧 (1:N)。kind='list' / 'kanban' / 'calendar' 等の画面で複数 viewer をタブ等で切り替える場合に複数指定。schemas/v3/view-definition.v3.schema.json と対応。",
-          "items": { "$ref": "common.v3.schema.json#/$defs/Uuid" }
-        },
         "design": {
           "$ref": "#/$defs/ScreenDesign",
           "description": "画面デザイン (GrapesJS 生 HTML への参照)。本フレームワークの schema 範囲外、外部参照のみ。"
