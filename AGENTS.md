@@ -174,7 +174,7 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `samples/<project-id>/actions/*.json` の全件をスキーマで検証する (旧 `docs/sample-project/process-flows/*.json` から #393-#395 のリネームと #753 の配置整理を経て移行済)。
+検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — 現状は旧 `docs/sample-project/process-flows/*.json` を参照する (`process-flow.schema.test.ts:11` const `samplesDir`)。`samples/<project-id>/actions/*.json` への参照先移行は別 ISSUE 候補 (#753 follow-up F-1/F-2 で skill / scripts と同時に処理予定)。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 
