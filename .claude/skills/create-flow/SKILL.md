@@ -1,6 +1,6 @@
 ---
 name: create-flow
-description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 10 観点 + 29 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621) + runtime 契約整合性 (#714) + retail dogfood 既知パターン (#740)
+description: ProcessFlow JSON を品質ガード付きで新規作成する。/review-flow の 12 観点 + 30 ルールを作成前 self-check として組み込み、既知パターンの再発を抑制 + グローバル schema 変更禁止 (#511) + 画面項目連携整合性 (#621) + runtime 契約整合性 (#714) + retail dogfood 既知パターン (#740) + SQL alias 必須 (#775)
 argument-hint: <flowId> <業務概要> [namespace]
 disable-model-invocation: true
 ---
@@ -426,6 +426,14 @@ SELECT 'ORD-' || EXTRACT(YEAR FROM CURRENT_DATE)::text || '-' || LPAD(nextval('s
 
 **Step 5.2 で `validate:samples` の `processFlowAntipatternValidator` (`MULTIPLE_STATEMENTS_IN_SQL` warning) により機械的に検出される**
 
+### Rule 30: SQL SELECT 句で camelCase 化が必要な列は `AS "<camelCase>"` alias 必須 (#775)
+
+- `dbAccess.sql` の SELECT 結果が ViewDefinition `columns[].name` (camelCase) へ直接バインドされる場合、**SQL 内で `AS "<camelCase>"` alias を明示する**
+- 例: `SELECT p.unit_price AS "unitPrice", p.product_code AS "productCode" FROM products p`
+- snake_case 物理名 (`unit_price`) と Identifier (`unitPrice`) の変換を runtime の暗黙変換に依存しない
+- alias 追加後は alias の camelCase キーで変数を参照する (`@rows[0].unitPrice` 等)。旧 snake_case 参照 (`@rows[0].unit_price`) は全て更新すること
+- 詳細: `docs/spec/view-definition.md § (D-5)` / `docs/spec/process-flow-runtime-conventions.md §1.4`
+
 ## Step 4: 拡張定義の使い方
 
 ### 既存 namespace を使う場合
@@ -570,6 +578,7 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 | 27. `@conv.numbering.X.nextSeq()` 構文禁止 → DB sequence | ✓ / 該当なし (採番なし) |
 | 28. rollbackOn 発火可能性 (欠落検査) + lineage.writes.purpose 整合 | ✓ / 該当なし (TX なし / lineage なし) |
 | 29. `dbAccess.sql` への複数文 SQL 詰め込み禁止 | ✓ / 該当なし (DB 操作なし) |
+| 30. SQL SELECT 列の `AS "<camelCase>"` alias (#775) | ✓ / 該当なし (VD binding なし) / ❌ |
 
 ### 検証結果
 - vitest: <pass/fail 件数>
@@ -589,7 +598,7 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 - **拡張定義は実利用必須**: 定義のみで未使用は禁止 (spec §15.3)
 - **schema を尊重**: `type: "manufacturing:StepName"` のような未対応形式は使わない (`type: "other"` + outputSchema が正解)
 - **データファイル (`data/`) は触らない** (gitignore 対象)
-- **29 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
+- **30 ルールすべて作成中に意識する**: 1 つでも無視するとレビューで detect される
 
 ## 注意事項
 
