@@ -13,7 +13,7 @@ import { Parser } from "node-sql-parser";
 import type { ProcessFlow, DbAccessStep, Step } from "../types/v3";
 import { isBuiltinStep } from "./stepGuards";
 
-/** テーブル定義 (最小シェイプ、docs/sample-project/tables/*.json 形式) */
+/** テーブル定義 (最小シェイプ、examples/<project-id>/tables/*.json 形式) */
 export interface TableDefinition {
   id: string;
   name: string;

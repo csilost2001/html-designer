@@ -6,7 +6,7 @@ import { resolve, join } from "node:path";
 
 const repoRoot = resolve(__dirname, "../../../");
 const v3Dir = resolve(repoRoot, "schemas/v3");
-const samplesV3Dir = resolve(repoRoot, "docs/sample-project-v3");
+const examplesDir = resolve(repoRoot, "examples");
 
 function loadJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf-8"));
@@ -53,16 +53,11 @@ function listJsonRecursive(dir: string): string[] {
   return out;
 }
 
-describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
-  it("project.json (retail + finance + manufacturing + public-service) validates against project.v3.schema.json", () => {
+describe("schema v3 examples (#774: examples/ を canonical サンプル領域として使用)", () => {
+  it("project.json (retail + realestate) validates against project.v3.schema.json", () => {
     const files = [
-      join(samplesV3Dir, "retail", "project.json"),
-      join(samplesV3Dir, "finance", "project.json"),
-      join(samplesV3Dir, "manufacturing", "project.json"),
-      join(samplesV3Dir, "public-service", "project.json"),
-      join(samplesV3Dir, "logistics", "project.json"),
-      join(samplesV3Dir, "healthcare", "project.json"),
-      join(samplesV3Dir, "welfare-benefit", "project.json"),
+      join(examplesDir, "retail", "project.json"),
+      join(examplesDir, "realestate", "project.json"),
     ];
     for (const file of files) {
       const data = loadJson(file);
@@ -73,13 +68,8 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
 
   it("table samples validate against table.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "retail", "tables")),
-      ...listJsonRecursive(join(samplesV3Dir, "finance", "tables")),
-      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "tables")),
-      ...listJsonRecursive(join(samplesV3Dir, "public-service", "tables")),
-      ...listJsonRecursive(join(samplesV3Dir, "logistics", "tables")),
-      ...listJsonRecursive(join(samplesV3Dir, "healthcare", "tables")),
-      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "tables")),
+      ...listJsonRecursive(join(examplesDir, "retail", "tables")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "tables")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -91,13 +81,8 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
 
   it("screen samples validate against screen.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "retail", "screens")),
-      ...listJsonRecursive(join(samplesV3Dir, "finance", "screens")),
-      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "screens")),
-      ...listJsonRecursive(join(samplesV3Dir, "public-service", "screens")),
-      ...listJsonRecursive(join(samplesV3Dir, "logistics", "screens")),
-      ...listJsonRecursive(join(samplesV3Dir, "healthcare", "screens")),
-      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "screens")),
+      ...listJsonRecursive(join(examplesDir, "retail", "screens")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "screens")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -107,15 +92,10 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
     }
   });
 
-  it("process-flow samples validate against process-flow.v3.schema.json", () => {
+  it("process-flow / actions samples validate against process-flow.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "retail", "process-flows")),
-      ...listJsonRecursive(join(samplesV3Dir, "finance", "process-flows")),
-      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "process-flows")),
-      ...listJsonRecursive(join(samplesV3Dir, "public-service", "process-flows")),
-      ...listJsonRecursive(join(samplesV3Dir, "logistics", "process-flows")),
-      ...listJsonRecursive(join(samplesV3Dir, "healthcare", "process-flows")),
-      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "process-flows")),
+      ...listJsonRecursive(join(examplesDir, "retail", "actions")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "process-flows")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -125,46 +105,29 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
     }
   });
 
-  it("screen-layout sample validates against screen-layout.v3.schema.json (#529 R3)", () => {
-    const file = join(samplesV3Dir, "manufacturing", "layouts", "screen-layout.json");
-    const data = loadJson(file);
-    const ok = validateScreenLayout(data);
-    expect(ok, ok ? "" : dumpErrors(file, validateScreenLayout)).toBe(true);
-  });
-
-  it("er-layout sample validates against er-layout.v3.schema.json (#529 R3)", () => {
-    const file = join(samplesV3Dir, "manufacturing", "layouts", "er-layout.json");
-    const data = loadJson(file);
-    const ok = validateErLayout(data);
-    expect(ok, ok ? "" : dumpErrors(file, validateErLayout)).toBe(true);
-  });
-
-  it("sequence samples validate against sequence.v3.schema.json", () => {
-    const dir = join(samplesV3Dir, "manufacturing", "sequences");
-    const files = listJsonRecursive(dir);
-    expect(files.length).toBeGreaterThan(0);
-    for (const file of files) {
-      const data = loadJson(file);
-      const ok = validateSequence(data);
-      expect(ok, ok ? "" : dumpErrors(file, validateSequence)).toBe(true);
-    }
-  });
-
   it("extension samples validate against extensions.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "retail", "extensions")),
-      ...listJsonRecursive(join(samplesV3Dir, "finance", "extensions")),
-      ...listJsonRecursive(join(samplesV3Dir, "manufacturing", "extensions")),
-      ...listJsonRecursive(join(samplesV3Dir, "public-service", "extensions")),
-      ...listJsonRecursive(join(samplesV3Dir, "logistics", "extensions")),
-      ...listJsonRecursive(join(samplesV3Dir, "healthcare", "extensions")),
-      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "extensions")),
+      ...listJsonRecursive(join(examplesDir, "retail", "extensions")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "extensions")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const data = loadJson(file);
       const ok = validateExtension(data);
       expect(ok, ok ? "" : dumpErrors(file, validateExtension)).toBe(true);
+    }
+  });
+
+  it("view-definition samples validate against view-definition.v3.schema.json", () => {
+    const files = [
+      ...listJsonRecursive(join(examplesDir, "retail", "view-definitions")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "view-definitions")),
+    ];
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const data = loadJson(file);
+      const ok = validateViewDefinition(data);
+      expect(ok, ok ? "" : dumpErrors(file, validateViewDefinition)).toBe(true);
     }
   });
 
@@ -360,19 +323,6 @@ describe("schema v3 dogfood samples (#523 retail + #527 finance)", () => {
       (e) => e.keyword === "discriminator" || (e.message ?? "").includes("discriminator"),
     );
     expect(discriminatorErr).toBeDefined();
-  });
-
-  it("view-definition samples validate against view-definition.v3.schema.json (#649)", () => {
-    const files = [
-      ...listJsonRecursive(join(samplesV3Dir, "retail", "view-definitions")),
-      ...listJsonRecursive(join(samplesV3Dir, "welfare-benefit", "view-definitions")),
-    ];
-    expect(files.length).toBeGreaterThan(0);
-    for (const file of files) {
-      const data = loadJson(file);
-      const ok = validateViewDefinition(data);
-      expect(ok, ok ? "" : dumpErrors(file, validateViewDefinition)).toBe(true);
-    }
   });
 
   it("F-4: Constraint (table.v3) の不正 kind は discriminator でエラー", () => {

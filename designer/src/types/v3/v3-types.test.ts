@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 import type {
@@ -187,38 +187,37 @@ describe("v3 ScreenItem.valueFrom", () => {
   });
 });
 
-// ─── 実 JSON との互換性 (sample-project-v3) ─────────────────────────────
+// ─── 実 JSON との互換性 (examples/ canonical サンプル、#774) ─────────────
 
 const repoRoot = resolve(__dirname, "../../../../");
-const samplesV3Dir = resolve(repoRoot, "docs/sample-project-v3");
+const examplesDir = resolve(repoRoot, "examples");
 
 function loadJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf-8")) as T;
 }
 
-describe("v3 TS 型 と sample-project-v3 JSON の compatibility (7 業界カバー)", () => {
+describe("v3 TS 型 と examples/ JSON の compatibility", () => {
   it("retail project.json を Project 型として parse できる", () => {
-    const project = loadJson<Project>(join(samplesV3Dir, "retail/project.json"));
+    const project = loadJson<Project>(join(examplesDir, "retail/project.json"));
     expect(project.schemaVersion).toBe("v3");
     expect(project.meta.name).toBeDefined();
   });
 
   it("retail 在庫照会フローを ProcessFlow 型として parse できる + Step narrow", () => {
     const flow = loadJson<ProcessFlow>(
-      join(samplesV3Dir, "retail/process-flows/506c266f-cc46-4d6f-86df-3c71f515bfcc.json"),
+      join(examplesDir, "retail/actions/267e94bf-0397-44b8-b665-d3c40c38935b.json"),
     );
-    expect(flow.meta.kind).toBe("screen");
+    expect(flow.meta.kind).toBeDefined();
     const firstStep: Step = flow.actions[0].steps[0];
     expect(firstStep.kind).toBeDefined();
   });
 
-  it("manufacturing items テーブルを Table 型として parse + Constraint narrow", () => {
-    const table = loadJson<Table>(
-      join(samplesV3Dir, "manufacturing/tables/38d3788e-092b-4fc4-8b97-ca359981d987.json"),
-    );
-    expect(table.physicalName).toBe("items");
+  it("retail テーブルを Table 型として parse + Constraint narrow", () => {
+    const files = readdirSync(join(examplesDir, "retail/tables")).filter((f) => f.endsWith(".json"));
+    expect(files.length).toBeGreaterThan(0);
+    const table = loadJson<Table>(join(examplesDir, "retail/tables", files[0]));
+    expect(table.physicalName).toBeDefined();
     for (const c of table.constraints ?? []) {
-      // discriminated union の narrowing
       switch (c.kind) {
         case "unique":
           expect(c.columnIds).toBeDefined();
@@ -233,123 +232,24 @@ describe("v3 TS 型 と sample-project-v3 JSON の compatibility (7 業界カバ
     }
   });
 
-  it("retail 店舗在庫照会画面を Screen 型として parse できる", () => {
-    const screen = loadJson<Screen>(
-      join(samplesV3Dir, "retail/screens/3f378ca7-ad6f-44ad-8ebc-ab17fb806c2c.json"),
-    );
-    expect(screen.kind).toBe("search");
-    expect(screen.path).toMatch(/\/inventory\//);
+  it("retail 画面を Screen 型として parse できる", () => {
+    const files = readdirSync(join(examplesDir, "retail/screens"))
+      .filter((f) => f.endsWith(".json") && !f.endsWith(".design.json"));
+    expect(files.length).toBeGreaterThan(0);
+    const screen = loadJson<Screen>(join(examplesDir, "retail/screens", files[0]));
+    expect(screen.kind).toBeDefined();
   });
 
-  it("logistics 倉庫間転送 (approval-parallel + branch-merge) を ProcessFlow として parse + WorkflowStep narrow", () => {
-    const flow = loadJson<ProcessFlow>(
-      join(samplesV3Dir, "logistics/process-flows/0fe7af80-0f0c-4075-a46f-9c921866a52b.json"),
-    );
-    const workflowSteps = flow.actions[0].steps.filter(
-      (s): s is WorkflowStep => s.kind === "workflow",
-    );
-    expect(workflowSteps.length).toBe(2); // approval-parallel + branch-merge
-    expect(workflowSteps[0].pattern).toBe("approval-parallel");
-    expect(workflowSteps[1].pattern).toBe("branch-merge");
-  });
-
-  it("finance 振込実行 (TX scope + Workflow approval-sequential) を ProcessFlow として parse", () => {
-    const flow = loadJson<ProcessFlow>(
-      join(samplesV3Dir, "finance/process-flows/a4d18f30-0524-4303-a656-1bf2390c386c.json"),
-    );
-    expect(flow.meta.kind).toBe("screen");
-    const txSteps = flow.actions[0].steps.filter(
-      (s): s is TransactionScopeStep => s.kind === "transactionScope",
-    );
-    expect(txSteps.length).toBeGreaterThanOrEqual(1);
-    expect(txSteps[0].isolationLevel).toBe("SERIALIZABLE");
-  });
-
-  it("public-service 建築確認申請 (5 段 workflow) を ProcessFlow として parse", () => {
-    const flow = loadJson<ProcessFlow>(
-      join(samplesV3Dir, "public-service/process-flows/1cd900ee-0d69-4e0a-a32b-bb329f9bc983.json"),
-    );
-    const workflowSteps = flow.actions[0].steps.filter(
-      (s): s is WorkflowStep => s.kind === "workflow",
-    );
-    expect(workflowSteps.length).toBe(5);
-    const patterns = workflowSteps.map((w) => w.pattern);
-    expect(patterns).toContain("acknowledge");
-    expect(patterns).toContain("review");
-    expect(patterns).toContain("sign-off");
-    expect(patterns).toContain("approval-veto");
-    expect(patterns).toContain("approval-sequential");
-  });
-
-  it("healthcare project.json を Project 型として parse できる", () => {
-    const project = loadJson<Project>(
-      join(samplesV3Dir, "healthcare/project.json"),
-    );
+  it("realestate project.json を Project 型として parse できる", () => {
+    const project = loadJson<Project>(join(examplesDir, "realestate/project.json"));
     expect(project.schemaVersion).toBe("v3");
     expect(project.meta.name).toBeDefined();
-    expect(project.entities.processFlows?.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("healthcare 診察予約フロー (PHI 確認 + 医師資格確認) を ProcessFlow として parse + Step narrow", () => {
+  it("realestate 処理フローを ProcessFlow 型として parse できる", () => {
     const flow = loadJson<ProcessFlow>(
-      join(
-        samplesV3Dir,
-        "healthcare/process-flows/0be3eb9c-c96e-498e-9be4-6efe3878097a.json",
-      ),
+      join(examplesDir, "realestate/process-flows/d4b5c6e7-f809-4112-bc3d-4e5f6a7b8c9d.json"),
     );
-    expect(flow.meta.kind).toBe("system");
-    const firstStep: Step = flow.actions[0].steps[0];
-    expect(firstStep.kind).toBeDefined();
-    // audit step が存在することを確認
-    const auditSteps = flow.actions[0].steps.filter((s) => s.kind === "audit");
-    expect(auditSteps.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("healthcare 診察予約画面を Screen 型として parse できる", () => {
-    const screen = loadJson<Screen>(
-      join(
-        samplesV3Dir,
-        "healthcare/screens/87516f74-1daa-4a92-8102-a294accdba68.json",
-      ),
-    );
-    expect(screen.kind).toBe("form");
-    expect(screen.path).toMatch(/\/healthcare\//);
-  });
-
-  it("welfare-benefit project.json を Project 型として parse できる", () => {
-    const project = loadJson<Project>(
-      join(samplesV3Dir, "welfare-benefit/project.json"),
-    );
-    expect(project.schemaVersion).toBe("v3");
-    expect(project.meta.name).toBeDefined();
-    expect(project.entities.processFlows?.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("welfare-benefit 給付申請受付フロー (重複申請防止 + 限度額確認) を ProcessFlow として parse + Step narrow", () => {
-    const flow = loadJson<ProcessFlow>(
-      join(
-        samplesV3Dir,
-        "welfare-benefit/process-flows/bdc0cdcd-c33f-4fd4-8fc4-9ed11ba8d96d.json",
-      ),
-    );
-    expect(flow.meta.kind).toBe("system");
-    const firstStep: Step = flow.actions[0].steps[0];
-    expect(firstStep.kind).toBeDefined();
-    // externalSystem step (住民通知) が存在することを確認
-    const extSteps = flow.actions[0].steps.filter(
-      (s) => s.kind === "externalSystem",
-    );
-    expect(extSteps.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("welfare-benefit 給付申請受付画面を Screen 型として parse できる", () => {
-    const screen = loadJson<Screen>(
-      join(
-        samplesV3Dir,
-        "welfare-benefit/screens/883e408d-3290-448d-a881-e9d7a22c85fc.json",
-      ),
-    );
-    expect(screen.kind).toBe("form");
-    expect(screen.path).toMatch(/\/welfare-benefit\//);
+    expect(flow.meta.kind).toBeDefined();
   });
 });

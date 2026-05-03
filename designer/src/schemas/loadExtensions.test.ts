@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildExtendedSchema,
@@ -11,10 +10,23 @@ import {
 } from "./loadExtensions";
 
 const repoRoot = resolve(__dirname, "../../../");
-// v1 凍結 (#519): schemas/v1/ に退避済み。v2 移行が完了するまで本テストは v1 を検証する。
-const schemaPath = resolve(repoRoot, "schemas/v1/process-flow.schema.json");
 const dataExtensionsDir = resolve(repoRoot, "data/extensions");
-const baseSchema = JSON.parse(readFileSync(schemaPath, "utf-8")) as object;
+
+/**
+ * 最小有効ベーススキーマ (v1 schema ファイル削除 #774 に伴いインライン化)。
+ * loadExtensions / buildExtendedSchema のユニットテスト専用。
+ */
+const baseSchema = {
+  $schema: "https://json-schema.org/draft/2020-12",
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    type: { type: "string" },
+    description: { type: "string" },
+    actions: { type: "array" },
+  },
+};
 
 function compile(schema: object) {
   const ajv = new Ajv2020({ allErrors: true, strict: false });

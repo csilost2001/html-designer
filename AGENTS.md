@@ -61,13 +61,6 @@ Both servers must run simultaneously for file-based persistence. Without designe
 
 `designer-mcp` は常駐サーバ (#302): `cd designer-mcp && npm run dev` で 1 回起動すれば、ブラウザ・複数の AI エージェントセッション双方が接続できる。エージェント終了でも停止しないので、次回以降も使い回し可能。
 
-### Test Data
-
-```bash
-node docs/legacy-sample-project/seed.mjs            # Generate 10 sample screens + screen-items into workspaces/seed/ (default)
-node docs/legacy-sample-project/seed.mjs <path>     # Generate into custom path (e.g. workspaces/my-test/)
-```
-
 ### ドッグフード deploy 先
 
 AI ドッグフード時のサンプル展開先は **`workspaces/dogfood-<目的-YYYYMMDD>/`** を使用する。`data/` への deploy は禁止 (`data/` はデザイナー本体組み込み拡張定義 `data/extensions/` 専用、#753 で責務縮退済み)。`examples/<project-id>/` を作業領域にコピーする際も `workspaces/<project-id>/` を使う。
@@ -174,7 +167,7 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — v1 schema で `docs/sample-project/process-flows/*.json` を検証する (v1 凍結テスト #519)。v3 形式の `examples/retail/actions/*.json` は `samples-v3.schema.test.ts` が担当。
+検証テスト: `examples/retail/actions/*.json` は `samples-v3.schema.test.ts` が担当。サンプル全体の runtime 契約検証は `npm run validate:samples -- ../examples/<project-id>` で実行。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 

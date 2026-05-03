@@ -334,4 +334,4 @@ effective = branch.condition.evaluate() && step.runIf
 - ambient 変数: [`process-flow-variables.md`](process-flow-variables.md)
 - catalog: [`process-flow-runtime-conventions.md`](process-flow-runtime-conventions.md)
 - workflow deadline: [`process-flow-workflow.md`](process-flow-workflow.md)
-- 実例: `docs/sample-project-v3/` 配下 (5 業界 50 sample で全式パターンを使用)
+- 実例: `examples/retail/` / `examples/realestate/` (現行 canonical サンプル)

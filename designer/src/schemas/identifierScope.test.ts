@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkIdentifierScopes } from "./identifierScope";
 import type { ProcessFlow } from "../types/action";
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
-
-const samplesDir = resolve(__dirname, "../../../docs/sample-project/process-flows");
 
 function makeGroup(partial: Partial<ProcessFlow>): ProcessFlow {
   return {
@@ -360,21 +356,6 @@ describe("checkIdentifierScopes - TransactionScopeStep onRollback @error ambient
   });
 });
 
-describe("checkIdentifierScopes — サンプル (docs/sample-project/process-flows/*.json)", () => {
-  const files = readdirSync(samplesDir).filter((f) => f.endsWith(".json"));
-  for (const f of files) {
-    it(`${f} の @ 参照が全て解決`, () => {
-      const group = JSON.parse(readFileSync(join(samplesDir, f), "utf-8")) as ProcessFlow;
-      const issues = checkIdentifierScopes(group);
-      if (issues.length > 0) {
-        throw new Error(
-          `識別子スコープ違反:\n${issues.map((i) => `  - ${i.path}: @${i.identifier} (${i.message})`).join("\n")}`,
-        );
-      }
-      expect(issues).toHaveLength(0);
-    });
-  }
-});
 describe("checkIdentifierScopes — WorkflowStep result handlers", () => {
   it("onApproved 内で未宣言識別子を UNKNOWN_IDENTIFIER として検出する", () => {
     const issues = checkIdentifierScopes(makeGroup({

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * examples/<project-id>/ 形式 (examples/retail 等) を 1 プロジェクトとして検証するスクリプト (#709)。
- * 既存 validate-dogfood.ts (docs/sample-project-v3/ 専用) を踏襲しつつ、
- * actions/ ディレクトリ命名と conventions/catalog.json 配置に対応した薄いラッパー。
+ * actions/ ディレクトリ命名と conventions/catalog.json 配置に対応したプロジェクト単位検証スクリプト。
+ * examples/<project-id>/ を canonical サンプル領域として検証する (#774)。
  *
  * 使用法:
  *   cd designer && npm run validate:samples -- ../data
