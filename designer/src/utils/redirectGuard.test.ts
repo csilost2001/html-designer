@@ -1,5 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { checkRedirect, isRedirectGuardTripped, resetRedirectGuard } from "./redirectGuard";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import {
+  checkRedirect,
+  isRedirectGuardTripped,
+  resetRedirectGuard,
+  subscribeRedirectGuardTrip,
+  getLastTripSummary,
+} from "./redirectGuard";
 
 describe("redirectGuard", () => {
   beforeEach(() => resetRedirectGuard());
@@ -52,5 +58,30 @@ describe("redirectGuard", () => {
     expect(isRedirectGuardTripped()).toBe(false);
     const r = checkRedirect("/after-reset");
     expect(r.allow).toBe(true);
+  });
+
+  it("trip 時に subscribeRedirectGuardTrip listener へ summary が渡される", () => {
+    const cb = vi.fn();
+    const unsub = subscribeRedirectGuardTrip(cb);
+    for (let i = 0; i < 21; i++) checkRedirect(`/p${i}`);
+    expect(cb).toHaveBeenCalledTimes(1);
+    const summary = cb.mock.calls[0][0] as string[];
+    expect(summary.length).toBeLessThanOrEqual(10);
+    expect(summary[summary.length - 1]).toBe("/p20");
+    unsub();
+  });
+
+  it("既に trip 済の状態で subscribe すると即時通知される", () => {
+    for (let i = 0; i < 25; i++) checkRedirect(`/p${i}`);
+    const cb = vi.fn();
+    subscribeRedirectGuardTrip(cb);
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it("getLastTripSummary() が最後の trip 時の path 列を返す", () => {
+    expect(getLastTripSummary()).toEqual([]);
+    for (let i = 0; i < 21; i++) checkRedirect(`/path${i}`);
+    expect(getLastTripSummary().length).toBeGreaterThan(0);
+    expect(getLastTripSummary()[getLastTripSummary().length - 1]).toBe("/path20");
   });
 });

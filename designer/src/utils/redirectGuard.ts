@@ -19,6 +19,18 @@ const MAX_REDIRECTS = 20;
 
 let recent: RedirectEvent[] = [];
 let tripped = false;
+let lastTripSummary: string[] = [];
+
+type TripListener = (summary: string[]) => void;
+const tripListeners = new Set<TripListener>();
+
+/** trip 発生時に呼ばれるコールバックを登録する。React 側でモーダル表示等に使う。 */
+export function subscribeRedirectGuardTrip(cb: TripListener): () => void {
+  tripListeners.add(cb);
+  // 既に trip 済なら即時通知 (購読タイミング後勝ち)
+  if (tripped) cb(lastTripSummary);
+  return () => { tripListeners.delete(cb); };
+}
 
 export interface GuardResult {
   /** redirect を許可してよいか */
@@ -47,10 +59,15 @@ export function checkRedirect(path: string): GuardResult {
   if (recent.length > MAX_REDIRECTS) {
     tripped = true;
     const summary = recent.map((e) => e.path).slice(-10);
+    lastTripSummary = summary;
     uiLog("error", "guard", "redirect storm detected — blocking further navigation", {
       count: recent.length,
       windowMs: WINDOW_MS,
       lastPaths: summary,
+    });
+    // listener 通知 (UI モーダル表示等)
+    tripListeners.forEach((cb) => {
+      try { cb(summary); } catch (e) { console.error("[redirectGuard] listener threw:", e); }
     });
     return { allow: false, tripped: true, recentCount: recent.length };
   }
@@ -68,4 +85,10 @@ export function isRedirectGuardTripped(): boolean {
 export function resetRedirectGuard(): void {
   recent = [];
   tripped = false;
+  lastTripSummary = [];
+}
+
+/** 直近 trip の path 列 (バナー表示用) */
+export function getLastTripSummary(): readonly string[] {
+  return lastTripSummary;
 }

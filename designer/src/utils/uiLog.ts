@@ -32,6 +32,8 @@ interface RecentEvent {
   ts: number;
   category: UiLogCategory;
   msg: string;
+  /** uiLog() の第 4 引数 ctx を保持。バグ報告時に `__uiLogDump()` で取り出して原因特定に使う。 */
+  ctx?: Record<string, unknown>;
 }
 
 const LEVEL_ORDER: Record<UiLogLevel, number> = {
@@ -60,9 +62,9 @@ function ts(): string {
   return new Date().toISOString().slice(11, 23); // HH:mm:ss.sss
 }
 
-function pushRecent(category: UiLogCategory, msg: string): void {
+function pushRecent(category: UiLogCategory, msg: string, ctx?: Record<string, unknown>): void {
   const now = Date.now();
-  _recent.push({ ts: now, category, msg });
+  _recent.push({ ts: now, category, msg, ctx });
   // ウィンドウ外を捨てる + 上限超過分をトリム
   _recent = _recent.filter((e) => now - e.ts < RECENT_WINDOW_MS);
   if (_recent.length > RECENT_MAX) _recent = _recent.slice(-RECENT_MAX);
@@ -91,7 +93,7 @@ export function uiLog(
   msg: string,
   ctx?: Record<string, unknown>,
 ): void {
-  pushRecent(category, msg);
+  pushRecent(category, msg, ctx);
   detectFlooding(category, msg);
   if (!shouldLog(level)) return;
   const prefix = `[${ts()}][${category}]`;
