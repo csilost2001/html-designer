@@ -10,8 +10,15 @@
   "kind": "list",
   "path": "/retail/products",
   "auth": "optional",
-  "viewDefinitionRefs": [
-    "f1a2b3c4-d5e6-4000-8000-f1a2b3c4d5e6"
+  "items": [
+    {
+      "id": "productList",
+      "label": "商品一覧",
+      "type": { "kind": "array", "itemType": "json" },
+      "direction": "viewer",
+      "viewDefinitionId": "f1a2b3c4-d5e6-4000-8000-f1a2b3c4d5e6",
+      "description": "商品マスタ一覧の表示。direction=viewer (#762、#769 cleanup): 商品一覧 ViewDefinition (f1a2b3c4) の query を画面 mount 時に自動発行する。"
+    }
   ],
   "authoring": {
     "notes": [

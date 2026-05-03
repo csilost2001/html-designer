@@ -10,8 +10,15 @@
   "kind": "list",
   "path": "/welfare-benefit/beneficiaries",
   "auth": "required",
-  "viewDefinitionRefs": [
-    "c7d8e9f0-a1b2-4000-8000-c7d8e9f0a1b2"
+  "items": [
+    {
+      "id": "beneficiaryList",
+      "label": "受給者一覧",
+      "type": { "kind": "array", "itemType": "json" },
+      "direction": "viewer",
+      "viewDefinitionId": "c7d8e9f0-a1b2-4000-8000-c7d8e9f0a1b2",
+      "description": "受給者台帳一覧の表示。direction=viewer (#762、#769 cleanup): 受給者一覧 ViewDefinition (c7d8e9f0) の query を画面 mount 時に自動発行する。"
+    }
   ],
   "authoring": {
     "notes": [
