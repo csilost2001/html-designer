@@ -71,11 +71,6 @@ function collectFlowVariableNames(flow: ProcessFlow): Set<string> {
       if (elseBranch && Array.isArray(elseBranch.steps)) {
         collectFromSteps(elseBranch.steps as unknown[]);
       }
-      if (Array.isArray(s.inlineBranch)) {
-        for (const br of s.inlineBranch as Array<Record<string, unknown>>) {
-          if (Array.isArray(br.steps)) collectFromSteps(br.steps as unknown[]);
-        }
-      }
       const inlineBranch = s.inlineBranch as Record<string, unknown> | undefined;
       if (inlineBranch) {
         if (Array.isArray(inlineBranch.ok)) collectFromSteps(inlineBranch.ok as unknown[]);
