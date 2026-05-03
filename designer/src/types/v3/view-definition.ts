@@ -3,7 +3,7 @@
  *
  * - 画面側の一覧 UI viewer 設定 (list / detail / kanban / calendar 等)
  * - DB View (view.ts) とは axis が異なる: viewer は画面コンポーネント内 render
- * - Screen は viewDefinitionRefs[] で 1:N 参照する
+ * - Screen は items[] の `direction: "viewer"` screen-item から `viewDefinitionId` で参照される
  *
  * 参考: schemas/v3/view-definition.v3.schema.json
  */
