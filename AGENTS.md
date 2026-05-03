@@ -17,7 +17,7 @@ Claude Code 固有の補足は `CLAUDE.md`、Codex 固有の設定は `.codex/co
 
 - **AI (Claude/Codex/その他) が勝手に変更するのは禁止** — 権限外行為、フレームワークの統一性を損なう
 - 業務記述で表現できない場合の対処順序:
-  1. 拡張機構 (`samples/<project-id>/extensions/<namespace>/*.json` または `workspaces/<id>/extensions/<namespace>/*.json`) で代替できないか確認
+  1. 拡張機構 (`examples/<project-id>/extensions/<namespace>/*.json` または `workspaces/<id>/extensions/<namespace>/*.json`) で代替できないか確認
   2. 既存 schema フィールドで代替表現できないか確認 (`type: "other"` + outputSchema パターン等)
   3. それでも無理なら **ISSUE 起票して作業停止**、設計者承認待ち
 - **テスト pass を理由に schema を勝手に拡張するのは絶対禁止**
@@ -70,11 +70,11 @@ node docs/legacy-sample-project/seed.mjs <path>     # Generate into custom path 
 
 ### ドッグフード deploy 先
 
-AI ドッグフード時のサンプル展開先は **`workspaces/dogfood-<目的-YYYYMMDD>/`** を使用する。`data/` への deploy は禁止 (`data/` はデザイナー本体組み込み拡張定義 `data/extensions/` 専用、#753 で責務縮退済み)。`samples/<project-id>/` を作業領域にコピーする際も `workspaces/<project-id>/` を使う。
+AI ドッグフード時のサンプル展開先は **`workspaces/dogfood-<目的-YYYYMMDD>/`** を使用する。`data/` への deploy は禁止 (`data/` はデザイナー本体組み込み拡張定義 `data/extensions/` 専用、#753 で責務縮退済み)。`examples/<project-id>/` を作業領域にコピーする際も `workspaces/<project-id>/` を使う。
 
 ```bash
-# samples/retail/ を dogfood 領域にコピーする例 (Windows PowerShell)
-Copy-Item -Recurse -Force samples\retail\* workspaces\retail\
+# examples/retail/ を dogfood 領域にコピーする例 (Windows PowerShell)
+Copy-Item -Recurse -Force examples\retail\* workspaces\retail\
 ```
 
 ## Architecture
@@ -174,7 +174,7 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — 現状は旧 `docs/sample-project/process-flows/*.json` を参照する (`process-flow.schema.test.ts:11` const `samplesDir`)。`samples/<project-id>/actions/*.json` への参照先移行は別 ISSUE 候補 (#753 follow-up F-1/F-2 で skill / scripts と同時に処理予定)。
+検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — v1 schema で `docs/sample-project/process-flows/*.json` を検証する (v1 凍結テスト #519)。v3 形式の `examples/retail/actions/*.json` は `samples-v3.schema.test.ts` が担当。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 

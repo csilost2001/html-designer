@@ -6,7 +6,7 @@ PR #710 (#709) で完了した retail サンプル品質保証の **実機 UI sm
 
 ## 実施手順
 
-1. samples/retail/* を data/ にコピー (デプロイ相当)
+1. examples/retail/* を data/ にコピー (デプロイ相当)
 2. designer-mcp + designer 起動 (常駐済)
 3. chrome-devtools MCP で http://localhost:5173/ を開き、recent workspace から retail 選択
 4. 11 画面 + 4 process flow + 5 view-definition + 3 sequence の閲覧確認
@@ -21,7 +21,7 @@ PR #710 (#709) で完了した retail サンプル品質保証の **実機 UI sm
 
 **原因**:
 - v3 schema (`schemas/v3/screen.v3.schema.json:29-32`) の規定: `Screen.items: ScreenItem[]` は screen entity に embedded array
-- samples/retail 実装: 別ファイル `screen-items/<screenId>.json` に **1 ファイル = 単一 screen-item** 形式
+- examples/retail 実装: 別ファイル `screen-items/<screenId>.json` に **1 ファイル = 単一 screen-item** 形式
 - runtime (`designer-mcp/src/projectStorage.ts:516 readScreenItems()`): screen entity の `items` 配列を直接読む。別ファイルは migration 経由でのみ読む (entity に items / design 等が存在すると migration スキップされ、別ファイル無視)
 
 **追加観測**: 各画面 1 ファイルで item 1 個のみ宣言 = 業務的にも内容不足 (例: 商品検索画面に productCode 1 個のみで storeCode / searchButton 等が未定義)
@@ -34,7 +34,7 @@ PR #710 (#709) で完了した retail サンプル品質保証の **実機 UI sm
 
 **原因**:
 - v3 schema (`schemas/v3/screen.v3.schema.json:68-77`) の ScreenDesign 定義: 「生 HTML/CSS/component tree は別ファイル (`data/screens/<id>.design.json`) で管理」
-- samples/retail 実装: raw HTML を `designs/<id>.html` に配置 (別ディレクトリ、別拡張子)
+- examples/retail 実装: raw HTML を `designs/<id>.html` に配置 (別ディレクトリ、別拡張子)
 - runtime (`designer-mcp/src/projectStorage.ts:251, 334`): `screens/<id>.design.json` を hard-code で読む。`Screen.design.designFileRef` の値は無視
 
 → #713 で修正
