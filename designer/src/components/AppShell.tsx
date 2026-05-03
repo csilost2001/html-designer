@@ -53,6 +53,8 @@ import { TabErrorFallback } from "./common/ErrorFallback";
 import { ResourceLoading } from "./common/ResourceLoading";
 import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { recordError } from "../utils/errorLog";
+import { checkRedirect, subscribeRedirectGuardTrip, isRedirectGuardTripped } from "../utils/redirectGuard";
+import { uiInfo, uiWarn } from "../utils/uiLog";
 
 function useTabs() {
   const [tabs, setTabs] = useState<readonly TabItem[]>(getTabs);
@@ -80,13 +82,47 @@ function WorkspaceScopedShell() {
   return <AppShellInner wsId={wsId} />;
 }
 
+// redirectGuard が trip した時、画面全体に被せる赤バナー (#750 review S-2)。
+// silently block すると見かけ上「画面が固まった」状態でユーザーが原因を理解できない。
+function RedirectGuardBanner({ summary }: { summary: readonly string[] }) {
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+      background: "#b71c1c", color: "#fff",
+      padding: "12px 16px", fontSize: 13,
+      borderBottom: "2px solid #7f0000",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+    }}>
+      <strong><i className="bi bi-exclamation-octagon-fill" /> リダイレクトループ検出 — 遷移を停止しました</strong>
+      <div style={{ marginTop: 4, fontSize: 12, opacity: 0.9 }}>
+        サーバ保護のため、これ以降のページ遷移を全てブロックしています。
+        ブラウザを手動で再読み込み (F5) してください。
+      </div>
+      {summary.length > 0 && (
+        <details style={{ marginTop: 6, fontSize: 11, fontFamily: "monospace" }}>
+          <summary style={{ cursor: "pointer" }}>直近の遷移先 (バグ報告用)</summary>
+          <ol style={{ margin: "4px 0 0 16px", padding: 0 }}>
+            {summary.map((p, i) => (<li key={i}>{p}</li>))}
+          </ol>
+        </details>
+      )}
+    </div>
+  );
+}
+
 // ルートレベルの AppShell: /workspace/* と /w/:wsId/* に分岐
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [workspaceState, setWorkspaceState] = useState(getWorkspaceState());
+  const [guardTripped, setGuardTripped] = useState<readonly string[] | null>(
+    isRedirectGuardTripped() ? [] : null,
+  );
   useEffect(() => {
     return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
+  }, []);
+  useEffect(() => {
+    return subscribeRedirectGuardTrip((summary) => setGuardTripped(summary));
   }, []);
 
   // workspace が loading 完了後に URL を判定してリダイレクト
@@ -97,10 +133,15 @@ export function AppShell() {
     // /w/:wsId/* 配下は WorkspaceScopedShell が処理
     if (location.pathname.startsWith("/w/")) return;
     // それ以外 (/, /screen/flow 等の旧 URL) は active があれば /w/<id>/<元パス> に、なければ /workspace/select に
+    let target: string | null = null;
     if (workspaceState.active?.id) {
-      navigate(`/w/${workspaceState.active.id}${location.pathname === "/" ? "/" : location.pathname}`, { replace: true });
+      target = `/w/${workspaceState.active.id}${location.pathname === "/" ? "/" : location.pathname}`;
     } else if (!workspaceState.lockdown) {
-      navigate("/workspace/select", { replace: true });
+      target = "/workspace/select";
+    }
+    if (target) {
+      const guard = checkRedirect(target);
+      if (guard.allow) navigate(target, { replace: true });
     }
   }, [workspaceState.loading, workspaceState.active?.id, workspaceState.lockdown, location.pathname]);
 
@@ -119,6 +160,8 @@ export function AppShell() {
   }
 
   return (
+    <>
+      {guardTripped !== null && <RedirectGuardBanner summary={guardTripped} />}
     <Routes>
       <Route path="/w/:wsId/*" element={<WorkspaceScopedRoutes />} />
       <Route path="/workspace/list" element={<WorkspaceListView />} />
@@ -136,6 +179,7 @@ export function AppShell() {
         </div>
       } />
     </Routes>
+    </>
   );
 }
 
@@ -174,6 +218,16 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     bridge.startWithoutEditor();
     return () => { unsubBroadcast(); unsubStatus(); };
   }, []);
+
+  // workspace state 変化を log 化 (ループ追跡用)
+  useEffect(() => {
+    uiInfo("workspace", "state-change", {
+      loading: workspaceState.loading,
+      activeId: workspaceState.active?.id ?? null,
+      lockdown: workspaceState.lockdown,
+      error: workspaceState.error,
+    });
+  }, [workspaceState.loading, workspaceState.active?.id, workspaceState.lockdown, workspaceState.error]);
 
   // workspace.changed → ストア / 描画中 view を完全に破棄するためページ再読込。
   // per-resource タブを閉じるだけでは singleton stores (flowStore, tableStore 等) と
@@ -221,6 +275,13 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     // workspace 切替: navigate で URL を /w/<新wsId>/ に更新してから reload。
     // store のリセットは reload が担う (store.resetForWorkspaceSwitch 未実装のため reload 方式を維持)。
     const targetPath = currentId ? `/w/${currentId}/` : "/workspace/select";
+    uiInfo("workspace", "switch-reload", { from: prevActiveWorkspaceIdRef.current, to: currentId, targetPath });
+    // 万一 workspace.changed broadcast が暴走した場合の保険: redirectGuard を通す
+    const guard = checkRedirect(targetPath);
+    if (!guard.allow) {
+      uiWarn("guard", "workspace switch reload を redirectGuard で抑止 (暴走防止)", { targetPath });
+      return;
+    }
     // location.href を直接書き換えることで URL 変更 + 完全リロードを一発で実現
     window.location.href = targetPath;
   }, [workspaceState.active?.id]);
@@ -237,18 +298,21 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       // active なし → /workspace/select
       // /workspace/* パスは AppShell の上位 Route で処理済みのため、
       // ここは /w/:wsId/* 配下の場合のみ
-      navigate("/workspace/select", { replace: true });
+      const guard = checkRedirect("/workspace/select");
+      if (guard.allow) navigate("/workspace/select", { replace: true });
     } else if (wsId && wsId !== workspaceState.active.id) {
       // URL の :wsId が現在 active と異なる → workspace.open で同期
       const recentEntry = workspaceState.workspaces.find((w) => w.id === wsId);
       if (recentEntry) {
         mcpBridge.request("workspace.open", { id: wsId }).catch((err) => {
           console.error("[workspace] workspace.open from URL failed:", err);
-          navigate("/workspace/select", { replace: true });
+          const guard = checkRedirect("/workspace/select");
+          if (guard.allow) navigate("/workspace/select", { replace: true });
         });
       } else {
         // recent にない不正 wsId → /workspace/select
-        navigate("/workspace/select", { replace: true });
+        const guard = checkRedirect("/workspace/select");
+        if (guard.allow) navigate("/workspace/select", { replace: true });
       }
     }
   }, [workspaceState.active, workspaceState.active?.id, workspaceState.loading, workspaceState.lockdown, workspaceState.error, workspaceState.workspaces, wsId, location.pathname]);
@@ -268,6 +332,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   // また袋小路に入るため、URL 自体も / に書き換える。
   const fallbackToDashboard = (kind: string, id: string) => {
     const msg = `URL が指すリソース (${kind}: ${id}) が見つかりません。ダッシュボードへフォールバック。`;
+    uiWarn("urlsync", "resource not found → fallback", { kind, id, pathname: location.pathname });
     recordError({
       source: "manual",
       message: msg,
@@ -280,12 +345,14 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       skipLogRecord: true, // 直前に recordError 済み
     });
     const dashPath = wsId ? `/w/${wsId}/` : "/";
-    navigate(dashPath, { replace: true });
+    const guard = checkRedirect(dashPath);
+    if (guard.allow) navigate(dashPath, { replace: true });
   };
 
   // URL → タブ同期（ブラウザの直接ナビゲーション / mcpBridge.navigateScreen）
   // /w/:wsId/* 配下で使用するため、全 matchPath を /w/:wsId/... 規約に更新
   useEffect(() => {
+    uiInfo("urlsync", "pathname change", { pathname: location.pathname });
     const designMatch = matchPath("/w/:wsId/screen/design/:screenId", location.pathname);
     if (designMatch?.params.screenId) {
       const screenId = designMatch.params.screenId;
@@ -510,7 +577,9 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       : activeTab.type === "dashboard"              ? `${wp}/`
       : null;
     if (expectedPath && location.pathname !== expectedPath) {
-      navigate(expectedPath, { replace: true });
+      uiInfo("tabsync", "active-tab → URL", { from: location.pathname, to: expectedPath, tabType: activeTab.type, tabId: activeTab.id });
+      const guard = checkRedirect(expectedPath);
+      if (guard.allow) navigate(expectedPath, { replace: true });
     }
   }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname, wsId]);
 

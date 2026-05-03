@@ -34,6 +34,8 @@ export interface WorkspaceInspectResult {
 
 type Listener = () => void;
 
+import { uiInfo, uiWarn } from "../utils/uiLog";
+
 // loading は初期 true: WS 未接続のうちはガードを発動させない。
 // 最初の loadWorkspaces() (成功 or 失敗) で false になる。WS が永続的に未接続でも
 // loading=true のままなので /workspace/select への誤強制遷移を起こさない。
@@ -106,6 +108,7 @@ export async function loadWorkspaces(): Promise<void> {
 }
 
 async function _doLoadWorkspaces(): Promise<void> {
+  uiInfo("workspace", "loadWorkspaces start");
   _setState({ loading: true, error: null });
   try {
     const result = (await mcpBridge.request("workspace.list")) as {
@@ -115,6 +118,11 @@ async function _doLoadWorkspaces(): Promise<void> {
       lockdown: boolean;
       lockdownPath: string | null;
     };
+    uiInfo("workspace", "loadWorkspaces success", {
+      count: result.workspaces?.length ?? 0,
+      activePath: result.active?.path ?? null,
+      lockdown: result.lockdown,
+    });
     _setState({
       workspaces: result.workspaces ?? [],
       active: result.active
@@ -130,6 +138,7 @@ async function _doLoadWorkspaces(): Promise<void> {
       error: null,
     });
   } catch (e) {
+    uiWarn("workspace", "loadWorkspaces failed", { error: e instanceof Error ? e.message : String(e) });
     _setState({
       loading: false,
       error: e instanceof Error ? e.message : String(e),
@@ -219,8 +228,15 @@ export function subscribeWorkspaceChanges(): () => void {
     // - 自分の active が null の場合 → hydration broadcast として受信 (初回 active 設定)
     // - 自分の active が非 null かつ ev.path が一致しない場合 → 別 workspace のブロードキャストを無視
     const currentActive = _state.active;
+    uiInfo("ws-broadcast", "workspace.changed received", {
+      currentActiveId: currentActive?.id ?? null,
+      evActiveId: ev.activeId,
+      evPath: ev.path,
+      lockdown: ev.lockdown,
+    });
     if (currentActive !== null && ev.path !== null && currentActive.path !== ev.path) {
       // 別 workspace の workspace.changed broadcast → ignore
+      uiInfo("ws-broadcast", "ignored (path mismatch)", { current: currentActive.path, ev: ev.path });
       return;
     }
 
