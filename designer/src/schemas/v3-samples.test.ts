@@ -92,9 +92,9 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
     }
   });
 
-  it("process-flow / actions samples validate against process-flow.v3.schema.json", () => {
+  it("process-flow / process-flows samples validate against process-flow.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(examplesDir, "retail", "actions")),
+      ...listJsonRecursive(join(examplesDir, "retail", "process-flows")),
       ...listJsonRecursive(join(examplesDir, "realestate", "process-flows")),
     ];
     expect(files.length).toBeGreaterThan(0);
