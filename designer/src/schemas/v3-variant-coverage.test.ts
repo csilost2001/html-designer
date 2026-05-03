@@ -690,3 +690,47 @@ describe("v3 schema fix #533 R3-3: scheduled + httpRoute 不整合 reject (#533)
     expectFail(flow, "scheduled + httpRoute should reject");
   });
 });
+
+// ─── #762 viewer screen-item AJV テスト ────────────────────────────────────
+
+describe("v3 schema #762: direction='viewer' の AJV 検証", () => {
+  it("正常系: direction=viewer + viewDefinitionId + valueFrom.flowVariable は pass", () => {
+    const item = {
+      id: "propertyRows",
+      label: "物件一覧",
+      type: { kind: "array", itemType: "json" },
+      direction: "viewer",
+      viewDefinitionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      valueFrom: {
+        kind: "flowVariable",
+        variableName: "rows",
+      },
+    };
+    const ok = validateScreenItem(item);
+    expect(ok, ok ? "" : (validateScreenItem.errors ?? []).map((e) => e.message).join("\n")).toBe(true);
+  });
+
+  it("正常系: direction=viewer + viewDefinitionId のみ (valueFrom 省略 = VD query 自動実行) は pass", () => {
+    const item = {
+      id: "propertyRows",
+      label: "物件一覧",
+      type: { kind: "array", itemType: "json" },
+      direction: "viewer",
+      viewDefinitionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    };
+    const ok = validateScreenItem(item);
+    expect(ok, ok ? "" : (validateScreenItem.errors ?? []).map((e) => e.message).join("\n")).toBe(true);
+  });
+
+  it("異常系: direction=viewer で viewDefinitionId 欠落は AJV reject", () => {
+    const item = {
+      id: "propertyRows",
+      label: "物件一覧",
+      type: { kind: "array", itemType: "json" },
+      direction: "viewer",
+      // viewDefinitionId を意図的に省略
+    };
+    const ok = validateScreenItem(item);
+    expect(ok, ok ? "direction=viewer で viewDefinitionId 欠落が pass してしまった" : "").toBe(false);
+  });
+});
