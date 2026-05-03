@@ -457,7 +457,7 @@ SELECT 'ORD-' || EXTRACT(YEAR FROM CURRENT_DATE)::text || '-' || LPAD(nextval('s
 
 ```bash
 cd designer
-npx vitest run src/schemas/extensions-samples.test.ts src/schemas/process-flow.schema.test.ts
+npx vitest run src/schemas/v3-samples.test.ts src/schemas/loadExtensions.test.ts
 npm run build
 ```
 

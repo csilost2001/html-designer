@@ -207,9 +207,9 @@ describe("v3 TS 型 と examples/ JSON の compatibility", () => {
     const flow = loadJson<ProcessFlow>(
       join(examplesDir, "retail/actions/267e94bf-0397-44b8-b665-d3c40c38935b.json"),
     );
-    expect(flow.meta.kind).toBeDefined();
+    expect(flow.meta.kind).toBe("common");
     const firstStep: Step = flow.actions[0].steps[0];
-    expect(firstStep.kind).toBeDefined();
+    expect(firstStep.kind).toBe("dbAccess");
   });
 
   it("retail テーブルを Table 型として parse + Constraint narrow", () => {
