@@ -22,6 +22,7 @@
 | [process-flow-secrets.md](process-flow-secrets.md) | Secrets カタログ (`secretsCatalog`) — 秘匿値メタデータ + 環境別参照式 | #261 / #414 |
 | [process-flow-transaction.md](process-flow-transaction.md) | `TransactionScopeStep` (複数 DB 操作を 1 TX でまとめる meta-step) と既存 `txBoundary` の関係 | #415 |
 | [screen-items.md](screen-items.md) | 画面項目定義 (フォーム系バリデーション 3 層のうち「画面」層) — **ドラフト v0.1** | #318 |
+| [view-definition.md](view-definition.md) | ViewDefinition (画面 一覧 UI viewer) — 3 レベル DSL (Simple / Structured / Raw SQL) / Screen.viewDefinitionRefs[] 連携 / kind 別レイアウト / validator 11 観点 | #649 / #666 / #745 / #761 |
 | [plugin-system.md](plugin-system.md) | プラグインシステム — ソース変更なしにスキーマ・ステップ型・enum を拡張する仕組み | #390 |
 | [dogfood-2026-04-26-finance.md](dogfood-2026-04-26-finance.md) | 金融複合業務ドッグフード評価レポート (2026-04-26、6 シナリオで 5/5 達成) | #458 |
 | [dogfood-2026-04-26-manufacturing.md](dogfood-2026-04-26-manufacturing.md) | 再ドッグフード (製造業) 評価レポート — Codex 抜き / Sonnet vs Opus 比較 / 3 分類別件数集計 | #478 |
