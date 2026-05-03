@@ -168,6 +168,9 @@ function _enqueueForFlush(category: UiLogCategory, msg: string, level: UiLogLeve
  *
  * sendFn は mcpBridge.request("client.log.flush", { entries }) を期待。
  */
+let _lastFlushFailLogTs = 0;
+const FLUSH_FAIL_LOG_INTERVAL_MS = 30_000; // disconnect 中の console spam 防止
+
 export function setupServerLogFlush(
   sendFn: (entries: ReadonlyArray<RecentEvent>) => Promise<unknown>,
   intervalMs = 5000,
@@ -178,9 +181,17 @@ export function setupServerLogFlush(
     try {
       await sendFn(batch);
     } catch {
-      // 失敗時は console.error でも残しておく (server まで届かなかったが debug 可能)
-      // eslint-disable-next-line no-console
-      console.warn(`[uiLog] server flush failed (${batch.length} entries dropped)`);
+      // 失敗時はキューに戻す (transient disconnect のリトライ機会を残す)。
+      // ただし上限 (500) を超えないように先頭 (古いほう) から切り捨てる。
+      _flushQueue.unshift(...batch);
+      if (_flushQueue.length > 500) _flushQueue.splice(0, _flushQueue.length - 500);
+      // console.warn は disconnect ループ中に大量出力されるため rate-limit (30 秒)
+      const now = Date.now();
+      if (now - _lastFlushFailLogTs > FLUSH_FAIL_LOG_INTERVAL_MS) {
+        _lastFlushFailLogTs = now;
+        // eslint-disable-next-line no-console
+        console.warn(`[uiLog] server flush failed; ${_flushQueue.length} entries queued for retry`);
+      }
     }
   };
   const timer = setInterval(flush, intervalMs);

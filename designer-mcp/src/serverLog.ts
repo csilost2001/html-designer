@@ -34,7 +34,6 @@ const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, erro
 const RETENTION_DAYS = 7;
 
 let _logDir: string | null = null;
-let _currentDate = "";
 let _minLevel: LogLevel = "info";
 
 /** logger 初期化。projectRoot は data/ の親ディレクトリ。 */
@@ -96,11 +95,10 @@ export function log(
   };
   // ファイル出力 — appendFileSync で確実に flush (テスト容易性 + クラッシュ時の log 保全)。
   // 高頻度ログでもボトルネックにならない (server-side は秒間 100 件もない想定)。
+  // 日付ロールオーバーは _todayFileName() が UTC 日付ベースで毎回算出するので自動切替。
   if (_logDir) {
     try {
-      const today = _todayFileName();
-      _currentDate = today;
-      fs.appendFileSync(path.join(_logDir, today), JSON.stringify(entry) + "\n", "utf-8");
+      fs.appendFileSync(path.join(_logDir, _todayFileName()), JSON.stringify(entry) + "\n", "utf-8");
     } catch (e) {
       console.error("[serverLog] write failed:", e);
     }
@@ -138,7 +136,7 @@ export function ingestClientLog(entries: ReadonlyArray<{
   return { count: entries.length };
 }
 
-/** プロセス終了時のクリーンアップ。appendFileSync 利用なので buffer flush は不要だが、API 互換のため残す。 */
+/** プロセス終了時のクリーンアップ。appendFileSync 利用なので buffer flush は不要 (no-op、API 互換のみ)。 */
 export function shutdownServerLog(): void {
-  _currentDate = "";
+  /* no-op: appendFileSync で同期書き込み済 */
 }
