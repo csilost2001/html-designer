@@ -84,14 +84,14 @@
         {
           "id": "step-02",
           "kind": "compute",
-          "description": "summaryRows[0] が無い場合 (極めて稀なケース、aggregate なので通常 1 行返る) に備えて (0, 0) にフォールバックして itemCount を確定する。",
+          "description": "summaryRows[0] が無い場合のフォールバック (defensive guard、aggregate は常に 1 行返るため通常は dead path)。runtime や DB driver の挙動差異に備えた防御で、null 安全のため明示的に 0 に正規化する。AI 実装でも optional chaining / nullish coalescing を生成するヒントになる。",
           "expression": "@summaryRows[0] != null ? @summaryRows[0].item_count : 0",
           "outputBinding": { "name": "itemCount" }
         },
         {
           "id": "step-03",
           "kind": "compute",
-          "description": "summaryRows[0] が無い場合の totalAmount フォールバック。",
+          "description": "summaryRows[0] が無い場合の totalAmount フォールバック (step-02 と同じ defensive guard、aggregate は常に 1 行返るため通常は dead path)。",
           "expression": "@summaryRows[0] != null ? @summaryRows[0].total_amount : 0",
           "outputBinding": { "name": "totalAmount" }
         },
