@@ -1,7 +1,0 @@
-{
-  "namespace": "manufacturing",
-  "dbOperations": [
-    { "value": "BOM_EXPLODE", "label": "BOM 階層展開" },
-    { "value": "RESERVE_INVENTORY", "label": "在庫引当 (排他ロック付き UPDATE)" }
-  ]
-}

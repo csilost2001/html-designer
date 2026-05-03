@@ -1,8 +1,0 @@
-{
-  "namespace": "securities",
-  "dbOperations": [
-    { "value": "UPSERT_IDEMPOTENT", "label": "冪等 UPSERT (重複時 no-op)" },
-    { "value": "NETTING", "label": "ネッティング (集計相殺)" },
-    { "value": "RECONCILE", "label": "照合 (内部vs外部突合)" }
-  ]
-}
