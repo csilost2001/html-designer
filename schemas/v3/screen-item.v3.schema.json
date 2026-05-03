@@ -22,8 +22,12 @@
         },
         "direction": {
           "type": "string",
-          "enum": ["input", "output"],
-          "description": "input = フォーム入力項目 (既定) / output = 表示専用項目。"
+          "enum": ["input", "output", "viewer"],
+          "description": "input = フォーム入力項目 (既定) / output = 表示専用項目 (スカラー) / viewer = ViewDefinition の列定義を参照し、`valueFrom` で flow 変数から配列データを bind する配列データ表示項目 (#762)。"
+        },
+        "viewDefinitionId": {
+          "$ref": "common.v3.schema.json#/$defs/Uuid",
+          "description": "viewer 項目が参照する ViewDefinition の ID (#762)。direction='viewer' の場合のみ使用し、列定義・ソート・kind 等の viewer 設定を提供する ViewDefinition を指定する。`valueFrom` で flow 変数から配列データを bind する。`valueFrom` 省略時は ViewDefinition の query を画面 mount 時に自動発行する (静的マスター一覧)。"
         },
         "required": { "type": "boolean" },
         "readonly": { "type": "boolean" },
@@ -79,6 +83,14 @@
           "items": { "$ref": "#/$defs/ScreenItemEvent" }
         },
         "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+      },
+      "if": {
+        "properties": { "direction": { "const": "viewer" } },
+        "required": ["direction"]
+      },
+      "then": {
+        "required": ["viewDefinitionId"],
+        "description": "direction='viewer' の場合は viewDefinitionId が必須 (#762)。"
       }
     },
 

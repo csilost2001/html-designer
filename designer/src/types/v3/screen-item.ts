@@ -19,6 +19,9 @@ import type {
   TableColumnRef,
   ViewColumnRef,
 } from "./common";
+import type { ViewDefinitionId } from "./view-definition";
+
+export type { ViewDefinitionId };
 
 /**
  * 画面項目イベント (#624) — 発火時に handlerFlowId 指定の処理フローを呼び出し、
@@ -90,8 +93,20 @@ export interface ScreenItem {
    * id (画面内ユニーク) と独立。
    */
   refKey?: Identifier;
-  /** input = フォーム入力項目 (既定) / output = 表示専用項目。 */
-  direction?: "input" | "output";
+  /**
+   * input = フォーム入力項目 (既定) / output = 表示専用項目 (スカラー) /
+   * viewer = ViewDefinition の列定義を参照し、`valueFrom` で flow 変数から配列データを bind する
+   * 配列データ表示項目 (#762)。
+   */
+  direction?: "input" | "output" | "viewer";
+  /**
+   * viewer 項目が参照する ViewDefinition の ID (#762)。
+   * `direction='viewer'` の場合のみ使用し、列定義・ソート・kind 等の viewer 設定を提供する。
+   * `valueFrom` で flow 変数から配列データを bind する。
+   * `valueFrom` 省略時は ViewDefinition の query を画面 mount 時に自動発行する (静的マスター一覧)。
+   * `direction='viewer'` の時のみ required。
+   */
+  viewDefinitionId?: ViewDefinitionId;
   required?: boolean;
   readonly?: boolean;
   disabled?: boolean;
