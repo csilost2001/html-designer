@@ -13,7 +13,7 @@
  *  - examples/<project>/views/<uuid>.json
  *  - examples/<project>/view-definitions/<uuid>.json
  *  - examples/<project>/sequences/<uuid>.json
- *  - examples/<project>/extensions/<namespace>/*.json
+ *  - examples/<project>/extensions/<namespace>.v3.json (canonical combined format)
  *  - examples/<project>/conventions/*.json
  *  - examples/<project>/screen-layout.json (任意)
  */
@@ -117,29 +117,16 @@ function collectFiles(projectDir: string): FileEntry[] {
     }
   }
 
-  // extensions/ — v3 canonical format: <namespace>.v3.json (flat) or legacy <namespace>/<type>.json (subdirectory)
+  // extensions/ — v3 canonical format: <namespace>.v3.json (flat combined)
   const extDir = join(projectDir, "extensions");
   if (existsSync(extDir)) {
     for (const entry of readdirSync(extDir)) {
-      const entryPath = join(extDir, entry);
-      if (statSync(entryPath).isDirectory()) {
-        // legacy per-type subdirectory format
-        for (const f of readdirSync(entryPath)) {
-          if (!f.endsWith(".json")) continue;
-          entries.push({
-            filePath: join(entryPath, f),
-            schemaFile: "extensions.v3.schema.json",
-            relativePath: `extensions/${entry}/${f}`,
-          });
-        }
-      } else if (entry.endsWith(".json")) {
-        // v3 canonical combined format: <namespace>.v3.json
-        entries.push({
-          filePath: entryPath,
-          schemaFile: "extensions.v3.schema.json",
-          relativePath: `extensions/${entry}`,
-        });
-      }
+      if (!entry.endsWith(".json")) continue;
+      entries.push({
+        filePath: join(extDir, entry),
+        schemaFile: "extensions.v3.schema.json",
+        relativePath: `extensions/${entry}`,
+      });
     }
   }
 
