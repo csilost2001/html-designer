@@ -88,8 +88,18 @@ interface ScreenItem {
   /** 表示制御 (式言語、`docs/spec/process-flow-expression-language.md` と共有)。 */
   visibleWhen?: ExpressionString;
   enabledWhen?: ExpressionString;
-  /** 画面上での役割 (デフォルト: "input")。 */
-  direction?: "input" | "output";
+  /** 画面上での役割 (デフォルト: "input")。
+   *  - "input"  = フォーム入力項目
+   *  - "output" = 表示専用項目 (スカラー)
+   *  - "viewer" = ViewDefinition の列定義を参照し、valueFrom で flow 変数から配列データを
+   *               bind する配列データ表示項目 (#762)。viewDefinitionId が必須になる。 */
+  direction?: "input" | "output" | "viewer";
+  /** viewer 項目が参照する ViewDefinition の ID (#762)。
+   *  direction='viewer' の場合のみ使用し、列定義・ソート・kind 等の viewer 設定を提供する。
+   *  valueFrom.flowVariable で flow 変数から配列データを bind する。
+   *  valueFrom 省略時は ViewDefinition の query を画面 mount 時に自動発行する (静的マスター一覧)。
+   *  direction='viewer' の時のみ required。 */
+  viewDefinitionId?: Uuid;
   /** 表示書式 (direction="output" 専用、例: "YYYY/MM/DD", "¥#,##0", "0.00%") — #377 */
   displayFormat?: string;
   /** バインド元 (direction="output" 専用) — #377、ValueSource は v3 で Pattern B 複合参照に変更。 */
@@ -431,7 +441,7 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 ### (A) データモデル
 - **A-1** (v1.0 当初): 独立ファイル方式 (`data/screen-items/{screenId}.json`) を採用
 - **A-1 (2026-05-03 reversal、#712)**: 独立ファイル方式を廃止し、`Screen entity` への embed (`screens/<id>.json#items[]`) のみに統一。runtime / validator / 新規 workspace 生成すべて embed 前提
-- **A-2**: `ScreenItem` スキーマは上記の通り。一次成果物は `schemas/v3/screen-item.v3.schema.json`。`direction?: "input" | "output"` を追加 (#359 連動)
+- **A-2**: `ScreenItem` スキーマは上記の通り。一次成果物は `schemas/v3/screen-item.v3.schema.json`。`direction?: "input" | "output" | "viewer"` を追加 (#359 連動、#762 で "viewer" 追加)
 - **A-3 (v1.1)**: `displayFormat?: string` / `valueFrom?: ValueSource` を追加 (#377)。`direction="output"` のときのみ使用。
   - `displayFormat`: 自由記述 + datalist 補完 (日付 / 数値 / 金額 / パーセント プリセット)
   - `valueFrom`: `flowVariable` / `tableColumn` / `viewColumn` / `expression` の組み込み 4 種 + 拡張 1 (`namespace:identifier`)。入力項目 (`direction="input"` または未設定) ではエディタに表示されない
@@ -456,3 +466,137 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 - **E-2b (canvas 双方向同期)**: ブロック drop → screen-items 自動追加、ブロック削除 → screen-items 自動削除。ロード後の reconcile で canvas と全件突合する。
   - **制約**: 「先に画面項目を定義してから canvas に配置する」ワークフローは、ロード後の reconcile で定義が削除される。データ損失を避けるには、先にブロックを配置してから項目を編集すること。
 - **E-3**: 既存画面 migration は「空リストから手動追加」のみ。自動抽出は後続
+
+---
+
+## (F) viewer 項目 — 配列データ表示の宣言方式 (#762)
+
+`direction: "viewer"` は、ViewDefinition の列定義を参照し、ProcessFlow の出力変数から配列データを
+受け取って一覧表示するための screen-item 種別。検索結果一覧・マスター一覧・カート明細など
+「配列を表で並べる」共通パターンをすべて同型で表現する。
+
+### 基本構造
+
+```jsonc
+{
+  "id": "propertyRows",
+  "label": "物件一覧",
+  "type": { "kind": "array", "itemType": "json" },
+  "direction": "viewer",
+  "viewDefinitionId": "<ViewDefinition の UUID>",  // 列定義・ソート・kind を提供
+  "valueFrom": {
+    "kind": "flowVariable",
+    "processFlowId": "<ProcessFlow の UUID>",       // 検索/取得フロー
+    "variableName": "rows"                         // フロー出力変数名
+  }
+}
+```
+
+### ユースケース例
+
+#### 1. 検索フォーム + 検索結果一覧 (動的 binding)
+
+ボタンクリック → handlerFlow 実行 → 結果を viewer に表示するパターン。
+
+```jsonc
+// 不動産: 物件検索画面
+{
+  "items": [
+    {
+      "id": "propertyType",
+      "label": "物件種別",
+      "type": "string",
+      "direction": "input",
+      "options": [
+        { "value": "apartment", "label": "マンション" },
+        { "value": "house", "label": "一戸建て" }
+      ]
+    },
+    {
+      "id": "maxPrice",
+      "label": "上限価格 (万円)",
+      "type": "integer",
+      "direction": "input"
+    },
+    {
+      "id": "searchButton",
+      "label": "検索",
+      "type": { "kind": "extension", "extensionRef": "realestate:button" },
+      "direction": "output",
+      "events": [
+        {
+          "id": "click",
+          "handlerFlowId": "<物件検索フロー UUID>",
+          "argumentMapping": {
+            "propertyType": "@screen.propertyType",
+            "maxPrice": "@screen.maxPrice"
+          }
+        }
+      ]
+    },
+    {
+      "id": "propertyRows",
+      "label": "物件一覧",
+      "type": { "kind": "array", "itemType": "json" },
+      "direction": "viewer",
+      "viewDefinitionId": "<物件一覧 VD UUID>",
+      "valueFrom": {
+        "kind": "flowVariable",
+        "processFlowId": "<物件検索フロー UUID>",
+        "variableName": "rows"   // フローが outputs[] で宣言した変数
+      }
+    }
+  ]
+}
+```
+
+#### 2. マスター一覧 (静的、valueFrom 省略)
+
+`valueFrom` を省略すると、画面 mount 時に ViewDefinition の query が自動実行され、
+結果を viewer に表示する (静的マスター一覧)。
+
+```jsonc
+{
+  "id": "masterRows",
+  "label": "マスター一覧",
+  "type": { "kind": "array", "itemType": "json" },
+  "direction": "viewer",
+  "viewDefinitionId": "<マスター一覧 VD UUID>"
+  // valueFrom 省略 → VD の query を mount 時に自動実行
+}
+```
+
+#### 3. カート明細 (別フロー結果を binding)
+
+```jsonc
+{
+  "id": "cartItems",
+  "label": "カート明細",
+  "type": { "kind": "array", "itemType": "json" },
+  "direction": "viewer",
+  "viewDefinitionId": "<カート明細 VD UUID>",
+  "valueFrom": {
+    "kind": "flowVariable",
+    "processFlowId": "<カート集計フロー UUID>",
+    "variableName": "cartItems"
+  }
+}
+```
+
+### 責務分離
+
+| 要素 | 責務 |
+|---|---|
+| `ProcessFlow` | データ取得・業務ロジック (純粋関数性) |
+| `ViewDefinition` | viewer 設定 (列・ソート・kind)、データ源は関心外 |
+| `Screen.items[]` 内の viewer | 画面項目集合体 (input + output + viewer) の宣言 |
+
+### validator 観点
+
+`screenItemViewerValidator.ts` が次の観点を検出する (#762)。`validate-dogfood` の登録 12 番目。
+
+| issue code | severity | 検出内容 |
+|---|---|---|
+| `MISSING_VIEWER_VIEW_DEFINITION` | error | `direction='viewer'` だが `viewDefinitionId` が無い |
+| `UNKNOWN_VIEWER_VIEW_DEFINITION` | error | `viewDefinitionId` が同プロジェクト内の ViewDefinition に存在しない |
+| `VIEWER_FLOW_VARIABLE_NOT_DECLARED` | warning | `valueFrom.variableName` が ProcessFlow の outputs / inputs / steps 出力に宣言されていない |

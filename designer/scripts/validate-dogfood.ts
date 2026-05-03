@@ -31,6 +31,7 @@ import { checkScreenItemFieldTypeConsistency } from "../src/schemas/screenItemFi
 import { checkScreenItemRefKeyConsistency } from "../src/schemas/screenItemRefKeyValidator.js";
 import { checkViewDefinitions } from "../src/schemas/viewDefinitionValidator.js";
 import { checkScreenNavigation } from "../src/schemas/screenNavigationValidator.js";
+import { checkScreenItemViewer } from "../src/schemas/screenItemViewerValidator.js";
 import { loadExtensionsFromBundle, type LoadedExtensions, type ExtensionsBundle } from "../src/schemas/loadExtensions.js";
 import type { Screen } from "../src/types/v3/screen.js";
 import type { Conventions } from "../src/types/v3/conventions.js";
@@ -463,7 +464,7 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
         })),
       );
 
-      // 11. ViewDefinition 整合検証 (#649 Phase 4 子 1)
+      // 11. ViewDefinition 整合検証 (#649 Phase 4 子 1)  — (viewer validator は 12 番)
       const viewDefinitionIssues = checkViewDefinitions(
         project.viewDefinitions,
         project.tables as unknown as import("../src/schemas/viewDefinitionValidator.js").TableDefinitionForView[],
@@ -476,7 +477,21 @@ export async function runValidation(flowPath?: string): Promise<ValidationSummar
         })),
       );
 
-      // 12. 画面フロー × ScreenTransitionStep × URL ルーティング 三者整合 (#650、Phase 4 子 2)
+      // 12. viewer screen-item 整合検証 (#762)
+      const screenItemViewerIssues = checkScreenItemViewer(
+        project.screens,
+        flows.map((f) => f.flow),
+        project.viewDefinitions,
+      );
+      projectIssues.push(
+        ...screenItemViewerIssues.map((i) => ({
+          validator: "screenItemViewerValidator",
+          severity: i.severity,
+          message: `[${i.code}] ${i.path}: ${i.message}`,
+        })),
+      );
+
+      // 13. 画面フロー × ScreenTransitionStep × URL ルーティング 三者整合 (#650、Phase 4 子 2)
       const screenNavIssues = checkScreenNavigation(
         flows.map((f) => f.flow),
         project.screens,
@@ -537,6 +552,7 @@ const validatorDisplayOrder = [
   "screenItemRefKeyValidator",
   "viewDefinitionValidator",
   "screenNavigationValidator",
+  "screenItemViewerValidator",
 ];
 
 function printSummary(summary: ValidationSummary, options: { singleFlow: boolean }): void {
