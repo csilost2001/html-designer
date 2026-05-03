@@ -594,7 +594,7 @@ JSON Schema → TypeScript 型生成 (json-schema-to-typescript / quicktype) は
 | 画面 | 補完元 | 補完経路 |
 |---|---|---|
 | ProcessFlowEditor | StepType / WorkflowPattern / DbOperation / FieldType.kind 等の enum + ScreenItem.id (screenItemRef 用) | schema enum + extensions 合成 schema (§6) |
-| Designer (画面) | ScreenItem.id / type 候補 | screen-items JSON + conventions catalog |
+| Designer (画面) | ScreenItem.id / type 候補 | `screens/<id>.json#items[]` (Phase 4-β migration 後は screen entity に embed、#712) + conventions catalog |
 | TableEditor / ER 図 | tableId / tableName / カラム型 | tables JSON |
 | Extensions panel | namespace / steps / fieldTypes / triggers / dbOperations | extensions/*.schema.json + DynamicFormSchema |
 | 拡張 step 編集 | DynamicFormSchema (各拡張定義) | extensions/<ns>/steps.json の `schema` フィールド (`schemas/extensions-steps.schema.json:30-57` の subset) |
