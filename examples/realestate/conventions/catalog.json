@@ -1,5 +1,5 @@
 {
-  "$schema": "../../schemas/v3/conventions.v3.schema.json",
+  "$schema": "../../../schemas/v3/conventions.v3.schema.json",
   "version": "1.0.0",
   "description": "不動産仲介システムの横断規約カタログ。物件コード規約・メッセージ・限度値を集約する。",
   "updatedAt": "2026-05-03T00:00:00.000Z",

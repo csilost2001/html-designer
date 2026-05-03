@@ -197,6 +197,39 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
       try {
         const raw = JSON.parse(readFileSync(fullPath, "utf-8")) as Record<string, unknown>;
         fileCount++;
+
+        // v3 canonical combined format: <namespace>.v3.json
+        // 1 namespace = 1 ファイルで全拡張種別を含む形式 (schemas/v3/extensions.v3.schema.json)
+        // bundle の各種別に { namespace, <bodyKey>: [...] } 形式で分解して積む。
+        // namespace プレフィックスは loadExtensionsFromBundle 内の load* 関数が付与するため、
+        // ここでは付与しない (二重プレフィックス回避)。
+        if (basename(file).endsWith(".v3.json")) {
+          const namespace = typeof raw.namespace === "string" ? raw.namespace : "";
+          if (namespace) {
+            bundle.fieldTypes.namespace = namespace;
+            bundle.triggers.namespace = namespace;
+            bundle.dbOperations.namespace = namespace;
+            bundle.steps.namespace = namespace;
+            bundle.responseTypes.namespace = namespace;
+          }
+          if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);
+          if (Array.isArray(raw.triggers)) bundle.triggers.triggers.push(...raw.triggers);
+          if (Array.isArray(raw.dbOperations)) bundle.dbOperations.dbOperations.push(...raw.dbOperations);
+          if (raw.steps && typeof raw.steps === "object" && !Array.isArray(raw.steps)) {
+            // steps は Record — load* が namespace prefix を付けるため ここでは raw.steps の中身をそのまま積む
+            for (const [key, value] of Object.entries(raw.steps as Record<string, unknown>)) {
+              bundle.steps.steps[key] = value;
+            }
+          }
+          if (raw.responseTypes && typeof raw.responseTypes === "object" && !Array.isArray(raw.responseTypes)) {
+            // responseTypes は Record — load* が namespace prefix を付けるため raw.responseTypes の中身をそのまま積む
+            for (const [key, value] of Object.entries(raw.responseTypes as Record<string, unknown>)) {
+              bundle.responseTypes.responseTypes[key] = value;
+            }
+          }
+          continue; // legacy switch 経路をスキップ
+        }
+
         switch (basename(file)) {
           case "field-types.json":
             if (Array.isArray(raw.fieldTypes)) bundle.fieldTypes.fieldTypes.push(...raw.fieldTypes);

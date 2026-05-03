@@ -36,8 +36,8 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 | `project.json` | `schemas/v3/project.v3.schema.json` | プロジェクトメタデータ (ID / 名称 / 説明 / 成熟度 / 作成日 / 更新日) |
 | `tables/*.json` | `schemas/v3/table.v3.schema.json` | テーブル定義群 |
 | `actions/*.json` または `process-flows/*.json` | `schemas/v3/process-flow.v3.schema.json` | 処理フロー群 |
-| `extensions/<namespace>.v3.json` | `schemas/v3/extensions.v3.schema.json` | 拡張定義 (namespace 単位) |
-| `conventions-catalog.v3.json` または `conventions/catalog.json` | `schemas/v3/conventions.v3.schema.json` | 規約カタログ |
+| `extensions/<namespace>.v3.json` | `schemas/v3/extensions.v3.schema.json` | 拡張定義 (namespace 単位、v3 canonical combined format) |
+| `conventions/catalog.json` | `schemas/v3/conventions.v3.schema.json` | 規約カタログ (v3 canonical パス) |
 
 ### 任意 (シナリオで必要に応じて)
 
@@ -51,6 +51,8 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 | 旧配置 | 状態 | 移行先 |
 |---|---|---|
 | `screen-items/<screenId>.json` | Phase 4-β で廃止 (#712) | `screens/<screenId>.json` の `items[]` に embed |
+| `conventions-catalog.v3.json` (プロジェクトルート直下) | #774 で非推奨 (旧 dogfood パス) | `conventions/catalog.json` |
+| `extensions/<namespace>/<type>.json` (種別ごと別ファイル) | レガシー形式 (retail で残存、別 ISSUE で migrate 候補) | `extensions/<namespace>.v3.json` (combined format) |
 | `docs/sample-project-v3/<project>/` | #774 で廃止 | `examples/<project-id>/` |
 | `docs/sample-project/` (v1) | #774 で廃止 | 削除 (git log で参照可) |
 | `docs/legacy-sample-project/` | #774 で廃止 | 削除 (git log で参照可) |
@@ -68,6 +70,38 @@ designer の実運用は **1 プロジェクト = 1 業務アプリ** 単位。
 ```
 
 `examples/retail/` の既存ファイルを参考にすること。
+
+## 拡張定義 (extensions) の canonical 形式
+
+### v3 canonical combined format (推奨)
+
+`extensions/<namespace>.v3.json` — 1 namespace = 1 ファイルで全拡張種別を含む形式:
+
+```json
+{
+  "$schema": "../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "myns",
+  "version": "1.0.0",
+  "fieldTypes": [...],
+  "triggers": [...],
+  "dbOperations": [...],
+  "steps": { "stepName": { ... } },
+  "responseTypes": { "TypeName": { ... } }
+}
+```
+
+- `validate:samples` は `*.v3.json` ファイルをこの形式として読み込む
+- `namespace` フィールドが必須 (referentialIntegrity 検証で `<namespace>:<name>` 形式の参照解決に使用)
+
+### レガシー形式 (retail で残存、migrate 候補)
+
+`extensions/<namespace>/field-types.json` / `triggers.json` / `db-operations.json` / `steps.json` / `response-types.json` — 種別ごと別ファイルの旧形式。`validate:samples` はこの形式も読み込むが、新規サンプルでは combined format を使用すること。
+
+## 規約カタログ (conventions) の canonical パス
+
+`conventions/catalog.json` — v3 canonical パス。
+
+旧 dogfood パス `conventions-catalog.v3.json` (プロジェクトルート直下) は非推奨。`validate:samples` は `conventions/catalog.json` のみ参照する。
 
 ## 反パターン
 
