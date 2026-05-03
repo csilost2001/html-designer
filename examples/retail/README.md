@@ -1,6 +1,6 @@
 # retail — リテール総合 (EC + 店舗 POS + 在庫管理)
 
-リリース時 examples 候補の **完結 業務 workspace サンプル** (#680 / #706)。EC・店舗 POS・在庫管理を統合したリテール業態をモデルにした中規模アプリ。
+リリース時 examples 候補の **完結 業務 workspace サンプル** (#680 / #706 / #759)。EC・店舗 POS・在庫管理を統合したリテール業態をモデルにした中規模アプリ。
 
 ## 業務シナリオ (4 種、画面・処理・データを連携)
 
@@ -16,13 +16,12 @@
 ## ディレクトリ構成
 
 ```
-samples/retail/
+examples/retail/
 ├── project.json              # workspace ルート定義 (v3 schema)
 ├── README.md                 # 本ファイル
-├── screens/                  # 画面 HTML (GrapesJS、見栄え重視)
-├── screen-items/             # 画面項目定義 (各画面 1:1)
+├── screens/                  # 画面 (entity + GrapesJS design、画面項目定義 items[] を内包)
 ├── tables/                   # テーブル定義
-├── actions/                  # 処理フロー (旧称 process-flows)
+├── actions/                  # 処理フロー (旧称 process-flows、#393-#395 でリネーム)
 ├── views/                    # SQL VIEW 定義
 ├── view-definitions/         # 一覧 UI viewer 定義
 ├── sequences/                # 採番シーケンス
@@ -36,14 +35,14 @@ samples/retail/
 
 ## 開き方 (動作確認)
 
-`samples/retail/` は **git 管理の正本サンプル**。直接開くと編集が git 差分になるため、動作確認は **コピーして使う** ことを推奨します (デプロイ相当)。
+`examples/retail/` は **git 管理の正本サンプル**。直接開くと編集が git 差分になるため、動作確認は **コピーして使う** ことを推奨します (デプロイ相当)。
 
 ### 推奨: workspaces/retail/ にコピーして使う (試行錯誤・編集 OK)
 
 ```bash
 # workspaces/retail/ ディレクトリを作成してコピー (Windows PowerShell の例)
 New-Item -ItemType Directory -Force -Path workspaces\retail
-Copy-Item -Recurse -Force samples\retail\* workspaces\retail\
+Copy-Item -Recurse -Force examples\retail\* workspaces\retail\
 
 # designer-mcp / designer を起動
 cd designer-mcp && npm run dev   # 別ターミナル
@@ -56,24 +55,24 @@ cd designer && npm run dev
 
 ### 直接開く (見るだけの動作確認)
 
-designer UI のヘッダー「ワークスペース」 → 「フォルダを追加」 → `samples/retail` の絶対パス を指定。**ただし編集して保存するとファイルが書き換わり git 差分が出ます (自己責任)**。本プロジェクトのサンプル更新作業以外では編集を避けてください。
+designer UI のヘッダー「ワークスペース」 → 「フォルダを追加」 → `examples/retail` の絶対パス を指定。**ただし編集して保存するとファイルが書き換わり git 差分が出ます (自己責任)**。本プロジェクトのサンプル更新作業以外では編集を避けてください。
 
 ## テスト fixture としての利用
 
 ```bash
 # 固定 workspace で designer-mcp 起動 (lockdown モード = workspace 切替禁止)
-DESIGNER_DATA_DIR=samples/retail npm run dev:mcp
+DESIGNER_DATA_DIR=examples/retail npm run dev:mcp
 ```
 
-注: lockdown モードは「workspace 切替を禁止する固定モード」であり、データの read-only モードではありません。データ編集は通常通り可能なので、test 終了後に `git restore samples/retail/` で戻すか、別フォルダにコピーしてから fixture 化することを推奨します。
+注: lockdown モードは「workspace 切替を禁止する固定モード」であり、データの read-only モードではありません。データ編集は通常通り可能なので、test 終了後に `git restore examples/retail/` で戻すか、別フォルダにコピーしてから fixture 化することを推奨します。
 
 ## 検証 (AJV)
 
-`samples/**/*.json` は schema 検証 test に組み込まれる。schema 進化時に retail サンプルが breakage したら CI で検出。
+`examples/**/*.json` は schema 検証 test に組み込まれる。schema 進化時に retail サンプルが breakage したら CI で検出。
 
 ## 関連
 
 - 親メタ: #680
 - 起票: #706
-- spec: [docs/spec/samples-retail.md](../../docs/spec/samples-retail.md)
+- spec: [docs/spec/examples-retail.md](../../docs/spec/examples-retail.md)
 - 運用方針: memory `project_samples_strategy_2026_05_02.md`
