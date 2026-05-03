@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * examples/<project-id>/ 形式 (examples/retail 等) を 1 プロジェクトとして検証するスクリプト (#709)。
- * actions/ ディレクトリ命名と conventions/catalog.json 配置に対応したプロジェクト単位検証スクリプト。
+ * actions/ または process-flows/ ディレクトリ命名と conventions/catalog.json 配置に対応したプロジェクト単位検証スクリプト。
  * examples/<project-id>/ を canonical サンプル領域として検証する (#774)。
  *
  * 使用法:
@@ -153,7 +153,9 @@ function discoverProject(projectDirArg: string): ProjectResources {
     screens: loadScreensFromDir(join(projectDir, "screens")),
     viewDefinitions: loadViewDefinitionsFromDir(join(projectDir, "view-definitions")),
     screenTransitions: loadScreenTransitionsFromProjectJson(projectDir),
-    flowsDir: join(projectDir, "actions"),
+    flowsDir: existsSync(join(projectDir, "actions"))
+      ? join(projectDir, "actions")
+      : join(projectDir, "process-flows"),
   };
 }
 

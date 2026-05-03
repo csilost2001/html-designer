@@ -1,6 +1,6 @@
 {
   "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
-  "id": "e5c6d7f8-0912-4223-cd4e-5f6a7b8c9d0e",
+  "id": "e5c6d7f8-0912-4223-8d4e-5f6a7b8c9d0e",
   "name": "物件一覧",
   "description": "物件検索画面向けの一覧 viewer 定義。物件コード・物件名・種別・面積・価格・掲載日を表示し、価格昇順ソートをサポートする。viewer screen-item (#762) のデモ用サンプル。",
   "maturity": "committed",

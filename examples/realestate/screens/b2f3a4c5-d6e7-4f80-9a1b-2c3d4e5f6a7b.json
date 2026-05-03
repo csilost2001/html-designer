@@ -70,7 +70,7 @@
       "label": "物件一覧",
       "type": { "kind": "array", "itemType": "json" },
       "direction": "viewer",
-      "viewDefinitionId": "e5c6d7f8-0912-4223-cd4e-5f6a7b8c9d0e",
+      "viewDefinitionId": "e5c6d7f8-0912-4223-8d4e-5f6a7b8c9d0e",
       "valueFrom": {
         "kind": "flowVariable",
         "processFlowId": "d4b5c6e7-f809-4112-bc3d-4e5f6a7b8c9d",

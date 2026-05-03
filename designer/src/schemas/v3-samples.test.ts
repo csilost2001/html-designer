@@ -83,7 +83,7 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
     const files = [
       ...listJsonRecursive(join(examplesDir, "retail", "screens")),
       ...listJsonRecursive(join(examplesDir, "realestate", "screens")),
-    ];
+    ].filter((f) => !f.endsWith(".design.json")); // .design.json は GrapesJS デザインデータ — screen schema 対象外
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const data = loadJson(file);

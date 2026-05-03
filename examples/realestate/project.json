@@ -6,7 +6,7 @@
     "name": "不動産仲介システム",
     "description": "不動産仲介業務サンプル。物件検索・顧客検索・取引履歴を軸に、viewer screen-item (#762) の direction=viewer パターンを実証する。",
     "version": "1.0.0",
-    "maturity": "review",
+    "maturity": "provisional",
     "createdAt": "2026-05-03T00:00:00.000Z",
     "updatedAt": "2026-05-03T00:00:00.000Z",
     "mode": "upstream"
@@ -54,7 +54,7 @@
     ],
     "viewDefinitions": [
       {
-        "id": "e5c6d7f8-0912-4223-cd4e-5f6a7b8c9d0e",
+        "id": "e5c6d7f8-0912-4223-8d4e-5f6a7b8c9d0e",
         "no": 1,
         "name": "物件一覧",
         "kind": "list",
