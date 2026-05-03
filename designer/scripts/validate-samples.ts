@@ -310,20 +310,16 @@ export function checkScreenItemsEmbedded(project: ProjectResources): ValidationI
     // items 必須 kind にも viewer screen-item 代替 kind にも該当しなければ warning スキップ。
     // kind が空文字列 (= undefined/null を "" に正規化した場合) もここで skip される —
     // 種別不明の画面で false positive を出すより安全側に倒す意図。
+    // 注: ITEMS_OR_VIEWER_KINDS (list 等) も含めて items が空のまま到達する場合は
+    // direction:viewer の screen-item も存在しないと確定している (items が非空なら L302 で
+    // continue 済のため)。viewer を含む items も `items.length > 0` で抑制されており、
+    // kind=list で EMPTY_SCREEN_ITEMS 不要となるのは items に direction:viewer の
+    // screen-item を 1 件以上定義した場合に限られる。
     if (!ITEMS_REQUIRED_KINDS.has(kind) && !ITEMS_OR_VIEWER_KINDS.has(kind)) {
       continue;
     }
 
-    // list 系で items[] に direction:viewer の screen-item が 1 件以上あれば items 空でも OK (#769)
-    if (
-      ITEMS_OR_VIEWER_KINDS.has(kind) &&
-      Array.isArray(screen.items) &&
-      screen.items.some((it: { direction?: string }) => it.direction === "viewer")
-    ) {
-      continue;
-    }
-
-    // ここまで到達 → 真に items が必要なのに空
+    // ここまで到達 → 真に items が必要なのに空 (list 系は viewer screen-item も未定義)
     const isViewerKind = ITEMS_OR_VIEWER_KINDS.has(kind);
     issues.push({
       validator: "runtimeContractValidator",
