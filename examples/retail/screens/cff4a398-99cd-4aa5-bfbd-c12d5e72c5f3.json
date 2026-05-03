@@ -12,6 +12,19 @@
   "updatedAt": "2026-05-02T00:00:00.000Z",
   "items": [
     {
+      "id": "cartSummary",
+      "label": "カート明細",
+      "type": { "kind": "array", "itemType": "json" },
+      "direction": "viewer",
+      "viewDefinitionId": "f8b286e4-77c0-41b9-9c34-9291d00cabc3",
+      "valueFrom": {
+        "kind": "flowVariable",
+        "processFlowId": "267e94bf-0397-44b8-b665-d3c40c38935b",
+        "variableName": "rows"
+      },
+      "description": "S-3 カート明細一覧の表示。direction=viewer (#762/#771): カート集計フロー (267e94bf) の出力変数 'rows' を カート明細 ViewDefinition (f8b286e4) の列定義で表示する。id='cartSummary' は design.json の data-item-id='cartSummary' と一致する (#331 規約)。"
+    },
+    {
       "id": "shippingPostalCode",
       "label": "郵便番号",
       "type": "string",

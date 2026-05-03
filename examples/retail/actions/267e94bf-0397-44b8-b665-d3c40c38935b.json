@@ -44,6 +44,12 @@
           "label": "カート小計 (税抜)",
           "type": "integer",
           "description": "アクティブカート内の cart_items の (unit_price_snapshot * quantity) 合算 (税抜)。0 件の場合は 0。"
+        },
+        {
+          "name": "rows",
+          "label": "カート明細一覧",
+          "type": { "kind": "array", "itemType": "json" },
+          "description": "アクティブカートに紐付く cart_items 行 (productCode / productName / quantity / unitPrice / subtotal) の配列。カート確認画面 (cff4a398) の viewer 項目 (cartSummary) の valueFrom.variableName='rows' で参照する (#771)。"
         }
       ],
       "responses": [
@@ -94,6 +100,30 @@
           "description": "summaryRows[0] が無い場合の totalAmount フォールバック (step-02 と同じ defensive guard、aggregate は常に 1 行返るため通常は dead path)。",
           "expression": "@summaryRows[0] != null ? @summaryRows[0].total_amount : 0",
           "outputBinding": { "name": "totalAmount" }
+        },
+        {
+          "id": "step-04a",
+          "kind": "dbAccess",
+          "description": "アクティブカートに紐付く cart_items を products JOIN で取得し、viewer 表示用の行データを生成する (#771)。",
+          "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
+          "operation": "SELECT",
+          "sql": "SELECT ci.id, p.product_code, p.name AS product_name, ci.quantity, ci.unit_price_snapshot, (ci.unit_price_snapshot * ci.quantity) AS subtotal FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active' ORDER BY ci.added_at ASC",
+          "outputBinding": { "name": "cartDetailRows" },
+          "runIf": "@itemCount > 0",
+          "lineage": {
+            "reads": [
+              { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" },
+              { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" },
+              { "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" }
+            ]
+          }
+        },
+        {
+          "id": "step-04b",
+          "kind": "compute",
+          "description": "cartDetailRows を viewer 用 rows 変数に代入する。itemCount=0 の場合は空配列を返す (#771)。",
+          "expression": "@itemCount > 0 ? @cartDetailRows : []",
+          "outputBinding": { "name": "rows" }
         },
         {
           "id": "step-04",
