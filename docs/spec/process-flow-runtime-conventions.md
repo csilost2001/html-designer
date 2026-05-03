@@ -45,7 +45,23 @@ INSERT INTO orders (customer_id, total, payment_id) VALUES ($1, $2, $3)
 
 `CURRENT_TIMESTAMP` / `COALESCE(...)` / `NULL` / 列名 (`orders.status`) は **SQL 字句としてそのまま使用**。`@` プレフィックスがないものは全て SQL 字句。
 
-### 1.4 in-clause の展開
+### 1.4 SELECT 句の列 alias 規約 (#775)
+
+SELECT 結果が ViewDefinition `columns[].name` (camelCase) へ直接バインドされる場合は、**SQL 内で `AS "<camelCase>"` alias を明示する**。
+
+```sql
+-- NG: snake_case 物理名のまま返す (VD column 'unitPrice' と不一致)
+SELECT p.unit_price, p.product_code FROM products p
+
+-- OK: AS alias で VD column 名と一致させる
+SELECT p.unit_price AS "unitPrice", p.product_code AS "productCode" FROM products p
+```
+
+**理由**: runtime での暗黙変換 (snake_case → camelCase) は validator 検出不能。alias で構文上の binding を確定させる (#775)。
+
+詳細: [`docs/spec/view-definition.md` § (D-5)](view-definition.md)
+
+### 1.5 in-clause の展開
 
 `WHERE id IN (@ids)` のような配列展開は、`@ids` の要素数に応じて `$N, $N+1, ...` を展開:
 
