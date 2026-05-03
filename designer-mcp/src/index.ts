@@ -41,17 +41,33 @@ import {
   LockNotHeldError,
 } from "./lockManager.js";
 import { resolveOnBehalfOfSession, logAuditIfDelegated } from "./onBehalfOfSession.js";
+import { initServerLog, shutdownServerLog, logInfo, logError, ingestClientLog } from "./serverLog.js";
+
+// 物理ログ初期化 (#750 follow-up): logs/ ディレクトリへ JSON Lines 形式で永続化
+// projectRoot = designer-mcp の親 (= repo root)。env DESIGNER_LOG_DIR で上書き可能。
+const projectRoot = process.env.DESIGNER_LOG_DIR ?? path.resolve(process.cwd(), "..");
+initServerLog(projectRoot);
 
 // 常駐バックエンドなので停止 signal (SIGTERM/SIGINT/disconnect) のみ監視。
 // stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
 function setupLifecycle(): void {
   const exitHandler = (reason: string) => {
-    console.error(`[MCP] Exiting: ${reason}`);
+    logInfo("lifecycle", `Exiting: ${reason}`);
+    shutdownServerLog();
     process.exit(0);
   };
   process.on("SIGTERM", () => exitHandler("SIGTERM"));
   process.on("SIGINT", () => exitHandler("SIGINT"));
   process.on("disconnect", () => exitHandler("disconnected from parent"));
+  process.on("uncaughtException", (err) => {
+    logError("lifecycle", "uncaughtException", { error: err.message, stack: err.stack });
+  });
+  process.on("unhandledRejection", (reason) => {
+    logError("lifecycle", "unhandledRejection", {
+      reason: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+    });
+  });
 }
 
 setupLifecycle();
@@ -67,24 +83,37 @@ initWorkspaceState();
   const r = await autoActivateOnStartup();
   switch (r.status) {
     case "lockdown":
-      console.error(`[Workspace] lockdown モード: ${r.path}`);
+      logInfo("workspace", "lockdown モード", { path: r.path });
       break;
     case "restored":
-      console.error(`[Workspace] 前回の workspace を再オープン: ${r.entry.name} (${r.entry.path})`);
+      logInfo("workspace", "前回の workspace を再オープン", { name: r.entry.name, path: r.entry.path });
       break;
     case "registeredLegacy":
-      console.error(`[Workspace] 旧来の data/ を default workspace として登録: ${r.entry.path}`);
+      logInfo("workspace", "旧来の data/ を default workspace として登録", { path: r.entry.path });
       break;
     case "none":
-      console.error("[Workspace] active 未選択。UI 側で /workspace/select に誘導されます");
+      logInfo("workspace", "active 未選択 (UI 側で /workspace/select に誘導)");
       break;
   }
 }
 
 // HTTP + WebSocket サーバ起動 (port 5179 に両方同居)
 await wsBridge.start();
-wsBridge.on("connected", () => console.error("[MCP] Designer connected via WebSocket"));
-wsBridge.on("disconnected", () => console.error("[MCP] Designer disconnected"));
+wsBridge.on("connected", () => logInfo("ws-bridge", "Designer connected via WebSocket"));
+wsBridge.on("disconnected", () => logInfo("ws-bridge", "Designer disconnected"));
+
+// クライアント (ブラウザ uiLog) からログ flush を受け取るハンドラ (#750 follow-up)
+wsBridge.registerBrowserHandler("client.log.flush", async (params) => {
+  const entries = ((params as { entries?: unknown })?.entries ?? []) as Array<{
+    ts: number;
+    level: "debug" | "info" | "warn" | "error";
+    category: string;
+    msg: string;
+    ctx?: Record<string, unknown>;
+  }>;
+  if (!Array.isArray(entries)) return { count: 0 };
+  return ingestClientLog(entries);
+});
 
 // MCPサーバーのファクトリ (#302, #700 R-2): HTTP リクエスト毎に fresh な Server インスタンスを
 // 作成することで、複数クライアントが同時接続しても互いの initialize 状態と干渉しない

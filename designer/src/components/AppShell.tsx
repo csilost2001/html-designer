@@ -54,7 +54,7 @@ import { ResourceLoading } from "./common/ResourceLoading";
 import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { recordError } from "../utils/errorLog";
 import { checkRedirect, subscribeRedirectGuardTrip, isRedirectGuardTripped } from "../utils/redirectGuard";
-import { uiInfo, uiWarn } from "../utils/uiLog";
+import { uiInfo, uiWarn, setupServerLogFlush } from "../utils/uiLog";
 
 function useTabs() {
   const [tabs, setTabs] = useState<readonly TabItem[]>(getTabs);
@@ -209,6 +209,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     const bridge = mcpBridge as unknown as {
       onStatusChange: (cb: (s: string) => void) => () => void;
       startWithoutEditor: () => void;
+      request: (method: string, params?: unknown) => Promise<unknown>;
     };
     const unsubStatus = bridge.onStatusChange((s) => {
       if (s === "connected") {
@@ -216,7 +217,11 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       }
     });
     bridge.startWithoutEditor();
-    return () => { unsubBroadcast(); unsubStatus(); };
+    // サーバ側物理ログへの定期 flush (#750 follow-up): warn/error を designer-mcp/logs/ に永続化
+    const unsubFlush = setupServerLogFlush((entries) =>
+      bridge.request("client.log.flush", { entries }),
+    );
+    return () => { unsubBroadcast(); unsubStatus(); unsubFlush(); };
   }, []);
 
   // workspace state 変化を log 化 (ループ追跡用)
