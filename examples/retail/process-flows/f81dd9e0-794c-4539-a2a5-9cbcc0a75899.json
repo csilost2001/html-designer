@@ -235,7 +235,7 @@
           "description": "顧客のアクティブカートと cart_items を取得する。",
           "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
           "operation": "SELECT",
-          "sql": "SELECT c.id AS cart_id, ci.id AS item_id, ci.product_id, ci.unit_price_snapshot, ci.quantity, p.product_code, p.name AS product_name, p.unit_price FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
+          "sql": "SELECT c.id AS \"cartId\", ci.id AS \"itemId\", ci.product_id AS \"productId\", ci.unit_price_snapshot AS \"unitPriceSnapshot\", ci.quantity, p.product_code AS \"productCode\", p.name AS \"productName\", p.unit_price AS \"unitPrice\" FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
           "outputBinding": { "name": "cartItems" },
           "lineage": {
             "reads": [
@@ -281,7 +281,7 @@
           "id": "step-04",
           "kind": "compute",
           "description": "cart_items から注文合計金額 (税抜) を計算する。各行の line_amount = unit_price_snapshot * quantity の合計。",
-          "expression": "@cartItems.reduce((sum, item) => sum + (item.unit_price_snapshot * item.quantity), 0)",
+          "expression": "@cartItems.reduce((sum, item) => sum + (item.unitPriceSnapshot * item.quantity), 0)",
           "outputBinding": { "name": "totalAmount" }
         },
         {
@@ -326,7 +326,7 @@
                   "description": "在庫を注文数量分だけ減算する。0 未満になる場合は DB の CHECK 制約で弾かれ、STOCK_SHORTAGE エラーが発生する。",
                   "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
                   "operation": "retail:DECREMENT_STOCK",
-                  "sql": "UPDATE inventory SET quantity_available = quantity_available - @cartItem.quantity, updated_at = CURRENT_TIMESTAMP WHERE product_id = @cartItem.product_id AND store_id = (SELECT id FROM stores WHERE store_code = 'DEFAULT' LIMIT 1) AND quantity_available >= @cartItem.quantity",
+                  "sql": "UPDATE inventory SET quantity_available = quantity_available - @cartItem.quantity, updated_at = CURRENT_TIMESTAMP WHERE product_id = @cartItem.productId AND store_id = (SELECT id FROM stores WHERE store_code = 'DEFAULT' LIMIT 1) AND quantity_available >= @cartItem.quantity",
                   "affectedRowsCheck": {
                     "operator": "=",
                     "expected": 1,
@@ -373,7 +373,7 @@
                   "description": "order_items に 1 行 INSERT する。order_id は step-06-02 で取得した insertedOrder.id を使用する。",
                   "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
                   "operation": "INSERT",
-                  "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES (@insertedOrder.id, @cartItem.product_id, @cartItem.product_code, @cartItem.product_name, @cartItem.unit_price_snapshot, @cartItem.quantity, @cartItem.unit_price_snapshot * @cartItem.quantity)",
+                  "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES (@insertedOrder.id, @cartItem.productId, @cartItem.productCode, @cartItem.productName, @cartItem.unitPriceSnapshot, @cartItem.quantity, @cartItem.unitPriceSnapshot * @cartItem.quantity)",
                   "lineage": {
                     "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "insert" }]
                   }
@@ -480,7 +480,7 @@
           "description": "TX コミット後に orders を再取得する。TX 内の insertedOrder の変数をそのまま参照するとネスト変数問題が起きるため、TX 後に SELECT で再取得する。",
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
-          "sql": "SELECT id, order_number, customer_id, status, total_amount, ordered_at FROM orders WHERE order_number = @newOrderNumber",
+          "sql": "SELECT id, order_number AS \"orderNumber\", customer_id AS \"customerId\", status, total_amount AS \"totalAmount\", ordered_at AS \"orderedAt\" FROM orders WHERE order_number = @newOrderNumber",
           "outputBinding": { "name": "persistedOrder" },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
@@ -523,14 +523,14 @@
           "kind": "eventPublish",
           "description": "retail.order.confirmed イベントを発行する。TX コミット後 + persistedOrder 再取得後に発行するため、イベントペイロードは確定済み値のみ参照する。",
           "topic": "retail.order.confirmed",
-          "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, customerId: @persistedOrder.customer_id, totalAmount: @persistedOrder.total_amount }"
+          "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.orderNumber, customerId: @persistedOrder.customerId, totalAmount: @persistedOrder.totalAmount }"
         },
         {
           "id": "step-10",
           "kind": "return",
           "description": "200 OK — 注文確定完了を返す。",
           "responseId": "200-ok",
-          "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.order_number, totalAmount: @persistedOrder.total_amount, orderedAt: @persistedOrder.ordered_at, message: '注文が確定しました。注文番号: ' + @persistedOrder.order_number }"
+          "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.orderNumber, totalAmount: @persistedOrder.totalAmount, orderedAt: @persistedOrder.orderedAt, message: '注文が確定しました。注文番号: ' + @persistedOrder.orderNumber }"
         }
       ]
     }

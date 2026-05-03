@@ -189,7 +189,7 @@
           "description": "products テーブルで商品の存在確認と単価取得を行う。is_active=TRUE の販売中商品のみ対象。",
           "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
           "operation": "SELECT",
-          "sql": "SELECT id, product_code, name, unit_price FROM products WHERE product_code = @inputs.productCode AND is_active = TRUE",
+          "sql": "SELECT id, product_code AS \"productCode\", name, unit_price AS \"unitPrice\" FROM products WHERE product_code = @inputs.productCode AND is_active = TRUE",
           "outputBinding": { "name": "product" },
           "lineage": {
             "reads": [{ "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" }]
@@ -292,7 +292,7 @@
           "description": "現在の cart_items 件数を取得して上限チェックに使用する。existingItem が null の場合 (新規追加) のみ意味を持つ。",
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "SELECT",
-          "sql": "SELECT COUNT(*) AS item_count FROM cart_items WHERE cart_id = @cart.id",
+          "sql": "SELECT COUNT(*) AS \"itemCount\" FROM cart_items WHERE cart_id = @cart.id",
           "outputBinding": { "name": "cartItemCount" },
           "lineage": {
             "reads": [{ "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" }]
@@ -309,7 +309,7 @@
               "label": "上限超過",
               "condition": {
                 "kind": "expression",
-                "expression": "@existingItem == null && @cartItemCount.item_count >= @conv.limit.cartMaxItems"
+                "expression": "@existingItem == null && @cartItemCount.itemCount >= @conv.limit.cartMaxItems"
               },
               "steps": [
                 {
@@ -335,7 +335,7 @@
           "description": "cart_items に (cart_id, product_id) で UPSERT する。重複の場合は quantity を加算し unit_price_snapshot を最新値で更新する。",
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "retail:UPSERT_CART_ITEM",
-          "sql": "INSERT INTO cart_items (cart_id, product_id, unit_price_snapshot, quantity) VALUES (@cart.id, @product.id, @product.unit_price, @inputs.quantity) ON CONFLICT (cart_id, product_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity, unit_price_snapshot = EXCLUDED.unit_price_snapshot, updated_at = CURRENT_TIMESTAMP RETURNING id",
+          "sql": "INSERT INTO cart_items (cart_id, product_id, unit_price_snapshot, quantity) VALUES (@cart.id, @product.id, @product.unitPrice, @inputs.quantity) ON CONFLICT (cart_id, product_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity, unit_price_snapshot = EXCLUDED.unit_price_snapshot, updated_at = CURRENT_TIMESTAMP RETURNING id",
           "outputBinding": { "name": "upsertedCartItem" },
           "affectedRowsCheck": {
             "operator": "=",

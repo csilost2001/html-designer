@@ -1,6 +1,6 @@
 ---
 name: review-flow
-description: ProcessFlow JSON の実行セマンティクスを専門レビュー (変数ライフサイクル / TX スコープ / runIf 連鎖 / 補償整合 / event 双方向 / 画面項目連携)。Step 0.5 で 12 バリデータを機械実行 (#599 / #621)、Step 1 で 10 観点を AI レビュー。設計フェーズから使える
+description: ProcessFlow JSON の実行セマンティクスを専門レビュー (変数ライフサイクル / TX スコープ / runIf 連鎖 / 補償整合 / event 双方向 / 画面項目連携 / SQL alias 整合)。Step 0.5 で 12 バリデータを機械実行 (#599 / #621)、Step 1 で 13 観点を AI レビュー。設計フェーズから使える
 argument-hint: <flowId | path | --all | (空 = MCP アクティブタブ)>
 disable-model-invocation: true
 ---
@@ -114,6 +114,7 @@ npm run validate:samples -- ../examples/<project-id>
 | 10. 画面項目値レベル整合 | screenItemFieldTypeValidator (options 包含 / domainKey / 型 / pattern / range / length) | 業務文脈の妥当性 (選択肢命名の業務適切性 / domain 設計妥当性) は AI |
 | 11. DB 制約 × INSERT / DELETE 順序 (#632 / #640 / #641 / #642) | sqlOrderValidator (NULL_NOT_ALLOWED_AT_INSERT / FK_REFERENCE_NOT_INSERTED / UNIQUE_CHECK_MISSING / CASCADE_DELETE_OMITTED / TX_CIRCULAR_DEPENDENCY) | 複雑な条件分岐での可能性の有無は AI / UNIQUE チェック抑止パターンの業務妥当性は AI / onDelete 設定が業務要件として適切かは AI / TX 循環の DEFERRED 検出は Phase 5 候補 (別 ISSUE) |
 | 12. ViewDefinition 整合 (#649) | viewDefinitionValidator (UNKNOWN_SOURCE_TABLE / UNKNOWN_TABLE_COLUMN_REF / DUPLICATE_VIEW_COLUMN_NAME / UNKNOWN_SORT_COLUMN / UNKNOWN_FILTER_COLUMN / UNKNOWN_GROUP_BY_COLUMN) | sourceTableId ↔ dbAccess テーブルの業務的整合 / FIELD_TYPE_INCOMPATIBLE の業務妥当性は AI |
+| 13. SQL SELECT ↔ ViewDefinition alias 整合 (#775) | (なし、目視のみ) | SELECT 結果が viewer VD `columns[].name` と直接バインドする場合に `AS "<camelCase>"` alias があるか / alias 後の camelCase キーで変数参照が一致しているか |
 
 監査根拠: `docs/spec/dogfood-2026-04-29-phase2-validator-audit.md` §3 / §4 + Phase 3 子 1 #619 (PR #626)。
 

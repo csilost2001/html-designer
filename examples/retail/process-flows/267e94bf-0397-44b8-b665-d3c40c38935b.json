@@ -78,7 +78,7 @@
           "description": "ログイン顧客のアクティブカート (carts.status='active') に紐付く cart_items を集計する。LEFT JOIN + COALESCE で アクティブカート不在 / 明細 0 件の場合に (0, 0) を返すように正規化する。",
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "SELECT",
-          "sql": "SELECT COALESCE(COUNT(ci.id), 0) AS item_count, COALESCE(SUM(ci.unit_price_snapshot * ci.quantity), 0) AS total_amount FROM carts c LEFT JOIN cart_items ci ON ci.cart_id = c.id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
+          "sql": "SELECT COALESCE(COUNT(ci.id), 0) AS \"itemCount\", COALESCE(SUM(ci.unit_price_snapshot * ci.quantity), 0) AS \"totalAmount\" FROM carts c LEFT JOIN cart_items ci ON ci.cart_id = c.id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
           "outputBinding": { "name": "summaryRows" },
           "lineage": {
             "reads": [
@@ -91,14 +91,14 @@
           "id": "step-02",
           "kind": "compute",
           "description": "summaryRows[0] が無い場合のフォールバック (defensive guard、aggregate は常に 1 行返るため通常は dead path)。runtime や DB driver の挙動差異に備えた防御で、null 安全のため明示的に 0 に正規化する。AI 実装でも optional chaining / nullish coalescing を生成するヒントになる。",
-          "expression": "@summaryRows[0] != null ? @summaryRows[0].item_count : 0",
+          "expression": "@summaryRows[0] != null ? @summaryRows[0].itemCount : 0",
           "outputBinding": { "name": "itemCount" }
         },
         {
           "id": "step-03",
           "kind": "compute",
           "description": "summaryRows[0] が無い場合の totalAmount フォールバック (step-02 と同じ defensive guard、aggregate は常に 1 行返るため通常は dead path)。",
-          "expression": "@summaryRows[0] != null ? @summaryRows[0].total_amount : 0",
+          "expression": "@summaryRows[0] != null ? @summaryRows[0].totalAmount : 0",
           "outputBinding": { "name": "totalAmount" }
         },
         {
@@ -107,7 +107,7 @@
           "description": "アクティブカートに紐付く cart_items を products JOIN で取得し、viewer 表示用の行データを生成する。空 cart 時は 0 行が返る (#771)。",
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "SELECT",
-          "sql": "SELECT ci.id, p.product_code, p.name AS product_name, ci.quantity, ci.unit_price_snapshot, (ci.unit_price_snapshot * ci.quantity) AS subtotal FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active' ORDER BY ci.added_at ASC",
+          "sql": "SELECT ci.id, p.product_code AS \"productCode\", p.name AS \"productName\", ci.quantity, ci.unit_price_snapshot AS \"unitPrice\", (ci.unit_price_snapshot * ci.quantity) AS subtotal FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active' ORDER BY ci.added_at ASC",
           "outputBinding": { "name": "cartDetailRows" },
           "lineage": {
             "reads": [

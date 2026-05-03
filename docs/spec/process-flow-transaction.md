@@ -126,7 +126,7 @@ TX が rollback された**後**に実行する step 列。任意・補償処理
 | ネスト | 不可 (txId 重複を禁止しない実装依存) | 可 (ネストは `propagation` で制御) |
 | `onCommit`/`onRollback` | 持たない | 持つ |
 | 移動・複製耐性 | 弱 (txId の同期が手動) | 強 (構造ごと移動) |
-| v3 sample 実機検証 | 未使用 (Round 5 fixture でのみ検証) | `docs/sample-project-v3/finance/process-flows/a4d18f30-...json` step-08 (振込実行 TX)、`manufacturing/.../e3a68880-...json` (月次締め内部) で実機使用 (現在は `git log` でのみ参照可; 現行 canonical は `examples/` 配下) |
+| v3 sample 実機検証 | 未使用 (Round 5 fixture でのみ検証) | `examples/retail/process-flows/efa7ac6e-...json` (在庫操作 TX) / `examples/retail/process-flows/f81dd9e0-...json` (注文確定 TX) で実機使用。旧サンプルは削除済 — `git log` でのみ参照可 |
 
 ### §3.1 移行ガイダンス
 
@@ -153,10 +153,11 @@ TX が rollback された**後**に実行する step 列。任意・補償処理
 
 ## §5 サンプル (v3)
 
-実機検証済の TransactionScopeStep 使用例:
+実機検証済の TransactionScopeStep 典型パターン:
 
-- **`docs/sample-project-v3/finance/process-flows/a4d18f30-...json`** step-08 (現在は `git log` でのみ参照可): 振込実行 (3 段 dbAccess を SERIALIZABLE TX で原子化、`affectedRowsCheck` で残高不足検出 → rollback、`onRollback` で監査ログ + 422/500 分岐 return)
-- 旧 v1/v2 サンプル `docs/sample-project/process-flows/cccccccc-0005-...json` の `actions[1]` (`act-orderreg-003`) は v1 形式、参照時は v3 移行マッピング (`schemas/v3/README.md` 参照) で読み替え
+- **SERIALIZABLE TX + affectedRowsCheck + onRollback パターン**: 複数 `dbAccess` ステップを `TransactionScopeStep.steps[]` でくくり、`isolationLevel: "SERIALIZABLE"` を指定。各 `dbAccess` に `affectedRowsCheck` で行数検証 (例: 残高不足で 0 行 UPDATE → rollback)。`onRollback` ブランチで監査ログ記録 + エラーレスポンス分岐 (422/500) を配置する。
+- 現行 canonical サンプルは `examples/retail/process-flows/efa7ac6e-...json` (在庫操作 TX) / `examples/retail/process-flows/f81dd9e0-...json` (注文確定 TX) / `examples/realestate/process-flows/d4b5c6e7-...json` (物件登録 TX) を参照。
+- 旧サンプル (finance / manufacturing 業界) は削除済み — `git log` で参照可。
 
 ## §6 UI
 

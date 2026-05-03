@@ -593,7 +593,7 @@ MVP は 1-2-3 まで。4-5-6 は段階的に。
 
 ### validator 観点
 
-`screenItemViewerValidator.ts` が次の観点を検出する (#762)。`validate-dogfood` の登録 12 番目。
+`screenItemViewerValidator.ts` が次の観点を検出する (#762)。`validate:samples` で検出される (`npm run validate:samples -- <projectDir>`)。
 
 | issue code | severity | 検出内容 |
 |---|---|---|

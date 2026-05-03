@@ -140,7 +140,7 @@ interface WorkflowApprover {
 
 ### approval-parallel (3 名並行承認、order は無視)
 
-`docs/sample-project-v3/logistics/process-flows/0fe7af80-...json` step-07 を参照 (現在は `git log` でのみ参照可; 現行 canonical サンプルは `examples/` 配下)。3 倉庫マネージャー (転送元 / 転送先 / コーディネーター) を全員 `order: 1` で並行宣言、deadline は workflow 全体に 1 つ。
+3 倉庫マネージャー (転送元 / 転送先 / コーディネーター) を全員 `order: 1` で並行宣言、deadline は workflow 全体に 1 つ。旧サンプルは削除済み — 現行 canonical サンプルは `examples/` 配下を参照。
 
 ### approval-quorum (nOfM)
 
@@ -204,4 +204,4 @@ v2 / v1 から v3 への命名・構造変更:
 
 - スキーマ: [`schemas/v3/process-flow.v3.schema.json`](../../schemas/v3/process-flow.v3.schema.json) `#/$defs/WorkflowStep`
 - 式言語: [`process-flow-expression-language.md`](process-flow-expression-language.md)
-- 実例: `docs/sample-project-v3/public-service/process-flows/1cd900ee-...json` (5 段 workflow 連結), `docs/sample-project-v3/logistics/process-flows/0fe7af80-...json` (approval-parallel + branch-merge) — いずれも `git log` でのみ参照可 (現行 canonical は `examples/` 配下)
+- 現行 canonical サンプル: `examples/` 配下の各プロジェクトを参照。旧サンプルは削除済み — `git log` でのみ参照可。

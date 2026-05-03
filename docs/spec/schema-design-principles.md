@@ -800,12 +800,14 @@ schema 側は両形式を受け、UI/実装側で migration して扱う。
 
 ### 8.1 schema validation テスト
 
-`designer/src/schemas/process-flow.schema.test.ts` (および周辺) で:
-- `docs/sample-project/process-flows/*.json` 全件を schema validation で検証 (positive)
+`designer/src/schemas/samples-v3.schema.test.ts` / `v3-variant-coverage.test.ts` (および周辺) で:
+- `examples/<project-id>/process-flows/*.json` 全件を schema validation で検証 (positive)
 - 故意に invalid なデータも negative ケースとして検証
 - 新規フィールド追加時は **両ケース** を追加する
 
-実行: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts`
+実行: `cd designer && npx vitest run`
+
+> 注: v1 凍結テスト (v1 schema 用) は #774 で削除済み。現行は v3 schema を対象とする `samples-v3.schema.test.ts` を参照。
 
 ### 8.2 参照整合性テスト
 
