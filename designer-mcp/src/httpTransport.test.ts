@@ -295,14 +295,15 @@ describe("designer-mcp HTTP transport (#302)", () => {
      * シナリオ:
      * 1. client-A が接続・登録
      * 2. client-B が接続・登録
-     * 3. client-A に workspace.status を送る → active: null (未選択)
-     * 4. client-B に workspace.status を送る → active: null (未選択)
-     * 5. 2 session が独立した context として登録されている (WorkspaceContextManager 経由で確認)
+     * 3. client-A に workspace.status を送る → lockdown active (DESIGNER_DATA_DIR で固定)
+     * 4. client-B に workspace.status を送る → lockdown active (同上)
+     * 5. 2 session が独立した WS connection として接続でき、各々 status 応答を返せる
      *
-     * Note: workspace.open は実際のフォルダが必要なため E2E では open を試みず、
-     * status の応答形式と WS connection の独立性を検証する。
+     * Note (#758 lockdown 化以降): 本 server は DESIGNER_DATA_DIR で lockdown 起動するため
+     * 全 session が同一 lockdown active を共有する (per-session active 独立性は lockdown 解除時の挙動)。
+     * 本テストは「2 WS connection が独立して回答できる + lockdown active path が正しい」までを担保。
      */
-    it("2 WS クライアントが接続でき、各々が独立した workspace.status を返す", async () => {
+    it("2 WS クライアントが接続でき、各々が lockdown active workspace.status を返す", async () => {
       const clientAId = `test-client-A-${Date.now()}`;
       const clientBId = `test-client-B-${Date.now()}`;
 
@@ -346,19 +347,22 @@ describe("designer-mcp HTTP transport (#302)", () => {
       // client-A: workspace.status
       const statusA = await wsRoundtrip(clientAId, "workspace.status");
       expect(statusA.error).toBeUndefined();
-      const resultA = statusA.result as { active: unknown; lockdown: boolean };
+      const resultA = statusA.result as { active: { path: string } | null; lockdown: boolean };
       // #758: DESIGNER_DATA_DIR で lockdown 固定起動するため lockdown: true
       expect(resultA).toMatchObject({ lockdown: true });
-      // active は lockdown パスが固定される
-      expect(resultA).toHaveProperty("active");
+      // active.path が tempFixtureDir (lockdown env で固定) と一致することを実値検証
+      expect(resultA.active).not.toBeNull();
+      expect(resultA.active?.path).toBe(tempFixtureDir);
 
       // client-B: workspace.status
       const statusB = await wsRoundtrip(clientBId, "workspace.status");
       expect(statusB.error).toBeUndefined();
-      const resultB = statusB.result as { active: unknown; lockdown: boolean };
+      const resultB = statusB.result as { active: { path: string } | null; lockdown: boolean };
       // #758: DESIGNER_DATA_DIR で lockdown 固定起動するため lockdown: true
       expect(resultB).toMatchObject({ lockdown: true });
-      expect(resultB).toHaveProperty("active");
+      // 全 session が同一 lockdown active を共有することを実値で確認
+      expect(resultB.active).not.toBeNull();
+      expect(resultB.active?.path).toBe(tempFixtureDir);
     });
   });
 
