@@ -133,6 +133,12 @@
           "label": "件数",
           "type": "integer",
           "description": "返却された在庫レコードの総件数。"
+        },
+        {
+          "name": "rows",
+          "label": "在庫一覧 (viewer 用)",
+          "type": { "kind": "array", "itemType": "json" },
+          "description": "isLowStock フラグ付き在庫行の配列。画面 viewer 項目 (inventoryRows) の valueFrom.variableName='rows' で参照する (#771)。内容は items と同一 (inventoryItems 変数の alias)。"
         }
       ],
       "responses": [
@@ -244,7 +250,7 @@
           "description": "inventory + products を JOIN して在庫一覧を取得する。productCode が指定された場合は product_id でフィルタ。",
           "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
           "operation": "SELECT",
-          "sql": "SELECT i.id, p.id AS product_id, p.product_code, p.name AS product_name, s.id AS store_id, s.store_code, s.name AS store_name, i.quantity_available, i.quantity_reserved FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
+          "sql": "SELECT i.id, p.id AS product_id, p.product_code, p.name AS product_name, p.unit_price, s.id AS store_id, s.store_code, s.name AS store_name, i.quantity_available, i.quantity_reserved FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
           "outputBinding": { "name": "inventoryRows" },
           "lineage": {
             "reads": [
@@ -296,7 +302,7 @@
           "id": "step-06",
           "kind": "compute",
           "description": "各在庫行に isLowStock フラグを付与する。quantity_available が lowStockThreshold 以下 (>=) の場合に true とすることでオフバイワンを回避する。",
-          "expression": "@inventoryRows.map(r => ({ id: r.id, productId: r.product_id, productCode: r.product_code, productName: r.product_name, storeId: r.store_id, storeCode: r.store_code, storeName: r.store_name, quantityAvailable: r.quantity_available, quantityReserved: r.quantity_reserved, isLowStock: r.quantity_available <= @conv.limit.lowStockThreshold }))",
+          "expression": "@inventoryRows.map(r => ({ id: r.id, productId: r.product_id, productCode: r.product_code, productName: r.product_name, unitPrice: r.unit_price, storeId: r.store_id, storeCode: r.store_code, storeName: r.store_name, quantityAvailable: r.quantity_available, quantityReserved: r.quantity_reserved, isLowStock: r.quantity_available <= @conv.limit.lowStockThreshold }))",
           "outputBinding": { "name": "inventoryItems" }
         },
         {
@@ -343,6 +349,13 @@
           "description": "retail.inventory.searched イベントを発行する。",
           "topic": "retail.inventory.searched",
           "payload": "{ storeCode: @inputs.storeCode, productCode: @inputs.productCode, resultCount: @inventoryItems.length }"
+        },
+        {
+          "id": "step-09",
+          "kind": "compute",
+          "description": "viewer 用 rows 変数に inventoryItems を代入する。画面 viewer 項目 (inventoryRows) の valueFrom.variableName='rows' から参照される (#771)。",
+          "expression": "@inventoryItems",
+          "outputBinding": { "name": "rows" }
         },
         {
           "id": "step-10",
