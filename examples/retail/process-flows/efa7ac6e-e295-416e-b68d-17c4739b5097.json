@@ -250,7 +250,7 @@
           "description": "inventory + products を JOIN して在庫一覧を取得する。productCode が指定された場合は product_id でフィルタ。",
           "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
           "operation": "SELECT",
-          "sql": "SELECT i.id, p.id AS \"productId\", p.product_code AS \"productCode\", p.name AS \"productName\", p.unit_price AS \"unitPrice\", s.id AS \"storeId\", s.store_code AS \"storeCode\", s.name AS \"storeName\", i.quantity_available AS \"quantityAvailable\", i.quantity_reserved AS \"quantityReserved\" FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
+          "sql": "SELECT i.id, p.id AS \"productId\", p.product_code AS \"productCode\", p.name AS \"productName\", p.unit_price AS \"unitPrice\", s.id AS \"storeId\", s.store_code AS \"storeCode\", s.name AS \"storeName\", i.quantity_available AS \"quantityAvailable\", i.quantity_reserved AS \"quantityReserved\" FROM inventory i JOIN products p ON p.id = i.product_id JOIN stores s ON s.id = i.store_id WHERE s.store_code = @inputs.storeCode AND (@inputs.productCode IS NULL OR @inputs.productCode = '' OR p.product_code = @inputs.productCode) AND p.is_active = TRUE AND s.is_active = TRUE ORDER BY p.product_code ASC",
           "outputBinding": { "name": "inventoryRows" },
           "lineage": {
             "reads": [
@@ -283,6 +283,13 @@
                 },
                 {
                   "id": "step-05-a-02",
+                  "kind": "compute",
+                  "description": "viewer 用 rows 変数を空配列で bind する。0 件 path でも viewer (inventoryRows screen-item) が undefined 参照にならないようにする (#779 後続セッションで semantic audit 修正)。",
+                  "expression": "[]",
+                  "outputBinding": { "name": "rows" }
+                },
+                {
+                  "id": "step-05-a-03",
                   "kind": "return",
                   "description": "200 OK (空配列) を返す。",
                   "responseId": "200-ok",

@@ -2,13 +2,13 @@
   "$schema": "../../../schemas/v3/table.v3.schema.json",
   "id": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
   "name": "注文明細",
-  "description": "注文に含まれる商品明細を管理するトランザクションテーブル。注文確定フロー (S-3) の 1 TX 内でカート明細 (cart_items) からコピーされる。単価は注文確定時点のスナップショットを保持する。",
+  "description": "注文に含まれる商品明細を管理するトランザクションテーブル。注文確定フロー (S-3) の 1 TX 内でカート明細 (cart_items) からコピーされる。単価・店舗は注文確定時点のスナップショットを保持し、後の配送指示 (S-4) や履歴照会で参照される。",
   "maturity": "committed",
   "createdAt": "2026-05-02T00:00:00.000Z",
-  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-03T00:00:00.000Z",
   "physicalName": "order_items",
   "category": "トランザクション",
-  "comment": "注文明細。注文確定時に cart_items からコピーされ、単価スナップショットを保持する。",
+  "comment": "注文明細。注文確定時に cart_items からコピーされ、単価・店舗のスナップショットを保持する。",
   "columns": [
     {
       "id": "col-id",
@@ -40,8 +40,19 @@
       "comment": "FK → products.id (論理 FK のみ。商品廃止後も注文明細は保持)"
     },
     {
-      "id": "col-product-code-snapshot",
+      "id": "col-store-code-snapshot",
       "no": 4,
+      "physicalName": "store_code_snapshot",
+      "name": "店舗コードスナップショット",
+      "dataType": "VARCHAR",
+      "length": 20,
+      "notNull": true,
+      "comment": "注文確定時点の店舗コード。配送指示・履歴照会で参照",
+      "description": "cart_items.store_id を経由した stores.store_code のスナップショット。注文確定後にマスタ変更されても履歴の追跡可能性を保証する。"
+    },
+    {
+      "id": "col-product-code-snapshot",
+      "no": 5,
       "physicalName": "product_code_snapshot",
       "name": "商品コードスナップショット",
       "dataType": "VARCHAR",
@@ -51,7 +62,7 @@
     },
     {
       "id": "col-product-name-snapshot",
-      "no": 5,
+      "no": 6,
       "physicalName": "product_name_snapshot",
       "name": "商品名スナップショット",
       "dataType": "VARCHAR",
@@ -61,7 +72,7 @@
     },
     {
       "id": "col-unit-price-snapshot",
-      "no": 6,
+      "no": 7,
       "physicalName": "unit_price_snapshot",
       "name": "単価スナップショット",
       "dataType": "DECIMAL",
@@ -72,7 +83,7 @@
     },
     {
       "id": "col-quantity",
-      "no": 7,
+      "no": 8,
       "physicalName": "quantity",
       "name": "数量",
       "dataType": "INTEGER",
@@ -81,7 +92,7 @@
     },
     {
       "id": "col-line-amount",
-      "no": 8,
+      "no": 9,
       "physicalName": "line_amount",
       "name": "行合計金額",
       "dataType": "DECIMAL",
@@ -92,7 +103,7 @@
     },
     {
       "id": "col-created-at",
-      "no": 9,
+      "no": 10,
       "physicalName": "created_at",
       "name": "作成日時",
       "dataType": "TIMESTAMP",
@@ -161,6 +172,13 @@
       "columns": [{ "columnId": "col-product-id", "order": "asc" }],
       "method": "btree",
       "description": "商品別注文実績集計インデックス"
+    },
+    {
+      "id": "idx-store-code-snapshot",
+      "physicalName": "idx_order_items_store_code_snapshot",
+      "columns": [{ "columnId": "col-store-code-snapshot", "order": "asc" }],
+      "method": "btree",
+      "description": "店舗別注文実績集計インデックス (S-4 配送指示や売上分析で使用)"
     }
   ]
 }

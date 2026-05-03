@@ -3,12 +3,12 @@
   "meta": {
     "id": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
     "name": "注文確定",
-    "description": "カート内容を 1 TX (@conv.tx.orderConfirm) で確定する。在庫減算 (retail:DECREMENT_STOCK) → 注文番号採番 (@conv.numbering.orderNumber) → orders INSERT → order_items loop INSERT → カートクリア (retail:CLEAR_CART) の順に原子的に実行する。TX 失敗時は 422 を返す。TX 後に persistedOrder を再取得してから注文確定イベントを発行する。支払方法 (paymentMethod) は credit_card / bank_transfer / cod の 3 択で受け付け、orders.payment_method 列に保存する。",
+    "description": "カート内容を 1 TX (@conv.tx.orderConfirm) で確定する。在庫減算 (retail:DECREMENT_STOCK) → 注文番号採番 (@conv.numbering.orderNumber) → orders INSERT → order_items loop INSERT → カートクリア (retail:CLEAR_CART) の順に原子的に実行する。在庫減算は cart_items.store_id 単位で各店舗の inventory に対して実行する (multi-store inventory 整合)。TX 失敗時は 422 を返す。TX 後に persistedOrder を再取得してから注文確定イベントを発行する。支払方法 (paymentMethod) は credit_card / bank_transfer / cod の 3 択で受け付け、orders.payment_method 列に保存する。",
     "kind": "screen",
     "screenId": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
     "maturity": "committed",
     "createdAt": "2026-05-02T00:00:00.000Z",
-    "updatedAt": "2026-05-02T00:00:00.000Z"
+    "updatedAt": "2026-05-03T00:00:00.000Z"
   },
   "context": {
     "catalogs": {
@@ -232,16 +232,17 @@
         {
           "id": "step-02",
           "kind": "dbAccess",
-          "description": "顧客のアクティブカートと cart_items を取得する。",
+          "description": "顧客のアクティブカートと cart_items を、各明細が紐付く店舗情報 (storeId / storeCode) と一緒に取得する。multi-store inventory 整合のため、後続の在庫減算 (step-06-01-a) と order_items への店舗スナップショット記録 (step-06-03-a) で参照する。",
           "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
           "operation": "SELECT",
-          "sql": "SELECT c.id AS \"cartId\", ci.id AS \"itemId\", ci.product_id AS \"productId\", ci.unit_price_snapshot AS \"unitPriceSnapshot\", ci.quantity, p.product_code AS \"productCode\", p.name AS \"productName\", p.unit_price AS \"unitPrice\" FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
+          "sql": "SELECT c.id AS \"cartId\", ci.id AS \"itemId\", ci.product_id AS \"productId\", ci.store_id AS \"storeId\", ci.unit_price_snapshot AS \"unitPriceSnapshot\", ci.quantity, p.product_code AS \"productCode\", p.name AS \"productName\", p.unit_price AS \"unitPrice\", s.store_code AS \"storeCode\", s.name AS \"storeName\" FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id JOIN stores s ON s.id = ci.store_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
           "outputBinding": { "name": "cartItems" },
           "lineage": {
             "reads": [
               { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" },
               { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" },
-              { "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" }
+              { "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" },
+              { "tableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5", "purpose": "lookup" }
             ]
           }
         },
@@ -323,10 +324,10 @@
                 {
                   "id": "step-06-01-a",
                   "kind": "dbAccess",
-                  "description": "在庫を注文数量分だけ減算する。0 未満になる場合は DB の CHECK 制約で弾かれ、STOCK_SHORTAGE エラーが発生する。",
+                  "description": "対象店舗の在庫を注文数量分だけ減算する。store_id は cart_items から引き継ぎ (step-02 で取得済)、商品検索 (S-1) で在庫を確認した店舗の inventory 行に対して UPDATE する。WHERE quantity_available >= @cartItem.quantity の自己排他により、競合時も負数にはならない (0 件更新で STOCK_SHORTAGE)。",
                   "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
                   "operation": "retail:DECREMENT_STOCK",
-                  "sql": "UPDATE inventory SET quantity_available = quantity_available - @cartItem.quantity, updated_at = CURRENT_TIMESTAMP WHERE product_id = @cartItem.productId AND store_id = (SELECT id FROM stores WHERE store_code = 'DEFAULT' LIMIT 1) AND quantity_available >= @cartItem.quantity",
+                  "sql": "UPDATE inventory SET quantity_available = quantity_available - @cartItem.quantity, updated_at = CURRENT_TIMESTAMP WHERE product_id = @cartItem.productId AND store_id = @cartItem.storeId AND quantity_available >= @cartItem.quantity",
                   "affectedRowsCheck": {
                     "operator": "=",
                     "expected": 1,
@@ -370,10 +371,10 @@
                 {
                   "id": "step-06-03-a",
                   "kind": "dbAccess",
-                  "description": "order_items に 1 行 INSERT する。order_id は step-06-02 で取得した insertedOrder.id を使用する。",
+                  "description": "order_items に 1 行 INSERT する。order_id は step-06-02 で取得した insertedOrder.id を使用する。商品コード/商品名/店舗コードは cart_items から取得した値を snapshot として保存し、後の配送指示 (S-4) や履歴照会で参照する。",
                   "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
                   "operation": "INSERT",
-                  "sql": "INSERT INTO order_items (order_id, product_id, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES (@insertedOrder.id, @cartItem.productId, @cartItem.productCode, @cartItem.productName, @cartItem.unitPriceSnapshot, @cartItem.quantity, @cartItem.unitPriceSnapshot * @cartItem.quantity)",
+                  "sql": "INSERT INTO order_items (order_id, product_id, store_code_snapshot, product_code_snapshot, product_name_snapshot, unit_price_snapshot, quantity, line_amount) VALUES (@insertedOrder.id, @cartItem.productId, @cartItem.storeCode, @cartItem.productCode, @cartItem.productName, @cartItem.unitPriceSnapshot, @cartItem.quantity, @cartItem.unitPriceSnapshot * @cartItem.quantity)",
                   "lineage": {
                     "writes": [{ "tableId": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc", "purpose": "insert" }]
                   }
@@ -581,6 +582,15 @@
         "decision": "rollbackOn には実際に TX inner から throw されるエラーコード (STOCK_SHORTAGE / ORDER_NUMBER_CONFLICT) のみを列挙する。予期しない TX rollback (DB 制約違反等の汎用エラー) は step-08b の persistedOrder == null 検出で catch-all として 422-order-confirm-failed を返す。",
         "consequences": "rollbackOn の意図 (= TX inner で throw される具体エラー) と実装が一致し、死コードがなくなる。汎用 catch-all は step-08b に集約され、ADR-002 の TX 後再取得設計と整合する。",
         "date": "2026-05-02"
+      },
+      {
+        "id": "ADR-006",
+        "title": "在庫減算は cart_items.store_id 単位で実行する (multi-store inventory 整合)",
+        "status": "accepted",
+        "context": "旧版は 'DEFAULT' という存在しない店舗コードを WHERE 句に hardcode しており、multi-store retail demo (S-001/S-002/S-003) と整合しなかった。商品検索 (S-1) は店舗別に在庫照会するのに、注文確定の在庫減算が中央倉庫モデルでは矛盾する。",
+        "decision": "cart_items.store_id (商品検索画面で在庫を確認した店舗) を引き継ぎ、step-06-01-a の UPDATE inventory WHERE 句で `store_id = @cartItem.storeId` を直接指定する。step-02 の cart 取得 SELECT で stores を JOIN して storeId / storeCode / storeName を cartItems[] に含める。order_items にも store_code_snapshot を保存して履歴整合を保つ。",
+        "consequences": "顧客が商品検索 → カート追加 → 注文確定の遷移で「どの店舗から商品を確保するか」を一貫して保持できる。同一商品でも店舗が異なれば cart_items の別行として保持され、各店舗の inventory を独立に減算できる。中央倉庫モデルが必要になれば 'CENTRAL' 等の専用 storeCode を導入すれば対応可能。",
+        "date": "2026-05-03"
       }
     ],
     "glossary": {
@@ -608,12 +618,17 @@
     "testScenarios": [
       {
         "id": "happy-path-order-confirm",
-        "name": "カート 2 商品の注文確定が成功する",
-        "description": "在庫十分・配送先情報正常で注文確定 TX が正常コミットされる正常系。",
+        "name": "カート 2 商品 (同店舗) の注文確定が成功する",
+        "description": "S-001 (東京本店) で在庫十分・配送先情報正常で注文確定 TX が正常コミットされる正常系。multi-store inventory のため stores dbState を含む。",
         "given": [
           {
             "kind": "sessionContext",
             "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
+            "rows": [{ "id": 1, "store_code": "S-001", "name": "東京本店", "is_active": true }]
           },
           {
             "kind": "dbState",
@@ -632,8 +647,8 @@
             "kind": "dbState",
             "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
             "rows": [
-              { "id": 200, "cart_id": 50, "product_id": 1, "unit_price_snapshot": 1000, "quantity": 2 },
-              { "id": 201, "cart_id": 50, "product_id": 2, "unit_price_snapshot": 2000, "quantity": 1 }
+              { "id": 200, "cart_id": 50, "product_id": 1, "store_id": 1, "unit_price_snapshot": 1000, "quantity": 2 },
+              { "id": 201, "cart_id": 50, "product_id": 2, "store_id": 1, "unit_price_snapshot": 2000, "quantity": 1 }
             ]
           },
           {
@@ -663,11 +678,16 @@
       {
         "id": "stock-shortage-422",
         "name": "在庫不足で 422 — TX ロールバック",
-        "description": "quantity_available (3) < 注文数量 (5) で STOCK_SHORTAGE エラーが発生し TX がロールバックされる。",
+        "description": "S-001 の quantity_available (3) < 注文数量 (5) で STOCK_SHORTAGE エラーが発生し TX がロールバックされる。",
         "given": [
           {
             "kind": "sessionContext",
             "context": { "sessionCustomerId": 100 }
+          },
+          {
+            "kind": "dbState",
+            "tableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
+            "rows": [{ "id": 1, "store_code": "S-001", "name": "東京本店", "is_active": true }]
           },
           {
             "kind": "dbState",
@@ -682,7 +702,7 @@
           {
             "kind": "dbState",
             "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
-            "rows": [{ "id": 200, "cart_id": 50, "product_id": 1, "unit_price_snapshot": 1000, "quantity": 5 }]
+            "rows": [{ "id": 200, "cart_id": 50, "product_id": 1, "store_id": 1, "unit_price_snapshot": 1000, "quantity": 5 }]
           },
           {
             "kind": "dbState",

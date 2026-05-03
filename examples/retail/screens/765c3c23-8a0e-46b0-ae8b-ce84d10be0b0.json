@@ -2,7 +2,7 @@
   "$schema": "../../../schemas/v3/screen.v3.schema.json",
   "id": "765c3c23-8a0e-46b0-ae8b-ce84d10be0b0",
   "name": "ダッシュボード",
-  "description": "リテール総合システムのトップ画面。KPI カード (今日の売上・在庫アラート・配送待ち件数・顧客数) と 4 シナリオへのナビゲーションを提供する。",
+  "description": "リテール総合システムのトップ画面。KPI カード (今日の売上・本日注文件数・低在庫商品数・配送指示待ち) と 4 シナリオへのナビゲーションを提供する。",
   "kind": "dashboard",
   "path": "/",
   "auth": "required",

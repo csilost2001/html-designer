@@ -2,13 +2,13 @@
   "$schema": "../../../schemas/v3/table.v3.schema.json",
   "id": "57110336-a984-4d39-bb21-1e5d5bb4390b",
   "name": "カート明細",
-  "description": "カートに追加された商品明細を管理するトランザクションテーブル。(cart_id, product_id) の複合 UNIQUE 制約で重複排除する。カート追加 (S-2) の中心テーブル。",
+  "description": "カートに追加された商品明細を管理するトランザクションテーブル。(cart_id, product_id, store_id) の複合 UNIQUE 制約で店舗単位の重複排除を行う。同一商品でも別店舗から購入する場合は別行として保持する (multi-store inventory 整合)。カート追加 (S-2) の中心テーブル。",
   "maturity": "committed",
   "createdAt": "2026-05-02T00:00:00.000Z",
-  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-03T00:00:00.000Z",
   "physicalName": "cart_items",
   "category": "トランザクション",
-  "comment": "カート明細。(cart_id, product_id) で重複排除し、quantity で数量を保持する。",
+  "comment": "カート明細。(cart_id, product_id, store_id) で重複排除し、quantity で数量を保持する。",
   "columns": [
     {
       "id": "col-id",
@@ -40,8 +40,18 @@
       "comment": "FK → products.id"
     },
     {
-      "id": "col-quantity",
+      "id": "col-store-id",
       "no": 4,
+      "physicalName": "store_id",
+      "name": "店舗ID",
+      "dataType": "BIGINT",
+      "notNull": true,
+      "comment": "FK → stores.id。商品検索 (S-1) で在庫を見た店舗を引き継ぐ",
+      "description": "顧客が商品検索画面 (e6147dc0) で在庫を確認した店舗 ID。注文確定時 (S-3) の在庫減算は本列で指定された店舗の inventory に対して実行される。"
+    },
+    {
+      "id": "col-quantity",
+      "no": 5,
       "physicalName": "quantity",
       "name": "数量",
       "dataType": "INTEGER",
@@ -52,7 +62,7 @@
     },
     {
       "id": "col-unit-price-snapshot",
-      "no": 5,
+      "no": 6,
       "physicalName": "unit_price_snapshot",
       "name": "単価スナップショット",
       "dataType": "DECIMAL",
@@ -64,7 +74,7 @@
     },
     {
       "id": "col-added-at",
-      "no": 6,
+      "no": 7,
       "physicalName": "added_at",
       "name": "追加日時",
       "dataType": "TIMESTAMP",
@@ -74,7 +84,7 @@
     },
     {
       "id": "col-updated-at",
-      "no": 7,
+      "no": 8,
       "physicalName": "updated_at",
       "name": "更新日時",
       "dataType": "TIMESTAMP",
@@ -85,11 +95,11 @@
   ],
   "constraints": [
     {
-      "id": "uq-cart-product",
+      "id": "uq-cart-product-store",
       "kind": "unique",
-      "physicalName": "uq_cart_items_cart_product",
-      "columnIds": ["col-cart-id", "col-product-id"],
-      "description": "カート × 商品の重複排除制約"
+      "physicalName": "uq_cart_items_cart_product_store",
+      "columnIds": ["col-cart-id", "col-product-id", "col-store-id"],
+      "description": "カート × 商品 × 店舗の重複排除制約。同一商品でも別店舗の場合は別行として保持"
     },
     {
       "id": "chk-quantity",
@@ -126,6 +136,17 @@
       "onDelete": "restrict",
       "onUpdate": "cascade",
       "description": "products テーブルへの FK"
+    },
+    {
+      "id": "fk-store",
+      "kind": "foreignKey",
+      "physicalName": "fk_cart_items_store",
+      "columnIds": ["col-store-id"],
+      "referencedTableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
+      "referencedColumnIds": ["col-id"],
+      "onDelete": "restrict",
+      "onUpdate": "cascade",
+      "description": "stores テーブルへの FK。店舗削除時はカート明細が残る場合は削除を禁止"
     }
   ],
   "indexes": [
@@ -137,15 +158,16 @@
       "description": "カート内明細一覧取得インデックス"
     },
     {
-      "id": "idx-cart-product",
-      "physicalName": "idx_cart_items_cart_product",
+      "id": "idx-cart-product-store",
+      "physicalName": "idx_cart_items_cart_product_store",
       "columns": [
         { "columnId": "col-cart-id", "order": "asc" },
-        { "columnId": "col-product-id", "order": "asc" }
+        { "columnId": "col-product-id", "order": "asc" },
+        { "columnId": "col-store-id", "order": "asc" }
       ],
       "unique": true,
       "method": "btree",
-      "description": "重複チェック用複合インデックス"
+      "description": "重複チェック用複合インデックス (cart_id × product_id × store_id)"
     }
   ]
 }
