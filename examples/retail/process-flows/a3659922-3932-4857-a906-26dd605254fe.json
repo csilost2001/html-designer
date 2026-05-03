@@ -39,7 +39,7 @@
       "id": "act-001",
       "name": "ダッシュボード KPI 集計実行",
       "trigger": "load",
-      "description": "ダッシュボード画面ロード時に発火する読取専用 GET。当日売上・本日注文件数・低在庫数・配送指示待ち件数の 4 KPI を 4 SELECT で集計し、retail.dashboard.refreshed イベントを発行して 200 で返す。",
+      "description": "ダッシュボード画面ロード時に発火する読取専用 GET。当日売上・本日注文件数・低在庫数・配送指示待ち件数の 4 KPI を 3 SELECT (orders 集計 / inventory 低在庫件数 / orders 配送指示待ち件数) で集計し、retail.dashboard.refreshed イベントを発行して 200 で返す。",
       "maturity": "committed",
       "httpRoute": { "method": "GET", "path": "/api/retail/dashboard/kpi", "auth": "required" },
       "inputs": [],

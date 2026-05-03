@@ -336,9 +336,9 @@
                 {
                   "id": "step-07-a-02",
                   "kind": "eventPublish",
-                  "description": "retail.inventory.low_stock_detected イベントを発行する。下流コンシューマ (補充発注フロー等) が冪等に処理する前提。",
+                  "description": "retail.inventory.low_stock_detected イベントを発行する。下流コンシューマ (補充発注フロー等) が冪等に処理する前提。productId は step-04 SQL の `p.id AS productId` alias を参照する (firstLowStockRow.id は inventory.id なので不可)。",
                   "topic": "retail.inventory.low_stock_detected",
-                  "payload": "{ storeCode: @inputs.storeCode, productId: @firstLowStockRow.id, quantityAvailable: @firstLowStockRow.quantityAvailable }"
+                  "payload": "{ storeCode: @inputs.storeCode, productId: @firstLowStockRow.productId, quantityAvailable: @firstLowStockRow.quantityAvailable }"
                 }
               ]
             }

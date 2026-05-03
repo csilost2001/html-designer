@@ -378,10 +378,10 @@
         {
           "id": "step-09",
           "kind": "dbAccess",
-          "description": "現在の cart_items 件数を取得して上限チェックに使用する。existingItem が null の場合 (新規追加) のみ意味を持つ。",
+          "description": "現在の cart_items 件数を取得して上限チェックに使用する。existingItem が null の場合 (新規追加) のみ意味を持つ。PostgreSQL COUNT(*) は bigint を返すため CAST AS INTEGER で integer 型に正規化し、step-10 の数値比較で文字列⇔数値の暗黙変換を排除する。",
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "SELECT",
-          "sql": "SELECT COUNT(*) AS \"itemCount\" FROM cart_items WHERE cart_id = @cart.id",
+          "sql": "SELECT CAST(COUNT(*) AS INTEGER) AS \"itemCount\" FROM cart_items WHERE cart_id = @cart.id",
           "outputBinding": { "name": "cartItemCount" },
           "lineage": {
             "reads": [{ "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" }]
