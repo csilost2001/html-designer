@@ -69,6 +69,19 @@
         }
       ],
       "description": "S-1 商品検索の在庫照会ボタン。クリック時に店舗在庫照会フロー (efa7ac6e) を起動する。"
+    },
+    {
+      "id": "inventoryRows",
+      "label": "在庫一覧",
+      "type": { "kind": "array", "itemType": "json" },
+      "direction": "viewer",
+      "viewDefinitionId": "be4bece3-aa23-44fb-bed0-0699717e8738",
+      "valueFrom": {
+        "kind": "flowVariable",
+        "processFlowId": "efa7ac6e-e295-416e-b68d-17c4739b5097",
+        "variableName": "rows"
+      },
+      "description": "S-1 商品検索結果の在庫一覧表示。direction=viewer (#762/#771): 在庫照会フロー (efa7ac6e) の出力変数 'rows' を 在庫一覧 (商品検索結果) ViewDefinition (be4bece3) の列定義で表示する。検索ボタン押下後にフロー完了時点でバインドされる。"
     }
   ],
   "design": {
