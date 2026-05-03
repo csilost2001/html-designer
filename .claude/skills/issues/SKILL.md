@@ -143,7 +143,7 @@ gh issue comment $ARGUMENTS --body "⚠️ schema 変更検出: <ファイル名
 
 ## Step 5.5: ProcessFlow 実行セマンティクス検証 (条件付き)
 
-PR diff の **`docs/sample-project/process-flows/*.json` または `data/process-flows/*.json`** に変更があれば、`/review-flow` を呼んで実行可能性を専門レビュー:
+PR diff の **`examples/<project-id>/actions/*.json` または `data/process-flows/*.json`** に変更があれば、`/review-flow` を呼んで実行可能性を専門レビュー:
 
 ```
 Skill(skill="review-flow", args="<flowId or path>")
