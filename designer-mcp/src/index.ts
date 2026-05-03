@@ -75,10 +75,11 @@ setupLifecycle();
 // workspace 状態の初期化 (#671): env DESIGNER_DATA_DIR があれば lockdown モード固定
 initWorkspaceState();
 
-// 起動時の自動 active 設定 (#672):
+// 起動時の自動 active 設定 (#672, #754):
 // 1. lockdown 中はスキップ (env で固定済み)
 // 2. recent.lastActiveId が指す workspace があれば再オープン
-// 3. 旧来の <repo>/data/ に project.json があれば default workspace として登録 + active 化
+// 3. 何もなければ active 未設定 (UI 側で /workspace/select に誘導)
+// #754: data/ legacy auto-activate は削除。data/ は data/extensions/ 専用。
 {
   const r = await autoActivateOnStartup();
   switch (r.status) {
@@ -87,9 +88,6 @@ initWorkspaceState();
       break;
     case "restored":
       logInfo("workspace", "前回の workspace を再オープン", { name: r.entry.name, path: r.entry.path });
-      break;
-    case "registeredLegacy":
-      logInfo("workspace", "旧来の data/ を default workspace として登録", { path: r.entry.path });
       break;
     case "none":
       logInfo("workspace", "active 未選択 (UI 側で /workspace/select に誘導)");

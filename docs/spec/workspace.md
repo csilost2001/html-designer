@@ -13,6 +13,8 @@ PR #676 で導入した「複数ワークスペース管理機能」の正規仕
 | recent | 最近開いたワークスペースの履歴リスト (`~/.designer/recent-workspaces.json`)。表示順は `lastOpenedAt` 降順。 |
 | lockdown モード | env `DESIGNER_DATA_DIR` が設定されている場合に起動する動作モード。active は env 値に固定され、切替操作は全て `LockdownError` となる。 |
 
+`data/` ディレクトリはデザイナー本体の組み込み拡張定義 (`data/extensions/`) 専用。ユーザープロジェクトは `workspaces/` 配下または任意フォルダに置く (#754)。
+
 **実装**: `designer-mcp/src/workspaceState.ts:1-97`
 
 ---
@@ -48,20 +50,22 @@ PR #676 で導入した「複数ワークスペース管理機能」の正規仕
 
 ### 2.2 ワークスペース内ディレクトリ構造
 
+ワークスペースルートは `workspaces/<wsId>/` または任意の絶対パス。どちらも同じ構造を持つ。
+
 ```
-<workspace-root>/
-  project.json          # 必須 — schemas/v3/project.v3.schema.json 準拠
-  screens/              # 画面定義 (*.json / *.design.json)
-  tables/               # テーブル定義
-  actions/              # 処理フロー定義
-  conventions/          # 規約カタログ (catalog.json)
-  sequences/            # シーケンス定義
-  views/                # ビュー定義
-  view-definitions/     # ビュー定義 (UI 編集可)
-  extensions/           # 拡張定義 (steps.json 等)
-  er-layout.json        # 任意 — ER 図レイアウト
-  custom-blocks.json    # 任意 — カスタムブロック
-  screen-layout.json    # 任意 — 画面フローレイアウト
+<workspace-root>/           # workspaces/<id>/ または任意フォルダ
+  project.json              # 必須 — schemas/v3/project.v3.schema.json 準拠
+  screens/                  # 画面定義 (*.json / *.design.json)
+  tables/                   # テーブル定義
+  actions/                  # 処理フロー定義
+  conventions/              # 規約カタログ (catalog.json)
+  sequences/                # シーケンス定義
+  views/                    # ビュー定義
+  view-definitions/         # ビュー定義 (UI 編集可)
+  extensions/               # 拡張定義 (steps.json 等)
+  er-layout.json            # 任意 — ER 図レイアウト
+  custom-blocks.json        # 任意 — カスタムブロック
+  screen-layout.json        # 任意 — 画面フローレイアウト
 ```
 
 `screen-items/` ディレクトリは Phase 4-β migration 後に廃止。`ensureDataDir` では再作成しない。
@@ -78,8 +82,9 @@ PR #676 で導入した「複数ワークスペース管理機能」の正規仕
 
 1. env `DESIGNER_DATA_DIR` が定義されている → lockdown active として確定 (recent は読み書きしない)
 2. それ以外で `recent.lastActiveId` が指す workspace の `inspectWorkspacePath` が `ready` → `setActivePath` で復元
-3. それ以外で `<repo>/data/` に `project.json` が存在する → legacy workspace として recent に `upsert` + active 化 (旧プロジェクト互換)
-4. 全て miss → active = null (UI は `/workspace/select` へ redirect)
+3. 全て miss → active = null (UI は `/workspace/select` へ redirect)
+
+`data/project.json` の存在による legacy auto-activate は #754 で削除済。`data/` は `data/extensions/` 専用であり、ユーザープロジェクト領域ではない。
 
 **実装**: `designer-mcp/src/workspaceInit.ts:211-234`
 
