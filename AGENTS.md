@@ -17,7 +17,7 @@ Claude Code 固有の補足は `CLAUDE.md`、Codex 固有の設定は `.codex/co
 
 - **AI (Claude/Codex/その他) が勝手に変更するのは禁止** — 権限外行為、フレームワークの統一性を損なう
 - 業務記述で表現できない場合の対処順序:
-  1. 拡張機構 (`docs/sample-project/extensions/<namespace>/*.json`) で代替できないか確認
+  1. 拡張機構 (`samples/<project-id>/extensions/<namespace>/*.json` または `workspaces/<id>/extensions/<namespace>/*.json`) で代替できないか確認
   2. 既存 schema フィールドで代替表現できないか確認 (`type: "other"` + outputSchema パターン等)
   3. それでも無理なら **ISSUE 起票して作業停止**、設計者承認待ち
 - **テスト pass を理由に schema を勝手に拡張するのは絶対禁止**
@@ -174,7 +174,7 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
 3. TypeScript 型 `designer/src/types/action.ts`
 4. UI / 実装
 
-検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `docs/sample-project/process-flows/*.json` の全件をスキーマで検証する。
+検証テスト: `cd designer && npx vitest run src/schemas/process-flow.schema.test.ts` — `samples/<project-id>/actions/*.json` の全件をスキーマで検証する (旧 `docs/sample-project/process-flows/*.json` から #393-#395 のリネームと #753 の配置整理を経て移行済)。
 
 **ユーザー向けワークフロー**: [`docs/user-guide/`](docs/user-guide/README.md) — 業務設計者が処理フローを書いて AI と往復する使い方。
 
