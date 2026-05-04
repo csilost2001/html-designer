@@ -4,6 +4,62 @@
 
 Claude Code 固有の補足は `CLAUDE.md`、Codex 固有の設定は `.codex/config.toml` (配置時) を参照してください。
 
+## ISSUE 起票の鉄則 (最重要、絶対遵守、全 AI)
+
+**1 人で 100〜200 / 日のペースで増える open ISSUE を回している。気軽な分離は チーム運用を破壊する。**
+
+### 鉄則 (例外なし)
+
+1. **デフォルトは「起票しない」**。`gh issue create` を打つ前に必ず以下を順に検討し、3 つすべて不可と判断した時に **初めて** 起票候補:
+   - 本 PR で同 commit / 同 description に吸収できないか (1-3 時間以内なら吸収)
+   - 後続の親 / 子 ISSUE のスコープに自然に入らないか
+   - PR description / commit message / memory にメモするだけで trace 目的を達成できないか
+2. **ISSUE 対応中に別 ISSUE を切って逃げるな**。発見した課題は同 PR で吸収するか、PR description に「将来課題」として記録する。**ISSUE 化は最終手段**
+3. **同根の複数提案は必ず 1 ISSUE に統合**。同じ schema / 同じ spec / 同じ領域 / 同根の発見イベント (同 PR / 同 dogfood / 同調査) から出てきた提案は 1 ISSUE 内に sub-section (## 提案 A / B / C) で列挙する
+
+### 別 ISSUE 化が **明確に妥当** な条件 (これら以外は禁止)
+
+以下の **明確な根拠** が示せる場合のみ起票:
+
+1. **完全に別機能側のバグ / 改善** — 現在対応中の機能 / 領域と無関係
+2. **フレームワーク全体の再設計が必要** — 1 PR では収まらない設計判断を要する
+3. **かなり大規模** — 数日〜週単位の独立工数を要する
+4. **別チームへの依頼** — 本リポジトリ外を含む
+
+### 禁止された逃げ口の理由付け
+
+以下の理由は **すべて禁止**:
+
+- ❌ 「schema governance により AI 単独実装禁止だから別 ISSUE 化」 — schema 提案も同 PR description / 統合 ISSUE に書けば良い
+- ❌ 「scope 厳守のため別 ISSUE」 — 同根なら scope 内
+- ❌ 「念のため別 ISSUE で隔離」 — ISSUE 純増コストが大きい
+- ❌ 「pre-existing 問題なので別 ISSUE」 — 同ファイル / 同画面なら同 PR 吸収
+- ❌ 「将来対応のため記録」 — PR description / commit message / memory で足りる
+
+### 起票直前の self-check (義務)
+
+`gh issue create` を打つ **直前** に 5 項目すべて ✓ を確認:
+
+1. ☐ 鉄則 1: 本 PR / 後続 ISSUE / description / memory で吸収不可な明確な根拠を提示できる
+2. ☐ 鉄則 2: 現在 PR 対応中なら本 PR で吸収する選択肢を本気で検討した
+3. ☐ 鉄則 3: 他に同根の起票候補があるなら 1 ISSUE に統合する用意がある
+4. ☐ 妥当条件 (別機能 / 再設計 / 大規模 / 別チーム) のいずれかに **明確に** 該当する
+5. ☐ 「禁止された逃げ口」を理由にしていない
+
+1 つでも疑問が残るなら **起票しない**。
+
+### 失敗事例 (再発防止のため記録)
+
+- 2026-05-04 PR #780: 同根の framework 提案 3 件を #781/#782/#783 と別々に起票 → 2 件純増。同 schema (`schemas/v3/process-flow.v3.schema.json`) を触る同根提案は 1 ISSUE に統合すべきだった
+
+### 関連 memory (起票判断時に必読)
+
+- `feedback_issue_split_criteria.md` (canonical 判定基準)
+- `feedback_issue_split_hidden_costs.md` (トークン累積 + main 滞留コスト)
+- `feedback_consolidate_related_proposals_into_one_issue.md` (鉄則 3 の具体例)
+- `feedback_pr_scope_absorb_pre_existing.md` (pre-existing は同 PR 吸収)
+- `feedback_pr_granularity.md` (PR を過度に細かく分けない)
+
 ## Project Overview
 
 業務システム デザイナー — Japanese business application WYSIWYG screen designer. Two main components:
