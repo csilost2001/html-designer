@@ -645,14 +645,6 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   // /workspace/select に redirect → 直後に本 effect が /screen/design/xxx へ navigate
   // を上書き → guard が再度 redirect、というループ / flicker を起こすため。
   // workspace-list タブだけは select 画面からの誘導でも進入可能なので例外扱い。
-  //
-  // 追加 (2026-05-04): URL が singleton route (/w/<wsId>/, /screen/list, /table/list 等)
-  // の場合は本 effect で navigate しない。理由は URL → tab 同期 (上の useEffect) が
-  // singleton tab を setActiveTab する直前 (state 更新 batch 内) に本 effect が **古い
-  // activeTabId** で navigate を発火 → 古い per-resource タブの URL に上書き → 再度
-  // URL → tab 同期が singleton tab を開きにいく → ループ、というレース。
-  // singleton 路は URL → tab 同期が source of truth。本 effect は per-resource 路 (タブ
-  // クリックで開く design / table / action 等) に専念する。
   const activeTab = tabs.find((t) => t.id === activeTabId);
   useEffect(() => {
     if (!activeTab) return;
@@ -660,25 +652,8 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     if (workspaceState.active === null && !workspaceState.lockdown && activeTab.type !== "workspace-list") {
       return;
     }
-    // singleton route 上での race を回避: URL が singleton であれば URL → tab 同期に委ねる
-    const wsPrefix = wsId ? `/w/${wsId}` : "";
-    const singletonRoutePaths = [
-      `${wsPrefix}/`,
-      `${wsPrefix}/screen/flow`,
-      `${wsPrefix}/screen/list`,
-      `${wsPrefix}/table/list`,
-      `${wsPrefix}/table/er`,
-      `${wsPrefix}/process-flow/list`,
-      `${wsPrefix}/extensions`,
-      `${wsPrefix}/conventions/catalog`,
-      `${wsPrefix}/sequence/list`,
-      `${wsPrefix}/view/list`,
-      `${wsPrefix}/view-definition/list`,
-      "/workspace/list",
-    ];
-    if (singletonRoutePaths.includes(location.pathname)) return;
     // /w/:wsId/* 規約のパスを生成。workspace-list は wsId なし
-    const wp = wsPrefix;
+    const wp = wsId ? `/w/${wsId}` : "";
     const expectedPath =
       activeTab.type === "design"             ? `${wp}/screen/design/${activeTab.resourceId}`
       : activeTab.type === "table"            ? `${wp}/table/edit/${activeTab.resourceId}`
