@@ -1,0 +1,109 @@
+{
+  "root": { "props": {} },
+  "content": [
+    {
+      "type": "Section",
+      "props": {
+        "id": "section-header",
+        "padding": "lg",
+        "bgAccent": "primary-soft",
+        "rounded": "md",
+        "marginBottom": "lg"
+      }
+    },
+    {
+      "type": "Heading",
+      "props": {
+        "id": "page-title",
+        "text": "お問い合わせ",
+        "level": "h1",
+        "align": "center",
+        "padding": "none",
+        "marginBottom": "sm",
+        "colorAccent": "primary"
+      }
+    },
+    {
+      "type": "Paragraph",
+      "props": {
+        "id": "intro-text",
+        "text": "ご質問・ご要望がございましたら、以下のフォームからお気軽にお問い合わせください。",
+        "align": "center",
+        "padding": "none",
+        "marginBottom": "lg",
+        "colorAccent": "muted"
+      }
+    },
+    {
+      "type": "Container",
+      "props": {
+        "id": "form-container",
+        "padding": "xl",
+        "bgAccent": "white",
+        "border": "default",
+        "rounded": "lg",
+        "shadow": "md",
+        "margin": "none"
+      }
+    },
+    {
+      "type": "Input",
+      "props": {
+        "id": "name-field",
+        "label": "お名前",
+        "placeholder": "山田 太郎",
+        "inputType": "text",
+        "align": "left",
+        "padding": "none",
+        "marginBottom": "md"
+      }
+    },
+    {
+      "type": "Input",
+      "props": {
+        "id": "email-field",
+        "label": "メールアドレス",
+        "placeholder": "example@email.com",
+        "inputType": "email",
+        "align": "left",
+        "padding": "none",
+        "marginBottom": "md"
+      }
+    },
+    {
+      "type": "Select",
+      "props": {
+        "id": "category-field",
+        "label": "お問い合わせ種別",
+        "options": "製品について,サポート,ご提案,その他",
+        "align": "left",
+        "padding": "none",
+        "marginBottom": "md"
+      }
+    },
+    {
+      "type": "Textarea",
+      "props": {
+        "id": "message-field",
+        "label": "メッセージ",
+        "placeholder": "お問い合わせ内容を入力してください",
+        "rows": 5,
+        "align": "left",
+        "padding": "none",
+        "marginBottom": "lg"
+      }
+    },
+    {
+      "type": "Button",
+      "props": {
+        "id": "submit-btn",
+        "label": "送信する",
+        "variant": "primary",
+        "size": "lg",
+        "align": "right",
+        "padding": "none",
+        "marginBottom": "none"
+      }
+    }
+  ]
+}
