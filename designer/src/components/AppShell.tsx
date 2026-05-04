@@ -718,6 +718,12 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       const guard = checkRedirect(expectedPath);
       if (guard.allow) navigate(expectedPath, { replace: true });
     }
+  // 意図的に deps を [activeTabId] のみに絞っている。activeTab / workspaceState
+  // / location.pathname / wsId / navigate を deps に含めると、URL→tab effect と
+  // 競合してリダイレクトループを起こす (本 effect の役割は「activeTab 変更を URL に
+  // 追随させる」だけで、それ以外の変化は URL→tab 側で吸収する設計)。
+  // 将来 deps 追加が必要になったら、必ず lastSyncedActiveTabIdRef による
+  // 「実際に activeTabId が変化した時だけ navigate」の不変条件を維持すること。
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId]);
 
