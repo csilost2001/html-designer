@@ -13,6 +13,9 @@
   "extensionsApplied": [
     { "namespace": "retail", "version": ">=1.0.0" }
   ],
+  "design": {
+    "cssFramework": "bootstrap"
+  },
   "entities": {
     "screens": [
       {
