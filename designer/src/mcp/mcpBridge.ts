@@ -33,6 +33,10 @@ import {
   type CustomBlock,
 } from "../store/customBlockStore";
 import {
+  setPuckComponentsBackend,
+  type PuckComponentsStorageBackend,
+} from "../store/puckComponentsStore";
+import {
   setTableStorageBackend,
   type TableStorageBackend,
 } from "../store/tableStore";
@@ -333,6 +337,12 @@ class McpBridgeImpl {
     };
     setCustomBlocksBackend(blocksBackend);
 
+    const puckComponentsBackend: PuckComponentsStorageBackend = {
+      loadPuckComponents: () => this.request("loadPuckComponents").then((r) => (r ?? []) as unknown[]),
+      savePuckComponents: (components) => this.request("savePuckComponents", { components }).then(() => undefined),
+    };
+    setPuckComponentsBackend(puckComponentsBackend);
+
     const tableBackend: TableStorageBackend = {
       loadTable: (tableId) => this.request("loadTable", { tableId }),
       listAllTables: () => this.request("listAllTables", {}) as Promise<unknown[]>,
@@ -401,6 +411,7 @@ class McpBridgeImpl {
   private _clearStorageBackends(): void {
     setFlowStorageBackend(null);
     setCustomBlocksBackend(null);
+    setPuckComponentsBackend(null);
     setTableStorageBackend(null);
     setErLayoutStorageBackend(null);
     setScreenLayoutStorageBackend(null);

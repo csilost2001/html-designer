@@ -51,6 +51,8 @@ import {
   deleteScreen as deleteScreenFile,
   readCustomBlocks,
   writeCustomBlocks,
+  readPuckComponents,
+  writePuckComponents,
   readTable,
   writeTable,
   deleteTable as deleteTableFile,
@@ -493,6 +495,18 @@ class WsBridge extends EventEmitter {
           await writeCustomBlocks(blocks, root());
           respond({ success: true });
           this.broadcast({ wsId: wsId(), event: "customBlocksChanged", data: {}, excludeClientId: clientId });
+          break;
+        }
+        case "loadPuckComponents": {
+          const components = await readPuckComponents(root());
+          respond(components);
+          break;
+        }
+        case "savePuckComponents": {
+          const { components } = (params ?? {}) as { components: unknown[] };
+          await writePuckComponents(components, root());
+          respond({ success: true });
+          this.broadcast({ wsId: wsId(), event: "puckComponentsChanged", data: {}, excludeClientId: clientId });
           break;
         }
         case "loadTable": {

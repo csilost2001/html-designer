@@ -53,6 +53,7 @@ const viewDefsDir      = (root: string) => path.join(root, "view-definitions");
 export const extensionsDir    = (root: string) => path.join(root, "extensions");
 export const projectFile      = (root: string) => path.join(root, "project.json");
 export const customBlocksFile = (root: string) => path.join(root, "custom-blocks.json");
+export const puckComponentsFile = (root: string) => path.join(root, "puck-components.json");
 export const erLayoutFile     = (root: string) => path.join(root, "er-layout.json");
 export const screenLayoutFile = (root: string) => path.join(root, "screen-layout.json");
 export const conventionsFile  = (root: string) => path.join(conventionsDir(root), "catalog.json");
@@ -410,6 +411,19 @@ export async function writeCustomBlocks(blocks: unknown[], root: string): Promis
   const r = root;
   await ensureDataDir(r);
   await writeJSON(customBlocksFile(r), blocks);
+}
+
+/** puck-components.json を読み込み */
+export async function readPuckComponents(root: string): Promise<unknown[]> {
+  const r = root;
+  return (await readJSON<unknown[]>(puckComponentsFile(r))) ?? [];
+}
+
+/** puck-components.json を書き込み */
+export async function writePuckComponents(components: unknown[], root: string): Promise<void> {
+  const r = root;
+  await ensureDataDir(r);
+  await writeJSON(puckComponentsFile(r), components);
 }
 
 /** er-layout.json を読み込み */
