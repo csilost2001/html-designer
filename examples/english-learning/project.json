@@ -6,7 +6,7 @@
     "name": "英会話学習アプリ",
     "description": "B2C 英会話学習アプリ。ストーリー仕立ての会話練習と AI 採点 (LLM/TTS/STT) を組み合わせ、発音フィードバックと単語習熟度管理を提供する。分野別コンテンツパック (汎用 / IT エンジニア / ビジネス 等) を拡張 namespace で表現し、外部 AI 呼び出しを stepKind 拡張でモデル化する B2C + 外部 AI 連携サンプル (#787)。",
     "createdAt": "2026-05-04T00:00:00.000Z",
-    "updatedAt": "2026-05-04T00:00:00.000Z",
+    "updatedAt": "2026-05-04T12:00:00.000Z",
     "mode": "upstream",
     "maturity": "draft"
   },
@@ -204,7 +204,7 @@
         "id": "tr-detail-to-play",
         "sourceScreenId": "046e1f83-bed3-4b13-a5ac-b0fa06744dfe",
         "targetScreenId": "a9d8eb6f-065d-4af6-ac9a-cc1fcf10b2b7",
-        "label": "学習を開始する (S-1 セッション作成)",
+        "label": "学習を開始する (S-1 セッション作成 → 会話プレイ遷移)",
         "trigger": "click",
         "kind": "navigation"
       },
@@ -212,7 +212,7 @@
         "id": "tr-play-to-result",
         "sourceScreenId": "a9d8eb6f-065d-4af6-ac9a-cc1fcf10b2b7",
         "targetScreenId": "18bcc879-0b84-4e63-9317-37b94e799886",
-        "label": "セッションを終了する (S-3)",
+        "label": "セッションを終了する (S-3 採点完了 → 結果画面遷移)",
         "trigger": "click",
         "kind": "navigation"
       },
@@ -392,10 +392,129 @@
         "actionCount": 1,
         "maturity": "draft",
         "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "96118ae1-a0ab-401b-8584-dd645a45a81f",
+        "no": 2,
+        "name": "会話ターン進行",
+        "kind": "screen",
+        "actionCount": 1,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "6a49b14b-eb90-45bd-9df0-df4b5986626b",
+        "no": 3,
+        "name": "発音採点",
+        "kind": "screen",
+        "actionCount": 1,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "21c25fb2-551a-483f-b32a-060db8f88aee",
+        "no": 4,
+        "name": "単語習熟度更新",
+        "kind": "common",
+        "actionCount": 1,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "3c4d9bfd-f648-4875-a135-a04e709a87a7",
+        "no": 5,
+        "name": "連続学習日数リセット",
+        "kind": "scheduled",
+        "actionCount": 1,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
       }
     ],
-    "views": [],
-    "viewDefinitions": [],
-    "sequences": []
+    "views": [
+      {
+        "id": "af699800-b15f-4588-9d0d-6a76a3eb2e48",
+        "no": 1,
+        "name": "学習履歴とストーリー結合ビュー",
+        "physicalName": "v_learning_history_with_story",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "c0474fbf-d0f4-4cfc-bbcd-0154431df9a2",
+        "no": 2,
+        "name": "習熟度付き単語ビュー",
+        "physicalName": "v_words_with_progress",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "54917d0d-3162-43f5-8daf-77abdbbc2771",
+        "no": 3,
+        "name": "セッション別発音平均ビュー",
+        "physicalName": "v_session_pronunciation_avg",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      }
+    ],
+    "viewDefinitions": [
+      {
+        "id": "cfdbf081-368d-4a33-8a36-1c7a0c535011",
+        "no": 1,
+        "name": "ストーリー一覧 viewer",
+        "kind": "list",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "4c9cdc85-2537-4ca8-a979-4de21a56e0fa",
+        "no": 2,
+        "name": "学習履歴一覧 viewer",
+        "kind": "list",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "090e9db0-ce45-4fc4-9fa6-5784f655ca07",
+        "no": 3,
+        "name": "単語帳 viewer",
+        "kind": "list",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "ba1c7d9d-5907-4535-99b9-f9fa170bb248",
+        "no": 4,
+        "name": "コンテンツパック一覧 viewer",
+        "kind": "list",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "f06e103d-1eb5-4918-9a6d-67436095bfe7",
+        "no": 5,
+        "name": "発音スコア履歴 viewer",
+        "kind": "list",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      }
+    ],
+    "sequences": [
+      {
+        "id": "0d9b9b02-cc61-4b26-85c3-ef932bfbe5fd",
+        "no": 1,
+        "name": "セッションID採番",
+        "physicalName": "seq_session_id",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "d4160951-3cd6-42dc-b114-9f358ec59c0f",
+        "no": 2,
+        "name": "スコアID採番",
+        "physicalName": "seq_score_id",
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      }
+    ]
   }
 }
