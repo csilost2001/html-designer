@@ -142,14 +142,36 @@ Puck Data (`puck-data.json`) は `"align": "right"` という semantic 値を保
 
 ---
 
-## 既知 issue / 改善候補
+## Screen Entity ファイル (Sh-3 / M-4 修正)
 
-改善候補は下記に記録する (別 ISSUE 起票は Opus 判断待ち):
+各 dogfood サンプルの `screens/<id>/screen.json` (Screen Entity) を追加した (PR #813 Opus レビュー Sh-3/M-4 対応)。
+
+| ファイル | 内容 |
+|---------|------|
+| `workspaces/dogfood-puck-tailwind-2026-05-05/screens/d06f00d0-0001-4000-8000-000000000011/screen.json` | `editorKind: "puck"`, `cssFramework: "tailwind"`, `puckDataRef: "puck-data.json"` |
+| `workspaces/dogfood-puck-bootstrap-2026-05-05/screens/d06f00d0-0002-4000-8000-000000000022/screen.json` | `editorKind: "puck"`, `cssFramework: "bootstrap"`, `puckDataRef: "puck-data.json"` |
+
+これにより `validatePuckScreen()` が `puckDataRef` 不在エラーを発火しなくなる。
+
+---
+
+## 視覚検証 (WYSIWYG リアルタイム反映) について
+
+仕様書 §10 受け入れ基準:「dogfood 2 sample で各々 1 画面作成、**両方とも WYSIWYG リアルタイム反映を視覚検証**」
+
+**現状**: 本 dogfood レポートは実装コードの fact-check (マッピング実装・AJV検証) に基づく確認であり、実機 dev server (npm run dev) を起動してブラウザで Puck UI を操作した視覚検証は実施していない。
+
+**理由**: CI / Windows 環境での Playwright ヘッドレスブラウザによる Puck DnD 操作の自動化は、Puck 内部セレクタの不確定性により技術的困難がある。
+
+**代替確認**: vitest 1488/1488 pass + E2E 構造確認 (puck-editor.spec.ts 7 シナリオ) + コード level の実装 fact-check で代替している。実機視覚検証は dev server 起動可能な環境で別途実施することを推奨する。
+
+---
+
+## 既知 issue / 改善候補
 
 1. **Puck canvas のセレクタが確定していない**: puck-editor.spec.ts では `.Puck` / `[class*='Puck']` 等の柔軟なセレクタを使用しているが、Puck の実装によりクラス名が変わる可能性がある。`data-testid` 属性を追加すると E2E がより安定する
 2. **DnD のテストが欠落**: 仕様書には「左パレットからドロップ」が要件として記載されているが、Puck 内部の DnD ライブラリのセレクタが特殊なため E2E では省略した。手動 smoke test で補完が必要
 3. **右プロパティパネルの直接操作テスト欠落**: `align: "right"` を右プロパティパネルで選んだ際の即時反映は、Puck 内部の props 変更 → re-render フローを Playwright で追うのが難しい。visual regression (screenshot) で代替
-4. **dogfood examples でのスクリーン JSON 別ファイル**: 現在 `screens/<id>/puck-data.json` に Puck Data は配置しているが、スクリーンメタ (`screens/<id>.json`) を別途作成していない。runtimeContractValidator が puck-data の存在を検証する場合に必要になる可能性がある
 
 ---
 
@@ -163,5 +185,6 @@ Puck Data (`puck-data.json`) は `"align": "right"` という semantic 値を保
 | E2E カバレッジ | 3/5 | 基本描画は検証。DnD/プロパティ変更は手動補完が必要 |
 | 仕様書との整合性 | 5/5 | docs/spec/multi-editor-puck.md § 2.3/2.6/4.1 に準拠 |
 | AJV schema 検証 | 5/5 | vitest 1488/1488 pass |
+| Screen Entity ファイル完備 | 5/5 | screen.json + puck-data.json が両サンプルで揃った (Opus レビュー Sh-3/M-4 対応) |
 
-**総合評価: 受け入れ基準の主要項目を満たす。DnD/WYSIWYG リアルタイム反映の自動テストは手動補完で代替。**
+**総合評価: 受け入れ基準の主要項目を満たす。DnD/WYSIWYG リアルタイム反映の実機視覚検証は dev server 起動環境で別途実施を推奨。**

@@ -30,7 +30,12 @@ const PUCK_SCREEN_ID = "puck-test-0001-4000-8000-aaaaaaaaaaaa";
 const GJS_SCREEN_ID = "grapes-test-0002-4000-8000-bbbbbbbbbbbb";
 const PUCK_TW_SCREEN_ID = "puck-tw-test-0003-4000-8000-cccccccccccc";
 
-/** Puck 画面を含む最小プロジェクト (v3 schema 形式、S-3 修正) */
+/** Puck 画面を含む最小プロジェクト (v3 schema 形式、S-3 修正 / Sh-2 修正)
+ *
+ * Sh-2: ScreenEntry (entities.screens[]) には design フィールドを持たせない。
+ * schemas/v3/project.v3.schema.json の ScreenEntry は unevaluatedProperties: false で
+ * design フィールドを許容していないため、screen entity は localStorage (v3-screen-<id>) に置く。
+ */
 function makeDummyProject(screenOverrides: object[] = []) {
   const now = new Date().toISOString();
   return {
@@ -59,10 +64,6 @@ function makeDummyProject(screenOverrides: object[] = []) {
           path: "/puck-test",
           maturity: "draft",
           updatedAt: now,
-          design: {
-            editorKind: "puck",
-            cssFramework: "bootstrap",
-          },
         },
         {
           id: GJS_SCREEN_ID,
@@ -72,10 +73,6 @@ function makeDummyProject(screenOverrides: object[] = []) {
           path: "/gjs-test",
           maturity: "draft",
           updatedAt: now,
-          design: {
-            editorKind: "grapesjs",
-            cssFramework: "bootstrap",
-          },
         },
         {
           id: PUCK_TW_SCREEN_ID,
@@ -85,10 +82,6 @@ function makeDummyProject(screenOverrides: object[] = []) {
           path: "/puck-tw-test",
           maturity: "draft",
           updatedAt: now,
-          design: {
-            editorKind: "puck",
-            cssFramework: "tailwind",
-          },
         },
         ...screenOverrides,
       ],
@@ -99,6 +92,35 @@ function makeDummyProject(screenOverrides: object[] = []) {
       views: [],
       viewDefinitions: [],
       sequences: [],
+    },
+  };
+}
+
+/** screen entity (localStorage: v3-screen-<id>) を生成する (Sh-2: design は ScreenEntity に置く) */
+function makeScreenEntity(
+  screenId: string,
+  name: string,
+  kind: string,
+  path: string,
+  editorKind: "puck" | "grapesjs",
+  cssFramework: "bootstrap" | "tailwind",
+) {
+  const now = new Date().toISOString();
+  return {
+    $schema: "../schemas/v3/screen.v3.schema.json",
+    id: screenId,
+    name,
+    createdAt: now,
+    updatedAt: now,
+    kind,
+    path,
+    items: [],
+    design: {
+      editorKind,
+      cssFramework,
+      ...(editorKind === "puck"
+        ? { puckDataRef: "puck-data.json" }
+        : { designFileRef: `${screenId}.design.json` }),
     },
   };
 }
@@ -147,21 +169,34 @@ async function setupPuckScreen(
     isDirty: false,
     isPinned: false,
   };
+  // Sh-2: design 情報は ScreenEntity (v3-screen-<id>) に配置する
+  const screenEntity = makeScreenEntity(
+    screenId,
+    tab.label,
+    "other",
+    "/puck-test",
+    "puck",
+    cssFramework as "bootstrap" | "tailwind",
+  );
 
   await page.addInitScript(
-    ({ proj, tabData, pData, localKey }) => {
+    ({ proj, tabData, pData, localKey, entity, entityKey }) => {
       localStorage.setItem("workspace-e2e-bypass", "true");
       localStorage.setItem("flow-project", JSON.stringify(proj));
       localStorage.setItem("designer-open-tabs", JSON.stringify([tabData]));
       localStorage.setItem("designer-active-tab", tabData.id);
       // Puck data を localStorage に設定 (MCP 未接続時の fallback)
       localStorage.setItem(localKey, JSON.stringify(pData));
+      // Screen entity (design.editorKind / cssFramework) を localStorage に設定 (Sh-2)
+      localStorage.setItem(entityKey, JSON.stringify(entity));
     },
     {
       proj: project,
       tabData: tab,
       pData: puckData,
       localKey: `puck-data-${screenId}`,
+      entity: screenEntity,
+      entityKey: `v3-screen-${screenId}`,
     },
   );
 

@@ -34,6 +34,10 @@ export async function buildDefaultScreen(screenId: string): Promise<Screen> {
   const ts = nowTs();
   const project = await loadProject();
   const meta = project.screens.find((s) => s.id === screenId);
+  // editorKind を project level から解決 (Sh-4: Puck 画面に designFileRef を混入させない)
+  // 仕様書 multi-editor-puck.md § 2.5: "designFileRef と puckDataRef はどちらか一方のみ"
+  const projectEditorKind = (project as unknown as { design?: { editorKind?: string } }).design?.editorKind;
+  const isPuck = projectEditorKind === "puck";
   return {
     $schema: SCREEN_SCHEMA_REF,
     id: screenId as ScreenId,
@@ -44,7 +48,9 @@ export async function buildDefaultScreen(screenId: string): Promise<Screen> {
     path: meta?.path ?? "",
     groupId: meta?.groupId,
     items: [],
-    design: { designFileRef: `${screenId}.design.json` },
+    design: isPuck
+      ? { puckDataRef: "puck-data.json" }
+      : { designFileRef: `${screenId}.design.json` },
   };
 }
 
@@ -56,18 +62,33 @@ export async function loadScreenEntity(screenId: string): Promise<Screen> {
     try { return JSON.parse(s) as unknown; } catch { return null; }
   })();
   if (isRecord(raw)) {
+    const defaultScreen = await buildDefaultScreen(screenId);
+    // 保存済みの design を優先。ただし designFileRef を Puck 画面に混入させない (Sh-4)。
+    // 仕様書 multi-editor-puck.md § 2.5: "designFileRef と puckDataRef はどちらか一方のみ"
+    const rawDesign = isRecord(raw.design) ? raw.design : {};
+    const resolvedEditorKind = typeof rawDesign.editorKind === "string"
+      ? rawDesign.editorKind
+      : defaultScreen.design?.editorKind;
+    const isPuck = resolvedEditorKind === "puck";
+    const mergedDesign = { ...rawDesign };
+    if (isPuck) {
+      // Puck 画面: designFileRef を削除し、puckDataRef を補完
+      delete mergedDesign.designFileRef;
+      if (!mergedDesign.puckDataRef) mergedDesign.puckDataRef = "puck-data.json";
+    } else {
+      // GrapesJS 画面: puckDataRef を削除し、designFileRef を補完
+      delete mergedDesign.puckDataRef;
+      if (!mergedDesign.designFileRef) mergedDesign.designFileRef = `${screenId}.design.json`;
+    }
     return {
-      ...(await buildDefaultScreen(screenId)),
+      ...defaultScreen,
       ...(raw as Partial<Screen>),
       $schema: SCREEN_SCHEMA_REF,
       id: (typeof raw.id === "string" ? raw.id : screenId) as ScreenId,
       kind: (typeof raw.kind === "string" ? raw.kind : "other") as ScreenKind,
       path: typeof raw.path === "string" ? raw.path : "",
       items: Array.isArray(raw.items) ? raw.items as Screen["items"] : [],
-      design: {
-        ...(isRecord(raw.design) ? raw.design : {}),
-        designFileRef: `${screenId}.design.json`,
-      },
+      design: mergedDesign as Screen["design"],
     };
   }
   return buildDefaultScreen(screenId);

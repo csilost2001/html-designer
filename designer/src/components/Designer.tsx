@@ -274,14 +274,20 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   }, [tabId, isDirtyForTab, isDirty]);
 
   // resume ダイアログ: readonly + sessionLoading 解除後に draft があれば表示
+  // Puck 画面は "puck-data" draft を確認し、GrapesJS 画面は "screen" draft を確認する
+  // (editorKind は解決後に設定されるため、両方確認して OR で判定)
   useEffect(() => {
     if (!screenId || sessionLoading) return;
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+      // editorKind が puck なら puck-data draft を確認、それ以外 or 未解決なら screen draft も確認
+      const [screenDraft, puckDraft] = await Promise.all([
+        mcpBridge.hasDraft("screen", screenId) as Promise<{ exists: boolean } | null>,
+        mcpBridge.hasDraft("puck-data", screenId) as Promise<{ exists: boolean } | null>,
+      ]);
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (screenDraft?.exists || puckDraft?.exists) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
@@ -485,12 +491,18 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     setIsSaving(true);
     try {
       if (editorKind === "puck") {
-        // Puck 画面: "puck-data" draft を commit し、"screen" ロックを解放 (#806 M-1)
+        // Puck 画面: "puck-data" draft を commit し、orphan "screen" draft を discard してから
+        // "screen" ロックを解放 (#806 M-1 / M-3: orphan draft cleanup)
         if (puckFlushRef.current) {
           puckFlushRef.current();
           puckFlushRef.current = null;
         }
         await mcpBridge.commitDraft("puck-data", screenId);
+        // "screen" draft (startEditing が作成した空 draft) を orphan として残さず破棄する
+        const screenDraftExists = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+        if (screenDraftExists?.exists) {
+          await mcpBridge.discardDraft("screen", screenId);
+        }
         await mcpBridge.releaseLock("screen", screenId, sessionId);
       } else {
         // GrapesJS 画面: 保留中の debounce timer があれば即時 flush
@@ -538,7 +550,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     const editor = editorRef.current;
     isInternalLoadRef.current = true;
     try {
+      // "screen" draft を discard (editActions.discard が処理)
       await editActions.discard();
+      // Puck 画面の場合: "puck-data" draft も併せて破棄 (M-3: orphan draft cleanup)
+      if (editorKind === "puck") {
+        const puckDraftExists = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+        if (puckDraftExists?.exists) {
+          await mcpBridge.discardDraft("puck-data", screenId);
+        }
+      }
       if (editor) {
         await editor.load();
         editor.UndoManager.clear();
@@ -561,7 +581,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
       }, 0);
     }
-  }, [screenId, tabId, editActions, showError]);
+  }, [screenId, tabId, editorKind, editActions, showError]);
 
   const handleForceRelease = useCallback(async () => {
     setShowForceReleaseDialog(false);
@@ -575,7 +595,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
+    // "screen" draft を破棄 (GrapesJS / Puck 共通)
     await mcpBridge.discardDraft("screen", screenId);
+    // Puck 画面の場合: "puck-data" draft も併せて破棄 (M-3: orphan draft cleanup)
+    if (editorKind === "puck") {
+      const puckDraftExists = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+      if (puckDraftExists?.exists) {
+        await mcpBridge.discardDraft("puck-data", screenId);
+      }
+    }
     const editor = editorRef.current;
     if (editor) {
       isInternalLoadRef.current = true;
@@ -585,7 +613,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
       }, 0);
     }
-  }, [screenId]);
+  }, [screenId, editorKind]);
 
   // ServerChangeBanner からの reload はページ本体への戻り
   const handleServerChangeReload = useCallback(async () => {
@@ -718,6 +746,24 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     };
   // cssFramework / activeTheme の変更時は再マウントしない (初回マウント時のみ)
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorKind, screenId]);
+
+  // Puck 画面の cross-tab 上書き保護 (Sh-1: puckDataChanged broadcast 購読)。
+  // GrapesJS は screenChanged broadcast を購読して ServerChangeBanner を表示するのと同等。
+  // Puck 画面でも他タブが puck-data.json を commit した際に ServerChangeBanner を表示する。
+  useEffect(() => {
+    if (editorKind !== "puck") return;
+    const unsubPuckChanged = mcpBridge.onBroadcast("puckDataChanged", (data) => {
+      const d = data as { screenId?: string };
+      if (d.screenId !== screenId) return;
+      if (isDirtyRef.current) {
+        setServerChanged(true);
+      } else {
+        console.log("[Designer] puckDataChanged broadcast, marking server changed...");
+        setServerChanged(true);
+      }
+    });
+    return () => { unsubPuckChanged(); };
   }, [editorKind, screenId]);
 
   // ---------------------------------------------------------------------------

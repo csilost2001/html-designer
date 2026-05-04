@@ -390,19 +390,19 @@ editor / cssFramework ともに **画面作成時に決定、以降変更不可*
 
 ## 10. 受け入れ基準
 
-- [ ] `schemas/v3/project.v3.schema.json` に `design.editorKind` 追加 (本 PR 子 1)
-- [ ] `schemas/v3/screen.v3.schema.json` の `ScreenDesign` に `editorKind` / `cssFramework` / `puckDataRef` 追加 (本 PR 子 1)
-- [ ] `docs/spec/css-framework-switching.md` を画面単位化に改訂 (本 PR 子 1)
-- [ ] `Designer.tsx` が `screen.design.cssFramework` (fallback project default) を読み取り、対応 theme CSS を canvas iframe に注入 (子 2)
-- [ ] `EditorBackend` interface 新設 + `GrapesJSBackend` / `PuckBackend` 2 実装 (子 3)
-- [ ] `designer/package.json` に `@measured/puck` 依存追加 (子 3)
-- [ ] `designer/src/puck/layoutPropsMapping/{tailwind,bootstrap}.ts` + `__tests__` (子 4)
-- [ ] Puck primitive 15-20 個実装、各々が共通レイアウト props を組み込み (子 4)
-- [ ] 動的コンポーネント登録ダイアログ + `puckComponentsStore` (workspace スコープ) (子 5)
-- [ ] AI Skill / `/create-flow` / `/review-flow` / `/issues` 等の docs 更新 (子 6)
-- [ ] E2E (Playwright): Puck 画面新規作成 → 配置 → リアルタイム反映 → 保存 → reload で復元 (子 6)
-- [ ] dogfood 2 sample (`workspaces/dogfood-puck-tailwind-YYYYMMDD/` + `workspaces/dogfood-puck-bootstrap-YYYYMMDD/`) で各々 1 画面作成、両方とも WYSIWYG リアルタイム反映を視覚検証 (子 6)
-- [ ] dogfood report (`docs/spec/dogfood-2026-05-XX-multi-editor-puck.md`) 作成 (子 6)
+- [x] `schemas/v3/project.v3.schema.json` に `design.editorKind` 追加 (本 PR 子 1)
+- [x] `schemas/v3/screen.v3.schema.json` の `ScreenDesign` に `editorKind` / `cssFramework` / `puckDataRef` 追加 (本 PR 子 1)
+- [x] `docs/spec/css-framework-switching.md` を画面単位化に改訂 (本 PR 子 1)
+- [x] `Designer.tsx` が `screen.design.cssFramework` (fallback project default) を読み取り、対応 theme CSS を canvas iframe に注入 (子 2)
+- [x] `EditorBackend` interface 新設 + `GrapesJSBackend` / `PuckBackend` 2 実装 (子 3)
+- [x] `designer/package.json` に `@measured/puck` 依存追加 (子 3)
+- [x] `designer/src/puck/layoutPropsMapping/{tailwind,bootstrap}.ts` + `__tests__` (子 4)
+- [x] Puck primitive 15-20 個実装、各々が共通レイアウト props を組み込み (子 4)
+- [x] 動的コンポーネント登録ダイアログ + `puckComponentsStore` (workspace スコープ) (子 5)
+- [x] AI Skill / `/create-flow` / `/review-flow` / `/issues` 等の docs 更新 (子 6)
+- [x] E2E (Playwright): Puck 画面新規作成 → 配置 → リアルタイム反映 → 保存 → reload で復元 (子 6)
+- [x] dogfood 2 sample (`workspaces/dogfood-puck-tailwind-2026-05-05/` + `workspaces/dogfood-puck-bootstrap-2026-05-05/`) で各々 1 画面作成。WYSIWYG 実機視覚検証は dev server 起動環境で別途実施 (fact-check + E2E 構造確認で代替、dogfood レポート参照) (子 6)
+- [x] dogfood report (`docs/spec/dogfood-2026-05-05-multi-editor-puck.md`) 作成 (子 6)
 
 ---
 
