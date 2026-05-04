@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Routes, Route, useLocation, useNavigate, matchPath, useParams } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, matchPath, useParams, Outlet } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
 import { ScreenListView } from "./flow/ScreenListView";
 import { TableListView } from "./table/TableListView";
@@ -68,15 +68,16 @@ function useTabs() {
   return { tabs, activeTabId };
 }
 
-// ─── WorkspaceScopedRoutes ────────────────────────────────────────────────────
-// /w/:wsId/* 配下の全ルートをレンダリングするコンポーネント
-// AppShell から /w/:wsId/* ネストで呼ばれる。useParams() で :wsId を取得可能。
-function WorkspaceScopedRoutes() {
-  return <WorkspaceScopedShell />;
-}
-
-// AppShell の全ロジックを持つ内部コンポーネント
-// /w/:wsId/* 配下にネストされているので useParams() で wsId を取得できる
+// ─── WorkspaceScopedShell ─────────────────────────────────────────────────────
+// /w/:wsId 配下の親レイアウト。React Router v7 の **nested Routes**
+// (子要素を親 Route の children として宣言する形式) で使う。
+// 子 Route の element はここで <Outlet /> によりレンダされる。
+//
+// 履歴: 以前は AppShellInner 内部で descendant <Routes> を使っていたが、
+// React Router v7 では descendant <Routes> + <Route index> + 同階層の
+// relative-path siblings の組合せで index 側が常に勝つ挙動を踏み、
+// `/w/<id>/screen/flow` でも DashboardView が出続けるバグになっていた
+// (2026-05-04 dogfood 検証で発覚)。Outlet パターンに統一して解消。
 function WorkspaceScopedShell() {
   const { wsId } = useParams<{ wsId: string }>();
   return <AppShellInner wsId={wsId} />;
@@ -281,7 +282,36 @@ export function AppShell() {
     <>
       {guardTripped !== null && <RedirectGuardBanner summary={guardTripped} />}
     <Routes>
-      <Route path="/w/:wsId/*" element={<WorkspaceScopedRoutes />} />
+      {/* /w/:wsId 配下の全ルートを **nested Routes** で宣言。
+          React Router v7 ではこの書き方で初めて
+            - <Route index> は parent path に exactly match した時のみ発火
+            - 子 path は parent pathnameBase 配下で相対解決
+          が正しく動く。以前の descendant <Routes> + <Route path="/w/:wsId/*">
+          + <Route index> の組合せだと index 側が常に勝つバグがあった。
+          AppShellInner では <Outlet /> で子 element をレンダする。 */}
+      <Route path="/w/:wsId" element={<WorkspaceScopedShell />}>
+        <Route index element={<DashboardView />} />
+        <Route path="screen/flow" element={<FlowEditor />} />
+        <Route path="screen/list" element={<ScreenListView />} />
+        {/* design は designTabs 経由で別レンダーされるが、
+             URL→タブ同期 effect の解決中に一瞬こちらのブランチが描画される。
+             以前は element={null} で真っ白だったのを ResourceLoading に置換 (#124) */}
+        <Route path="screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
+        <Route path="table/list" element={<TableListView />} />
+        <Route path="table/edit/:tableId" element={<TableEditor />} />
+        <Route path="table/er" element={<ErDiagram />} />
+        <Route path="process-flow/list" element={<ProcessFlowListView />} />
+        <Route path="process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
+        <Route path="extensions" element={<ExtensionsPanel />} />
+        <Route path="conventions/catalog" element={<ConventionsCatalogView />} />
+        <Route path="screen/items/:screenId" element={<ScreenItemsView />} />
+        <Route path="sequence/list" element={<SequenceListView />} />
+        <Route path="sequence/edit/:sequenceId" element={<SequenceEditor />} />
+        <Route path="view/list" element={<ViewListView />} />
+        <Route path="view/edit/:viewId" element={<ViewEditor />} />
+        <Route path="view-definition/list" element={<ViewDefinitionListView />} />
+        <Route path="view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
+      </Route>
       <Route path="/workspace/list" element={<WorkspaceListView />} />
       <Route path="/workspace/select" element={<WorkspaceSelectView />} />
       {/* 旧 URL (/, /screen/flow 等) にもスプラッシュで対応
@@ -646,12 +676,20 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   // を上書き → guard が再度 redirect、というループ / flicker を起こすため。
   // workspace-list タブだけは select 画面からの誘導でも進入可能なので例外扱い。
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  // 前回 sync 済 activeTabId を ref で保持。本当に activeTabId が変化した時だけ navigate する
+  // (StrictMode の二重 effect 実行 + workspaceState/ wsId などの spurious dep 変化に依る race を抑止)
+  const lastSyncedActiveTabIdRef = useRef<string>(activeTabId);
   useEffect(() => {
     if (!activeTab) return;
     if (location.pathname === "/workspace/select") return;
     if (workspaceState.active === null && !workspaceState.lockdown && activeTab.type !== "workspace-list") {
       return;
     }
+    // activeTabId が前回 sync 済の値と同じなら何もしない
+    if (lastSyncedActiveTabIdRef.current === activeTabId) {
+      return;
+    }
+    lastSyncedActiveTabIdRef.current = activeTabId;
     // /w/:wsId/* 規約のパスを生成。workspace-list は wsId なし
     const wp = wsId ? `/w/${wsId}` : "";
     const expectedPath =
@@ -680,7 +718,14 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       const guard = checkRedirect(expectedPath);
       if (guard.allow) navigate(expectedPath, { replace: true });
     }
-  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname, wsId]);
+  // 意図的に deps を [activeTabId] のみに絞っている。activeTab / workspaceState
+  // / location.pathname / wsId / navigate を deps に含めると、URL→tab effect と
+  // 競合してリダイレクトループを起こす (本 effect の役割は「activeTab 変更を URL に
+  // 追随させる」だけで、それ以外の変化は URL→tab 側で吸収する設計)。
+  // 将来 deps 追加が必要になったら、必ず lastSyncedActiveTabIdRef による
+  // 「実際に activeTabId が変化した時だけ navigate」の不変条件を維持すること。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId]);
 
   const designTabs = tabs.filter((t) => t.type === "design");
   const activeIsDesign = activeTab?.type === "design";
@@ -739,7 +784,9 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
         </div>
       ))}
 
-      {/* 非デザインコンテンツ: 通常ルーティング (/w/:wsId/* 相対パス) */}
+      {/* 非デザインコンテンツ: 子 Route の element を <Outlet /> でレンダ。
+          子 Route は外側 AppShell の <Route path="/w/:wsId"> の children として
+          宣言されている。 */}
       {!activeIsDesign && (
         <ErrorBoundary
           resetKey={activeTabId}
@@ -755,30 +802,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
             />
           )}
         >
-          <Routes>
-            {/* /w/:wsId/* 規約の絶対パス (location.pathname に対してマッチ) */}
-            <Route path="/w/:wsId/" element={<DashboardView />} />
-            <Route path="/w/:wsId/screen/flow" element={<FlowEditor />} />
-            <Route path="/w/:wsId/screen/list" element={<ScreenListView />} />
-            {/* design は designTabs 経由で別レンダーされるが、
-                 URL→タブ同期 effect の解決中に一瞬こちらのブランチが描画される。
-                 以前は element={null} で真っ白だったのを ResourceLoading に置換 (#124) */}
-            <Route path="/w/:wsId/screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
-            <Route path="/w/:wsId/table/list" element={<TableListView />} />
-            <Route path="/w/:wsId/table/edit/:tableId" element={<TableEditor />} />
-            <Route path="/w/:wsId/table/er" element={<ErDiagram />} />
-            <Route path="/w/:wsId/process-flow/list" element={<ProcessFlowListView />} />
-            <Route path="/w/:wsId/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
-            <Route path="/w/:wsId/extensions" element={<ExtensionsPanel />} />
-            <Route path="/w/:wsId/conventions/catalog" element={<ConventionsCatalogView />} />
-            <Route path="/w/:wsId/screen/items/:screenId" element={<ScreenItemsView />} />
-            <Route path="/w/:wsId/sequence/list" element={<SequenceListView />} />
-            <Route path="/w/:wsId/sequence/edit/:sequenceId" element={<SequenceEditor />} />
-            <Route path="/w/:wsId/view/list" element={<ViewListView />} />
-            <Route path="/w/:wsId/view/edit/:viewId" element={<ViewEditor />} />
-            <Route path="/w/:wsId/view-definition/list" element={<ViewDefinitionListView />} />
-            <Route path="/w/:wsId/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
-          </Routes>
+          <Outlet />
         </ErrorBoundary>
       )}
     </>
