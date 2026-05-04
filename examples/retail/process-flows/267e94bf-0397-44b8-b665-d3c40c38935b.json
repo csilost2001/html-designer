@@ -3,7 +3,7 @@
   "meta": {
     "id": "267e94bf-0397-44b8-b665-d3c40c38935b",
     "name": "カート集計",
-    "description": "ログイン顧客のアクティブカートの明細件数 (itemCount) と税抜合計金額 (totalAmount) を 1 リクエストで集計する読取専用フロー。カート画面 (c73fa05c) のヘッダ表示と、カート確認画面 (cff4a398) の合計表示の双方から共通利用する。アクティブカートが無い / 明細 0 件の場合は (0, 0) を返す。",
+    "description": "ログイン顧客のアクティブカートの明細件数 (itemCount) と税抜合計金額 (totalAmount) を 1 リクエストで集計する読取専用フロー。カート画面 (c73fa05c) のヘッダ表示と、カート確認画面 (cff4a398) の合計表示の双方から共通利用する。アクティブカートが無い / 明細 0 件の場合は (0, 0) を返す。明細表示用の rows は店舗情報 (storeCode/storeName) を含み multi-store inventory に整合する。",
     "kind": "common",
     "maturity": "committed",
     "createdAt": "2026-05-03T00:00:00.000Z",
@@ -49,7 +49,7 @@
           "name": "rows",
           "label": "カート明細一覧",
           "type": { "kind": "array", "itemType": "json" },
-          "description": "アクティブカートに紐付く cart_items 行 (productCode / productName / quantity / unitPrice / subtotal) の配列。カート確認画面 (cff4a398) の viewer 項目 (cartSummary) の valueFrom.variableName='rows' で参照する (#771)。"
+          "description": "アクティブカートに紐付く cart_items 行 (productCode / productName / storeCode / storeName / quantity / unitPrice / subtotal) の配列。カート確認画面 (cff4a398) の viewer 項目 (cartSummary) の valueFrom.variableName='rows' で参照する (#771)。multi-store inventory 整合のため店舗情報を含む。"
         }
       ],
       "responses": [
@@ -104,16 +104,17 @@
         {
           "id": "step-04a",
           "kind": "dbAccess",
-          "description": "アクティブカートに紐付く cart_items を products JOIN で取得し、viewer 表示用の行データを生成する。空 cart 時は 0 行が返る (#771)。",
+          "description": "アクティブカートに紐付く cart_items を products + stores JOIN で取得し、viewer 表示用の行データを生成する。空 cart 時は 0 行が返る (#771)。multi-store inventory 整合のため店舗 (storeCode / storeName) を含める。",
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "SELECT",
-          "sql": "SELECT ci.id, p.product_code AS \"productCode\", p.name AS \"productName\", ci.quantity, ci.unit_price_snapshot AS \"unitPrice\", (ci.unit_price_snapshot * ci.quantity) AS subtotal FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active' ORDER BY ci.added_at ASC",
+          "sql": "SELECT ci.id, p.product_code AS \"productCode\", p.name AS \"productName\", s.store_code AS \"storeCode\", s.name AS \"storeName\", ci.quantity, ci.unit_price_snapshot AS \"unitPrice\", (ci.unit_price_snapshot * ci.quantity) AS subtotal FROM carts c JOIN cart_items ci ON ci.cart_id = c.id JOIN products p ON p.id = ci.product_id JOIN stores s ON s.id = ci.store_id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active' ORDER BY s.store_code ASC, ci.added_at ASC",
           "outputBinding": { "name": "cartDetailRows" },
           "lineage": {
             "reads": [
               { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" },
               { "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b", "purpose": "lookup" },
-              { "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" }
+              { "tableId": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0", "purpose": "lookup" },
+              { "tableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5", "purpose": "lookup" }
             ]
           }
         },
@@ -185,9 +186,14 @@
       {
         "id": "happy-path-cart-summary",
         "name": "カート 2 行の集計が正常に返る",
-        "description": "アクティブカートに 2 商品 (商品A 単価 1000 × 2、商品B 単価 2000 × 1) が入っている場合、itemCount=2 / totalAmount=4000 が返る。",
+        "description": "アクティブカートに 2 商品 (商品A 単価 1000 × 2 @ S-001、商品B 単価 2000 × 1 @ S-001) が入っている場合、itemCount=2 / totalAmount=4000 が返る。",
         "given": [
           { "kind": "sessionContext", "context": { "sessionCustomerId": 100 } },
+          {
+            "kind": "dbState",
+            "tableId": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
+            "rows": [{ "id": 10, "store_code": "S-001", "name": "東京本店", "is_active": true }]
+          },
           {
             "kind": "dbState",
             "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
@@ -197,8 +203,8 @@
             "kind": "dbState",
             "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
             "rows": [
-              { "id": 200, "cart_id": 50, "product_id": 1, "unit_price_snapshot": 1000, "quantity": 2 },
-              { "id": 201, "cart_id": 50, "product_id": 2, "unit_price_snapshot": 2000, "quantity": 1 }
+              { "id": 200, "cart_id": 50, "product_id": 1, "store_id": 10, "unit_price_snapshot": 1000, "quantity": 2 },
+              { "id": 201, "cart_id": 50, "product_id": 2, "store_id": 10, "unit_price_snapshot": 2000, "quantity": 1 }
             ]
           }
         ],

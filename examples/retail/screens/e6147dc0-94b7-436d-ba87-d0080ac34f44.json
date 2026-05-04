@@ -9,7 +9,7 @@
   "groupId": "c720b549-ecf4-4d20-9be4-c8d38f89a13e",
   "maturity": "committed",
   "createdAt": "2026-05-02T00:00:00.000Z",
-  "updatedAt": "2026-05-02T00:00:00.000Z",
+  "updatedAt": "2026-05-03T00:00:00.000Z",
   "items": [
     {
       "id": "productCode",
@@ -31,13 +31,16 @@
       "label": "店舗",
       "type": "string",
       "direction": "input",
-      "required": false,
+      "required": true,
       "options": [
         { "value": "S-001", "label": "東京本店" },
         { "value": "S-002", "label": "大阪支店" },
         { "value": "S-003", "label": "名古屋支店" }
       ],
-      "description": "S-1 在庫照会の検索条件: 店舗。"
+      "errorMessages": {
+        "required": "店舗を選択してください。"
+      },
+      "description": "S-1 在庫照会の検索条件: 店舗。multi-store inventory のため必須 (店舗指定がないと API 側で 400 を返す)。"
     },
     {
       "id": "inquiredAt",
