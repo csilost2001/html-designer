@@ -16,7 +16,7 @@ import { wsBridge } from "./wsBridge.js";
 import { tools } from "./tools.js";
 import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
-import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles } from "./projectStorage.js";
+import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles, readPuckComponents, writePuckComponents } from "./projectStorage.js";
 import {
   createDraft,
   readDraft,
@@ -540,6 +540,81 @@ function createMcpServer(sessionId: string): Server {
               type: "text",
               text: `カスタムブロック (${blocks.length}件):\n${lines.join("\n")}`,
             },
+          ],
+        };
+      }
+
+      // ── Puck カスタムコンポーネント管理 ──
+
+      case "designer__add_custom_puck_component": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.id !== "string" || typeof a.label !== "string" || typeof a.primitive !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "id, label, primitive は必須です");
+        }
+        const components = (await readPuckComponents(mcpRoot())) as Array<{ id: string }>;
+        if (components.some((c) => c.id === a.id)) {
+          throw new McpError(ErrorCode.InvalidParams, `id "${a.id}" は既に登録されています`);
+        }
+        const newDef = {
+          id: a.id,
+          label: a.label,
+          primitive: a.primitive,
+          propsSchema: (typeof a.propsSchema === "object" && a.propsSchema !== null) ? a.propsSchema : {},
+        };
+        components.push(newDef);
+        await writePuckComponents(components, mcpRoot());
+        // puckComponentsChanged broadcast
+        wsBridge.broadcast({ wsId: null, event: "puckComponentsChanged", data: {} });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Puck カスタムコンポーネント「${a.label}」(${a.id}) を登録しました。`,
+            },
+          ],
+        };
+      }
+
+      case "designer__list_custom_puck_components": {
+        type PuckComponentEntry = { id: string; label: string; primitive: string; propsSchema?: Record<string, unknown> };
+        const components = (await readPuckComponents(mcpRoot())) as PuckComponentEntry[];
+        if (components.length === 0) {
+          return {
+            content: [
+              { type: "text", text: "Puck カスタムコンポーネントはまだ登録されていません。" },
+            ],
+          };
+        }
+        const lines = components.map(
+          (c) =>
+            `- ${c.id} — ${c.label} [primitive: ${c.primitive}]` +
+            (c.propsSchema ? ` (${Object.keys(c.propsSchema).length} props)` : "")
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Puck カスタムコンポーネント (${components.length}件):\n${lines.join("\n")}`,
+            },
+          ],
+        };
+      }
+
+      case "designer__remove_custom_puck_component": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.id !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "id は必須です");
+        }
+        const allComponents = (await readPuckComponents(mcpRoot())) as Array<{ id: string }>;
+        const filtered = allComponents.filter((c) => c.id !== a.id);
+        if (filtered.length === allComponents.length) {
+          throw new McpError(ErrorCode.InvalidParams, `id "${a.id}" のコンポーネントが見つかりません`);
+        }
+        await writePuckComponents(filtered, mcpRoot());
+        wsBridge.broadcast({ wsId: null, event: "puckComponentsChanged", data: {} });
+        return {
+          content: [
+            { type: "text", text: `Puck カスタムコンポーネント ${a.id} を削除しました。` },
           ],
         };
       }

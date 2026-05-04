@@ -1,0 +1,24 @@
+[
+  {
+    "id": "contact-form-group",
+    "label": "お問い合わせフォームグループ",
+    "primitive": "card",
+    "propsSchema": {
+      "title": {
+        "type": "string",
+        "default": "お問い合わせ",
+        "label": "フォームタイトル"
+      },
+      "submitLabel": {
+        "type": "string",
+        "default": "送信する",
+        "label": "送信ボタンのテキスト"
+      },
+      "showCategory": {
+        "type": "boolean",
+        "default": true,
+        "label": "種別選択を表示"
+      }
+    }
+  }
+]

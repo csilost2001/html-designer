@@ -24,8 +24,12 @@ import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { loadProject, loadRawProject, updateScreenThumbnail } from "../store/flowStore";
+import { loadScreenEntity } from "../store/screenStore";
 import { makeTabId, setDirty } from "../store/tabStore";
 import type { CssFramework } from "../types/v3/project";
+import { resolveCssFramework } from "../utils/resolveCssFramework";
+import { resolveEditorKind } from "../utils/resolveEditorKind";
+import type { EditorKind } from "../utils/resolveEditorKind";
 import { clearItemsFromCache } from "../store/screenItemsStore";
 import { useEditSession } from "../hooks/useEditSession";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
@@ -36,6 +40,8 @@ import {
   AfterForceUnlockChoiceDialog,
 } from "./editing/ConfirmDialogs";
 import { ResumeOrDiscardDialog } from "./editing/ResumeOrDiscardDialog";
+import { PuckBackend } from "../editor/PuckBackend";
+import type { Disposable } from "../editor/EditorBackend";
 import "../styles/editMode.css";
 
 /**
@@ -204,6 +210,13 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // project.design.cssFramework (#793 子 5): 省略時は "bootstrap" (schema default と一致)
   const [cssFramework, setCssFramework] = useState<CssFramework>("bootstrap");
   const cssFrameworkRef = useRef<CssFramework>("bootstrap");
+  // editorKind (#806 子 3): 省略時は "grapesjs" (schema default と一致)
+  const [editorKind, setEditorKind] = useState<EditorKind>("grapesjs");
+  // Puck Backend 用コンテナ ref および Disposable ref
+  const puckContainerRef = useRef<HTMLDivElement | null>(null);
+  const puckDisposableRef = useRef<Disposable | null>(null);
+  // Puck 用 debounce フラッシュコールバック (#806 M-1: "puck-data" draft 経由で保存)
+  const puckFlushRef = useRef<(() => void) | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
 
@@ -261,34 +274,46 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   }, [tabId, isDirtyForTab, isDirty]);
 
   // resume ダイアログ: readonly + sessionLoading 解除後に draft があれば表示
+  // Puck 画面は "puck-data" draft を確認し、GrapesJS 画面は "screen" draft を確認する
+  // (editorKind は解決後に設定されるため、両方確認して OR で判定)
   useEffect(() => {
     if (!screenId || sessionLoading) return;
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+      // editorKind が puck なら puck-data draft を確認、それ以外 or 未解決なら screen draft も確認
+      const [screenDraft, puckDraft] = await Promise.all([
+        mcpBridge.hasDraft("screen", screenId) as Promise<{ exists: boolean } | null>,
+        mcpBridge.hasDraft("puck-data", screenId) as Promise<{ exists: boolean } | null>,
+      ]);
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (screenDraft?.exists || puckDraft?.exists) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
 
-  // cssFramework をプロジェクトから読み込む (mount 時 1 回)。
-  // design.cssFramework は FlowProject には含まれないため loadRawProject() で取得する (#793 子 5)。
+  // cssFramework と editorKind を画面 + プロジェクトから読み込む (screenId が変わるたびに再解決)。
+  // 解決順序 (multi-editor-puck.md § 2.3 / css-framework-switching.md § 1.3.1 / #806 子 2/3):
+  //   1. screen.design.* (画面個別指定)
+  //   2. project.design.* (project default)
+  //   3. "bootstrap" / "grapesjs" (最終 default)
   useEffect(() => {
     let cancelled = false;
-    loadRawProject().then((raw) => {
+    Promise.all([
+      loadRawProject(),
+      loadScreenEntity(screenId),
+    ]).then(([raw, screen]) => {
       if (cancelled) return;
-      const fw = raw.design?.cssFramework ?? "bootstrap";
+      const fw = resolveCssFramework(screen.design, raw.design);
       setCssFramework(fw);
       cssFrameworkRef.current = fw;
+      const ek = resolveEditorKind(screen.design, raw.design);
+      setEditorKind(ek);
     }).catch((e) => {
-      console.warn("[Designer] loadRawProject failed, using default cssFramework 'bootstrap'", e);
+      console.warn("[Designer] cssFramework/editorKind resolve failed, using defaults", e);
     });
     return () => { cancelled = true; };
-  // screenId に依存しない: framework はプロジェクト単位で固定 (途中切替非サポート)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [screenId]);
 
   // cssFrameworkRef を cssFramework state と同期 (onReady closure から参照するため)
   useEffect(() => {
@@ -302,7 +327,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       applyThemeToCanvas(editorRef.current, themeId, cssFrameworkRef.current);
     }
   // cssFrameworkRef は ref なので依存配列不要
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeChangeRef = useRef(handleThemeChange);
@@ -466,15 +490,31 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     if (isReadonly || isSaving) return;
     setIsSaving(true);
     try {
-      // 保留中の debounce timer があれば即時 flush
-      if (draftUpdateTimer.current) {
-        clearTimeout(draftUpdateTimer.current);
-        draftUpdateTimer.current = null;
-        if (editorRef.current) {
-          await mcpBridge.updateDraft("screen", screenId, editorRef.current.getProjectData());
+      if (editorKind === "puck") {
+        // Puck 画面: "puck-data" draft を commit し、orphan "screen" draft を discard してから
+        // "screen" ロックを解放 (#806 M-1 / M-3: orphan draft cleanup)
+        if (puckFlushRef.current) {
+          puckFlushRef.current();
+          puckFlushRef.current = null;
         }
+        await mcpBridge.commitDraft("puck-data", screenId);
+        // "screen" draft (startEditing が作成した空 draft) を orphan として残さず破棄する
+        const screenDraftExists = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+        if (screenDraftExists?.exists) {
+          await mcpBridge.discardDraft("screen", screenId);
+        }
+        await mcpBridge.releaseLock("screen", screenId, sessionId);
+      } else {
+        // GrapesJS 画面: 保留中の debounce timer があれば即時 flush
+        if (draftUpdateTimer.current) {
+          clearTimeout(draftUpdateTimer.current);
+          draftUpdateTimer.current = null;
+          if (editorRef.current) {
+            await mcpBridge.updateDraft("screen", screenId, editorRef.current.getProjectData());
+          }
+        }
+        await editActions.save();
       }
-      await editActions.save();
       setIsDirtyState(false);
       isDirtyRef.current = false;
       setDirty(tabId, false);
@@ -502,7 +542,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } finally {
       setIsSaving(false);
     }
-  }, [screenId, tabId, isReadonly, isSaving, editActions, showError]);
+  }, [screenId, tabId, isReadonly, isSaving, editorKind, sessionId, editActions, showError]);
 
   /** 破棄: discardDraft + releaseLock → 本体ファイル再読込 */
   const handleDiscard = useCallback(async () => {
@@ -510,7 +550,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     const editor = editorRef.current;
     isInternalLoadRef.current = true;
     try {
+      // "screen" draft を discard (editActions.discard が処理)
       await editActions.discard();
+      // Puck 画面の場合: "puck-data" draft も併せて破棄 (M-3: orphan draft cleanup)
+      if (editorKind === "puck") {
+        const puckDraftExists = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+        if (puckDraftExists?.exists) {
+          await mcpBridge.discardDraft("puck-data", screenId);
+        }
+      }
       if (editor) {
         await editor.load();
         editor.UndoManager.clear();
@@ -533,7 +581,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
       }, 0);
     }
-  }, [screenId, tabId, editActions, showError]);
+  }, [screenId, tabId, editorKind, editActions, showError]);
 
   const handleForceRelease = useCallback(async () => {
     setShowForceReleaseDialog(false);
@@ -547,7 +595,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
+    // "screen" draft を破棄 (GrapesJS / Puck 共通)
     await mcpBridge.discardDraft("screen", screenId);
+    // Puck 画面の場合: "puck-data" draft も併せて破棄 (M-3: orphan draft cleanup)
+    if (editorKind === "puck") {
+      const puckDraftExists = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+      if (puckDraftExists?.exists) {
+        await mcpBridge.discardDraft("puck-data", screenId);
+      }
+    }
     const editor = editorRef.current;
     if (editor) {
       isInternalLoadRef.current = true;
@@ -557,7 +613,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
       }, 0);
     }
-  }, [screenId]);
+  }, [screenId, editorKind]);
 
   // ServerChangeBanner からの reload はページ本体への戻り
   const handleServerChangeReload = useCallback(async () => {
@@ -612,6 +668,213 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     legacyDataRef.current = null;
   }, [screenId]);
 
+  // Puck Backend のマウント / アンマウント (#806 子 3 / M-1 / M-2 修正)。
+  // editorKind === "puck" のときのみ実行する。
+  // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理するため、
+  // このエフェクトは Puck 分岐専用。
+  useEffect(() => {
+    if (editorKind !== "puck") return;
+    const container = puckContainerRef.current;
+    if (!container) return;
+
+    const backend = new PuckBackend();
+
+    backend
+      .load(screenId, async () => {
+        // M-2: 2 段フォールバック — draft → committed puck-data.json → EMPTY (#806)
+        // 1. draft が存在すれば draft を返す
+        const hasDraftResult = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+        if (hasDraftResult?.exists) {
+          const draftData = await mcpBridge.readDraft("puck-data", screenId);
+          return draftData;
+        }
+        // 2. 本体 puck-data.json が存在すれば返す (初回オープン / reload 後)
+        const committedData = await mcpBridge.loadPuckData(screenId);
+        if (committedData !== null) {
+          return committedData;
+        }
+        // 3. 両方ない → null を返すと PuckBackend が EMPTY_PUCK_DATA にフォールバック
+        return null;
+      })
+      .then((state) => {
+        let pendingPayload: unknown = null;
+        let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+        // puckFlushRef にフラッシュ関数を登録 (handleSave が呼ぶ)
+        puckFlushRef.current = () => {
+          if (pendingTimer !== null) {
+            clearTimeout(pendingTimer);
+            pendingTimer = null;
+          }
+          if (pendingPayload !== null) {
+            mcpBridge.updateDraft("puck-data", screenId, pendingPayload).catch(console.error);
+            pendingPayload = null;
+          }
+        };
+
+        const disposable = backend.renderEditor(container, state, {
+          cssFramework,
+          themeVariant: activeTheme,
+          onChange: (newState) => {
+            // 変更検知: debounce で updateDraft を呼ぶ (M-1: "puck-data" type)
+            if (isReadonlyRef.current) return;
+            setIsDirtyState(true);
+            isDirtyRef.current = true;
+            pendingPayload = newState.payload;
+            if (pendingTimer !== null) clearTimeout(pendingTimer);
+            pendingTimer = setTimeout(() => {
+              pendingTimer = null;
+              if (pendingPayload !== null) {
+                mcpBridge.updateDraft("puck-data", screenId, pendingPayload).catch(console.error);
+                pendingPayload = null;
+              }
+            }, 300);
+          },
+        });
+        puckDisposableRef.current = disposable;
+      })
+      .catch((e) => {
+        console.warn("[Designer] PuckBackend.load failed", e);
+      });
+
+    return () => {
+      puckFlushRef.current = null;
+      if (puckDisposableRef.current) {
+        puckDisposableRef.current.dispose();
+        puckDisposableRef.current = null;
+      }
+    };
+  // cssFramework / activeTheme の変更時は再マウントしない (初回マウント時のみ)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorKind, screenId]);
+
+  // Puck 画面の cross-tab 上書き保護 (Sh-1: puckDataChanged broadcast 購読)。
+  // GrapesJS は screenChanged broadcast を購読して ServerChangeBanner を表示するのと同等。
+  // Puck 画面でも他タブが puck-data.json を commit した際に ServerChangeBanner を表示する。
+  useEffect(() => {
+    if (editorKind !== "puck") return;
+    const unsubPuckChanged = mcpBridge.onBroadcast("puckDataChanged", (data) => {
+      const d = data as { screenId?: string };
+      if (d.screenId !== screenId) return;
+      if (isDirtyRef.current) {
+        setServerChanged(true);
+      } else {
+        console.log("[Designer] puckDataChanged broadcast, marking server changed...");
+        setServerChanged(true);
+      }
+    });
+    return () => { unsubPuckChanged(); };
+  }, [editorKind, screenId]);
+
+  // ---------------------------------------------------------------------------
+  // 共通ダイアログ群 (GrapesJS / Puck 両方で使う)
+  // ---------------------------------------------------------------------------
+  const commonDialogs = (
+    <>
+      {/* 編集モードツールバー */}
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={editActions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {/* 強制解除 / ForcedOut / AfterForceUnlock ダイアログ */}
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => editActions.handleForcedOut(choice)}
+        />
+      )}
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+
+      {showLegacyRescueDialog && (
+        <LegacyRescueDialog
+          onAdopt={handleLegacyRescueAdopt}
+          onDiscard={handleLegacyRescueDiscard}
+        />
+      )}
+
+      {serverChanged && (
+        <ServerChangeBanner
+          onReload={handleServerChangeReload}
+          onDismiss={() => setServerChanged(false)}
+        />
+      )}
+    </>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Puck エディタ表示 (#806 子 3)
+  // editorKind === "puck" のときはシンプルな div ベースレイアウトで Puck をマウントする。
+  // GrapesJS 固有の GjsEditor / WithEditor / BlocksProvider は使用しない。
+  // ---------------------------------------------------------------------------
+  if (editorKind === "puck") {
+    return (
+      <div className={`designer-root${isReadonly ? " is-readonly" : ""}`}>
+        <div className="designer-layout">
+          {/* サブツールバー: editorKind=puck では DesignSubToolbar の WithEditor ラッパーは不要 */}
+          <DesignSubToolbar
+            panelMode={panelMode}
+            onOpenPanel={openPanel}
+            activeTheme={activeTheme}
+            onThemeChange={handleThemeChange}
+            mcpStatus={mcpStatus}
+            isDirty={isDirty}
+            isSaving={isSaving}
+            onSaveToFile={handleSave}
+            onReset={async () => setShowDiscardDialog(true)}
+            backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
+            screenId={screenId}
+            isReadonly={isReadonly}
+          />
+          {commonDialogs}
+          {/* Puck エディタがマウントされるコンテナ */}
+          <div
+            ref={puckContainerRef}
+            className="puck-editor-container"
+            style={{ flex: 1, overflow: "auto" }}
+            data-testid="puck-editor-container"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // GrapesJS エディタ表示 (既存挙動を維持)
+  // ---------------------------------------------------------------------------
   return (
     <GjsEditor
       className={`designer-root${isReadonly ? " is-readonly" : ""}`}
@@ -644,67 +907,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
           />
         </WithEditor>
 
-        {/* 編集モードツールバー (EditModeToolbar) */}
-        <EditModeToolbar
-          mode={mode}
-          onStartEditing={editActions.startEditing}
-          onSave={handleSave}
-          onDiscardClick={() => setShowDiscardDialog(true)}
-          onForceReleaseClick={() => setShowForceReleaseDialog(true)}
-          saving={isSaving}
-          ownerLabel={lockedByOther?.ownerSessionId}
-        />
-
-        {/* 強制解除 / ForcedOut / AfterForceUnlock ダイアログ */}
-        {mode.kind === "force-released-pending" && (
-          <ForcedOutChoiceDialog
-            previousDraftExists={mode.previousDraftExists}
-            onChoice={(choice) => editActions.handleForcedOut(choice)}
-          />
-        )}
-        {mode.kind === "after-force-unlock" && (
-          <AfterForceUnlockChoiceDialog
-            previousOwner={mode.previousOwner}
-            onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
-          />
-        )}
-
-        {showResumeDialog && (
-          <ResumeOrDiscardDialog
-            onResume={handleResumeContinue}
-            onDiscard={handleResumeDiscard}
-            onCancel={() => setShowResumeDialog(false)}
-          />
-        )}
-
-        {showDiscardDialog && (
-          <DiscardConfirmDialog
-            onConfirm={handleDiscard}
-            onCancel={() => setShowDiscardDialog(false)}
-          />
-        )}
-
-        {showForceReleaseDialog && lockedByOther && (
-          <ForceReleaseConfirmDialog
-            ownerSessionId={lockedByOther.ownerSessionId}
-            onConfirm={handleForceRelease}
-            onCancel={() => setShowForceReleaseDialog(false)}
-          />
-        )}
-
-        {showLegacyRescueDialog && (
-          <LegacyRescueDialog
-            onAdopt={handleLegacyRescueAdopt}
-            onDiscard={handleLegacyRescueDiscard}
-          />
-        )}
-
-        {serverChanged && (
-          <ServerChangeBanner
-            onReload={handleServerChangeReload}
-            onDismiss={() => setServerChanged(false)}
-          />
-        )}
+        {commonDialogs}
 
         <div className="designer-body">
           <div className={`panel-left-wrapper is-${panelMode}`}>

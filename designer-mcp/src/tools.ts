@@ -380,6 +380,95 @@ export const tools = [
     },
   },
 
+  // ── Puck カスタムコンポーネント管理 ──
+
+  {
+    name: "designer__add_custom_puck_component",
+    description:
+      "Puck エディタ用のカスタムコンポーネント定義を workspace に追加します。" +
+      "ビルトイン primitive (Container / Heading 等) をベースに個別 propsSchema を持つコンポーネントを登録します。" +
+      "登録後、Puck パレットに即時反映されます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "コンポーネントの一意 ID (英数字・ハイフン)",
+        },
+        label: {
+          type: "string",
+          description: "Puck パレットでの表示名",
+        },
+        primitive: {
+          type: "string",
+          enum: [
+            "container", "row", "col", "section",
+            "heading", "paragraph", "link",
+            "input", "select", "textarea", "checkbox", "radio", "button",
+            "table", "image", "icon",
+            "input-group", "card", "data-list", "pagination",
+          ],
+          description: "ベースとなるビルトイン primitive 名",
+        },
+        propsSchema: {
+          type: "object",
+          description:
+            "個別プロパティのスキーマ定義。キーがプロパティ名、値が PropSchemaField オブジェクト。" +
+            "例: { \"placeholder\": { \"type\": \"string\", \"default\": \"検索\" } }",
+          additionalProperties: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["string", "number", "boolean", "enum"],
+              },
+              default: {},
+              label: { type: "string" },
+              enum: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    label: { type: "string" },
+                    value: { type: "string" },
+                  },
+                },
+              },
+            },
+            required: ["type"],
+          },
+        },
+      },
+      required: ["id", "label", "primitive"],
+    },
+  },
+  {
+    name: "designer__list_custom_puck_components",
+    description:
+      "workspace に登録済みの Puck カスタムコンポーネント定義一覧を取得します。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "designer__remove_custom_puck_component",
+    description:
+      "指定 ID の Puck カスタムコンポーネント定義を workspace から削除します。" +
+      "既存の Puck Data 上のインスタンスは削除されません。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "削除するカスタムコンポーネントの ID",
+        },
+      },
+      required: ["id"],
+    },
+  },
+
   // ── テーブル設計書ツール ──
 
   {
