@@ -413,6 +413,21 @@ export async function writeCustomBlocks(blocks: unknown[], root: string): Promis
   await writeJSON(customBlocksFile(r), blocks);
 }
 
+/** screens/{screenId}/puck-data.json を読み込み (#806) */
+export async function readPuckData(screenId: string, root: string): Promise<unknown | null> {
+  const r = root;
+  return readJSON<unknown>(path.join(screensDir(r), screenId, "puck-data.json"));
+}
+
+/** screens/{screenId}/puck-data.json を書き込み (#806) */
+export async function writePuckData(screenId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
+  await ensureDataDir(r);
+  const puckDir = path.join(screensDir(r), screenId);
+  await fs.mkdir(puckDir, { recursive: true });
+  await writeJSON(path.join(puckDir, "puck-data.json"), data);
+}
+
 /** puck-components.json を読み込み */
 export async function readPuckComponents(root: string): Promise<unknown[]> {
   const r = root;

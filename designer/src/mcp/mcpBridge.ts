@@ -1153,6 +1153,15 @@ class McpBridgeImpl {
   createDraft(resourceType: string, id: string): Promise<unknown> {
     return this.request("draft.create", { type: resourceType, id });
   }
+
+  // #806: Puck Data 専用 API (screens/<id>/puck-data.json)
+  loadPuckData(screenId: string): Promise<unknown> {
+    return this.request("loadPuckData", { screenId });
+  }
+
+  savePuckData(screenId: string, data: unknown): Promise<unknown> {
+    return this.request("savePuckData", { screenId, data });
+  }
 }
 
 // ── ヘルパー関数 ────────────────────────────────────────────────────────────

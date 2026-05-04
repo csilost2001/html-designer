@@ -40,7 +40,6 @@ import {
   AfterForceUnlockChoiceDialog,
 } from "./editing/ConfirmDialogs";
 import { ResumeOrDiscardDialog } from "./editing/ResumeOrDiscardDialog";
-import { GrapesJSBackend } from "../editor/GrapesJSBackend";
 import { PuckBackend } from "../editor/PuckBackend";
 import type { Disposable } from "../editor/EditorBackend";
 import "../styles/editMode.css";
@@ -216,6 +215,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // Puck Backend 用コンテナ ref および Disposable ref
   const puckContainerRef = useRef<HTMLDivElement | null>(null);
   const puckDisposableRef = useRef<Disposable | null>(null);
+  // Puck 用 debounce フラッシュコールバック (#806 M-1: "puck-data" draft 経由で保存)
+  const puckFlushRef = useRef<(() => void) | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
 
@@ -483,15 +484,25 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     if (isReadonly || isSaving) return;
     setIsSaving(true);
     try {
-      // 保留中の debounce timer があれば即時 flush
-      if (draftUpdateTimer.current) {
-        clearTimeout(draftUpdateTimer.current);
-        draftUpdateTimer.current = null;
-        if (editorRef.current) {
-          await mcpBridge.updateDraft("screen", screenId, editorRef.current.getProjectData());
+      if (editorKind === "puck") {
+        // Puck 画面: "puck-data" draft を commit し、"screen" ロックを解放 (#806 M-1)
+        if (puckFlushRef.current) {
+          puckFlushRef.current();
+          puckFlushRef.current = null;
         }
+        await mcpBridge.commitDraft("puck-data", screenId);
+        await mcpBridge.releaseLock("screen", screenId, sessionId);
+      } else {
+        // GrapesJS 画面: 保留中の debounce timer があれば即時 flush
+        if (draftUpdateTimer.current) {
+          clearTimeout(draftUpdateTimer.current);
+          draftUpdateTimer.current = null;
+          if (editorRef.current) {
+            await mcpBridge.updateDraft("screen", screenId, editorRef.current.getProjectData());
+          }
+        }
+        await editActions.save();
       }
-      await editActions.save();
       setIsDirtyState(false);
       isDirtyRef.current = false;
       setDirty(tabId, false);
@@ -519,7 +530,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } finally {
       setIsSaving(false);
     }
-  }, [screenId, tabId, isReadonly, isSaving, editActions, showError]);
+  }, [screenId, tabId, isReadonly, isSaving, editorKind, sessionId, editActions, showError]);
 
   /** 破棄: discardDraft + releaseLock → 本体ファイル再読込 */
   const handleDiscard = useCallback(async () => {
@@ -629,7 +640,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     legacyDataRef.current = null;
   }, [screenId]);
 
-  // Puck Backend のマウント / アンマウント (#806 子 3)。
+  // Puck Backend のマウント / アンマウント (#806 子 3 / M-1 / M-2 修正)。
   // editorKind === "puck" のときのみ実行する。
   // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理するため、
   // このエフェクトは Puck 分岐専用。
@@ -639,29 +650,56 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     if (!container) return;
 
     const backend = new PuckBackend();
-    const grapesJsBackend = new GrapesJSBackend(); // lint: unused in puck branch, kept for symmetry
-    void grapesJsBackend; // suppress unused warning
 
     backend
       .load(screenId, async () => {
-        // draft-state 経由の読込み (#683): hasDraft → readDraft
-        const hasDraftResult = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
-        if (!hasDraftResult?.exists) throw new Error("no draft");
-        const draftData = await mcpBridge.readDraft("screen", screenId);
-        return draftData;
+        // M-2: 2 段フォールバック — draft → committed puck-data.json → EMPTY (#806)
+        // 1. draft が存在すれば draft を返す
+        const hasDraftResult = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+        if (hasDraftResult?.exists) {
+          const draftData = await mcpBridge.readDraft("puck-data", screenId);
+          return draftData;
+        }
+        // 2. 本体 puck-data.json が存在すれば返す (初回オープン / reload 後)
+        const committedData = await mcpBridge.loadPuckData(screenId);
+        if (committedData !== null) {
+          return committedData;
+        }
+        // 3. 両方ない → null を返すと PuckBackend が EMPTY_PUCK_DATA にフォールバック
+        return null;
       })
       .then((state) => {
+        let pendingPayload: unknown = null;
+        let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+        // puckFlushRef にフラッシュ関数を登録 (handleSave が呼ぶ)
+        puckFlushRef.current = () => {
+          if (pendingTimer !== null) {
+            clearTimeout(pendingTimer);
+            pendingTimer = null;
+          }
+          if (pendingPayload !== null) {
+            mcpBridge.updateDraft("puck-data", screenId, pendingPayload).catch(console.error);
+            pendingPayload = null;
+          }
+        };
+
         const disposable = backend.renderEditor(container, state, {
           cssFramework,
           themeVariant: activeTheme,
           onChange: (newState) => {
-            // 変更検知: debounce で updateDraft を呼ぶ
+            // 変更検知: debounce で updateDraft を呼ぶ (M-1: "puck-data" type)
             if (isReadonlyRef.current) return;
             setIsDirtyState(true);
             isDirtyRef.current = true;
-            if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
-            draftUpdateTimer.current = setTimeout(() => {
-              mcpBridge.updateDraft("screen", screenId, newState.payload).catch(console.error);
+            pendingPayload = newState.payload;
+            if (pendingTimer !== null) clearTimeout(pendingTimer);
+            pendingTimer = setTimeout(() => {
+              pendingTimer = null;
+              if (pendingPayload !== null) {
+                mcpBridge.updateDraft("puck-data", screenId, pendingPayload).catch(console.error);
+                pendingPayload = null;
+              }
             }, 300);
           },
         });
@@ -672,6 +710,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       });
 
     return () => {
+      puckFlushRef.current = null;
       if (puckDisposableRef.current) {
         puckDisposableRef.current.dispose();
         puckDisposableRef.current = null;

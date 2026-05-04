@@ -10,8 +10,8 @@
   - E2E spec (puck-editor.spec.ts) の構造的整合性確認
 - **日付**: 2026-05-05
 - **対象サンプル**:
-  - `examples/dogfood-puck-tailwind-2026-05-05/` (Puck × Tailwind)
-  - `examples/dogfood-puck-bootstrap-2026-05-05/` (Puck × Bootstrap)
+  - `workspaces/dogfood-puck-tailwind-2026-05-05/` (Puck × Tailwind)
+  - `workspaces/dogfood-puck-bootstrap-2026-05-05/` (Puck × Bootstrap)
 
 ---
 

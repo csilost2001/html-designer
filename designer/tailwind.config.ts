@@ -19,6 +19,8 @@ export default {
   // content scan で検出できるはずだが、Puck の動的レンダリング経由での取りこぼしを
   // 防ぐため明示的に safelist にも追加する (§ 4.4 / § 11.1 の "両方やる" 推奨に従う)。
   safelist: [
+    // flex direction (Container primitive)
+    "flex", "flex-row", "flex-col",
     // align
     "text-left", "text-center", "text-right",
     // padding (全方向)

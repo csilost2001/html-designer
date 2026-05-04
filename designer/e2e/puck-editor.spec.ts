@@ -30,54 +30,76 @@ const PUCK_SCREEN_ID = "puck-test-0001-4000-8000-aaaaaaaaaaaa";
 const GJS_SCREEN_ID = "grapes-test-0002-4000-8000-bbbbbbbbbbbb";
 const PUCK_TW_SCREEN_ID = "puck-tw-test-0003-4000-8000-cccccccccccc";
 
-/** Puck 画面を含む最小プロジェクト */
+/** Puck 画面を含む最小プロジェクト (v3 schema 形式、S-3 修正) */
 function makeDummyProject(screenOverrides: object[] = []) {
+  const now = new Date().toISOString();
   return {
-    version: 1,
-    name: "Puck E2E テスト用プロジェクト",
-    screens: [
-      {
-        id: PUCK_SCREEN_ID,
-        name: "Puck テスト画面 (Bootstrap)",
-        path: "/puck-test",
-        description: "editorKind=puck / cssFramework=bootstrap のテスト画面",
-        design: {
-          editorKind: "puck",
-          cssFramework: "bootstrap",
+    $schema: "../../schemas/v3/project.v3.schema.json",
+    schemaVersion: "v3",
+    meta: {
+      id: "e2e-puck-test-0000-4000-8000-000000000000",
+      name: "Puck E2E テスト用プロジェクト",
+      createdAt: now,
+      updatedAt: now,
+      mode: "upstream",
+      maturity: "draft",
+    },
+    extensionsApplied: [],
+    design: {
+      cssFramework: "bootstrap",
+      editorKind: "puck",
+    },
+    entities: {
+      screens: [
+        {
+          id: PUCK_SCREEN_ID,
+          no: 1,
+          name: "Puck テスト画面 (Bootstrap)",
+          kind: "other",
+          path: "/puck-test",
+          maturity: "draft",
+          updatedAt: now,
+          design: {
+            editorKind: "puck",
+            cssFramework: "bootstrap",
+          },
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: GJS_SCREEN_ID,
-        name: "GrapesJS テスト画面",
-        path: "/gjs-test",
-        description: "editorKind=grapesjs の既存画面",
-        design: {
-          editorKind: "grapesjs",
-          cssFramework: "bootstrap",
+        {
+          id: GJS_SCREEN_ID,
+          no: 2,
+          name: "GrapesJS テスト画面",
+          kind: "other",
+          path: "/gjs-test",
+          maturity: "draft",
+          updatedAt: now,
+          design: {
+            editorKind: "grapesjs",
+            cssFramework: "bootstrap",
+          },
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: PUCK_TW_SCREEN_ID,
-        name: "Puck Tailwind テスト画面",
-        path: "/puck-tw-test",
-        description: "editorKind=puck / cssFramework=tailwind のテスト画面",
-        design: {
-          editorKind: "puck",
-          cssFramework: "tailwind",
+        {
+          id: PUCK_TW_SCREEN_ID,
+          no: 3,
+          name: "Puck Tailwind テスト画面",
+          kind: "other",
+          path: "/puck-tw-test",
+          maturity: "draft",
+          updatedAt: now,
+          design: {
+            editorKind: "puck",
+            cssFramework: "tailwind",
+          },
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      ...screenOverrides,
-    ],
-    groups: [],
-    edges: [],
-    tables: [],
-    updatedAt: new Date().toISOString(),
+        ...screenOverrides,
+      ],
+      screenGroups: [],
+      screenTransitions: [],
+      tables: [],
+      processFlows: [],
+      views: [],
+      viewDefinitions: [],
+      sequences: [],
+    },
   };
 }
 

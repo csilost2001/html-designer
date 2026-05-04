@@ -5,6 +5,8 @@ import type {
   Timestamp,
 } from "../types/v3";
 import { loadProject } from "./flowStore";
+import { validatePuckScreen } from "../utils/puckScreenValidation";
+import type { PuckScreenValidationError } from "../utils/puckScreenValidation";
 
 export interface ScreenStorageBackend {
   loadScreenEntity(screenId: string): Promise<unknown>;
@@ -69,6 +71,33 @@ export async function loadScreenEntity(screenId: string): Promise<Screen> {
     };
   }
   return buildDefaultScreen(screenId);
+}
+
+/**
+ * 全 Puck 画面の validation エラーマップを返す。
+ * loadTableValidationMap / loadViewValidationMap と同パターン (#806 S-1 / 仕様 §8)。
+ * editorKind=puck の画面のみを対象とし、puckDataPayload は省略 (ファイル load 省略)。
+ */
+export async function loadPuckScreenValidationMap(): Promise<Map<ScreenId, PuckScreenValidationError[]>> {
+  const project = await loadProject();
+  const validationMap = new Map<ScreenId, PuckScreenValidationError[]>();
+
+  // 全画面エンティティを bulk fetch してから editorKind=puck を filter
+  const allEntities = await Promise.all(
+    project.screens.map((entry) => loadScreenEntity(entry.id)),
+  );
+  const puckEntities = allEntities.filter(
+    (entity) => entity.design?.editorKind === "puck",
+  );
+
+  for (const entity of puckEntities) {
+    validationMap.set(
+      entity.id as ScreenId,
+      validatePuckScreen(entity, puckEntities, /* customComponents */ []),
+    );
+  }
+
+  return validationMap;
 }
 
 export async function saveScreenEntity(screen: Screen): Promise<void> {
