@@ -216,8 +216,8 @@
           "kind": "english-learning:LlmDialog",
           "description": "OpenAI GPT-4 / Anthropic Claude 等の LLM API を呼び出す。実装側で provider 選択。temperature 0.7 推奨。ストリーム応答は SSE / WebSocket で実装側が処理し、本フローでは完了後のテキストのみ受け取る。",
           "config": {
-            "context": "@var.turnContext",
-            "userInput": "@var.userInput"
+            "context": "@turnContext",
+            "userInput": "@userInput"
           },
           "outputBinding": { "name": "aiResponse" }
         },
