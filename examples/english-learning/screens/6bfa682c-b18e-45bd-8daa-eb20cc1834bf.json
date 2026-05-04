@@ -53,7 +53,7 @@
         "kind": "tableColumn",
         "ref": { "tableId": "8db75844-19ca-4e7d-8293-579e7631c5cc", "columnId": "col-translation" }
       },
-      "description": "words.translation_ja の表示。"
+      "description": "words.translation の表示。"
     },
     {
       "id": "wordExampleSentence",

@@ -7,7 +7,7 @@
   "createdAt": "2026-05-04T00:00:00.000Z",
   "updatedAt": "2026-05-04T00:00:00.000Z",
   "physicalName": "v_words_with_progress",
-  "selectStatement": "SELECT\n  w.id              AS word_id,\n  w.word            AS word_text,\n  w.reading,\n  w.translation,\n  w.ipa,\n  w.part_of_speech,\n  w.cefr_level,\n  w.example_sentence,\n  uwp.user_id,\n  COALESCE(uwp.status, 'new')              AS progress_status,\n  COALESCE(uwp.correct_count, 0)           AS correct_count,\n  COALESCE(uwp.attempt_count, 0)           AS attempt_count,\n  uwp.last_practiced_at\nFROM words AS w\nLEFT JOIN user_word_progress AS uwp ON uwp.word_id = w.id\nORDER BY w.cefr_level ASC, w.word ASC",
+  "selectStatement": "SELECT\n  w.id              AS word_id,\n  w.word            AS word_text,\n  w.translation,\n  w.ipa,\n  w.part_of_speech,\n  w.cefr_level,\n  w.example_sentence,\n  w.example_translation,\n  uwp.user_id,\n  COALESCE(uwp.status, 'new')              AS progress_status,\n  COALESCE(uwp.correct_count, 0)           AS correct_count,\n  COALESCE(uwp.attempt_count, 0)           AS attempt_count,\n  uwp.last_practiced_at\nFROM words AS w\nLEFT JOIN user_word_progress AS uwp ON uwp.word_id = w.id\nORDER BY w.cefr_level ASC, w.word ASC",
   "outputColumns": [
     {
       "physicalName": "word_id",
@@ -20,12 +20,6 @@
       "name": "単語",
       "dataType": "VARCHAR",
       "description": "英単語テキスト。"
-    },
-    {
-      "physicalName": "reading",
-      "name": "読み方",
-      "dataType": "VARCHAR",
-      "description": "カタカナ読み仮名 (任意)。"
     },
     {
       "physicalName": "translation",
@@ -56,6 +50,12 @@
       "name": "例文",
       "dataType": "TEXT",
       "description": "単語を使った例文 (英文)。"
+    },
+    {
+      "physicalName": "example_translation",
+      "name": "例文訳",
+      "dataType": "TEXT",
+      "description": "例文の日本語訳。"
     },
     {
       "physicalName": "user_id",

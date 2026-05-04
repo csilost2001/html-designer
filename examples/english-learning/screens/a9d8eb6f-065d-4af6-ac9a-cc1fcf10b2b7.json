@@ -30,7 +30,7 @@
       "label": "セリフ日本語訳",
       "type": "string",
       "direction": "output",
-      "description": "dialogue_lines.translation_ja の表示。"
+      "description": "dialogue_lines.translation の表示。"
     },
     {
       "id": "aiResponseText",
