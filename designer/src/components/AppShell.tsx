@@ -125,6 +125,32 @@ export function AppShell() {
     return subscribeRedirectGuardTrip((summary) => setGuardTripped(summary));
   }, []);
 
+  // MCP 接続のライフサイクル単一所有 (元は AppShellInner にあったが、初期 / URL アクセス時には
+  // AppShellInner がマウントされず splash で停滞するため外側 AppShell に移動。outer AppShell は
+  // root component なので app の生存期間中マウントされ続ける):
+  //  - mount 時に startWithoutEditor() を 1 度呼んで能動起動
+  //  - "connected" 受信で loadWorkspaces して active state を最新化 (loading=true → false)
+  //  - "disconnected" は mcpBridge 自身が retry timer を回すので AppShell は何もしない
+  //  - サーバ側物理ログへの定期 flush もここで設定 (#750 follow-up)
+  useEffect(() => {
+    const unsubBroadcast = subscribeWorkspaceChanges();
+    const bridge = mcpBridge as unknown as {
+      onStatusChange: (cb: (s: string) => void) => () => void;
+      startWithoutEditor: () => void;
+      request: (method: string, params?: unknown) => Promise<unknown>;
+    };
+    const unsubStatus = bridge.onStatusChange((s) => {
+      if (s === "connected") {
+        loadWorkspaces().catch(console.error);
+      }
+    });
+    bridge.startWithoutEditor();
+    const unsubFlush = setupServerLogFlush((entries) =>
+      bridge.request("client.log.flush", { entries }),
+    );
+    return () => { unsubBroadcast(); unsubStatus(); unsubFlush(); };
+  }, []);
+
   // workspace が loading 完了後に URL を判定してリダイレクト
   useEffect(() => {
     if (workspaceState.loading) return;
@@ -196,33 +222,9 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
   }, []);
 
-  // AppShell が MCP 接続のライフサイクルを単一所有する (#676 review):
-  //  - mount 時に startWithoutEditor() を 1 度呼んで能動起動 (Dashboard 等で初回ランディング
-  //    した時にも bridge を必ず立ち上げる)。
-  //  - "connected" 受信で loadWorkspaces して active state を最新化。
-  //  - "disconnected" は mcpBridge 自身が RETRY_DELAY_MS の retry timer を回すので、AppShell は
-  //    何もしない (二重 reconnect で接続が在りえない遷移をするのを避けるため)。
-  //  - Designer は workspace 機能を破壊しないよう mcpBridge.stop() を呼ばない設計に変更済み
-  //    (Designer.tsx 参照)。なので AppShell が stop() の事後復帰を心配する必要は無い。
-  useEffect(() => {
-    const unsubBroadcast = subscribeWorkspaceChanges();
-    const bridge = mcpBridge as unknown as {
-      onStatusChange: (cb: (s: string) => void) => () => void;
-      startWithoutEditor: () => void;
-      request: (method: string, params?: unknown) => Promise<unknown>;
-    };
-    const unsubStatus = bridge.onStatusChange((s) => {
-      if (s === "connected") {
-        loadWorkspaces().catch(console.error);
-      }
-    });
-    bridge.startWithoutEditor();
-    // サーバ側物理ログへの定期 flush (#750 follow-up): warn/error を designer-mcp/logs/ に永続化
-    const unsubFlush = setupServerLogFlush((entries) =>
-      bridge.request("client.log.flush", { entries }),
-    );
-    return () => { unsubBroadcast(); unsubStatus(); unsubFlush(); };
-  }, []);
+  // MCP 接続のライフサイクルは外側 AppShell が単一所有する (#676 review)。
+  // 初期 / URL アクセス時に AppShellInner はマウントされない (splash で外側が停滞するため)
+  // 経路で deadlock した regression 修正 — 外側 AppShell の useEffect に移動済。
 
   // workspace state 変化を log 化 (ループ追跡用)
   useEffect(() => {
