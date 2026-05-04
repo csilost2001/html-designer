@@ -1,23 +1,23 @@
 /* eslint-disable react-refresh/only-export-components */
 /**
- * PuckBackend — EditorBackend の Puck 実装 (雛形)。
+ * PuckBackend — EditorBackend の Puck 実装。
  *
- * 本 task (子 3) では動作確認用の HeadingBlock 1 つだけを持つ最小構成。
- * 共通レイアウト props システム (§ 2.6) と Puck primitive 15-20 個は子 4 で実装する。
+ * 子 3 の HeadingBlock 単体 Config を廃止し、子 4 で実装した全 primitive
+ * (20 個) を buildPuckConfig() 経由で組み込む。
  *
- * cssFramework に応じたクラス名切り替えは子 4 で layoutPropsMapping に置き換える。
- * ここでは仮実装として直接 switch する。
+ * CssFrameworkContext.Provider で Puck コンポーネントツリーを wrap することで、
+ * 各 primitive の render 関数が useCssFramework() で cssFramework を参照できる。
  *
- * 詳細仕様: docs/spec/multi-editor-puck.md § 3 / § 2.4
+ * 詳細仕様: docs/spec/multi-editor-puck.md § 3 / § 4.2 / § 4.3
  *
- * #806 子 3
+ * #806 子 4
  */
 
 import React from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { Puck } from "@measured/puck";
-import type { Config, Data } from "@measured/puck";
+import type { Data } from "@measured/puck";
 import "@measured/puck/puck.css";
 
 import type {
@@ -26,6 +26,8 @@ import type {
   RenderOpts,
   Disposable,
 } from "./EditorBackend";
+import { CssFrameworkProvider } from "../puck/CssFrameworkContext";
+import { buildPuckConfig } from "../puck/buildConfig";
 
 // -----------------------------------------------------------------------
 // 空の Puck Data (新規画面のデフォルト)
@@ -51,44 +53,6 @@ function toPuckData(payload: unknown): Data {
 }
 
 // -----------------------------------------------------------------------
-// Puck Config の型 (HeadingBlock 用)
-// -----------------------------------------------------------------------
-
-/** HeadingBlock のプロップ定義。 */
-type HeadingBlockConfig = Config<{ HeadingBlock: { text: string } }>;
-
-/**
- * HeadingBlock コンポーネント設定ファクトリ。
- * cssFramework に応じて適切なクラス名を使用する。
- *
- * 子 4 で layoutPropsMapping に置き換える前提の仮実装。
- * Tailwind JIT 対応のため完全クラス名を static に列挙する (§ 11.1)。
- */
-function buildConfig(cssFramework: "bootstrap" | "tailwind"): HeadingBlockConfig {
-  const headingClass = cssFramework === "tailwind" ? "text-2xl font-bold" : "h2";
-
-  return {
-    components: {
-      HeadingBlock: {
-        label: "見出し",
-        fields: {
-          text: {
-            type: "text" as const,
-            label: "見出しテキスト",
-          },
-        },
-        defaultProps: {
-          text: "見出しテキスト",
-        },
-        render: ({ text }) => (
-          <h2 className={headingClass}>{text}</h2>
-        ),
-      },
-    },
-  };
-}
-
-// -----------------------------------------------------------------------
 // PuckEditorWrapper (React コンポーネント)
 // -----------------------------------------------------------------------
 
@@ -103,10 +67,9 @@ function PuckEditorWrapper({
   cssFramework,
   onChange,
 }: PuckEditorWrapperProps) {
-  const config = React.useMemo(
-    () => buildConfig(cssFramework),
-    [cssFramework],
-  );
+  // buildPuckConfig は cssFramework 非依存 (全 primitive を含む)。
+  // cssFramework は CssFrameworkContext 経由で各 primitive の render に伝わる。
+  const config = React.useMemo(() => buildPuckConfig(), []);
 
   const handleChange = React.useCallback(
     (data: Data) => {
@@ -118,16 +81,20 @@ function PuckEditorWrapper({
   );
 
   return (
-    <Puck
-      config={config}
-      data={initialData}
-      onChange={handleChange}
-      // ヘッダーのデフォルト "Publish" ボタンは PuckBackend では使わない。
-      // 明示保存式 (#683) なので onPublish は不要。
-      onPublish={() => {
-        // no-op: 明示保存は Designer.tsx の handleSave 経由
-      }}
-    />
+    // CssFrameworkProvider で Puck ツリー全体を wrap。
+    // 各 primitive の render は useCssFramework() でここの値を参照する。
+    <CssFrameworkProvider value={cssFramework}>
+      <Puck
+        config={config}
+        data={initialData}
+        onChange={handleChange}
+        // ヘッダーのデフォルト "Publish" ボタンは PuckBackend では使わない。
+        // 明示保存式 (#683) なので onPublish は no-op。
+        onPublish={() => {
+          // no-op: 明示保存は Designer.tsx の handleSave 経由
+        }}
+      />
+    </CssFrameworkProvider>
   );
 }
 
@@ -139,10 +106,10 @@ function PuckEditorWrapper({
  * PuckBackend — @measured/puck を container DOM にマウントする EditorBackend 実装。
  *
  * ライフサイクル:
- *   1. load()        — draftRead で Puck Data を取得 (無ければ empty data)
+ *   1. load()         — draftRead で Puck Data を取得 (無ければ empty data)
  *   2. renderEditor() — container に React ツリーをマウント
- *   3. save()        — Puck Data を draftWrite に渡す
- *   4. dispose()     — React ルートを unmount してクリーンアップ
+ *   3. save()         — Puck Data を draftWrite に渡す
+ *   4. dispose()      — React ルートを unmount してクリーンアップ
  */
 export class PuckBackend implements EditorBackend {
   /**
@@ -179,6 +146,7 @@ export class PuckBackend implements EditorBackend {
   /**
    * container DOM に Puck エディタをマウントする。
    * React の createRoot を使用して PuckEditorWrapper をレンダリングする。
+   * CssFrameworkProvider により cssFramework が全 primitive に伝達される。
    *
    * @returns Disposable — dispose() で React ルートを unmount する
    */
