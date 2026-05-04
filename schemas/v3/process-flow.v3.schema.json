@@ -410,6 +410,23 @@
         },
         "initialValue": {
           "description": "accumulate / push 時の初期値。JSON 値 (例: 0, []) または式文字列。"
+        },
+        "transformations": {
+          "type": "array",
+          "description": "結果列の型変換指示。runtime が SELECT 結果を binding に格納する前に各 field の型を変換する。SQL 方言 (PG COUNT(*)→bigint→string、SUM(...)→decimal→string 等) を吸収する責務をフレームワーク側に持たせ、SQL を DB 中立に保つ。SQL 側に CAST(...) を書く必要がなくなる。",
+          "items": {
+            "type": "object",
+            "required": ["field", "type"],
+            "additionalProperties": false,
+            "properties": {
+              "field": { "type": "string", "description": "変換対象の column 名 (SELECT alias 名)。例: \"itemCount\"、\"totalAmount\"。" },
+              "type": {
+                "type": "string",
+                "enum": ["integer", "float", "boolean", "date", "json"],
+                "description": "変換後の型。integer=parseInt / float=parseFloat / boolean=truthy 判定 / date=new Date / json=JSON.parse。"
+              }
+            }
+          }
         }
       }
     },

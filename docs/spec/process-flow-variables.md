@@ -87,10 +87,16 @@ interface ActionDefinition {
 // v3 で string 短縮形廃止、object 形式に統一
 type OutputBindingOperation = "assign" | "accumulate" | "push";
 
+interface OutputBindingTransformation {
+  field: string;                                         // 変換対象 column 名 (SELECT alias 名)
+  type: "integer" | "float" | "boolean" | "date" | "json"; // 変換後の型
+}
+
 interface OutputBinding {
-  name: string;                       // Identifier (camelCase 強制)
-  operation?: OutputBindingOperation; // 既定 "assign"
-  initialValue?: string;              // accumulate: "0", push: "[]" 相当 (式可)
+  name: string;                            // Identifier (camelCase 強制)
+  operation?: OutputBindingOperation;      // 既定 "assign"
+  initialValue?: string;                   // accumulate: "0", push: "[]" 相当 (式可)
+  transformations?: OutputBindingTransformation[]; // SELECT 結果の型変換 (#781)
 }
 
 interface StepBaseProps {
@@ -102,6 +108,42 @@ operation の意味:
 - `assign` (既定): 上書き代入
 - `accumulate`: `+=` で数値累積 (例: 税額計算の積算)
 - `push`: 配列の末尾追加 (例: ループ内で enrichedItems を構築)
+
+#### transformations — DB 方言吸収 (#781)
+
+`transformations` は SQL の SELECT 結果を binding に格納する前に runtime が型変換するための宣言。**SQL 側に `CAST(...)` を書かずに DB 中立な SQL を保ちつつ**、PG 固有の型変換問題を吸収できる。
+
+| type | 変換処理 | 主なユースケース |
+|------|----------|----------------|
+| `integer` | `parseInt(value, 10)` | PG `COUNT(*)`→bigint→string |
+| `float` | `parseFloat(value)` | PG `SUM(amount)`→decimal→string |
+| `boolean` | truthy 判定 | PG `bool` 値→string "t"/"f" |
+| `date` | `new Date(value)` | ISO 日付文字列→Date オブジェクト |
+| `json` | `JSON.parse(value)` | JSON 文字列→オブジェクト |
+
+**AI 実装時のルール**:
+1. PG `COUNT(*)` / `SUM(...)` / `AVG(...)` 等の集約関数を使う `dbAccess` step は、後続で数値比較する場合 `transformations` で `integer` または `float` を宣言する
+2. SQL 側では `CAST(COUNT(*) AS INTEGER)` 等の DB 固有構文を**使わない** (`transformations` で吸収する)
+3. `field` には SELECT の alias 名を指定する (例: `"itemCount"`, `"totalAmount"`)
+
+**例 (retail カート追加フロー)**:
+
+```json
+{
+  "id": "step-09",
+  "kind": "dbAccess",
+  "operation": "SELECT",
+  "sql": "SELECT COUNT(*) AS \"itemCount\" FROM cart_items WHERE cart_id = @cart.id",
+  "outputBinding": {
+    "name": "cartItemCount",
+    "transformations": [
+      { "field": "itemCount", "type": "integer" }
+    ]
+  }
+}
+```
+
+後続の `@cartItemCount.itemCount >= @conv.limit.cartMaxItems` は数値比較として正しく評価される。
 
 対応ステップタイプ (v3):
 

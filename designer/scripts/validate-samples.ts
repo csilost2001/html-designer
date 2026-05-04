@@ -450,6 +450,55 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
       issues.push(issue("processFlowAntipatternValidator", i.code, i.path, i.message, i.severity));
     }
 
+    // #781: outputBinding.transformations の field 重複チェック
+    if (Array.isArray(flow.actions)) {
+      for (let ai = 0; ai < flow.actions.length; ai++) {
+        const action = flow.actions[ai];
+        if (!Array.isArray(action.steps)) continue;
+        const checkTransformations = (steps: unknown[], basePath: string) => {
+          for (let si = 0; si < steps.length; si++) {
+            const step = steps[si] as Record<string, unknown>;
+            const path = `${basePath}[${si}]`;
+            const ob = step.outputBinding as Record<string, unknown> | undefined;
+            if (ob && Array.isArray(ob.transformations)) {
+              const seen = new Set<string>();
+              for (const t of ob.transformations as { field?: string }[]) {
+                if (t.field) {
+                  if (seen.has(t.field)) {
+                    issues.push(issue(
+                      "outputBindingTransformationsValidator",
+                      "DUPLICATE_TRANSFORMATION_FIELD",
+                      `${path}.outputBinding.transformations`,
+                      `field "${t.field}" が transformations に重複して定義されています。同一 field への変換は 1 件のみ許可されます。`,
+                    ));
+                  }
+                  seen.add(t.field);
+                }
+              }
+            }
+            // ネスト (branch / loop / transactionScope 等)
+            for (const nestedKey of ["steps", "elseBranch"]) {
+              if (nestedKey === "steps" && Array.isArray(step.steps)) {
+                checkTransformations(step.steps as unknown[], `${path}.steps`);
+              } else if (nestedKey === "elseBranch" && step.elseBranch) {
+                const eb = step.elseBranch as Record<string, unknown>;
+                if (Array.isArray(eb.steps)) checkTransformations(eb.steps as unknown[], `${path}.elseBranch.steps`);
+              }
+            }
+            if (Array.isArray(step.branches)) {
+              for (let bi = 0; bi < (step.branches as unknown[]).length; bi++) {
+                const branch = (step.branches as Record<string, unknown>[])[bi];
+                if (Array.isArray(branch.steps)) {
+                  checkTransformations(branch.steps as unknown[], `${path}.branches[${bi}].steps`);
+                }
+              }
+            }
+          }
+        };
+        checkTransformations(action.steps as unknown[], `actions[${ai}].steps`);
+      }
+    }
+
     return { filePath, displayName, projectId: project.projectId, issues };
   }
 
@@ -546,6 +595,7 @@ const validatorDisplayOrder = [
   "screenNavigationValidator",
   "runtimeContractValidator",
   "processFlowAntipatternValidator",
+  "outputBindingTransformationsValidator",
 ];
 
 export function printSummary(summary: ValidationSummary): void {
