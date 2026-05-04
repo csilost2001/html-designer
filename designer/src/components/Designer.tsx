@@ -28,6 +28,8 @@ import { loadScreenEntity } from "../store/screenStore";
 import { makeTabId, setDirty } from "../store/tabStore";
 import type { CssFramework } from "../types/v3/project";
 import { resolveCssFramework } from "../utils/resolveCssFramework";
+import { resolveEditorKind } from "../utils/resolveEditorKind";
+import type { EditorKind } from "../utils/resolveEditorKind";
 import { clearItemsFromCache } from "../store/screenItemsStore";
 import { useEditSession } from "../hooks/useEditSession";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
@@ -38,6 +40,9 @@ import {
   AfterForceUnlockChoiceDialog,
 } from "./editing/ConfirmDialogs";
 import { ResumeOrDiscardDialog } from "./editing/ResumeOrDiscardDialog";
+import { GrapesJSBackend } from "../editor/GrapesJSBackend";
+import { PuckBackend } from "../editor/PuckBackend";
+import type { Disposable } from "../editor/EditorBackend";
 import "../styles/editMode.css";
 
 /**
@@ -206,6 +211,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // project.design.cssFramework (#793 子 5): 省略時は "bootstrap" (schema default と一致)
   const [cssFramework, setCssFramework] = useState<CssFramework>("bootstrap");
   const cssFrameworkRef = useRef<CssFramework>("bootstrap");
+  // editorKind (#806 子 3): 省略時は "grapesjs" (schema default と一致)
+  const [editorKind, setEditorKind] = useState<EditorKind>("grapesjs");
+  // Puck Backend 用コンテナ ref および Disposable ref
+  const puckContainerRef = useRef<HTMLDivElement | null>(null);
+  const puckDisposableRef = useRef<Disposable | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
 
@@ -275,9 +285,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
 
-  // cssFramework を画面 + プロジェクトから読み込む (screenId が変わるたびに再解決)。
-  // 解決順序: screen.design.cssFramework ?? project.design.cssFramework ?? "bootstrap"
-  // (css-framework-switching.md § 1.3.1 / multi-editor-puck.md § 2.3 / #806 子 2)
+  // cssFramework と editorKind を画面 + プロジェクトから読み込む (screenId が変わるたびに再解決)。
+  // 解決順序 (multi-editor-puck.md § 2.3 / css-framework-switching.md § 1.3.1 / #806 子 2/3):
+  //   1. screen.design.* (画面個別指定)
+  //   2. project.design.* (project default)
+  //   3. "bootstrap" / "grapesjs" (最終 default)
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -288,8 +300,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       const fw = resolveCssFramework(screen.design, raw.design);
       setCssFramework(fw);
       cssFrameworkRef.current = fw;
+      const ek = resolveEditorKind(screen.design, raw.design);
+      setEditorKind(ek);
     }).catch((e) => {
-      console.warn("[Designer] cssFramework resolve failed, using default 'bootstrap'", e);
+      console.warn("[Designer] cssFramework/editorKind resolve failed, using defaults", e);
     });
     return () => { cancelled = true; };
   }, [screenId]);
@@ -615,6 +629,167 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     legacyDataRef.current = null;
   }, [screenId]);
 
+  // Puck Backend のマウント / アンマウント (#806 子 3)。
+  // editorKind === "puck" のときのみ実行する。
+  // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理するため、
+  // このエフェクトは Puck 分岐専用。
+  useEffect(() => {
+    if (editorKind !== "puck") return;
+    const container = puckContainerRef.current;
+    if (!container) return;
+
+    const backend = new PuckBackend();
+    const grapesJsBackend = new GrapesJSBackend(); // lint: unused in puck branch, kept for symmetry
+    void grapesJsBackend; // suppress unused warning
+
+    backend
+      .load(screenId, async () => {
+        // draft-state 経由の読込み (#683): hasDraft → readDraft
+        const hasDraftResult = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+        if (!hasDraftResult?.exists) throw new Error("no draft");
+        const draftData = await mcpBridge.readDraft("screen", screenId);
+        return draftData;
+      })
+      .then((state) => {
+        const disposable = backend.renderEditor(container, state, {
+          cssFramework,
+          themeVariant: activeTheme,
+          onChange: (newState) => {
+            // 変更検知: debounce で updateDraft を呼ぶ
+            if (isReadonlyRef.current) return;
+            setIsDirtyState(true);
+            isDirtyRef.current = true;
+            if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
+            draftUpdateTimer.current = setTimeout(() => {
+              mcpBridge.updateDraft("screen", screenId, newState.payload).catch(console.error);
+            }, 300);
+          },
+        });
+        puckDisposableRef.current = disposable;
+      })
+      .catch((e) => {
+        console.warn("[Designer] PuckBackend.load failed", e);
+      });
+
+    return () => {
+      if (puckDisposableRef.current) {
+        puckDisposableRef.current.dispose();
+        puckDisposableRef.current = null;
+      }
+    };
+  // cssFramework / activeTheme の変更時は再マウントしない (初回マウント時のみ)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorKind, screenId]);
+
+  // ---------------------------------------------------------------------------
+  // 共通ダイアログ群 (GrapesJS / Puck 両方で使う)
+  // ---------------------------------------------------------------------------
+  const commonDialogs = (
+    <>
+      {/* 編集モードツールバー */}
+      <EditModeToolbar
+        mode={mode}
+        onStartEditing={editActions.startEditing}
+        onSave={handleSave}
+        onDiscardClick={() => setShowDiscardDialog(true)}
+        onForceReleaseClick={() => setShowForceReleaseDialog(true)}
+        saving={isSaving}
+        ownerLabel={lockedByOther?.ownerSessionId}
+      />
+
+      {/* 強制解除 / ForcedOut / AfterForceUnlock ダイアログ */}
+      {mode.kind === "force-released-pending" && (
+        <ForcedOutChoiceDialog
+          previousDraftExists={mode.previousDraftExists}
+          onChoice={(choice) => editActions.handleForcedOut(choice)}
+        />
+      )}
+      {mode.kind === "after-force-unlock" && (
+        <AfterForceUnlockChoiceDialog
+          previousOwner={mode.previousOwner}
+          onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
+        />
+      )}
+
+      {showResumeDialog && (
+        <ResumeOrDiscardDialog
+          onResume={handleResumeContinue}
+          onDiscard={handleResumeDiscard}
+          onCancel={() => setShowResumeDialog(false)}
+        />
+      )}
+
+      {showDiscardDialog && (
+        <DiscardConfirmDialog
+          onConfirm={handleDiscard}
+          onCancel={() => setShowDiscardDialog(false)}
+        />
+      )}
+
+      {showForceReleaseDialog && lockedByOther && (
+        <ForceReleaseConfirmDialog
+          ownerSessionId={lockedByOther.ownerSessionId}
+          onConfirm={handleForceRelease}
+          onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+
+      {showLegacyRescueDialog && (
+        <LegacyRescueDialog
+          onAdopt={handleLegacyRescueAdopt}
+          onDiscard={handleLegacyRescueDiscard}
+        />
+      )}
+
+      {serverChanged && (
+        <ServerChangeBanner
+          onReload={handleServerChangeReload}
+          onDismiss={() => setServerChanged(false)}
+        />
+      )}
+    </>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Puck エディタ表示 (#806 子 3)
+  // editorKind === "puck" のときはシンプルな div ベースレイアウトで Puck をマウントする。
+  // GrapesJS 固有の GjsEditor / WithEditor / BlocksProvider は使用しない。
+  // ---------------------------------------------------------------------------
+  if (editorKind === "puck") {
+    return (
+      <div className={`designer-root${isReadonly ? " is-readonly" : ""}`}>
+        <div className="designer-layout">
+          {/* サブツールバー: editorKind=puck では DesignSubToolbar の WithEditor ラッパーは不要 */}
+          <DesignSubToolbar
+            panelMode={panelMode}
+            onOpenPanel={openPanel}
+            activeTheme={activeTheme}
+            onThemeChange={handleThemeChange}
+            mcpStatus={mcpStatus}
+            isDirty={isDirty}
+            isSaving={isSaving}
+            onSaveToFile={handleSave}
+            onReset={async () => setShowDiscardDialog(true)}
+            backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
+            screenId={screenId}
+            isReadonly={isReadonly}
+          />
+          {commonDialogs}
+          {/* Puck エディタがマウントされるコンテナ */}
+          <div
+            ref={puckContainerRef}
+            className="puck-editor-container"
+            style={{ flex: 1, overflow: "auto" }}
+            data-testid="puck-editor-container"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // GrapesJS エディタ表示 (既存挙動を維持)
+  // ---------------------------------------------------------------------------
   return (
     <GjsEditor
       className={`designer-root${isReadonly ? " is-readonly" : ""}`}
@@ -647,67 +822,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
           />
         </WithEditor>
 
-        {/* 編集モードツールバー (EditModeToolbar) */}
-        <EditModeToolbar
-          mode={mode}
-          onStartEditing={editActions.startEditing}
-          onSave={handleSave}
-          onDiscardClick={() => setShowDiscardDialog(true)}
-          onForceReleaseClick={() => setShowForceReleaseDialog(true)}
-          saving={isSaving}
-          ownerLabel={lockedByOther?.ownerSessionId}
-        />
-
-        {/* 強制解除 / ForcedOut / AfterForceUnlock ダイアログ */}
-        {mode.kind === "force-released-pending" && (
-          <ForcedOutChoiceDialog
-            previousDraftExists={mode.previousDraftExists}
-            onChoice={(choice) => editActions.handleForcedOut(choice)}
-          />
-        )}
-        {mode.kind === "after-force-unlock" && (
-          <AfterForceUnlockChoiceDialog
-            previousOwner={mode.previousOwner}
-            onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
-          />
-        )}
-
-        {showResumeDialog && (
-          <ResumeOrDiscardDialog
-            onResume={handleResumeContinue}
-            onDiscard={handleResumeDiscard}
-            onCancel={() => setShowResumeDialog(false)}
-          />
-        )}
-
-        {showDiscardDialog && (
-          <DiscardConfirmDialog
-            onConfirm={handleDiscard}
-            onCancel={() => setShowDiscardDialog(false)}
-          />
-        )}
-
-        {showForceReleaseDialog && lockedByOther && (
-          <ForceReleaseConfirmDialog
-            ownerSessionId={lockedByOther.ownerSessionId}
-            onConfirm={handleForceRelease}
-            onCancel={() => setShowForceReleaseDialog(false)}
-          />
-        )}
-
-        {showLegacyRescueDialog && (
-          <LegacyRescueDialog
-            onAdopt={handleLegacyRescueAdopt}
-            onDiscard={handleLegacyRescueDiscard}
-          />
-        )}
-
-        {serverChanged && (
-          <ServerChangeBanner
-            onReload={handleServerChangeReload}
-            onDismiss={() => setServerChanged(false)}
-          />
-        )}
+        {commonDialogs}
 
         <div className="designer-body">
           <div className={`panel-left-wrapper is-${panelMode}`}>
