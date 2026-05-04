@@ -427,7 +427,8 @@
         {
           "id": "step-07",
           "kind": "branch",
-          "description": "TX 失敗時にエラーコード別レスポンスを返す。@txResult.error.code で STOCK_SHORTAGE / ORDER_NUMBER_CONFLICT を識別し、それ以外 (UNHANDLED) は 422-order-confirm-failed に集約する。TX 成功時は else 経路で step-08 へ fallthrough する (ADR-007)。",
+          "runIf": "@txResult.committed == false",
+          "description": "TX 失敗時にエラーコード別レスポンスを返す (runIf ガード済: TX 失敗時のみ評価)。@txResult.error.code で STOCK_SHORTAGE / ORDER_NUMBER_CONFLICT を識別し、それ以外 (UNHANDLED) は 422-order-confirm-failed に集約する。TX 成功時は runIf ガードにより skip される (ADR-007、spec §8.3 準拠)。",
           "branches": [
             {
               "id": "br-07-stock",
@@ -495,7 +496,8 @@
         {
           "id": "step-08",
           "kind": "dbAccess",
-          "description": "TX コミット後に orders を再取得する。TX 内の insertedOrder の変数をそのまま参照するとネスト変数問題が起きるため、TX 後に SELECT で再取得する。",
+          "runIf": "@txResult.committed == true",
+          "description": "TX コミット後に orders を再取得する (runIf ガード済: TX commit 後にのみ実行)。TX 内の insertedOrder の変数をそのまま参照するとネスト変数問題が起きるため、TX 後に SELECT で再取得する (spec §8.3 準拠)。",
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
           "sql": "SELECT id, order_number AS \"orderNumber\", customer_id AS \"customerId\", status, total_amount AS \"totalAmount\", ordered_at AS \"orderedAt\" FROM orders WHERE order_number = @newOrderNumber",
@@ -507,7 +509,8 @@
         {
           "id": "step-08b",
           "kind": "branch",
-          "description": "TX コミット後の orders 再取得で null の場合は内部エラーとして 422 を返す (TX コミット直後なので理論上は発生しないが安全ガード)。",
+          "runIf": "@txResult.committed == true",
+          "description": "TX コミット後の orders 再取得で null の場合は内部エラーとして 422 を返す (runIf ガード済: TX commit 後にのみ評価。TX コミット直後なので理論上は発生しないが安全ガード、spec §8.3 準拠)。",
           "branches": [
             {
               "id": "br-08b-a",
@@ -539,14 +542,16 @@
         {
           "id": "step-09",
           "kind": "eventPublish",
-          "description": "retail.order.confirmed イベントを発行する。TX コミット後 + persistedOrder 再取得後に発行するため、イベントペイロードは確定済み値のみ参照する。",
+          "runIf": "@txResult.committed == true",
+          "description": "retail.order.confirmed イベントを発行する (runIf ガード済: TX commit 後にのみ実行)。TX コミット後 + persistedOrder 再取得後に発行するため、イベントペイロードは確定済み値のみ参照する (spec §8.3 準拠)。",
           "topic": "retail.order.confirmed",
           "payload": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.orderNumber, customerId: @persistedOrder.customerId, totalAmount: @persistedOrder.totalAmount }"
         },
         {
           "id": "step-10",
           "kind": "return",
-          "description": "200 OK — 注文確定完了を返す。",
+          "runIf": "@txResult.committed == true",
+          "description": "200 OK — 注文確定完了を返す (runIf ガード済: TX commit 後にのみ実行、spec §8.3 準拠)。",
           "responseId": "200-ok",
           "bodyExpression": "{ orderId: @persistedOrder.id, orderNumber: @persistedOrder.orderNumber, totalAmount: @persistedOrder.totalAmount, orderedAt: @persistedOrder.orderedAt, message: '注文が確定しました。注文番号: ' + @persistedOrder.orderNumber }"
         }

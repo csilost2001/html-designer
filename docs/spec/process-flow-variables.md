@@ -121,9 +121,13 @@ operation の意味:
 | `date` | `new Date(value)` | ISO 日付文字列→Date オブジェクト |
 | `json` | `JSON.parse(value)` | JSON 文字列→オブジェクト |
 
+**適用範囲**:
+- `transformations` は `dbAccess` step の `outputBinding` に対して適用される。
+- `transactionScope` の outputBinding (`txResult.committed` / `txResult.error`) には適用されない (txResult はフレームワークが型付きで expose するため変換不要)。
+
 **AI 実装時のルール**:
 1. PG `COUNT(*)` / `SUM(...)` / `AVG(...)` 等の集約関数を使う `dbAccess` step は、後続で数値比較する場合 `transformations` で `integer` または `float` を宣言する
-2. SQL 側では `CAST(COUNT(*) AS INTEGER)` 等の DB 固有構文を**使わない** (`transformations` で吸収する)
+2. SQL 側では PG 等の DB 固有の `CAST(COUNT(*) AS INTEGER)` 等の構文を書かず、`transformations` 経由で runtime に吸収させる (DB 中立な SQL を保つため)
 3. `field` には SELECT の alias 名を指定する (例: `"itemCount"`, `"totalAmount"`)
 
 **例 (retail カート追加フロー)**:

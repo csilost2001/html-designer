@@ -493,6 +493,13 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
                 }
               }
             }
+            // transactionScope の onCommit / onRollback 配下も走査 (#785 Nit)
+            if (Array.isArray(step.onCommit)) {
+              checkTransformations(step.onCommit as unknown[], `${path}.onCommit`);
+            }
+            if (Array.isArray(step.onRollback)) {
+              checkTransformations(step.onRollback as unknown[], `${path}.onRollback`);
+            }
           }
         };
         checkTransformations(action.steps as unknown[], `actions[${ai}].steps`);

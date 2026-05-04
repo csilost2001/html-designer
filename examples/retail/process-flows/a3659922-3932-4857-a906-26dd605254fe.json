@@ -66,7 +66,13 @@
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
           "sql": "SELECT COALESCE(SUM(total_amount + tax_amount), 0) AS \"todaySales\", COUNT(*) AS \"ordersToday\" FROM orders WHERE DATE(ordered_at) = CURRENT_DATE AND status != 'cancelled'",
-          "outputBinding": { "name": "ordersAgg" },
+          "outputBinding": {
+            "name": "ordersAgg",
+            "transformations": [
+              { "field": "todaySales", "type": "float" },
+              { "field": "ordersToday", "type": "integer" }
+            ]
+          },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
           }
@@ -78,7 +84,12 @@
           "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
           "operation": "SELECT",
           "sql": "SELECT COUNT(*) AS \"lowStockCount\" FROM inventory WHERE quantity_available <= @conv.limit.lowStockThreshold",
-          "outputBinding": { "name": "lowStockAgg" },
+          "outputBinding": {
+            "name": "lowStockAgg",
+            "transformations": [
+              { "field": "lowStockCount", "type": "integer" }
+            ]
+          },
           "lineage": {
             "reads": [{ "tableId": "834ede22-3cb0-4dcf-aa8a-7c046664774a", "purpose": "lookup" }]
           }
@@ -90,7 +101,12 @@
           "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
           "operation": "SELECT",
           "sql": "SELECT COUNT(*) AS \"dispatchPending\" FROM orders WHERE status IN ('pending', 'confirmed')",
-          "outputBinding": { "name": "dispatchAgg" },
+          "outputBinding": {
+            "name": "dispatchAgg",
+            "transformations": [
+              { "field": "dispatchPending", "type": "integer" }
+            ]
+          },
           "lineage": {
             "reads": [{ "tableId": "10d555e2-8041-4192-86f3-9e2a3ac581ab", "purpose": "lookup" }]
           }
