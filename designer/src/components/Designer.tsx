@@ -23,8 +23,9 @@ import { ServerChangeBanner } from "./common/ServerChangeBanner";
 import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
-import { loadProject, updateScreenThumbnail } from "../store/flowStore";
+import { loadProject, loadRawProject, updateScreenThumbnail } from "../store/flowStore";
 import { makeTabId, setDirty } from "../store/tabStore";
+import type { CssFramework } from "../types/v3/project";
 import { clearItemsFromCache } from "../store/screenItemsStore";
 import { useEditSession } from "../hooks/useEditSession";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
@@ -85,26 +86,62 @@ const THEME_KEY = "designer-theme";
 export type PanelMode = "pinned" | "autohide" | "hidden";
 export type ThemeId = "standard" | "card" | "compact" | "dark";
 
-const THEME_URLS: Record<ThemeId, string | null> = {
+/**
+ * CSS framework 軸 (#793 子 5)。
+ * project.design.cssFramework に応じて canvas iframe に読み込む framework CSS。
+ * - bootstrap: Bootstrap 5 + common.css (theme-bootstrap.css)
+ * - tailwind: Tailwind utility-first @apply theme (theme-tailwind.css)
+ */
+const FRAMEWORK_URLS: Record<CssFramework, string> = {
+  bootstrap: new URL("../styles/themes/theme-bootstrap.css", import.meta.url).href,
+  tailwind: new URL("../styles/themes/theme-tailwind.css", import.meta.url).href,
+};
+
+/**
+ * variant 軸 (従来の THEME_URLS を rename)。
+ * standard は framework デフォルトの見た目そのまま (上書きなし)。
+ */
+const VARIANT_URLS: Record<ThemeId, string | null> = {
   standard: null,
   card: new URL("../styles/theme-card.css", import.meta.url).href,
   compact: new URL("../styles/theme-compact.css", import.meta.url).href,
   dark: new URL("../styles/theme-dark.css", import.meta.url).href,
 };
 
-function applyThemeToCanvas(editor: GEditor, themeId: ThemeId) {
+/**
+ * canvas iframe に framework × variant の 2 軸 CSS を注入する (#793 子 5)。
+ *
+ * 注入順:
+ *   1. dz-framework-css  ← FRAMEWORK_URLS[framework] (Bootstrap または Tailwind theme)
+ *   2. dz-variant-override ← VARIANT_URLS[variant] (card/compact/dark の上書き、standard は省略)
+ *
+ * MVP 制約: tailwind framework は standard variant のみサポート。
+ * card/compact/dark × tailwind は仕様書 7.3 節で future work と明記。
+ */
+function applyThemeToCanvas(editor: GEditor, variant: ThemeId, framework: CssFramework) {
   try {
     const canvasDoc = editor.Canvas.getDocument();
     if (!canvasDoc) return;
-    const existing = canvasDoc.getElementById("dz-theme-override");
-    if (existing) existing.remove();
-    const url = THEME_URLS[themeId];
-    if (url) {
-      const link = canvasDoc.createElement("link");
-      link.id = "dz-theme-override";
-      link.rel = "stylesheet";
-      link.href = url;
-      canvasDoc.head.appendChild(link);
+
+    // 1. framework CSS (bootstrap or tailwind)
+    const existingFw = canvasDoc.getElementById("dz-framework-css");
+    if (existingFw) existingFw.remove();
+    const fwLink = canvasDoc.createElement("link");
+    fwLink.id = "dz-framework-css";
+    fwLink.rel = "stylesheet";
+    fwLink.href = FRAMEWORK_URLS[framework];
+    canvasDoc.head.appendChild(fwLink);
+
+    // 2. variant CSS (standard は省略 = framework 既定の見た目)
+    const existingVariant = canvasDoc.getElementById("dz-variant-override");
+    if (existingVariant) existingVariant.remove();
+    const variantUrl = VARIANT_URLS[variant];
+    if (variantUrl) {
+      const variantLink = canvasDoc.createElement("link");
+      variantLink.id = "dz-variant-override";
+      variantLink.rel = "stylesheet";
+      variantLink.href = variantUrl;
+      canvasDoc.head.appendChild(variantLink);
     }
   } catch {
     // canvas not ready
@@ -164,6 +201,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const [activeTheme, setActiveThemeState] = useState<ThemeId>(
     () => (localStorage.getItem(THEME_KEY) as ThemeId | null) ?? "standard"
   );
+  // project.design.cssFramework (#793 子 5): 省略時は "bootstrap" (schema default と一致)
+  const [cssFramework, setCssFramework] = useState<CssFramework>("bootstrap");
+  const cssFrameworkRef = useRef<CssFramework>("bootstrap");
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
 
@@ -233,12 +273,36 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
 
+  // cssFramework をプロジェクトから読み込む (mount 時 1 回)。
+  // design.cssFramework は FlowProject には含まれないため loadRawProject() で取得する (#793 子 5)。
+  useEffect(() => {
+    let cancelled = false;
+    loadRawProject().then((raw) => {
+      if (cancelled) return;
+      const fw = raw.design?.cssFramework ?? "bootstrap";
+      setCssFramework(fw);
+      cssFrameworkRef.current = fw;
+    }).catch((e) => {
+      console.warn("[Designer] loadRawProject failed, using default cssFramework 'bootstrap'", e);
+    });
+    return () => { cancelled = true; };
+  // screenId に依存しない: framework はプロジェクト単位で固定 (途中切替非サポート)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // cssFrameworkRef を cssFramework state と同期 (onReady closure から参照するため)
+  useEffect(() => {
+    cssFrameworkRef.current = cssFramework;
+  }, [cssFramework]);
+
   const handleThemeChange = useCallback((themeId: ThemeId) => {
     setActiveThemeState(themeId);
     localStorage.setItem(THEME_KEY, themeId);
     if (editorRef.current) {
-      applyThemeToCanvas(editorRef.current, themeId);
+      applyThemeToCanvas(editorRef.current, themeId, cssFrameworkRef.current);
     }
+  // cssFrameworkRef は ref なので依存配列不要
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeChangeRef = useRef(handleThemeChange);
@@ -351,9 +415,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
     }, 0);
     if (editorRef.current) {
-      if (activeTheme !== "standard") {
-        applyThemeToCanvas(editorRef.current, activeTheme);
-      }
+      // framework × variant の 2 軸 CSS を注入 (#793 子 5)。
+      // standard variant でも framework CSS は常に注入する (bootstrap/tailwind の選択を canvas に反映)。
+      applyThemeToCanvas(editorRef.current, activeTheme, cssFrameworkRef.current);
       // カスタムブロックの CSS をキャンバスに注入
       try {
         const customBlocks = await loadCustomBlocks();
