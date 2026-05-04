@@ -98,13 +98,15 @@ B2C 英会話学習アプリ (中規模、画面 ~11、テーブル ~10、処理
 
 ### 2.6 conventions catalog
 
-- `numbering.session-id` — 学習セッション ID 採番
-- `numbering.score-id` — 発音スコア ID 採番
+`schemas/v3/conventions.v3.schema.json` のプロパティ命名 (`numbering` / `regex` / `msg` / `limit` / `db` / `auth` / `tx` / `extensionCategories`) に準拠。各カテゴリ内のキーは camelCase。参照は `@conv.<category>.<key>`。
+
+- `numbering.sessionId` — 学習セッション ID 採番
+- `numbering.scoreId` — 発音スコア ID 採番
 - `regex.ipa` — IPA Unicode 範囲正規表現
-- `cefr.passing-threshold` — CEFR レベル昇格の発音スコア閾値 (例: 70 点)
-- `messages.session-not-found` — セッション未検出メッセージ
-- `messages.pronunciation-low` — 発音低評価メッセージ
-- `wordProgress.masteryThreshold` — 単語習熟判定回数 (例: 連続 3 回正解で mastered)
+- `extensionCategories.cefr.passingThreshold` — CEFR レベル昇格の発音スコア閾値 (例: 70 点)
+- `msg.sessionNotFound` — セッション未検出メッセージ
+- `msg.pronunciationLow` — 発音低評価メッセージ
+- `extensionCategories.wordProgress.masteryThreshold` — 単語習熟判定回数 (例: 連続 3 回正解で mastered)
 
 ## 3. 設計判断
 
