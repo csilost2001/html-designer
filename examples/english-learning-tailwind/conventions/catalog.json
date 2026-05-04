@@ -1,0 +1,111 @@
+{
+  "$schema": "../../../schemas/v3/conventions.v3.schema.json",
+  "version": "1.0.0",
+  "description": "英会話学習アプリの横断規約カタログ。採番・正規表現・メッセージ・境界値・DB 規約・認証・TX 方針・拡張カテゴリ (CEFR 昇格判定 / 単語習熟) を集約する。",
+  "updatedAt": "2026-05-04T00:00:00.000Z",
+  "i18n": {
+    "supportedLocales": ["ja-JP", "en-US"],
+    "defaultLocale": "ja-JP",
+    "dateFormat": { "ja-JP": "YYYY/MM/DD", "en-US": "MM/DD/YYYY" },
+    "timeFormat": { "ja-JP": "HH:mm", "en-US": "h:mm a" }
+  },
+  "numbering": {
+    "sessionId": {
+      "format": "SES-YYYYMMDD-NNNNNN",
+      "implementation": "DB sequence (seq_session_id) + アプリ層で YYYYMMDD を開始日付に置換して採番。日次 6 桁ゼロ埋め。",
+      "description": "学習セッション ID の採番規約。YYYYMMDD は開始日 (現地時刻 UTC+9)、NNNNNN はシーケンス 6 桁ゼロ埋め。例: SES-20260504-000001。セッション開始 TX (S-1) 内で 1 TX に 1 番号を発行する。"
+    },
+    "scoreId": {
+      "format": "SCO-NNNNNNNN",
+      "implementation": "DB sequence (seq_score_id) + アプリ層で NNNNNNNN を 8 桁ゼロ埋めで採番。",
+      "description": "発音スコア ID の採番規約。SCO- プレフィックス + 8 桁シーケンス。例: SCO-00000001。採点 TX (S-3) 内で発行する。"
+    }
+  },
+  "regex": {
+    "ipa": {
+      "pattern": "^[\\u0020-\\u007E\\u00C0-\\u024F\\u0250-\\u02AF\\u1E00-\\u1EFF\\u02B0-\\u02FF]+$",
+      "description": "IPA (国際音声記号) 発音記号の正規表現。ASCII 印刷可能文字 + Latin Extended + IPA Extensions + Phonetic Extensions の範囲を許容する。",
+      "exampleValid": ["/kae.fi/", "/helo/", "/prn.si.e.n/"],
+      "exampleInvalid": ["", "12345"]
+    }
+  },
+  "msg": {
+    "sessionNotFound": {
+      "template": "セッション ID {sessionId} の学習セッションが見つかりません。",
+      "params": ["sessionId"],
+      "description": "セッション未検出メッセージ。S-2 / S-3 フローで学習セッションが見つからない場合に表示する。"
+    },
+    "pronunciationLow": {
+      "template": "発音スコア {score} 点でした。もう一度練習してみましょう！ (合格ライン: {threshold} 点)",
+      "params": ["score", "threshold"],
+      "description": "発音低評価メッセージ。SttEvaluate の score が @conv.extensionCategories.cefr.passingThreshold を下回った場合に表示する。"
+    },
+    "sessionCompleted": {
+      "template": "学習セッションを完了しました！平均発音スコア: {scoreAvg} 点",
+      "params": ["scoreAvg"],
+      "description": "セッション完了メッセージ (S-3 セッション結果画面で表示)。"
+    },
+    "wordMastered": {
+      "template": "「{word}」を習熟しました！",
+      "params": ["word"],
+      "description": "単語習熟達成メッセージ。user_word_progress.status が mastered に遷移した時に表示する。"
+    },
+    "streakUpdated": {
+      "template": "{streakDays} 日連続学習達成！",
+      "params": ["streakDays"],
+      "description": "連続学習日数更新メッセージ。sessionCompleted トリガーで streak_days が更新された場合に表示する。"
+    }
+  },
+  "limit": {
+    "maxTurnsPerSession": {
+      "value": 50,
+      "unit": "integer",
+      "description": "1 セッションあたりの最大会話ターン数。これを超えた場合はセッションを強制完了とする。"
+    },
+    "maxAudioLengthSeconds": {
+      "value": 30,
+      "unit": "integer",
+      "description": "1 発音採点あたりの録音最大長 (秒)。MediaRecorder API の maxRecordingLength として使用する。"
+    }
+  },
+  "auth": {
+    "bearerJwt": {
+      "scheme": "bearer-jwt",
+      "default": true,
+      "description": "JWT Bearer トークン認証。B2C アプリのためセッション Cookie ではなく JWT を使用。アクセストークン有効期限 1 時間、リフレッシュトークン 30 日。"
+    }
+  },
+  "db": {
+    "primary": {
+      "engine": "postgresql@15",
+      "namingConvention": "snake_case",
+      "timestampColumns": ["created_at", "updated_at"],
+      "default": true,
+      "description": "本サンプルの主 DB。PostgreSQL 15 を想定。全テーブルに created_at を付与し、更新があるテーブルには updated_at も付与する。"
+    }
+  },
+  "tx": {
+    "sessionStart": {
+      "policy": "学習セッション開始 (S-1) は単一 DB トランザクション内で learning_sessions INSERT → seq_session_id 採番 を実行する。セッション ID 払い出し失敗時はロールバック。",
+      "description": "セッション開始フローのトランザクション方針。"
+    },
+    "pronunciationScore": {
+      "policy": "発音採点 (S-3) は単一 DB トランザクション内で pronunciation_scores INSERT → learning_sessions.score_avg 更新 → user_word_progress UPSERT を実行する。いずれかで失敗した場合は全体をロールバックする。",
+      "description": "発音採点フローのトランザクション方針。スコア保存とセッション平均更新を原子的に実行する。"
+    }
+  },
+  "extensionCategories": {
+    "cefr": {
+      "passingThreshold": {
+        "value": 70,
+        "description": "CEFR レベル昇格の発音スコア閾値。SttEvaluate の score がこの値以上かつ連続 3 セッションで達成した場合に cefr_level を 1 段階昇格させる。"
+      }
+    },
+    "wordProgress": {
+      "masteryThreshold": {
+        "value": 3,
+        "description": "単語習熟判定の連続正解回数。user_word_progress.correct_count がこの値以上になった場合に status を mastered に更新する。不正解時は correct_count を 0 にリセット (status は learning に降格)。"
+      }
+    }
+  }
+}
