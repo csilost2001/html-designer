@@ -240,7 +240,7 @@
                   "kind": "english-learning:TtsGenerate",
                   "description": "LLM の応答テキストを TTS で音声ファイルに変換する。生成した audioUrl を aiAudioUrl 変数に格納し、turn_logs.ai_audio_url として保存する。",
                   "config": {
-                    "text": "@aiResponse"
+                    "text": "@aiResponse.content"
                   },
                   "outputBinding": { "name": "aiAudioUrl" }
                 }
@@ -290,7 +290,7 @@
           "description": "turn_logs に 1 ターン分のログを INSERT する。user_input (ユーザー発話) と ai_response (AI 応答) + ai_audio_url を同時に記録する。llm_context には入力 turnContext と AI 応答を含む更新済み会話コンテキストを JSON として保存する。turn_number は step-04d で算出した次番号を使用する。",
           "tableId": "4e126323-4ab7-4747-961b-23cbaf651314",
           "operation": "INSERT",
-          "sql": "INSERT INTO turn_logs (session_id, turn_number, user_input, ai_response, ai_audio_url, llm_context, created_at) VALUES (@sessionId, @nextTurnNumber, @userInput, @aiResponse, @aiAudioUrl, @turnContext, CURRENT_TIMESTAMP) RETURNING id",
+          "sql": "INSERT INTO turn_logs (session_id, turn_number, user_input, ai_response, ai_audio_url, llm_context, created_at) VALUES (@sessionId, @nextTurnNumber, @userInput, @aiResponse.content, @aiAudioUrl, @turnContext, CURRENT_TIMESTAMP) RETURNING id",
           "outputBinding": { "name": "newTurnLog" },
           "lineage": {
             "writes": [
@@ -303,14 +303,14 @@
           "kind": "eventPublish",
           "description": "ターン完了イベントを発行する。",
           "topic": "el.turn.completed",
-          "payload": "{ sessionId: @sessionId, turnNumber: @newTurnLog.id, role: 'assistant' }"
+          "payload": "{ sessionId: @sessionId, turnNumber: @nextTurnNumber, role: 'assistant' }"
         },
         {
           "id": "step-07",
           "kind": "return",
           "description": "200 OK — AI 応答テキスト + ターンログ ID + 音声 URL (任意) を返す。",
           "responseId": "200-ok",
-          "bodyExpression": "{ aiResponseText: @aiResponse, aiAudioUrl: @aiAudioUrl, turnId: @newTurnLog.id }"
+          "bodyExpression": "{ aiResponseText: @aiResponse.content, aiAudioUrl: @aiAudioUrl, turnId: @newTurnLog.id }"
         }
       ]
     }

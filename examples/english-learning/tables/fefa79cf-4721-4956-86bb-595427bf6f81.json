@@ -2,7 +2,7 @@
   "$schema": "../../../schemas/v3/table.v3.schema.json",
   "id": "fefa79cf-4721-4956-86bb-595427bf6f81",
   "name": "発音スコア",
-  "description": "学習セッション内でのセリフ発音採点結果テーブル。SttEvaluate step (S-3) の出力を保持する。score 0-100 + 音素単位の差分 JSON (diff) を記録し、セッション結果画面で色分け表示に使用する。**1 セッション × 1 セリフに対し複数回の採点を許容する** (再練習で再録音 → 再採点)。最新スコアの取得は ORDER BY scored_at DESC LIMIT 1 で行う。",
+  "description": "学習セッション内でのセリフ発音採点結果テーブル。SttEvaluate step (S-3) の出力を保持する。score 0-100 + 音素単位の差分 JSON (diff) を記録し、セッション結果画面で色分け表示に使用する。**1 セッション × 1 セリフに対し複数回の採点を許容する** (再練習で再録音 → 再採点)。最新スコアの取得は ORDER BY created_at DESC LIMIT 1 で行う。",
   "maturity": "draft",
   "createdAt": "2026-05-04T00:00:00.000Z",
   "updatedAt": "2026-05-04T00:00:00.000Z",
