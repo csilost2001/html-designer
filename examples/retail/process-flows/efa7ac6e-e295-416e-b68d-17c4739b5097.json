@@ -284,7 +284,7 @@
                 {
                   "id": "step-05-a-02",
                   "kind": "compute",
-                  "description": "viewer 用 rows 変数を空配列で bind する。0 件 path でも viewer (inventoryRows screen-item) が undefined 参照にならないようにする (#779 後続セッションで semantic audit 修正)。",
+                  "description": "viewer 用 rows 変数を空配列で bind する。0 件 path でも viewer (inventoryRows screen-item) が undefined 参照にならないようにする (#780)。",
                   "expression": "[]",
                   "outputBinding": { "name": "rows" }
                 },
