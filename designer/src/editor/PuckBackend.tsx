@@ -335,15 +335,28 @@ export class PuckBackend implements EditorBackend {
     // puckComponentsChanged 時に key を変えて Puck を再マウントする
     let configKey = 0;
 
+    // A-S-1: 現在の Puck data state を追跡する。
+    // onChange callback で最新データを保持し、rerender 時に initialData として渡すことで
+    // カスタムコンポーネント登録時 (puckComponentsChanged) に未保存の編集内容を保持する。
+    let currentPuckData: Data = puckData;
+
+    // A-S-1: onChange を wrap して currentPuckData を更新しながら opts.onChange を呼ぶ
+    const wrappedOnChange = opts.onChange
+      ? (editorState: EditorState) => {
+          currentPuckData = toPuckData(editorState.payload);
+          opts.onChange!(editorState);
+        }
+      : undefined;
+
     const rerender = () => {
       configKey++;
       if (root) {
         root.render(
           <PuckEditorWrapper
             key={configKey}
-            initialData={puckData}
+            initialData={currentPuckData}
             cssFramework={opts.cssFramework}
-            onChange={opts.onChange}
+            onChange={wrappedOnChange}
           />,
         );
       }
@@ -358,9 +371,9 @@ export class PuckBackend implements EditorBackend {
     root.render(
       <PuckEditorWrapper
         key={configKey}
-        initialData={puckData}
+        initialData={currentPuckData}
         cssFramework={opts.cssFramework}
-        onChange={opts.onChange}
+        onChange={wrappedOnChange}
         onCustomComponentsChange={rerender}
       />,
     );

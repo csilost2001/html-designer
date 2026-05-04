@@ -921,6 +921,11 @@ class WsBridge extends EventEmitter {
           respond(r);
           if (r.committed) {
             this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
+            // #806 A-M-1: puck-data commit 時は puckDataChanged も broadcast して cross-tab 上書き保護を機能させる。
+            // Designer.tsx は "puckDataChanged" event を購読しているため、draft.changed とは別に emit が必要。
+            if (dt === "puck-data") {
+              this.broadcast({ wsId: wsId(), event: "puckDataChanged", data: { screenId: did }, excludeClientId: clientId });
+            }
           }
           break;
         }
