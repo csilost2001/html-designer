@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, useLocation, useNavigate, matchPath, useParams } from "react-router-dom";
 import { FlowEditor } from "./flow/FlowEditor";
 import { ScreenListView } from "./flow/ScreenListView";
@@ -110,7 +110,56 @@ function RedirectGuardBanner({ summary }: { summary: readonly string[] }) {
   );
 }
 
+// designer-mcp 接続失敗エラー画面 (#795-C)
+// splash で永遠に止まらず、サーバ未起動 / half-dead / network 障害を明示的に伝える
+function ConnectionFailedView({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "center",
+      height: "100vh", flexDirection: "column", gap: "16px", padding: "24px",
+      color: "var(--muted-text, #ccc)",
+      backgroundColor: "var(--bg-color, #1a1a1a)",
+    }}>
+      <div style={{ fontSize: "3rem", color: "#dc3545" }}>
+        <i className="bi bi-plug-fill" />
+      </div>
+      <h2 style={{ margin: 0, fontSize: "1.25rem", color: "var(--text-color, #fff)" }}>
+        designer-mcp サーバに接続できません
+      </h2>
+      <div style={{
+        maxWidth: 480, fontSize: "0.875rem", lineHeight: 1.6,
+        color: "var(--muted-text, #aaa)", textAlign: "center",
+      }}>
+        <p style={{ marginTop: 0 }}>
+          designer-mcp サーバ (port 5179) が起動しているか確認してください。
+        </p>
+        <pre style={{
+          background: "rgba(255,255,255,0.05)", padding: "12px 16px", borderRadius: 6,
+          fontSize: "0.8125rem", textAlign: "left", margin: "12px auto",
+        }}>cd designer-mcp{"\n"}npm run dev</pre>
+        <p style={{ margin: "12px 0 0" }}>
+          すでに起動している場合は、port 5179 を別プロセスが握っている可能性があります。
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        style={{
+          padding: "8px 24px", fontSize: "0.9375rem",
+          background: "#0d6efd", color: "#fff", border: "none", borderRadius: 6,
+          cursor: "pointer", marginTop: 8,
+        }}
+      >
+        <i className="bi bi-arrow-clockwise" style={{ marginRight: 6 }} />
+        再試行
+      </button>
+    </div>
+  );
+}
+
 // ルートレベルの AppShell: /workspace/* と /w/:wsId/* に分岐
+const CONNECTION_TIMEOUT_MS = 5000; // designer-mcp 接続失敗エラー UI 表示までの待機時間 (#795-C)
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -118,11 +167,29 @@ export function AppShell() {
   const [guardTripped, setGuardTripped] = useState<readonly string[] | null>(
     isRedirectGuardTripped() ? [] : null,
   );
+  // designer-mcp 接続失敗の可視化 (#795-C): N 秒以内に "connected" が来ない場合 true
+  const [connectionFailed, setConnectionFailed] = useState(false);
+  // 一度でも connected になったかを保持 (timer 内 closure 用)
+  const everConnectedRef = useRef(false);
+  // timeout timer の制御用 ref (retry 時に reset するため)
+  const failTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     return subscribeWorkspace(() => setWorkspaceState(getWorkspaceState()));
   }, []);
   useEffect(() => {
     return subscribeRedirectGuardTrip((summary) => setGuardTripped(summary));
+  }, []);
+
+  // 接続失敗 timer 起動 (mount 時 + retry 時)
+  const startConnectionTimeout = useCallback(() => {
+    if (failTimerRef.current !== null) clearTimeout(failTimerRef.current);
+    failTimerRef.current = setTimeout(() => {
+      if (!everConnectedRef.current) {
+        uiWarn("workspace", "connection-timeout", { ms: CONNECTION_TIMEOUT_MS });
+        setConnectionFailed(true);
+      }
+    }, CONNECTION_TIMEOUT_MS);
   }, []);
 
   // MCP 接続のライフサイクル単一所有 (元は AppShellInner にあったが、初期 / URL アクセス時には
@@ -132,6 +199,7 @@ export function AppShell() {
   //  - "connected" 受信で loadWorkspaces して active state を最新化 (loading=true → false)
   //  - "disconnected" は mcpBridge 自身が retry timer を回すので AppShell は何もしない
   //  - サーバ側物理ログへの定期 flush もここで設定 (#750 follow-up)
+  //  - 接続失敗 timeout (#795-C): N 秒以内に "connected" が来ない場合エラー UI に切替
   useEffect(() => {
     const unsubBroadcast = subscribeWorkspaceChanges();
     const bridge = mcpBridge as unknown as {
@@ -141,15 +209,35 @@ export function AppShell() {
     };
     const unsubStatus = bridge.onStatusChange((s) => {
       if (s === "connected") {
+        everConnectedRef.current = true;
+        setConnectionFailed(false);
+        if (failTimerRef.current !== null) {
+          clearTimeout(failTimerRef.current);
+          failTimerRef.current = null;
+        }
         loadWorkspaces().catch(console.error);
       }
     });
     bridge.startWithoutEditor();
+    startConnectionTimeout();
     const unsubFlush = setupServerLogFlush((entries) =>
       bridge.request("client.log.flush", { entries }),
     );
-    return () => { unsubBroadcast(); unsubStatus(); unsubFlush(); };
-  }, []);
+    return () => {
+      if (failTimerRef.current !== null) clearTimeout(failTimerRef.current);
+      unsubBroadcast();
+      unsubStatus();
+      unsubFlush();
+    };
+  }, [startConnectionTimeout]);
+
+  // 接続失敗時の手動 retry (#795-C エラー UI ボタン)
+  const handleRetryConnection = useCallback(() => {
+    uiInfo("workspace", "connection-retry-clicked");
+    setConnectionFailed(false);
+    startConnectionTimeout();
+    (mcpBridge as { startWithoutEditor: () => void }).startWithoutEditor();
+  }, [startConnectionTimeout]);
 
   // workspace が loading 完了後に URL を判定してリダイレクト
   useEffect(() => {
@@ -172,7 +260,11 @@ export function AppShell() {
   }, [workspaceState.loading, workspaceState.active?.id, workspaceState.lockdown, location.pathname]);
 
   // loading 中はスプラッシュ表示 (WorkspaceScopedShell に合わせて一貫性確保)
+  // ただし接続失敗 timeout 超過時はエラー UI に切替 (#795-C)
   if (workspaceState.loading) {
+    if (connectionFailed) {
+      return <ConnectionFailedView onRetry={handleRetryConnection} />;
+    }
     return (
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center",

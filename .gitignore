@@ -17,6 +17,11 @@ screenshots/
 
 # Claude Code local settings (skills/commands はチーム共有のため追跡対象)
 .claude/settings.local.json
+# Claude Code agent worktrees — 本来は C:/tmp/ 等プロジェクト外に置くべきだが
+# 誤配置時の VS Code git panel 汚染を防止 (memory feedback_worktree_placement_outside_project.md)
+.claude/worktrees/
+# Claude Code runtime artifacts (ScheduleWakeup の lock ファイル等)
+.claude/scheduled_tasks.lock
 
 # 一時出力 (例: /review-pr /review-issue が書き出すレビュー結果は tmp/review-cache/ 配下)
 tmp/
