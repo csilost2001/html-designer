@@ -52,6 +52,20 @@
     "authoring": {
       "$ref": "common.v3.schema.json#/$defs/Authoring",
       "description": "プロジェクト全体の authoring 情報 (markers / decisions / glossary)。entity 横断で共有される ADR や用語集はここに集約。"
+    },
+
+    "design": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "プロジェクト全体のデザイン関連設定 (#793 子 2)。CSS フレームワーク選択等。",
+      "properties": {
+        "cssFramework": {
+          "type": "string",
+          "enum": ["bootstrap", "tailwind"],
+          "default": "bootstrap",
+          "description": "画面デザイナー canvas + 最終実装で使用する CSS フレームワーク (#793)。project 作成時に固定し、途中切替は非サポート。'bootstrap' = Bootstrap 5 を canvas に読み込み (既存サンプル既定)。'tailwind' = Tailwind ベースの theme CSS を canvas に読み込み (semantic class を @apply で utility にマップ)。省略時は 'bootstrap' 相当。詳細仕様: docs/spec/css-framework-switching.md"
+        }
+      }
     }
   },
   "$defs": {

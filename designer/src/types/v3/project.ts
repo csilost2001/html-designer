@@ -124,6 +124,22 @@ export interface ProjectMeta extends EntityMeta {
   mode?: Mode;
 }
 
+/**
+ * CSS フレームワーク選択 (#793)。
+ * project 作成時に固定し、途中切替は非サポート。
+ * - `"bootstrap"` — Bootstrap 5 を canvas iframe に読み込み (既存サンプル既定)。
+ * - `"tailwind"` — Tailwind ベースの theme CSS を canvas iframe に読み込み (semantic class を @apply で utility にマップ)。
+ *
+ * 詳細仕様: docs/spec/css-framework-switching.md
+ */
+export type CssFramework = "bootstrap" | "tailwind";
+
+/** プロジェクト全体のデザイン関連設定 (#793)。 */
+export interface ProjectDesign {
+  /** CSS フレームワーク選択。省略時は `"bootstrap"` 相当。 */
+  cssFramework?: CssFramework;
+}
+
 /** 業務システム 1 案件の root 定義。`data/project.json` に対応。 */
 export interface Project {
   $schema?: string;
@@ -138,4 +154,6 @@ export interface Project {
   entities?: ProjectEntities;
   /** プロジェクト全体の authoring 情報 (entity 横断で共有される ADR や用語集)。 */
   authoring?: Authoring;
+  /** プロジェクト全体のデザイン関連設定 (CSS フレームワーク選択等)。 */
+  design?: ProjectDesign;
 }
