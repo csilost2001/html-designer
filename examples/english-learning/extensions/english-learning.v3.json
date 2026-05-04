@@ -1,0 +1,265 @@
+{
+  "$schema": "../../../schemas/v3/extensions.v3.schema.json",
+  "namespace": "english-learning",
+  "version": "1.0.0",
+  "requiresCoreSchema": ">=3.0.0",
+  "description": "英会話学習アプリ向け v3 canonical 拡張定義。fieldTypes / actionTriggers / dbOperations / stepKinds / responseTypes / screenKinds を統合。外部 AI (LLM/TTS/STT) 呼び出しを stepKind 拡張で表現し、CEFR レベル / IPA / 発音スコア等の英語学習固有型を fieldType として定義する。",
+  "fieldTypes": [
+    {
+      "kind": "ipa",
+      "label": "IPA 発音記号",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^[\\u0020-\\u007E\\u00C0-\\u024F\\u0250-\\u02AF\\u1E00-\\u1EFF\\u02B0-\\u02FF]+$" }
+      ],
+      "description": "IPA (国際音声記号) 発音記号型。@conv.regex.ipa 準拠。dialogue_lines.ipa / words.ipa で使用する。"
+    },
+    {
+      "kind": "cefrLevel",
+      "label": "CEFR レベル",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^(A1|A2|B1|B2|C1|C2)$" }
+      ],
+      "description": "英語能力の CEFR (Common European Framework of Reference) レベル型。値域: A1/A2/B1/B2/C1/C2。users.cefr_level / stories.cefr_level / words.cefr_level で使用する。"
+    },
+    {
+      "kind": "audioUrl",
+      "label": "音声 URL",
+      "baseType": "string",
+      "constraints": [
+        { "type": "pattern", "value": "^https?://.+" },
+        { "type": "maxLength", "value": 500 }
+      ],
+      "description": "TTS 生成済みまたは既存音源の音声ファイル URL 型。dialogue_lines.audio_url / turn_logs.ai_audio_url / pronunciation_scores.audio_url で使用する。"
+    },
+    {
+      "kind": "pronunciationScore",
+      "label": "発音スコア",
+      "baseType": "number",
+      "constraints": [
+        { "type": "minimum", "value": 0 },
+        { "type": "maximum", "value": 100 }
+      ],
+      "description": "発音採点スコア (0〜100)。SttEvaluate step の出力 EvaluationResult.score に対応。@conv.extensionCategories.cefr.passingThreshold と比較して CEFR レベル昇格を判定する。"
+    },
+    {
+      "kind": "dialogTurn",
+      "label": "会話ターン",
+      "baseType": "json",
+      "description": "LLM 会話ターンの構造型。{ role: 'user' | 'assistant' | 'system', content: string } の配列として実装する。LlmDialog step の outputType として使用し、turn_logs.llm_context に保存される。"
+    }
+  ],
+  "actionTriggers": [
+    {
+      "value": "sessionCompleted",
+      "label": "学習セッション完了後",
+      "description": "学習セッションが正常完了 (status='completed') した直後に発火するトリガー。users.streak_days の更新 / users.cefr_level の評価 / 単語習熟度のバッチ更新等の後続処理を起動する。"
+    },
+    {
+      "value": "pronunciationScored",
+      "label": "発音採点完了後",
+      "description": "SttEvaluate step が完了して pronunciation_scores にスコアが保存された直後に発火するトリガー。採点結果の UI 表示更新 / セッション平均スコア再計算に使用する。"
+    },
+    {
+      "value": "wordMastered",
+      "label": "単語習熟達成時",
+      "description": "user_word_progress.status が 'learning' から 'mastered' に遷移した直後に発火するトリガー。習熟達成バッジ表示や通知送信に使用する。"
+    }
+  ],
+  "dbOperations": [
+    {
+      "value": "UPSERT_WORD_PROGRESS",
+      "label": "単語習熟度 UPSERT",
+      "description": "user_word_progress に (user_id, word_id) で UPSERT する。新規の場合は status='new' で INSERT、既存の場合は correct_count / attempt_count / status / last_practiced_at を更新する。update-word-progress 共通フロー (S-4) で使用する。"
+    },
+    {
+      "value": "INCREMENT_STREAK",
+      "label": "連続学習日数加算",
+      "description": "users.streak_days を 1 加算する。sessionCompleted トリガーで発火し、当日初回セッション完了時にのみ実行する。翌日まで連続していない場合は streak_days を 0 にリセット (scheduled flow で管理)。"
+    },
+    {
+      "value": "UPDATE_SESSION_STATUS",
+      "label": "セッションステータス更新",
+      "description": "learning_sessions.status を更新し、完了時に completed_at と score_avg を同時に設定する。start-session / progress-turn フローの終端で使用する。"
+    }
+  ],
+  "stepKinds": {
+    "LlmDialog": {
+      "label": "LLM 会話呼び出し",
+      "icon": "bi-chat-dots",
+      "description": "外部 LLM API (OpenAI GPT-4 / Anthropic Claude 等) に会話リクエストを送信する拡張 Step。context (会話履歴) と userInput を入力とし、AI 応答テキストを outputBinding に返す。S-2 progress-turn フローで使用する。provider 選択・temperature 等の詳細は実装層が決定する。",
+      "schema": {
+        "type": "object",
+        "required": ["context", "userInput"],
+        "properties": {
+          "context": {
+            "type": "string",
+            "description": "会話コンテキスト (DialogTurn[] の変数参照、例: @var.turnContext)"
+          },
+          "userInput": {
+            "type": "string",
+            "description": "ユーザーの最新発話テキスト (変数参照、例: @var.userInput)"
+          },
+          "systemPrompt": {
+            "type": "string",
+            "description": "システムプロンプト (省略時はデフォルト英会話学習プロンプト)"
+          },
+          "maxTokens": {
+            "type": "integer",
+            "description": "最大出力トークン数 (省略時は 500)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "extension",
+        "extensionRef": "english-learning:dialogTurn"
+      }
+    },
+    "TtsGenerate": {
+      "label": "TTS 音声生成",
+      "icon": "bi-volume-up",
+      "description": "テキストを音声ファイルに変換する拡張 Step (Text-to-Speech)。text を入力とし、生成した音声の audioUrl を outputBinding に返す。S-1 でストーリー音源プリロード、S-2 で AI 応答音声化に使用する。将来の wordTimings 出力でカラオケ字幕に対応予定 (MVP は audioUrl のみ)。",
+      "schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "音声化するテキスト (英文、変数参照可)"
+          },
+          "voice": {
+            "type": "string",
+            "description": "音声モデル識別子 (例: en-US-Standard-A / alloy 等、省略時はデフォルト)"
+          },
+          "speed": {
+            "type": "number",
+            "description": "音声速度 (0.5〜2.0、省略時は 1.0)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "extension",
+        "extensionRef": "english-learning:audioUrl"
+      }
+    },
+    "SttEvaluate": {
+      "label": "STT 発音評価",
+      "icon": "bi-mic",
+      "description": "ユーザーの録音音声を STT (Speech-to-Text) で認識し、リファレンス IPA テキストと比較して発音スコアを算出する拡張 Step。audioUrl とリファレンス IPA を入力とし、score (0-100) と音素差分 diff を outputBinding に返す。S-3 発音採点フローで使用する。",
+      "schema": {
+        "type": "object",
+        "required": ["audioUrl", "referenceText"],
+        "properties": {
+          "audioUrl": {
+            "type": "string",
+            "description": "評価対象の録音音声 URL (変数参照可)"
+          },
+          "referenceText": {
+            "type": "string",
+            "description": "目標セリフの英文テキスト (変数参照可)"
+          },
+          "referenceIpa": {
+            "type": "string",
+            "description": "目標セリフの IPA 発音記号 (任意。省略時は STT プロバイダが自動判定)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputType": {
+        "kind": "extension",
+        "extensionRef": "english-learning:pronunciationScore"
+      }
+    }
+  },
+  "responseTypes": {
+    "DialogTurn": {
+      "description": "LLM 会話ターンレスポンス。LlmDialog step の outputBinding に格納される会話ターン構造。turn_logs.llm_context (JSON 配列) の 1 要素に対応する。",
+      "schema": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user", "assistant", "system"],
+            "description": "発話者ロール"
+          },
+          "content": {
+            "type": "string",
+            "description": "発話内容テキスト"
+          },
+          "audioUrl": {
+            "type": "string",
+            "description": "TTS 生成済み音声 URL (assistant ロールのみ、任意)"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "EvaluationResult": {
+      "description": "SttEvaluate step の発音評価レスポンス。score と音素単位差分 diff を返す。pronunciation_scores テーブルへの保存に使用する。",
+      "schema": {
+        "type": "object",
+        "required": ["score"],
+        "properties": {
+          "score": {
+            "type": "number",
+            "description": "発音総合スコア (0〜100)"
+          },
+          "transcription": {
+            "type": "string",
+            "description": "STT で認識したテキスト (比較用)"
+          },
+          "diff": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["phone", "correct"],
+              "properties": {
+                "phone": { "type": "string", "description": "音素 (IPA 記号)" },
+                "expected": { "type": "string", "description": "期待音素" },
+                "actual": { "type": "string", "description": "実際の音素" },
+                "correct": { "type": "boolean", "description": "正誤フラグ" }
+              },
+              "additionalProperties": false
+            },
+            "description": "音素単位の正誤判定リスト (PhoneDiff[])。実装側で IPA テーブル + 色分け表示する。"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "SessionSummary": {
+      "description": "学習セッション完了サマリレスポンス。セッション結果画面に表示する集計情報を返す。",
+      "schema": {
+        "type": "object",
+        "required": ["sessionId", "scoreAvg", "turnsCompleted"],
+        "properties": {
+          "sessionId": { "type": "integer", "description": "セッション ID" },
+          "scoreAvg": { "type": "number", "description": "平均発音スコア (0〜100)" },
+          "turnsCompleted": { "type": "integer", "description": "完了ターン数" },
+          "masteredWords": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "このセッションで mastered になった word_id 一覧"
+          },
+          "cefrLevelUp": {
+            "type": "boolean",
+            "description": "CEFR レベルが昇格した場合 true"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "screenKinds": [
+    {
+      "kind": "conversationPlayer",
+      "label": "会話プレイヤー",
+      "icon": "bi-play-circle",
+      "description": "英会話学習用の会話プレイ画面種別。セリフ字幕表示 / 録音ボタン / 会話履歴ペイン / 発音スコア表示を統合した B2C 学習 UX を提供する。Web Audio API 録音 / カラオケ字幕 (将来) / 単語タップ辞書は description 待避 (3.3 節参照)。"
+    }
+  ]
+}

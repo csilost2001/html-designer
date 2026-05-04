@@ -1,0 +1,137 @@
+{
+  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "aa696474-b681-4400-aab7-b8e4eacea665",
+    "name": "英会話学習アプリ",
+    "description": "B2C 英会話学習アプリ。ストーリー仕立ての会話練習と AI 採点 (LLM/TTS/STT) を組み合わせ、発音フィードバックと単語習熟度管理を提供する。分野別コンテンツパック (汎用 / IT エンジニア / ビジネス 等) を拡張 namespace で表現し、外部 AI 呼び出しを stepKind 拡張でモデル化する B2C + 外部 AI 連携サンプル (#787)。",
+    "createdAt": "2026-05-04T00:00:00.000Z",
+    "updatedAt": "2026-05-04T00:00:00.000Z",
+    "mode": "upstream",
+    "maturity": "draft"
+  },
+  "extensionsApplied": [
+    { "namespace": "english-learning", "version": ">=1.0.0" }
+  ],
+  "entities": {
+    "screens": [],
+    "screenGroups": [],
+    "screenTransitions": [],
+    "tables": [
+      {
+        "id": "c7e50462-bbc4-498f-a280-2ec40bda30b1",
+        "no": 1,
+        "name": "ユーザー",
+        "physicalName": "users",
+        "category": "マスタ",
+        "columnCount": 9,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "517d50a3-960f-42ce-810f-3b126398d7b1",
+        "no": 2,
+        "name": "コンテンツパック",
+        "physicalName": "content_packs",
+        "category": "マスタ",
+        "columnCount": 8,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "b5aa3e1b-b5e4-46dd-8373-75fea340844b",
+        "no": 3,
+        "name": "ストーリー",
+        "physicalName": "stories",
+        "category": "マスタ",
+        "columnCount": 9,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "992ac5db-54fa-4eb0-9509-66b3babbdef6",
+        "no": 4,
+        "name": "シーン",
+        "physicalName": "scenes",
+        "category": "マスタ",
+        "columnCount": 7,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "246a3f13-7888-4b14-ad6d-641b7437b09d",
+        "no": 5,
+        "name": "セリフ",
+        "physicalName": "dialogue_lines",
+        "category": "マスタ",
+        "columnCount": 10,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "8db75844-19ca-4e7d-8293-579e7631c5cc",
+        "no": 6,
+        "name": "単語",
+        "physicalName": "words",
+        "category": "マスタ",
+        "columnCount": 10,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "d524cba6-0878-4cf5-ba70-deaa7b459103",
+        "no": 7,
+        "name": "学習セッション",
+        "physicalName": "learning_sessions",
+        "category": "トランザクション",
+        "columnCount": 8,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "4e126323-4ab7-4747-961b-23cbaf651314",
+        "no": 8,
+        "name": "会話ターンログ",
+        "physicalName": "turn_logs",
+        "category": "トランザクション",
+        "columnCount": 8,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "fefa79cf-4721-4956-86bb-595427bf6f81",
+        "no": 9,
+        "name": "発音スコア",
+        "physicalName": "pronunciation_scores",
+        "category": "トランザクション",
+        "columnCount": 8,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      },
+      {
+        "id": "7ab2cf24-7b66-47aa-a808-7fffd8290480",
+        "no": 10,
+        "name": "単語習熟度",
+        "physicalName": "user_word_progress",
+        "category": "トランザクション",
+        "columnCount": 8,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      }
+    ],
+    "processFlows": [
+      {
+        "id": "cc173367-d92a-4525-acc9-689bad9a048e",
+        "no": 1,
+        "name": "学習セッション開始",
+        "kind": "screen",
+        "actionCount": 1,
+        "maturity": "draft",
+        "updatedAt": "2026-05-04T00:00:00.000Z"
+      }
+    ],
+    "views": [],
+    "viewDefinitions": [],
+    "sequences": []
+  }
+}
