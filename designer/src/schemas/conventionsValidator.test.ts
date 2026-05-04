@@ -801,3 +801,174 @@ describe("#734 checkStep — validation rules[].minRef/maxRef/lengthRef 検査",
   });
 });
 
+describe("#783 context.catalogs.domains.constraints[].patternRef 検証", () => {
+  const catalog: ConventionsCatalog = {
+    version: "1.0.0",
+    regex: {
+      productCode: { pattern: "^P-[0-9]{4,6}$" },
+    },
+  };
+
+  it("domains.constraints[].patternRef に実在する @conv.regex.* を書くとエラーなし", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductCode: {
+                type: "string",
+                constraints: [
+                  { field: "productCode", type: "regex", patternRef: "@conv.regex.productCode", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("domains.constraints[].patternRef に存在しない @conv.regex.* を書くと UNKNOWN_CONV_REGEX 検出", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductCode: {
+                type: "string",
+                constraints: [
+                  { field: "productCode", type: "regex", patternRef: "@conv.regex.unknownKey", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalog,
+    );
+    expect(issues).toHaveLength(1);
+    const hit = issues[0];
+    expect(hit.code).toBe("UNKNOWN_CONV_REGEX");
+    expect(hit.path).toBe("context.catalogs.domains.ProductCode.constraints[0].patternRef");
+  });
+
+  it("domains.constraints[].message に @conv.msg.* がある場合も検証される", () => {
+    const catalogWithMsg: ConventionsCatalog = {
+      version: "1.0.0",
+      regex: { productCode: { pattern: "^P-[0-9]{4,6}$" } },
+      msg: { required: { template: "必須です", params: [] } },
+    };
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductCode: {
+                type: "string",
+                constraints: [
+                  { field: "productCode", type: "regex", patternRef: "@conv.regex.productCode", severity: "error", message: "@conv.msg.unknownMsg" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalogWithMsg,
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_MSG");
+    expect(issues[0].path).toBe("context.catalogs.domains.ProductCode.constraints[0].message");
+  });
+
+  it("domains が undefined の場合は検査スキップ (既存テスト不変)", () => {
+    const issues = checkConventionReferences(makeGroup({}), catalog);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("domains.constraints[].minRef に存在しない @conv.limit.* を書くと UNKNOWN_CONV_LIMIT 検出", () => {
+    const catalogWithLimit: ConventionsCatalog = {
+      version: "1.0.0",
+      limit: { quantityMin: { value: 1, unit: "integer" } },
+    };
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              Quantity: {
+                type: "integer",
+                constraints: [
+                  { field: "quantity", type: "min", minRef: "@conv.limit.unknownMin", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalogWithLimit,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "context.catalogs.domains.Quantity.constraints[0].minRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+
+  it("domains.constraints[].maxRef に存在しない @conv.limit.* を書くと UNKNOWN_CONV_LIMIT 検出", () => {
+    const catalogWithLimit: ConventionsCatalog = {
+      version: "1.0.0",
+      limit: { quantityMax: { value: 9999, unit: "integer" } },
+    };
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              Quantity: {
+                type: "integer",
+                constraints: [
+                  { field: "quantity", type: "max", maxRef: "@conv.limit.unknownMax", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalogWithLimit,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "context.catalogs.domains.Quantity.constraints[0].maxRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+
+  it("domains.constraints[].lengthRef に存在しない @conv.limit.* を書くと UNKNOWN_CONV_LIMIT 検出", () => {
+    const catalogWithLimit: ConventionsCatalog = {
+      version: "1.0.0",
+      limit: { nameMax: { value: 100, unit: "char" } },
+    };
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductName: {
+                type: "string",
+                constraints: [
+                  { field: "name", type: "maxLength", lengthRef: "@conv.limit.unknownLength", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalogWithLimit,
+    );
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+    const hit = issues.find((i) => i.path === "context.catalogs.domains.ProductName.constraints[0].lengthRef");
+    expect(hit).toBeDefined();
+    expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
+  });
+});
+

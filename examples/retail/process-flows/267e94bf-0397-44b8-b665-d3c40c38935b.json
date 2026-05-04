@@ -79,7 +79,13 @@
           "tableId": "57110336-a984-4d39-bb21-1e5d5bb4390b",
           "operation": "SELECT",
           "sql": "SELECT COALESCE(COUNT(ci.id), 0) AS \"itemCount\", COALESCE(SUM(ci.unit_price_snapshot * ci.quantity), 0) AS \"totalAmount\" FROM carts c LEFT JOIN cart_items ci ON ci.cart_id = c.id WHERE c.customer_id = @sessionCustomerId AND c.status = 'active'",
-          "outputBinding": { "name": "summaryRows" },
+          "outputBinding": {
+            "name": "summaryRows",
+            "transformations": [
+              { "field": "itemCount", "type": "integer" },
+              { "field": "totalAmount", "type": "float" }
+            ]
+          },
           "lineage": {
             "reads": [
               { "tableId": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6", "purpose": "lookup" },

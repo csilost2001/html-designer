@@ -149,7 +149,8 @@ TX が rollback された**後**に実行する step 列。任意・補償処理
 2. **`onCommit` / `onRollback` の独立性**: これらは TX の外で実行され、自身の失敗は元の TX 結果を覆さない
 3. **ネスト時の `REQUIRES_NEW`**: 親 TX が動いている時に `REQUIRES_NEW` の TransactionScopeStep に入ると、親 TX が一時停止して内側 TX が独立 commit/rollback する。内側 commit 後に親 TX が rollback しても、内側の commit は取り消されない
 4. **ネスト時の `NESTED`**: savepoint を使う。内側 rollback は親 TX の savepoint 復元、親 rollback は savepoint も含めて全 rollback
-5. **`tryCatch` Branch との組合せ**: TransactionScopeStep の外側で `kind: "tryCatch"` Branch を置けば、TX rollback で throw されたエラーを捕捉できる
+5. **`outputBinding` による TX 結果の expose**: `transactionScope` step に `outputBinding: { "name": "txResult" }` を指定すると、TX 外の後続 step が `@txResult.committed` (boolean) と `@txResult.error` (失敗時のみ) を参照できる。これにより TX 失敗エラーコードを後続 branch の `condition.kind: "expression"` で参照できる (§8.5 参照)
+6. **`tryCatch` Branch との組合せ**: `outputBinding` なし / `tryCatch` branch による捕捉は以前から可能 (下位互換)。新規フローでは §8.5 の `outputBinding` + `expression` パターンを推奨する
 
 ## §5 サンプル (v3)
 
@@ -247,3 +248,89 @@ TX が rollback された**後**に実行する step 列。任意・補償処理
 // OK: TX inner の dbAccess が throw するコードのみ列挙
 "rollbackOn": ["STOCK_SHORTAGE"]
 ```
+
+### §8.5 `outputBinding` による TX 結果の expose と expression branch パターン (#782)
+
+`transactionScope` step の `outputBinding` は `StepBaseProps` を通じて他の step と同様に使用できる。TX の場合は特別な semantics が追加される:
+
+| 状態 | `@<name>.committed` | `@<name>.error` |
+|---|---|---|
+| TX commit 成功 | `true` | `undefined` (参照時は null 扱い) |
+| TX rollback (rollbackOn のエラー) | `false` | `{ code: "<エラーコード>", message: "<例外メッセージ>" }` |
+| TX rollback (rollbackOn 外の汎用エラー) | `false` | `{ code: "UNHANDLED", message: "<例外メッセージ>" }` |
+
+この semantics により、TX 外の `branch` step の `condition.kind: "expression"` で具体的なエラーコードを参照できる:
+
+```json
+{
+  "id": "step-tx",
+  "kind": "transactionScope",
+  "outputBinding": { "name": "txResult" },
+  "rollbackOn": ["STOCK_SHORTAGE", "ORDER_NUMBER_CONFLICT"],
+  "steps": [ ... ]
+},
+{
+  "id": "step-error-branch",
+  "kind": "branch",
+  "description": "TX 失敗時のエラー分岐",
+  "branches": [
+    {
+      "id": "br-stock-shortage",
+      "code": "A",
+      "label": "在庫不足エラー",
+      "condition": {
+        "kind": "expression",
+        "expression": "@txResult.error.code === 'STOCK_SHORTAGE'"
+      },
+      "steps": [
+        { "id": "step-return-422", "kind": "return", "responseId": "422-stock-shortage" }
+      ]
+    },
+    {
+      "id": "br-conflict",
+      "code": "B",
+      "label": "番号競合エラー",
+      "condition": {
+        "kind": "expression",
+        "expression": "@txResult.error.code === 'ORDER_NUMBER_CONFLICT'"
+      },
+      "steps": [
+        { "id": "step-return-422b", "kind": "return", "responseId": "422-conflict" }
+      ]
+    },
+    {
+      "id": "br-unhandled",
+      "code": "C",
+      "label": "予期しない TX エラー (catch-all)",
+      "condition": {
+        "kind": "expression",
+        "expression": "@txResult.error.code === 'UNHANDLED'"
+      },
+      "steps": [
+        { "id": "step-return-500", "kind": "return", "responseId": "500-internal" }
+      ]
+    }
+  ],
+  "elseBranch": {
+    "id": "br-tx-success",
+    "code": "D",
+    "label": "TX 成功 — 後続処理へ",
+    "steps": []
+  }
+},
+{
+  "id": "step-after-tx",
+  "kind": "return",
+  "runIf": "@txResult.committed == true",
+  "responseId": "200-ok"
+}
+```
+
+**`tryCatch` branch との役割分離**:
+
+| 方式 | 用途 | 推奨度 |
+|---|---|---|
+| `condition.kind: "tryCatch"` | step 単位の throw catch (TX 外でも使用可、TX 内の catch は `NESTED` + `tryCatch` の組合せ) | 下位互換として継続利用可 |
+| `outputBinding` + `expression: "@<name>.error.code === ..."` | TX 全体の失敗後に TX 外 branch でエラーコード別分岐 | **新規フローで推奨** |
+
+**重要**: 両方を同じ TX に対して使用しないこと。`outputBinding` + `expression` パターンを採用したら、同一 TX の `tryCatch` branch は削除する。

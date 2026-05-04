@@ -329,6 +329,21 @@ export interface ActionDefinition {
 
 // ─── StepBaseProps (全 Step variant 共通) ──────────────────────────────
 
+/** outputBinding.transformations の 1 エントリ。SELECT 結果列の型変換指示。 */
+export interface OutputBindingTransformation {
+  /** 変換対象の column 名 (SELECT alias 名)。例: "itemCount"、"totalAmount"。 */
+  field: string;
+  /**
+   * 変換後の型。
+   * - integer: parseInt
+   * - float: parseFloat
+   * - boolean: truthy 判定
+   * - date: new Date
+   * - json: JSON.parse
+   */
+  type: "integer" | "float" | "boolean" | "date" | "json";
+}
+
 /** Step 結果の outputBinding (構造化のみ、v3 で string 短縮形廃止)。 */
 export interface OutputBinding {
   /** 結果変数名 (Identifier / camelCase)。 */
@@ -337,6 +352,12 @@ export interface OutputBinding {
   operation?: "assign" | "accumulate" | "push";
   /** accumulate / push 時の初期値。JSON 値 (例: 0, []) または式文字列。 */
   initialValue?: unknown;
+  /**
+   * 結果列の型変換指示。runtime が SELECT 結果を binding に格納する前に各 field の型を変換する。
+   * SQL 方言 (PG COUNT(*)→bigint→string、SUM(...)→decimal→string 等) を吸収する責務を
+   * フレームワーク側に持たせ、SQL を DB 中立に保つ。SQL 側に CAST(...) を書く必要がなくなる。
+   */
+  transformations?: OutputBindingTransformation[];
 }
 
 /** TX 境界宣言。txId 単位で begin/member/end を結合。 */
@@ -737,6 +758,16 @@ export interface WorkflowStep extends StepBaseProps {
 
 // ─── TransactionScopeStep ──────────────────────────────────────────────
 
+/**
+ * TX スコープ step。`outputBinding` を指定すると TX 結果が以下の semantics で expose される:
+ *
+ * - TX commit 成功: `@<name>.committed === true`、`@<name>.error` は未定義
+ * - TX rollback (rollbackOn のエラー): `@<name>.committed === false`、`@<name>.error.code` = エラーコード、`@<name>.error.message` = 例外メッセージ
+ * - TX rollback (rollbackOn 外の汎用エラー): `@<name>.committed === false`、`@<name>.error.code === "UNHANDLED"`
+ *
+ * 後続 branch の `condition.kind: "expression"` で `@txResult.error.code === 'STOCK_SHORTAGE'` のように参照する。
+ * 参照: docs/spec/process-flow-transaction.md §8.5、ISSUE #782
+ */
 export interface TransactionScopeStep extends StepBaseProps {
   kind: "transactionScope";
   description: Description;

@@ -410,6 +410,23 @@
         },
         "initialValue": {
           "description": "accumulate / push 時の初期値。JSON 値 (例: 0, []) または式文字列。"
+        },
+        "transformations": {
+          "type": "array",
+          "description": "結果列の型変換指示。runtime が SELECT 結果を binding に格納する前に各 field の型を変換する。SQL 方言 (PG COUNT(*)→bigint→string、SUM(...)→decimal→string 等) を吸収する責務をフレームワーク側に持たせ、SQL を DB 中立に保つ。SQL 側に CAST(...) を書く必要がなくなる。",
+          "items": {
+            "type": "object",
+            "required": ["field", "type"],
+            "additionalProperties": false,
+            "properties": {
+              "field": { "type": "string", "description": "変換対象の column 名 (SELECT alias 名)。例: \"itemCount\"、\"totalAmount\"。" },
+              "type": {
+                "type": "string",
+                "enum": ["integer", "float", "boolean", "date", "json"],
+                "description": "変換後の型。integer=parseInt / float=parseFloat / boolean=truthy 判定 / date=new Date / json=JSON.parse。"
+              }
+            }
+          }
         }
       }
     },
@@ -1152,6 +1169,7 @@
     },
 
     "TransactionScopeStep": {
+      "description": "TX スコープ step。StepBaseProps.outputBinding を指定すると TX 結果を後続 step に expose する: commit 成功時は @<name>.committed=true / rollbackOn エラー時は @<name>.committed=false + @<name>.error={code,message} / rollbackOn 外の汎用エラー時は @<name>.error.code='UNHANDLED'。後続 branch で condition.kind='expression' + expression='@txResult.error.code===\"STOCK_SHORTAGE\"' のように参照する。詳細: docs/spec/process-flow-transaction.md §8.5 (#782)。",
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
         {
@@ -1164,7 +1182,8 @@
             "timeoutMs": { "type": "number", "minimum": 0 },
             "rollbackOn": {
               "type": "array",
-              "items": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" }
+              "items": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" },
+              "description": "TX rollback を引き起こすエラーコード集合。TX inner step から実際に throw されるコードのみを列挙する。列挙外のエラーが発生した場合は outputBinding の @<name>.error.code が 'UNHANDLED' になる。"
             },
             "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
             "onCommit": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
