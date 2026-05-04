@@ -602,6 +602,23 @@ export async function loadProject(): Promise<FlowProject> {
   })();
 }
 
+/**
+ * プロジェクトの生 Project 定義を読み込む (design.cssFramework 等の参照用)。
+ * FlowProject へ合成する loadProject() とは異なり、project.json の raw shape を返す。
+ * design field は FlowProject には含まれないため、本関数で取得する (#793 子 5)。
+ */
+export async function loadRawProject(): Promise<Project> {
+  if (_backend) {
+    const data = await _backend.loadProject();
+    if (data) {
+      return normalizePersisted(data);
+    }
+  }
+  const local = loadPersistedFromLocalStorage();
+  if (local) return local;
+  return normalizePersisted({});
+}
+
 async function persistFlowProject(project: FlowProject): Promise<void> {
   const baseLayout = await loadScreenLayout();
   const { project: persisted, layout } = decomposeFlowProject(project, baseLayout);
