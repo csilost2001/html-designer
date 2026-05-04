@@ -645,13 +645,6 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   // /workspace/select に redirect → 直後に本 effect が /screen/design/xxx へ navigate
   // を上書き → guard が再度 redirect、というループ / flicker を起こすため。
   // workspace-list タブだけは select 画面からの誘導でも進入可能なので例外扱い。
-  //
-  // 重要: deps から `location.pathname` を意図的に除外している (2026-05-04 redirect loop fix)。
-  // 含めると、URL → tab 同期で setActiveTab → 次 render で本 effect が **古い state batch
-  // 内の activeTabId** で navigate を発火 → URL 変更 → URL → tab 再発火 → ループ。
-  // 本 effect は **「活動タブ変更時に URL を追随」** が役割で、URL 変更の追随は URL → tab
-  // 同期 (上の useEffect) が source of truth。pathname を読むのは現在値の比較用のみで、
-  // pathname 変更で再発火する必要は無い。
   const activeTab = tabs.find((t) => t.id === activeTabId);
   useEffect(() => {
     if (!activeTab) return;
@@ -687,9 +680,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       const guard = checkRedirect(expectedPath);
       if (guard.allow) navigate(expectedPath, { replace: true });
     }
-  // location.pathname を deps から意図的に除外 (上のコメント参照)。lint disable で明示。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, wsId]);
+  }, [activeTabId, activeTab?.type, activeTab?.resourceId, workspaceState.active, workspaceState.lockdown, location.pathname, wsId]);
 
   const designTabs = tabs.filter((t) => t.type === "design");
   const activeIsDesign = activeTab?.type === "design";
@@ -765,32 +756,28 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
           )}
         >
           <Routes>
-            {/* AppShellInner は親 Route /w/:wsId/* 配下にネストされている。
-                React Router v7 の標準形に従い、子 Route は **relative path** で書く。
-                以前は絶対 path (/w/:wsId/screen/list 等) を使っていたが v7 では match
-                しない (RenderedRoute に child fiber が生成されず Routes が null 描画) ため、
-                relative path + index に修正 (2026-05-04 redirect loop fix の裏で発見)。 */}
-            <Route index element={<DashboardView />} />
-            <Route path="screen/flow" element={<FlowEditor />} />
-            <Route path="screen/list" element={<ScreenListView />} />
+            {/* /w/:wsId/* 規約の絶対パス (location.pathname に対してマッチ) */}
+            <Route path="/w/:wsId/" element={<DashboardView />} />
+            <Route path="/w/:wsId/screen/flow" element={<FlowEditor />} />
+            <Route path="/w/:wsId/screen/list" element={<ScreenListView />} />
             {/* design は designTabs 経由で別レンダーされるが、
                  URL→タブ同期 effect の解決中に一瞬こちらのブランチが描画される。
                  以前は element={null} で真っ白だったのを ResourceLoading に置換 (#124) */}
-            <Route path="screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
-            <Route path="table/list" element={<TableListView />} />
-            <Route path="table/edit/:tableId" element={<TableEditor />} />
-            <Route path="table/er" element={<ErDiagram />} />
-            <Route path="process-flow/list" element={<ProcessFlowListView />} />
-            <Route path="process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
-            <Route path="extensions" element={<ExtensionsPanel />} />
-            <Route path="conventions/catalog" element={<ConventionsCatalogView />} />
-            <Route path="screen/items/:screenId" element={<ScreenItemsView />} />
-            <Route path="sequence/list" element={<SequenceListView />} />
-            <Route path="sequence/edit/:sequenceId" element={<SequenceEditor />} />
-            <Route path="view/list" element={<ViewListView />} />
-            <Route path="view/edit/:viewId" element={<ViewEditor />} />
-            <Route path="view-definition/list" element={<ViewDefinitionListView />} />
-            <Route path="view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
+            <Route path="/w/:wsId/screen/design/:screenId" element={<ResourceLoading kind="screen" />} />
+            <Route path="/w/:wsId/table/list" element={<TableListView />} />
+            <Route path="/w/:wsId/table/edit/:tableId" element={<TableEditor />} />
+            <Route path="/w/:wsId/table/er" element={<ErDiagram />} />
+            <Route path="/w/:wsId/process-flow/list" element={<ProcessFlowListView />} />
+            <Route path="/w/:wsId/process-flow/edit/:processFlowId" element={<ProcessFlowEditor />} />
+            <Route path="/w/:wsId/extensions" element={<ExtensionsPanel />} />
+            <Route path="/w/:wsId/conventions/catalog" element={<ConventionsCatalogView />} />
+            <Route path="/w/:wsId/screen/items/:screenId" element={<ScreenItemsView />} />
+            <Route path="/w/:wsId/sequence/list" element={<SequenceListView />} />
+            <Route path="/w/:wsId/sequence/edit/:sequenceId" element={<SequenceEditor />} />
+            <Route path="/w/:wsId/view/list" element={<ViewListView />} />
+            <Route path="/w/:wsId/view/edit/:viewId" element={<ViewEditor />} />
+            <Route path="/w/:wsId/view-definition/list" element={<ViewDefinitionListView />} />
+            <Route path="/w/:wsId/view-definition/edit/:viewDefinitionId" element={<ViewDefinitionEditor />} />
           </Routes>
         </ErrorBoundary>
       )}
