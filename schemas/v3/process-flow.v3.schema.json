@@ -1152,6 +1152,7 @@
     },
 
     "TransactionScopeStep": {
+      "description": "TX スコープ step。StepBaseProps.outputBinding を指定すると TX 結果を後続 step に expose する: commit 成功時は @<name>.committed=true / rollbackOn エラー時は @<name>.committed=false + @<name>.error={code,message} / rollbackOn 外の汎用エラー時は @<name>.error.code='UNHANDLED'。後続 branch で condition.kind='expression' + expression='@txResult.error.code===\"STOCK_SHORTAGE\"' のように参照する。詳細: docs/spec/process-flow-transaction.md §8.5 (#782)。",
       "allOf": [
         { "$ref": "#/$defs/StepBaseProps" },
         {
@@ -1164,7 +1165,8 @@
             "timeoutMs": { "type": "number", "minimum": 0 },
             "rollbackOn": {
               "type": "array",
-              "items": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" }
+              "items": { "$ref": "common.v3.schema.json#/$defs/ErrorCode" },
+              "description": "TX rollback を引き起こすエラーコード集合。TX inner step から実際に throw されるコードのみを列挙する。列挙外のエラーが発生した場合は outputBinding の @<name>.error.code が 'UNHANDLED' になる。"
             },
             "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } },
             "onCommit": { "type": "array", "items": { "$ref": "#/$defs/Step" } },

@@ -737,6 +737,16 @@ export interface WorkflowStep extends StepBaseProps {
 
 // ─── TransactionScopeStep ──────────────────────────────────────────────
 
+/**
+ * TX スコープ step。`outputBinding` を指定すると TX 結果が以下の semantics で expose される:
+ *
+ * - TX commit 成功: `@<name>.committed === true`、`@<name>.error` は未定義
+ * - TX rollback (rollbackOn のエラー): `@<name>.committed === false`、`@<name>.error.code` = エラーコード、`@<name>.error.message` = 例外メッセージ
+ * - TX rollback (rollbackOn 外の汎用エラー): `@<name>.committed === false`、`@<name>.error.code === "UNHANDLED"`
+ *
+ * 後続 branch の `condition.kind: "expression"` で `@txResult.error.code === 'STOCK_SHORTAGE'` のように参照する。
+ * 参照: docs/spec/process-flow-transaction.md §8.5、ISSUE #782
+ */
 export interface TransactionScopeStep extends StepBaseProps {
   kind: "transactionScope";
   description: Description;
