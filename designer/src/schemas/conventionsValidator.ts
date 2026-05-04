@@ -234,6 +234,22 @@ export function checkConventionReferences(
     walkStepsInAction(action, `actions[${ai}]`, catalog, issues);
   });
 
+  // context.catalogs.domains の constraints[].patternRef / *Ref を検査 (#783)
+  const domains = group.context?.catalogs?.domains;
+  if (domains) {
+    Object.entries(domains).forEach(([domainKey, entry]) => {
+      (entry.constraints ?? []).forEach((rule, ri) => {
+        const base = `context.catalogs.domains.${domainKey}.constraints[${ri}]`;
+        if (rule.patternRef) checkValue(rule.patternRef, `${base}.patternRef`, catalog, issues);
+        if (rule.minRef) checkValue(rule.minRef, `${base}.minRef`, catalog, issues);
+        if (rule.maxRef) checkValue(rule.maxRef, `${base}.maxRef`, catalog, issues);
+        if (rule.lengthRef) checkValue(rule.lengthRef, `${base}.lengthRef`, catalog, issues);
+        if (rule.condition) checkValue(rule.condition, `${base}.condition`, catalog, issues);
+        if (rule.message) checkValue(rule.message, `${base}.message`, catalog, issues);
+      });
+    });
+  }
+
   return issues;
 }
 

@@ -71,7 +71,7 @@
             {
               "field": "productCode",
               "type": "regex",
-              "pattern": "^P-[0-9]{4,6}$",
+              "patternRef": "@conv.regex.productCode",
               "severity": "error",
               "message": "商品コードは 'P-' + 4〜6 桁数字の形式で入力してください (例: P-0001)。"
             }

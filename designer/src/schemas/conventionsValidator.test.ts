@@ -801,3 +801,90 @@ describe("#734 checkStep — validation rules[].minRef/maxRef/lengthRef 検査",
   });
 });
 
+describe("#783 context.catalogs.domains.constraints[].patternRef 検証", () => {
+  const catalog: ConventionsCatalog = {
+    version: "1.0.0",
+    regex: {
+      productCode: { pattern: "^P-[0-9]{4,6}$" },
+    },
+  };
+
+  it("domains.constraints[].patternRef に実在する @conv.regex.* を書くとエラーなし", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductCode: {
+                type: "string",
+                constraints: [
+                  { field: "productCode", type: "regex", patternRef: "@conv.regex.productCode", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalog,
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("domains.constraints[].patternRef に存在しない @conv.regex.* を書くと UNKNOWN_CONV_REGEX 検出", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductCode: {
+                type: "string",
+                constraints: [
+                  { field: "productCode", type: "regex", patternRef: "@conv.regex.unknownKey", severity: "error" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalog,
+    );
+    expect(issues).toHaveLength(1);
+    const hit = issues[0];
+    expect(hit.code).toBe("UNKNOWN_CONV_REGEX");
+    expect(hit.path).toBe("context.catalogs.domains.ProductCode.constraints[0].patternRef");
+  });
+
+  it("domains.constraints[].message に @conv.msg.* がある場合も検証される", () => {
+    const catalogWithMsg: ConventionsCatalog = {
+      version: "1.0.0",
+      regex: { productCode: { pattern: "^P-[0-9]{4,6}$" } },
+      msg: { required: { template: "必須です", params: [] } },
+    };
+    const issues = checkConventionReferences(
+      makeGroup({
+        context: {
+          catalogs: {
+            domains: {
+              ProductCode: {
+                type: "string",
+                constraints: [
+                  { field: "productCode", type: "regex", patternRef: "@conv.regex.productCode", severity: "error", message: "@conv.msg.unknownMsg" },
+                ],
+              },
+            },
+          },
+        },
+      } as Partial<ProcessFlow>),
+      catalogWithMsg,
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_MSG");
+    expect(issues[0].path).toBe("context.catalogs.domains.ProductCode.constraints[0].message");
+  });
+
+  it("domains が undefined の場合は検査スキップ (既存テスト不変)", () => {
+    const issues = checkConventionReferences(makeGroup({}), catalog);
+    expect(issues).toHaveLength(0);
+  });
+});
+
