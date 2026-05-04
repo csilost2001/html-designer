@@ -24,8 +24,10 @@ import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { loadProject, loadRawProject, updateScreenThumbnail } from "../store/flowStore";
+import { loadScreenEntity } from "../store/screenStore";
 import { makeTabId, setDirty } from "../store/tabStore";
 import type { CssFramework } from "../types/v3/project";
+import { resolveCssFramework } from "../utils/resolveCssFramework";
 import { clearItemsFromCache } from "../store/screenItemsStore";
 import { useEditSession } from "../hooks/useEditSession";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
@@ -273,22 +275,24 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
 
-  // cssFramework をプロジェクトから読み込む (mount 時 1 回)。
-  // design.cssFramework は FlowProject には含まれないため loadRawProject() で取得する (#793 子 5)。
+  // cssFramework を画面 + プロジェクトから読み込む (screenId が変わるたびに再解決)。
+  // 解決順序: screen.design.cssFramework ?? project.design.cssFramework ?? "bootstrap"
+  // (css-framework-switching.md § 1.3.1 / multi-editor-puck.md § 2.3 / #806 子 2)
   useEffect(() => {
     let cancelled = false;
-    loadRawProject().then((raw) => {
+    Promise.all([
+      loadRawProject(),
+      loadScreenEntity(screenId),
+    ]).then(([raw, screen]) => {
       if (cancelled) return;
-      const fw = raw.design?.cssFramework ?? "bootstrap";
+      const fw = resolveCssFramework(screen.design, raw.design);
       setCssFramework(fw);
       cssFrameworkRef.current = fw;
     }).catch((e) => {
-      console.warn("[Designer] loadRawProject failed, using default cssFramework 'bootstrap'", e);
+      console.warn("[Designer] cssFramework resolve failed, using default 'bootstrap'", e);
     });
     return () => { cancelled = true; };
-  // screenId に依存しない: framework はプロジェクト単位で固定 (途中切替非サポート)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [screenId]);
 
   // cssFrameworkRef を cssFramework state と同期 (onReady closure から参照するため)
   useEffect(() => {
@@ -302,7 +306,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       applyThemeToCanvas(editorRef.current, themeId, cssFrameworkRef.current);
     }
   // cssFrameworkRef は ref なので依存配列不要
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeChangeRef = useRef(handleThemeChange);
