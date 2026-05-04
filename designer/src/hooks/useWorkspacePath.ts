@@ -10,6 +10,7 @@
  *   // → /w/<active-wsId>/screen/list
  */
 
+import { useCallback } from "react";
 import { useParams } from "react-router-dom";
 
 interface UseWorkspacePathResult {
@@ -22,12 +23,17 @@ interface UseWorkspacePathResult {
 export function useWorkspacePath(): UseWorkspacePathResult {
   const { wsId } = useParams<{ wsId: string }>();
 
-  function wsPath(suffix: string): string {
+  // wsId が同じである限り wsPath の関数 ref を安定化する。
+  // これを useCallback しないと、本フックを使うコンポーネントで
+  // wsPath を deps に持つ useMemo / useCallback / useEffect が
+  // 毎レンダー再評価され、setState 系を内側で叩いていると
+  // 無限ループ ("Maximum update depth exceeded") を起こす
+  // (UnsavedDraftsPanel で実際に発生していた、2026-05-04 修正)。
+  const wsPath = useCallback((suffix: string): string => {
     if (!wsId) return suffix;
-    // suffix が "/" で始まる場合は /w/<wsId><suffix>、始まらない場合も同様
     const normalizedSuffix = suffix.startsWith("/") ? suffix : `/${suffix}`;
     return `/w/${wsId}${normalizedSuffix}`;
-  }
+  }, [wsId]);
 
   return { wsPath, wsId };
 }
