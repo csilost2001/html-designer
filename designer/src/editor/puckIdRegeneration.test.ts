@@ -117,4 +117,27 @@ describe("regeneratePuckDataIds", () => {
     expect(() => regeneratePuckDataIds(data)).not.toThrow();
     expect(regeneratePuckDataIds(data).content).toEqual([]);
   });
+
+  it("props.id が undefined の component は id 生成しない", () => {
+    const data: Data = {
+      root: { props: {} },
+      content: [{ type: "Heading", props: {} }] as any, // id なし
+    };
+    const result = regeneratePuckDataIds(data);
+    expect((result.content[0] as any).props.id).toBeUndefined();
+  });
+
+  it("props.id が数値型等 string 以外でも content 直下なら UUID に置換される (regenerateItem は id キーを無条件置換)", () => {
+    // regenerateContent は regenerateItem を直接呼ぶため isComponentItem ガードを経由しない。
+    // regenerateItem は key === "id" を無条件で nextId() に渡すので、数値 id も UUID に置換される。
+    // (isComponentItem ガードは regenerateUnknown 経由のネスト検索にのみ使用される)
+    const data: Data = {
+      root: { props: {} },
+      content: [{ type: "Heading", props: { id: 123 as any } }] as any,
+    };
+    const result = regeneratePuckDataIds(data);
+    // 数値 id は UUID 文字列に置換される (string 型チェックは regenerateItem にはない)
+    expect(typeof (result.content[0] as any).props.id).toBe("string");
+    expect((result.content[0] as any).props.id).toBe("uuid-1");
+  });
 });

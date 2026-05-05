@@ -89,4 +89,30 @@ describe("duplicateScreenDesignData", () => {
     expect(mockBridge.request).toHaveBeenCalledTimes(1);
     expect(mockBridge.request).toHaveBeenCalledWith("loadScreen", { screenId: "src-screen" });
   });
+
+  it("grapesjs 経路で saveScreen は呼ばれるが savePuckData / loadPuckData は呼ばれない (entity.editorKind/cssFramework を Puck API で上書きしない)", async () => {
+    // wsBridge.ts の writeScreen は {screenId}.design.json と {screenId}.json (entity) を両方書く設計。
+    // ただし entity 書き込みは projectStorage.ts:377 のスプレッド `{ ...entity.design, designFileRef: ... }`
+    // 経由なので editorKind / cssFramework は保持される (pre-existing 設計に依存)。
+    // このテストでは GrapesJS 経路が Puck 専用 API (savePuckData) を呼ばないことを保証し、
+    // entity 上書き経路が mcpBridge.request("saveScreen") のみであることを trace 可能にする。
+    const src = {
+      assets: [],
+      pages: [{ frames: [{ component: { type: "wrapper" } }] }],
+      styles: [],
+    };
+    mockBridge.request.mockResolvedValueOnce(src).mockResolvedValueOnce({ success: true });
+
+    await duplicateScreenDesignData("src-screen", "dup-screen", "grapesjs");
+
+    // GrapesJS の保存は request("saveScreen") のみ — entity の editorKind/cssFramework は
+    // wsBridge 側のスプレッドで保持される (projectStorage.ts:377 参照)
+    expect(mockBridge.request).toHaveBeenNthCalledWith(2, "saveScreen", {
+      screenId: "dup-screen",
+      data: src,
+    });
+    // Puck 専用 API は呼ばれない (entity を Puck 経路で二重上書きしない)
+    expect(mockBridge.savePuckData).not.toHaveBeenCalled();
+    expect(mockBridge.loadPuckData).not.toHaveBeenCalled();
+  });
 });
