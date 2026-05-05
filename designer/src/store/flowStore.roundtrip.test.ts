@@ -219,6 +219,116 @@ describe("legacyToProject UUID 発番 (#835 Should-fix 1)", () => {
   });
 });
 
+describe("decomposeFlowProject screen id mismatch (negative paths) (#836)", () => {
+  const OTHER_SCREEN_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" as ScreenId;
+  const NEW_SCREEN_ID = "11111111-2222-4333-8444-555555555555" as ScreenId;
+
+  /** existingRaw に OTHER_SCREEN_ID 画面を追加した Project を返す */
+  function mkRichProjectWith2Screens(): Project {
+    const base = mkRichProject();
+    return {
+      ...base,
+      entities: {
+        ...base.entities,
+        screens: [
+          ...(base.entities?.screens ?? []),
+          {
+            id: OTHER_SCREEN_ID,
+            no: 2,
+            name: "追加既存画面",
+            kind: "list",
+            path: "/other",
+            hasDesign: false,
+            updatedAt: TS,
+            maturity: "committed",
+          } as (typeof base.entities.screens)[number],
+        ],
+      },
+    };
+  }
+
+  it("existingRaw にあるが FlowProject にない orphan screen は drop される (FlowProject が正本)", () => {
+    // existing: SCREEN_ID + OTHER_SCREEN_ID の 2 画面
+    const existing = mkRichProjectWith2Screens();
+    // FlowProject は SCREEN_ID のみ (OTHER_SCREEN_ID は除外)
+    const flow = composeFlowProject(mkRichProject(), mkLayout());
+
+    const { project: decomposed } = decomposeFlowProject(flow, mkLayout(), existing);
+
+    // OTHER_SCREEN_ID (existingRaw 側だけにある orphan) は drop される
+    const orphan = decomposed.entities?.screens?.find((s) => s.id === OTHER_SCREEN_ID);
+    expect(orphan).toBeUndefined();
+    // SCREEN_ID は保持される
+    const kept = decomposed.entities?.screens?.find((s) => s.id === SCREEN_ID);
+    expect(kept).toBeDefined();
+  });
+
+  it("FlowProject にあるが existingRaw にない new screen は追加される (existing フィールドなし)", () => {
+    const existing = mkRichProject(); // SCREEN_ID のみ
+    // FlowProject に NEW_SCREEN_ID を追加した Project を合成する
+    const existingWithNew: Project = {
+      ...existing,
+      entities: {
+        ...existing.entities,
+        screens: [
+          ...(existing.entities?.screens ?? []),
+          {
+            id: NEW_SCREEN_ID,
+            no: 2,
+            name: "追加画面",
+            kind: "form",
+            path: "/extra",
+            hasDesign: false,
+            updatedAt: TS,
+          },
+        ],
+      },
+    };
+    const flow = composeFlowProject(existingWithNew, {
+      positions: {
+        [SCREEN_ID]: { x: 100, y: 150, width: 200, height: 100 },
+        [NEW_SCREEN_ID]: { x: 300, y: 150, width: 200, height: 100 },
+      },
+      transitions: {},
+      updatedAt: TS,
+    });
+
+    // existingRaw には NEW_SCREEN_ID がない (SCREEN_ID だけの existing を渡す)
+    const { project: decomposed } = decomposeFlowProject(flow, mkLayout(), existing);
+
+    // NEW_SCREEN_ID は FlowProject にあるので追加される
+    const added = decomposed.entities?.screens?.find((s) => s.id === NEW_SCREEN_ID);
+    expect(added).toBeDefined();
+    expect(added?.name).toBe("追加画面");
+    // existing に該当 id がないので maturity 等の追加フィールドは引き継がれない
+    expect((added as { maturity?: string } | undefined)?.maturity).toBeUndefined();
+    // 既存の SCREEN_ID も保持される
+    const original = decomposed.entities?.screens?.find((s) => s.id === SCREEN_ID);
+    expect(original).toBeDefined();
+  });
+
+  it("共通 id の screen は existing の追加フィールド (maturity) が merge され FlowProject の name が優先される", () => {
+    const existing = mkRichProject();
+    const flow = composeFlowProject(existing, mkLayout());
+    // FlowProject の同 id 画面名を変更する
+    const flowModified: typeof flow = {
+      ...flow,
+      screens: flow.screens.map((s) =>
+        s.id === SCREEN_ID ? { ...s, name: "変更後の名前" } : s
+      ),
+    };
+
+    const { project: decomposed } = decomposeFlowProject(flowModified, mkLayout(), existing);
+
+    const merged = decomposed.entities?.screens?.find((s) => s.id === SCREEN_ID);
+    expect(merged).toBeDefined();
+    // FlowProject の新しい name が反映される
+    expect(merged?.name).toBe("変更後の名前");
+    // existing の追加フィールド (maturity) も保持される
+    expect((merged as { maturity?: string } | undefined)?.maturity).toBe("draft");
+  });
+});
+
 describe("saveTechStack AJV validation (#835 Should-fix 2)", () => {
   it("不正な techStack を渡すと assertValidProject が例外を投げ saveProject は呼ばれない", async () => {
     const richProject = mkRichProject();
