@@ -41,7 +41,7 @@ import {
 } from "./editing/ConfirmDialogs";
 import { ResumeOrDiscardDialog } from "./editing/ResumeOrDiscardDialog";
 import { PuckBackend } from "../editor/PuckBackend";
-import type { Disposable } from "../editor/EditorBackend";
+import type { EditorState } from "../editor/EditorBackend";
 import "../styles/editMode.css";
 
 /**
@@ -212,11 +212,14 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const cssFrameworkRef = useRef<CssFramework>("bootstrap");
   // editorKind (#806 子 3): 省略時は "grapesjs" (schema default と一致)
   const [editorKind, setEditorKind] = useState<EditorKind>("grapesjs");
-  // Puck Backend 用コンテナ ref および Disposable ref
-  const puckContainerRef = useRef<HTMLDivElement | null>(null);
-  const puckDisposableRef = useRef<Disposable | null>(null);
+  // Puck Backend (#815: container 直マウントを廃止、React コンポーネントとして render)
+  const puckBackendRef = useRef<PuckBackend | null>(null);
+  const [puckState, setPuckState] = useState<EditorState | null>(null);
   // Puck 用 debounce フラッシュコールバック (#806 M-1: "puck-data" draft 経由で保存)
   const puckFlushRef = useRef<(() => void) | null>(null);
+  // Puck onChange の pending payload + debounce timer (handleSave で flush するため ref で保持)
+  const puckPendingPayloadRef = useRef<unknown>(null);
+  const puckPendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
 
@@ -668,27 +671,28 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     legacyDataRef.current = null;
   }, [screenId]);
 
-  // Puck Backend のマウント / アンマウント (#806 子 3 / M-1 / M-2 修正)。
+  // Puck Backend の load — payload を取得して puckState にセット。
+  // 描画は React render 時に backend.renderEditor() の戻り値 (ReactNode) を使う (#815)。
   // editorKind === "puck" のときのみ実行する。
-  // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理するため、
-  // このエフェクトは Puck 分岐専用。
-  //
-  // ライフサイクル注意: backend.load().then() は非同期で puckDisposableRef に代入するが、
-  // cleanup が .then() より先に実行される場合 (workspace close 等で素早く unmount される場合) は
-  // disposable が設定される前に cleanup が走り、listener が leaked する。
-  // → cleanup 参照できるよう disposable を closure 変数で管理し、
-  //   .then() 完了前に cleanup が走った場合も即 dispose() できるようにする。
+  // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理する (PR-A 段階)。
   useEffect(() => {
     if (editorKind !== "puck") return;
-    const container = puckContainerRef.current;
-    if (!container) return;
-
     let cancelled = false;
-    // closure で disposable を保持: puckDisposableRef は ref 経由でも保持するが、
-    // cleanup が .then() より先に走る場合でも dispose() できるようここに保存する
-    let localDisposable: Disposable | null = null;
+    if (!puckBackendRef.current) puckBackendRef.current = new PuckBackend();
+    const backend = puckBackendRef.current;
 
-    const backend = new PuckBackend();
+    // puckFlushRef にフラッシュ関数を登録 (handleSave が呼ぶ)。
+    // pending payload + timer は ref 経由で保持し、handleSave / unmount から参照可能にする。
+    puckFlushRef.current = () => {
+      if (puckPendingTimerRef.current !== null) {
+        clearTimeout(puckPendingTimerRef.current);
+        puckPendingTimerRef.current = null;
+      }
+      if (puckPendingPayloadRef.current !== null) {
+        mcpBridge.updateDraft("puck-data", screenId, puckPendingPayloadRef.current).catch(console.error);
+        puckPendingPayloadRef.current = null;
+      }
+    };
 
     backend
       .load(screenId, async () => {
@@ -708,69 +712,42 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         return null;
       })
       .then((state) => {
-        // cleanup が先に走っていた場合は即 dispose して終了
-        if (cancelled) {
-          // renderEditor を呼ばずに終了 (subscribe/mount を行わない)
-          return;
-        }
-        let pendingPayload: unknown = null;
-        let pendingTimer: ReturnType<typeof setTimeout> | null = null;
-
-        // puckFlushRef にフラッシュ関数を登録 (handleSave が呼ぶ)
-        puckFlushRef.current = () => {
-          if (pendingTimer !== null) {
-            clearTimeout(pendingTimer);
-            pendingTimer = null;
-          }
-          if (pendingPayload !== null) {
-            mcpBridge.updateDraft("puck-data", screenId, pendingPayload).catch(console.error);
-            pendingPayload = null;
-          }
-        };
-
-        const disposable = backend.renderEditor(container, state, {
-          cssFramework,
-          themeVariant: activeTheme,
-          onChange: (newState) => {
-            // 変更検知: debounce で updateDraft を呼ぶ (M-1: "puck-data" type)
-            if (isReadonlyRef.current) return;
-            setIsDirtyState(true);
-            isDirtyRef.current = true;
-            pendingPayload = newState.payload;
-            if (pendingTimer !== null) clearTimeout(pendingTimer);
-            pendingTimer = setTimeout(() => {
-              pendingTimer = null;
-              if (pendingPayload !== null) {
-                mcpBridge.updateDraft("puck-data", screenId, pendingPayload).catch(console.error);
-                pendingPayload = null;
-              }
-            }, 300);
-          },
-        });
-        localDisposable = disposable;
-        puckDisposableRef.current = disposable;
+        if (cancelled) return;
+        setPuckState(state);
       })
       .catch((e) => {
         console.warn("[Designer] PuckBackend.load failed", e);
       });
 
     return () => {
-      // cancelled フラグを立てて .then() 内での renderEditor 呼び出しを防ぐ
       cancelled = true;
       puckFlushRef.current = null;
-      // localDisposable と puckDisposableRef.current は同一オブジェクトなので 1 回だけ dispose。
-      // .then() 完了前 (localDisposable=null) でも puckDisposableRef に前回マウント分が残る
-      // ケースに備えて両方チェックする。
-      const toDispose = localDisposable ?? puckDisposableRef.current;
-      if (toDispose) {
-        toDispose.dispose();
+      if (puckPendingTimerRef.current !== null) {
+        clearTimeout(puckPendingTimerRef.current);
+        puckPendingTimerRef.current = null;
       }
-      localDisposable = null;
-      puckDisposableRef.current = null;
+      puckPendingPayloadRef.current = null;
     };
-  // cssFramework / activeTheme の変更時は再マウントしない (初回マウント時のみ)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorKind, screenId]);
+
+  // Puck onChange handler — debounce で updateDraft を呼び、dirty 状態を更新する。
+  const handlePuckChange = useCallback(
+    (newState: EditorState) => {
+      if (isReadonlyRef.current) return;
+      setIsDirtyState(true);
+      isDirtyRef.current = true;
+      puckPendingPayloadRef.current = newState.payload;
+      if (puckPendingTimerRef.current !== null) clearTimeout(puckPendingTimerRef.current);
+      puckPendingTimerRef.current = setTimeout(() => {
+        puckPendingTimerRef.current = null;
+        if (puckPendingPayloadRef.current !== null) {
+          mcpBridge.updateDraft("puck-data", screenId, puckPendingPayloadRef.current).catch(console.error);
+          puckPendingPayloadRef.current = null;
+        }
+      }, 300);
+    },
+    [screenId],
+  );
 
   // Puck 画面の cross-tab 上書き保護 (Sh-1: puckDataChanged broadcast 購読)。
   // GrapesJS は screenChanged broadcast を購読して ServerChangeBanner を表示するのと同等。
@@ -860,40 +837,50 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   );
 
   // ---------------------------------------------------------------------------
-  // Puck エディタ表示 (#806 子 3)
-  // editorKind === "puck" のときはシンプルな div ベースレイアウトで Puck をマウントする。
+  // Puck エディタ表示 (#806 子 3 / #815 で Backend.renderEditor 統一形に移行)
+  // editorKind === "puck" のときは PuckBackend.renderEditor() の戻り値 (ReactNode) を render する。
   // GrapesJS 固有の GjsEditor / WithEditor / BlocksProvider は使用しない。
   // ---------------------------------------------------------------------------
   if (editorKind === "puck") {
-    return (
-      <div className={`designer-root${isReadonly ? " is-readonly" : ""}`}>
-        <div className="designer-layout">
-          {/* サブツールバー: editorKind=puck では DesignSubToolbar の WithEditor ラッパーは不要 */}
-          <DesignSubToolbar
-            panelMode={panelMode}
-            onOpenPanel={openPanel}
-            activeTheme={activeTheme}
-            onThemeChange={handleThemeChange}
-            mcpStatus={mcpStatus}
-            isDirty={isDirty}
-            isSaving={isSaving}
-            onSaveToFile={handleSave}
-            onReset={async () => setShowDiscardDialog(true)}
-            backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
-            screenId={screenId}
-            isReadonly={isReadonly}
-          />
-          {commonDialogs}
-          {/* Puck エディタがマウントされるコンテナ */}
-          <div
-            ref={puckContainerRef}
-            className="puck-editor-container"
-            style={{ flex: 1, overflow: "auto" }}
-            data-testid="puck-editor-container"
-          />
+    if (!puckState || !puckBackendRef.current) {
+      return (
+        <div className="loading-screen">
+          <div className="spinner" />
+          <p>エディタを起動中...</p>
         </div>
-      </div>
+      );
+    }
+    const puckSubToolbar = (
+      <DesignSubToolbar
+        panelMode={panelMode}
+        onOpenPanel={openPanel}
+        activeTheme={activeTheme}
+        onThemeChange={handleThemeChange}
+        mcpStatus={mcpStatus}
+        isDirty={isDirty}
+        isSaving={isSaving}
+        onSaveToFile={handleSave}
+        onReset={async () => setShowDiscardDialog(true)}
+        backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
+        screenId={screenId}
+        isReadonly={isReadonly}
+      />
     );
+    return puckBackendRef.current.renderEditor({
+      state: puckState,
+      cssFramework,
+      themeVariant: activeTheme,
+      isReadonly,
+      subToolbarSlot: puckSubToolbar,
+      dialogsSlot: commonDialogs,
+      panelMode,
+      onTogglePin: togglePin,
+      onClosePanel: closePanel,
+      screenId,
+      ready: true,
+      onStartEditing: editActions.startEditing,
+      onChange: handlePuckChange,
+    });
   }
 
   // ---------------------------------------------------------------------------

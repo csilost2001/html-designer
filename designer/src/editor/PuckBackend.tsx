@@ -14,21 +14,19 @@
  *
  * 詳細仕様: docs/spec/multi-editor-puck.md § 3 / § 4.2 / § 4.3
  *
- * #806 子 4 / 子 5
+ * #806 子 4 / 子 5 / #815 (renderEditor が ReactNode を返す形に統一)
  */
 
-import React from "react";
-import { createRoot } from "react-dom/client";
-import type { Root } from "react-dom/client";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Puck } from "@measured/puck";
 import type { Data, Config } from "@measured/puck";
 import "@measured/puck/puck.css";
 
 import type {
+  EditorApi,
   EditorBackend,
   EditorState,
-  RenderOpts,
-  Disposable,
+  RenderEditorProps,
 } from "./EditorBackend";
 import { CssFrameworkProvider } from "../puck/CssFrameworkContext";
 import { buildPuckConfig } from "../puck/buildConfig";
@@ -75,17 +73,14 @@ function buildConfigWithCustomComponents(customComponents: CustomPuckComponentDe
 
   if (customComponents.length === 0) return base;
 
-  // カスタムコンポーネントを components に追加
   const extraComponents: Config["components"] = {};
 
   for (const def of customComponents) {
-    // primitive に対応するビルトイン config を取得
     const primitiveKey = Object.keys(base.components).find(
       (k) => k.toLowerCase() === def.primitive.toLowerCase().replace(/-/g, ""),
     );
     const baseComponentConfig = primitiveKey ? base.components[primitiveKey] : undefined;
 
-    // propsSchema から Puck fields を動的構築
     const customFields: Config["components"][string]["fields"] = {};
     for (const [fieldName, fieldDef] of Object.entries(def.propsSchema)) {
       if (fieldDef.type === "enum" && fieldDef.enum && fieldDef.enum.length > 0) {
@@ -104,7 +99,6 @@ function buildConfigWithCustomComponents(customComponents: CustomPuckComponentDe
           ],
         };
       } else {
-        // string / number → text フィールド
         customFields[fieldName] = {
           type: "text" as const,
           label: fieldDef.label ?? fieldName,
@@ -112,7 +106,6 @@ function buildConfigWithCustomComponents(customComponents: CustomPuckComponentDe
       }
     }
 
-    // default props を構築
     const defaultProps: Record<string, unknown> = {};
     for (const [fieldName, fieldDef] of Object.entries(def.propsSchema)) {
       if (fieldDef.default !== undefined) {
@@ -120,7 +113,6 @@ function buildConfigWithCustomComponents(customComponents: CustomPuckComponentDe
       }
     }
 
-    // ベース config があれば render / fields をマージ
     if (baseComponentConfig) {
       extraComponents[def.id] = {
         ...baseComponentConfig,
@@ -135,7 +127,6 @@ function buildConfigWithCustomComponents(customComponents: CustomPuckComponentDe
         },
       };
     } else {
-      // ビルトイン primitive が見つからない場合は最小 config
       extraComponents[def.id] = {
         label: `(カスタム) ${def.label}`,
         fields: customFields,
@@ -159,64 +150,99 @@ function buildConfigWithCustomComponents(customComponents: CustomPuckComponentDe
 }
 
 // -----------------------------------------------------------------------
-// PuckEditorWrapper (React コンポーネント)
+// PuckEditorPane (React コンポーネント)
+//   #815 で createRoot 経由のマウントを廃止。Designer.tsx からは
+//   PuckBackend.renderEditor() の戻り値として返される ReactNode に含まれる。
 // -----------------------------------------------------------------------
 
-interface PuckEditorWrapperProps {
+interface PuckEditorPaneProps {
   initialData: Data;
   cssFramework: "bootstrap" | "tailwind";
   onChange?: (state: EditorState) => void;
-  onCustomComponentsChange?: () => void;
+  onReady?: (api: EditorApi) => void;
 }
 
-function PuckEditorWrapper({
+function PuckEditorPane({
   initialData,
   cssFramework,
   onChange,
-  onCustomComponentsChange,
-}: PuckEditorWrapperProps) {
-  const [customComponents, setCustomComponents] = React.useState<CustomPuckComponentDef[]>([]);
-  const [showRegisterDialog, setShowRegisterDialog] = React.useState(false);
+  onReady,
+}: PuckEditorPaneProps) {
+  const [customComponents, setCustomComponents] = useState<CustomPuckComponentDef[]>([]);
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  // 編集中の Puck Data を state として保持 (カスタムコンポーネント変更による Puck 再マウント時に
+  // 未保存編集を保持するため Puck の data prop に渡す値を持続させる)。
+  const [currentData, setCurrentData] = useState<Data>(initialData);
+  // カスタムコンポーネント変更時に Puck を強制再マウントする key
+  const [remountKey, setRemountKey] = useState(0);
+  // EditorApi が getProjectData() で最新値を返すため、ref で同期する (effect/handler 内のみ参照)
+  const currentDataRef = useRef<Data>(initialData);
+  useEffect(() => {
+    currentDataRef.current = currentData;
+  }, [currentData]);
 
-  // 初回 + puckComponentsChanged 受信時に カスタムコンポーネントを再ロード
-  const reloadCustomComponents = React.useCallback(async () => {
+  const reloadCustomComponents = useCallback(async () => {
     try {
       const loaded = await loadCustomPuckComponents();
       setCustomComponents(loaded);
+      setRemountKey((k) => k + 1);
     } catch (e) {
       console.warn("[PuckBackend] Failed to load custom puck components:", e);
     }
   }, []);
 
-  React.useEffect(() => {
+  // 初期マウント時にカスタムコンポーネントを fetch する。setState を伴う effect だが
+  // 「外部 (server) から data を取得して state に反映」の正規パターンのため抑制。
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reloadCustomComponents();
   }, [reloadCustomComponents]);
 
-  // buildPuckConfig は cssFramework 非依存 (全 primitive を含む)。
-  // cssFramework は CssFrameworkContext 経由で各 primitive の render に伝わる。
-  // カスタムコンポーネントが変わったら config を再構築。
-  const config = React.useMemo(
+  // mcpBridge broadcast: 別タブでカスタムコンポーネントが変わったら再ロード
+  useEffect(() => {
+    const unsub = mcpBridge.onBroadcast("puckComponentsChanged", () => {
+      void reloadCustomComponents();
+    });
+    return () => { unsub(); };
+  }, [reloadCustomComponents]);
+
+  // ready 通知 + 軽量 EditorApi expose (Puck は editor インスタンスを持たないので限定的)
+  useEffect(() => {
+    if (!onReady) return;
+    const api: EditorApi = {
+      // Puck は cssFramework を Context 経由で適用するため canvas iframe theme injection は不要
+      applyTheme: () => { /* no-op for Puck */ },
+      reload: async () => { /* Puck の再ロードは parent component が initialData を差替えて行う */ },
+      refreshCanvas: () => { /* Puck 内部で管理 */ },
+      isCanvasEmpty: () => {
+        const data = currentDataRef.current;
+        return !data.content || data.content.length === 0;
+      },
+      captureThumbnail: async () => null,
+      getProjectData: () => currentDataRef.current,
+      clearUndo: () => { /* Puck has its own history; no-op */ },
+    };
+    onReady(api);
+  }, [onReady]);
+
+  const config = useMemo(
     () => buildConfigWithCustomComponents(customComponents),
     [customComponents],
   );
 
-  const handleChange = React.useCallback(
+  const handleChange = useCallback(
     (data: Data) => {
-      if (onChange) {
-        onChange({ payload: data });
-      }
+      setCurrentData(data);
+      onChange?.({ payload: data });
     },
     [onChange],
   );
 
-  const handleComponentSaved = React.useCallback(() => {
+  const handleComponentSaved = useCallback(() => {
     void reloadCustomComponents();
-    onCustomComponentsChange?.();
-  }, [reloadCustomComponents, onCustomComponentsChange]);
+  }, [reloadCustomComponents]);
 
   return (
-    // CssFrameworkProvider で Puck ツリー全体を wrap。
-    // 各 primitive の render は useCssFramework() でここの値を参照する。
     <CssFrameworkProvider value={cssFramework}>
       {/* 新規コンポーネント登録ボタン (パレット上部相当) */}
       <div
@@ -245,14 +271,13 @@ function PuckEditorWrapper({
       </div>
 
       <Puck
+        key={remountKey}
         config={config}
-        data={initialData}
+        data={currentData}
         onChange={handleChange}
         // ヘッダーのデフォルト "Publish" ボタンは PuckBackend では使わない。
         // 明示保存式 (#683) なので onPublish は no-op。
-        onPublish={() => {
-          // no-op: 明示保存は Designer.tsx の handleSave 経由
-        }}
+        onPublish={() => { /* no-op: 明示保存は Designer.tsx の handleSave 経由 */ }}
       />
 
       {showRegisterDialog && (
@@ -270,16 +295,14 @@ function PuckEditorWrapper({
 // -----------------------------------------------------------------------
 
 /**
- * PuckBackend — @measured/puck を container DOM にマウントする EditorBackend 実装。
+ * PuckBackend — @measured/puck を用いる EditorBackend 実装。
  *
  * ライフサイクル:
  *   1. load()         — draftRead で Puck Data を取得 (無ければ empty data)
- *   2. renderEditor() — container に React ツリーをマウント
+ *   2. renderEditor() — ReactNode (PuckEditorPane を含むペイン) を返す
  *   3. save()         — Puck Data を draftWrite に渡す
- *   4. dispose()      — React ルートを unmount してクリーンアップ
  *
- * 子 5: puckComponentsChanged broadcast event を購読して config を再構築する。
- * broadcast 購読は renderEditor() 内で行い、dispose() で解除する。
+ * #815: createRoot 経由のマウントを廃止し React コンポーネントを返す形に統一。
  */
 export class PuckBackend implements EditorBackend {
   /**
@@ -314,81 +337,34 @@ export class PuckBackend implements EditorBackend {
   }
 
   /**
-   * container DOM に Puck エディタをマウントする。
-   * React の createRoot を使用して PuckEditorWrapper をレンダリングする。
-   * CssFrameworkProvider により cssFramework が全 primitive に伝達される。
+   * エディタペイン全体 (subToolbar / dialogs / Puck 本体) を ReactNode として返す。
    *
-   * @returns Disposable — dispose() で React ルートを unmount する
+   * Puck では editor 周辺 UI (左パレット / 右プロパティパネル / 上ヘッダー) は Puck 内部で
+   * 完結しているため、Backend が提供する panelLeft / panelRight 等は無く、
+   * subToolbarSlot と dialogsSlot のみ container 上部に配置する。
    */
-  renderEditor(
-    container: HTMLElement,
-    state: EditorState,
-    opts: RenderOpts,
-  ): Disposable {
-    const puckData = toPuckData(state.payload);
-    let root: Root | null = createRoot(container);
-
-    // puckComponentsChanged broadcast 購読 (mcpBridge 経由)
-    let unsubscribePuckComponentsChanged: (() => void) | null = null;
-
-    // React コンポーネントに ref を渡して re-mount をトリガーする仕組み
-    // puckComponentsChanged 時に key を変えて Puck を再マウントする
-    let configKey = 0;
-
-    // A-S-1: 現在の Puck data state を追跡する。
-    // onChange callback で最新データを保持し、rerender 時に initialData として渡すことで
-    // カスタムコンポーネント登録時 (puckComponentsChanged) に未保存の編集内容を保持する。
-    let currentPuckData: Data = puckData;
-
-    // A-S-1: onChange を wrap して currentPuckData を更新しながら opts.onChange を呼ぶ
-    const wrappedOnChange = opts.onChange
-      ? (editorState: EditorState) => {
-          currentPuckData = toPuckData(editorState.payload);
-          opts.onChange!(editorState);
-        }
-      : undefined;
-
-    const rerender = () => {
-      configKey++;
-      if (root) {
-        root.render(
-          <PuckEditorWrapper
-            key={configKey}
-            initialData={currentPuckData}
-            cssFramework={opts.cssFramework}
-            onChange={wrappedOnChange}
-          />,
-        );
-      }
-    };
-
-    // puckComponentsChanged 購読
-    unsubscribePuckComponentsChanged = mcpBridge.onBroadcast(
-      "puckComponentsChanged",
-      () => { rerender(); },
+  renderEditor(props: RenderEditorProps): React.ReactNode {
+    const puckData = toPuckData(props.state.payload);
+    return (
+      <div className={`designer-root${props.isReadonly ? " is-readonly" : ""}`}>
+        <div className="designer-layout">
+          {props.subToolbarSlot}
+          {props.dialogsSlot}
+          {/* Puck エディタコンテナ (data-testid は E2E で使用される) */}
+          <div
+            className="puck-editor-container"
+            style={{ flex: 1, overflow: "auto" }}
+            data-testid="puck-editor-container"
+          >
+            <PuckEditorPane
+              initialData={puckData}
+              cssFramework={props.cssFramework}
+              onChange={props.onChange}
+              onReady={props.onReady}
+            />
+          </div>
+        </div>
+      </div>
     );
-
-    root.render(
-      <PuckEditorWrapper
-        key={configKey}
-        initialData={currentPuckData}
-        cssFramework={opts.cssFramework}
-        onChange={wrappedOnChange}
-        onCustomComponentsChange={rerender}
-      />,
-    );
-
-    return {
-      dispose() {
-        if (unsubscribePuckComponentsChanged) {
-          unsubscribePuckComponentsChanged();
-          unsubscribePuckComponentsChanged = null;
-        }
-        if (root) {
-          root.unmount();
-          root = null;
-        }
-      },
-    };
   }
 }

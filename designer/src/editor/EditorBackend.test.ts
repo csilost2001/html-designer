@@ -1,13 +1,19 @@
 /**
  * EditorBackend interface の契約テスト。
  *
- * Mock Backend を使って load / save の round-trip を検証する。
+ * Mock Backend を使って load / save の round-trip と renderEditor の戻り値型を検証する。
  * GrapesJSBackend と PuckBackend の基本動作も確認する。
  *
- * #806 子 3
+ * #806 子 3 / #815 (renderEditor: ReactNode 返却に統一)
  */
 import { describe, it, expect, vi } from "vitest";
-import type { EditorBackend, EditorState, RenderOpts, Disposable } from "./EditorBackend";
+import type { ReactNode } from "react";
+import { isValidElement } from "react";
+import type {
+  EditorBackend,
+  EditorState,
+  RenderEditorProps,
+} from "./EditorBackend";
 import { GrapesJSBackend, isEmptyGjsPayload } from "./GrapesJSBackend";
 
 // -----------------------------------------------------------------------
@@ -28,16 +34,25 @@ class MockBackend implements EditorBackend {
     await draftWrite(state.payload);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  renderEditor(_container: HTMLElement, _state: EditorState, _opts: RenderOpts): Disposable {
-    const disposed = { value: false };
-    return {
-      dispose() {
-        disposed.value = true;
-      },
-    };
+  renderEditor(props: RenderEditorProps): ReactNode {
+    void props;
+    return null;
   }
 }
+
+const baseRenderProps: Omit<RenderEditorProps, "state"> = {
+  cssFramework: "bootstrap",
+  themeVariant: "standard",
+  isReadonly: false,
+  subToolbarSlot: null,
+  dialogsSlot: null,
+  panelMode: "pinned",
+  onTogglePin: () => { /* no-op */ },
+  onClosePanel: () => { /* no-op */ },
+  screenId: "screen-001",
+  ready: true,
+  onStartEditing: () => { /* no-op */ },
+};
 
 // -----------------------------------------------------------------------
 // テスト
@@ -83,14 +98,10 @@ describe("EditorBackend interface — Mock Backend round-trip", () => {
     expect(stored.value).toEqual(originalPayload);
   });
 
-  it("renderEditor が返す Disposable の dispose() が呼べる", () => {
+  it("renderEditor は ReactNode を返す (例外なし)", () => {
     const backend = new MockBackend();
-    const container = document.createElement("div");
     const state: EditorState = { payload: {} };
-    const opts: RenderOpts = { cssFramework: "bootstrap", themeVariant: "standard" };
-
-    const disposable = backend.renderEditor(container, state, opts);
-    expect(() => disposable.dispose()).not.toThrow();
+    expect(() => backend.renderEditor({ ...baseRenderProps, state })).not.toThrow();
   });
 });
 
@@ -129,15 +140,14 @@ describe("GrapesJSBackend", () => {
     expect(draftWrite).toHaveBeenCalledWith(payload);
   });
 
-  it("renderEditor: Disposable を返す (GrapesJS cleanup は GjsEditor が担当)", () => {
+  it("renderEditor: PR-A 段階では placeholder (null) を返す", () => {
+    // PR-B で <GjsEditor> + Canvas + BlocksPanel + RightPanel を含む完全実装に置換予定。
     const backend = new GrapesJSBackend();
-    const container = document.createElement("div");
     const state: EditorState = { payload: null };
-    const opts: RenderOpts = { cssFramework: "bootstrap", themeVariant: "standard" };
-
-    const disposable = backend.renderEditor(container, state, opts);
-    expect(typeof disposable.dispose).toBe("function");
-    expect(() => disposable.dispose()).not.toThrow();
+    const node = backend.renderEditor({ ...baseRenderProps, state });
+    expect(node).toBeNull();
+    // 戻り値が ReactNode であることのみ確認 (null も ReactNode)
+    expect(node === null || isValidElement(node)).toBe(true);
   });
 });
 
