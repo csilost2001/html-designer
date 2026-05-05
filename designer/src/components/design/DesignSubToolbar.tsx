@@ -1,21 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { Editor as GEditor } from "grapesjs";
 import { useEditorMaybe } from "@grapesjs/react";
-
-/**
- * `useEditorMaybe` は内部で `useEditorInstance` を呼び、Provider が無い場合は throw する
- * (editor 自体は undefined を許容するが Provider 自体は必須)。Puck 経路では <GjsEditor>
- * ancestor が無いため Provider missing で crash する。本 wrapper は try/catch で
- * その throw を吸収し、Provider 不在時は undefined を返すことで Puck 経路でも安全に
- * DesignSubToolbar を render できるようにする (#815 follow-up)。
- */
-function useEditorOptional(): GEditor | undefined {
-  try {
-    return useEditorMaybe();
-  } catch {
-    return undefined;
-  }
-}
 import type { PanelMode, ThemeId } from "../Designer";
 import type { McpStatus } from "../../mcp/mcpBridge";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -77,14 +62,17 @@ interface Props {
   screenId?: string;
   /** 読み取り専用モードの場合 true — 保存/リセットボタンを非表示にする */
   isReadonly?: boolean;
+  /**
+   * GrapesJS editor instance。GrapesJS 経路は `DesignSubToolbarGrapesJSBridge` 経由で
+   * `<WithEditor>` 配下の `useEditorMaybe()` から得た値を渡す。Puck 経路は undefined。
+   * editor が undefined の場合、GrapesJS 由来の機能 (Undo/Redo/Devices/runCommand 等) は
+   * 無効化される (button disabled / onClick noop)。
+   */
+  editor: GEditor | undefined;
 }
 
-export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId, isReadonly }: Props) {
+export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId, isReadonly, editor }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  // Puck 経路では <GjsEditor> context が存在しないため、Provider missing throw を吸収する
-  // wrapper を使用する。editor が undefined の場合、GrapesJS 由来の機能 (Undo/Redo/Devices/
-  // runCommand 等) は無効化される。
-  const editor = useEditorOptional();
 
   // ── AI 命名 (#337) ───────────────────────────────────────────────────────
   const [aiRenameAuthOk, setAiRenameAuthOk] = useState<boolean | null>(null);
@@ -715,4 +703,24 @@ function ShortcutsHelp({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// GrapesJS 専用ブリッジ — Provider-aware に useEditorMaybe() を呼んで forward する
+// ---------------------------------------------------------------------------
+
+/**
+ * `DesignSubToolbarGrapesJSBridge` は GrapesJS 経路 (`<GjsEditor>` 配下) で
+ * `useEditorMaybe()` を Rules-of-Hooks に従って正規呼び出しし、得られた `editor` を
+ * `<DesignSubToolbar>` に props として forward する Provider-aware ブリッジ。
+ *
+ * Puck 経路 (`<GjsEditor>` ancestor 無し) は本ブリッジを **使わず**、Designer.tsx が
+ * 直接 `<DesignSubToolbar editor={undefined} ... />` を render する。これにより
+ * 旧実装の `try/catch` で hook 呼び出しを包む anti-pattern を解消する (#824)。
+ */
+type GrapesJSBridgeProps = Omit<Props, "editor">;
+
+export function DesignSubToolbarGrapesJSBridge(props: GrapesJSBridgeProps) {
+  const editor = useEditorMaybe();
+  return <DesignSubToolbar {...props} editor={editor} />;
 }
