@@ -42,6 +42,7 @@ import {
   removePosition as layoutRemovePosition,
   removeTransitionLayout as layoutRemoveTransition,
 } from "./screenLayoutStore";
+import { assertValidProject } from "../utils/validateProject";
 
 // ─── ストレージバックエンド ──────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ interface PersistedEdge {
   trigger: ScreenTransitionEntry["trigger"];
 }
 
-interface LegacyFlowProject {
+export interface LegacyFlowProject {
   version: 1;
   name: string;
   screens: PersistedScreen[];
@@ -232,35 +233,68 @@ export function composeFlowProject(
   };
 }
 
-/** UI 合成型 FlowProject を Persisted (project.json) と ScreenLayout に分解。 */
+/**
+ * UI 合成型 FlowProject を Persisted (project.json) と ScreenLayout に分解。
+ *
+ * existingRaw を渡すことで、FlowProject に含まれないフィールド
+ * (techStack / extensionsApplied / meta.id / meta.description 等) を保持する。
+ * round-trip preservation (#835 バグ修正)。
+ */
 export function decomposeFlowProject(
   project: FlowProject,
   baseLayout: ScreenLayout,
+  existingRaw?: Project,
 ): { project: Project; layout: ScreenLayout } {
   const ts = project.updatedAt || nowTs();
   const persisted: Project = {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3",
     meta: {
-      id: ("00000000-0000-4000-8000-000000000001" as ProjectId),
+      // existingRaw.meta.id を保持。新規プロジェクト or existing なし時は generateUUID()
+      id: (existingRaw?.meta?.id ?? generateUUID()) as ProjectId,
       name: project.name,
-      createdAt: ts,
+      // existingRaw.meta.createdAt を保持。なければ現在時刻
+      createdAt: existingRaw?.meta?.createdAt ?? ts,
       updatedAt: ts,
-      mode: "upstream",
-      maturity: "draft",
+      mode: existingRaw?.meta?.mode ?? "upstream",
+      maturity: existingRaw?.meta?.maturity ?? "draft",
+      // description を保持
+      ...(existingRaw?.meta?.description !== undefined
+        ? { description: existingRaw.meta.description }
+        : {}),
     },
-    extensionsApplied: [],
+    // extensionsApplied を既存から保持。存在しない場合は空配列
+    extensionsApplied: existingRaw?.extensionsApplied ?? [],
+    // techStack を既存から保持。FlowProject には techStack がないため常に existing を使う
+    ...(existingRaw?.techStack !== undefined ? { techStack: existingRaw.techStack } : {}),
     entities: {
-      screens: project.screens.map((s) => ({
-        id: s.id,
-        no: s.no,
-        name: s.name,
-        kind: s.kind,
-        path: s.path,
-        hasDesign: s.hasDesign,
-        groupId: s.groupId,
-        updatedAt: s.updatedAt,
-      })),
+      screens: project.screens.map((s) => {
+        // existing 同 id 画面があれば、既存の不明フィールド (html 等) を保持してマージ
+        const existingScreen = existingRaw?.entities?.screens?.find((es) => es.id === s.id);
+        if (existingScreen) {
+          return {
+            ...existingScreen,
+            id: s.id,
+            no: s.no,
+            name: s.name,
+            kind: s.kind,
+            path: s.path,
+            hasDesign: s.hasDesign,
+            groupId: s.groupId,
+            updatedAt: s.updatedAt,
+          };
+        }
+        return {
+          id: s.id,
+          no: s.no,
+          name: s.name,
+          kind: s.kind,
+          path: s.path,
+          hasDesign: s.hasDesign,
+          groupId: s.groupId,
+          updatedAt: s.updatedAt,
+        };
+      }),
       screenGroups: project.groups.map((g) => ({
         id: g.id,
         name: g.name,
@@ -392,12 +426,12 @@ function normalizeLegacyPersisted(raw: unknown): LegacyFlowProject {
   };
 }
 
-function legacyToProject(legacy: LegacyFlowProject): Project {
+export function legacyToProject(legacy: LegacyFlowProject): Project {
   return {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3",
     meta: {
-      id: "00000000-0000-4000-8000-000000000001" as ProjectId,
+      id: generateUUID() as ProjectId,
       name: legacy.name,
       createdAt: legacy.updatedAt,
       updatedAt: legacy.updatedAt,
@@ -566,6 +600,8 @@ export async function loadProject(): Promise<FlowProject> {
     if (data) {
       const persisted = normalizePersisted(data);
       if (!((data as Record<string, unknown>).schemaVersion === "v3")) {
+        // AJV validation: schema 違反があれば migration 書き戻しを中断し例外を投げる (#836)
+        assertValidProject(persisted);
         await _backend.saveProject(persisted);
       }
       const layout = await loadScreenLayout();
@@ -581,6 +617,8 @@ export async function loadProject(): Promise<FlowProject> {
       // 次回ロード時に backend layout (空) で localStorage layout を上書きしてしまうため。
       const layout = await loadScreenLayout();
       try {
+        // AJV validation: schema 違反があれば localStorage→backend migration 書き戻しを中断し例外を投げる (#836)
+        assertValidProject(local);
         await _backend.saveProject(local);
         if (Object.keys(layout.positions).length > 0 || Object.keys(layout.transitions ?? {}).length > 0) {
           await saveScreenLayout(layout);
@@ -626,6 +664,8 @@ export async function loadRawProject(): Promise<Project> {
 export async function saveTechStack(techStack: Project["techStack"]): Promise<void> {
   const raw = await loadRawProject();
   const patched: Project = { ...raw, techStack };
+  // AJV validation: schema 違反があれば保存を中断し例外を投げる (#835)
+  assertValidProject(patched);
   if (_backend) {
     await _backend.saveProject(patched);
   } else {
@@ -638,7 +678,11 @@ export async function saveTechStack(techStack: Project["techStack"]): Promise<vo
 
 async function persistFlowProject(project: FlowProject): Promise<void> {
   const baseLayout = await loadScreenLayout();
-  const { project: persisted, layout } = decomposeFlowProject(project, baseLayout);
+  // 既存 raw を読み込んで round-trip preservation に使う (#835)
+  const existingRaw = await loadRawProject().catch(() => undefined);
+  const { project: persisted, layout } = decomposeFlowProject(project, baseLayout, existingRaw);
+  // AJV validation: schema 違反があれば保存を中断し例外を投げる (#835)
+  assertValidProject(persisted);
   if (_backend) {
     await _backend.saveProject(persisted);
   } else {
