@@ -334,15 +334,18 @@ function DeploymentPanel({
 
 function SummarySection({ label, lines }: { label: string; lines: string[] }) {
   const nonEmpty = lines.filter(Boolean);
-  if (nonEmpty.length === 0) return null;
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 11, color: "#777", textTransform: "uppercase" as const, letterSpacing: 1, marginBottom: 4 }}>
         {label}
       </div>
-      {nonEmpty.map((line, i) => (
-        <div key={i} style={{ fontSize: 12, color: "#ccc" }}>{line}</div>
-      ))}
+      {nonEmpty.length === 0 ? (
+        <div style={{ fontSize: 12, color: "#666", fontStyle: "italic" }}>(未設定)</div>
+      ) : (
+        nonEmpty.map((line, i) => (
+          <div key={i} style={{ fontSize: 12, color: "#ccc" }}>{line}</div>
+        ))
+      )}
     </div>
   );
 }
