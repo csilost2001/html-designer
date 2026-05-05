@@ -660,6 +660,8 @@ export async function loadRawProject(): Promise<Project> {
 export async function saveTechStack(techStack: Project["techStack"]): Promise<void> {
   const raw = await loadRawProject();
   const patched: Project = { ...raw, techStack };
+  // AJV validation: schema 違反があれば保存を中断し例外を投げる (#835)
+  assertValidProject(patched);
   if (_backend) {
     await _backend.saveProject(patched);
   } else {

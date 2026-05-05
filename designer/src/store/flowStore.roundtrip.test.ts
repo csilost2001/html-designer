@@ -10,6 +10,7 @@ import {
   composeFlowProject,
   decomposeFlowProject,
   legacyToProject,
+  saveTechStack,
   setFlowStorageBackend,
   setFlowDraftMode,
   saveProject,
@@ -215,5 +216,40 @@ describe("legacyToProject UUID 発番 (#835 Should-fix 1)", () => {
     );
     // ハードコード値ではないこと
     expect(project.meta.id).not.toBe("00000000-0000-4000-8000-000000000001");
+  });
+});
+
+describe("saveTechStack AJV validation (#835 Should-fix 2)", () => {
+  it("不正な techStack を渡すと assertValidProject が例外を投げ saveProject は呼ばれない", async () => {
+    const richProject = mkRichProject();
+    setFlowDraftMode(false);
+    const backend: FlowStorageBackend = {
+      loadProject: vi.fn().mockResolvedValue(richProject),
+      saveProject: vi.fn().mockResolvedValue(undefined),
+      deleteScreenData: vi.fn().mockResolvedValue(undefined),
+    };
+    setFlowStorageBackend(backend);
+
+    // editorKind に enum 違反値を渡す → assertValidProject が throw する
+    const invalidTechStack = {
+      designer: { editorKind: "INVALID_EDITOR" as unknown as "grapesjs", cssFramework: "tailwind" as const },
+    };
+    await expect(saveTechStack(invalidTechStack)).rejects.toThrow(/schema validation failed/);
+    // validation で中断されるため saveProject は呼ばれない
+    expect(backend.saveProject).not.toHaveBeenCalled();
+  });
+
+  it("正常な techStack では saveProject が呼ばれる", async () => {
+    const richProject = mkRichProject();
+    setFlowDraftMode(false);
+    const backend: FlowStorageBackend = {
+      loadProject: vi.fn().mockResolvedValue(richProject),
+      saveProject: vi.fn().mockResolvedValue(undefined),
+      deleteScreenData: vi.fn().mockResolvedValue(undefined),
+    };
+    setFlowStorageBackend(backend);
+
+    await expect(saveTechStack({ designer: { editorKind: "puck", cssFramework: "tailwind" } })).resolves.not.toThrow();
+    expect(backend.saveProject).toHaveBeenCalledOnce();
   });
 });
