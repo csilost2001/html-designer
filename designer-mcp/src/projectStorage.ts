@@ -70,7 +70,13 @@ export type ExtensionFileKind = keyof typeof EXTENSION_FILE_NAMES;
 
 /** スキーマルートディレクトリ: designer-mcp/src/ から 2 段上がって schemas/ */
 const SCHEMAS_DIR = path.resolve(import.meta.dirname, "../../schemas");
-const SCREEN_SCHEMA_REF = "../schemas/v3/screen.v3.schema.json";
+
+/** screens/<id>.json から schemas/v3/screen.v3.schema.json への相対 path を計算する */
+function screenSchemaRef(root: string): string {
+  const entityDir = screensDir(root);
+  const schemaPath = path.join(SCHEMAS_DIR, "v3", "screen.v3.schema.json");
+  return path.relative(entityDir, schemaPath).replace(/\\/g, "/");
+}
 
 /** ExtensionFileKind → extensions-*.schema.json ファイル名スラグの変換 */
 function kindToSchemaSlug(kind: ExtensionFileKind): string {
@@ -199,7 +205,8 @@ function isLegacyGrapesScreen(value: unknown): boolean {
 
 function isScreenEntity(value: unknown): boolean {
   if (!isRecord(value)) return false;
-  return value.$schema === SCREEN_SCHEMA_REF || (
+  const schemaStr = typeof value.$schema === "string" ? value.$schema : "";
+  return schemaStr.endsWith("schemas/v3/screen.v3.schema.json") || (
     typeof value.kind === "string" &&
     typeof value.path === "string" &&
     ("items" in value || "design" in value || "id" in value)
@@ -224,11 +231,12 @@ function buildDefaultScreenEntity(
   screenId: string,
   entry: Record<string, unknown> | null,
   items: unknown[],
+  root: string,
 ): Record<string, unknown> {
   const ts = new Date().toISOString();
   const updatedAt = typeof entry?.updatedAt === "string" ? entry.updatedAt : ts;
   return {
-    $schema: SCREEN_SCHEMA_REF,
+    $schema: screenSchemaRef(root),
     id: screenId,
     name: typeof entry?.name === "string" && entry.name ? entry.name : screenId,
     ...(typeof entry?.description === "string" && entry.description ? { description: entry.description } : {}),
@@ -266,7 +274,7 @@ async function _migrateScreenCore(screenId: string, root: string): Promise<Recor
     }
     const project = await readProject(root);
     const itemsFile = await readJSON<unknown>(legacyItemsPath);
-    const entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), extractItems(itemsFile));
+    const entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), extractItems(itemsFile), root);
     await writeJSON(entityPath, entity);
     try { await fs.unlink(legacyItemsPath); } catch { /* ignore */ }
     return entity;
@@ -276,7 +284,7 @@ async function _migrateScreenCore(screenId: string, root: string): Promise<Recor
   const itemsFile = await readJSON<unknown>(legacyItemsPath);
   if (design || itemsFile) {
     const project = await readProject(root);
-    const entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), extractItems(itemsFile));
+    const entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), extractItems(itemsFile), root);
     await writeJSON(entityPath, entity);
     try { await fs.unlink(legacyItemsPath); } catch { /* ignore */ }
     return entity;
@@ -342,11 +350,11 @@ export async function writeScreen(screenId: string, data: unknown, root: string)
   let entity = await migrateScreenIfNeeded(screenId, r);
   if (!entity) {
     const project = await readProject(r);
-    entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), []);
+    entity = buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), [], r);
   }
   entity = {
     ...entity,
-    $schema: SCREEN_SCHEMA_REF,
+    $schema: screenSchemaRef(r),
     updatedAt: new Date().toISOString(),
     design: {
       ...(isRecord(entity.design) ? entity.design : {}),
@@ -369,9 +377,9 @@ export async function writeScreenEntity(screenId: string, data: unknown, root: s
   const project = await readProject(r);
   const entry = getScreenEntry(project, screenId);
   const toSave = {
-    ...buildDefaultScreenEntity(screenId, entry, []),
+    ...buildDefaultScreenEntity(screenId, entry, [], r),
     ...current,
-    $schema: SCREEN_SCHEMA_REF,
+    $schema: screenSchemaRef(r),
     id: typeof current.id === "string" ? current.id : screenId,
     kind: typeof current.kind === "string" ? current.kind : (typeof entry?.kind === "string" ? entry.kind : "other"),
     path: typeof current.path === "string" ? current.path : (typeof entry?.path === "string" ? entry.path : ""),
@@ -559,7 +567,7 @@ export async function writeScreenItems(screenId: string, data: unknown, root: st
   const project = await readProject(r);
   const items = extractItems(data);
   const next = {
-    ...(current ?? buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), [])),
+    ...(current ?? buildDefaultScreenEntity(screenId, getScreenEntry(project, screenId), [], r)),
     items,
     updatedAt: new Date().toISOString(),
   };

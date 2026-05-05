@@ -24,6 +24,8 @@ const {
 
 const { _resetForTest, connect, initWorkspaceState } = await import("./workspaceState.js");
 
+const { writeScreen, writeScreenEntity, readScreenEntity } = await import("./projectStorage.js");
+
 async function ensureWorkspace(): Promise<void> {
   await fs.mkdir(TMP_ROOT, { recursive: true });
   try {
@@ -344,6 +346,99 @@ describe("draftStore", () => {
       // workspace B には作られないこと
       const bPath = path.join(TMP_ROOT_B, ".drafts", "table", "path-test.json");
       await expect(fs.access(bPath)).rejects.toThrow();
+    });
+  });
+
+  // #804 regression: writeScreen / writeScreenEntity が items[] を消さないこと
+  describe("#804 regression: screen entity items[] 保持", () => {
+
+    it("writeScreen: 既存 entity の items[] が保持される", async () => {
+      const screenId = "scr-items-test";
+      const screensDir = path.join(TMP_ROOT, "screens");
+      await fs.mkdir(screensDir, { recursive: true });
+
+      const existingEntity = {
+        $schema: "../../schemas/v3/screen.v3.schema.json",
+        id: screenId,
+        name: "テスト画面",
+        kind: "list",
+        path: "/list",
+        maturity: "draft",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        items: [
+          { id: "field1", label: "フィールド1", type: "string" },
+          { id: "field2", label: "フィールド2", type: "number" },
+        ],
+        design: { designFileRef: `${screenId}.design.json` },
+      };
+      await fs.writeFile(
+        path.join(screensDir, `${screenId}.json`),
+        JSON.stringify(existingEntity),
+        "utf-8",
+      );
+
+      const designData = { assets: [], styles: [], pages: [] };
+      await writeScreen(screenId, designData, TMP_ROOT);
+
+      const afterEntity = JSON.parse(
+        await fs.readFile(path.join(screensDir, `${screenId}.json`), "utf-8"),
+      );
+      expect(afterEntity.items).toHaveLength(2);
+      expect(afterEntity.items[0].id).toBe("field1");
+      expect(afterEntity.items[1].id).toBe("field2");
+    });
+
+    it("writeScreen: $schema path が screens/ からの正しい相対 path になる", async () => {
+      const screenId = "scr-schema-test";
+      const screensDir = path.join(TMP_ROOT, "screens");
+      await fs.mkdir(screensDir, { recursive: true });
+
+      await writeScreen(screenId, { assets: [], styles: [], pages: [] }, TMP_ROOT);
+
+      const entity = JSON.parse(
+        await fs.readFile(path.join(screensDir, `${screenId}.json`), "utf-8"),
+      );
+      expect(entity.$schema).toMatch(/schemas\/v3\/screen\.v3\.schema\.json$/);
+      expect(entity.$schema).not.toBe("../schemas/v3/screen.v3.schema.json");
+    });
+
+    it("writeScreenEntity: 既存 entity の items[] が保持される", async () => {
+      const screenId = "scr-entity-items-test";
+      const screensDir = path.join(TMP_ROOT, "screens");
+      await fs.mkdir(screensDir, { recursive: true });
+
+      const existingEntity = {
+        $schema: "../../schemas/v3/screen.v3.schema.json",
+        id: screenId,
+        name: "エンティティテスト",
+        kind: "form",
+        path: "/form",
+        maturity: "committed",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        description: "説明文",
+        auth: "required",
+        items: [{ id: "inputA", label: "入力A", type: "string" }],
+        design: { designFileRef: `${screenId}.design.json` },
+      };
+      await fs.writeFile(
+        path.join(screensDir, `${screenId}.json`),
+        JSON.stringify(existingEntity),
+        "utf-8",
+      );
+
+      // design 保存 → entity の部分更新 (description / auth は保持されるべき)
+      await writeScreenEntity(screenId, {
+        ...existingEntity,
+        updatedAt: "2026-05-05T00:00:00.000Z",
+      }, TMP_ROOT);
+
+      const entity = await readScreenEntity(screenId, TMP_ROOT) as Record<string, unknown>;
+      expect(Array.isArray(entity.items)).toBe(true);
+      expect((entity.items as unknown[]).length).toBe(1);
+      expect(entity.description).toBe("説明文");
+      expect(entity.auth).toBe("required");
     });
   });
 });
