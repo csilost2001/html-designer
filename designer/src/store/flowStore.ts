@@ -600,6 +600,8 @@ export async function loadProject(): Promise<FlowProject> {
     if (data) {
       const persisted = normalizePersisted(data);
       if (!((data as Record<string, unknown>).schemaVersion === "v3")) {
+        // AJV validation: schema 違反があれば migration 書き戻しを中断し例外を投げる (#836)
+        assertValidProject(persisted);
         await _backend.saveProject(persisted);
       }
       const layout = await loadScreenLayout();
@@ -615,6 +617,8 @@ export async function loadProject(): Promise<FlowProject> {
       // 次回ロード時に backend layout (空) で localStorage layout を上書きしてしまうため。
       const layout = await loadScreenLayout();
       try {
+        // AJV validation: schema 違反があれば localStorage→backend migration 書き戻しを中断し例外を投げる (#836)
+        assertValidProject(local);
         await _backend.saveProject(local);
         if (Object.keys(layout.positions).length > 0 || Object.keys(layout.transitions ?? {}).length > 0) {
           await saveScreenLayout(layout);
