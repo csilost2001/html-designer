@@ -67,8 +67,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const puckPendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // GrapesJS Backend (#815 PR-B: <GjsEditor> 直接マウントを廃止、Backend.renderEditor 経由)
   const grapesBackendRef = useRef<GrapesJSBackend | null>(null);
-  // GrapesJS の EditorApi (theme apply / reload / captureThumbnail / getProjectData / etc.)
-  const grapesEditorApiRef = useRef<EditorApi | null>(null);
+  // 両 Backend (Puck / GrapesJS) 共通の EditorApi (#815 Codex Must-fix #2/#3 で統一)。
+  // discard / serverChange reload / theme apply / captureThumbnail / getProjectData 等を
+  // editorKind 非依存に呼ぶための窓口。両 Backend の onReady で expose される。
+  const editorApiRef = useRef<EditorApi | null>(null);
   // GrapesJS pre-load 済み payload (#815 PR-C: 明示 load。null = 未ロード、それ以外は payload)
   const [grapesState, setGrapesState] = useState<EditorState | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
@@ -172,7 +174,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const handleThemeChange = useCallback((themeId: ThemeId) => {
     setActiveThemeState(themeId);
     localStorage.setItem(THEME_KEY, themeId);
-    grapesEditorApiRef.current?.applyTheme(themeId, cssFrameworkRef.current);
+    editorApiRef.current?.applyTheme(themeId, cssFrameworkRef.current);
   // cssFrameworkRef は ref なので依存配列不要
   }, []);
 
@@ -220,9 +222,13 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   // GrapesJS Backend.load() で初期 payload を pre-load する (#815 PR-C: 明示 load)。
   // editorKind === "grapesjs" のときのみ実行し、結果を grapesState に格納して renderEditor で使う。
+  // screenId 変更時 (タブ切替) は最初に grapesState を null にクリアし、新 payload が来るまで
+  // ローディング画面を表示することで stale payload で render しない (#815 Codex Must-fix #1)。
   useEffect(() => {
     if (editorKind !== "grapesjs") return;
     let cancelled = false;
+    setGrapesState(null);
+    editorApiRef.current = null;
     if (!grapesBackendRef.current) grapesBackendRef.current = new GrapesJSBackend();
     const backend = grapesBackendRef.current;
     backend.load(screenId, grapesDraftRead).then((state) => {
@@ -237,7 +243,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   // GrapesJS Backend からの ready 通知 — EditorApi を保持し legacy localStorage 救済を実行
   const handleGrapesReady = useCallback((api: EditorApi) => {
-    grapesEditorApiRef.current = api;
+    editorApiRef.current = api;
     // 初期 theme 適用 (multi-editor-puck.md § 3 — Backend onReady 後に Designer.tsx が theme を当てる)
     api.applyTheme(activeTheme, cssFrameworkRef.current);
     // localStorage 救済チェック (mount 1 回のみ)
@@ -258,7 +264,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       setServerChanged(true);
     } else {
       console.log("[Designer] screenChanged broadcast, reloading...");
-      grapesEditorApiRef.current?.reload().catch(console.error);
+      editorApiRef.current?.reload().catch(console.error);
     }
   }, []);
 
@@ -270,7 +276,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     isDirtyRef.current = true;
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
-      const data = grapesEditorApiRef.current?.getProjectData();
+      const data = editorApiRef.current?.getProjectData();
       if (data === undefined) return;
       mcpBridge.updateDraft("screen", screenId, data).catch(console.error);
     }, 300);
@@ -279,7 +285,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // タブがアクティブになったときにキャンバスをリフレッシュ（display:none から復帰）
   useEffect(() => {
     if (isActive) {
-      grapesEditorApiRef.current?.refreshCanvas();
+      editorApiRef.current?.refreshCanvas();
     }
   }, [isActive]);
 
@@ -307,7 +313,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         if (draftUpdateTimer.current) {
           clearTimeout(draftUpdateTimer.current);
           draftUpdateTimer.current = null;
-          const data = grapesEditorApiRef.current?.getProjectData();
+          const data = editorApiRef.current?.getProjectData();
           if (data !== undefined) {
             await mcpBridge.updateDraft("screen", screenId, data);
           }
@@ -320,7 +326,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       setServerChanged(false);
       await acknowledgeServerMtime("screen", screenId);
       // サムネイル生成 (GrapesJS のみ — Puck は API.captureThumbnail() が null を返す)
-      const api = grapesEditorApiRef.current;
+      const api = editorApiRef.current;
       if (api && !api.isCanvasEmpty()) {
         api.captureThumbnail().then(async (thumbnail) => {
           if (!thumbnail) return;
@@ -358,7 +364,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         }
       }
       // GrapesJS は API.reload() で本体ファイル再読込 + UndoManager.clear() + reconcile を実行する
-      await grapesEditorApiRef.current?.reload();
+      await editorApiRef.current?.reload();
       setIsDirtyState(false);
       isDirtyRef.current = false;
       setDirty(tabId, false);
@@ -395,14 +401,14 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         await mcpBridge.discardDraft("puck-data", screenId);
       }
     }
-    await grapesEditorApiRef.current?.reload();
+    await editorApiRef.current?.reload();
   }, [screenId, editorKind]);
 
   // ServerChangeBanner からの reload はページ本体への戻り
   const handleServerChangeReload = useCallback(async () => {
-    if (!grapesEditorApiRef.current) return;
+    if (!editorApiRef.current) return;
     try {
-      await grapesEditorApiRef.current.reload();
+      await editorApiRef.current.reload();
       setIsDirtyState(false);
       isDirtyRef.current = false;
       setDirty(tabId, false);
@@ -420,7 +426,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       await executeRescue(screenId, "adopt", legacyDataRef.current);
       legacyDataRef.current = null;
       // draft が作成されたのでリロードして draft を表示
-      await grapesEditorApiRef.current?.reload();
+      await editorApiRef.current?.reload();
       // resume ダイアログを表示 (draft が存在するので続きを選ばせる)
       setShowResumeDialog(true);
     } catch (e) {
@@ -435,13 +441,45 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     legacyDataRef.current = null;
   }, [screenId]);
 
+  // Puck の draftRead — draft 優先 → 本体 puck-data.json fallback (#815 PR-C)
+  const puckDraftRead = useCallback(async (): Promise<unknown> => {
+    // M-2: 2 段フォールバック — draft → committed puck-data.json → EMPTY (#806)
+    const hasDraftResult = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
+    if (hasDraftResult?.exists) {
+      const draftData = await mcpBridge.readDraft("puck-data", screenId);
+      return draftData;
+    }
+    const committedData = await mcpBridge.loadPuckData(screenId);
+    if (committedData !== null) return committedData;
+    return null;
+  }, [screenId]);
+
+  // Puck の reloadPayload — discard / serverChange reload 時に Puck 側へ最新 payload を反映する
+  // (#815 Codex Must-fix #2/#3: Puck も EditorApi.reload() で再ロードするための関数)
+  const puckReloadPayload = useCallback(async (): Promise<unknown> => {
+    if (!puckBackendRef.current) return null;
+    try {
+      const state = await puckBackendRef.current.load(screenId, puckDraftRead);
+      return state.payload;
+    } catch (e) {
+      console.warn("[Designer] puckReloadPayload failed", e);
+      return null;
+    }
+  }, [screenId, puckDraftRead]);
+
+  // Puck Backend からの ready 通知 — EditorApi を保持 (両 Backend 共通の窓口)
+  const handlePuckReady = useCallback((api: EditorApi) => {
+    editorApiRef.current = api;
+  }, []);
+
   // Puck Backend の load — payload を取得して puckState にセット。
   // 描画は React render 時に backend.renderEditor() の戻り値 (ReactNode) を使う (#815)。
   // editorKind === "puck" のときのみ実行する。
-  // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理する (PR-A 段階)。
   useEffect(() => {
     if (editorKind !== "puck") return;
     let cancelled = false;
+    setPuckState(null);
+    editorApiRef.current = null;
     if (!puckBackendRef.current) puckBackendRef.current = new PuckBackend();
     const backend = puckBackendRef.current;
 
@@ -459,22 +497,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     };
 
     backend
-      .load(screenId, async () => {
-        // M-2: 2 段フォールバック — draft → committed puck-data.json → EMPTY (#806)
-        // 1. draft が存在すれば draft を返す
-        const hasDraftResult = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
-        if (hasDraftResult?.exists) {
-          const draftData = await mcpBridge.readDraft("puck-data", screenId);
-          return draftData;
-        }
-        // 2. 本体 puck-data.json が存在すれば返す (初回オープン / reload 後)
-        const committedData = await mcpBridge.loadPuckData(screenId);
-        if (committedData !== null) {
-          return committedData;
-        }
-        // 3. 両方ない → null を返すと PuckBackend が EMPTY_PUCK_DATA にフォールバック
-        return null;
-      })
+      .load(screenId, puckDraftRead)
       .then((state) => {
         if (cancelled) return;
         setPuckState(state);
@@ -492,7 +515,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       }
       puckPendingPayloadRef.current = null;
     };
-  }, [editorKind, screenId]);
+  }, [editorKind, screenId, puckDraftRead]);
 
   // Puck onChange handler — debounce で updateDraft を呼び、dirty 状態を更新する。
   const handlePuckChange = useCallback(
@@ -643,6 +666,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       screenId,
       onStartEditing: editActions.startEditing,
       onChange: handlePuckChange,
+      onReady: handlePuckReady,
+      // Puck も EditorApi.reload() で再ロードできるよう reloadPayload を提供
+      // (#815 Codex Must-fix #2/#3: discard / serverChange reload を Puck/GrapesJS で統一)
+      reloadPayload: puckReloadPayload,
     };
     return puckBackendRef.current.renderEditor(puckProps);
   }

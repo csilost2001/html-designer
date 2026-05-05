@@ -300,6 +300,8 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
   const onEditor = useCallback(
     (editor: GEditor): (() => void) => {
       editorRef.current = editor;
+      // unmount 後の async 完了で破棄済み editor を触らないためのガード (#815 Codex Should-fix #2)
+      let unmounted = false;
 
       registerBlocks(editor);
       registerValidationTraits(editor);
@@ -308,6 +310,7 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
       // カスタムブロック復元 (非同期で読み込んで GrapesJS に登録)
       loadCustomBlocks()
         .then((customBlocks) => {
+          if (unmounted) return;
           for (const cb of customBlocks) {
             editor.BlockManager.add(cb.id, {
               label: cb.label,
@@ -358,6 +361,7 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
       });
 
       return () => {
+        unmounted = true;
         editor.off("component:add component:remove component:update style:change", markDirty);
         editor.off("block:drag:start", handleDragStart);
         editor.off("block:drag:stop", handleDragStop);
@@ -400,10 +404,10 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
 
       // framework × variant の 2 軸 CSS を注入 (#793 子 5)
       applyThemeToCanvas(editorRef.current, themeVariantRef.current, cssFrameworkRef.current);
-      // カスタムブロック CSS をキャンバスに注入
+      // カスタムブロック CSS をキャンバスに注入 (await の間に unmount された場合は editor を触らない)
       try {
         const customBlocks = await loadCustomBlocks();
-        if (customBlocks.some((b) => b.styles)) {
+        if (customBlocks.some((b) => b.styles) && editorRef.current) {
           injectCustomBlockCss(editorRef.current, customBlocks);
         }
       } catch {
@@ -613,7 +617,10 @@ export class GrapesJSBackend implements EditorBackend {
       );
     }
     return (
+      // key={screenId} で screenId 変更時に Pane を remount し initialPayload を確実に新 payload にする
+      // (#815 Codex Must-fix #1: タブ切替時の stale payload regression を防ぐ)
       <GrapesJSEditorPane
+        key={props.screenId}
         screenId={props.screenId}
         isReadonly={props.isReadonly}
         panelMode={props.panelMode}

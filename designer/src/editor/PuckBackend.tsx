@@ -160,6 +160,8 @@ interface PuckEditorPaneProps {
   cssFramework: "bootstrap" | "tailwind";
   onChange?: (state: EditorState) => void;
   onReady?: (api: EditorApi) => void;
+  /** discard / serverChange reload 時に最新 payload を取得する関数 (#815 Codex Must-fix #2/#3) */
+  reloadPayload?: () => Promise<unknown>;
 }
 
 function PuckEditorPane({
@@ -167,6 +169,7 @@ function PuckEditorPane({
   cssFramework,
   onChange,
   onReady,
+  reloadPayload,
 }: PuckEditorPaneProps) {
   const [customComponents, setCustomComponents] = useState<CustomPuckComponentDef[]>([]);
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
@@ -207,12 +210,27 @@ function PuckEditorPane({
   }, [reloadCustomComponents]);
 
   // ready 通知 + 軽量 EditorApi expose (Puck は editor インスタンスを持たないので限定的)
+  // reloadPayload を ref 化して effect の deps に含めず、最新 callback を使い続けられるようにする
+  const reloadPayloadRef = useRef(reloadPayload);
+  useEffect(() => {
+    reloadPayloadRef.current = reloadPayload;
+  }, [reloadPayload]);
+
   useEffect(() => {
     if (!onReady) return;
     const api: EditorApi = {
       // Puck は cssFramework を Context 経由で適用するため canvas iframe theme injection は不要
       applyTheme: () => { /* no-op for Puck */ },
-      reload: async () => { /* Puck の再ロードは parent component が initialData を差替えて行う */ },
+      // #815 Codex Must-fix #2/#3: discard / serverChange reload で Puck の data を再取得して反映する
+      reload: async () => {
+        const fn = reloadPayloadRef.current;
+        if (!fn) return;
+        const newPayload = await fn();
+        const newData = toPuckData(newPayload);
+        setCurrentData(newData);
+        // remountKey を increment して Puck を強制再マウント (initial data prop は mount 時のみ反映されるため)
+        setRemountKey((k) => k + 1);
+      },
       refreshCanvas: () => { /* Puck 内部で管理 */ },
       isCanvasEmpty: () => {
         const data = currentDataRef.current;
@@ -356,11 +374,14 @@ export class PuckBackend implements EditorBackend {
             style={{ flex: 1, overflow: "auto" }}
             data-testid="puck-editor-container"
           >
+            {/* key={screenId} で screenId 変更時に Pane を remount し initialData を確実に新 payload にする (#815 Codex Must-fix #1) */}
             <PuckEditorPane
+              key={props.screenId}
               initialData={puckData}
               cssFramework={props.cssFramework}
               onChange={props.onChange}
               onReady={props.onReady}
+              reloadPayload={props.reloadPayload}
             />
           </div>
         </div>
