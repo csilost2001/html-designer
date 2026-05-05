@@ -24,10 +24,9 @@ test.describe("Puck エディタ基本動作", () => {
       timeout: 20000,
     });
 
-    // Puck のパレット (左カラム) が存在することを確認
-    // パレット内の見出し "コンポーネント" または primitive ラベルが表示される
+    // Puck の左パレットが存在することを、安定セレクタ (role + accessible name) で確認 (#814 S-1)
     await expect(
-      page.locator("[class*='Puck-'], [class*='puck-'], .puck-left-panel, [data-rfd-droppable-id='puck-source']").first(),
+      page.getByRole("button", { name: "見出し", exact: true }).first(),
     ).toBeVisible({ timeout: 20000 });
   });
 
@@ -217,9 +216,8 @@ test.describe("動的コンポーネント登録", () => {
         page.locator("dialog, [role='dialog'], .modal, [class*='Dialog']").first(),
       ).toBeVisible({ timeout: 5000 });
     } else {
-      // ボタンが見つからない場合: Puck 画面自体が正常に描画されていることで代替確認
-      // (ボタンのセレクタは実装により異なる可能性があるため)
-      expect(await page.locator(".Puck, [class*='Puck']").count()).toBeGreaterThan(0);
+      // ボタンが見つからない場合: Puck 画面自体が正常に描画されていることで代替確認 (#814 S-2)
+      expect(await page.locator("[data-testid='puck-editor-container']").count()).toBeGreaterThan(0);
     }
   });
 });
