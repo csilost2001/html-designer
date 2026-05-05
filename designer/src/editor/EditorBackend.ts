@@ -89,9 +89,6 @@ export interface RenderEditorProps {
   /** 編集対象 screenId (RightPanel 等で利用) */
   screenId: string;
 
-  /** ready 状態 (canvas-empty hint / readonly overlay 表示分岐用) */
-  ready: boolean;
-
   /** readonly overlay の「編集開始」ボタン用 */
   onStartEditing: () => void;
 
@@ -100,6 +97,24 @@ export interface RenderEditorProps {
 
   /** Backend init 完了通知 — editor 由来の API を上位に expose する */
   onReady?: (api: EditorApi) => void;
+
+  // ---------------------------------------------------------------------
+  // GrapesJS 固有 callback (Puck Backend は無視) — #815 PR-C
+  //   両 Backend で型安全に渡せるよう RenderEditorProps の optional プロパティとして
+  //   定義する。as キャストで型チェックをバイパスする実装は禁止。
+  // ---------------------------------------------------------------------
+
+  /** discard / serverChange reload 時に呼ばれる payload 再取得 (Backend.load を内包する関数を Designer.tsx が provide) */
+  reloadPayload?: () => Promise<unknown>;
+
+  /** 他タブ / 別クライアントから screenChanged broadcast を受信した通知 */
+  onServerChanged?: () => void;
+
+  /** mcpBridge 接続状態の変化通知 */
+  onMcpStatusChange?: (status: import("../mcp/mcpBridge").McpStatus) => void;
+
+  /** mcpBridge.setThemeHandler 経由で外部から theme 変更要求が来たときの通知 (AI rename 等) */
+  onExternalThemeChange?: (themeId: ThemeId) => void;
 }
 
 /**

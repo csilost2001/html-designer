@@ -50,8 +50,9 @@ const baseRenderProps: Omit<RenderEditorProps, "state"> = {
   onTogglePin: () => { /* no-op */ },
   onClosePanel: () => { /* no-op */ },
   screenId: "screen-001",
-  ready: true,
   onStartEditing: () => { /* no-op */ },
+  // GrapesJS Backend が要求する reloadPayload を mock として提供
+  reloadPayload: async () => null,
 };
 
 // -----------------------------------------------------------------------

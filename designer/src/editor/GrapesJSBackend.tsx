@@ -569,16 +569,17 @@ export class GrapesJSBackend implements EditorBackend {
    * screen の payload を読み込み EditorState を返す。
    * draftRead は MCP bridge 経由の draft 読込み (edit-session-draft #683)。
    *
-   * GrapesJS 自体の load() は registerRemoteStorage 経由で内部処理されるため、
-   * ここでは payload を EditorState にラップして返すだけ (PR-B 段階)。
-   * PR-C で registerRemoteStorage を撤去し、明示 load (editor.loadProjectData) に切り替える。
+   * #815 PR-C で autoload (storageManager) 経路を撤去し、本 load() が GrapesJS の
+   * 唯一の payload 取得点となった。Designer.tsx が pre-load して renderEditor に渡し、
+   * GrapesJSEditorPane が `editor.loadProjectData()` で明示適用する。
    */
   async load(screenId: string, draftRead: () => Promise<unknown>): Promise<EditorState> {
     let payload: unknown = null;
     try {
       payload = await draftRead();
     } catch {
-      // draft が存在しない場合は null のまま (GrapesJS が autoload で本体ファイルを読む)
+      // MCP 未接続等で draft 取得に失敗した場合は null。
+      // GrapesJSEditorPane.onGjsReady の ensureValidProject() が EMPTY_PROJECT にフォールバックする。
     }
     return { payload, ui: { screenId } };
   }
@@ -604,13 +605,13 @@ export class GrapesJSBackend implements EditorBackend {
    * Pane が要求するため、props を拡張する形で受け取る。これらは Designer.tsx が provide する。
    */
   renderEditor(props: RenderEditorProps): ReactNode {
-    const grapesProps = props as RenderEditorProps & {
-      onServerChanged?: () => void;
-      onMcpStatusChange?: (status: McpStatus) => void;
-      onExternalThemeChange?: (themeId: ThemeId) => void;
-      reloadPayload: () => Promise<unknown>;
-    };
-
+    // #815 PR-C: reloadPayload は GrapesJS Backend が必須とするが RenderEditorProps では
+    // optional のため、未指定時は明示エラーで早期失敗させる (Designer.tsx の渡し忘れ検出)。
+    if (!props.reloadPayload) {
+      throw new Error(
+        "GrapesJSBackend.renderEditor: props.reloadPayload is required (Designer.tsx must provide it via Backend.load wrapper)",
+      );
+    }
     return (
       <GrapesJSEditorPane
         screenId={props.screenId}
@@ -624,12 +625,12 @@ export class GrapesJSBackend implements EditorBackend {
         onClosePanel={props.onClosePanel}
         onStartEditing={props.onStartEditing}
         initialPayload={props.state.payload}
-        reloadPayload={grapesProps.reloadPayload}
+        reloadPayload={props.reloadPayload}
         onChange={props.onChange}
         onReady={props.onReady}
-        onServerChanged={grapesProps.onServerChanged}
-        onMcpStatusChange={grapesProps.onMcpStatusChange}
-        onExternalThemeChange={grapesProps.onExternalThemeChange}
+        onServerChanged={props.onServerChanged}
+        onMcpStatusChange={props.onMcpStatusChange}
+        onExternalThemeChange={props.onExternalThemeChange}
       />
     );
   }

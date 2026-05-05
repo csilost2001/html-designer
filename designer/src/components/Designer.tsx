@@ -630,7 +630,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         isReadonly={isReadonly}
       />
     );
-    return puckBackendRef.current.renderEditor({
+    const puckProps: RenderEditorProps = {
       state: puckState,
       cssFramework,
       themeVariant: activeTheme,
@@ -641,10 +641,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       onTogglePin: togglePin,
       onClosePanel: closePanel,
       screenId,
-      ready: true,
       onStartEditing: editActions.startEditing,
       onChange: handlePuckChange,
-    });
+    };
+    return puckBackendRef.current.renderEditor(puckProps);
   }
 
   // ---------------------------------------------------------------------------
@@ -675,9 +675,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       isReadonly={isReadonly}
     />
   );
-  // GrapesJS 固有 callback (onServerChanged / onMcpStatusChange / onExternalThemeChange /
-  // reloadPayload) は RenderEditorProps の型を拡張する形で渡す。
-  const grapesProps = {
+  // RenderEditorProps の optional 拡張プロパティ (#815 PR-C で型に追加済) で
+  // GrapesJS 固有 callback を型安全に渡す。
+  const grapesProps: RenderEditorProps = {
     state: grapesState,
     cssFramework,
     themeVariant: activeTheme,
@@ -688,7 +688,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     onTogglePin: togglePin,
     onClosePanel: closePanel,
     screenId,
-    ready: true,
     onStartEditing: editActions.startEditing,
     onChange: handleGrapesChange,
     onReady: handleGrapesReady,
@@ -696,7 +695,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     onMcpStatusChange: setMcpStatus,
     onExternalThemeChange: handleThemeChange,
     reloadPayload: grapesReloadPayload,
-  } as RenderEditorProps;
+  };
   return <>{grapesBackendRef.current.renderEditor(grapesProps)}</>;
 }
 
