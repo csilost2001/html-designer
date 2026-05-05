@@ -73,6 +73,6 @@ export const ButtonConfig: ComponentConfig<ButtonProps> = {
     }
 
     const combinedClass = [buttonClass, layoutClass].filter(Boolean).join(" ");
-    return <button className={combinedClass} type="button">{props.label}</button>;
+    return <button data-testid="puck-primitive-button" className={combinedClass} type="button">{props.label}</button>;
   },
 };

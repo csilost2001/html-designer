@@ -41,7 +41,7 @@ export const InputGroupConfig: ComponentConfig<InputGroupProps> = {
 
     if (framework === "bootstrap") {
       return (
-        <div className={["input-group", layoutClass].filter(Boolean).join(" ")}>
+        <div data-testid="puck-primitive-input-group" className={["input-group", layoutClass].filter(Boolean).join(" ")}>
           <input
             type={props.inputType ?? "search"}
             placeholder={props.placeholder}
@@ -53,7 +53,7 @@ export const InputGroupConfig: ComponentConfig<InputGroupProps> = {
       );
     }
     return (
-      <div className={["flex rounded-md overflow-hidden border border-gray-300", layoutClass].filter(Boolean).join(" ")}>
+      <div data-testid="puck-primitive-input-group" className={["flex rounded-md overflow-hidden border border-gray-300", layoutClass].filter(Boolean).join(" ")}>
         <input
           type={props.inputType ?? "search"}
           placeholder={props.placeholder}

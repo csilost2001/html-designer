@@ -39,6 +39,6 @@ export const HeadingConfig: ComponentConfig<HeadingProps> = {
     const mapper = resolveLayoutPropsMapper(framework);
     const layoutClass = mapper(props);
     const Tag = props.level ?? "h2";
-    return <Tag className={layoutClass || undefined}>{props.text}</Tag>;
+    return <Tag data-testid="puck-primitive-heading" className={layoutClass || undefined}>{props.text}</Tag>;
   },
 };

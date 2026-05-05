@@ -60,6 +60,7 @@ export const IconConfig: ComponentConfig<IconProps> = {
       : (ICON_SIZE_TAILWIND[size] ?? "text-2xl");
     return (
       <span
+        data-testid="puck-primitive-icon"
         className={[`bi bi-${props.iconName ?? "star"}`, sizeClass, layoutClass].filter(Boolean).join(" ")}
         aria-hidden="true"
       />

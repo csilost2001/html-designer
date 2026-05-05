@@ -24,6 +24,6 @@ export const ParagraphConfig: ComponentConfig<ParagraphProps> = {
     const framework = useCssFramework();
     const mapper = resolveLayoutPropsMapper(framework);
     const layoutClass = mapper(props);
-    return <p className={layoutClass || undefined}>{props.text}</p>;
+    return <p data-testid="puck-primitive-paragraph" className={layoutClass || undefined}>{props.text}</p>;
   },
 };

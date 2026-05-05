@@ -49,7 +49,7 @@ export const TableConfig: ComponentConfig<TableProps> = {
         props.bordered ? "table-bordered" : "",
       ].filter(Boolean).join(" ");
       return (
-        <div className={["table-responsive", layoutClass].filter(Boolean).join(" ")}>
+        <div data-testid="puck-primitive-table" className={["table-responsive", layoutClass].filter(Boolean).join(" ")}>
           <table className={tableClass}>
             {props.caption && <caption>{props.caption}</caption>}
             <thead className="table-light"><tr>{cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
@@ -60,7 +60,7 @@ export const TableConfig: ComponentConfig<TableProps> = {
     }
     const tableClass = ["w-full border-collapse text-sm", props.bordered ? "border border-gray-300" : ""].filter(Boolean).join(" ");
     return (
-      <div className={["overflow-x-auto", layoutClass].filter(Boolean).join(" ")}>
+      <div data-testid="puck-primitive-table" className={["overflow-x-auto", layoutClass].filter(Boolean).join(" ")}>
         <table className={tableClass}>
           {props.caption && <caption className="text-left text-gray-500 mb-1">{props.caption}</caption>}
           <thead><tr className="bg-gray-100">{cols.map((c) => <th key={c} className="px-4 py-2 text-left font-medium">{c}</th>)}</tr></thead>

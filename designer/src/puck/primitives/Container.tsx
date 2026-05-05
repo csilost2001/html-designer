@@ -38,7 +38,7 @@ export const ContainerConfig: ComponentConfig<ContainerProps> = {
     const flexClass = props.direction === "row" ? "flex flex-row" : "flex flex-col";
     const combinedClass = [flexClass, layoutClass].filter(Boolean).join(" ");
     return (
-      <div className={combinedClass}>
+      <div data-testid="puck-primitive-container" className={combinedClass}>
         <DropZone zone="content" />
       </div>
     );

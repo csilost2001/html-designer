@@ -35,7 +35,7 @@ export const CardConfig: ComponentConfig<CardProps> = {
 
     if (framework === "bootstrap") {
       return (
-        <div className={["card", layoutClass].filter(Boolean).join(" ")}>
+        <div data-testid="puck-primitive-card" className={["card", layoutClass].filter(Boolean).join(" ")}>
           <div className="card-body">
             {props.title && <h5 className="card-title">{props.title}</h5>}
             {props.subtitle && <h6 className="card-subtitle mb-2 text-muted">{props.subtitle}</h6>}
@@ -46,7 +46,7 @@ export const CardConfig: ComponentConfig<CardProps> = {
       );
     }
     return (
-      <div className={["bg-white border border-gray-200 rounded-lg shadow-sm", layoutClass].filter(Boolean).join(" ")}>
+      <div data-testid="puck-primitive-card" className={["bg-white border border-gray-200 rounded-lg shadow-sm", layoutClass].filter(Boolean).join(" ")}>
         <div className="p-4">
           {props.title && <h3 className="text-lg font-semibold mb-1">{props.title}</h3>}
           {props.subtitle && <p className="text-sm text-gray-500 mb-3">{props.subtitle}</p>}

@@ -37,7 +37,7 @@ export const PaginationConfig: ComponentConfig<PaginationProps> = {
 
     if (framework === "bootstrap") {
       return (
-        <nav className={layoutClass || undefined} aria-label="ページネーション">
+        <nav data-testid="puck-primitive-pagination" className={layoutClass || undefined} aria-label="ページネーション">
           <ul className="pagination">
             {props.showFirstLast && <li className="page-item disabled"><button className="page-link">«</button></li>}
             <li className="page-item disabled"><button className="page-link">‹</button></li>
@@ -53,7 +53,7 @@ export const PaginationConfig: ComponentConfig<PaginationProps> = {
       );
     }
     return (
-      <nav className={["flex items-center gap-1", layoutClass].filter(Boolean).join(" ")} aria-label="ページネーション">
+      <nav data-testid="puck-primitive-pagination" className={["flex items-center gap-1", layoutClass].filter(Boolean).join(" ")} aria-label="ページネーション">
         {props.showFirstLast && <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">«</button>}
         <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
         {pages.map((p) => (

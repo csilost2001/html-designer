@@ -38,6 +38,7 @@ export const ImageConfig: ComponentConfig<ImageProps> = {
       : (props.fluid ? "max-w-full h-auto" : "");
     return (
       <img
+        data-testid="puck-primitive-image"
         src={props.src ?? "https://placehold.co/400x200"}
         alt={props.alt ?? ""}
         style={props.width ? { width: props.width } : undefined}

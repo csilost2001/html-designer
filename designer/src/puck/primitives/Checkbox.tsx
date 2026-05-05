@@ -31,7 +31,7 @@ export const CheckboxConfig: ComponentConfig<CheckboxProps> = {
     const layoutClass = mapper(props);
     if (framework === "bootstrap") {
       return (
-        <div className={["form-check", layoutClass].filter(Boolean).join(" ")}>
+        <div data-testid="puck-primitive-checkbox" className={["form-check", layoutClass].filter(Boolean).join(" ")}>
           <input
             type="checkbox"
             className="form-check-input"
@@ -43,7 +43,7 @@ export const CheckboxConfig: ComponentConfig<CheckboxProps> = {
       );
     }
     return (
-      <div className={["flex items-center gap-2", layoutClass].filter(Boolean).join(" ")}>
+      <div data-testid="puck-primitive-checkbox" className={["flex items-center gap-2", layoutClass].filter(Boolean).join(" ")}>
         <input
           type="checkbox"
           className="w-4 h-4"

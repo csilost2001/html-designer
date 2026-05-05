@@ -80,7 +80,7 @@ export const ColConfig: ComponentConfig<ColProps> = {
         : (TAILWIND_COL[span] ?? "w-6/12");
     const combinedClass = [colClass, layoutClass].filter(Boolean).join(" ");
     return (
-      <div className={combinedClass}>
+      <div data-testid="puck-primitive-col" className={combinedClass}>
         <DropZone zone="content" />
       </div>
     );

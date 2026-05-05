@@ -27,7 +27,7 @@ export const RowConfig: ComponentConfig<RowProps> = {
     const baseClass = framework === "bootstrap" ? "row" : "flex flex-row flex-wrap";
     const combinedClass = [baseClass, layoutClass].filter(Boolean).join(" ");
     return (
-      <div className={combinedClass}>
+      <div data-testid="puck-primitive-row" className={combinedClass}>
         <DropZone zone="content" />
       </div>
     );

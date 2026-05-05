@@ -169,7 +169,7 @@ Puck Data (`puck-data.json`) は `"align": "right"` という semantic 値を保
 
 ## 既知 issue / 改善候補
 
-1. **Puck canvas のセレクタが確定していない**: puck-editor.spec.ts では `.Puck` / `[class*='Puck']` 等の柔軟なセレクタを使用しているが、Puck の実装によりクラス名が変わる可能性がある。`data-testid` 属性を追加すると E2E がより安定する
+1. ~~**Puck canvas のセレクタが確定していない**: puck-editor.spec.ts では `.Puck` / `[class*='Puck']` 等の柔軟なセレクタを使用しているが、Puck の実装によりクラス名が変わる可能性がある。`data-testid` 属性を追加すると E2E がより安定する~~ → **[x] 解消済み (本 PR)**: 全 20 Puck primitive の outermost 要素に `data-testid="puck-primitive-<name>"` を追加 (例: `puck-primitive-button`, `puck-primitive-card` など)
 2. **DnD のテストが欠落**: 仕様書には「左パレットからドロップ」が要件として記載されているが、Puck 内部の DnD ライブラリのセレクタが特殊なため E2E では省略した。手動 smoke test で補完が必要
 3. **右プロパティパネルの直接操作テスト欠落**: `align: "right"` を右プロパティパネルで選んだ際の即時反映は、Puck 内部の props 変更 → re-render フローを Playwright で追うのが難しい。visual regression (screenshot) で代替
 

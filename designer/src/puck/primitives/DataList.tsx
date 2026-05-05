@@ -41,7 +41,7 @@ export const DataListConfig: ComponentConfig<DataListProps> = {
 
     if (framework === "bootstrap") {
       return (
-        <div className={layoutClass || undefined}>
+        <div data-testid="puck-primitive-data-list" className={layoutClass || undefined}>
           {props.title && <h6 className="mb-2 fw-semibold">{props.title}</h6>}
           <div className="table-responsive">
             <table className="table table-hover table-sm">
@@ -70,7 +70,7 @@ export const DataListConfig: ComponentConfig<DataListProps> = {
       );
     }
     return (
-      <div className={layoutClass || undefined}>
+      <div data-testid="puck-primitive-data-list" className={layoutClass || undefined}>
         {props.title && <h3 className="text-base font-semibold mb-2">{props.title}</h3>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">

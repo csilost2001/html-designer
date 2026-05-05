@@ -35,7 +35,7 @@ export const RadioConfig: ComponentConfig<RadioProps> = {
 
     if (framework === "bootstrap") {
       return (
-        <div className={layoutClass || undefined}>
+        <div data-testid="puck-primitive-radio" className={layoutClass || undefined}>
           {props.groupLabel && <label className="form-label fw-semibold">{props.groupLabel}</label>}
           {options.map((opt, i) => (
             <div key={i} className="form-check">
@@ -47,7 +47,7 @@ export const RadioConfig: ComponentConfig<RadioProps> = {
       );
     }
     return (
-      <div className={layoutClass || undefined}>
+      <div data-testid="puck-primitive-radio" className={layoutClass || undefined}>
         {props.groupLabel && <p className="text-sm font-medium mb-2">{props.groupLabel}</p>}
         {options.map((opt, i) => (
           <div key={i} className="flex items-center gap-2 mb-1">

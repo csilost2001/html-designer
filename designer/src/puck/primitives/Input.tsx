@@ -47,7 +47,7 @@ export const InputConfig: ComponentConfig<InputProps> = {
     const inputClass = framework === "bootstrap" ? "form-control" : "border border-gray-300 rounded-md px-3 py-2 w-full";
     const wrapperClass = framework === "bootstrap" ? "mb-3" : "mb-4";
     return (
-      <div className={[wrapperClass, layoutClass].filter(Boolean).join(" ")}>
+      <div data-testid="puck-primitive-input" className={[wrapperClass, layoutClass].filter(Boolean).join(" ")}>
         {props.label && (
           <label className={framework === "bootstrap" ? "form-label" : "block text-sm font-medium mb-1"}>
             {props.label}

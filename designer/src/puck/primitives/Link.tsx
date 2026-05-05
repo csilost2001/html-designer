@@ -37,6 +37,7 @@ export const LinkConfig: ComponentConfig<LinkProps> = {
     const layoutClass = mapper(props);
     return (
       <a
+        data-testid="puck-primitive-link"
         href={props.href ?? "#"}
         target={props.target ?? "_self"}
         rel={props.target === "_blank" ? "noopener noreferrer" : undefined}

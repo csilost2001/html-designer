@@ -28,6 +28,7 @@ export const SectionConfig: ComponentConfig<SectionProps> = {
     const layoutClass = mapper(props);
     return (
       <section
+        data-testid="puck-primitive-section"
         aria-label={props.label || undefined}
         className={layoutClass || undefined}
       >

@@ -672,10 +672,21 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // editorKind === "puck" のときのみ実行する。
   // editorKind === "grapesjs" の経路は GjsEditor コンポーネントが引き続き管理するため、
   // このエフェクトは Puck 分岐専用。
+  //
+  // ライフサイクル注意: backend.load().then() は非同期で puckDisposableRef に代入するが、
+  // cleanup が .then() より先に実行される場合 (workspace close 等で素早く unmount される場合) は
+  // disposable が設定される前に cleanup が走り、listener が leaked する。
+  // → cleanup 参照できるよう disposable を closure 変数で管理し、
+  //   .then() 完了前に cleanup が走った場合も即 dispose() できるようにする。
   useEffect(() => {
     if (editorKind !== "puck") return;
     const container = puckContainerRef.current;
     if (!container) return;
+
+    let cancelled = false;
+    // closure で disposable を保持: puckDisposableRef は ref 経由でも保持するが、
+    // cleanup が .then() より先に走る場合でも dispose() できるようここに保存する
+    let localDisposable: Disposable | null = null;
 
     const backend = new PuckBackend();
 
@@ -697,6 +708,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         return null;
       })
       .then((state) => {
+        // cleanup が先に走っていた場合は即 dispose して終了
+        if (cancelled) {
+          // renderEditor を呼ばずに終了 (subscribe/mount を行わない)
+          return;
+        }
         let pendingPayload: unknown = null;
         let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -731,6 +747,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
             }, 300);
           },
         });
+        localDisposable = disposable;
         puckDisposableRef.current = disposable;
       })
       .catch((e) => {
@@ -738,11 +755,18 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       });
 
     return () => {
+      // cancelled フラグを立てて .then() 内での renderEditor 呼び出しを防ぐ
+      cancelled = true;
       puckFlushRef.current = null;
-      if (puckDisposableRef.current) {
-        puckDisposableRef.current.dispose();
-        puckDisposableRef.current = null;
+      // localDisposable と puckDisposableRef.current は同一オブジェクトなので 1 回だけ dispose。
+      // .then() 完了前 (localDisposable=null) でも puckDisposableRef に前回マウント分が残る
+      // ケースに備えて両方チェックする。
+      const toDispose = localDisposable ?? puckDisposableRef.current;
+      if (toDispose) {
+        toDispose.dispose();
       }
+      localDisposable = null;
+      puckDisposableRef.current = null;
     };
   // cssFramework / activeTheme の変更時は再マウントしない (初回マウント時のみ)
   // eslint-disable-next-line react-hooks/exhaustive-deps
