@@ -3,14 +3,14 @@
  *
  * - component:add → screen-items に自動登録 (重複 no-op)
  * - component:remove → screen-items から自動削除
- * - reconcileScreenItems → ロード後の canvas 全件 ↔ screen-items 差分適用
+ * - reconcileScreenItems → ロード後の canvas 全件 ↔ screen-items 差分適用 (追加のみ)
  *
  * ロード中ガード: isInternalLoadRef.current === true の間は add/remove を無視する。
  * 操作シリアライズ: per-screen の Promise チェーンで read→modify→write を直列化し
  * 競合を防ぐ。
  *
- * reconcile は canvas 上にない項目を screen-items から削除する。
- * ユーザーが "先に定義してから配置する" 場合、ロード後の reconcile で削除されることに注意。
+ * reconcile は canvas に存在する items を screen-items に追加するのみ。
+ * canvas にない items は削除しない (entity.items[] の定義はユーザーの権限)。
  */
 import type { Editor as GEditor, Component } from "grapesjs";
 import type { FieldType, Identifier } from "../types/v3";
@@ -102,8 +102,9 @@ function syncRemoveComponent(screenId: string, cmp: Component): void {
 }
 
 /**
- * ロード後の canvas ↔ screen-items 全件突合。
+ * ロード後の canvas ↔ screen-items 突合。
  * isInternalLoadRef が false になった直後 (onReady の setTimeout 内) に呼ぶ。
+ * canvas にある items を screen-items に追加するのみ (削除しない)。
  */
 export function reconcileScreenItems(editor: GEditor, screenId: string): void {
   const wrapper = editor.getWrapper();
@@ -115,18 +116,13 @@ export function reconcileScreenItems(editor: GEditor, screenId: string): void {
     const file = await loadScreenItems(screenId);
     let changed = false;
 
-    // canvas にあって screen-items にない → 追加
+    // canvas にあって screen-items にない → 追加のみ
     for (const [id, cmp] of canvasIds) {
       if (!file.items.some((i) => i.id === id)) {
         file.items.push({ id: id as Identifier, label: "", type: inferScreenItemType(cmp) });
         changed = true;
       }
     }
-
-    // screen-items にあって canvas にない → 削除
-    const before = file.items.length;
-    file.items = file.items.filter((i) => canvasIds.has(i.id));
-    if (file.items.length !== before) changed = true;
 
     if (changed) await saveScreenItems(file);
   });
