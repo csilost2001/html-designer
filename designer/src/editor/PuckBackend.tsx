@@ -22,6 +22,13 @@ import { Puck } from "@measured/puck";
 import type { Data, Config } from "@measured/puck";
 import "@measured/puck/puck.css";
 
+// Puck canvas はメイン app DOM 内に描画されるため、GrapesJS の canvas iframe と異なり
+// theme CSS をメイン document.head に直接注入する必要がある (#835)。
+const PUCK_THEME_URLS: Record<"bootstrap" | "tailwind", string> = {
+  bootstrap: new URL("../styles/themes/theme-bootstrap.css", import.meta.url).href,
+  tailwind: new URL("../styles/themes/theme-tailwind.css", import.meta.url).href,
+};
+
 import type {
   EditorApi,
   EditorBackend,
@@ -183,6 +190,22 @@ function PuckEditorPane({
   useEffect(() => {
     currentDataRef.current = currentData;
   }, [currentData]);
+
+  // theme CSS を document.head に注入する。GrapesJS は canvas iframe に注入するが、
+  // Puck はメイン app DOM 内に直接 render するためこちらで対応する (#835)。
+  useEffect(() => {
+    const ID = "puck-theme-css";
+    const existing = document.getElementById(ID);
+    if (existing) existing.remove();
+    const link = document.createElement("link");
+    link.id = ID;
+    link.rel = "stylesheet";
+    link.href = PUCK_THEME_URLS[cssFramework];
+    document.head.appendChild(link);
+    return () => {
+      link.remove();
+    };
+  }, [cssFramework]);
 
   const reloadCustomComponents = useCallback(async () => {
     try {
