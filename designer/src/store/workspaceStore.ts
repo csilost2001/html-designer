@@ -151,12 +151,17 @@ export async function inspectWorkspace(path: string): Promise<WorkspaceInspectRe
   return result;
 }
 
-export async function openWorkspace(pathOrId: string, useId = false): Promise<void> {
+export async function openWorkspace(pathOrId: string, useId = false): Promise<string> {
   _setState({ loading: true, error: null });
   try {
     const params = useId ? { id: pathOrId } : { path: pathOrId };
     await mcpBridge.request("workspace.open", params);
     await loadWorkspaces();
+    const wsId = _state.active?.id;
+    if (!wsId) {
+      throw new Error("active workspace id is missing after open");
+    }
+    return wsId;
   } catch (e) {
     _setState({
       loading: false,
