@@ -130,6 +130,60 @@ describe("screenStore — load/save round-trip 契約", () => {
     expect((loaded as unknown as { auth?: string }).auth).toBe("optional");
   });
 
+  it("Puck 画面の saveScreenEntity が designFileRef を混入させない (Sh-4 / Codex 指摘)", async () => {
+    // 旧実装では saveScreenEntity が無条件で `designFileRef: ${id}.design.json` を追加しており、
+    // Puck 画面 (puckDataRef のみあるべき) に designFileRef が混入する regression があった。
+    const backend = makeMockBackend();
+    setScreenStorageBackend(backend);
+
+    const PUCK_SCREEN_ID = "puck-screen-001" as ScreenId;
+    backend._store.set(PUCK_SCREEN_ID, {
+      $schema: "../schemas/v3/screen.v3.schema.json",
+      id: PUCK_SCREEN_ID,
+      name: "Puck 画面",
+      kind: "form",
+      path: "/puck",
+      createdAt: TIMESTAMP,
+      updatedAt: TIMESTAMP,
+      items: [],
+      design: { editorKind: "puck", puckDataRef: "puck-data.json" },
+    });
+
+    const loaded = await loadScreenEntity(PUCK_SCREEN_ID);
+    await saveScreenEntity(loaded);
+
+    const savedRaw = backend._store.get(PUCK_SCREEN_ID) as { design?: Record<string, unknown> };
+    expect(savedRaw.design?.editorKind).toBe("puck");
+    expect(savedRaw.design?.puckDataRef).toBe("puck-data.json");
+    expect(savedRaw.design?.designFileRef).toBeUndefined();
+  });
+
+  it("GrapesJS 画面の saveScreenEntity は puckDataRef を持たない", async () => {
+    const backend = makeMockBackend();
+    setScreenStorageBackend(backend);
+
+    const GJS_SCREEN_ID = "gjs-screen-001" as ScreenId;
+    backend._store.set(GJS_SCREEN_ID, {
+      $schema: "../schemas/v3/screen.v3.schema.json",
+      id: GJS_SCREEN_ID,
+      name: "GrapesJS 画面",
+      kind: "form",
+      path: "/gjs",
+      createdAt: TIMESTAMP,
+      updatedAt: TIMESTAMP,
+      items: [],
+      design: { editorKind: "grapesjs", designFileRef: `${GJS_SCREEN_ID}.design.json` },
+    });
+
+    const loaded = await loadScreenEntity(GJS_SCREEN_ID);
+    await saveScreenEntity(loaded);
+
+    const savedRaw = backend._store.get(GJS_SCREEN_ID) as { design?: Record<string, unknown> };
+    expect(savedRaw.design?.editorKind).toBe("grapesjs");
+    expect(savedRaw.design?.designFileRef).toBe(`${GJS_SCREEN_ID}.design.json`);
+    expect(savedRaw.design?.puckDataRef).toBeUndefined();
+  });
+
   it("既存 items[] の round-trip 保持 (saveScreenEntity が items を消さない)", async () => {
     const backend = makeMockBackend();
     setScreenStorageBackend(backend);
