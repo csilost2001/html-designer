@@ -13,7 +13,8 @@ export interface TechStackConstraintViolation {
   severity: "error";
 }
 
-/** バックエンド言語とフレームワークの許容組合せ。 */
+/** バックエンド言語とフレームワークの許容組合せ。
+ * Kotlin は現状 Spring Boot のみ (将来 Ktor 等を schema enum に追加する際に本 map も拡張要)。 */
 const BACKEND_LANG_FRAMEWORK_MAP: Record<string, string[]> = {
   java:       ["spring-boot"],
   typescript: ["nestjs", "express"],
@@ -38,6 +39,9 @@ export function validateTechStackConstraints(
   // 制約 1: editorKind=puck → frontend.library="react" 必須
   // Puck は React コンポーネントを出力するため、react 以外と組み合わせると
   // 生成コードが意味をなさない。
+  // lib が undefined のときは「過渡状態 (まだ frontend を設定していない)」として
+  // 制約発動を見送る — techStack 全フィールドが optional なため
+  // 設定途中で error 表示するのは UX を損なう。frontend.library を選んだ瞬間に違反検知される。
   if (techStack.designer?.editorKind === "puck") {
     const lib = techStack.frontend?.library;
     if (lib !== undefined && lib !== "react") {
