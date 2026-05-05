@@ -16,6 +16,7 @@ import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
 import { ViewModeToggle, type ViewMode } from "../common/ViewModeToggle";
 import { useListSelection } from "../../hooks/useListSelection";
+import { useListKeyboard } from "../../hooks/useListKeyboard";
 import { useListFilter } from "../../hooks/useListFilter";
 import { useListSort } from "../../hooks/useListSort";
 import { usePersistentState } from "../../hooks/usePersistentState";
@@ -458,6 +459,16 @@ export function WorkspaceListView() {
 
   const selectedCount = selection.selectedIds.size;
   const selectedItem = selection.selectedItems[0] ?? null;
+
+  useListKeyboard({
+    items: sort.sorted,
+    getId: (w) => w.id,
+    selection,
+    sort,
+    layout: viewMode === "card" ? "grid" : "list",
+    onActivate: handleActivate,
+    enabled: !lockdown,
+  });
 
   return (
     <div className="table-list-page">

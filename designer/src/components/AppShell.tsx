@@ -702,7 +702,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     const expectedPath =
       activeTab.type === "design"             ? `${wp}/screen/design/${activeTab.resourceId}`
       : activeTab.type === "table"            ? `${wp}/table/edit/${activeTab.resourceId}`
-      : activeTab.type === "action"           ? `${wp}/process-flow/edit/${activeTab.resourceId}`
+      : activeTab.type === "process-flow"     ? `${wp}/process-flow/edit/${activeTab.resourceId}`
       : activeTab.type === "sequence"         ? `${wp}/sequence/edit/${activeTab.resourceId}`
       : activeTab.type === "view"             ? `${wp}/view/edit/${activeTab.resourceId}`
       : activeTab.type === "view-definition"  ? `${wp}/view-definition/edit/${activeTab.resourceId}`

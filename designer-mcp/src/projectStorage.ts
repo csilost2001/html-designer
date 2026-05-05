@@ -45,6 +45,7 @@ export function dataDir(root: string): string {
 const screensDir       = (root: string) => path.join(root, "screens");
 const tablesDir        = (root: string) => path.join(root, "tables");
 const actionsDir       = (root: string) => path.join(root, "actions");
+const processFlowsDir  = (root: string) => path.join(root, "process-flows");
 const conventionsDir   = (root: string) => path.join(root, "conventions");
 const screenItemsDir   = (root: string) => path.join(root, "screen-items");
 const sequencesDir     = (root: string) => path.join(root, "sequences");
@@ -138,8 +139,18 @@ async function readJSON<T>(filePath: string): Promise<T | null> {
   }
 }
 
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function writeJSON(filePath: string, data: unknown): Promise<void> {
   const json = JSON.stringify(data, null, 2);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, json, "utf-8");
 }
 
@@ -516,25 +527,40 @@ export async function listAllTables(root: string): Promise<unknown[]> {
   }
 }
 
-/** actions/{processFlowId}.json を読み込み */
-export async function readProcessFlow(processFlowId: string, root: string): Promise<unknown | null> {
-  const r = root;
-  return readJSON<unknown>(path.join(actionsDir(r), `${processFlowId}.json`));
+function processFlowFileCandidates(root: string, processFlowId: string): string[] {
+  return [
+    path.join(actionsDir(root), `${processFlowId}.json`),
+    path.join(processFlowsDir(root), `${processFlowId}.json`),
+  ];
 }
 
-/** actions/{processFlowId}.json を書き込み */
+/** actions/{processFlowId}.json または process-flows/{processFlowId}.json を読み込み */
+export async function readProcessFlow(processFlowId: string, root: string): Promise<unknown | null> {
+  const r = root;
+  for (const filePath of processFlowFileCandidates(r, processFlowId)) {
+    const data = await readJSON<unknown>(filePath);
+    if (data) return data;
+  }
+  return null;
+}
+
+/** 既存配置を優先して処理フローを書き込み */
 export async function writeProcessFlow(processFlowId: string, data: unknown, root: string): Promise<void> {
   const r = root;
   await ensureDataDir(r);
-  await writeJSON(path.join(actionsDir(r), `${processFlowId}.json`), data);
+  const [legacyPath, currentPath] = processFlowFileCandidates(r, processFlowId);
+  const targetPath = await fileExists(currentPath) ? currentPath : legacyPath;
+  await writeJSON(targetPath, data);
 }
 
-/** actions/{processFlowId}.json を削除（存在しない場合は無視） */
+/** actions/process-flows 両配置の処理フローを削除（存在しない場合は無視） */
 export async function deleteProcessFlow(processFlowId: string, root: string): Promise<void> {
   const r = root;
-  try {
-    await fs.unlink(path.join(actionsDir(r), `${processFlowId}.json`));
-  } catch { /* file not found is OK */ }
+  for (const filePath of processFlowFileCandidates(r, processFlowId)) {
+    try {
+      await fs.unlink(filePath);
+    } catch { /* file not found is OK */ }
+  }
 }
 
 /** conventions/catalog.json を読み込み (#317) */
@@ -685,20 +711,29 @@ export async function deleteViewDefinition(viewDefinitionId: string, root: strin
   } catch { /* file not found is OK */ }
 }
 
-/** actions/ ディレクトリ内の全処理フローを読み込み */
+/** actions/ と process-flows/ ディレクトリ内の全処理フローを読み込み */
 export async function listProcessFlows(root: string): Promise<unknown[]> {
   try {
     const r = root;
     await ensureDataDir(r);
-    const aDir = actionsDir(r);
-    const files = await fs.readdir(aDir);
-    const results: unknown[] = [];
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      const data = await readJSON<unknown>(path.join(aDir, file));
-      if (data) results.push(data);
+    const byId = new Map<string, unknown>();
+    for (const dir of [processFlowsDir(r), actionsDir(r)]) {
+      let files: string[];
+      try {
+        files = await fs.readdir(dir);
+      } catch {
+        continue;
+      }
+      for (const file of files) {
+        if (!file.endsWith(".json")) continue;
+        const data = await readJSON<unknown>(path.join(dir, file));
+        if (!data || typeof data !== "object") continue;
+        const id = (data as { id?: unknown; meta?: { id?: unknown } }).id
+          ?? (data as { meta?: { id?: unknown } }).meta?.id;
+        byId.set(typeof id === "string" ? id : file.replace(/\.json$/, ""), data);
+      }
     }
-    return results;
+    return Array.from(byId.values());
   } catch {
     return [];
   }
