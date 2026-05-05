@@ -104,7 +104,7 @@ test.describe("画面作成ダイアログ — editorKind / cssFramework 選択 
     await expect(page.locator('.screen-create-design-note')).toContainText("作成後は変更できません");
   });
 
-  test("puck / tailwind を選択して保存できる", async ({ page }) => {
+  test("puck / tailwind を選択して保存後 screen.design に明示書き込みされる (#825 受入基準)", async ({ page }) => {
     await setupFlowEditor(page);
     await openAddScreenModal(page);
 
@@ -116,6 +116,30 @@ test.describe("画面作成ダイアログ — editorKind / cssFramework 選択 
 
     await page.locator('.flow-modal button[type="submit"]').click();
     await expect(page.locator('.flow-modal')).not.toBeVisible();
+
+    // screen.design.editorKind/cssFramework が localStorage に明示書き込みされること (saveScreenEntity 経由)
+    // + Puck は puckDataRef を持ち designFileRef を持たないこと (排他、spec § 2.5)
+    await expect.poll(async () => {
+      return await page.evaluate(() => {
+        const keys = Object.keys(localStorage).filter((k) => k.startsWith("v3-screen-"));
+        if (keys.length === 0) return null;
+        const raw = localStorage.getItem(keys[0]);
+        if (!raw) return null;
+        return JSON.parse(raw) as { design?: Record<string, unknown> };
+      });
+    }, { timeout: 5000 }).toMatchObject({
+      design: {
+        editorKind: "puck",
+        cssFramework: "tailwind",
+        puckDataRef: "puck-data.json",
+      },
+    });
+    const persistedDesign = await page.evaluate(() => {
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith("v3-screen-"));
+      const raw = localStorage.getItem(keys[0]);
+      return raw ? (JSON.parse(raw) as { design?: Record<string, unknown> }).design : null;
+    });
+    expect(persistedDesign).not.toHaveProperty("designFileRef");
   });
 
   test("grapesjs / bootstrap を選択して保存できる (デフォルト)", async ({ page }) => {

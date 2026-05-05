@@ -465,9 +465,9 @@ const alignClass = align === "left" ? "text-left"
 
 ---
 
-## 14. 画面作成時 UI (#825)
+## 13. 画面作成時 UI (#825)
 
-### 14.1 ダイアログ仕様
+### 13.1 ダイアログ仕様
 
 画面作成ダイアログ (`ScreenEditModal`) に `isCreate=true` が渡されたとき (新規作成時のみ)、以下の選択 UI を表示する:
 
@@ -477,7 +477,7 @@ const alignClass = align === "left" ? "text-left"
 
 編集モーダル (画面名・種別変更等) では `isCreate=false` が渡され、上記ラジオは非表示になる。
 
-### 14.2 project default fallback
+### 13.2 project default fallback
 
 ダイアログ開口時のデフォルト選択値は `project.design` から解決する:
 
@@ -486,7 +486,7 @@ const alignClass = align === "left" ? "text-left"
 
 実装: 各ビュー (FlowEditor, ScreenListView) が起動時に `loadRawProject()` を呼び、解決値を state に保持して `ScreenEditModal` に `defaultEditorKind` / `defaultCssFramework` として渡す。
 
-### 14.3 screen.design 常時明示書き込み
+### 13.3 screen.design 常時明示書き込み
 
 画面作成時、ユーザーが選択した (またはデフォルト値の) editorKind / cssFramework を必ず `screen.design` に明示書き込みする (`saveScreenEntity` 呼び出し)。
 
@@ -497,13 +497,13 @@ const alignClass = align === "left" ? "text-left"
 - **ScreenListView.tsx** `handleScreenSave`: 同上
 - **mcpBridge.ts** `addScreen` handler: 同上 (MCP 経由での画面作成時も同一保証)
 
-### 14.4 duplicate 時の継承
+### 13.4 duplicate 時の継承
 
 画面複製 (FlowEditor の「複製」メニュー) では UI は出さず、コピー元の `screen.design.editorKind` / `cssFramework` を強制継承する。実装では `loadScreenEntity` でコピー元 entity を読み、解決した値を新画面の `saveScreenEntity` で書き込む。
 
 ---
 
-## 13. 関連 memory / 仕様書
+## 14. 関連 memory / 仕様書
 
 - `feedback_meta_issue_one_feature_branch_one_pr.md` — 統合 PR 運用
 - `feedback_worktree_placement_outside_project.md` — worktree 配置ルール
