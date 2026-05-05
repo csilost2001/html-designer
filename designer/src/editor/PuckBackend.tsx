@@ -193,6 +193,8 @@ function PuckEditorPane({
 
   // theme CSS を document.head に注入する。GrapesJS は canvas iframe に注入するが、
   // Puck はメイン app DOM 内に直接 render するためこちらで対応する (#835)。
+  // mount 中のみ <head> へ注入。主 app の Bootstrap chrome と一部 utility が global collision するが、
+  // unmount 時 cleanup で解消。完全 scoping は別 ISSUE。
   useEffect(() => {
     const ID = "puck-theme-css";
     const existing = document.getElementById(ID);
