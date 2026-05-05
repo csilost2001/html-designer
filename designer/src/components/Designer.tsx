@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { checkLegacyLocalStorage, executeRescue, clearLegacyLocalStorage } from "../grapes/legacyLocalStorageRescue";
 import { acknowledgeServerMtime } from "../utils/serverMtime";
-import { DesignSubToolbar } from "./design/DesignSubToolbar";
+import { DesignSubToolbar, DesignSubToolbarGrapesJSBridge } from "./design/DesignSubToolbar";
 import { ServerChangeBanner } from "./common/ServerChangeBanner";
 import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
@@ -637,6 +637,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         </div>
       );
     }
+    // Puck 経路: <GjsEditor> ancestor が無いため editor は undefined 固定で props 渡し。
+    // GrapesJS 経路と異なり Provider-aware ブリッジは不要 (#824)。
     const puckSubToolbar = (
       <DesignSubToolbar
         panelMode={panelMode}
@@ -651,6 +653,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
         screenId={screenId}
         isReadonly={isReadonly}
+        editor={undefined}
       />
     );
     const puckProps: PuckRenderEditorProps = {
@@ -686,8 +689,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       </div>
     );
   }
+  // GrapesJS 経路: GrapesJSEditorPane の <WithEditor> 配下に render されるため、
+  // Provider-aware ブリッジが useEditorMaybe() を Rules-of-Hooks 準拠で呼んで forward する (#824)。
   const grapesSubToolbar = (
-    <DesignSubToolbar
+    <DesignSubToolbarGrapesJSBridge
       panelMode={panelMode}
       onOpenPanel={openPanel}
       activeTheme={activeTheme}

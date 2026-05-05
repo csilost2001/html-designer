@@ -5,8 +5,10 @@
  * #806 子 3 / #815 (interface 真の等価性) で完全実装に格上げ。
  *
  * 設計方針:
- * - <GjsEditor> + Canvas + BlocksPanel + RightPanel + DesignSubToolbar (WithEditor 経由)
+ * - <GjsEditor> + Canvas + BlocksPanel + RightPanel + DesignSubToolbarGrapesJSBridge (WithEditor 配下)
  *   をラップした完全なエディタペイン (GrapesJSEditorPane) を ReactNode として返す。
+ *   #824: SubToolbar は editor prop で受ける形に refactor 済 — bridge component が WithEditor 配下で
+ *   useEditorMaybe() を呼んで forward する (旧 try/catch wrapper anti-pattern を解消)。
  * - Designer.tsx は editorKind に関わらず backend.renderEditor(props) を render するだけになり、
  *   <GjsEditor> 直接マウントを廃止する。
  * - editor lifecycle (registerBlocks / registerValidationTraits / mcpBridge.start /
@@ -485,6 +487,10 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
       }
     >
       <div className="designer-layout">
+        {/* WithEditor は editor 初期化完了まで children render を遅延する gate コンポーネント
+            (PropsWithChildren、render prop ではない)。EditorInstanceProvider 自体は <GjsEditor>
+            が提供するため、subToolbarSlot 内の DesignSubToolbarGrapesJSBridge が呼ぶ
+            useEditorMaybe() は GjsEditor の context から editor を取得できる (#824)。 */}
         <WithEditor>{subToolbarSlot}</WithEditor>
 
         {dialogsSlot}
