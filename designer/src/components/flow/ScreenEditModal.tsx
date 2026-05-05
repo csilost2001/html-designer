@@ -55,6 +55,7 @@ export function ScreenEditModal({
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- modal open は外部イベント (open prop 変化) と同期する用途
       setForm({
         ...defaultData,
         editorKind: defaultEditorKind,
