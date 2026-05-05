@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import {
   getState,
@@ -268,6 +269,7 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
 // ─── WorkspaceListView ────────────────────────────────────────────────────────
 
 export function WorkspaceListView() {
+  const navigate = useNavigate();
   const [storeState, setStoreState] = useState(getState());
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [query, setQuery] = useState("");
@@ -426,6 +428,7 @@ export function WorkspaceListView() {
     setActionError(null);
     try {
       await openWorkspace(sel[0].id, true);
+      navigate("/", { replace: true });
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
     }
@@ -446,10 +449,12 @@ export function WorkspaceListView() {
   const handleActivate = useCallback((w: WorkspaceEntry) => {
     if (lockdown) return;
     setActionError(null);
-    openWorkspace(w.id, true).catch((e) => {
-      setActionError(e instanceof Error ? e.message : String(e));
-    });
-  }, [lockdown]);
+    openWorkspace(w.id, true)
+      .then(() => navigate("/", { replace: true }))
+      .catch((e) => {
+        setActionError(e instanceof Error ? e.message : String(e));
+      });
+  }, [lockdown, navigate]);
 
   const selectedCount = selection.selectedIds.size;
   const selectedItem = selection.selectedItems[0] ?? null;
