@@ -128,26 +128,23 @@ describe("McpStatus 状態遷移ロジック (#795-C)", () => {
 
   it("connectAttempts がインクリメントされる", async () => {
     const bridge = await getFreshBridge();
-    const b = bridge as unknown as { connectAttempts: number };
-    expect(b.connectAttempts).toBe(0);
+    expect(bridge.getConnectAttempts()).toBe(0);
 
     bridge.startWithoutEditor();
-    expect(b.connectAttempts).toBe(1);
+    expect(bridge.getConnectAttempts()).toBe(1);
 
     bridge.markFailed();
     bridge.startWithoutEditor();
-    expect(b.connectAttempts).toBe(2);
+    expect(bridge.getConnectAttempts()).toBe(2);
   });
 
   it("connecting 中に startWithoutEditor() を再呼び出しすると no-op (重複接続防止)", async () => {
     const bridge = await getFreshBridge();
-    const b = bridge as unknown as { connectAttempts: number };
-
     bridge.startWithoutEditor();
-    const countAfterFirst = b.connectAttempts;
+    const countAfterFirst = bridge.getConnectAttempts();
 
     bridge.startWithoutEditor(); // no-op
-    expect(b.connectAttempts).toBe(countAfterFirst);
+    expect(bridge.getConnectAttempts()).toBe(countAfterFirst);
     expect(bridge.getStatus()).toBe("connecting");
   });
 });

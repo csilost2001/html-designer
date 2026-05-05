@@ -123,8 +123,8 @@ class McpBridgeImpl {
   private broadcastHandlers = new Map<string, Set<BroadcastHandler>>();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
-  /** 接続試行カウンタ (status 遷移テスト用に外部から参照可能) */
-  connectAttempts = 0;
+  /** 接続試行カウンタ */
+  private connectAttempts = 0;
 
   /** ブラウザセッション固有の一意 ID（再接続でも不変） */
   private readonly clientId = generateUUID();
@@ -173,6 +173,10 @@ class McpBridgeImpl {
 
   getStatus(): McpStatus {
     return this.status;
+  }
+
+  getConnectAttempts(): number {
+    return this.connectAttempts;
   }
 
   /** ブロードキャストイベントのサブスクライブ */
