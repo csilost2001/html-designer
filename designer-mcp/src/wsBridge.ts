@@ -51,6 +51,10 @@ import {
   deleteScreen as deleteScreenFile,
   readCustomBlocks,
   writeCustomBlocks,
+  readPuckComponents,
+  writePuckComponents,
+  readPuckData,
+  writePuckData,
   readTable,
   writeTable,
   deleteTable as deleteTableFile,
@@ -495,6 +499,33 @@ class WsBridge extends EventEmitter {
           this.broadcast({ wsId: wsId(), event: "customBlocksChanged", data: {}, excludeClientId: clientId });
           break;
         }
+        case "loadPuckComponents": {
+          const components = await readPuckComponents(root());
+          respond(components);
+          break;
+        }
+        case "savePuckComponents": {
+          const { components } = (params ?? {}) as { components: unknown[] };
+          await writePuckComponents(components, root());
+          respond({ success: true });
+          this.broadcast({ wsId: wsId(), event: "puckComponentsChanged", data: {}, excludeClientId: clientId });
+          break;
+        }
+        case "loadPuckData": {
+          // #806: Puck Data を screens/<id>/puck-data.json から読み込み
+          const { screenId } = (params ?? {}) as { screenId: string };
+          const puckData = await readPuckData(screenId, root());
+          respond(puckData);
+          break;
+        }
+        case "savePuckData": {
+          // #806: Puck Data を screens/<id>/puck-data.json に書き込み
+          const { screenId, data: puckDataPayload } = (params ?? {}) as { screenId: string; data: unknown };
+          await writePuckData(screenId, puckDataPayload, root());
+          respond({ success: true });
+          this.broadcast({ wsId: wsId(), event: "puckDataChanged", data: { screenId }, excludeClientId: clientId });
+          break;
+        }
         case "loadTable": {
           const { tableId } = (params ?? {}) as { tableId: string };
           const tableData = await readTable(tableId, root());
@@ -890,6 +921,11 @@ class WsBridge extends EventEmitter {
           respond(r);
           if (r.committed) {
             this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
+            // #806 A-M-1: puck-data commit 時は puckDataChanged も broadcast して cross-tab 上書き保護を機能させる。
+            // Designer.tsx は "puckDataChanged" event を購読しているため、draft.changed とは別に emit が必要。
+            if (dt === "puck-data") {
+              this.broadcast({ wsId: wsId(), event: "puckDataChanged", data: { screenId: did }, excludeClientId: clientId });
+            }
           }
           break;
         }

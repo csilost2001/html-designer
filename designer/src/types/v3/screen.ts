@@ -32,13 +32,35 @@ export type BuiltinScreenKind =
 export type ScreenKind = BuiltinScreenKind | string;
 
 /**
- * 画面デザイン (GrapesJS) の参照情報。
- * 生 HTML/CSS/component tree は別ファイル (`data/screens/<id>.design.json`) で管理し、
- * 本型は参照のみ持つ。
+ * 画面デザインの参照情報。
+ * 生 HTML/CSS/component tree は別ファイルで管理し、本型は参照のみ持つ。
+ *
+ * 詳細仕様: docs/spec/multi-editor-puck.md § 2.3 / § 2.5
+ *           docs/spec/css-framework-switching.md § 1.3 / § 2.5
  */
 export interface ScreenDesign {
-  /** デザインファイルへの相対パス (例: `design.json`)。 */
+  /**
+   * 本画面のエディタ種別。画面作成時に固定、以降変更不可。
+   * 省略時は project.design.editorKind を参照、それも省略なら 'grapesjs'
+   * (multi-editor-puck.md § 2.5)。
+   */
+  editorKind?: "grapesjs" | "puck";
+  /**
+   * 本画面の CSS フレームワーク。画面作成時に固定、以降変更不可。
+   * 省略時は project.design.cssFramework を参照、それも省略なら 'bootstrap'
+   * (css-framework-switching.md § 1.3.1)。
+   */
+  cssFramework?: "bootstrap" | "tailwind";
+  /**
+   * GrapesJS デザインファイルへの相対パス (editorKind='grapesjs' のとき)。
+   * editorKind='puck' のときは指定しない。
+   */
   designFileRef?: string;
+  /**
+   * Puck Data JSON への相対パス (editorKind='puck' のとき)。
+   * editorKind='grapesjs' のときは指定しない。
+   */
+  puckDataRef?: string;
   /** サムネイル画像への相対パス または data URL。 */
   thumbnailRef?: string;
 }

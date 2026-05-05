@@ -106,6 +106,21 @@ gh pr diff <PR番号> --name-only | grep -E "^schemas/"
 
 紐付かない schema 変更は **必ず Must-fix** で指摘し、revert もしくは別 ISSUE 起票を推奨。memory `feedback_schema_governance_strict.md` 参照。
 
+### Step 5.5: マルチエディタ対応レビュー (#806)
+
+PR diff に画面関連ファイル (`screens/` / `Designer.tsx` / `PuckBackend` / `CssFrameworkContext` 等) が含まれる場合:
+
+1. **editorKind / cssFramework 解決順序の一貫性**: screen → project → default の 3 段解決が正しく実装されているか
+   - `screen.design.editorKind` → `project.design.editorKind` → `"grapesjs"` の 3 段フォールバック
+   - `screen.design.cssFramework` → `project.design.cssFramework` → `"bootstrap"` の 3 段フォールバック
+   - 解決ロジックが 1 か所に集中しているか (複数箇所に分散して解決順序がズレていないか)
+2. **動的コンポーネント定義の primitive 妥当性**: 登録される `primitive` フィールドが `BUILTIN_PRIMITIVE_NAMES` に含まれる既知の名前であるか
+   - `BUILTIN_PRIMITIVE_NAMES` は `designer/src/puck/buildConfig.ts` でエクスポートされている
+   - 未知の primitive 名を登録すると Puck Config 構築時に silent fail する
+3. **Puck 画面の Thymeleaf 出力スキップ**: Thymeleaf HTML を生成するコードパスで `editorKind === "puck"` 画面を明示除外しているか
+
+詳細仕様: `docs/spec/multi-editor-puck.md` § 2.3 / § 4.1 / § 4.2
+
 ## 制約 (必守)
 
 - **マージしない**

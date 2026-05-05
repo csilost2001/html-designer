@@ -126,7 +126,7 @@ export interface ProjectMeta extends EntityMeta {
 
 /**
  * CSS フレームワーク選択 (#793)。
- * project 作成時に固定し、途中切替は非サポート。
+ * 画面作成時に固定し、途中切替は非サポート。
  * - `"bootstrap"` — Bootstrap 5 を canvas iframe に読み込み (既存サンプル既定)。
  * - `"tailwind"` — Tailwind ベースの theme CSS を canvas iframe に読み込み (semantic class を @apply で utility にマップ)。
  *
@@ -134,10 +134,15 @@ export interface ProjectMeta extends EntityMeta {
  */
 export type CssFramework = "bootstrap" | "tailwind";
 
-/** プロジェクト全体のデザイン関連設定 (#793)。 */
+/** プロジェクト全体のデザイン関連設定 (#793 / #806)。 */
 export interface ProjectDesign {
-  /** CSS フレームワーク選択。省略時は `"bootstrap"` 相当。 */
+  /** CSS フレームワーク選択。画面側 (screen.design.cssFramework) で override 可能。省略時は `"bootstrap"` 相当。 */
   cssFramework?: CssFramework;
+  /**
+   * プロジェクト全画面の default エディタ種別。画面側で override 可能。
+   * 省略時は 'grapesjs' 相当 (multi-editor-puck.md § 2.5)。
+   */
+  editorKind?: "grapesjs" | "puck";
 }
 
 /** 業務システム 1 案件の root 定義。`data/project.json` に対応。 */

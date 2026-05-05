@@ -58,6 +58,11 @@ data/
 /workspaces/
 !/workspaces/README.md
 !/workspaces/.gitkeep
+# #806 Puck dogfood サンプル (workspaces/ 管理、git 追跡対象)
+!/workspaces/dogfood-puck-tailwind-2026-05-05/
+!/workspaces/dogfood-puck-tailwind-2026-05-05/**
+!/workspaces/dogfood-puck-bootstrap-2026-05-05/
+!/workspaces/dogfood-puck-bootstrap-2026-05-05/**
 
 # 編集中 draft ファイル (個人の作業中間状態、git 管理対象外)
 data/.drafts/

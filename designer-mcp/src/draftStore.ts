@@ -11,6 +11,7 @@ import { randomBytes } from "node:crypto";
 import { resolveRoot } from "./projectStorage.js";
 import {
   writeScreen,
+  writePuckData,
   writeTable,
   writeProcessFlow,
   writeView,
@@ -22,6 +23,7 @@ import {
 
 export type DraftResourceType =
   | "screen"
+  | "puck-data"  // #806: Puck 画面データ (screens/<id>/puck-data.json)
   | "table"
   | "process-flow"
   | "view"
@@ -76,6 +78,9 @@ function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: stri
   switch (type) {
     case "screen":
       return path.join(activeRoot, "screens", `${id}.design.json`);
+    case "puck-data":
+      // #806: Puck Data は screens/<id>/puck-data.json に専用パスで保存
+      return path.join(activeRoot, "screens", id, "puck-data.json");
     case "table":
       return path.join(activeRoot, "tables", `${id}.json`);
     case "process-flow":
@@ -175,6 +180,10 @@ export async function commitDraft(
   switch (type) {
     case "screen":
       await writeScreen(id, payload, root);
+      break;
+    case "puck-data":
+      // #806: Puck Data を screens/<id>/puck-data.json に atomic write で昇格
+      await writePuckData(id, payload, root);
       break;
     case "table":
       await writeTable(id, payload, root);

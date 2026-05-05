@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "schemaVersion": "v3",
+  "meta": {
+    "id": "d06f00d0-0002-4000-8000-000000000002",
+    "name": "Puck × Bootstrap dogfood サンプル (2026-05-05)",
+    "description": "#806 子 6 dogfood。Puck エディタ + Bootstrap CSS の組み合わせを検証するサンプルプロジェクト。Tailwind 版と同じお問い合わせフォーム画面を Bootstrap utility class で再現し、cssFramework 非依存の Puck Data (semantic props) から異なる class が生成されることを実証する。",
+    "createdAt": "2026-05-05T00:00:00.000Z",
+    "updatedAt": "2026-05-05T00:00:00.000Z",
+    "mode": "upstream",
+    "maturity": "draft"
+  },
+  "extensionsApplied": [],
+  "design": {
+    "cssFramework": "bootstrap",
+    "editorKind": "puck"
+  },
+  "entities": {
+    "screens": [
+      {
+        "id": "d06f00d0-0002-4000-8000-000000000022",
+        "no": 1,
+        "name": "お問い合わせフォーム (Bootstrap 版)",
+        "kind": "form",
+        "path": "/contact",
+        "maturity": "draft",
+        "updatedAt": "2026-05-05T00:00:00.000Z"
+      }
+    ],
+    "screenGroups": [],
+    "screenTransitions": [],
+    "tables": [],
+    "processFlows": [],
+    "views": [],
+    "viewDefinitions": [],
+    "sequences": []
+  }
+}

@@ -627,6 +627,30 @@ npx vitest run src/schemas/validateDogfood.test.ts -t "<flowId の一部>"
 - PR 作成へ
 ```
 
+## マルチエディタ対応 (#806)
+
+フロー作成前に **関連する画面の `editorKind` / `cssFramework`** を確認する。
+
+### 画面ロード時の解決順序
+
+1. `screen.design.editorKind` / `screen.design.cssFramework` (画面個別指定)
+2. `project.design.editorKind` / `project.design.cssFramework` (project default)
+3. 最終 default (`"grapesjs"` / `"bootstrap"`)
+
+### editorKind 別のデザインファイル参照
+
+- `editorKind: "grapesjs"` → `screens/<id>/design.json` を読む (GrapesJS 形式、HTML+CSS+components)
+- `editorKind: "puck"` → `screens/<id>/puck-data.json` を読む (Puck Data tree、semantic props)
+
+### Thymeleaf / React 出力スクリプトの注意
+
+- **Thymeleaf 出力を生成するスクリプトは Puck 画面 (`editorKind: "puck"`) を明示スキップしてレポートに記録すること**
+  - Puck 画面の出力は React コンポーネントが前提 (Thymeleaf 非対応)
+  - 誤って Puck data を Thymeleaf テンプレートに渡すと broken HTML が生成される
+  - スキップ判定: `screen.design.editorKind === "puck"` または解決後の editorKind が "puck" であること
+
+詳細仕様: `docs/spec/multi-editor-puck.md` § 2.3
+
 ## 制約 (必守)
 
 - **`/review-flow` を最終防衛線として併用**: 本スキルだけでは Must-fix ゼロ達成は保証されない

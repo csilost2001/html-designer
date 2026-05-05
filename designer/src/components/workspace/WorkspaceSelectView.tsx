@@ -21,9 +21,26 @@ export function WorkspaceSelectView() {
 
   useEffect(() => {
     mcpBridge.startWithoutEditor();
-    loadWorkspaces().catch(console.error);
+    // onStatusChange は登録時に現在ステータスで即時発火する (mcpBridge.ts の仕様)。
+    // 「既接続」状態での即時発火時に loadWorkspaces() を呼ぶと、AppShell が既に実施した
+    // load と 2 重になる。loadWorkspaces() は loading=true を立てるため AppShell の
+    // スプラッシュが再表示 → WorkspaceSelectView アンマウント → 再マウント → 再び即時発火
+    // という無限ループを引き起こす (#806 PR #813 修正)。
+    //
+    // 対策: 最初の即時発火 (prev=null の時) は「load が必要かどうか」を判定してから呼ぶ。
+    // 「load が必要」= まだ loading 中 or workspaces 未取得 (AppShell の load が未完了)。
+    // 再接続イベント (disconnected → connected の遷移) は常に reload する。
+    let prevStatus: string | null = null;
     const unsubStatus = mcpBridge.onStatusChange((s) => {
-      if (s === "connected") loadWorkspaces().catch(console.error);
+      const isReconnect = prevStatus !== null && prevStatus !== "connected" && s === "connected";
+      prevStatus = s;
+      if (s !== "connected") return;
+      if (!isReconnect) {
+        // 初回即時発火: AppShell が既に load 完了している場合は skip して 2 重 load を防ぐ
+        const { loading } = getState();
+        if (!loading) return;
+      }
+      loadWorkspaces().catch(console.error);
     });
     return () => { unsubStatus(); };
   }, []);

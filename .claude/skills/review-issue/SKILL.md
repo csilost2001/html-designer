@@ -112,6 +112,17 @@ ISSUE が `docs/spec/` の追加・変更を伴う場合:
 - spec に書いてあって実装にない条項があれば指摘
 - 実装にあって spec にない機能があれば「spec 側の更新漏れ」として指摘
 
+### Step 4.5: マルチエディタ対応 ISSUE の画面 editorKind 整合性確認 (#806)
+
+ISSUE が画面デザイン / デザイナー / cssFramework / editorKind に関連する場合:
+
+- 各画面の `editorKind` が ISSUE で約束した設計と一致しているか (`screen.design.editorKind` の実際の値を確認)
+- `editorKind: "puck"` 画面と `editorKind: "grapesjs"` 画面が同一プロジェクトに混在している場合、それぞれが独立に開けるか確認
+- 動的コンポーネント定義 (`puck-components.json`) が存在し、primitive フィールドが BUILTIN_PRIMITIVE_NAMES に含まれるか確認
+- Thymeleaf 出力が必要な ISSUE では、Puck 画面がスキップされ記録されているかの実装を確認
+
+詳細仕様: `docs/spec/multi-editor-puck.md` § 2.3
+
 ### Step 5: テスト・動作確認の充足
 
 - ISSUE の完了条件にテストが含まれていれば、該当テストが存在するか確認
