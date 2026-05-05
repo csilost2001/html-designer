@@ -46,7 +46,7 @@ import { registerBlocks } from "../grapes/blocks";
 import { registerValidationTraits } from "../grapes/validationTraits";
 import { attachDataItemIdAutoAssign } from "../grapes/dataItemId";
 import { attachScreenItemsSync, reconcileScreenItems } from "../grapes/screenItemsSync";
-import { registerRemoteStorage } from "../grapes/remoteStorage";
+import { ensureValidProject } from "../grapes/remoteStorage";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadCustomBlocks, injectCustomBlockCss } from "../store/customBlockStore";
 import { clearItemsFromCache } from "../store/screenItemsStore";
@@ -104,16 +104,17 @@ function applyThemeToCanvas(editor: GEditor, variant: ThemeId, framework: CssFra
   }
 }
 
-/** GrapesJS options を構築する。Designer.tsx の buildGjsOptions から移植 */
+/** GrapesJS options を構築する。
+ *
+ * #815 PR-C で `storageManager.type: "none"` に変更。明示 load (editor.loadProjectData) +
+ * 明示 save (editor.getProjectData → mcpBridge.updateDraft / commitDraft) に統一し、
+ * registerRemoteStorage 経由の自動 load/store 経路を撤去した。
+ */
 function buildGjsOptions(): object {
   return {
     height: "100%",
     width: "auto",
-    storageManager: {
-      type: "remote",
-      autosave: false,
-      autoload: true,
-    },
+    storageManager: { type: "none" },
     undoManager: { trackSelection: false },
     canvas: {
       styles: [
@@ -215,6 +216,11 @@ interface GrapesJSEditorPaneProps {
   onClosePanel: () => void;
   onStartEditing: () => void;
 
+  /** Backend.load() で pre-load 済みの payload。GrapesJS init 時の projectData として渡す (#815 PR-C) */
+  initialPayload: unknown;
+  /** discard / serverChange reload 時に呼ばれる payload 再取得。Designer.tsx が backend.load() を内包する (#815 PR-C) */
+  reloadPayload: () => Promise<unknown>;
+
   /** 編集中変更通知 — markDirty の signal (payload は API.getProjectData() で取得する想定で undefined) */
   onChange?: (state: EditorState) => void;
   /** init 完了時に EditorApi を expose する */
@@ -239,6 +245,8 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
     onTogglePin,
     onClosePanel,
     onStartEditing,
+    initialPayload,
+    reloadPayload,
     onChange,
     onReady,
     onServerChanged,
@@ -275,13 +283,15 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
   const onServerChangedRef = useRef(onServerChanged);
   const onMcpStatusChangeRef = useRef(onMcpStatusChange);
   const onExternalThemeChangeRef = useRef(onExternalThemeChange);
+  const reloadPayloadRef = useRef(reloadPayload);
   useEffect(() => {
     onChangeRef.current = onChange;
     onReadyRef.current = onReady;
     onServerChangedRef.current = onServerChanged;
     onMcpStatusChangeRef.current = onMcpStatusChange;
     onExternalThemeChangeRef.current = onExternalThemeChange;
-  }, [onChange, onReady, onServerChanged, onMcpStatusChange, onExternalThemeChange]);
+    reloadPayloadRef.current = reloadPayload;
+  }, [onChange, onReady, onServerChanged, onMcpStatusChange, onExternalThemeChange, reloadPayload]);
 
   /**
    * GrapesJS editor 取得時の初期化 — registerRemoteStorage / registerBlocks / カスタムブロック /
@@ -290,9 +300,6 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
   const onEditor = useCallback(
     (editor: GEditor): (() => void) => {
       editorRef.current = editor;
-
-      // remote storage を登録 (GrapesJS が autoload で本体ファイル / draft を読み込む)
-      registerRemoteStorage(editor, screenId);
 
       registerBlocks(editor);
       registerValidationTraits(editor);
@@ -366,17 +373,31 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
     [screenId],
   );
 
-  /** GrapesJS init 完了時 — theme 適用 / カスタムブロック CSS 注入 / EditorApi expose */
+  /** GrapesJS init 完了時 — initialPayload を loadProjectData で適用 / theme 適用 /
+   * カスタムブロック CSS 注入 / EditorApi expose。
+   *
+   * #815 PR-C で `editor.load()` (storage manager autoload 経由) を撤去し、
+   * Backend 経由で取得した payload を `editor.loadProjectData()` で明示適用する形に統一。
+   */
   const onGjsReady = useCallback(async () => {
     setReady(true);
-    // GrapesJS が ensureValidProject 経由で空データから component:add を 1 回発火するため、
-    // 次のマクロタスクでガードを下げる (#131)。同タイミングで canvas ↔ screen-items 初回突合 (#358)。
-    setTimeout(() => {
-      isInternalLoadRef.current = false;
-      if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
-    }, 0);
 
     if (editorRef.current) {
+      // initialPayload (Designer.tsx で backend.load() 経由で pre-load 済み) を明示 load
+      const safePayload = ensureValidProject(
+        (initialPayload ?? null) as Record<string, unknown> | null,
+        screenId,
+        "initial-load",
+      );
+      editorRef.current.loadProjectData(safePayload);
+
+      // GrapesJS が ensureValidProject 経由で空データから component:add を 1 回発火するため、
+      // 次のマクロタスクでガードを下げる (#131)。同タイミングで canvas ↔ screen-items 初回突合 (#358)。
+      setTimeout(() => {
+        isInternalLoadRef.current = false;
+        if (editorRef.current) reconcileScreenItems(editorRef.current, screenId);
+      }, 0);
+
       // framework × variant の 2 軸 CSS を注入 (#793 子 5)
       applyThemeToCanvas(editorRef.current, themeVariantRef.current, cssFrameworkRef.current);
       // カスタムブロック CSS をキャンバスに注入
@@ -398,9 +419,17 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
           applyThemeToCanvas(editor, variant, framework);
         },
         reload: async () => {
+          // #815 PR-C: 明示 load 経路に統一。reloadPayload (Designer.tsx 経由 backend.load) で
+          // 最新 payload を取得し editor.loadProjectData() で適用する。
           isInternalLoadRef.current = true;
           try {
-            await editor.load();
+            const payload = await reloadPayloadRef.current();
+            const safePayload = ensureValidProject(
+              (payload ?? null) as Record<string, unknown> | null,
+              screenId,
+              "reload",
+            );
+            editor.loadProjectData(safePayload);
             editor.UndoManager.clear();
           } finally {
             setTimeout(() => {
@@ -419,6 +448,8 @@ function GrapesJSEditorPane(props: GrapesJSEditorPaneProps) {
       };
       onReadyRef.current(api);
     }
+  // initialPayload は mount 時点の値を使う (再 mount しないため依存に含めない)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenId]);
 
   // canvas-empty 状態を追跡
@@ -577,6 +608,7 @@ export class GrapesJSBackend implements EditorBackend {
       onServerChanged?: () => void;
       onMcpStatusChange?: (status: McpStatus) => void;
       onExternalThemeChange?: (themeId: ThemeId) => void;
+      reloadPayload: () => Promise<unknown>;
     };
 
     return (
@@ -591,6 +623,8 @@ export class GrapesJSBackend implements EditorBackend {
         onTogglePin={props.onTogglePin}
         onClosePanel={props.onClosePanel}
         onStartEditing={props.onStartEditing}
+        initialPayload={props.state.payload}
+        reloadPayload={grapesProps.reloadPayload}
         onChange={props.onChange}
         onReady={props.onReady}
         onServerChanged={grapesProps.onServerChanged}

@@ -69,6 +69,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   const grapesBackendRef = useRef<GrapesJSBackend | null>(null);
   // GrapesJS の EditorApi (theme apply / reload / captureThumbnail / getProjectData / etc.)
   const grapesEditorApiRef = useRef<EditorApi | null>(null);
+  // GrapesJS pre-load 済み payload (#815 PR-C: 明示 load。null = 未ロード、それ以外は payload)
+  const [grapesState, setGrapesState] = useState<EditorState | null>(null);
   const [mcpStatus, setMcpStatus] = useState<McpStatus>("disconnected");
   const tabId = makeTabId("design", screenId);
 
@@ -179,6 +181,59 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   useEffect(() => {
     isReadonlyRef.current = isReadonly;
   }, [isReadonly]);
+
+  // GrapesJS の draftRead — draft 優先 → 本体ファイル fallback (#815 PR-C: 明示 load)
+  const grapesDraftRead = useCallback(async (): Promise<unknown> => {
+    try {
+      const draftCheck = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
+      if (draftCheck?.exists) {
+        const draftData = await mcpBridge.readDraft("screen", screenId);
+        if (draftData && typeof draftData === "object" && Object.keys(draftData).length > 0) {
+          return draftData;
+        }
+      }
+    } catch {
+      // MCP 未接続等で draft check 失敗 → 本体 fallback
+    }
+    try {
+      const data = await mcpBridge.request("loadScreen", { screenId }) as Record<string, unknown> | null;
+      if (data && typeof data === "object" && Object.keys(data).length > 0) {
+        return data;
+      }
+    } catch {
+      // MCP error → null を返す (GrapesJSEditorPane で ensureValidProject 適用)
+    }
+    return null;
+  }, [screenId]);
+
+  // GrapesJS の reloadPayload — discard / serverChange reload 時に最新 payload を取得する
+  const grapesReloadPayload = useCallback(async (): Promise<unknown> => {
+    if (!grapesBackendRef.current) return null;
+    try {
+      const state = await grapesBackendRef.current.load(screenId, grapesDraftRead);
+      return state.payload;
+    } catch (e) {
+      console.warn("[Designer] grapesReloadPayload failed", e);
+      return null;
+    }
+  }, [screenId, grapesDraftRead]);
+
+  // GrapesJS Backend.load() で初期 payload を pre-load する (#815 PR-C: 明示 load)。
+  // editorKind === "grapesjs" のときのみ実行し、結果を grapesState に格納して renderEditor で使う。
+  useEffect(() => {
+    if (editorKind !== "grapesjs") return;
+    let cancelled = false;
+    if (!grapesBackendRef.current) grapesBackendRef.current = new GrapesJSBackend();
+    const backend = grapesBackendRef.current;
+    backend.load(screenId, grapesDraftRead).then((state) => {
+      if (cancelled) return;
+      setGrapesState(state);
+    }).catch((e) => {
+      console.warn("[Designer] GrapesJSBackend.load failed", e);
+      if (!cancelled) setGrapesState({ payload: null, ui: { screenId } });
+    });
+    return () => { cancelled = true; };
+  }, [editorKind, screenId, grapesDraftRead]);
 
   // GrapesJS Backend からの ready 通知 — EditorApi を保持し legacy localStorage 救済を実行
   const handleGrapesReady = useCallback((api: EditorApi) => {
@@ -595,7 +650,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // ---------------------------------------------------------------------------
   // GrapesJS エディタ表示 (既存挙動を維持)
   // ---------------------------------------------------------------------------
-  if (!grapesBackendRef.current) grapesBackendRef.current = new GrapesJSBackend();
+  // GrapesJS Backend.load() の結果待ち (#815 PR-C: 明示 load — autoload 廃止)
+  if (!grapesState || !grapesBackendRef.current) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner" />
+        <p>デザイナーを起動中...</p>
+      </div>
+    );
+  }
   const grapesSubToolbar = (
     <DesignSubToolbar
       panelMode={panelMode}
@@ -612,11 +675,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       isReadonly={isReadonly}
     />
   );
-  // GrapesJS 固有 callback (onServerChanged / onMcpStatusChange / onExternalThemeChange) は
-  // RenderEditorProps の型を拡張する形で渡す (#815: 真の interface 等価性が前提だが、
-  // GrapesJS は editor インスタンスに紐づく side effect が多いため拡張プロパティで対処)
+  // GrapesJS 固有 callback (onServerChanged / onMcpStatusChange / onExternalThemeChange /
+  // reloadPayload) は RenderEditorProps の型を拡張する形で渡す。
   const grapesProps = {
-    state: { payload: null, ui: { screenId } } as EditorState,
+    state: grapesState,
     cssFramework,
     themeVariant: activeTheme,
     isReadonly,
@@ -633,6 +695,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     onServerChanged: handleGrapesServerChanged,
     onMcpStatusChange: setMcpStatus,
     onExternalThemeChange: handleThemeChange,
+    reloadPayload: grapesReloadPayload,
   } as RenderEditorProps;
   return <>{grapesBackendRef.current.renderEditor(grapesProps)}</>;
 }
