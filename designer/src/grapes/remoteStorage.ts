@@ -30,8 +30,11 @@ const EMPTY_PROJECT: Record<string, unknown> = Object.freeze({
  * 破損・不正形のプロジェクトデータを最低限起動可能な形に補正する。
  * 補正が発生した場合は errorLog に痕跡を残し、ユーザーが事後にエラーダイアログから
  * 履歴として確認できるようにする。
+ *
+ * #815 PR-C で `editor.loadProjectData()` 経由の明示 load 化に伴い export 化。
+ * GrapesJSBackend が pre-load した payload に対しても本関数を適用する。
  */
-function ensureValidProject(
+export function ensureValidProject(
   raw: Record<string, unknown> | null | undefined,
   screenId: string,
   source: string,
@@ -111,6 +114,7 @@ export function clearScreenDraft(_screenId: string): void {
 }
 
 /** @deprecated 新モデルでは editActions.save() → commitDraft を使用する */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function saveScreenToFile(_screenId: string): Promise<void> {
   throw new Error("saveScreenToFile は廃止されました。editActions.save() を使用してください。");
 }

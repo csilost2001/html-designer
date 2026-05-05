@@ -122,14 +122,25 @@ export async function loadPuckScreenValidationMap(): Promise<Map<ScreenId, PuckS
 }
 
 export async function saveScreenEntity(screen: Screen): Promise<void> {
+  // editorKind に応じて designFileRef / puckDataRef を排他設定する (Sh-4 / multi-editor-puck.md § 2.5)。
+  // 旧実装は無条件で `designFileRef: ${id}.design.json` を上書きしていたため、Puck 画面の
+  // entity に designFileRef が誤って混入する regression があった (#815 PR #822 Codex 指摘)。
+  const baseDesign = (screen.design ?? {}) as Record<string, unknown>;
+  const editorKind = typeof baseDesign.editorKind === "string" ? baseDesign.editorKind : undefined;
+  const isPuck = editorKind === "puck";
+  const cleanedDesign: Record<string, unknown> = { ...baseDesign };
+  if (isPuck) {
+    delete cleanedDesign.designFileRef;
+    if (!cleanedDesign.puckDataRef) cleanedDesign.puckDataRef = "puck-data.json";
+  } else {
+    delete cleanedDesign.puckDataRef;
+    if (!cleanedDesign.designFileRef) cleanedDesign.designFileRef = `${screen.id}.design.json`;
+  }
   const toSave: Screen = {
     ...screen,
     $schema: SCREEN_SCHEMA_REF,
     updatedAt: nowTs(),
-    design: {
-      ...(screen.design ?? {}),
-      designFileRef: `${screen.id}.design.json`,
-    },
+    design: cleanedDesign as Screen["design"],
   };
   if (_backend) {
     await _backend.saveScreenEntity(toSave.id, toSave);
