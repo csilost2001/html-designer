@@ -3,7 +3,7 @@
   "meta": {
     "id": "a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d",
     "name": "AIタグ提案",
-    "description": "投稿のタイトル + 本文を Claude AI へ送信し、信頼度付きタグ候補を取得する処理フロー。信頼度が conventions/catalog.json の ai.tagSuggestThreshold 未満のものは除外する。UI 側でユーザー選択後、確定は投稿作成/更新フロー経由で post_tags に INSERT。",
+    "description": "投稿のタイトル + 本文を Claude AI へ送信し、信頼度付きタグ候補を取得する処理フロー。信頼度が conventions/catalog.json の ai.tagSuggestThreshold 未満のものは除外する。UI 側でユーザー選択後、確定は投稿作成/更新フロー経由で post_tags に INSERT。 / 注: AI モデル名 (claude-opus-4-7) は本 PR 時点でリテラル文字列としてハードコード — `@conv.ai.*` および `@env.*` 参照のフレームワークサポートは #859 で対応予定 (現状 dead config を避けるため envVars カタログは登録しない)。",
     "kind": "common",
     "maturity": "draft",
     "createdAt": "2026-05-06T14:00:00.000Z",
@@ -46,23 +46,6 @@
           "source": "env",
           "name": "CLAUDE_API_KEY",
           "description": "Claude API の認証キー。"
-        }
-      },
-      "envVars": {
-        "CLAUDE_API_BASE_URL": {
-          "type": "string",
-          "description": "Claude API のベース URL。",
-          "default": "https://api.anthropic.com"
-        },
-        "AI_TAG_SUGGEST_MODEL": {
-          "type": "string",
-          "description": "タグ提案に使用する Claude モデル名。",
-          "default": "claude-opus-4-7"
-        },
-        "AI_TAG_SUGGEST_THRESHOLD": {
-          "type": "number",
-          "description": "タグ提案の最低信頼度閾値 (0.0〜1.0)。",
-          "default": "0.6"
         }
       }
     },
@@ -177,9 +160,16 @@
           "tableId": "07439e21-0743-48ca-af9e-763e4be2d094",
           "operation": "SELECT",
           "sql": "SELECT slug FROM tags",
-          "outputBinding": { "name": "allTagSlugs" },
+          "outputBinding": {
+            "name": "allTagSlugs"
+          },
           "lineage": {
-            "reads": [{ "tableId": "07439e21-0743-48ca-af9e-763e4be2d094", "purpose": "lookup" }]
+            "reads": [
+              {
+                "tableId": "07439e21-0743-48ca-af9e-763e4be2d094",
+                "purpose": "lookup"
+              }
+            ]
           }
         },
         {
@@ -192,7 +182,9 @@
             "path": "/v1/messages",
             "body": "{ model: 'claude-opus-4-7', max_tokens: 512, messages: [{ role: 'user', content: '以下の記事から関連するタグを抽出してください。除外するタグ: ' + JSON.stringify(@inputs.existingTags) + '\\n\\n# タイトル\\n' + @inputs.title + '\\n\\n# 本文\\n' + @inputs.body + '\\n\\n各タグの slug (英小文字ハイフン区切り), name (日本語), confidence (0.0〜1.0) を JSON 配列で返してください。形式: [{\"slug\": \"...\", \"name\": \"...\", \"confidence\": 0.9}]' }] }"
           },
-          "outputBinding": { "name": "aiResponse" },
+          "outputBinding": {
+            "name": "aiResponse"
+          },
           "outcomes": {
             "failure": {
               "action": "abort",
@@ -205,7 +197,9 @@
           "kind": "compute",
           "description": "AI レスポンスから候補配列を JSON パースし、信頼度フィルタ (0.6 以上) と isNew フラグを付与する。閾値は conventions/catalog.json の ai.tagSuggestThreshold に準拠。",
           "expression": "JSON.parse(@aiResponse.content[0].text).filter(t => t.confidence >= 0.6).map(t => ({ ...t, isNew: !@allTagSlugs.some(s => s.slug === t.slug) }))",
-          "outputBinding": { "name": "candidates" }
+          "outputBinding": {
+            "name": "candidates"
+          }
         },
         {
           "id": "step-05",

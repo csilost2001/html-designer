@@ -3,7 +3,7 @@
   "meta": {
     "id": "f7a8b9c0-d1e2-4f3a-8b4c-5d6e7f8a9b0c",
     "name": "AI要約生成",
-    "description": "投稿本文を Claude AI へ送信し、3-5 文の日本語要約を生成して posts.summary に書き戻す処理フロー。投稿作成/更新後に非同期で呼ぶ想定 (TX 外、idempotent)。使用モデルは conventions/catalog.json の ai.summarizeModel を参照。",
+    "description": "投稿本文を Claude AI へ送信し、3-5 文の日本語要約を生成して posts.summary に書き戻す処理フロー。投稿作成/更新後に非同期で呼ぶ想定 (TX 外、idempotent)。使用モデルは conventions/catalog.json の ai.summarizeModel を参照。 / 注: AI モデル名 (claude-opus-4-7) は本 PR 時点でリテラル文字列としてハードコード — `@conv.ai.*` および `@env.*` 参照のフレームワークサポートは #859 で対応予定 (現状 dead config を避けるため envVars カタログは登録しない)。",
     "kind": "common",
     "maturity": "draft",
     "createdAt": "2026-05-06T14:00:00.000Z",
@@ -46,18 +46,6 @@
           "source": "env",
           "name": "CLAUDE_API_KEY",
           "description": "Claude API の認証キー。"
-        }
-      },
-      "envVars": {
-        "CLAUDE_API_BASE_URL": {
-          "type": "string",
-          "description": "Claude API のベース URL。",
-          "default": "https://api.anthropic.com"
-        },
-        "AI_SUMMARIZE_MODEL": {
-          "type": "string",
-          "description": "要約生成に使用する Claude モデル名。",
-          "default": "claude-opus-4-7"
         }
       }
     },
@@ -135,9 +123,16 @@
           "operation": "SELECT",
           "sql": "SELECT id AS \"postId\", body FROM posts WHERE id = @inputs.postId",
           "runIf": "@inputs.postId != null",
-          "outputBinding": { "name": "postRow" },
+          "outputBinding": {
+            "name": "postRow"
+          },
           "lineage": {
-            "reads": [{ "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0", "purpose": "lookup" }]
+            "reads": [
+              {
+                "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0",
+                "purpose": "lookup"
+              }
+            ]
           }
         },
         {
@@ -176,7 +171,9 @@
           "kind": "compute",
           "description": "要約対象の本文を決定する: inputs.body > postRow.body の優先順。",
           "expression": "@inputs.body ?? @postRow.body",
-          "outputBinding": { "name": "targetBody" }
+          "outputBinding": {
+            "name": "targetBody"
+          }
         },
         {
           "id": "step-04",
@@ -188,7 +185,9 @@
             "path": "/v1/messages",
             "body": "{ model: 'claude-opus-4-7', max_tokens: 512, messages: [{ role: 'user', content: '以下の日記の文章を 3〜5 文で日本語で要約してください。\\n\\n' + @targetBody }] }"
           },
-          "outputBinding": { "name": "aiResponse" },
+          "outputBinding": {
+            "name": "aiResponse"
+          },
           "outcomes": {
             "failure": {
               "action": "abort",
@@ -201,18 +200,31 @@
           "kind": "compute",
           "description": "Claude API レスポンスから要約テキストを抽出する。",
           "expression": "@aiResponse.content[0].text",
-          "outputBinding": { "name": "summaryText" }
+          "outputBinding": {
+            "name": "summaryText"
+          }
         },
         {
           "id": "step-06",
           "kind": "dbAccess",
-          "description": "posts.summary を更新する (postId が指定された場合のみ)。",
+          "description": "posts.summary を更新する (postId が指定された場合のみ)。 (0 行は対象が削除済のケースとして許容、複数行はあり得ない / pitfall #5 対応)",
           "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0",
           "operation": "UPDATE",
           "sql": "UPDATE posts SET summary = @summaryText, updated_at = CURRENT_TIMESTAMP WHERE id = @inputs.postId",
           "runIf": "@inputs.postId != null",
           "lineage": {
-            "writes": [{ "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0", "purpose": "update" }]
+            "writes": [
+              {
+                "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0",
+                "purpose": "update"
+              }
+            ]
+          },
+          "affectedRowsCheck": {
+            "operator": "<=",
+            "expected": 1,
+            "onViolation": "log",
+            "description": "idempotent な AI フロー: 投稿/写真が削除済の場合 0 行は正常 (silent OK)。複数行は schema 違反なので log。"
           }
         },
         {

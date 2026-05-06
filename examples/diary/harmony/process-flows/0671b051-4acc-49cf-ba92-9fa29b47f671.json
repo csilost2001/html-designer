@@ -178,7 +178,10 @@
             {
               "field": "status",
               "type": "enum",
-              "values": ["draft", "published"],
+              "values": [
+                "draft",
+                "published"
+              ],
               "severity": "error",
               "message": "ステータスは 'draft' または 'published' で指定してください。"
             }
@@ -201,7 +204,9 @@
           "kind": "compute",
           "description": "published_at の計算: status='published' の場合は NOW()、それ以外は null。",
           "expression": "@inputs.status == 'published' ? new Date().toISOString() : null",
-          "outputBinding": { "name": "publishedAt" }
+          "outputBinding": {
+            "name": "publishedAt"
+          }
         },
         {
           "id": "step-03",
@@ -210,8 +215,13 @@
           "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0",
           "operation": "INSERT",
           "sql": "INSERT INTO posts (user_id, title, body, mood, weather, location, status, published_at, created_at, updated_at) VALUES (@sessionUserId, @inputs.title, @inputs.body, @inputs.mood, @inputs.weather, @inputs.location, COALESCE(@inputs.status, 'draft'), @publishedAt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id AS \"postId\"",
-          "outputBinding": { "name": "newPost" },
-          "txBoundary": { "role": "begin", "txId": "tx-post-create" },
+          "outputBinding": {
+            "name": "newPost"
+          },
+          "txBoundary": {
+            "role": "begin",
+            "txId": "tx-post-create"
+          },
           "affectedRowsCheck": {
             "operator": "=",
             "expected": 1,
@@ -219,7 +229,12 @@
             "errorCode": "POST_CREATE_FAILED"
           },
           "lineage": {
-            "writes": [{ "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0", "purpose": "insert" }]
+            "writes": [
+              {
+                "tableId": "79d2c08c-7511-4d37-9051-e6f4587630e0",
+                "purpose": "insert"
+              }
+            ]
           }
         },
         {
@@ -229,7 +244,10 @@
           "loopKind": "collection",
           "collectionSource": "@inputs.photos",
           "collectionItemName": "photo",
-          "txBoundary": { "role": "member", "txId": "tx-post-create" },
+          "txBoundary": {
+            "role": "member",
+            "txId": "tx-post-create"
+          },
           "steps": [
             {
               "id": "step-04-01",
@@ -239,7 +257,12 @@
               "operation": "INSERT",
               "sql": "INSERT INTO photos (post_id, url, thumbnail_url, alt, caption, order_index, width, height, exif_json, created_at) VALUES (@newPost.postId, @photo.url, @photo.thumbnail_url, @photo.alt, @photo.caption, COALESCE(@photo.order_index, 0), @photo.width, @photo.height, @photo.exif_json, CURRENT_TIMESTAMP)",
               "lineage": {
-                "writes": [{ "tableId": "d8fc5f8a-9cd2-4e46-9f3d-03c337ae0e9f", "purpose": "insert" }]
+                "writes": [
+                  {
+                    "tableId": "d8fc5f8a-9cd2-4e46-9f3d-03c337ae0e9f",
+                    "purpose": "insert"
+                  }
+                ]
               }
             }
           ]
@@ -251,7 +274,10 @@
           "loopKind": "collection",
           "collectionSource": "@inputs.tags",
           "collectionItemName": "tag",
-          "txBoundary": { "role": "member", "txId": "tx-post-create" },
+          "txBoundary": {
+            "role": "member",
+            "txId": "tx-post-create"
+          },
           "steps": [
             {
               "id": "step-05-01",
@@ -261,9 +287,16 @@
               "operation": "SELECT",
               "sql": "SELECT id AS \"tagId\" FROM tags WHERE name = @tag.name LIMIT 1",
               "runIf": "@tag.id == null",
-              "outputBinding": { "name": "existingTag" },
+              "outputBinding": {
+                "name": "existingTag"
+              },
               "lineage": {
-                "reads": [{ "tableId": "07439e21-0743-48ca-af9e-763e4be2d094", "purpose": "lookup" }]
+                "reads": [
+                  {
+                    "tableId": "07439e21-0743-48ca-af9e-763e4be2d094",
+                    "purpose": "lookup"
+                  }
+                ]
               }
             },
             {
@@ -274,7 +307,9 @@
               "operation": "INSERT",
               "sql": "INSERT INTO tags (name, slug, usage_count, created_at) VALUES (@tag.name, LOWER(REPLACE(@tag.name, ' ', '-')), 0, CURRENT_TIMESTAMP) RETURNING id AS \"tagId\"",
               "runIf": "@tag.id == null && @existingTag == null",
-              "outputBinding": { "name": "newTag" },
+              "outputBinding": {
+                "name": "newTag"
+              },
               "affectedRowsCheck": {
                 "operator": "=",
                 "expected": 1,
@@ -283,7 +318,12 @@
                 "description": "UNIQUE 制約違反 (slug 重複) の場合 0 行になるため log して続行。step-05-01 で事前チェック済みだが競合が起きた場合の安全装置。"
               },
               "lineage": {
-                "writes": [{ "tableId": "07439e21-0743-48ca-af9e-763e4be2d094", "purpose": "insert" }]
+                "writes": [
+                  {
+                    "tableId": "07439e21-0743-48ca-af9e-763e4be2d094",
+                    "purpose": "insert"
+                  }
+                ]
               }
             },
             {
@@ -291,7 +331,9 @@
               "kind": "compute",
               "description": "使用するタグ ID を解決する: inputs.tag.id > existingTag.tagId > newTag.tagId の優先順で決定。",
               "expression": "@tag.id ?? @existingTag.tagId ?? @newTag.tagId",
-              "outputBinding": { "name": "resolvedTagId" }
+              "outputBinding": {
+                "name": "resolvedTagId"
+              }
             },
             {
               "id": "step-05-04",
@@ -301,7 +343,12 @@
               "operation": "INSERT",
               "sql": "INSERT INTO post_tags (post_id, tag_id, source, confidence, created_at) VALUES (@newPost.postId, @resolvedTagId, COALESCE(@tag.source, 'manual'), COALESCE(@tag.confidence, 1.0), CURRENT_TIMESTAMP)",
               "lineage": {
-                "writes": [{ "tableId": "1681eee2-39d9-4548-9044-5cedac68d41e", "purpose": "insert" }]
+                "writes": [
+                  {
+                    "tableId": "1681eee2-39d9-4548-9044-5cedac68d41e",
+                    "purpose": "insert"
+                  }
+                ]
               }
             }
           ]
@@ -309,13 +356,21 @@
         {
           "id": "step-06",
           "kind": "dbAccess",
-          "description": "TX コミット後に tags.usage_count を更新する (TX 外の後処理)。",
+          "description": "posts 作成 TX の commit ステップとして tags.usage_count を更新する (txBoundary role=end)。",
           "tableId": "07439e21-0743-48ca-af9e-763e4be2d094",
           "operation": "UPDATE",
           "sql": "UPDATE tags SET usage_count = usage_count + 1 WHERE id IN (SELECT tag_id AS \"tagId\" FROM post_tags WHERE post_id = @newPost.postId)",
-          "txBoundary": { "role": "end", "txId": "tx-post-create" },
+          "txBoundary": {
+            "role": "end",
+            "txId": "tx-post-create"
+          },
           "lineage": {
-            "writes": [{ "tableId": "07439e21-0743-48ca-af9e-763e4be2d094", "purpose": "update" }]
+            "writes": [
+              {
+                "tableId": "07439e21-0743-48ca-af9e-763e4be2d094",
+                "purpose": "update"
+              }
+            ]
           }
         },
         {
