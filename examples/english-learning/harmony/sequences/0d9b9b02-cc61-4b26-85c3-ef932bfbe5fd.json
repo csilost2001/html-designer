@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/sequence.v3.schema.json",
+  "$schema": "../../../../schemas/v3/sequence.v3.schema.json",
   "id": "0d9b9b02-cc61-4b26-85c3-ef932bfbe5fd",
   "name": "セッションID採番",
   "description": "学習セッション開始フロー (S-1) で 1 セッションにつき 1 つのセッション ID を発行するシーケンス。@conv.numbering.sessionId と連動する。採番値は learning_sessions.id の主キーとして使用する。リセットなし (CYCLE=false)。",

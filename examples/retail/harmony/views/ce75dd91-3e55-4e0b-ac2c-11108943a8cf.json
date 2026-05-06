@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "ce75dd91-3e55-4e0b-ac2c-11108943a8cf",
   "name": "注文明細詳細ビュー",
   "description": "注文明細テーブルに注文テーブルと商品マスタを JOIN し、注文詳細画面および配送指示画面 (S-4) で注文番号・商品情報を含む明細を表示するためのビュー。スナップショット列を優先使用し、商品マスタ JOIN は補完情報提供が目的。",

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "822d5a83-1c06-4650-97fa-35a62bca3d5e",
   "name": "カートサマリビュー",
   "description": "カートテーブルとカート明細・商品マスタを JOIN し、カート画面でカートごとの合計金額・明細件数を集計するビュー。毎回 cart_items を集計するコストを削減し、カート表示を高速化する。",

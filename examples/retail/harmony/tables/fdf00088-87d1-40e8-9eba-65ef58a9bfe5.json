@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "fdf00088-87d1-40e8-9eba-65ef58a9bfe5",
   "name": "店舗マスタ",
   "description": "EC + 店舗 POS で展開する各店舗の情報を管理するマスタテーブル。店舗別在庫 (inventory) の親レコードとして参照される。",

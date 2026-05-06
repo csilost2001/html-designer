@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "a9d8eb6f-065d-4af6-ac9a-cc1fcf10b2b7",
   "name": "会話プレイ",
   "description": "S-2/S-3 の中心画面。現在のセリフ字幕・AI 応答・録音ボタン・会話履歴ペインを表示し、ターン進行と発音採点を行う。\n拡張 kind: english-learning:conversationPlayer を使用する。\n\n[description 待避]\n- TTS 同期カラオケ字幕: 将来 english-learning:TtsGenerate の出力 wordTimings を使い word-level highlight する。MVP は通常字幕のみ。\n- 単語タップ辞書: セリフ内の単語をタップすると /vocabulary/:wordId を modal で表示する。実装側 router で intercept する。",

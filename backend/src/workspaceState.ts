@@ -1,7 +1,7 @@
 /**
  * workspaceState.ts (#671 + #700)
  *
- * 現在 active なワークスペース (= project.json を含むフォルダ) の絶対パスを保持する。
+ * 現在 active なワークスペース (= harmony.json を含むフォルダ) の絶対パスを保持する。
  *
  * - #671 (v1): global singleton state でサーバ全体の 1 active workspace を管理
  * - #700 (v2 R-2): per-session active state に移行。`WorkspaceContextManager` を導入し、

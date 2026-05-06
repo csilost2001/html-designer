@@ -701,7 +701,7 @@ function createMcpServer(sessionId: string): Server {
           updatedAt: now,
         };
         await writeTable(id, tableDef, mcpRoot());
-        // project.json のテーブルメタも更新
+        // harmony.json のテーブルメタも更新
         const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tables = (project.tables ?? []) as Array<Record<string, unknown>>;
         tables.push({ id, name: a.name, logicalName: a.logicalName, category: a.category, columnCount: 0, updatedAt: now });
@@ -719,7 +719,7 @@ function createMcpServer(sessionId: string): Server {
         const def = a.definition as Record<string, unknown>;
         def.updatedAt = new Date().toISOString();
         await writeTable(a.tableId, def, mcpRoot());
-        // project.json メタ更新
+        // harmony.json メタ更新
         const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const tables = (project.tables ?? []) as Array<Record<string, unknown>>;
         const idx = tables.findIndex((t) => t.id === a.tableId);
@@ -1168,7 +1168,7 @@ function createMcpServer(sessionId: string): Server {
         }
         if (!target) throw new McpError(ErrorCode.InvalidParams, "path 解決に失敗しました");
 
-        // init=true のとき: フォルダ作成 + project.json 初期化を行ってから open する (#672)
+        // init=true のとき: フォルダ作成 + harmony.json 初期化を行ってから open する (#672)
         // init=false のとき: stale recent / typo path を active 化して fs を破壊しないよう、
         // open 前に inspect で ready 状態を確認 (notFound / needsInit は reject)
         let resolvedName: string | null = null;
@@ -1191,7 +1191,7 @@ function createMcpServer(sessionId: string): Server {
               ErrorCode.InvalidParams,
               inspect.status === "notFound"
                 ? `フォルダが見つかりません: ${target}`
-                : `ワークスペースが初期化されていません (project.json なし): ${target}。init=true で初期化してください。`,
+                : `ワークスペースが初期化されていません (harmony.json なし): ${target}。init=true で初期化してください。`,
             );
           }
         }
@@ -1204,7 +1204,7 @@ function createMcpServer(sessionId: string): Server {
           }
           throw e;
         }
-        // project.json を読んで name をキャッシュ。失敗時は basename にフォールバック
+        // harmony.json を読んで name をキャッシュ。失敗時は basename にフォールバック
         let name = resolvedName ?? path.basename(target);
         try {
           const proj = await readProject(mcpRoot());

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "f8b286e4-77c0-41b9-9c34-9291d00cabc3",
   "name": "カート明細",
   "description": "カート確認画面 (cff4a398) の viewer 項目 (cartSummary) が参照する列定義。カート集計フロー (267e94bf) の出力変数 'rows' (cart_items × products × stores JOIN 行配列: productCode / productName / storeCode / storeName / quantity / unitPrice / subtotal) を表示する (#771)。multi-store inventory 整合のため店舗情報を含む。",

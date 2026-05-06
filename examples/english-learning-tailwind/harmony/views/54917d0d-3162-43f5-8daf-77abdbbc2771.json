@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "54917d0d-3162-43f5-8daf-77abdbbc2771",
   "name": "セッション別発音平均ビュー",
   "description": "pronunciation_scores テーブルからセッション単位で平均スコア・最高スコア・採点回数を集計するビュー。セッション結果画面 (S-3) のサマリ表示と、ダッシュボードの学習進捗グラフ用データとして使用する。",

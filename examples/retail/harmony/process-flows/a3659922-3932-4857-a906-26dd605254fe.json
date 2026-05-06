@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "a3659922-3932-4857-a906-26dd605254fe",
     "name": "ダッシュボード KPI 集計",

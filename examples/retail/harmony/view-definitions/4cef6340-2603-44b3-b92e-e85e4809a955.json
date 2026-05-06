@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "4cef6340-2603-44b3-b92e-e85e4809a955",
   "name": "注文一覧",
   "description": "注文一覧画面 (No.7) 向けの一覧 UI viewer 定義。v_orders_with_customer ビューのデータを表示する。sourceTableId は orders テーブルを指定し、顧客名・メールは JOIN 済みビュー列を表現する。注文番号クリックで配送指示画面 (No.8) へ遷移する。",

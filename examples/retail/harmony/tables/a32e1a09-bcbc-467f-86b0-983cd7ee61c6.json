@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "a32e1a09-bcbc-467f-86b0-983cd7ee61c6",
   "name": "カート",
   "description": "顧客のショッピングカートを管理するトランザクションテーブル。顧客 1:1 設計 (customer_id UNIQUE) で、複数回の注文確定後はカートをクリアして再利用する。カート明細は cart_items で管理。",

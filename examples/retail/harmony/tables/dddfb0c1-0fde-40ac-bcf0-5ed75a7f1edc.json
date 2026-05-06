@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "dddfb0c1-0fde-40ac-bcf0-5ed75a7f1edc",
   "name": "注文明細",
   "description": "注文に含まれる商品明細を管理するトランザクションテーブル。注文確定フロー (S-3) の 1 TX 内でカート明細 (cart_items) からコピーされる。単価・店舗は注文確定時点のスナップショットを保持し、後の配送指示 (S-4) や履歴照会で参照される。",

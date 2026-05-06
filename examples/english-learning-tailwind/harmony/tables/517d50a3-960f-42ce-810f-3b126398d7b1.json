@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "517d50a3-960f-42ce-810f-3b126398d7b1",
   "name": "コンテンツパック",
   "description": "分野別学習コンテンツのパッケージ管理テーブル。汎用 / IT エンジニア / ビジネス / 旅行 等の分野ごとにパックを定義する。namespace_ref で english-learning 拡張に紐付けることで動的コンテンツ追加を表現する。",

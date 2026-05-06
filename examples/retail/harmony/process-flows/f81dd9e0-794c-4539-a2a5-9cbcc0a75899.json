@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "f81dd9e0-794c-4539-a2a5-9cbcc0a75899",
     "name": "注文確定",

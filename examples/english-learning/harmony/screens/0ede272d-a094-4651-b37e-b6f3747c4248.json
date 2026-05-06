@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "0ede272d-a094-4651-b37e-b6f3747c4248",
   "name": "プロフィール/設定",
   "description": "プロフィール確認・学習設定変更画面 (補助)。ユーザー情報 (表示名 / メール) と学習設定 (目標 CEFR レベル) を表示・編集できる。",

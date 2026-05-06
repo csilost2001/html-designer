@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "992ac5db-54fa-4eb0-9509-66b3babbdef6",
   "name": "シーン",
   "description": "ストーリー配下の会話シーン管理テーブル。シーンはストーリー内の場面 (例: カフェでの注文、会議の挨拶) を表し、複数のセリフ (dialogue_lines) で構成される。sort_order で順序を保持する。",

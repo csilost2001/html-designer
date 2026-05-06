@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "f06e103d-1eb5-4918-9a6d-67436095bfe7",
   "name": "発音スコア履歴 viewer",
   "description": "セッション結果画面 (No.5) および学習履歴詳細画面 (No.7) 向けの発音スコア履歴 viewer 定義。v_session_pronunciation_avg ビュー (54917d0d-...) の集計値と、pronunciation_scores の個別レコードを Level 2 Structured で参照する。特定セッションの採点一覧を表示する。",

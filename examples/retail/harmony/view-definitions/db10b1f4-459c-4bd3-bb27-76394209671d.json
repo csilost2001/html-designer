@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "db10b1f4-459c-4bd3-bb27-76394209671d",
   "name": "商品マスター一覧",
   "description": "商品マスター画面 (No.9) 向けの一覧 UI viewer 定義。商品コード・商品名・カテゴリ・単価・販売中フラグを表示し、商品コード/商品名/カテゴリでの絞り込みと単価昇順ソートをサポートする。",

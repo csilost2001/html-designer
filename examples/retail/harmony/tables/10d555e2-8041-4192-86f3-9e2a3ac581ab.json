@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "10d555e2-8041-4192-86f3-9e2a3ac581ab",
   "name": "注文",
   "description": "顧客の注文を管理するトランザクションテーブル。カート確認 → 注文確定フロー (S-3) で 1 TX 内に注文登録・在庫引き当て・採番を行う。注文明細は order_items で管理。",

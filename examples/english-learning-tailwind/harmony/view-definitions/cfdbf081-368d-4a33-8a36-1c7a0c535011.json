@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "cfdbf081-368d-4a33-8a36-1c7a0c535011",
   "name": "ストーリー一覧 viewer",
   "description": "ストーリー一覧画面 (No.2) 向けの一覧 UI viewer 定義。stories テーブルを主ソースとし、CEFR レベル / コンテンツパック / 推定学習時間でフィルタ可能にする。is_active=TRUE のストーリーのみデフォルト表示し、タイトルクリックで詳細画面 (/stories/:storyId) に遷移する。",

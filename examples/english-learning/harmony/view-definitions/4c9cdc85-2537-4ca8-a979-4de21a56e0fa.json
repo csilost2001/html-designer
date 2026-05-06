@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "4c9cdc85-2537-4ca8-a979-4de21a56e0fa",
   "name": "学習履歴一覧 viewer",
   "description": "学習履歴一覧画面 (No.6) 向けの一覧 UI viewer 定義。v_learning_history_with_story ビュー (af699800-...) を Level 3 Raw SQL で参照し、ログインユーザーの履歴のみを表示する。ストーリータイトル / CEFR レベル / 学習日時 / スコア / ステータスを表示し、行クリックで詳細画面 (/history/:sessionId) に遷移する。",

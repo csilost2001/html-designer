@@ -29,7 +29,7 @@ function nowTs(): Timestamp {
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** シーケンス一覧を取得（project.json のメタ情報、v3 SequenceEntry[]） */
+/** シーケンス一覧を取得（harmony.json のメタ情報、v3 SequenceEntry[]） */
 export async function listSequences(): Promise<SequenceEntry[]> {
   const project = await loadProject();
   return project.sequences ?? [];
@@ -43,7 +43,7 @@ export async function loadSequence(sequenceId: string): Promise<Sequence | null>
   try { return JSON.parse(s) as Sequence; } catch { return null; }
 }
 
-/** シーケンス定義を保存（project.json のメタも同期） */
+/** シーケンス定義を保存（harmony.json のメタも同期） */
 export async function saveSequence(sequence: Sequence): Promise<void> {
   // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
   const toSave: Sequence = { ...sequence, $schema: SEQUENCE_SCHEMA_REF, updatedAt: nowTs() };

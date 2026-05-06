@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "8db75844-19ca-4e7d-8293-579e7631c5cc",
   "name": "単語",
   "description": "学習コンテンツ内の英単語辞書テーブル。英語 / 品詞 / 日本語訳 / IPA / 例文 / CEFR レベルを保持する。単語帳画面・単語詳細画面で表示し、user_word_progress との結合で習熟度管理を行う。",

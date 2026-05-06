@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "f9d57022-1dad-4c8f-a387-27e0a8576947",
   "name": "店舗マスター",
   "description": "店舗マスタの一覧・検索画面。storeCode / name / 地域 / 営業中フラグを表示する。",

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "6a49b14b-eb90-45bd-9df0-df4b5986626b",
     "name": "発音採点",

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "cc173367-d92a-4525-acc9-689bad9a048e",
     "name": "学習セッション開始",

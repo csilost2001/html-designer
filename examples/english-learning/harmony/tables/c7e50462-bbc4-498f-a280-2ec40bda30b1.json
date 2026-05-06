@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "c7e50462-bbc4-498f-a280-2ec40bda30b1",
   "name": "ユーザー",
   "description": "学習者アカウント管理テーブル。CEFR レベル (現在 / 目標) / 連続学習日数 / 興味分野リストを保持する。B2C ユーザーの認証情報と学習進捗サマリを一元管理する。",

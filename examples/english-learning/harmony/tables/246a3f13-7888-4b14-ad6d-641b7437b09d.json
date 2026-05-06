@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "246a3f13-7888-4b14-ad6d-641b7437b09d",
   "name": "セリフ",
   "description": "シーン配下のセリフ行管理テーブル。英文テキスト / 日本語訳 / IPA 発音記号 / 想定音声 URL を保持する。会話プレイ画面でセリフ字幕表示と発音採点の基準として使用する。将来的に TTS 生成の wordTimings を使ったカラオケ字幕に対応する想定 (description 待避)。",

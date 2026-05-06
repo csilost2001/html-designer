@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "605bbc9d-810a-4b9c-a83a-cc2e59bca37a",
   "name": "顧客マスタ",
   "description": "EC・店舗 POS で利用する顧客情報を管理するマスタテーブル。メールアドレスで一意識別し、配送先・連絡先を保持する。カートおよび注文の所有者として参照される。",

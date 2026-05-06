@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "9515d6f6-8342-48cf-a045-9e9d8fab1cfa",
     "name": "カート追加",

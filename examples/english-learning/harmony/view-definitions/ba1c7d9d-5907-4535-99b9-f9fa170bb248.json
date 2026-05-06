@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "ba1c7d9d-5907-4535-99b9-f9fa170bb248",
   "name": "コンテンツパック一覧 viewer",
   "description": "コンテンツパック一覧画面 (No.10) 向けの一覧 UI viewer 定義。content_packs テーブルを主ソースとし、分野別パック (汎用 / IT エンジニア / ビジネス / 旅行 等) の一覧を表示する。is_active=TRUE のパックのみデフォルト表示。",

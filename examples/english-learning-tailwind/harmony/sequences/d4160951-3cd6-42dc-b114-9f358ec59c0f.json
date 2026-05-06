@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/sequence.v3.schema.json",
+  "$schema": "../../../../schemas/v3/sequence.v3.schema.json",
   "id": "d4160951-3cd6-42dc-b114-9f358ec59c0f",
   "name": "スコアID採番",
   "description": "発音採点フロー (S-3) で 1 採点につき 1 つのスコア ID を発行するシーケンス。@conv.numbering.scoreId と連動する。採番値は pronunciation_scores.id の主キーとして使用する。リセットなし (CYCLE=false)。",

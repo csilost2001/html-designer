@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "feb6d55d-33bc-4f25-adac-b5fa18b2a579",
   "name": "顧客付き注文ビュー",
   "description": "注文テーブルに顧客マスタを JOIN し、注文一覧画面 (S-4 バックオフィス) で顧客名・メールアドレスを含む一覧を表示するためのビュー。status による絞り込みや ordered_at 降順ソートを前提に設計する。",

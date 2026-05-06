@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "090e9db0-ce45-4fc4-9fa6-5784f655ca07",
   "name": "単語帳 viewer",
   "description": "単語帳画面 (No.8) 向けの一覧 UI viewer 定義。v_words_with_progress ビュー (c0474fbf-...) を Level 3 Raw SQL で参照し、ログインユーザーの習熟度付き単語一覧を表示する。習熟ステータス (new / learning / mastered) でフィルタ可能。単語クリックで詳細画面 (/vocabulary/:wordId) に遷移する。",

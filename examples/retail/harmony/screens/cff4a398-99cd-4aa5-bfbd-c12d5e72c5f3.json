@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "cff4a398-99cd-4aa5-bfbd-c12d5e72c5f3",
   "name": "カート確認",
   "description": "カート明細 (読み取り専用) と配送先住所を確認・入力する (S-3)。注文確定ボタンで注文確定フローを実行する。",

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "d524cba6-0878-4cf5-ba70-deaa7b459103",
   "name": "学習セッション",
   "description": "学習者がストーリーを開始するたびに作成されるセッション管理テーブル。(user_id, story_id, started_at) の組み合わせで識別する。status で進行中 / 完了 / 中断を管理し、学習履歴一覧の元データとなる。",

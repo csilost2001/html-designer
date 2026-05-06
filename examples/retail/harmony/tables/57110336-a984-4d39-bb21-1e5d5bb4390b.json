@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "57110336-a984-4d39-bb21-1e5d5bb4390b",
   "name": "カート明細",
   "description": "カートに追加された商品明細を管理するトランザクションテーブル。(cart_id, product_id, store_id) の複合 UNIQUE 制約で店舗単位の重複排除を行う。同一商品でも別店舗から購入する場合は別行として保持する (multi-store inventory 整合)。カート追加 (S-2) の中心テーブル。",

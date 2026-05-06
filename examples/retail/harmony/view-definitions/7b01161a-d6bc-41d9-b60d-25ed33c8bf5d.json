@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "7b01161a-d6bc-41d9-b60d-25ed33c8bf5d",
   "name": "顧客マスター一覧",
   "description": "顧客マスター画面 (No.10) 向けの一覧 UI viewer 定義。メールアドレス・氏名・電話番号・有効フラグを表示し、メールアドレス/氏名での絞り込みをサポートする。個人情報を含むため有効顧客のみをデフォルト表示する。",

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "834ede22-3cb0-4dcf-aa8a-7c046664774a",
   "name": "店舗別在庫",
   "description": "店舗 × 商品の在庫数量を管理するトランザクションテーブル。(store_id, product_id) の複合 UNIQUE 制約で 1 ペアにつき 1 行を保証する。注文確定時の在庫引き当て (減算) とバックオフィス補充の対象。",

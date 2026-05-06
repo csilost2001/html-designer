@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "af699800-b15f-4588-9d0d-6a76a3eb2e48",
   "name": "学習履歴とストーリー結合ビュー",
   "description": "learning_sessions と stories を JOIN し、学習履歴一覧画面 (S-4) で使用する横断ビュー。セッション ID・ユーザー ID・ストーリータイトル・CEFR レベル・学習開始日時・完了日時・平均スコア・ステータスを含む。view-definitions の学習履歴一覧 viewer から参照される。",

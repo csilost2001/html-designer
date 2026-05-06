@@ -5,7 +5,7 @@
  * - data/tables/<UUID>.json (per-entity ファイル)
  * - $schema 属性で v3 schema 参照を保存
  * - localStorage キー prefix: v3-table-
- * - project.json の entities.tables (互換的に project.tables[]) で v3 TableEntry を管理
+ * - harmony.json の entities.tables (互換的に project.tables[]) で v3 TableEntry を管理
  */
 import type {
   Table,
@@ -54,7 +54,7 @@ function nowTs(): Timestamp {
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** テーブル一覧を取得 (project.json の TableEntry[]) */
+/** テーブル一覧を取得 (harmony.json の TableEntry[]) */
 export async function listTables(): Promise<TableEntry[]> {
   const project = await loadProject();
   return project.tables ?? [];
@@ -98,7 +98,7 @@ export async function loadTableValidationMap(): Promise<Map<TableId, ValidationE
   return validationMap;
 }
 
-/** テーブル定義を保存 (project.json の TableEntry も同期) */
+/** テーブル定義を保存 (harmony.json の TableEntry も同期) */
 export async function saveTable(table: Table): Promise<void> {
   // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
   const toSave: Table = { ...table, $schema: TABLE_SCHEMA_REF, updatedAt: nowTs() };
@@ -136,7 +136,7 @@ export async function createTable(
   return table;
 }
 
-/** テーブルを削除 (per-file 削除 + project.json メタ削除) */
+/** テーブルを削除 (per-file 削除 + harmony.json メタ削除) */
 export async function deleteTable(tableId: string): Promise<void> {
   if (_backend) {
     await _backend.deleteTable(tableId);
@@ -307,7 +307,7 @@ export async function reorderTables(fromIndex: number, toIndex: number): Promise
 
 // ─── 内部 ────────────────────────────────────────────────────────────────
 
-/** project.json の TableEntry を同期 */
+/** harmony.json の TableEntry を同期 */
 async function syncTableMeta(table: Table): Promise<void> {
   const project = await loadProject();
   if (!project.tables) project.tables = [];

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "efa7ac6e-e295-416e-b68d-17c4739b5097",
     "name": "店舗在庫照会",

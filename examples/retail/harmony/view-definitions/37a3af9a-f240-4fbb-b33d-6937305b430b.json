@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "37a3af9a-f240-4fbb-b33d-6937305b430b",
   "name": "カテゴリ別 売れ筋商品 上位 N (#745 Level 3 サンプル)",
   "description": "ROW_NUMBER() window 関数 + CTE で各カテゴリの上位 N 商品を抽出する。Level 2 (Structured) では表現できないため Level 3 (Raw SQL) を使う。@param.topN は呼び出し画面 filter 等から渡される (例: ダッシュボードの売れ筋カード)。本サンプルは #745 で raw SQL escape hatch の検証用に追加。",

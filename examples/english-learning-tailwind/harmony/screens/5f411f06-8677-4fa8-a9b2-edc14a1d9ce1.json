@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "5f411f06-8677-4fa8-a9b2-edc14a1d9ce1",
   "name": "ストーリー一覧",
   "description": "学習コンテンツのストーリー一覧画面 (S-1)。CEFR レベル / パックで絞り込み、ストーリーを選択してセッション開始へ遷移する。",

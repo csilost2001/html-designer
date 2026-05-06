@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "fbd95d09-4ac4-44e0-a6a7-44affff128a0",
   "name": "在庫一覧",
   "description": "在庫一覧画面 (No.3) 向けの一覧 UI viewer 定義。v_inventory_with_product ビューのデータを表示する。sourceTableId は inventory テーブルを指定し、店舗・商品の各列は JOIN 済み view 列 (同テーブル参照) を表現する。低在庫行 (quantity_available <= lowStockThreshold) は UI 側でバッジ表示する。",

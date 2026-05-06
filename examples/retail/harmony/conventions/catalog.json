@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/conventions.v3.schema.json",
+  "$schema": "../../../../schemas/v3/conventions.v3.schema.json",
   "version": "1.0.0",
   "description": "リテール総合サンプルの横断規約カタログ。採番・正規表現・メッセージ・境界値・DB 規約・税率・通貨・TX 方針を集約する。",
   "updatedAt": "2026-05-02T00:00:00.000Z",

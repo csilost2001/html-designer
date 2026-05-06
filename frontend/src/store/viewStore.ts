@@ -32,7 +32,7 @@ function nowTs(): Timestamp {
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
-/** ビュー一覧を取得 (project.json の views エントリ、v3 ViewEntry[]) */
+/** ビュー一覧を取得 (harmony.json の views エントリ、v3 ViewEntry[]) */
 export async function listViews(): Promise<ViewEntry[]> {
   const project = await loadProject();
   return project.views ?? [];
@@ -68,7 +68,7 @@ export async function loadViewValidationMap(): Promise<Map<ViewId, ValidationErr
   return validationMap;
 }
 
-/** ビュー定義を保存 (per-entity ファイル + project.json メタ同期) */
+/** ビュー定義を保存 (per-entity ファイル + harmony.json メタ同期) */
 export async function saveView(view: View): Promise<void> {
   // $schema は spread 後に明示的に上書きして、旧 v1/v2 由来の $schema を必ず v3 ref に書き換える。
   const toSave: View = { ...view, $schema: VIEW_SCHEMA_REF, updatedAt: nowTs() };
@@ -105,7 +105,7 @@ export async function createView(
   return view;
 }
 
-/** ビューを削除 (per-entity ファイル + project.json メタ削除) */
+/** ビューを削除 (per-entity ファイル + harmony.json メタ削除) */
 export async function deleteView(viewId: string): Promise<void> {
   if (_backend) {
     await _backend.deleteView(viewId);

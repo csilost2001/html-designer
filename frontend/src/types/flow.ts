@@ -105,7 +105,7 @@ export const TRIGGER_LABELS: Record<ScreenTransitionEntry["trigger"], string> = 
 /**
  * UI で扱う集約型 (FlowEditor などで使う)。
  *
- * 永続化は project.json + data/screen-layout.json + data/screens/<id>.json に分離するが、
+ * 永続化は harmony.json + <dataDir>/screen-layout.json + <dataDir>/screens/<id>.json に分離するが、
  * UI 上は 1 つの React state として保持する。flowStore.loadProject() / saveProject() が境界で合成・分解する。
  */
 export interface FlowProject {
@@ -123,7 +123,7 @@ export interface FlowProject {
 }
 
 /**
- * 処理フローメタ情報 (project.json 管理用、Phase 4 で v3 ProcessFlowEntry に統合予定)。
+ * 処理フローメタ情報 (harmony.json 管理用、Phase 4 で v3 ProcessFlowEntry に統合予定)。
  */
 export type ProcessFlowMeta = ProcessFlowEntry;
 

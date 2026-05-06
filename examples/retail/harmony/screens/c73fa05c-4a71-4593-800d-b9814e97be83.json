@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "c73fa05c-4a71-4593-800d-b9814e97be83",
   "name": "カート",
   "description": "商品コード・店舗・数量を入力してカートに追加する (S-2/S-3)。multi-store inventory 整合のため店舗を必須選択する。カート明細テーブルで削除・数量変更ができ、合計金額を表示する。注文確認画面への導線を提供する。",

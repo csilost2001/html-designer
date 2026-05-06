@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "c0474fbf-d0f4-4cfc-bbcd-0154431df9a2",
   "name": "習熟度付き単語ビュー",
   "description": "words テーブルに user_word_progress を LEFT JOIN し、単語帳画面 (S-4) で使用するビュー。ユーザー ID はアプリ層でフィルタする前提 (ビュー自体はユーザー横断)。単語の基本情報 (英語・訳・IPA・品詞・CEFR レベル) と習熟度 (status / correct_count / attempt_count / last_practiced_at) を結合する。view-definitions の単語帳 viewer から参照される。",

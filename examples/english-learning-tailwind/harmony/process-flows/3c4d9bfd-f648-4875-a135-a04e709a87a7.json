@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/process-flow.v3.schema.json",
+  "$schema": "../../../../schemas/v3/process-flow.v3.schema.json",
   "meta": {
     "id": "3c4d9bfd-f648-4875-a135-a04e709a87a7",
     "name": "連続学習日数リセット",

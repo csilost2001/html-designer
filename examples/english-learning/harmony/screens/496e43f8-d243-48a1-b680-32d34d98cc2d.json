@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "496e43f8-d243-48a1-b680-32d34d98cc2d",
   "name": "ダッシュボード",
   "description": "学習者のトップ画面。連続学習日数 / 本日の学習目標 / 最近のストーリー / CEFR レベル進捗を一望できるホーム画面。",

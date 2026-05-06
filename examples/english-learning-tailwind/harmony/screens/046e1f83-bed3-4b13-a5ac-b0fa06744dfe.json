@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "046e1f83-bed3-4b13-a5ac-b0fa06744dfe",
   "name": "ストーリー詳細",
   "description": "ストーリーの詳細情報を表示し、学習セッションを開始する画面 (S-1)。シーン一覧・CEFR レベル・学習進捗を確認でき、セッション作成フローを経て会話プレイへ遷移する。",

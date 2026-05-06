@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "be4bece3-aa23-44fb-bed0-0699717e8738",
   "name": "在庫一覧 (商品検索結果)",
   "description": "商品検索画面 (e6147dc0) の viewer 項目 (inventoryRows) が参照する列定義。店舗在庫照会フロー (efa7ac6e) の出力変数 'rows' (isLowStock フラグ付き在庫行配列) を表示する。列は inventory × products × stores JOIN 結果のフィールドに対応 (#771)。",

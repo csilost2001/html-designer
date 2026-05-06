@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "4e728c10-dce1-4843-8634-a61a59d0ba0b",
   "name": "学習履歴詳細",
   "description": "S-4 学習セッションの詳細画面。1 セッションの全ターンログ・発音スコア・習得単語を確認できる。",

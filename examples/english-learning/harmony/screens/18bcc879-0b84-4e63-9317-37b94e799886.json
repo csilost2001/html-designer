@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "18bcc879-0b84-4e63-9317-37b94e799886",
   "name": "セッション結果",
   "description": "S-3 セッション完了後の結果画面。総合スコア・発音フィードバック・習得単語・次の推奨ストーリーを表示し、学習継続またはダッシュボードへ誘導する。\n\n[description 待避]\n- 発音フィードバック UI: diff フィールド (PhoneDiff[]) は音素単位の正誤判定リストで、実装側で IPA テーブル + 色分け表示を行う。",

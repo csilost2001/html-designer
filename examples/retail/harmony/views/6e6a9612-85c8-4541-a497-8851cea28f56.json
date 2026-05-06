@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view.v3.schema.json",
   "id": "6e6a9612-85c8-4541-a497-8851cea28f56",
   "name": "商品付き在庫ビュー",
   "description": "店舗別在庫テーブルに商品マスタと店舗マスタを JOIN し、在庫一覧画面 (S-1) および低在庫検出で利用する横断ビュー。quantity_available が @conv.limit.lowStockThreshold 以下の行を低在庫警告バッジ表示に使用する。",

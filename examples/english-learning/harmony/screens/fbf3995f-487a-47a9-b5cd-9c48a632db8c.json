@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/screen.v3.schema.json",
+  "$schema": "../../../../schemas/v3/screen.v3.schema.json",
   "id": "fbf3995f-487a-47a9-b5cd-9c48a632db8c",
   "name": "単語帳",
   "description": "S-4 単語帳画面。ユーザーが学習した words を習熟度 (new/learning/mastered) 別に表示・フィルタし、単語詳細へ遷移できる。",

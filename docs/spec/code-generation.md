@@ -182,7 +182,7 @@
 ```
 Step 0: 引数解析 — UUID 判定、出力先デフォルト (.tmp/generated-code/<UUID8桁>/)
 Step 1: 入力読込
-  1-1. active workspace の project.json から techStack 取得
+  1-1. active workspace の harmony.json から techStack 取得
   1-2. UUID を processFlows / screens で照合して入力種別判定
   1-3. 入力 JSON (ProcessFlow / Screen) を Read で取得
 Step 2: techStack 制約検証 (validateTechStackConstraints 相当)

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/conventions.v3.schema.json",
+  "$schema": "../../../../schemas/v3/conventions.v3.schema.json",
   "version": "1.0.0",
   "description": "英会話学習アプリの横断規約カタログ。採番・正規表現・メッセージ・境界値・DB 規約・認証・TX 方針・拡張カテゴリ (CEFR 昇格判定 / 単語習熟) を集約する。",
   "updatedAt": "2026-05-04T00:00:00.000Z",

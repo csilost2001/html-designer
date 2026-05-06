@@ -7,7 +7,7 @@
  * - localStorage キー prefix: `v3-screen-layout`
  *
  * 業務情報 (Screen entity / ScreenTransitionEntry / ScreenGroupEntry) は
- * project.json + data/screens/<id>.json で管理する。本 store は UI 座標のみ。
+ * harmony.json + <dataDir>/screens/<id>.json で管理する。本 store は UI 座標のみ。
  */
 import type { Position, ScreenLayout, Timestamp, TransitionLayout } from "../types/v3";
 

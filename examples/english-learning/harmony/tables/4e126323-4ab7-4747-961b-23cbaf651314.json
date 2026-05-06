@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "4e126323-4ab7-4747-961b-23cbaf651314",
   "name": "会話ターンログ",
   "description": "学習セッション内の会話ターン (ユーザー発話 + AI 応答) のログテーブル。LLM 入力コンテキスト / ユーザー入力 / AI 応答 / TTS 音声 URL を JSON で保持する。S-2 会話ターン進行フローで LlmDialog + TtsGenerate step の出力を記録する。将来 SSE / WebSocket によるストリーム応答に対応する想定 (description 待避)。",

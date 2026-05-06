@@ -100,7 +100,7 @@ cd frontend && npm run validate:samples -- ../examples/english-learning
 | 子 ISSUE | スコープ | branch |
 |---|---|---|
 | 子 1 | 本仕様書 (docs/spec/examples-english-learning.md) | `docs/issue-787-spec-english-learning` |
-| 子 2 (本 PR) | 業務データ層 — tables / extensions / conventions / project.json / README | `feat/issue-787-tables-conventions` |
+| 子 2 (本 PR) | 業務データ層 — tables / extensions / conventions / harmony.json / README | `feat/issue-787-tables-conventions` |
 | 子 3 | UI 層上半分 — screens / screenTransitions | `feat/issue-787-screens` |
 | 子 4 | UI 層下半分 + 業務処理 — process-flows / view-definitions / sequences / views | `feat/issue-787-flows` |
 | 子 5 | dogfood 検証 — AJV + review-flow Must-fix ゼロ + smoke | `chore/issue-787-dogfood` |

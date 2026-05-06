@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/view-definition.v3.schema.json",
+  "$schema": "../../../../schemas/v3/view-definition.v3.schema.json",
   "id": "97354753-765a-449e-85ad-d23acad53a76",
   "name": "店舗マスター一覧",
   "description": "店舗マスター画面 (No.11) 向けの一覧 UI viewer 定義。店舗コード・店舗名・地域・営業中フラグを表示する。在庫照会の絞り込み入力支援および配送指示での参照先として使用される。",

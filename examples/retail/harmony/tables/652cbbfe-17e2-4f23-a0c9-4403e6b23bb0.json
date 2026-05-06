@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../schemas/v3/table.v3.schema.json",
+  "$schema": "../../../../schemas/v3/table.v3.schema.json",
   "id": "652cbbfe-17e2-4f23-a0c9-4403e6b23bb0",
   "name": "商品マスタ",
   "description": "EC・店舗 POS で取り扱う商品の基本情報を管理するマスタテーブル。商品コードで一意識別し、JANコード・価格・カテゴリ・在庫可否を保持する。",
