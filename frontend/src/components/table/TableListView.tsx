@@ -25,6 +25,8 @@ import { usePersistentState } from "../../hooks/usePersistentState";
 import { generateUUID } from "../../utils/uuid";
 import { renumber } from "../../utils/listOrder";
 import { useDraftRegistry } from "../../hooks/useDraftRegistry";
+import { usePresenceAll } from "../../hooks/usePresenceRegistry";
+import { SessionBadge } from "../editing/SessionBadge";
 import "../../styles/table.css";
 import "../../styles/editMode.css";
 
@@ -49,6 +51,7 @@ export function TableListView() {
   const [projectName, setProjectName] = useState("プロジェクト");
   const [query, setQuery] = useState("");
   const { hasDraft } = useDraftRegistry();
+  const presenceMap = usePresenceAll();
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
@@ -365,6 +368,28 @@ export function TableListView() {
         disabled: !hasSelection, danger: true,
         onClick: () => { if (items.length > 0) handleDelete(items); },
       },
+      { key: "sep4", separator: true },
+      {
+        key: "start-editing", label: "編集開始", icon: "bi-pencil",
+        disabled: items.length !== 1,
+        disabledReason: items.length !== 1 ? "1 件選択時のみ有効" : undefined,
+        onClick: () => {
+          if (items.length === 1) navigate(`/table/edit/${encodeURIComponent(items[0].id)}`);
+        },
+      },
+      {
+        key: "draft-sessions", label: "既存 draft を開く", icon: "bi-layers",
+        disabled: items.length !== 1,
+        disabledReason: items.length !== 1 ? "1 件選択時のみ有効" : undefined,
+        onClick: () => {
+          if (items.length === 1) navigate(`/table/edit/${encodeURIComponent(items[0].id)}`);
+        },
+      },
+      {
+        key: "history", label: "履歴", icon: "bi-clock-history",
+        disabled: true,
+        disabledReason: "Phase 6 で実装予定",
+      },
     ];
   };
 
@@ -446,6 +471,17 @@ export function TableListView() {
         : null,
     },
     {
+      key: "session",
+      header: "",
+      width: "48px",
+      align: "center",
+      render: (t) => {
+        const key = `table:${t.id}` as const;
+        const entries = presenceMap.get(key) ?? [];
+        return entries.length > 0 ? <SessionBadge entries={entries} compact /> : null;
+      },
+    },
+    {
       key: "physicalName",
       header: "物理名",
       sortable: true,
@@ -511,7 +547,7 @@ export function TableListView() {
       sortAccessor: (t) => t.updatedAt,
       render: (t) => <span className="table-list-date">{formatDate(t.updatedAt)}</span>,
     },
-  ], [getErrorPriority, validationMap, hasDraft]);
+  ], [getErrorPriority, validationMap, hasDraft, presenceMap]);
 
   const renderCard = (t: TableEntry) => {
     const validation = validationMap.get(t.id);
@@ -526,6 +562,11 @@ export function TableListView() {
           {hasDraft("table", t.id) && (
             <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
           )}
+          {(() => {
+            const key = `table:${t.id}` as const;
+            const entries = presenceMap.get(key) ?? [];
+            return entries.length > 0 ? <SessionBadge entries={entries} compact /> : null;
+          })()}
           {validation && (hasError || hasWarning) && (
             <span className="table-validation-badges">
               <ValidationBadge severity="error" count={validation.errors} />

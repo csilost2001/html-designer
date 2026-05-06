@@ -39,6 +39,7 @@ import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink, type EditorHeaderUndoRedo } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import {
   DiscardConfirmDialog,
   ForceReleaseConfirmDialog,
@@ -623,6 +624,15 @@ export function ViewDefinitionEditor() {
           canUndo,
           canRedo,
         } satisfies EditorHeaderUndoRedo}
+        extraRight={
+          <EditSessionDropdown
+            resourceType="view-definition"
+            resourceId={viewDefinitionId ?? ""}
+            currentMode={mode}
+            currentSessionId={sessionId}
+            onStartEditing={() => { void actions.startEditing(); }}
+          />
+        }
         saveReset={isReadonly ? undefined : {
           isDirty,
           isSaving,

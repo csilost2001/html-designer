@@ -5,6 +5,7 @@ import { saveDraft, loadDraft, clearDraft, hasDraft } from "../utils/draftStorag
 import { acknowledgeServerMtime, hasServerBeenUpdated, type MtimeKind } from "../utils/serverMtime";
 import { setDirty as setTabDirty, makeTabId, type TabType } from "../store/tabStore";
 import { mcpBridge } from "../mcp/mcpBridge";
+import type { DraftResourceType } from "../types/draft";
 
 export interface UseResourceEditorOptions<T> {
   /** tabStore で使うタブ種別 */
@@ -31,6 +32,14 @@ export interface UseResourceEditorOptions<T> {
   enableUndoKeyboard?: boolean;
   /** broadcast 受信時に dirty でなければ自動リロードするか（デフォルト true）*/
   autoReloadOnClean?: boolean;
+  /**
+   * #880 Phase 3: viewer mode で draft-update broadcast を受信して state を更新する。
+   * "viewer" を指定すると read-only で editor の中間状態を追従する。
+   * resourceType は draft-update フィルタに使用 (id と組み合わせて絞り込む)。
+   */
+  viewerMode?: "viewer" | "editor" | "readonly";
+  /** viewer mode の draft-update フィルタ用 resourceType */
+  viewerResourceType?: DraftResourceType;
 }
 
 export interface UseResourceEditorResult<T> {
@@ -75,6 +84,8 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
     onNotFound, onLoaded,
     enableUndoKeyboard = true,
     autoReloadOnClean = true,
+    viewerMode,
+    viewerResourceType,
   } = opts;
 
   const [isDirty, setIsDirty] = useState(false);
@@ -230,6 +241,29 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
       if (s === "connected" && !isDirtyRef.current) reload().catch(console.error);
     });
   }, [reload]);
+
+  // #880 Phase 3: viewer mode — draft-update broadcast を受信して state を更新する (sequence reorder 破棄)
+  // lastSeq は effect の再実行 (viewer attach) ごとに 0 リセットする。
+  // これは viewer attach 時にサーバから最新 snapshot を再受信する想定のため、
+  // 旧 sequence との連続性を保つ必要がなく、常に最初の update から受け入れる。
+  useEffect(() => {
+    if (viewerMode !== "viewer" || !id || !viewerResourceType) return;
+    let lastSeq = 0;
+    return mcpBridge.onBroadcast("draft-update", (data) => {
+      const d = data as {
+        resourceType?: string;
+        resourceId?: string;
+        sequence?: number;
+        payload?: unknown;
+        senderSessionId?: string;
+      };
+      if (d.resourceType !== viewerResourceType || d.resourceId !== id) return;
+      if (typeof d.sequence === "number" && d.sequence <= lastSeq) return; // reorder 破棄
+      lastSeq = d.sequence ?? lastSeq;
+      // read-only render: payload を完全置換
+      resetState(d.payload as T);
+    });
+  }, [viewerMode, viewerResourceType, id, resetState]);
 
   return {
     state,

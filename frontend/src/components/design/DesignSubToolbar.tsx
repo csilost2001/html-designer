@@ -11,6 +11,8 @@ import { SaveResetButtons } from "../common/SaveResetButtons";
 import { EditorHeader } from "../common/EditorHeader";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { upsertCustomBlock } from "../../store/customBlockStore";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
+import type { EditMode } from "../../hooks/useEditSession";
 
 const MCP_HTTP_BASE = `http://${window.location.hostname}:5179`;
 
@@ -69,9 +71,15 @@ interface Props {
    * 無効化される (button disabled / onClick noop)。
    */
   editor: GEditor | undefined;
+  /** (#882 Phase 4) 編集セッション mode — EditSessionDropdown 表示用 */
+  sessionMode?: EditMode;
+  /** (#882 Phase 4) 現在のセッション ID — EditSessionDropdown 表示用 */
+  sessionId?: string;
+  /** (#882 Phase 4) 新規 draft 作成 callback */
+  onStartEditing?: () => void;
 }
 
-export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId, isReadonly, editor }: Props) {
+export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId, isReadonly, editor, sessionMode, sessionId, onStartEditing }: Props) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
 
   // ── AI 命名 (#337) ───────────────────────────────────────────────────────
@@ -480,6 +488,15 @@ ${html}
         undoRedo={{ onUndo: handleUndo, onRedo: handleRedo, canUndo, canRedo }}
         extraRight={
           <>
+            {screenId && sessionMode && sessionId && (
+              <EditSessionDropdown
+                resourceType="screen"
+                resourceId={screenId}
+                currentMode={sessionMode}
+                currentSessionId={sessionId}
+                onStartEditing={onStartEditing}
+              />
+            )}
             <div className="theme-selector">
               <button
                 className="theme-selector-btn"

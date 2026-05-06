@@ -53,6 +53,8 @@ initServerLog(projectRoot);
 function setupLifecycle(): void {
   const exitHandler = (reason: string) => {
     logInfo("lifecycle", `Exiting: ${reason}`);
+    // Phase 7 (#885): presence cleanup タイマーを停止
+    wsBridge.stopPresenceCleanup();
     shutdownServerLog();
     process.exit(0);
   };
@@ -1290,8 +1292,9 @@ function createMcpServer(sessionId: string): Server {
           }
           logAuditIfDelegated("draft__update", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
         }
-        await updateDraft(sessionId, a.type, a.id, a.payload);
-        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "updated" } });
+        // #880 Phase 3: wsId を渡す。draft-update broadcast は draftStore 内から実行。
+        // draft.changed op:"updated" は flush 完了時にのみ発火 (中間状態とは分離)。
+        await updateDraft(sessionId, a.type, a.id, a.payload, workspaceContextManager.getActivePath(sessionId));
         return { content: [{ type: "text", text: JSON.stringify({ updated: true }) }] };
       }
 

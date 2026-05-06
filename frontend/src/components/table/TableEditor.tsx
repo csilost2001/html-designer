@@ -35,6 +35,7 @@ import { renumber } from "../../utils/listOrder";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import "../../styles/table.css";
 import "../../styles/editMode.css";
@@ -252,16 +253,25 @@ export function TableEditor() {
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
         extraRight={
-          <button
-            className="editor-header-undo-btn"
-            onClick={() => {
-              const md = generateTableMarkdown(table);
-              navigator.clipboard.writeText(md);
-            }}
-            title="Markdown をコピー"
-          >
-            <i className="bi bi-clipboard" />
-          </button>
+          <>
+            <EditSessionDropdown
+              resourceType="table"
+              resourceId={tableId ?? ""}
+              currentMode={mode}
+              currentSessionId={sessionId}
+              onStartEditing={() => { void actions.startEditing(); }}
+            />
+            <button
+              className="editor-header-undo-btn"
+              onClick={() => {
+                const md = generateTableMarkdown(table);
+                navigator.clipboard.writeText(md);
+              }}
+              title="Markdown をコピー"
+            >
+              <i className="bi bi-clipboard" />
+            </button>
+          </>
         }
         saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
       />

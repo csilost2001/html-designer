@@ -755,6 +755,8 @@ type LockChangedEvent =
 
 ## 10. 未解決事項 / 将来 ISSUE
 
+> **関連 spec**: 本 spec の lock + draft + onBehalfOfSession 機構を**拡張**して同一 workspace 内の複数人協調編集 (編集者 1 + 閲覧者複数 + presence + take-over UX) を実現する仕様は [`collab-presence.md`](./collab-presence.md) (#876 / RFC #855) 参照。本 spec の D-1 〜 D-12 は変更されない。
+
 ### 10.1 draft 一覧画面
 
 放置された draft ファイルの視認性と管理のために、「現在の draft 一覧」を表示する管理画面が将来必要となる。表示情報の候補:

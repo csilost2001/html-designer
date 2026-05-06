@@ -35,6 +35,30 @@ export function resolveOnBehalfOfSession(
 }
 
 /**
+ * AI onBehalfOfSession の actor を fromSessionId から toSessionId に引き継ぐ。
+ * docs/spec/collab-presence.md § 10 (option A: AI actor 引継ぎ) に準拠。
+ *
+ * 現状の実装: AI session-borrow registry が未整備のため最小実装 (no-op + ログ)。
+ * 実際の borrow 関係追跡は follow-up ISSUE として別途対応予定。
+ *
+ * option A: 同じ AI が新 owner (toSessionId) として動き続ける。
+ * AI 側の actor の sessionId が分からない場合は no-op。
+ */
+export function reassignOnBehalfOf(
+  fromSessionId: string,
+  toSessionId: string,
+): void {
+  // NOTE: 現状 AI session-borrow registry が存在しないため no-op。
+  // onBehalfOfSession の borrow 関係 (AI actor → human owner) を
+  // in-memory で管理する registry を追加した際にここに実装を入れる。
+  // follow-up: AI session borrow tracking を別 ISSUE 化
+  console.error(
+    `[onBehalfOfSession] reassignOnBehalfOf: from=${fromSessionId} to=${toSessionId} ` +
+    `(no-op: AI session-borrow registry 未整備 — follow-up ISSUE で対応)`,
+  );
+}
+
+/**
  * 委任操作の監査ログを出力する。isDelegated が false の場合は何もしない。
  */
 export function logAuditIfDelegated(

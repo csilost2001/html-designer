@@ -9,17 +9,35 @@ import {
   discardDraft,
   hasDraft,
   listDrafts,
+  flushAllDirty,
+  transferDraft,
+  initDraftStoreBroadcast,
   type DraftResourceType,
 } from "./draftStore.js";
 import {
   acquire as lockAcquire,
   release as lockRelease,
   forceRelease as lockForceRelease,
+  transferLock as lockTransferLock,
   getLock,
   listLocks,
+  subscribeAsViewer as lockSubscribeAsViewer,
+  unsubscribeViewer as lockUnsubscribeViewer,
+  listViewers as lockListViewers,
   LockConflictError,
   LockNotHeldError,
+  LockOwnerMismatchError,
 } from "./lockManager.js";
+import {
+  registerEditor as presenceRegisterEditor,
+  registerViewer as presenceRegisterViewer,
+  unregister as presenceUnregister,
+  heartbeat as presenceHeartbeat,
+  list as presenceList,
+  startCleanupInterval as presenceStartCleanupInterval,
+  stopCleanupInterval as presenceStopCleanupInterval,
+  type PresenceEntryWithLevel,
+} from "./presenceManager.js";
 import { execSync } from "child_process";
 import { platform } from "node:os";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
@@ -42,6 +60,7 @@ import {
   inspectWorkspacePath,
   initializeWorkspace as initializeWorkspaceFolder,
 } from "./workspaceInit.js";
+import { reassignOnBehalfOf } from "./onBehalfOfSession.js";
 import {
   readProject,
   writeProject,
@@ -245,6 +264,20 @@ class WsBridge extends EventEmitter {
       await delay(500);
     }
     await this._bind();
+
+    // Phase 7 (#885): abandoned entry の定期 cleanup を開始
+    presenceStartCleanupInterval((wsId, resourceType, resourceId, entries) => {
+      this.broadcast({
+        wsId,
+        event: "presence:update",
+        data: { resourceType, resourceId, entries },
+      });
+    });
+  }
+
+  /** Phase 7 (#885): cleanup タイマーを停止する。shutdown hook 用。 */
+  stopPresenceCleanup(): void {
+    presenceStopCleanupInterval();
   }
 
   private async _bind(retries = 3): Promise<void> {
@@ -989,9 +1022,10 @@ class WsBridge extends EventEmitter {
         }
         case "draft.update": {
           const { type: dt, id: did, payload: dp } = (params ?? {}) as { type: DraftResourceType; id: string; payload: unknown };
-          await updateDraft(clientId, dt, did, dp);
+          // #880 Phase 3: wsId を渡す。draft-update broadcast は draftStore 内から実行。
+          // draft.changed op:"updated" は flush 完了時にのみ発火 (中間状態とは分離)。
+          await updateDraft(clientId, dt, did, dp, wsId());
           respond({ updated: true });
-          this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "updated" }, excludeClientId: clientId });
           break;
         }
         case "draft.commit": {
@@ -1044,7 +1078,8 @@ class WsBridge extends EventEmitter {
           try {
             const entry = lockAcquire(lrt, lrid, clientId);
             respond({ entry });
-            this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId } });
+            const viewerCount = lockListViewers(lrt, lrid).length;
+            this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId, viewerCount } });
           } catch (e) {
             if (e instanceof LockConflictError) {
               respondError(e.message);
@@ -1059,7 +1094,8 @@ class WsBridge extends EventEmitter {
           try {
             const result = lockRelease(lrt, lrid, clientId);
             respond(result);
-            this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId } });
+            const viewerCount = lockListViewers(lrt, lrid).length;
+            this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId, viewerCount } });
           } catch (e) {
             if (e instanceof LockNotHeldError) {
               respondError(e.message);
@@ -1073,7 +1109,8 @@ class WsBridge extends EventEmitter {
           const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
           const fr = lockForceRelease(lrt, lrid, clientId);
           respond(fr);
-          this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner } });
+          const viewerCount = lockListViewers(lrt, lrid).length;
+          this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner, viewerCount } });
           break;
         }
         case "lock.get": {
@@ -1085,6 +1122,153 @@ class WsBridge extends EventEmitter {
         case "lock.list": {
           const locks = listLocks();
           respond({ locks });
+          break;
+        }
+        case "lock.subscribeAsViewer": {
+          const { resourceType: svrt, resourceId: svrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const svWsId = wsId();
+          if (!svWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          const viewerEntry = lockSubscribeAsViewer(clientId, svrt, svrid);
+          presenceRegisterViewer(svWsId, clientId, svrt, svrid);
+          respond({ entry: viewerEntry });
+          const viewerCount = lockListViewers(svrt, svrid).length;
+          this.broadcast({ wsId: svWsId, event: "lock.changed", data: { resourceType: svrt, resourceId: svrid, op: "viewer-joined", by: clientId, viewerCount } });
+          const presenceEntries = presenceList(svWsId, svrt, svrid);
+          this.broadcast({ wsId: svWsId, event: "presence:update", data: { resourceType: svrt, resourceId: svrid, entries: presenceEntries } });
+          break;
+        }
+        case "lock.unsubscribeViewer": {
+          const { resourceType: uvrt, resourceId: uvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const uvWsId = wsId();
+          lockUnsubscribeViewer(clientId, uvrt, uvrid);
+          if (uvWsId) {
+            presenceUnregister(uvWsId, clientId, uvrt, uvrid);
+          }
+          respond({ unsubscribed: true });
+          const viewerCount = lockListViewers(uvrt, uvrid).length;
+          this.broadcast({ wsId: uvWsId, event: "lock.changed", data: { resourceType: uvrt, resourceId: uvrid, op: "viewer-left", by: clientId, viewerCount } });
+          if (uvWsId) {
+            const presenceEntries = presenceList(uvWsId, uvrt, uvrid);
+            this.broadcast({ wsId: uvWsId, event: "presence:update", data: { resourceType: uvrt, resourceId: uvrid, entries: presenceEntries } });
+          }
+          break;
+        }
+        case "lock.listViewers": {
+          const { resourceType: lvrt, resourceId: lvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const viewerList = lockListViewers(lvrt, lvrid);
+          respond({ viewers: viewerList });
+          break;
+        }
+        case "lock.transferLock": {
+          // spec § 8.1: viewer (新 owner = caller) が現 lock owner (from) からロックを引き継ぐ
+          // params: { resourceType, resourceId, fromSessionId }
+          // fromSessionId = 現 lock owner (alice)、callerSessionId (clientId) = 新 owner (bob)
+          const { resourceType: tlrt, resourceId: tlrid, fromSessionId: tlFrom } =
+            (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; fromSessionId: string };
+          const tlWsId = wsId();
+          try {
+            const tlResult = lockTransferLock(tlFrom, clientId, tlrt, tlrid);
+            // draft の移譲 (shadow + FS)
+            await transferDraft(tlFrom, clientId, tlrt, tlrid);
+            // AI onBehalfOfSession reassign (option A: actor 引継ぎ)
+            reassignOnBehalfOf(tlFrom, clientId);
+            respond(tlResult);
+            const viewerCount = lockListViewers(tlrt, tlrid).length;
+            this.broadcast({
+              wsId: tlWsId,
+              event: "lock.changed",
+              data: {
+                resourceType: tlrt,
+                resourceId: tlrid,
+                op: "transferred",
+                ownerSessionId: clientId,
+                by: clientId,
+                previousOwner: tlFrom,
+                viewerCount,
+              },
+            });
+            // presence も更新
+            if (tlWsId) {
+              presenceUnregister(tlWsId, tlFrom, tlrt, tlrid);
+              presenceRegisterEditor(tlWsId, clientId, tlrt, tlrid);
+              const presenceEntries = presenceList(tlWsId, tlrt, tlrid);
+              this.broadcast({ wsId: tlWsId, event: "presence:update", data: { resourceType: tlrt, resourceId: tlrid, entries: presenceEntries } });
+            }
+          } catch (e) {
+            if (e instanceof LockNotHeldError || e instanceof LockOwnerMismatchError) {
+              respondError(e.message);
+            } else {
+              throw e;
+            }
+          }
+          break;
+        }
+
+        // ── presence 管理 (#878 Phase 1) ──────────────────────────────────
+        case "presence.heartbeat": {
+          const {
+            resourceType: phrt,
+            resourceId: phrid,
+            kind: phkind,
+          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; kind: "activity" | "edit" };
+          const phWsId = wsId();
+          if (!phWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          const { levelChanged, entry, level } = presenceHeartbeat(phWsId, clientId, phrt, phrid, phkind);
+          respond({ entry, level });
+          // Phase 7 (#885): levelChanged が true の時のみ broadcast (broadcast 効率化)
+          if (levelChanged) {
+            const entries = presenceList(phWsId, phrt, phrid);
+            this.broadcast({
+              wsId: phWsId,
+              event: "presence:update",
+              data: { resourceType: phrt, resourceId: phrid, entries },
+            });
+          }
+          break;
+        }
+        case "presence.list": {
+          const { resourceType: plrt, resourceId: plrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const plWsId = wsId();
+          if (!plWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          const entries = presenceList(plWsId, plrt, plrid);
+          respond({ entries });
+          break;
+        }
+        case "presence.register": {
+          // Phase 1 では editor/viewer 手動登録 API を提供 (viewer role は Phase 2 で本格利用)
+          const {
+            resourceType: prrt,
+            resourceId: prrid,
+            role: prrole,
+            ownerLabel: prownerLabel,
+          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; role: "editor" | "viewer"; ownerLabel?: string };
+          const prWsId = wsId();
+          if (!prWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          let entry;
+          if (prrole === "editor") {
+            entry = presenceRegisterEditor(prWsId, clientId, prrt, prrid, prownerLabel);
+          } else {
+            entry = presenceRegisterViewer(prWsId, clientId, prrt, prrid);
+          }
+          respond({ entry });
+          const allEntries = presenceList(prWsId, prrt, prrid);
+          this.broadcast({
+            wsId: prWsId,
+            event: "presence:update",
+            data: { resourceType: prrt, resourceId: prrid, entries: allEntries },
+          });
           break;
         }
 
@@ -1165,3 +1349,19 @@ class WsBridge extends EventEmitter {
 }
 
 export const wsBridge = new WsBridge();
+
+// #880 Phase 3: draftStore に broadcast 関数を注入 (circular dep 回避)
+initDraftStoreBroadcast((opts) => wsBridge.broadcast(opts));
+
+// #880 Phase 3: shutdown 時に dirty shadow を flush する
+async function _flushAndExit(signal: string): Promise<void> {
+  console.error(`[WsBridge] ${signal}: flushing dirty drafts...`);
+  try {
+    await flushAllDirty();
+  } catch (e) {
+    console.error("[WsBridge] flushAllDirty error:", e);
+  }
+}
+
+process.on("SIGTERM", () => { _flushAndExit("SIGTERM").catch(() => {}); });
+process.on("SIGINT", () => { _flushAndExit("SIGINT").catch(() => {}); });
