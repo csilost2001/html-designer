@@ -21,6 +21,7 @@ import {
   LockNotHeldError,
 } from "./lockManager.js";
 import { execSync } from "child_process";
+import { platform } from "node:os";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import { renameScreenItemId, checkScreenItemRefs } from "./renameScreenItem.js";
 import {
@@ -97,8 +98,14 @@ type BrowserRequest = { type: "request"; id: string; method: string; params?: un
 const WS_PORT = parseInt(process.env.DESIGNER_MCP_PORT ?? "5179", 10);
 const TIMEOUT_MS = 10000;
 
-/** ポートを占有している古い backend プロセスを強制終了 */
+/** ポートを占有している古い backend プロセスを強制終了 (#846: WSL2/Linux/macOS 対応) */
 function killStaleProcessOnPort(port: number): boolean {
+  return platform() === "win32"
+    ? killStaleProcessOnPortWin32(port)
+    : killStaleProcessOnPortPosix(port);
+}
+
+function killStaleProcessOnPortWin32(port: number): boolean {
   try {
     const output = execSync(`netstat -ano -p tcp`, { encoding: "utf8", windowsHide: true });
     const lines = output.split(/\r?\n/);
@@ -130,6 +137,40 @@ function killStaleProcessOnPort(port: number): boolean {
     console.error("[WsBridge] killStaleProcessOnPort error:", e);
     return false;
   }
+}
+
+function killStaleProcessOnPortPosix(port: number): boolean {
+  // -sTCP:LISTEN は重要: これが無いと当該 port に接続中のクライアント PID も返り、
+  // 無関係なプロセス (例: HTTP MCP client) を巻き添えで kill してしまう。
+  // 該当無しで非ゼロ exit、未インストールで ENOENT。いずれも検出不能 = stale 無し扱いで return false。
+  let output: string;
+  try {
+    output = execSync(`lsof -ti tcp:${port} -sTCP:LISTEN`, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    return false;
+  }
+
+  const ownPid = process.pid;
+  const pids = new Set<number>();
+  for (const token of output.split(/\s+/)) {
+    const pid = parseInt(token, 10);
+    if (Number.isFinite(pid) && pid > 0 && pid !== ownPid) pids.add(pid);
+  }
+
+  if (pids.size === 0) return false;
+
+  for (const pid of pids) {
+    console.error(`[WsBridge] Killing stale process PID=${pid} on port ${port}`);
+    try {
+      execSync(`kill -9 ${pid}`, { stdio: "ignore" });
+    } catch (e) {
+      console.error(`[WsBridge] Failed to kill PID=${pid}:`, e);
+    }
+  }
+  return true;
 }
 
 function delay(ms: number): Promise<void> {
