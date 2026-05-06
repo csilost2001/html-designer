@@ -31,7 +31,7 @@ let tempFixtureDir: string | null = null;
 
 /**
  * テスト用 fixture workspace を os.tmpdir() 配下に作成する (#758)。
- * schemas/v3/project.v3.schema.json 準拠の最小 project.json を生成する。
+ * schemas/v3/harmony.v3.schema.json 準拠の最小 project.json を生成する。
  */
 async function createFixtureWorkspace(): Promise<string> {
   const tmpDir = await fs.mkdtemp(
@@ -42,13 +42,14 @@ async function createFixtureWorkspace(): Promise<string> {
   const subdirs = ["screens", "tables", "actions", "conventions", "sequences", "views", "view-definitions", "extensions"];
   await Promise.all(subdirs.map((d) => fs.mkdir(path.join(tmpDir, d), { recursive: true })));
 
-  // 最小 project.json (schemas/v3/project.v3.schema.json 準拠)
+  // 最小 project.json (schemas/v3/harmony.v3.schema.json 準拠)
   const ts = new Date().toISOString();
   const projectId = randomUUID();
   const name = "httpTransport-test-fixture";
   const project = {
-    $schema: "../schemas/v3/project.v3.schema.json",
+    $schema: "../schemas/v3/harmony.v3.schema.json",
     schemaVersion: "v3",
+    dataDir: "harmony",
     meta: {
       id: projectId,
       name,

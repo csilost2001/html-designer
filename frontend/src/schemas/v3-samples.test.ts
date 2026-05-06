@@ -28,7 +28,7 @@ beforeAll(() => {
   addFormats(ajv);
   ajv.addSchema(loadJson(join(v3Dir, "common.v3.schema.json")) as object);
   ajv.addSchema(loadJson(join(v3Dir, "screen-item.v3.schema.json")) as object);
-  validateProject = ajv.compile(loadJson(join(v3Dir, "project.v3.schema.json")) as object);
+  validateProject = ajv.compile(loadJson(join(v3Dir, "harmony.v3.schema.json")) as object);
   validateScreen = ajv.compile(loadJson(join(v3Dir, "screen.v3.schema.json")) as object);
   validateTable = ajv.compile(loadJson(join(v3Dir, "table.v3.schema.json")) as object);
   validateProcessFlow = ajv.compile(loadJson(join(v3Dir, "process-flow.v3.schema.json")) as object);
@@ -54,7 +54,7 @@ function listJsonRecursive(dir: string): string[] {
 }
 
 describe("schema v3 examples (#774: examples/ を canonical サンプル領域として使用)", () => {
-  it("project.json (retail + realestate) validates against project.v3.schema.json", () => {
+  it("project.json (retail + realestate) validates against harmony.v3.schema.json", () => {
     const files = [
       join(examplesDir, "retail", "project.json"),
       join(examplesDir, "realestate", "project.json"),

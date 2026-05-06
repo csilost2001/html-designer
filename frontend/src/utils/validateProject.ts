@@ -1,5 +1,5 @@
 /**
- * validateProject.ts — project.v3.schema.json に対する AJV バリデーション (#835)
+ * validateProject.ts — harmony.v3.schema.json に対する AJV バリデーション (#835, #850)
  *
  * persistFlowProject の save 直前に呼び出し、schema 違反の silent strip を防止する。
  * AJV は devDependencies 既存 (frontend/package.json)。
@@ -11,7 +11,7 @@ import Ajv2020 from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import type { Project } from "../types/v3/project";
 import commonSchema from "../../../schemas/v3/common.v3.schema.json";
-import projectSchema from "../../../schemas/v3/project.v3.schema.json";
+import projectSchema from "../../../schemas/v3/harmony.v3.schema.json";
 
 let _validateFn: ReturnType<InstanceType<typeof Ajv2020>["compile"]> | null = null;
 

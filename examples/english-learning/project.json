@@ -1,6 +1,7 @@
 {
-  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "$schema": "../../schemas/v3/harmony.v3.schema.json",
   "schemaVersion": "v3",
+  "dataDir": "harmony",
   "meta": {
     "id": "aa696474-b681-4400-aab7-b8e4eacea665",
     "name": "英会話学習アプリ",
@@ -11,15 +12,33 @@
     "maturity": "draft"
   },
   "extensionsApplied": [
-    { "namespace": "english-learning", "version": ">=1.0.0" }
+    {
+      "namespace": "english-learning",
+      "version": ">=1.0.0"
+    }
   ],
   "techStack": {
-    "designer": { "editorKind": "grapesjs", "cssFramework": "bootstrap" },
-    "backend":  { "language": "java", "framework": "spring-boot" },
-    "database": { "type": "postgresql", "version": "17" },
-    "frontend": { "library": "thymeleaf" },
-    "auth":     { "method": "session" },
-    "deployment": { "target": "docker" }
+    "designer": {
+      "editorKind": "grapesjs",
+      "cssFramework": "bootstrap"
+    },
+    "backend": {
+      "language": "java",
+      "framework": "spring-boot"
+    },
+    "database": {
+      "type": "postgresql",
+      "version": "17"
+    },
+    "frontend": {
+      "library": "thymeleaf"
+    },
+    "auth": {
+      "method": "session"
+    },
+    "deployment": {
+      "target": "docker"
+    }
   },
   "entities": {
     "screens": [

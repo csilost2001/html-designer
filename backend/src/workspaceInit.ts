@@ -32,7 +32,7 @@ export type WorkspaceInspectResult =
   | { status: "needsInit"; path: string }
   | { status: "notFound"; path: string };
 
-const PROJECT_SCHEMA_REF = "../schemas/v3/project.v3.schema.json";
+const PROJECT_SCHEMA_REF = "../schemas/v3/harmony.v3.schema.json";
 const SCHEMAS_DIR = path.resolve(import.meta.dirname, "../../schemas");
 
 let _validateProjectCache: ((data: unknown) => boolean) & { errors?: unknown } | null = null;
@@ -42,15 +42,15 @@ async function getProjectValidator(): Promise<((data: unknown) => boolean) & { e
   // strict: false で format 系 ($ref 解決に format 制約が含まれる) の警告を抑制
   // schemas/v3/*.schema.json は JSON Schema draft 2020-12 を使用 (Ajv2020 が必要)
   const ajv = new Ajv2020({ allErrors: true, strict: false });
-  // load schemas: project.v3 + common.v3 (referenced via $ref)
-  const projectSchema = JSON.parse(
-    await fs.readFile(path.join(SCHEMAS_DIR, "v3", "project.v3.schema.json"), "utf-8"),
+  // load schemas: harmony.v3 + common.v3 (referenced via $ref)
+  const harmonySchema = JSON.parse(
+    await fs.readFile(path.join(SCHEMAS_DIR, "v3", "harmony.v3.schema.json"), "utf-8"),
   );
   const commonSchema = JSON.parse(
     await fs.readFile(path.join(SCHEMAS_DIR, "v3", "common.v3.schema.json"), "utf-8"),
   );
   ajv.addSchema(commonSchema);
-  const validate = ajv.compile(projectSchema);
+  const validate = ajv.compile(harmonySchema);
   _validateProjectCache = validate as ((data: unknown) => boolean) & { errors?: unknown };
   return _validateProjectCache;
 }
@@ -143,6 +143,7 @@ export async function initializeWorkspace(folderPath: string): Promise<Initializ
   const project = {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3" as const,
+    dataDir: "harmony" as const,
     meta: {
       id: projectId,
       name,
@@ -167,7 +168,7 @@ export async function initializeWorkspace(folderPath: string): Promise<Initializ
   const validate = await getProjectValidator();
   if (!validate(project)) {
     throw new Error(
-      `初期 project.json が schemas/v3/project.v3.schema.json に違反: ${JSON.stringify(validate.errors)}`,
+      `初期 harmony.json が schemas/v3/harmony.v3.schema.json に違反: ${JSON.stringify(validate.errors)}`,
     );
   }
   await fs.writeFile(projectFilePath, JSON.stringify(project, null, 2), "utf-8");

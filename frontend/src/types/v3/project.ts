@@ -1,7 +1,7 @@
 /**
- * v3 Project 型定義 (`schemas/v3/project.v3.schema.json` と 1:1 対応)
+ * v3 Project 型定義 (`schemas/v3/harmony.v3.schema.json` と 1:1 対応)
  *
- * 参考: schemas/v3/project.v3.schema.json
+ * 参考: schemas/v3/harmony.v3.schema.json
  */
 
 import type {
@@ -197,11 +197,17 @@ export interface ProjectTechStack {
   deployment?: TechStackDeployment;
 }
 
-/** 業務システム 1 案件の root 定義。`data/project.json` に対応。 */
+/** 業務システム 1 案件の root 定義。ワークスペースルートの `harmony.json` に対応。 */
 export interface Project {
   $schema?: string;
   /** 本プロジェクトが使う schema バージョン。 */
   schemaVersion: "v3";
+  /**
+   * 設計データ格納サブディレクトリ (ワークスペースルートからの相対パス)。
+   * 推奨慣習は `"harmony"`。
+   * 絶対パス・path traversal (`..` セグメント)・空文字・`"."` 単独は禁止。
+   */
+  dataDir: string;
   meta: ProjectMeta;
   /**
    * 本プロジェクトが適用する拡張 namespace 一覧 (version 制約付き)。

@@ -14,7 +14,7 @@ schemas/
 │   ├── screen.v3.schema.json
 │   ├── screen-item.v3.schema.json
 │   ├── table.v3.schema.json
-│   ├── project.v3.schema.json
+│   ├── harmony.v3.schema.json
 │   ├── view-definition.v3.schema.json
 │   └── README.md
 └── README.md (本ファイル)

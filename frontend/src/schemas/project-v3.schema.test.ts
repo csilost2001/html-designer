@@ -17,7 +17,7 @@ beforeAll(() => {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   ajv.addSchema(loadJson(join(v3Dir, "common.v3.schema.json")) as object);
-  validateProject = ajv.compile(loadJson(join(v3Dir, "project.v3.schema.json")) as object);
+  validateProject = ajv.compile(loadJson(join(v3Dir, "harmony.v3.schema.json")) as object);
 });
 
 function dumpErrors(file: string): string {
@@ -25,8 +25,8 @@ function dumpErrors(file: string): string {
   return `${file}\n${errs.map((e) => `  ${e.instancePath || "<root>"} ${e.keyword}: ${e.message ?? ""}`).join("\n")}`;
 }
 
-describe("project v3 schema", () => {
-  it("data/project.json が存在する場合は project.v3.schema.json に適合する", () => {
+describe("project v3 schema (harmony.v3.schema.json)", () => {
+  it("data/project.json が存在する場合は harmony.v3.schema.json に適合する", () => {
     const file = join(repoRoot, "data/project.json");
     if (!existsSync(file)) {
       expect(true).toBe(true);
@@ -43,10 +43,11 @@ describe("project v3 schema", () => {
     expect(ok, ok ? "" : dumpErrors(file)).toBe(true);
   });
 
-  it("empty project fixture validates against project.v3.schema.json", () => {
+  it("empty project fixture validates against harmony.v3.schema.json", () => {
     const fixture = {
-      $schema: "../schemas/v3/project.v3.schema.json",
+      $schema: "../schemas/v3/harmony.v3.schema.json",
       schemaVersion: "v3",
+      dataDir: "harmony",
       meta: {
         id: "11111111-1111-4111-8111-111111111111",
         name: "新規プロジェクト",

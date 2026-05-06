@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/project.v3.schema.json",
-  "title": "Project (v3 プロジェクト root)",
-  "description": "業務システム 1 案件の root 定義。data/project.json に対応。プロジェクト全体のメタ・参照する entity 一覧 (各 entity は別ファイル) を集約する。各 entity の中身は別 schema 参照。",
+  "$id": "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/harmony.v3.schema.json",
+  "title": "Harmony Workspace Marker (v3)",
+  "description": "ワークスペースルートを識別する marker ファイル (harmony.json) の定義。ワークスペースフォルダの root に単独で配置する。設計データは dataDir で指定したサブディレクトリ配下に格納される。",
   "type": "object",
-  "required": ["meta", "schemaVersion"],
+  "required": ["schemaVersion", "meta", "dataDir"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
@@ -12,11 +12,18 @@
     "schemaVersion": {
       "type": "string",
       "enum": ["v3"],
-      "description": "本プロジェクトが使う schema バージョン。loader は本値で schemas/v3/ を選択する。"
+      "description": "本ワークスペースが使う schema バージョン。loader は本値で schemas/v3/ を選択する。"
+    },
+
+    "dataDir": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.{1,2}(/|$))(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "description": "設計データを格納するサブディレクトリのパス (ワークスペースルートからの相対パス)。例: 'harmony' / 'docs/harmony'。推奨慣習は 'harmony'。絶対パス・path traversal (..セグメント)・空文字・'.' 単独は禁止。"
     },
 
     "meta": {
-      "description": "プロジェクト identity と運用設定。",
+      "description": "ワークスペース identity と運用設定。",
       "allOf": [
         { "$ref": "common.v3.schema.json#/$defs/EntityMeta" }
       ],
@@ -30,11 +37,11 @@
     "extensionsApplied": {
       "type": "array",
       "items": { "$ref": "common.v3.schema.json#/$defs/ExtensionApplied" },
-      "description": "本プロジェクトが適用する拡張 namespace 一覧 (version 制約付き object)。例: [{ namespace: 'retail', version: '>=2.0.0' }]。loader は data/extensions/<ns>.v3.json (または data/extensions/<ns>/*.v3.json 分割) を読み、version 制約と突合の上で core schema と合成する。"
+      "description": "本プロジェクトが適用する拡張 namespace 一覧 (version 制約付き object)。例: [{ namespace: 'retail', version: '>=2.0.0' }]。loader は <dataDir>/extensions/<ns>.v3.json (または <dataDir>/extensions/<ns>/*.v3.json 分割) を読み、version 制約と突合の上で core schema と合成する。"
     },
 
     "entities": {
-      "description": "プロジェクトが保持する各 entity への参照一覧。各 entity の本体は別ファイル (data/screens/<id>.json 等) に格納される。本セクションは entity の存在と表示用メタ (一覧 UI で使う) を集約する。",
+      "description": "プロジェクトが保持する各 entity への参照一覧。各 entity の本体は別ファイル (<dataDir>/screens/<id>.json 等) に格納される。本セクションは entity の存在と表示用メタ (一覧 UI で使う) を集約する。",
       "type": "object",
       "additionalProperties": false,
       "properties": {

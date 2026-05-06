@@ -1,6 +1,7 @@
 {
-  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "$schema": "../../schemas/v3/harmony.v3.schema.json",
   "schemaVersion": "v3",
+  "dataDir": "harmony",
   "meta": {
     "id": "b8894d2c-d0b5-4a14-8068-64b66011c29e",
     "name": "リテール総合 (EC + 店舗 POS + 在庫管理)",
@@ -11,15 +12,33 @@
     "maturity": "draft"
   },
   "extensionsApplied": [
-    { "namespace": "retail", "version": ">=1.0.0" }
+    {
+      "namespace": "retail",
+      "version": ">=1.0.0"
+    }
   ],
   "techStack": {
-    "designer": { "editorKind": "grapesjs", "cssFramework": "bootstrap" },
-    "backend":  { "language": "java", "framework": "spring-boot" },
-    "database": { "type": "postgresql", "version": "17" },
-    "frontend": { "library": "thymeleaf" },
-    "auth":     { "method": "session" },
-    "deployment": { "target": "docker" }
+    "designer": {
+      "editorKind": "grapesjs",
+      "cssFramework": "bootstrap"
+    },
+    "backend": {
+      "language": "java",
+      "framework": "spring-boot"
+    },
+    "database": {
+      "type": "postgresql",
+      "version": "17"
+    },
+    "frontend": {
+      "library": "thymeleaf"
+    },
+    "auth": {
+      "method": "session"
+    },
+    "deployment": {
+      "target": "docker"
+    }
   },
   "entities": {
     "screens": [

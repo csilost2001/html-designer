@@ -1,6 +1,7 @@
 {
-  "$schema": "../../schemas/v3/project.v3.schema.json",
+  "$schema": "../../schemas/v3/harmony.v3.schema.json",
   "schemaVersion": "v3",
+  "dataDir": "harmony",
   "meta": {
     "id": "5352b9ca-92d1-43c1-aed7-02a1fdbea85a",
     "name": "英会話学習アプリ (Tailwind 版)",
@@ -11,15 +12,34 @@
     "maturity": "draft"
   },
   "extensionsApplied": [
-    { "namespace": "english-learning", "version": ">=1.0.0" }
+    {
+      "namespace": "english-learning",
+      "version": ">=1.0.0"
+    }
   ],
   "techStack": {
-    "designer": { "editorKind": "puck", "cssFramework": "tailwind" },
-    "backend":  { "language": "typescript", "framework": "nestjs" },
-    "database": { "type": "postgresql", "version": "17" },
-    "frontend": { "library": "react", "framework": "next" },
-    "auth":     { "method": "jwt" },
-    "deployment": { "target": "docker" }
+    "designer": {
+      "editorKind": "puck",
+      "cssFramework": "tailwind"
+    },
+    "backend": {
+      "language": "typescript",
+      "framework": "nestjs"
+    },
+    "database": {
+      "type": "postgresql",
+      "version": "17"
+    },
+    "frontend": {
+      "library": "react",
+      "framework": "next"
+    },
+    "auth": {
+      "method": "jwt"
+    },
+    "deployment": {
+      "target": "docker"
+    }
   },
   "entities": {
     "screens": [

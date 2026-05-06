@@ -42,7 +42,9 @@ const ENTITY_TO_SCHEMA: Record<string, string> = {
 };
 
 const SINGLETON_FILES: Record<string, string> = {
-  "project.json": "project.v3.schema.json",
+  // R-4 以降: project.json は harmony.json にリネームされる予定。
+  // R-1 時点では既存 project.json を harmony.v3.schema.json で検証 (R-4 完了まで過渡期)
+  "project.json": "harmony.v3.schema.json",
   "screen-layout.json": "screen-layout.v3.schema.json",
 };
 

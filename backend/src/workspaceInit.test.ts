@@ -122,7 +122,7 @@ describe("initializeWorkspace", () => {
     expect(re.meta.name).toBe("Existing");
   });
 
-  it("生成された project.json は schemas/v3/project.v3.schema.json で検証 pass", async () => {
+  it("生成された project.json は schemas/v3/harmony.v3.schema.json で検証 pass", async () => {
     const dir = path.join(TMP_ROOT, "validated");
     await initializeWorkspace(dir);
     // 検証は initializeWorkspace 内で実行済 (失敗時は throw)。ここでは追加のスキーマ違反例を
@@ -130,6 +130,7 @@ describe("initializeWorkspace", () => {
     const proj = JSON.parse(await fs.readFile(path.join(dir, "project.json"), "utf-8"));
     expect(proj.meta.maturity).toBe("draft");
     expect(proj.meta.mode).toBe("upstream");
+    expect(proj.dataDir).toBe("harmony");
     expect(Array.isArray(proj.entities.screens)).toBe(true);
   });
 });
@@ -241,7 +242,7 @@ describe("autoActivateOnStartup (#754)", () => {
 });
 
 describe("_internals", () => {
-  it("PROJECT_SCHEMA_REF は schemas/v3/project.v3.schema.json への相対パスを含む", () => {
-    expect(_internals.PROJECT_SCHEMA_REF).toContain("project.v3.schema.json");
+  it("PROJECT_SCHEMA_REF は schemas/v3/harmony.v3.schema.json への相対パスを含む", () => {
+    expect(_internals.PROJECT_SCHEMA_REF).toContain("harmony.v3.schema.json");
   });
 });

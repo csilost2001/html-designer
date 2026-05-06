@@ -88,7 +88,7 @@ const FLOW_PROJECT_KEY = "v3-project";
 const LEGACY_FLOW_PROJECT_KEY = "flow-project";
 const SCREEN_DATA_PREFIX = "gjs-screen-";
 const LEGACY_KEY = "gjs-designer-project";
-const PROJECT_SCHEMA_REF = "../schemas/v3/project.v3.schema.json";
+const PROJECT_SCHEMA_REF = "../schemas/v3/harmony.v3.schema.json";
 
 export const DEFAULT_NODE_SIZE = { width: 200, height: 100 };
 
@@ -249,6 +249,8 @@ export function decomposeFlowProject(
   const persisted: Project = {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3",
+    // dataDir を既存から保持。存在しない場合は推奨デフォルト "harmony"
+    dataDir: existingRaw?.dataDir ?? "harmony",
     meta: {
       // existingRaw.meta.id を保持。新規プロジェクト or existing なし時は generateUUID()
       id: (existingRaw?.meta?.id ?? generateUUID()) as ProjectId,
@@ -430,6 +432,7 @@ export function legacyToProject(legacy: LegacyFlowProject): Project {
   return {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3",
+    dataDir: "harmony",
     meta: {
       id: generateUUID() as ProjectId,
       name: legacy.name,
