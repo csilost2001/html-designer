@@ -109,6 +109,30 @@ export function EditSessionDropdown({
     [resourceType, resourceId, onViewerAttached],
   );
 
+  // ── [↪ 引継] — 現 lock owner から lock を引き継ぐ (#884 Phase 6) ──────────
+  const handleTakeOver = useCallback(
+    async (entry: PresenceEntry) => {
+      const confirmed = window.confirm(
+        `@${entry.ownerLabel ?? entry.sessionId} さんの編集権を引き継ぎます。\n` +
+        `現在の編集状態 (draft) はそのまま引き継がれます。\n` +
+        `${entry.ownerLabel ?? entry.sessionId} さんには通知が届きます。よろしいですか?`,
+      );
+      if (!confirmed) return;
+      try {
+        await mcpBridge.request("lock.transferLock", {
+          resourceType,
+          resourceId,
+          fromSessionId: entry.sessionId,
+        });
+        // 本セッションは editor mode に昇格 (broadcast 経由で useEditSession が反応)
+        setOpen(false);
+      } catch (e) {
+        console.error("[EditSessionDropdown] transferLock failed:", e);
+      }
+    },
+    [resourceType, resourceId],
+  );
+
   // ── [▶ 再開] — 自分の前回 draft session に attach ────────────────────────
   const handleResume = useCallback(async () => {
     if (onStartEditing) {
@@ -206,13 +230,13 @@ export function EditSessionDropdown({
                     </button>
                   )}
 
-                  {/* [↪ 引継]: Phase 6 (#884) で活性化予定 — 現在は disabled */}
+                  {/* [↪ 引継]: Phase 6 (#884) で活性化 */}
                   {!isMe && isEditor && (
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-warning esd-action-btn ms-1"
-                      disabled
-                      title="Phase 6 で実装予定"
+                      onClick={() => void handleTakeOver(entry)}
+                      title="編集権を引き継ぐ"
                       data-testid={`esd-takeover-btn-${entry.sessionId}`}
                     >
                       ↪

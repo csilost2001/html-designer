@@ -39,6 +39,15 @@ export class LockNotHeldError extends Error {
   }
 }
 
+export class LockOwnerMismatchError extends Error {
+  constructor(resourceType: DraftResourceType, resourceId: string, expectedOwner: string, actualOwner: string) {
+    super(
+      `${resourceType}:${resourceId} のロック owner は ${actualOwner} ですが、${expectedOwner} として操作しようとしました`,
+    );
+    this.name = "LockOwnerMismatchError";
+  }
+}
+
 const locks = new Map<LockKey, LockEntry>();
 
 // viewer subscriptions: Map<resourceKey, Map<sessionId, ViewerEntry>>
@@ -174,4 +183,45 @@ export function listViewers(
   const sessionMap = viewers.get(key);
   if (!sessionMap) return [];
   return Array.from(sessionMap.values());
+}
+
+/**
+ * ロックを現 owner (fromSessionId) から新 owner (toSessionId) に譲渡する。
+ * docs/spec/collab-presence.md § 8 Take-over フロー に準拠。
+ *
+ * - fromSessionId がロックを保持していない: LockNotHeldError
+ * - 実際の owner が fromSessionId と異なる: LockOwnerMismatchError
+ * - toSessionId が viewer 登録されている場合は自動 unsubscribe する (editor に昇格)
+ *
+ * @returns transferred: true と previousOwner を返す
+ */
+export function transferLock(
+  fromSessionId: string,
+  toSessionId: string,
+  resourceType: DraftResourceType,
+  resourceId: string,
+): { transferred: true; previousOwner: string } {
+  const key = makeKey(resourceType, resourceId);
+  const existing = locks.get(key);
+
+  if (!existing) {
+    throw new LockNotHeldError(resourceType, resourceId, fromSessionId);
+  }
+  if (existing.ownerSessionId !== fromSessionId) {
+    throw new LockOwnerMismatchError(resourceType, resourceId, fromSessionId, existing.ownerSessionId);
+  }
+
+  // update: delete & re-acquire ではなく update でセマンティクス保持 (acquiredAt は引継)
+  const newLock: LockEntry = {
+    ...existing,
+    ownerSessionId: toSessionId,
+    actorSessionId: toSessionId,
+    acquiredAt: new Date().toISOString(),
+  };
+  locks.set(key, newLock);
+
+  // viewer 一覧から to 側を unsubscribe (もし viewer 状態だったら editor に昇格)
+  unsubscribeViewer(toSessionId, resourceType, resourceId);
+
+  return { transferred: true, previousOwner: fromSessionId };
 }

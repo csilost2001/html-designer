@@ -139,13 +139,13 @@ describe("EditSessionDropdown", () => {
     expect(onViewerAttached).toHaveBeenCalledWith("session-alice");
   });
 
-  it("[↪ 引継] ボタンは disabled になっている (Phase 6 で activate 予定)", () => {
+  it("[↪ 引継] ボタンは active になっている (#884 Phase 6 で活性化済)", () => {
     const editorEntry = makeEntry({ sessionId: "session-alice", role: "editor" });
     mockEntries = [editorEntry];
     render(<EditSessionDropdown {...defaultProps} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
     const takeoverBtn = screen.getByTestId(`esd-takeover-btn-session-alice`);
-    expect((takeoverBtn as HTMLButtonElement).disabled).toBe(true);
+    expect((takeoverBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("自分のエントリには [▶ 再開] ボタンが表示される", () => {

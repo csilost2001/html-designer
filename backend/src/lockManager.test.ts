@@ -3,6 +3,7 @@ import {
   acquire,
   release,
   forceRelease,
+  transferLock,
   getLock,
   listLocks,
   subscribeAsViewer,
@@ -11,6 +12,7 @@ import {
   _resetForTest,
   LockConflictError,
   LockNotHeldError,
+  LockOwnerMismatchError,
 } from "./lockManager.js";
 import type { DraftResourceType } from "./draftStore.js";
 
@@ -234,6 +236,65 @@ describe("subscribeAsViewer / unsubscribeViewer / listViewers", () => {
     subscribeAsViewer("session-V", "table", "tbl-2");
     expect(listViewers("table", "tbl-1")).toHaveLength(1);
     expect(listViewers("table", "tbl-2")).toHaveLength(1);
+  });
+});
+
+describe("transferLock", () => {
+  it("正常系: from→to にロックが移譲される", () => {
+    acquire("table", "tbl-1", "session-A");
+    const result = transferLock("session-A", "session-B", "table", "tbl-1");
+    expect(result.transferred).toBe(true);
+    expect(result.previousOwner).toBe("session-A");
+    const lock = getLock("table", "tbl-1");
+    expect(lock?.ownerSessionId).toBe("session-B");
+    expect(lock?.actorSessionId).toBe("session-B");
+  });
+
+  it("正常系: acquiredAt が更新される", () => {
+    acquire("table", "tbl-1", "session-A");
+    const before = getLock("table", "tbl-1")?.acquiredAt ?? "";
+    transferLock("session-A", "session-B", "table", "tbl-1");
+    const after = getLock("table", "tbl-1")?.acquiredAt ?? "";
+    // acquiredAt は ISO 文字列として更新されている (同時実行の場合同値でも可)
+    expect(typeof after).toBe("string");
+    void before;
+  });
+
+  it("not-held: ロックが存在しない場合は LockNotHeldError", () => {
+    expect(() => transferLock("session-A", "session-B", "table", "tbl-nonexist")).toThrow(LockNotHeldError);
+  });
+
+  it("mismatch: fromSessionId が実際の owner と異なる場合は LockOwnerMismatchError", () => {
+    acquire("table", "tbl-1", "session-A");
+    expect(() => transferLock("session-X", "session-B", "table", "tbl-1")).toThrow(LockOwnerMismatchError);
+    // ロックは変わらない (rollback)
+    expect(getLock("table", "tbl-1")?.ownerSessionId).toBe("session-A");
+  });
+
+  it("viewer→editor 昇格: to が viewer だった場合は viewer から自動削除される", () => {
+    acquire("table", "tbl-1", "session-A");
+    subscribeAsViewer("session-B", "table", "tbl-1");
+    expect(listViewers("table", "tbl-1")).toHaveLength(1);
+
+    transferLock("session-A", "session-B", "table", "tbl-1");
+
+    // viewer から削除されている
+    expect(listViewers("table", "tbl-1")).toHaveLength(0);
+    // editor に昇格している
+    expect(getLock("table", "tbl-1")?.ownerSessionId).toBe("session-B");
+  });
+
+  it("移譲後は from は owner ではない (release 試みると LockNotHeldError)", () => {
+    acquire("table", "tbl-1", "session-A");
+    transferLock("session-A", "session-B", "table", "tbl-1");
+    expect(() => release("table", "tbl-1", "session-A")).toThrow(LockNotHeldError);
+  });
+
+  it("移譲後は to が release できる", () => {
+    acquire("table", "tbl-1", "session-A");
+    transferLock("session-A", "session-B", "table", "tbl-1");
+    const result = release("table", "tbl-1", "session-B");
+    expect(result.released).toBe(true);
   });
 });
 

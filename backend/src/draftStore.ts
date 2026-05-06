@@ -492,6 +492,83 @@ export async function hasDraft(clientId: string, type: DraftResourceType, id: st
   }
 }
 
+/**
+ * draft を fromSessionId から toSessionId に譲渡する。
+ * docs/spec/collab-presence.md § 8 Take-over フロー に準拠。
+ *
+ * - shadow store: `${fromSessionId}:${type}:${id}` を `${toSessionId}:${type}:${id}` に rename
+ * - FS: from 側 .drafts/<type>/<id>.json を to 側に move (atomic rename, fallback copy+delete)
+ * - flushTimer も移譲、再スケジュール
+ * - 元 owner からは draft が消える (move なので)
+ */
+export async function transferDraft(
+  fromSessionId: string,
+  toSessionId: string,
+  type: DraftResourceType,
+  id: string,
+): Promise<void> {
+  const fromKey = shadowKey(fromSessionId, type, id);
+  const toKey = shadowKey(toSessionId, type, id);
+
+  const fromEntry = shadow.get(fromKey);
+
+  // shadow エントリを移譲
+  if (fromEntry) {
+    // from 側の flush timer をキャンセル
+    if (fromEntry.flushTimer !== null) {
+      clearTimeout(fromEntry.flushTimer);
+    }
+    shadow.delete(fromKey);
+
+    // to 側の既存エントリ (viewer だった場合) の timer をキャンセル
+    const toExisting = shadow.get(toKey);
+    if (toExisting?.flushTimer !== null && toExisting?.flushTimer !== undefined) {
+      clearTimeout(toExisting.flushTimer);
+    }
+
+    // to 側に新エントリを作成 (dirty=true で再スケジュール)
+    const newFlushTimer = setTimeout(() => {
+      flushDraft(toSessionId, type, id).catch((e) => {
+        console.error(`[draftStore] transferDraft flushDraft error (${type}/${id}):`, e);
+      });
+    }, FLUSH_INTERVAL_MS);
+
+    shadow.set(toKey, {
+      ...fromEntry,
+      clientId: toSessionId,
+      dirty: true,
+      flushTimer: newFlushTimer,
+    });
+  }
+
+  // FS 側: draft ファイルを from 側から to 側に move
+  const fromRoot = resolveRoot(fromSessionId);
+  const toRoot = resolveRoot(toSessionId);
+  const fromPath = draftPath(fromRoot, type, id);
+  const toPath = draftPath(toRoot, type, id);
+
+  try {
+    await ensureDraftDir(toRoot, type);
+    try {
+      // atomic rename (同一ファイルシステム内の場合)
+      await fs.rename(fromPath, toPath);
+    } catch {
+      // cross-device の場合は copy + delete
+      try {
+        const content = await fs.readFile(fromPath, "utf-8");
+        await atomicWrite(toPath, JSON.parse(content));
+        await fs.unlink(fromPath).catch(() => {});
+      } catch {
+        // from 側に FS draft が無いのは shadow のみの場合 (初回 update 後 FS write 前) — 無視
+      }
+    }
+  } catch (e) {
+    console.error(`[draftStore] transferDraft FS move error (${type}/${id}):`, e);
+    // FS move 失敗は shadow 移譲が成功していれば致命的ではない。
+    // 次回 flush 時に to 側の root に書き直される。
+  }
+}
+
 /** 全 draft を列挙する。 */
 export async function listDrafts(clientId: string): Promise<Array<{ type: DraftResourceType; id: string; mtimeMs: number }>> {
   const root = resolveRoot(clientId);

@@ -10,6 +10,7 @@ import {
   hasDraft,
   listDrafts,
   flushAllDirty,
+  transferDraft,
   initDraftStoreBroadcast,
   type DraftResourceType,
 } from "./draftStore.js";
@@ -17,6 +18,7 @@ import {
   acquire as lockAcquire,
   release as lockRelease,
   forceRelease as lockForceRelease,
+  transferLock as lockTransferLock,
   getLock,
   listLocks,
   subscribeAsViewer as lockSubscribeAsViewer,
@@ -24,6 +26,7 @@ import {
   listViewers as lockListViewers,
   LockConflictError,
   LockNotHeldError,
+  LockOwnerMismatchError,
 } from "./lockManager.js";
 import {
   registerEditor as presenceRegisterEditor,
@@ -54,6 +57,7 @@ import {
   inspectWorkspacePath,
   initializeWorkspace as initializeWorkspaceFolder,
 } from "./workspaceInit.js";
+import { reassignOnBehalfOf } from "./onBehalfOfSession.js";
 import {
   readProject,
   writeProject,
@@ -1139,6 +1143,50 @@ class WsBridge extends EventEmitter {
           const { resourceType: lvrt, resourceId: lvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
           const viewerList = lockListViewers(lvrt, lvrid);
           respond({ viewers: viewerList });
+          break;
+        }
+        case "lock.transferLock": {
+          // spec § 8.1: viewer (新 owner = caller) が現 lock owner (from) からロックを引き継ぐ
+          // params: { resourceType, resourceId, fromSessionId }
+          // fromSessionId = 現 lock owner (alice)、callerSessionId (clientId) = 新 owner (bob)
+          const { resourceType: tlrt, resourceId: tlrid, fromSessionId: tlFrom } =
+            (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; fromSessionId: string };
+          const tlWsId = wsId();
+          try {
+            const tlResult = lockTransferLock(tlFrom, clientId, tlrt, tlrid);
+            // draft の移譲 (shadow + FS)
+            await transferDraft(tlFrom, clientId, tlrt, tlrid);
+            // AI onBehalfOfSession reassign (option A: actor 引継ぎ)
+            reassignOnBehalfOf(tlFrom, clientId);
+            respond(tlResult);
+            const viewerCount = lockListViewers(tlrt, tlrid).length;
+            this.broadcast({
+              wsId: tlWsId,
+              event: "lock.changed",
+              data: {
+                resourceType: tlrt,
+                resourceId: tlrid,
+                op: "transferred",
+                ownerSessionId: clientId,
+                by: clientId,
+                previousOwner: tlFrom,
+                viewerCount,
+              },
+            });
+            // presence も更新
+            if (tlWsId) {
+              presenceUnregister(tlWsId, tlFrom, tlrt, tlrid);
+              presenceRegisterEditor(tlWsId, clientId, tlrt, tlrid);
+              const presenceEntries = presenceList(tlWsId, tlrt, tlrid);
+              this.broadcast({ wsId: tlWsId, event: "presence:update", data: { resourceType: tlrt, resourceId: tlrid, entries: presenceEntries } });
+            }
+          } catch (e) {
+            if (e instanceof LockNotHeldError || e instanceof LockOwnerMismatchError) {
+              respondError(e.message);
+            } else {
+              throw e;
+            }
+          }
           break;
         }
 

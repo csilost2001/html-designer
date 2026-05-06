@@ -139,7 +139,7 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
       const d = data as {
         resourceType: string;
         resourceId: string;
-        op: "acquired" | "released" | "force-released" | "viewer-joined" | "viewer-left";
+        op: "acquired" | "released" | "force-released" | "transferred" | "viewer-joined" | "viewer-left";
         ownerSessionId?: string;
         by: string;
         previousOwner?: string;
@@ -182,6 +182,22 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
           if (current.kind !== "viewer") {
             setMode({ kind: "readonly" });
           }
+        }
+        return;
+      }
+
+      if (d.op === "transferred") {
+        const previousOwner = d.previousOwner ?? "";
+        const newOwner = d.ownerSessionId ?? d.by ?? "";
+
+        if (previousOwner === sessionId) {
+          // 自分が引き継がれた側 (元 owner): editing → viewer に自動 fallback
+          mcpBridge.request("lock.subscribeAsViewer", { resourceType, resourceId }).catch(() => {});
+          setMode({ kind: "viewer" });
+        } else if (newOwner === sessionId) {
+          // 自分が新 owner (caller): viewer → editing に自動 promote
+          // lock は既に lockManager に登録済み、lock 取り直しは不要
+          setMode({ kind: "editing" });
         }
         return;
       }
