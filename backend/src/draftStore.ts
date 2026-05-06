@@ -48,7 +48,7 @@ const DRAFTS_SUBDIR = ".drafts";
 export interface DraftUpdateBroadcastData {
   resourceType: DraftResourceType;
   resourceId: string;
-  sequence: number;        // monotonic per (clientId, resourceType, resourceId)
+  sequence: number;        // monotonic per shadow entry key = `${clientId}:${type}:${id}` (per-key スコープ)
   payload: unknown;        // opaque (server は中身を解釈しない)
   senderSessionId: string; // editor の clientId
 }
@@ -89,7 +89,11 @@ interface ShadowEntry {
   wsId: string | null;
 }
 
-/** key = `${clientId}:${type}:${id}` */
+/**
+ * key = `${clientId}:${type}:${id}`
+ * sequence カウンターはこの per-key スコープで独立して増分する。
+ * 同一 clientId でも resourceType / resourceId が異なれば別カウンター。
+ */
 const shadow = new Map<string, ShadowEntry>();
 
 function shadowKey(clientId: string, type: DraftResourceType, id: string): string {

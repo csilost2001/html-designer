@@ -353,6 +353,11 @@ export function cleanupAbandoned(
     }
   }
 
+  // 定常的な cleanup ログは info レベルに抑制 (warn は noisy になるため使わない)
+  if (removed.length > 0) {
+    console.info(`[presenceManager] cleanupAbandoned: removed ${removed.length} abandoned entries`);
+  }
+
   return removed;
 }
 

@@ -243,6 +243,9 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
   }, [reload]);
 
   // #880 Phase 3: viewer mode — draft-update broadcast を受信して state を更新する (sequence reorder 破棄)
+  // lastSeq は effect の再実行 (viewer attach) ごとに 0 リセットする。
+  // これは viewer attach 時にサーバから最新 snapshot を再受信する想定のため、
+  // 旧 sequence との連続性を保つ必要がなく、常に最初の update から受け入れる。
   useEffect(() => {
     if (viewerMode !== "viewer" || !id || !viewerResourceType) return;
     let lastSeq = 0;
