@@ -1344,20 +1344,21 @@ export const tools = [
   },
   {
     name: "designer__workspace_open",
-    description: "指定 path または id のワークスペースを active にし、recent に upsert します。init=true 指定時は path のフォルダを作成し project.json を初期化してから open します。lockdown モード時は error を返します。",
+    description: "指定 path または id のワークスペースを active にし、recent に upsert します。init=true 指定時は path のフォルダを作成し harmony.json を初期化してから open します。lockdown モード時は error を返します。",
     inputSchema: {
       type: "object" as const,
       properties: {
         path: { type: "string", description: "ワークスペースの絶対パス。id と排他、どちらか必須。" },
         id: { type: "string", description: "recent 上の workspace id。path と排他。" },
-        init: { type: "boolean", description: "true の場合、path のフォルダ作成と project.json 初期化を行ってから open します (path 必須)。" },
+        init: { type: "boolean", description: "true の場合、path のフォルダ作成と harmony.json 初期化を行ってから open します (path 必須)。" },
+        dataDir: { type: "string", description: "init=true 時のデータディレクトリ名 (省略時: 'harmony')。harmony.json の dataDir フィールドに設定されます。" },
       },
       required: [],
     },
   },
   {
     name: "designer__workspace_inspect",
-    description: "指定 path のフォルダ状態を判定して返します。status は 'ready' (project.json あり), 'needsInit' (フォルダのみ), 'notFound' (フォルダ無し) のいずれか。",
+    description: "指定 path のフォルダ状態を判定して返します。status は 'ready' (harmony.json あり + schema 検証 pass), 'needsInit' (harmony.json なし), 'notFound' (フォルダ無し), 'invalid' (harmony.json が JSON 不正 or schema 違反) のいずれか。",
     inputSchema: {
       type: "object" as const,
       properties: {
