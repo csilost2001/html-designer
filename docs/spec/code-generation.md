@@ -3,7 +3,7 @@
 `project.techStack` に基づく AI コード生成の指針を定義する。
 
 実装状況: `project.techStack` スキーマは #826 で導入済み。
-`/generate-code <flowId|screenId>` スキル実装は後続 ISSUE にて対応予定。
+`/generate-code <flowId|screenId>` スキル本体は #832 で実装済 (`.claude/skills/generate-code/`)。
 
 ---
 
@@ -220,7 +220,7 @@ Step 6: smoke 検証 (Java 構文目視 / Thymeleaf XML パース / tsc dry)
 
 ---
 
-## 8. ProcessFlow → backend mapping ルール
+## 7. ProcessFlow → backend mapping ルール
 
 ProcessFlow JSON の step kind ごとのコード生成方針。詳細は `.claude/skills/generate-code/SKILL.md` Step 3-A を参照。
 
@@ -261,7 +261,7 @@ action.httpRoute.auth: "required" → Spring Security 設定 / @UseGuards(Sessio
 
 ---
 
-## 9. Screen → frontend mapping ルール
+## 8. Screen → frontend mapping ルール
 
 Screen JSON の `kind` フィールドとテンプレート分岐。詳細は `.claude/skills/generate-code/SKILL.md` Step 3-B を参照。
 
@@ -298,7 +298,7 @@ Screen JSON の `kind` フィールドとテンプレート分岐。詳細は `.
 
 ---
 
-## 10. 出力ディレクトリ規約
+## 9. 出力ディレクトリ規約
 
 生成コードは `.tmp/generated-code/` (または `/generate-code` 第2引数) に書き出す。
 プロジェクトルート直置き禁止 (AGENTS.md 一時ファイル配置ルール準拠)。
@@ -332,7 +332,7 @@ Screen JSON の `kind` フィールドとテンプレート分岐。詳細は `.
 
 ---
 
-## 11. 検証方法
+## 10. 検証方法
 
 ### `/generate-code` スキルの smoke 検証 (Step 6)
 
