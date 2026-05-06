@@ -161,7 +161,7 @@ broadcast({
 | event | 配信元 | 配信先 |
 |-------|--------|--------|
 | `workspace.changed` | `wsBridge.workspace.open` / `workspace.close` | actor の新 / 旧 activePath を持つ session |
-| `projectChanged` | `project.json` 書換時 | actor activePath |
+| `projectChanged` | `harmony.json` 書換時 | actor activePath |
 | `screenChanged` | screens 書込み / 削除 / リネーム時 | actor activePath |
 | `screenItemsChanged` / `screenEntityChanged` | `screens/<id>.json#items[]` 書込み時 (Phase 4-β migration 後は screen entity に embed、#712) | actor activePath |
 | `tableChanged` | tables 書込み / 削除時 | actor activePath |

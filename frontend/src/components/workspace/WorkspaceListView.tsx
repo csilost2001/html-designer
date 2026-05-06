@@ -48,7 +48,7 @@ interface AddWorkspaceDialogProps {
 
 export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps) {
   const [path, setPath] = useState("");
-  const [status, setStatus] = useState<"idle" | "inspecting" | "ready" | "needsInit" | "notFound" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "inspecting" | "ready" | "needsInit" | "notFound" | "invalid" | "error">("idle");
   const [inspectName, setInspectName] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -67,8 +67,12 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
     setInspectName(null);
     try {
       const result = await inspectWorkspace(trimmed);
-      setStatus(result.status);
+      setStatus(result.status as typeof status);
       setInspectName(result.name ?? null);
+      // invalid ステータスの場合は reason をエラーメッセージとして表示 (#852 R-3)
+      if (result.status === "invalid" && "reason" in result) {
+        setErrorMsg((result as { reason: string }).reason ?? null);
+      }
     } catch (e) {
       setStatus("error");
       setErrorMsg(e instanceof Error ? e.message : String(e));
@@ -231,9 +235,28 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
                 className="tbl-btn tbl-btn-primary"
                 onClick={handleInit}
                 disabled={processing || !path.trim()}
-                title="このパスにフォルダを作成し、project.json を初期化します"
+                title="このパスにフォルダを作成し、harmony.json を初期化します"
               >
                 {processing ? "作成中..." : "フォルダを作成して初期化"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {status === "invalid" && (
+          <>
+            <div style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}>
+              <i className="bi bi-exclamation-circle" /> harmony.json が不正です。ファイルを修正するか、初期化し直してください。
+              {errorMsg && <div style={{ fontSize: "0.8rem", marginTop: "4px", opacity: 0.8 }}>{errorMsg}</div>}
+            </div>
+            <div className="tbl-modal-btns">
+              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
+              <button
+                className="tbl-btn tbl-btn-primary"
+                onClick={handleInspect}
+                disabled={!path.trim()}
+              >
+                <i className="bi bi-arrow-clockwise" /> 再確認
               </button>
             </div>
           </>

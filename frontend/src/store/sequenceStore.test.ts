@@ -38,7 +38,7 @@ describe("sequenceStore delete/commit batching", () => {
     localStorage.clear();
   });
 
-  it("deleteSequence does not save project.json", async () => {
+  it("deleteSequence does not save harmony.json", async () => {
     const saveProject = vi.fn().mockResolvedValue(undefined);
     const flowBackend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(projectWithSequences([sequenceEntry("a", 1)])),
@@ -59,7 +59,7 @@ describe("sequenceStore delete/commit batching", () => {
     expect(saveProject).not.toHaveBeenCalled();
   });
 
-  it("commitSequences saves project.json once regardless of deletedIds count", async () => {
+  it("commitSequences saves harmony.json once regardless of deletedIds count", async () => {
     const project = projectWithSequences([sequenceEntry("a", 1), sequenceEntry("b", 2), sequenceEntry("c", 3)]);
     const loadProject = vi.fn().mockResolvedValue(project);
     const saveProject = vi.fn().mockResolvedValue(undefined);

@@ -21,7 +21,7 @@ import {
   listProcessFlows as listProcessFlowFiles,
   readProject,
   writeProject,
-  dataDir,
+  resolveDataRoot,
   readExtensionsBundle,
   writeExtensionsFile,
   type ExtensionFileKind,
@@ -461,9 +461,10 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         throw new McpError(ErrorCode.InvalidParams, "publisherPrefix, version, outputPath は必須です");
       }
 
+      const _dataRoot = await resolveDataRoot(root);
       const outPath = path.isAbsolute(a.outputPath as string)
         ? (a.outputPath as string)
-        : path.join(dataDir(root), a.outputPath as string);
+        : path.join(_dataRoot, a.outputPath as string);
 
       const zip = new AdmZip();
       const manifest = {
@@ -493,15 +494,16 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       if (typeof a.inputPath !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "inputPath は必須です");
       }
+      const _unpackDataRoot = await resolveDataRoot(root);
       const inPath = path.isAbsolute(a.inputPath as string)
         ? (a.inputPath as string)
-        : path.join(dataDir(root), a.inputPath as string);
+        : path.join(_unpackDataRoot, a.inputPath as string);
       const conflict = (a.conflictResolution as string | undefined) ?? "skip";
 
       const zip = new AdmZip(inPath);
       const entries = zip.getEntries().filter(e => e.entryName.startsWith("process-flows/") && e.entryName.endsWith(".json") && !e.isDirectory);
 
-      const actionsDir = path.join(dataDir(root), "actions");
+      const actionsDir = path.join(_unpackDataRoot, "actions");
       const results: string[] = [];
 
       for (const entry of entries) {

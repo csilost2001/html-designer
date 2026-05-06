@@ -17,21 +17,23 @@
 
 ```
 examples/retail/
-├── project.json              # workspace ルート定義 (v3 schema)
+├── harmony.json              # workspace marker (v3 schema、dataDir: "harmony" を内包)
 ├── README.md                 # 本ファイル
-├── screens/                  # 画面 (entity + GrapesJS design、画面項目定義 items[] を内包)
-├── tables/                   # テーブル定義
-├── process-flows/            # 処理フロー
-├── views/                    # SQL VIEW 定義
-├── view-definitions/         # 一覧 UI viewer 定義
-├── sequences/                # 採番シーケンス
-├── extensions/retail.v3.json # retail namespace 拡張定義 (v3 canonical combined format)
-└── conventions/              # 業務規約カタログ (retail 拡張含む)
+└── harmony/                  # dataDir 配下 (全エンティティデータ)
+    ├── screens/              # 画面 (entity + GrapesJS design、画面項目定義 items[] を内包)
+    ├── tables/               # テーブル定義
+    ├── process-flows/        # 処理フロー
+    ├── views/                # SQL VIEW 定義
+    ├── view-definitions/     # 一覧 UI viewer 定義
+    ├── sequences/            # 採番シーケンス
+    ├── screen-layout.json    # 画面フロー配置情報 (任意)
+    ├── extensions/retail.v3.json # retail namespace 拡張定義 (v3 canonical combined format)
+    └── conventions/          # 業務規約カタログ (retail 拡張含む)
 ```
 
 ## 採用拡張 namespace
 
-- `retail` — fieldTypes / actionTriggers / dbOperations / stepKinds / responseTypes を v3 canonical combined format (`extensions/retail.v3.json`) に統合
+- `retail` — fieldTypes / actionTriggers / dbOperations / stepKinds / responseTypes を v3 canonical combined format (`harmony/extensions/retail.v3.json`) に統合
 
 ## 開き方 (動作確認)
 

@@ -11,8 +11,9 @@ const ID = "aaaabbbb-0000-4000-8000-000000000001" as ProjectId;
 
 function validProject(): Project {
   return {
-    $schema: "../../schemas/v3/project.v3.schema.json",
+    $schema: "../../schemas/v3/harmony.v3.schema.json",
     schemaVersion: "v3",
+    dataDir: "harmony",
     meta: {
       id: ID,
       name: "テスト",

@@ -3,7 +3,7 @@
  * フロープロジェクトの永続化ストア。
  *
  * 永続化境界 (v3):
- * - 業務情報: data/project.json (FlowProject の v1 inline shape は維持、Phase 4 で entities ネスト化)
+ * - 業務情報: data/harmony.json (FlowProject の v1 inline shape は維持、Phase 4 で entities ネスト化)
  * - UI 座標: data/screen-layout.json (Phase 3-β で新設、screenLayoutStore 経由)
  *
  * UI 側は ScreenNode / ScreenEdge / ScreenGroup (types/flow) で合成型を扱う。
@@ -88,7 +88,7 @@ const FLOW_PROJECT_KEY = "v3-project";
 const LEGACY_FLOW_PROJECT_KEY = "flow-project";
 const SCREEN_DATA_PREFIX = "gjs-screen-";
 const LEGACY_KEY = "gjs-designer-project";
-const PROJECT_SCHEMA_REF = "../schemas/v3/project.v3.schema.json";
+const PROJECT_SCHEMA_REF = "../schemas/v3/harmony.v3.schema.json";
 
 export const DEFAULT_NODE_SIZE = { width: 200, height: 100 };
 
@@ -96,7 +96,7 @@ function nowTs(): Timestamp {
   return new Date().toISOString() as Timestamp;
 }
 
-// ─── 業務情報のみの永続化 shape (project.json 用) ──────────────────────
+// ─── 業務情報のみの永続化 shape (harmony.json 用) ──────────────────────
 //
 // Phase 3-β: 業務情報のみで永続化する。座標 (position/size/thumbnail) は
 // screen-layout.json に分離する。Phase 4 で v3 Project (entities ネスト) に
@@ -162,7 +162,7 @@ function defaultGroupPosition(): Position {
   return { x: 0, y: 0, width: 360, height: 280 };
 }
 
-/** Persisted project.json + screen-layout.json を UI 合成型 FlowProject に。 */
+/** Persisted harmony.json + screen-layout.json を UI 合成型 FlowProject に。 */
 export function composeFlowProject(
   persisted: Project,
   layout: ScreenLayout,
@@ -234,7 +234,7 @@ export function composeFlowProject(
 }
 
 /**
- * UI 合成型 FlowProject を Persisted (project.json) と ScreenLayout に分解。
+ * UI 合成型 FlowProject を Persisted (harmony.json) と ScreenLayout に分解。
  *
  * existingRaw を渡すことで、FlowProject に含まれないフィールド
  * (techStack / extensionsApplied / meta.id / meta.description 等) を保持する。
@@ -249,6 +249,8 @@ export function decomposeFlowProject(
   const persisted: Project = {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3",
+    // dataDir を既存から保持。存在しない場合は推奨デフォルト "harmony"
+    dataDir: existingRaw?.dataDir ?? "harmony",
     meta: {
       // existingRaw.meta.id を保持。新規プロジェクト or existing なし時は generateUUID()
       id: (existingRaw?.meta?.id ?? generateUUID()) as ProjectId,
@@ -384,7 +386,7 @@ function normalizeLegacyPersisted(raw: unknown): LegacyFlowProject {
   const groupsRaw = (obj.groups as Array<Record<string, unknown>> | undefined) ?? [];
   const edgesRaw = (obj.edges as Array<Record<string, unknown>> | undefined) ?? [];
 
-  // v1 互換: type → kind rename (まだ project.json に type が残っていた場合の救済)
+  // v1 互換: type → kind rename (まだ harmony.json に type が残っていた場合の救済)
   const screens: PersistedScreen[] = screensRaw.map((s, i) => ({
     id: (s.id as ScreenId) ?? (generateUUID() as ScreenId),
     no: typeof s.no === "number" ? s.no : i + 1,
@@ -430,6 +432,7 @@ export function legacyToProject(legacy: LegacyFlowProject): Project {
   return {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3",
+    dataDir: "harmony",
     meta: {
       id: generateUUID() as ProjectId,
       name: legacy.name,
@@ -587,7 +590,7 @@ function hasPersistedData(project: Project | null | undefined): boolean {
 }
 
 /**
- * プロジェクトを読み込み (project.json + screen-layout.json 合成)。
+ * プロジェクトを読み込み (harmony.json + screen-layout.json 合成)。
  *
  * !!! データ消失バグ修正 (2026-04-22) !!!
  * 以前は backend.loadProject() が null を返した場合、createEmptyProject() を
@@ -642,7 +645,7 @@ export async function loadProject(): Promise<FlowProject> {
 
 /**
  * プロジェクトの生 Project 定義を読み込む (techStack.designer.cssFramework 等の参照用)。
- * FlowProject へ合成する loadProject() とは異なり、project.json の raw shape を返す。
+ * FlowProject へ合成する loadProject() とは異なり、harmony.json の raw shape を返す。
  * techStack field は FlowProject には含まれないため、本関数で取得する (#793 子 5 / #826)。
  */
 export async function loadRawProject(): Promise<Project> {

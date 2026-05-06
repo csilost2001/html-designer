@@ -8,7 +8,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomBytes } from "node:crypto";
-import { resolveRoot } from "./projectStorage.js";
+import { resolveRoot, resolveDataRoot } from "./projectStorage.js";
 import {
   writeScreen,
   writePuckData,
@@ -74,32 +74,48 @@ async function readJSON<T>(filePath: string): Promise<T | null> {
   }
 }
 
-function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: string): string | null {
+/**
+ * draft の本体ファイルパスを解決する (#851 R-2)。
+ * リソースデータは <root>/<dataDir>/ 配下に格納されるため、
+ * harmony.json から dataDir を on-demand 解決して dataRoot を計算する。
+ *
+ * harmony.json が存在しない場合 (workspace 未初期化) は null を返す。
+ */
+async function canonicalBodyPath(activeRoot: string, type: DraftResourceType, id: string): Promise<string | null> {
+  let dataRoot: string;
+  try {
+    dataRoot = await resolveDataRoot(activeRoot);
+  } catch {
+    // harmony.json 未存在 (workspace 未初期化) の場合は null を返す
+    return null;
+  }
+
   switch (type) {
     case "screen":
-      return path.join(activeRoot, "screens", `${id}.design.json`);
+      return path.join(dataRoot, "screens", `${id}.design.json`);
     case "puck-data":
       // #806: Puck Data は screens/<id>/puck-data.json に専用パスで保存
-      return path.join(activeRoot, "screens", id, "puck-data.json");
+      return path.join(dataRoot, "screens", id, "puck-data.json");
     case "table":
-      return path.join(activeRoot, "tables", `${id}.json`);
+      return path.join(dataRoot, "tables", `${id}.json`);
     case "process-flow":
-      return path.join(activeRoot, "actions", `${id}.json`);
+      return path.join(dataRoot, "actions", `${id}.json`);
     case "view":
-      return path.join(activeRoot, "views", `${id}.json`);
+      return path.join(dataRoot, "views", `${id}.json`);
     case "view-definition":
-      return path.join(activeRoot, "view-definitions", `${id}.json`);
+      return path.join(dataRoot, "view-definitions", `${id}.json`);
     case "screen-item":
       // screen-item は singleton draft で body path が payload.screenId に依存するため null を返す
       return null;
     case "sequence":
-      return path.join(activeRoot, "sequences", `${id}.json`);
+      return path.join(dataRoot, "sequences", `${id}.json`);
     case "extension":
-      return path.join(activeRoot, "extensions", `${id}.json`);
+      return path.join(dataRoot, "extensions", `${id}.json`);
     case "convention":
-      return path.join(activeRoot, "conventions", "catalog.json");
+      return path.join(dataRoot, "conventions", "catalog.json");
     case "flow":
-      return path.join(activeRoot, "project.json");
+      // harmony.json は workspace root 直下 (dataDir 外) — D-7
+      return path.join(activeRoot, "harmony.json");
     default:
       return null;
   }
@@ -126,7 +142,7 @@ export async function createDraft(
 
   await ensureDraftDir(root, type);
 
-  const bodyPath = canonicalBodyPath(root, type, id);
+  const bodyPath = await canonicalBodyPath(root, type, id);
   let initialContent: unknown = {};
   if (bodyPath) {
     const existing = await readJSON<unknown>(bodyPath);
@@ -210,7 +226,7 @@ export async function commitDraft(
       break;
     case "extension":
     case "convention": {
-      const bodyPath = canonicalBodyPath(root, type, id);
+      const bodyPath = await canonicalBodyPath(root, type, id);
       if (!bodyPath) {
         throw new Error(`${type} の本体パス解決に失敗しました`);
       }

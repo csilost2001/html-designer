@@ -31,8 +31,9 @@ const SCREEN_ID = "496e43f8-d243-48a1-b680-32d34d98cc2d" as ScreenId;
 /** techStack / extensionsApplied / description / 画面の追加フィールド html を持つリッチな Project */
 function mkRichProject(): Project {
   return {
-    $schema: "../../schemas/v3/project.v3.schema.json",
+    $schema: "../../schemas/v3/harmony.v3.schema.json",
     schemaVersion: "v3",
+    dataDir: "harmony",
     meta: {
       id: PROJ_ID,
       name: "英会話学習アプリ (Tailwind 版)",

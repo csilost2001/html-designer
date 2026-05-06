@@ -31,24 +31,26 @@ let tempFixtureDir: string | null = null;
 
 /**
  * テスト用 fixture workspace を os.tmpdir() 配下に作成する (#758)。
- * schemas/v3/project.v3.schema.json 準拠の最小 project.json を生成する。
+ * schemas/v3/harmony.v3.schema.json 準拠の最小 harmony.json を生成する (#854 R-5: project.json → harmony.json)。
  */
 async function createFixtureWorkspace(): Promise<string> {
   const tmpDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "backend-httpTransport-test-"),
   );
 
-  // workspaceInit.ts:initializeWorkspace と同形式のサブディレクトリ群を作成
+  // workspaceInit.ts:initializeWorkspace と同形式のサブディレクトリ群を作成 (harmony/ dataDir 配下)
+  const DATA_DIR = "harmony";
   const subdirs = ["screens", "tables", "actions", "conventions", "sequences", "views", "view-definitions", "extensions"];
-  await Promise.all(subdirs.map((d) => fs.mkdir(path.join(tmpDir, d), { recursive: true })));
+  await Promise.all(subdirs.map((d) => fs.mkdir(path.join(tmpDir, DATA_DIR, d), { recursive: true })));
 
-  // 最小 project.json (schemas/v3/project.v3.schema.json 準拠)
+  // 最小 harmony.json (schemas/v3/harmony.v3.schema.json 準拠、#851 R-2 形式)
   const ts = new Date().toISOString();
   const projectId = randomUUID();
   const name = "httpTransport-test-fixture";
   const project = {
-    $schema: "../schemas/v3/project.v3.schema.json",
+    $schema: "../schemas/v3/harmony.v3.schema.json",
     schemaVersion: "v3",
+    dataDir: DATA_DIR,
     meta: {
       id: projectId,
       name,
@@ -67,7 +69,7 @@ async function createFixtureWorkspace(): Promise<string> {
       views: [],
     },
   };
-  await fs.writeFile(path.join(tmpDir, "project.json"), JSON.stringify(project, null, 2), "utf-8");
+  await fs.writeFile(path.join(tmpDir, "harmony.json"), JSON.stringify(project, null, 2), "utf-8");
   return tmpDir;
 }
 

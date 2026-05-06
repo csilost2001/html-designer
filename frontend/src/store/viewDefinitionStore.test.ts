@@ -62,7 +62,7 @@ describe("viewDefinitionStore", () => {
     localStorage.clear();
   });
 
-  it("deleteViewDefinition does not save project.json", async () => {
+  it("deleteViewDefinition does not save harmony.json", async () => {
     const saveProject = vi.fn().mockResolvedValue(undefined);
     const flowBackend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(emptyProject()),
@@ -104,7 +104,7 @@ describe("viewDefinitionStore", () => {
     expect(vd.columns).toEqual([]);
   });
 
-  it("commitViewDefinitions saves project.json once regardless of deletedIds count", async () => {
+  it("commitViewDefinitions saves harmony.json once regardless of deletedIds count", async () => {
     const project = projectWithViewDefinitions([
       viewDefinitionEntry("a", 1),
       viewDefinitionEntry("b", 2),

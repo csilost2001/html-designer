@@ -25,9 +25,11 @@ export interface WorkspaceState {
 }
 
 export interface WorkspaceInspectResult {
-  status: "ready" | "needsInit" | "notFound";
+  status: "ready" | "needsInit" | "notFound" | "invalid";
   path: string;
   name?: string;
+  /** invalid ステータス時の理由メッセージ (#852 R-3) */
+  reason?: string;
 }
 
 // ─── 内部ストア ───────────────────────────────────────────────────────────────

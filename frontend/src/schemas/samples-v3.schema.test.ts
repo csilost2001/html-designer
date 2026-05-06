@@ -1,21 +1,21 @@
 /**
  * examples/**\/\*.json を v3 schema で全件 AJV 検証 (#680 / #706)。
  *
- * examples/<project>/ 直下のディレクトリをエンティティ種別と見なし、対応する schemas/v3/*.v3.schema.json で
+ * examples/<project>/harmony/ 配下のディレクトリをエンティティ種別と見なし、対応する schemas/v3/*.v3.schema.json で
  * 各 json を検証する。schema 進化時に examples/ が breakage したら本テストで検出。
  *
- * 配置ルール (docs/spec/examples-retail.md § 2 / `project_samples_strategy_2026_05_02.md`):
- *  - examples/<project>/project.json
- *  - examples/<project>/screens/<uuid>.json
- *  - examples/<project>/screen-items/<screenId>.json
- *  - examples/<project>/tables/<uuid>.json
- *  - examples/<project>/process-flows/<uuid>.json
- *  - examples/<project>/views/<uuid>.json
- *  - examples/<project>/view-definitions/<uuid>.json
- *  - examples/<project>/sequences/<uuid>.json
- *  - examples/<project>/extensions/<namespace>.v3.json (canonical combined format)
- *  - examples/<project>/conventions/*.json
- *  - examples/<project>/screen-layout.json (任意)
+ * 配置ルール (R-4 #853 以降の harmony.json + dataDir 形式):
+ *  - examples/<project>/harmony.json                               (workspace marker, root)
+ *  - examples/<project>/harmony/screens/<uuid>.json
+ *  - examples/<project>/harmony/screen-items/<screenId>.json
+ *  - examples/<project>/harmony/tables/<uuid>.json
+ *  - examples/<project>/harmony/process-flows/<uuid>.json
+ *  - examples/<project>/harmony/views/<uuid>.json
+ *  - examples/<project>/harmony/view-definitions/<uuid>.json
+ *  - examples/<project>/harmony/sequences/<uuid>.json
+ *  - examples/<project>/harmony/extensions/<namespace>.v3.json (canonical combined format)
+ *  - examples/<project>/harmony/conventions/*.json
+ *  - examples/<project>/harmony/screen-layout.json (任意)
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
@@ -42,7 +42,13 @@ const ENTITY_TO_SCHEMA: Record<string, string> = {
 };
 
 const SINGLETON_FILES: Record<string, string> = {
-  "project.json": "project.v3.schema.json",
+  // R-4 #853: project.json → harmony.json (workspace root 直下) にリネーム完了
+  "harmony.json": "harmony.v3.schema.json",
+  // screen-layout.json は harmony/ 配下 (SINGLETON_IN_DATA_DIR で管理)
+};
+
+// harmony/<dataDir>/ 配下にあるシングルトン系ファイル
+const SINGLETON_FILES_IN_DATA_DIR: Record<string, string> = {
   "screen-layout.json": "screen-layout.v3.schema.json",
 };
 
@@ -64,6 +70,7 @@ beforeAll(() => {
   const allSchemaFiles = new Set([
     ...Object.values(ENTITY_TO_SCHEMA),
     ...Object.values(SINGLETON_FILES),
+    ...Object.values(SINGLETON_FILES_IN_DATA_DIR),
     "extensions.v3.schema.json",
     "conventions.v3.schema.json",
   ]);
@@ -86,14 +93,15 @@ function listSampleProjects(): string[] {
   if (!existsSync(samplesDir)) return [];
   return readdirSync(samplesDir).filter((name) => {
     const sub = join(samplesDir, name);
-    return statSync(sub).isDirectory() && existsSync(join(sub, "project.json"));
+    // R-4 #853: project.json → harmony.json にリネーム済
+    return statSync(sub).isDirectory() && existsSync(join(sub, "harmony.json"));
   });
 }
 
 function collectFiles(projectDir: string): FileEntry[] {
   const entries: FileEntry[] = [];
 
-  // singleton 系 (project.json / screen-layout.json)
+  // R-4 #853: harmony.json は workspace root 直下
   for (const [fname, schema] of Object.entries(SINGLETON_FILES)) {
     const fp = join(projectDir, fname);
     if (existsSync(fp)) {
@@ -101,9 +109,18 @@ function collectFiles(projectDir: string): FileEntry[] {
     }
   }
 
-  // 各 entity ディレクトリ
+  // harmony/ (dataDir) 配下のシングルトン系 (screen-layout.json 等)
+  const dataDir = join(projectDir, "harmony");
+  for (const [fname, schema] of Object.entries(SINGLETON_FILES_IN_DATA_DIR)) {
+    const fp = join(dataDir, fname);
+    if (existsSync(fp)) {
+      entries.push({ filePath: fp, schemaFile: schema, relativePath: `harmony/${fname}` });
+    }
+  }
+
+  // 各 entity ディレクトリ (harmony/ 配下)
   for (const [dirName, schema] of Object.entries(ENTITY_TO_SCHEMA)) {
-    const dir = join(projectDir, dirName);
+    const dir = join(dataDir, dirName);
     if (!existsSync(dir)) continue;
     for (const f of readdirSync(dir)) {
       if (!f.endsWith(".json")) continue;
@@ -112,33 +129,33 @@ function collectFiles(projectDir: string): FileEntry[] {
       entries.push({
         filePath: join(dir, f),
         schemaFile: schema,
-        relativePath: `${dirName}/${f}`,
+        relativePath: `harmony/${dirName}/${f}`,
       });
     }
   }
 
   // extensions/ — v3 canonical format: <namespace>.v3.json (flat combined)
-  const extDir = join(projectDir, "extensions");
+  const extDir = join(dataDir, "extensions");
   if (existsSync(extDir)) {
     for (const entry of readdirSync(extDir)) {
       if (!entry.endsWith(".json")) continue;
       entries.push({
         filePath: join(extDir, entry),
         schemaFile: "extensions.v3.schema.json",
-        relativePath: `extensions/${entry}`,
+        relativePath: `harmony/extensions/${entry}`,
       });
     }
   }
 
   // conventions/*.json
-  const convDir = join(projectDir, "conventions");
+  const convDir = join(dataDir, "conventions");
   if (existsSync(convDir)) {
     for (const f of readdirSync(convDir)) {
       if (!f.endsWith(".json")) continue;
       entries.push({
         filePath: join(convDir, f),
         schemaFile: "conventions.v3.schema.json",
-        relativePath: `conventions/${f}`,
+        relativePath: `harmony/conventions/${f}`,
       });
     }
   }
@@ -170,8 +187,9 @@ describe("examples/**/*.json (v3 全件 AJV 検証)", () => {
       const entries = collectFiles(projectDir);
 
       // entity が空のときの protective check
-      it(`should have at least project.json`, () => {
-        const hasProject = entries.some((e) => e.relativePath === "project.json");
+      it(`should have at least harmony.json`, () => {
+        // R-4 #853: project.json → harmony.json にリネーム済
+        const hasProject = entries.some((e) => e.relativePath === "harmony.json");
         expect(hasProject).toBe(true);
       });
 

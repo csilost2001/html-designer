@@ -878,7 +878,7 @@ class WsBridge extends EventEmitter {
           break;
         }
         case "workspace.open": {
-          const { path: targetPath, id, init } = (params ?? {}) as { path?: string; id?: string; init?: boolean };
+          const { path: targetPath, id, init, dataDir: initDataDir } = (params ?? {}) as { path?: string; id?: string; init?: boolean; dataDir?: string };
           if (typeof targetPath !== "string" && typeof id !== "string") {
             respondError("path または id のいずれかが必要です");
             break;
@@ -899,7 +899,9 @@ class WsBridge extends EventEmitter {
           if (initFlag) {
             if (isWorkspaceLockdown()) { respondError("lockdown モード中は新規ワークスペース初期化はできません"); break; }
             try {
-              const initRes = await initializeWorkspaceFolder(resolved);
+              // dataDir は省略時 "harmony" がデフォルト (#852 R-3 D-5)
+              const initOpts = typeof initDataDir === "string" ? { dataDir: initDataDir } : undefined;
+              const initRes = await initializeWorkspaceFolder(resolved, initOpts);
               initName = initRes.name;
               resolved = initRes.path;
             } catch (e) {
@@ -908,13 +910,15 @@ class WsBridge extends EventEmitter {
             }
           } else {
             // init=false 時: stale recent エントリ / typo パスを active 化して fs を破壊しないよう、
-            // open 前に inspect で ready 状態を確認する (見つからない / project.json 無しは reject)
+            // open 前に inspect で ready 状態を確認する (見つからない / harmony.json 無しは reject)
             const inspect = await inspectWorkspacePath(resolved);
             if (inspect.status !== "ready") {
               respondError(
                 inspect.status === "notFound"
                   ? `フォルダが見つかりません: ${resolved}`
-                  : `ワークスペースが初期化されていません (project.json が見つかりません): ${resolved}。init=true で初期化してください。`,
+                  : inspect.status === "invalid"
+                    ? `ワークスペースの harmony.json が不正です: ${(inspect as { reason?: string }).reason ?? ""}`
+                    : `ワークスペースが初期化されていません (harmony.json が見つかりません): ${resolved}。init=true で初期化してください。`,
               );
               break;
             }

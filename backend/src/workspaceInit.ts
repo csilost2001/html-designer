@@ -1,8 +1,13 @@
 /**
- * workspaceInit.ts (#672)
+ * workspaceInit.ts (#672, #852 R-3)
  *
- * - inspectWorkspacePath: 任意 path の状態 (ready / needsInit / notFound) を判定
- * - initializeWorkspace: 空 (or 不存在) フォルダに data/ サブディレクトリ群と project.json を生成
+ * - inspectWorkspacePath: 任意 path の状態 (ready / needsInit / notFound / invalid) を判定
+ *   - harmony.json 存在 + AJV 検証 pass → ready
+ *   - フォルダ不存在 → notFound
+ *   - harmony.json 無し → needsInit
+ *   - harmony.json 存在 + JSON parse 失敗 or schema 違反 → invalid
+ * - initializeWorkspace: 空 (or 不存在) フォルダに harmony.json + dataDir 配下サブディレクトリ群を生成
+ *   - opts.dataDir でデータディレクトリ名を指定可 (デフォルト: "harmony")
  * - autoActivateOnStartup: backend 起動時の自動 active 設定
  *   1. lockdown 中なら何もしない (env で active 固定済み)
  *   2. recent.lastActiveId が指す workspace があれば setActivePath
@@ -10,6 +15,7 @@
  *
  * #754: legacy data/ auto-activate を削除。data/ は data/extensions/ 専用。
  * ユーザープロジェクトは workspaces/ または任意フォルダ。
+ * #852 R-3: harmony.json + dataDir 構成に対応。
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -25,14 +31,15 @@ import {
   type WorkspaceEntry,
 } from "./recentStore.js";
 // projectStorage の関数群は active workspace 必須なので本モジュールでは使わず、
-// ローカル fs API で project.json/サブディレクトリを直接生成する。
+// ローカル fs API で harmony.json/サブディレクトリを直接生成する。
 
 export type WorkspaceInspectResult =
   | { status: "ready"; path: string; name: string | null }
   | { status: "needsInit"; path: string }
-  | { status: "notFound"; path: string };
+  | { status: "notFound"; path: string }
+  | { status: "invalid"; path: string; reason: string };
 
-const PROJECT_SCHEMA_REF = "../schemas/v3/project.v3.schema.json";
+const PROJECT_SCHEMA_REF = "../schemas/v3/harmony.v3.schema.json";
 const SCHEMAS_DIR = path.resolve(import.meta.dirname, "../../schemas");
 
 let _validateProjectCache: ((data: unknown) => boolean) & { errors?: unknown } | null = null;
@@ -42,15 +49,15 @@ async function getProjectValidator(): Promise<((data: unknown) => boolean) & { e
   // strict: false で format 系 ($ref 解決に format 制約が含まれる) の警告を抑制
   // schemas/v3/*.schema.json は JSON Schema draft 2020-12 を使用 (Ajv2020 が必要)
   const ajv = new Ajv2020({ allErrors: true, strict: false });
-  // load schemas: project.v3 + common.v3 (referenced via $ref)
-  const projectSchema = JSON.parse(
-    await fs.readFile(path.join(SCHEMAS_DIR, "v3", "project.v3.schema.json"), "utf-8"),
+  // load schemas: harmony.v3 + common.v3 (referenced via $ref)
+  const harmonySchema = JSON.parse(
+    await fs.readFile(path.join(SCHEMAS_DIR, "v3", "harmony.v3.schema.json"), "utf-8"),
   );
   const commonSchema = JSON.parse(
     await fs.readFile(path.join(SCHEMAS_DIR, "v3", "common.v3.schema.json"), "utf-8"),
   );
   ajv.addSchema(commonSchema);
-  const validate = ajv.compile(projectSchema);
+  const validate = ajv.compile(harmonySchema);
   _validateProjectCache = validate as ((data: unknown) => boolean) & { errors?: unknown };
   return _validateProjectCache;
 }
@@ -64,12 +71,26 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
-async function readProjectAt(folderPath: string): Promise<unknown | null> {
+/**
+ * harmony.json を読み込む内部ヘルパー (#852 R-3)。
+ * JSON parse 成功時は { data: <parsed> } を返す。
+ * ファイルが存在しない場合は null を返す。
+ * JSON parse 失敗時は { error: <message> } を返す。
+ */
+async function readHarmonyAt(
+  folderPath: string,
+): Promise<{ data: unknown } | { error: string } | null> {
+  const filePath = path.join(folderPath, "harmony.json");
+  let raw: string;
   try {
-    const raw = await fs.readFile(path.join(folderPath, "project.json"), "utf-8");
-    return JSON.parse(raw);
+    raw = await fs.readFile(filePath, "utf-8");
   } catch {
-    return null;
+    return null; // 存在しない
+  }
+  try {
+    return { data: JSON.parse(raw) };
+  } catch (e) {
+    return { error: `JSON parse 失敗: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 
@@ -93,11 +114,22 @@ export async function inspectWorkspacePath(folderPath: string): Promise<Workspac
   if (!stat.isDirectory()) {
     return { status: "notFound", path: abs };
   }
-  const project = await readProjectAt(abs);
-  if (!project) {
+  const harmonyResult = await readHarmonyAt(abs);
+  if (harmonyResult === null) {
+    // harmony.json が存在しない → needsInit
     return { status: "needsInit", path: abs };
   }
-  return { status: "ready", path: abs, name: extractName(project, path.basename(abs)) };
+  if ("error" in harmonyResult) {
+    // JSON parse 失敗
+    return { status: "invalid", path: abs, reason: harmonyResult.error };
+  }
+  // AJV 検証
+  const validate = await getProjectValidator();
+  if (!validate(harmonyResult.data)) {
+    const reason = `harmony.v3.schema.json 検証エラー: ${JSON.stringify(validate.errors)}`;
+    return { status: "invalid", path: abs, reason };
+  }
+  return { status: "ready", path: abs, name: extractName(harmonyResult.data, path.basename(abs)) };
 }
 
 function isoTimestampZ(): string {
@@ -109,40 +141,62 @@ export type InitializeResult = {
   path: string;
   name: string;
   projectId: string;
+  dataDir: string;
+};
+
+export type InitializeOptions = {
+  /** データディレクトリ名 (デフォルト: "harmony") */
+  dataDir?: string;
 };
 
 /**
- * 指定 path に project.json + data/サブディレクトリ群を生成する。
+ * 指定 path に harmony.json + <dataDir>/サブディレクトリ群を生成する (#852 R-3)。
  * フォルダ自体が存在しなければ mkdir -p で作る。
- * 既に project.json が存在する場合は何もせずそのまま返す (idempotent)。
+ * 既に harmony.json が存在する場合は何もせずそのまま返す (idempotent)。
+ *
+ * @param folderPath - workspace folder root の絶対パス (または相対パス)
+ * @param opts.dataDir - データディレクトリ名 (デフォルト: "harmony")
  */
-export async function initializeWorkspace(folderPath: string): Promise<InitializeResult> {
+export async function initializeWorkspace(
+  folderPath: string,
+  opts?: InitializeOptions,
+): Promise<InitializeResult> {
   const abs = path.resolve(folderPath);
-  await fs.mkdir(abs, { recursive: true });
-  // ensureDataDir で active を読むため、setActivePath を一時セットしたいところだが
-  // initializeWorkspace は active 切替前 (workspace.open の準備フェーズ) で呼ばれる前提なので
-  // ここでは fs 操作を直接行う。
-  const subdirs = ["screens", "tables", "actions", "conventions", "sequences", "views", "view-definitions", "extensions"];
-  await Promise.all(subdirs.map((d) => fs.mkdir(path.join(abs, d), { recursive: true })));
+  const dataDirVal = opts?.dataDir ?? "harmony";
 
-  const projectFilePath = path.join(abs, "project.json");
-  const existing = await readProjectAt(abs);
-  if (existing) {
+  await fs.mkdir(abs, { recursive: true });
+
+  // harmony.json が既に存在すれば idempotent で返す
+  const harmonyResult = await readHarmonyAt(abs);
+  if (harmonyResult !== null && "data" in harmonyResult) {
+    const existing = harmonyResult.data;
+    const existingDataDir =
+      typeof (existing as Record<string, unknown>).dataDir === "string"
+        ? ((existing as Record<string, unknown>).dataDir as string)
+        : dataDirVal;
+    // dataDir 配下のサブディレクトリも念のため確認・作成 (idempotent)
+    await ensureSubdirs(abs, existingDataDir);
     return {
       path: abs,
       name: extractName(existing, path.basename(abs)),
-      projectId: typeof (existing as Record<string, unknown>).meta === "object"
-        ? String(((existing as Record<string, unknown>).meta as Record<string, unknown>).id ?? "")
-        : "",
+      projectId:
+        typeof (existing as Record<string, unknown>).meta === "object"
+          ? String(
+              ((existing as Record<string, unknown>).meta as Record<string, unknown>).id ?? "",
+            )
+          : "",
+      dataDir: existingDataDir,
     };
   }
 
+  // 新規作成
   const ts = isoTimestampZ();
   const projectId = randomUUID();
   const name = path.basename(abs) || "新規ワークスペース";
   const project = {
     $schema: PROJECT_SCHEMA_REF,
     schemaVersion: "v3" as const,
+    dataDir: dataDirVal,
     meta: {
       id: projectId,
       name,
@@ -167,11 +221,37 @@ export async function initializeWorkspace(folderPath: string): Promise<Initializ
   const validate = await getProjectValidator();
   if (!validate(project)) {
     throw new Error(
-      `初期 project.json が schemas/v3/project.v3.schema.json に違反: ${JSON.stringify(validate.errors)}`,
+      `初期 harmony.json が schemas/v3/harmony.v3.schema.json に違反: ${JSON.stringify(validate.errors)}`,
     );
   }
-  await fs.writeFile(projectFilePath, JSON.stringify(project, null, 2), "utf-8");
-  return { path: abs, name, projectId };
+  const harmonyFilePath = path.join(abs, "harmony.json");
+  await fs.writeFile(harmonyFilePath, JSON.stringify(project, null, 2), "utf-8");
+
+  // dataDir 配下にサブディレクトリ群を作成
+  await ensureSubdirs(abs, dataDirVal);
+
+  return { path: abs, name, projectId, dataDir: dataDirVal };
+}
+
+/**
+ * workspace folder root 配下の dataDir ディレクトリとサブディレクトリ群を作成する内部ヘルパー。
+ * projectStorage.ensureDataDir の代替 (workspaceInit は active workspace に依存しないため独立実装)。
+ */
+async function ensureSubdirs(root: string, dataDirVal: string): Promise<void> {
+  const dataRoot = path.join(root, dataDirVal);
+  const subdirs = [
+    "screens",
+    "tables",
+    "actions",
+    "process-flows",
+    "conventions",
+    "sequences",
+    "views",
+    "view-definitions",
+    "extensions",
+  ];
+  await fs.mkdir(dataRoot, { recursive: true });
+  await Promise.all(subdirs.map((d) => fs.mkdir(path.join(dataRoot, d), { recursive: true })));
 }
 
 export type AutoActivateResult =
@@ -186,7 +266,7 @@ export type AutoActivateResult =
  * 戻り値は呼び出し側 (index.ts) が console log 出力する用途。
  * broadcast はしない (この時点で WS クライアントは未接続)。
  *
- * lastActiveId 復元時は inspectWorkspacePath で ready 確認する (project.json が
+ * lastActiveId 復元時は inspectWorkspacePath で ready 確認する (harmony.json が
  * 削除・移動済みの stale エントリで起動しないようにする)。
  *
  * #754: data/ legacy auto-activate は削除済。data/ は data/extensions/ 専用。
@@ -204,7 +284,7 @@ export async function autoActivateOnStartup(): Promise<AutoActivateResult> {
         setGlobalDefaultPath(entry.path);
         return { status: "restored", entry };
       }
-      // フォルダが消えた / project.json が無い: stale エントリなのでスキップ。
+      // フォルダが消えた / harmony.json が無い: stale エントリなのでスキップ。
       // recent からの除去はしない (UI 側でユーザーが「リストから外す」できる前提)。
     }
   }

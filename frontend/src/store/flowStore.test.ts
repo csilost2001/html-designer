@@ -44,8 +44,9 @@ function mkEmptyProject(): FlowProject {
 
 function mkPersistedProject(): Project {
   return {
-    $schema: "../schemas/v3/project.v3.schema.json",
+    $schema: "../schemas/v3/harmony.v3.schema.json",
     schemaVersion: "v3",
+    dataDir: "harmony",
     meta: {
       id: PROJECT_ID,
       name: "実プロジェクト",
@@ -313,7 +314,7 @@ describe("flowStore v3 compose/decompose", () => {
     const decomposed = decomposeFlowProject(flow, layout);
 
     expect(decomposed.project).toMatchObject({
-      $schema: "../schemas/v3/project.v3.schema.json",
+      $schema: "../schemas/v3/harmony.v3.schema.json",
       schemaVersion: "v3",
       entities: {
         screens: project.entities?.screens,

@@ -197,15 +197,16 @@ function loadJson<T>(path: string): T {
 }
 
 describe("v3 TS 型 と examples/ JSON の compatibility", () => {
-  it("retail project.json を Project 型として parse できる", () => {
-    const project = loadJson<Project>(join(examplesDir, "retail/project.json"));
+  // R-4 #853: project.json → harmony.json + harmony/ (dataDir) 形式に migration 済
+  it("retail harmony.json を Project 型として parse できる", () => {
+    const project = loadJson<Project>(join(examplesDir, "retail/harmony.json"));
     expect(project.schemaVersion).toBe("v3");
     expect(project.meta.name).toBeDefined();
   });
 
   it("retail 在庫照会フローを ProcessFlow 型として parse できる + Step narrow", () => {
     const flow = loadJson<ProcessFlow>(
-      join(examplesDir, "retail/process-flows/267e94bf-0397-44b8-b665-d3c40c38935b.json"),
+      join(examplesDir, "retail/harmony/process-flows/267e94bf-0397-44b8-b665-d3c40c38935b.json"),
     );
     expect(flow.meta.kind).toBe("common");
     const firstStep: Step = flow.actions[0].steps[0];
@@ -213,9 +214,9 @@ describe("v3 TS 型 と examples/ JSON の compatibility", () => {
   });
 
   it("retail テーブルを Table 型として parse + Constraint narrow", () => {
-    const files = readdirSync(join(examplesDir, "retail/tables")).filter((f) => f.endsWith(".json"));
+    const files = readdirSync(join(examplesDir, "retail/harmony/tables")).filter((f) => f.endsWith(".json"));
     expect(files.length).toBeGreaterThan(0);
-    const table = loadJson<Table>(join(examplesDir, "retail/tables", files[0]));
+    const table = loadJson<Table>(join(examplesDir, "retail/harmony/tables", files[0]));
     expect(table.physicalName).toBeDefined();
     for (const c of table.constraints ?? []) {
       switch (c.kind) {
@@ -233,22 +234,22 @@ describe("v3 TS 型 と examples/ JSON の compatibility", () => {
   });
 
   it("retail 画面を Screen 型として parse できる", () => {
-    const files = readdirSync(join(examplesDir, "retail/screens"))
+    const files = readdirSync(join(examplesDir, "retail/harmony/screens"))
       .filter((f) => f.endsWith(".json") && !f.endsWith(".design.json"));
     expect(files.length).toBeGreaterThan(0);
-    const screen = loadJson<Screen>(join(examplesDir, "retail/screens", files[0]));
+    const screen = loadJson<Screen>(join(examplesDir, "retail/harmony/screens", files[0]));
     expect(screen.kind).toBeDefined();
   });
 
-  it("realestate project.json を Project 型として parse できる", () => {
-    const project = loadJson<Project>(join(examplesDir, "realestate/project.json"));
+  it("realestate harmony.json を Project 型として parse できる", () => {
+    const project = loadJson<Project>(join(examplesDir, "realestate/harmony.json"));
     expect(project.schemaVersion).toBe("v3");
     expect(project.meta.name).toBeDefined();
   });
 
   it("realestate 処理フローを ProcessFlow 型として parse できる", () => {
     const flow = loadJson<ProcessFlow>(
-      join(examplesDir, "realestate/process-flows/d4b5c6e7-f809-4112-bc3d-4e5f6a7b8c9d.json"),
+      join(examplesDir, "realestate/harmony/process-flows/d4b5c6e7-f809-4112-bc3d-4e5f6a7b8c9d.json"),
     );
     expect(flow.meta.kind).toBeDefined();
   });
