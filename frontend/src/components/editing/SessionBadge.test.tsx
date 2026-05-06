@@ -34,33 +34,40 @@ describe("SessionBadge", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("live entry 1 件 → 🟢 1 を表示", () => {
+  it("live entry 1 件 → 🟢 (live/active) バッジが表示される", () => {
     const entry = makeEntry({ lastEditAt: ago(10), focusAt: new Date().toISOString() });
     render(<SessionBadge entries={[entry]} compact />);
-    expect(screen.getByText(/🟢\s*1/u)).toBeDefined();
+    // PresenceBadge の aria-label で "操作中" + "1 セッション" を確認
+    expect(screen.getByLabelText(/操作中、1 セッション/u)).toBeDefined();
+    // 絵文字が DOM に含まれることを確認
+    expect(screen.getByText("🟢")).toBeDefined();
+    // 件数が含まれることを確認
+    expect(screen.getByText("1")).toBeDefined();
   });
 
-  it("idle entry 1 件 → 🟡 1 を表示", () => {
+  it("idle entry 1 件 → 🟡 バッジが表示される", () => {
     const entry = makeEntry({
       lastActivityAt: ago(3600), // 1h → idle
       lastEditAt: null,
       focusAt: null,
     });
     render(<SessionBadge entries={[entry]} compact />);
-    expect(screen.getByText(/🟡\s*1/u)).toBeDefined();
+    expect(screen.getByLabelText(/操作なし、1 セッション/u)).toBeDefined();
+    expect(screen.getByText("🟡")).toBeDefined();
   });
 
-  it("abandoned entry 1 件 → ⚫ 1 を表示", () => {
+  it("abandoned entry 1 件 → ⚫ バッジが表示される", () => {
     const entry = makeEntry({
       lastActivityAt: ago(172800), // 2 日 → abandoned
       lastEditAt: null,
       focusAt: null,
     });
     render(<SessionBadge entries={[entry]} compact />);
-    expect(screen.getByText(/⚫\s*1/u)).toBeDefined();
+    expect(screen.getByLabelText(/放置、1 セッション/u)).toBeDefined();
+    expect(screen.getByText("⚫")).toBeDefined();
   });
 
-  it("live 1 件 + idle 1 件 → 合計 2、最活発が 🟢", () => {
+  it("live 1 件 + idle 1 件 → 合計 2、最活発が 🟢 (操作中)", () => {
     const liveEntry = makeEntry({
       sessionId: "sess-live",
       lastEditAt: ago(10),
@@ -73,8 +80,10 @@ describe("SessionBadge", () => {
       focusAt: null,
     });
     render(<SessionBadge entries={[liveEntry, idleEntry]} compact />);
-    // 最活発 = live → 🟢、合計 2 件表示
-    expect(screen.getByText(/🟢\s*2/u)).toBeDefined();
+    // 最活発 = live → 🟢、合計 2 件
+    expect(screen.getByLabelText(/操作中、2 セッション/u)).toBeDefined();
+    expect(screen.getByText("🟢")).toBeDefined();
+    expect(screen.getByText("2")).toBeDefined();
   });
 
   it("aria-label に件数が含まれる", () => {

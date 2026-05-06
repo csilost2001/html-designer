@@ -53,6 +53,8 @@ initServerLog(projectRoot);
 function setupLifecycle(): void {
   const exitHandler = (reason: string) => {
     logInfo("lifecycle", `Exiting: ${reason}`);
+    // Phase 7 (#885): presence cleanup タイマーを停止
+    wsBridge.stopPresenceCleanup();
     shutdownServerLog();
     process.exit(0);
   };

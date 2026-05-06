@@ -34,6 +34,9 @@ import {
   unregister as presenceUnregister,
   heartbeat as presenceHeartbeat,
   list as presenceList,
+  startCleanupInterval as presenceStartCleanupInterval,
+  stopCleanupInterval as presenceStopCleanupInterval,
+  type PresenceEntryWithLevel,
 } from "./presenceManager.js";
 import { execSync } from "child_process";
 import { platform } from "node:os";
@@ -261,6 +264,20 @@ class WsBridge extends EventEmitter {
       await delay(500);
     }
     await this._bind();
+
+    // Phase 7 (#885): abandoned entry の定期 cleanup を開始
+    presenceStartCleanupInterval((wsId, resourceType, resourceId, entries) => {
+      this.broadcast({
+        wsId,
+        event: "presence:update",
+        data: { resourceType, resourceId, entries },
+      });
+    });
+  }
+
+  /** Phase 7 (#885): cleanup タイマーを停止する。shutdown hook 用。 */
+  stopPresenceCleanup(): void {
+    presenceStopCleanupInterval();
   }
 
   private async _bind(retries = 3): Promise<void> {
@@ -1202,9 +1219,10 @@ class WsBridge extends EventEmitter {
             respondError("ワークスペースが選択されていません");
             break;
           }
-          const { changed, entry } = presenceHeartbeat(phWsId, clientId, phrt, phrid, phkind);
-          respond({ entry });
-          if (changed) {
+          const { levelChanged, entry, level } = presenceHeartbeat(phWsId, clientId, phrt, phrid, phkind);
+          respond({ entry, level });
+          // Phase 7 (#885): levelChanged が true の時のみ broadcast (broadcast 効率化)
+          if (levelChanged) {
             const entries = presenceList(phWsId, phrt, phrid);
             this.broadcast({
               wsId: phWsId,

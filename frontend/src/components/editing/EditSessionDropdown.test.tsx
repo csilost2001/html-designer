@@ -14,6 +14,13 @@ let mockEntries: PresenceEntry[] = [];
 
 vi.mock("../../hooks/usePresenceRegistry", () => ({
   usePresenceFor: () => mockEntries,
+  // classifyActivity は EditSessionDropdown で fallback として使用する pure function
+  classifyActivity: (entry: PresenceEntry) => {
+    // テスト環境では常に "active" を返す (表示構造の検証のみ行うため)
+    if (entry.focusAt && entry.lastEditAt) return "live";
+    if (entry.focusAt) return "active";
+    return "idle";
+  },
 }));
 
 // mcpBridge.request をモック

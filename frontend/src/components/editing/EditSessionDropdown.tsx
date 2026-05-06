@@ -9,10 +9,11 @@
  * - [↪引継] は Phase 6 (#884) でアクティブ化予定 — 本 Phase では disabled + tooltip のみ
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import { usePresenceFor, type PresenceEntry } from "../../hooks/usePresenceRegistry";
+import { usePresenceFor, classifyActivity, type PresenceEntry, type ActivityLevel } from "../../hooks/usePresenceRegistry";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import type { DraftResourceType } from "../../types/draft";
 import type { EditMode } from "../../hooks/useEditSession";
+import { PresenceBadge } from "./PresenceBadge";
 import "../../styles/editSessionDropdown.css";
 
 // ── 型 ──────────────────────────────────────────────────────────────────────
@@ -186,6 +187,10 @@ export function EditSessionDropdown({
               currentMode.kind === "viewer" && entry.sessionId === currentSessionId;
             const isEditor = entry.role === "editor";
 
+            // activity level: server-side computed を優先、fallback は frontend
+            const entryWithLevel = entry as PresenceEntry & { level?: ActivityLevel };
+            const activityLevel = entryWithLevel.level ?? classifyActivity(entry);
+
             return (
               <div
                 key={entry.sessionId}
@@ -193,14 +198,8 @@ export function EditSessionDropdown({
                 role="option"
                 data-testid={`esd-entry-${entry.sessionId}`}
               >
-                {/* ステータスドット: editor は緑、viewer は黄、自分は黒 */}
-                {isMe ? (
-                  <span className="esd-status-dot esd-dot-self" />
-                ) : isEditor ? (
-                  <span className="esd-status-dot esd-dot-editing" />
-                ) : (
-                  <span className="esd-status-dot esd-dot-viewer" />
-                )}
+                {/* activity level badge: PresenceBadge で色 + screen reader 対応 */}
+                <PresenceBadge level={activityLevel} showText={false} size="sm" />
 
                 {/* role アイコン */}
                 <RoleIcon entry={entry} />
