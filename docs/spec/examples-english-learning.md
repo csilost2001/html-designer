@@ -184,7 +184,7 @@ B2C 英会話学習アプリ (中規模、画面 ~11、テーブル ~10、処理
 
 ## 4. 受け入れ基準
 
-- [ ] `examples/english-learning/project.json` が `schemas/v3/project.v3.schema.json` で AJV pass
+- [ ] `examples/english-learning/harmony.json` が `schemas/v3/harmony.v3.schema.json` で AJV pass
 - [ ] 全 entity ファイルが対応する v3 schema で pass
 - [ ] designer 上で「フォルダを追加 → examples/english-learning」で開け、各一覧が描画される
 - [ ] 4 シナリオの画面が画面フロー上で繋がっている

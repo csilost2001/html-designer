@@ -39,7 +39,7 @@ describe("tableStore delete/commit batching", () => {
     localStorage.clear();
   });
 
-  it("deleteTable does not save project.json", async () => {
+  it("deleteTable does not save harmony.json", async () => {
     const saveProject = vi.fn().mockResolvedValue(undefined);
     const flowBackend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(projectWithTables([tableEntry("a", 1)])),
@@ -60,7 +60,7 @@ describe("tableStore delete/commit batching", () => {
     expect(saveProject).not.toHaveBeenCalled();
   });
 
-  it("commitTables saves project.json once regardless of deletedIds count", async () => {
+  it("commitTables saves harmony.json once regardless of deletedIds count", async () => {
     const project = projectWithTables([tableEntry("a", 1), tableEntry("b", 2), tableEntry("c", 3)]);
     const loadProject = vi.fn().mockResolvedValue(project);
     const saveProject = vi.fn().mockResolvedValue(undefined);

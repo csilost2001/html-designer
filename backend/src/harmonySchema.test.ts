@@ -132,6 +132,19 @@ describe("dataDir: 不正な値は AJV reject", () => {
   it("dataDir: 'z:/windows' (小文字ドライブレター) → reject", () => {
     expect(validate(makeBase({ dataDir: "z:/windows" }))).toBe(false);
   });
+
+  it("dataDir: 'harmony/' (末尾スラッシュ) → reject", () => {
+    expect(validate(makeBase({ dataDir: "harmony/" }))).toBe(false);
+  });
+
+  it("dataDir: 'docs/harmony/' (multi-segment 末尾スラッシュ) → reject", () => {
+    expect(validate(makeBase({ dataDir: "docs/harmony/" }))).toBe(false);
+  });
+
+  it("dataDir: '..foo' (dotfile 名は path traversal ではないので allow)", () => {
+    // ".." セグメントではなく ".." で始まるファイル名は仕様上 OK (Unix dotfile 規約)
+    expect(validate(makeBase({ dataDir: "..foo" }))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

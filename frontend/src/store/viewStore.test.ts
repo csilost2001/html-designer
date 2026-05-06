@@ -38,7 +38,7 @@ describe("viewStore delete/commit batching", () => {
     localStorage.clear();
   });
 
-  it("deleteView does not save project.json", async () => {
+  it("deleteView does not save harmony.json", async () => {
     const saveProject = vi.fn().mockResolvedValue(undefined);
     const flowBackend: FlowStorageBackend = {
       loadProject: vi.fn().mockResolvedValue(projectWithViews([viewEntry("a", 1)])),
@@ -59,7 +59,7 @@ describe("viewStore delete/commit batching", () => {
     expect(saveProject).not.toHaveBeenCalled();
   });
 
-  it("commitViews saves project.json once regardless of deletedIds count", async () => {
+  it("commitViews saves harmony.json once regardless of deletedIds count", async () => {
     const project = projectWithViews([viewEntry("a", 1), viewEntry("b", 2), viewEntry("c", 3)]);
     const loadProject = vi.fn().mockResolvedValue(project);
     const saveProject = vi.fn().mockResolvedValue(undefined);

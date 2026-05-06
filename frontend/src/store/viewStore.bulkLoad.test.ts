@@ -98,7 +98,7 @@ describe("loadViewValidationMap bulk load (#587)", () => {
     expect(validationMap.size).toBe(2);
   });
 
-  it("bulk 結果に project.json entry のない orphan が含まれていても validationMap から除外する", async () => {
+  it("bulk 結果に harmony.json entry のない orphan が含まれていても validationMap から除外する", async () => {
     setProject([VIEW_ID_1]);
     setViewStorageBackend({
       loadView: vi.fn(),
