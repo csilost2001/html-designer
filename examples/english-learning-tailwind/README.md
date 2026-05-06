@@ -43,18 +43,19 @@
 
 ```
 examples/english-learning-tailwind/
-├── project.json                          # design.cssFramework: "tailwind"
+├── harmony.json                          # workspace marker (dataDir: "harmony"、design.cssFramework: "tailwind")
 ├── README.md                             # 本ファイル
-├── tables/                               # 10 件 (Bootstrap 版と同一)
-├── extensions/english-learning.v3.json   # 拡張 (Bootstrap 版と同一)
-├── conventions/catalog.json              # 規約 (Bootstrap 版と同一)
-├── process-flows/                        # 5 件 (Bootstrap 版と同一)
-├── views/                                # 3 件 (Bootstrap 版と同一)
-├── view-definitions/                     # 5 件 (Bootstrap 版と同一)
-├── sequences/                            # 2 件 (Bootstrap 版と同一)
-└── screens/                              # 11 画面 × 2 ファイル
-    ├── <id>.json                         # entity 定義 (Bootstrap 版と同一)
-    └── <id>.design.json                  # GrapesJS HTML — ★ Tailwind aesthetic で再設計
+└── harmony/                              # dataDir 配下 (全エンティティデータ)
+    ├── tables/                           # 10 件 (Bootstrap 版と同一)
+    ├── extensions/english-learning.v3.json  # 拡張 (Bootstrap 版と同一)
+    ├── conventions/catalog.json          # 規約 (Bootstrap 版と同一)
+    ├── process-flows/                    # 5 件 (Bootstrap 版と同一)
+    ├── views/                            # 3 件 (Bootstrap 版と同一)
+    ├── view-definitions/                 # 5 件 (Bootstrap 版と同一)
+    ├── sequences/                        # 2 件 (Bootstrap 版と同一)
+    └── screens/                          # 11 画面 × 2 ファイル
+        ├── <id>.json                     # entity 定義 (Bootstrap 版と同一)
+        └── <id>.design.json              # GrapesJS HTML — ★ Tailwind aesthetic で再設計
 ```
 
 ## 開き方 (動作確認)

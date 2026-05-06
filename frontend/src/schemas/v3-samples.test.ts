@@ -54,10 +54,10 @@ function listJsonRecursive(dir: string): string[] {
 }
 
 describe("schema v3 examples (#774: examples/ を canonical サンプル領域として使用)", () => {
-  it("project.json (retail + realestate) validates against harmony.v3.schema.json", () => {
+  it("harmony.json (retail + realestate) validates against harmony.v3.schema.json", () => {
     const files = [
-      join(examplesDir, "retail", "project.json"),
-      join(examplesDir, "realestate", "project.json"),
+      join(examplesDir, "retail", "harmony.json"),
+      join(examplesDir, "realestate", "harmony.json"),
     ];
     for (const file of files) {
       const data = loadJson(file);
@@ -68,8 +68,8 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
 
   it("table samples validate against table.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(examplesDir, "retail", "tables")),
-      ...listJsonRecursive(join(examplesDir, "realestate", "tables")),
+      ...listJsonRecursive(join(examplesDir, "retail", "harmony", "tables")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "harmony", "tables")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -81,8 +81,8 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
 
   it("screen samples validate against screen.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(examplesDir, "retail", "screens")),
-      ...listJsonRecursive(join(examplesDir, "realestate", "screens")),
+      ...listJsonRecursive(join(examplesDir, "retail", "harmony", "screens")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "harmony", "screens")),
     ].filter((f) => !f.endsWith(".design.json")); // .design.json は GrapesJS デザインデータ — screen schema 対象外
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -94,8 +94,8 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
 
   it("process-flow / process-flows samples validate against process-flow.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(examplesDir, "retail", "process-flows")),
-      ...listJsonRecursive(join(examplesDir, "realestate", "process-flows")),
+      ...listJsonRecursive(join(examplesDir, "retail", "harmony", "process-flows")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "harmony", "process-flows")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -107,8 +107,8 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
 
   it("extension samples validate against extensions.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(examplesDir, "retail", "extensions")),
-      ...listJsonRecursive(join(examplesDir, "realestate", "extensions")),
+      ...listJsonRecursive(join(examplesDir, "retail", "harmony", "extensions")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "harmony", "extensions")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -120,8 +120,8 @@ describe("schema v3 examples (#774: examples/ を canonical サンプル領域�
 
   it("view-definition samples validate against view-definition.v3.schema.json", () => {
     const files = [
-      ...listJsonRecursive(join(examplesDir, "retail", "view-definitions")),
-      ...listJsonRecursive(join(examplesDir, "realestate", "view-definitions")),
+      ...listJsonRecursive(join(examplesDir, "retail", "harmony", "view-definitions")),
+      ...listJsonRecursive(join(examplesDir, "realestate", "harmony", "view-definitions")),
     ];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {

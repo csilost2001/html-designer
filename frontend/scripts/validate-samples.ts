@@ -124,14 +124,49 @@ function loadViewDefinitionsFromDir(dir: string): ViewDefinition[] {
 }
 
 function loadScreenTransitionsFromProjectJson(projectDir: string): ScreenTransitionEntry[] {
-  const filePath = join(projectDir, "project.json");
-  if (!existsSync(filePath)) return [];
+  // R-4 #853: project.json → harmony.json にリネーム済。harmony/ (dataDir) は harmony.json の dataDir 値。
+  // harmony.json は workspace root 直下に固定 (dataDir 外)。
+  const filePath = join(projectDir, "harmony.json");
+  if (!existsSync(filePath)) {
+    // fallback: 旧 project.json (移行中の workspace 用)
+    const legacyPath = join(projectDir, "project.json");
+    if (!existsSync(legacyPath)) return [];
+    try {
+      const raw = JSON.parse(readFileSync(legacyPath, "utf-8")) as { entities?: { screenTransitions?: ScreenTransitionEntry[] } };
+      return raw.entities?.screenTransitions ?? [];
+    } catch {
+      return [];
+    }
+  }
   try {
     const raw = JSON.parse(readFileSync(filePath, "utf-8")) as { entities?: { screenTransitions?: ScreenTransitionEntry[] } };
     return raw.entities?.screenTransitions ?? [];
   } catch {
     return [];
   }
+}
+
+/** workspace marker (harmony.json) から dataDir を解決して <projectDir>/<dataDir> を返す */
+function resolveDataDirPath(projectDir: string): string {
+  // harmony.json から dataDir を読む (R-4 #853)
+  const harmonyPath = join(projectDir, "harmony.json");
+  if (existsSync(harmonyPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(harmonyPath, "utf-8")) as { dataDir?: string };
+      if (typeof raw.dataDir === "string" && raw.dataDir.length > 0) {
+        return join(projectDir, raw.dataDir);
+      }
+    } catch {
+      // parse error — fall through to default
+    }
+  }
+  // fallback: project.json でも project.json がある場合は root 直下 (旧形式互換)
+  const legacyPath = join(projectDir, "project.json");
+  if (existsSync(legacyPath)) {
+    return projectDir;
+  }
+  // 最終フォールバック: projectDir 自身 (旧形式互換)
+  return projectDir;
 }
 
 function discoverProject(projectDirArg: string): ProjectResources {
@@ -142,18 +177,20 @@ function discoverProject(projectDirArg: string): ProjectResources {
   }
   const projectId = basename(projectDir);
   const displayName = relative(repoRoot, projectDir).replace(/\\/g, "/") || ".";
-  const conventions = loadConventionsFromFile(join(projectDir, "conventions", "catalog.json"));
+  // R-4 #853: エンティティデータは dataDir 配下 (harmony/) に移動済
+  const dataDir = resolveDataDirPath(projectDir);
+  const conventions = loadConventionsFromFile(join(dataDir, "conventions", "catalog.json"));
   return {
     projectId,
     displayName,
     projectDir,
-    tables: loadTablesFromDir(join(projectDir, "tables")),
+    tables: loadTablesFromDir(join(dataDir, "tables")),
     conventions,
     conventionsV3: conventions as Conventions | null,
-    screens: loadScreensFromDir(join(projectDir, "screens")),
-    viewDefinitions: loadViewDefinitionsFromDir(join(projectDir, "view-definitions")),
+    screens: loadScreensFromDir(join(dataDir, "screens")),
+    viewDefinitions: loadViewDefinitionsFromDir(join(dataDir, "view-definitions")),
     screenTransitions: loadScreenTransitionsFromProjectJson(projectDir),
-    flowsDir: join(projectDir, "process-flows"),
+    flowsDir: join(dataDir, "process-flows"),
   };
 }
 
@@ -173,7 +210,9 @@ function loadExtensions(projectDir: string): { extensions: LoadedExtensions; fil
     responseTypes: { namespace: "", responseTypes: {} },
   };
 
-  const extDir = join(projectDir, "extensions");
+  // R-4 #853: extensions/ は dataDir 配下 (harmony/) に移動済
+  const dataDir = resolveDataDirPath(projectDir);
+  const extDir = join(dataDir, "extensions");
   if (existsSync(extDir)) {
     const allFiles = readdirSync(extDir, { recursive: true })
       .filter((f): f is string => typeof f === "string" && f.endsWith(".json"));
@@ -335,7 +374,9 @@ export function checkScreenItemsEmbedded(project: ProjectResources): ValidationI
   }
 
   // Check 1b: legacy screen-items/ ディレクトリが存在する場合
-  const screenItemsDir = join(project.projectDir, "screen-items");
+  // R-4 #853: dataDir (harmony/) 配下と projectDir 直下の両方を確認
+  const _dataDir = resolveDataDirPath(project.projectDir);
+  const screenItemsDir = join(_dataDir, "screen-items");
   if (existsSync(screenItemsDir)) {
     try {
       const files = readdirSync(screenItemsDir).filter((f) => f.endsWith(".json"));
@@ -365,12 +406,14 @@ export function checkScreenItemsEmbedded(project: ProjectResources): ValidationI
 export function checkDesignFilePresence(project: ProjectResources): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
+  // R-4 #853: screens/ は dataDir (harmony/) 配下に移動済
+  const _dataDirForDesign = resolveDataDirPath(project.projectDir);
   for (const screen of project.screens) {
     const id = screen.id ?? "unknown";
     const expectedDesignFile = `${id}.design.json`;
 
     // Check 2a: design.json ファイルが存在するか
-    const designFilePath = join(project.projectDir, "screens", expectedDesignFile);
+    const designFilePath = join(_dataDirForDesign, "screens", expectedDesignFile);
     if (!existsSync(designFilePath)) {
       issues.push({
         validator: "runtimeContractValidator",
@@ -415,7 +458,9 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
   }
 
   // tables/ ディレクトリが欠落 → SQL カラム検証が空配列で動作するためサイレント pass になる → warning
-  const tablesDir = join(project.projectDir, "tables");
+  // R-4 #853: tables/ は dataDir (harmony/) 配下に移動済
+  const dataDir = resolveDataDirPath(project.projectDir);
+  const tablesDir = join(dataDir, "tables");
   if (!existsSync(tablesDir)) {
     console.warn(
       `[validate:samples] 警告: ${project.displayName} に tables/ ディレクトリが見つかりません。` +
