@@ -1,6 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
 
-export const FAKE_WS_ID = "e2e-fake-ws-aaaaaaaaaaaaaaaaa";
+// UUID v4 規格 (36 文字 8-4-4-4-12) で固定。将来 router/store 側で wsId 形式検証が
+// 追加されても test が壊れないよう preemptive に正しい形式を使う (#814 N-2)。
+export const FAKE_WS_ID = "00000000-e2e1-4000-8000-000000000814";
 export const PUCK_SCREEN_ID = "puck-test-0001-4000-8000-aaaaaaaaaaaa";
 export const GJS_SCREEN_ID = "grapes-test-0002-4000-8000-bbbbbbbbbbbb";
 export const PUCK_TW_SCREEN_ID = "puck-tw-test-0003-4000-8000-cccccccccccc";
@@ -294,6 +296,12 @@ export async function dragPrimitiveTo(
   const targetX = targetBox.x + targetBox.width / 2;
   const targetY = targetBox.y + Math.min(targetBox.height / 2, 260);
 
+  // dnd-kit の PointerSensor 活性化を発火させる pointer event sequence:
+  //   - 各 step 間 20ms 待機: dnd-kit の pointermove throttling / activation distance 計算に
+  //     最低 frame 経過時間を与える (即時連続 move だと sensor が 1 イベント扱いになる場合あり)
+  //   - mouseup 直前 100ms: drop 判定の collision detection に必要な settle 時間
+  //   - mouseup 後 300ms: Puck の再 render と Puck data state 反映を待つ
+  // (#814 N-3)
   await page.mouse.move(sourceX, sourceY);
   await page.mouse.down();
   for (let i = 1; i <= 10; i += 1) {
