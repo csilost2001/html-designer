@@ -147,8 +147,8 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E)', () => {
   // ──────────────────────────────────────────────────────────────
 
   /**
-   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d act-001 step-01 validation rule
-   *   field=title, type=required
+   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d step:step-01
+   *   validation rule: field=title, type=required
    */
   it('#1 validation: title 欠落 → 400 VALIDATION_ERROR', async () => {
     // mock を設定しておく (validation で弾かれるため呼ばれないはずだが念のため)
@@ -163,8 +163,8 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E)', () => {
   });
 
   /**
-   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d act-001 step-01 validation rule
-   *   field=body, type=required
+   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d step:step-01
+   *   validation rule: field=body, type=required
    */
   it('#2 validation: body 欠落 → 400 VALIDATION_ERROR', async () => {
     httpServiceSpy = mockClaudeApiSuccess(httpService, '[]');
@@ -178,7 +178,7 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E)', () => {
   });
 
   /**
-   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d act-001
+   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d step:step-01
    *   httpRoute.auth="required"
    */
   it('#3 auth: JWT なし → 401', async () => {
@@ -190,7 +190,7 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E)', () => {
   });
 
   /**
-   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d act-001 step-03 [ai-mode:mock]
+   * Spec: ProcessFlow a9b0c1d2-e3f4-4a5b-8c6d-7e8f9a0b1c2d step:step-03 [ai-mode:mock]
    *   happy path: 全フィールド指定で 200 + candidates を返す
    */
   it('#4 happy path: title + body 指定で 200 + candidates 返却', async () => {
@@ -382,8 +382,12 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E)', () => {
  *
  * 注意: 実際の Claude API を叩くため、API コストが発生する。
  *       1 テストあたり最大 512 tokens 消費 (step-03 httpCall.body の max_tokens より)。
+ *
+ * NOTE: `describe.skipIf` は Vitest 専用 API。jest では TypeError になるため
+ *       ternary パターン (jest + vitest 両互換) を使用する。
  */
-describe.skipIf(process.env.RUN_AI_INTEGRATION !== '1')(
+// ternary パターン: jest と vitest の両方で動く条件付き skip
+(process.env.RUN_AI_INTEGRATION === '1' ? describe : describe.skip)(
   'POST /api/ai/tag-suggest (AIタグ提案 E2E) [live API — CI skip]',
   () => {
     let app: INestApplication;

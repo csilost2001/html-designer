@@ -950,8 +950,13 @@ describe('AI flow テスト [mock mode]', () => {
  *
  * 注意: 実際の Claude API を叩くため、API コストが発生する。
  *       テスト 1 回あたり最大 ${AI_MAX_TOKENS_LIVE} tokens 消費。
+ *
+ * NOTE: `describe.skipIf` は Vitest 専用 API。jest では TypeError になるため
+ *       ternary パターン (jest + vitest 両互換) を使用する:
+ *       (cond ? describe : describe.skip)(name, fn)
  */
-describe.skipIf(process.env.RUN_AI_INTEGRATION !== '1')(
+// ternary パターン: jest と vitest の両方で動く条件付き skip
+(process.env.RUN_AI_INTEGRATION === '1' ? describe : describe.skip)(
   'AI flow テスト [live API — CI skip]',
   () => {
     beforeAll(() => {

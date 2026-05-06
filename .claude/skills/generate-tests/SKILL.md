@@ -1724,6 +1724,11 @@ AI flow 検出後、以下の 4 観点 (AI-1〜AI-4) でテストを自動生成
 
 ### P5-4. mock mode vs 実 API mode の切替ロジック
 
+> **ternary パターン (jest + vitest 両互換)**: 条件付き skip には `describe.skipIf` (Vitest 専用) ではなく
+> ternary `(cond ? describe : describe.skip)(name, fn)` を使う。jest 環境では `describe.skipIf` が
+> 存在せず `TypeError` になるため。本 skill の Backend mode は jest 固定 (D-6) だが、vitest でも
+> 動作するこのパターンを推奨形とする。
+
 ```typescript
 // mock mode (default): jest.spyOn で stub
 describe('POST /api/ai/tag-suggest (AIタグ提案 E2E) [mock mode]', () => {
@@ -1743,7 +1748,9 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E) [mock mode]', () => {
 });
 
 // 実 API mode: RUN_AI_INTEGRATION=1 の場合のみ実行
-describe.skipIf(process.env.RUN_AI_INTEGRATION !== '1')(
+// NOTE: describe.skipIf は Vitest 専用 API。jest では TypeError になるため
+//       ternary パターン (jest + vitest 両互換) を使用する。
+(process.env.RUN_AI_INTEGRATION === '1' ? describe : describe.skip)(
   'POST /api/ai/tag-suggest (AIタグ提案 E2E) [live API]',
   () => {
     // 実際の Claude API を叩くテスト (CI では skip)

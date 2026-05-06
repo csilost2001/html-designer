@@ -1,5 +1,7 @@
 # golden-examples/posts-create-e2e
 
+> **golden 種別**: 本 golden は `${PLACEHOLDER}` 抽象スタイル — skill が任意の ProcessFlow に対して生成する **テンプレート参照** を意図。実 UUID 入りの golden は `golden-examples/diary-ai-tag-suggest/` (実 sample からの生成見本)。
+
 ProcessFlow `0671b051-4acc-49cf-ba92-9fa29b47f671` (投稿作成) を題材にした
 `/generate-tests` スキルのゴールデン出力。
 

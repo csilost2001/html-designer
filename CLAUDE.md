@@ -28,6 +28,7 @@ Claude Code 向けの補足ガイダンス。
 - **`/test-strategy`** — テスト実装時の自動起動スキル (`.claude/skills/test-strategy/SKILL.md`)
 - **`/rename-screen-ids`** — AI 推論による画面項目 ID 再命名 (`.claude/skills/rename-screen-ids/SKILL.md`)
 - **`/generate-code <flowId|screenId> [出力先]`** — project.techStack に基づき ProcessFlow → backend code / Screen → frontend code を生成。Spring Boot/Thymeleaf 系と NestJS/Next.js 系の 2 種類の techStack 組合せをカバー (`.claude/skills/generate-code/SKILL.md`)
+- **`/generate-tests <flowId|screenId> [出力先]`** — ProcessFlow → backend e2e test (jest+supertest) / Screen → component test (vitest+testing-library) / multi-screen → playwright E2E / AI flow → mock+実 API 切替テストを spec から機械導出。`/generate-code` の対 (`.claude/skills/generate-tests/SKILL.md`)
 
 Codex CLI 利用時はこれらのスキルは直接呼び出せません。等価機能は Codex plugin の `/codex:review` 等で代替するか、Opus が briefing で代替指示を出します。
 

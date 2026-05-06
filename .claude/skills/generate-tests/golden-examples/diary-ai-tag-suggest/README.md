@@ -97,7 +97,8 @@ npx jest --testPathPattern=ai-tag-suggest --runInBand
 ### 実 API mode
 
 `RUN_AI_INTEGRATION=1` と `CLAUDE_API_KEY` を設定して実行する。
-CI では **デフォルト skip** (describe.skipIf で除外)。手動 smoke 時のみ使用する。
+CI では **デフォルト skip** (ternary パターン `(cond ? describe : describe.skip)(...)` で除外)。手動 smoke 時のみ使用する。
+`describe.skipIf` は Vitest 専用 API で jest では TypeError になるため、jest + vitest 両互換の ternary パターンを採用している。
 
 ```bash
 # apps/api ディレクトリで実行
@@ -158,7 +159,7 @@ jobs:
 5. P5 セクション追加: externalSystems catalog から `retryPolicy`, `secrets` を抽出
 6. `step-04.expression` からリテラル threshold `0.6` を抽出
 7. 4 観点 (AI-1〜AI-4) のテストを生成
-8. `describe.skipIf(process.env.RUN_AI_INTEGRATION !== '1')` で live mode を保護
+8. ternary パターン `(process.env.RUN_AI_INTEGRATION === '1' ? describe : describe.skip)(...)` で live mode を保護 (`describe.skipIf` は Vitest 専用のため jest 互換の ternary を使用)
 9. README に PLACEHOLDER 解決表と #859/#865 の差替えポイントを記録
 
 ### golden との一致確認
