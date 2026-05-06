@@ -33,9 +33,6 @@ test.describe("Puck エディタ基本動作", () => {
   test("2. Puck パレットに primitive コンポーネントが表示される", async ({ page }) => {
     await setupPuckScreen(page);
 
-    // Puck が初期化されるまで待機
-    await page.waitForTimeout(2000);
-
     // Puck のコンポーネントパレットが存在する
     // primitive の label (日本語 / 英語) がパレットに出ていることを確認
     const puckRoot = page.locator("[data-testid='puck-editor-container']");
@@ -50,9 +47,6 @@ test.describe("Puck エディタ基本動作", () => {
 
   test("3. Puck データが既に存在する画面では配置済みコンテンツが表示される", async ({ page }) => {
     await setupPuckScreen(page, { puckData: PUCK_DATA_WITH_HEADING });
-
-    // Puck デザイナが表示されるまで待機
-    await page.waitForTimeout(2000);
 
     // Puck がマウントされ、コンテンツを描画していることを確認
     // PuckBackend.renderEditor が出力する puck-editor-container (data-testid 安定セレクタ)
@@ -132,7 +126,6 @@ test.describe("GrapesJS と Puck の混在", () => {
 
     // Puck 画面を開く (multi-workspace URL pattern #704)
     await page.goto(`/w/${FAKE_WS_ID}/screen/design/${PUCK_SCREEN_ID}`);
-    await page.waitForTimeout(2000);
 
     // Puck デザイナが表示される
     // PuckBackend.renderEditor が出力する puck-editor-container (data-testid 安定セレクタ)
@@ -142,7 +135,9 @@ test.describe("GrapesJS と Puck の混在", () => {
 
     // GrapesJS 画面を開く (multi-workspace URL pattern #704)
     await page.goto(`/w/${FAKE_WS_ID}/screen/design/${GJS_SCREEN_ID}`);
-    await page.waitForTimeout(2000);
+    // GrapesJS canvas iframe (or fallback container) のレンダリングを待つ。
+    // MCP オフラインで GrapesJS が起動できないケースもあるため catch で許容
+    await page.locator("iframe, [class*='gjs-']").first().waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
 
     // GrapesJS または適切なデザイナコンテナが表示されている
     const currentContent = await page.content();
@@ -153,17 +148,16 @@ test.describe("GrapesJS と Puck の混在", () => {
 
 test.describe("cssFramework 切替", () => {
   test("6a. cssFramework=bootstrap の Puck 画面が表示される", async ({ page }) => {
-    await setupPuckScreen(page, { cssFramework: "bootstrap" });
-
-    const puckEl = page.locator("[data-testid='puck-editor-container']");
-    await expect(puckEl).toBeVisible({ timeout: 15000 });
-
-    // エラーなく表示されていることを確認
+    // console listener は setupPuckScreen 前に登録 (Puck 初期化中エラーも捕捉するため #839)
     const errors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text());
     });
-    await page.waitForTimeout(1000);
+
+    await setupPuckScreen(page, { cssFramework: "bootstrap" });
+
+    const puckEl = page.locator("[data-testid='puck-editor-container']");
+    await expect(puckEl).toBeVisible({ timeout: 15000 });
 
     // 致命的エラーがないことを確認 (Puck 初期化エラーを検出)
     const fatalErrors = errors.filter(
@@ -173,6 +167,12 @@ test.describe("cssFramework 切替", () => {
   });
 
   test("6b. cssFramework=tailwind の Puck 画面が表示される", async ({ page }) => {
+    // console listener は setupPuckScreen 前に登録 (Puck 初期化中エラーも捕捉するため #839)
+    const errors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+
     await setupPuckScreen(page, {
       screenId: PUCK_TW_SCREEN_ID,
       cssFramework: "tailwind",
@@ -180,12 +180,6 @@ test.describe("cssFramework 切替", () => {
 
     const puckEl = page.locator("[data-testid='puck-editor-container']");
     await expect(puckEl).toBeVisible({ timeout: 15000 });
-
-    const errors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") errors.push(msg.text());
-    });
-    await page.waitForTimeout(1000);
 
     const fatalErrors = errors.filter(
       (e) => e.includes("Cannot read") || e.includes("is not a function"),
@@ -226,8 +220,7 @@ test.describe("スクリーンショット撮影 (視覚回帰検証用)", () =>
   test("screenshot: Puck × bootstrap 画面", async ({ page }) => {
     await setupPuckScreen(page, { puckData: PUCK_DATA_WITH_HEADING });
 
-    await page.waitForTimeout(2000);
-    await page.locator("[data-testid='puck-editor-container']").waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+    await page.locator("[data-testid='puck-editor-container']").waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
 
     await page.screenshot({
       path: path.join("test-results", "puck-bootstrap.png"),
@@ -242,8 +235,7 @@ test.describe("スクリーンショット撮影 (視覚回帰検証用)", () =>
       puckData: PUCK_DATA_WITH_HEADING,
     });
 
-    await page.waitForTimeout(2000);
-    await page.locator("[data-testid='puck-editor-container']").waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+    await page.locator("[data-testid='puck-editor-container']").waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
 
     await page.screenshot({
       path: path.join("test-results", "puck-tailwind.png"),
