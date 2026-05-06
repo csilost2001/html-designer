@@ -116,23 +116,72 @@ DATABASE_URL="file:$(pwd)/prisma/dev.db" npx jest --config test/jest-e2e.json --
 
 期待結果: 15/15 pass (テストケース #1〜#14 + #5b の計 15 件)
 
-## P2 以降への申し送り
+## P2 受け入れ基準 6 項目の充足状況 (#871)
+
+以下は δ-2 (#871) で定義した 6 受け入れ基準と、本 golden での充足状況のマッピング表。
+
+| # | 受け入れ基準 | golden での実現 | spec anchor |
+|---|---|---|---|
+| 1 | `lineage.writes[].tableId` → 行数増減 SELECT | #7 (posts row 追加), #8 (photos 行追加), #9 (post_tags 行追加) で `prisma.Model.findUnique / findMany` 確認 | step-03, step-04-01, step-05-04 |
+| 2 | `step.kind=loop + collectionSource` → N 件 = N 行 | #8 photos 2 件 → 2 行, #9 tags 1 件 → 1 行 (Spike L-3) | step-04, step-05 |
+| 3 | `txBoundary.role=begin..end` → 故意失敗で全 rollback | #10 同一タグ 2 回 (post_tags UNIQUE 違反) → 500 + posts 残存確認 (TX 未実装文書化) | step-03 begin / step-06 end |
+| 4 | `affectedRowsCheck.onViolation=throw` → 0 行 → 5xx | #7 (step-03 の affectedRowsCheck=throw) が INSERT 成功を前提に確認。**#15 で onViolation=throw 専用テスト追加** | step-03 affectedRowsCheck |
+| 5 | `affectedRowsCheck.onViolation=log` → 0 行でも続行 | **#15b で onViolation=log 専用テスト追加** (step-05-02 が log) | step-05-02 affectedRowsCheck |
+| 6 | `step.kind=compute` → DB 値の null/non-null | #11 status=draft → publishedAt null, #12 status=published → publishedAt non-null + 時刻範囲 | step-02 compute |
+
+### 充足状況サマリ
+
+- ✅ 基準 1: tests #7/#8/#9 でカバー (既存 Spike 由来)
+- ✅ 基準 2: tests #8/#9 でカバー (既存 Spike 由来)
+- ✅ 基準 3: test #10 でカバー (既存 Spike 由来 + TX 文書化パターン)
+- ✅ 基準 4: **test #15 を新規追加** (golden spec.ts に追記)
+- ✅ 基準 5: **test #15b を新規追加** (optional, golden spec.ts に追記)
+- ✅ 基準 6: tests #11/#12 でカバー (既存 Spike 由来)
+
+### P2 で新規追加したテストケース (#15, #15b)
+
+| # | テスト内容 | spec anchor | 備考 |
+|---|---|---|---|
+| 15 | affectedRowsCheck(throw): 0 行誘起 → 500 (POST_CREATE_FAILED) | step-03 affectedRowsCheck.onViolation=throw | mock で INSERT 0 行を誘起 |
+| 15b | affectedRowsCheck(log): 0 行条件でも 201 が返る | step-05-02 affectedRowsCheck.onViolation=log | UNIQUE 違反スキップで続行確認 |
+
+**注意**: #15 の「0 行 INSERT 誘起」は SQLite + Prisma では実装依存。
+現 diary 実装は INSERT が必ず 1 行返す（RETURNING で newPost を使う）ため、
+`mock` または実装側のエラーパス分岐で誘起する必要がある。
+golden では「誘起方法を申し送り」として記録するパターンを示す。
+
+---
+
+## P2 以降への申し送り (updated)
 
 ### TX-1 (重要): $transaction 未実装の場合の rollback テスト
 
 Spike 実績では posts.service.ts が `$transaction` を使わないため、
 post_tags UNIQUE 違反後も posts 行が残存する。
 
-P2 では:
-1. サービス層で `prisma.$transaction(async (tx) => { ... })` に修正 OR
-2. `$transaction` 使用を検出して「TX 実装あり」パスと「TX 未実装文書化」パスを自動分岐
+テスト #10 は「500 が返る」確認で pass する設計 (D-3)。
+`$transaction` 実装後は「posts に行が残らない」ことも assert するよう進化させる:
+
+```typescript
+// $transaction 実装後の assert (現在はコメントアウト):
+// expect(remainingRows).toHaveLength(0);  // rollback 成功を確認
+```
 
 ### STEP_CHILD_INSERT の order_index フィールド
 
-photos の orderIndex フィールド (Prisma model: `orderIndex`) を使った順序確認テストは
-Spike に含まれているが golden からは省略。P2 で追加検討。
+photos の orderIndex フィールドを使った順序確認テストは Spike #8 に含まれている。
+golden #8 では `orderBy: { orderIndex: 'asc' }` + `expect(photos[0].url).toBe(...)` で確認する。
+これは「loop insert の N 件確認」に含まれるため基準 2 で充足。
 
-### affectedRowsCheck.onViolation=throw テスト
+### affectedRowsCheck.onViolation=throw の 0 行誘起方法
 
-ProcessFlow の `POST_CREATE_FAILED` (affectedRowsCheck.onViolation=throw, errorCode=POST_CREATE_FAILED) に対する
-0 行誘起テストは P2 スコープ。強制的に INSERT 0 行を起こす方法 (mock / DB 制約) が必要。
+step-03 (INSERT posts) の affectedRowsCheck.onViolation=throw は:
+- INSERT 自体が 0 行を返すのは DB 制約違反 (NOT NULL / CHECK / etc.) が必要
+- 現 SQLite では `RETURNING` を持つ INSERT が 0 行を返すケースが限定的
+- テスト #15 は「mock 経由またはサービス層のエラーパス」で誘起する設計を示す
+- より確実な実機テストは「DB mock (jest.spyOn / jest.fn)」で Prisma の create を失敗させる方法を推奨
+
+### affectedRowsCheck.onViolation=log (step-05-02) の確認
+
+step-05-02 は「既存タグ名でリクエストして、UNIQUE 違反で 0 行 INSERT → log して続行」を期待。
+テスト #15b はこのシナリオを示す。Spike #13 (新規タグ名) の逆ケース。

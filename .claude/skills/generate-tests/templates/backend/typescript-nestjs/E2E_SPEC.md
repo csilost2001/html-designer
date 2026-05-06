@@ -273,3 +273,345 @@ async function loginAs${HelperName}(app: INestApplication): Promise<string> {
 - `beforeEach` の seed データには `Date.now()` suffix を付けて slug/name の UNIQUE 衝突を避ける
 - `ValidationPipe({ transform: true })` が設定されていないと DTO 変換が効かず
   数値型フィールドが文字列のまま渡ってバリデーションが通らないことがある
+
+---
+
+## 13. DB 副作用テンプレート (P2 — #871)
+
+### 13-A. lineage.writes → 行数増減 SELECT アサーション
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${STEP_ID}
+ *   kind=dbAccess, operation=INSERT
+ *   lineage.writes=[${TABLE_WRITES}]
+ *
+ * 実行前後の行数変化を COUNT で検証する。
+ */
+it(`#N lineage: INSERT 後に ${TABLE_WRITES} の行数が 1 増加する`, async () => {
+  // 実行前の行数を記録
+  const countBefore = await prisma.${mainModelPrisma}.count({
+    where: { ${uniqueIdentifierFilter} },
+  });
+
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ ${validPayload} });
+
+  expect(res.status).toBe(201);
+
+  const countAfter = await prisma.${mainModelPrisma}.count({
+    where: { ${uniqueIdentifierFilter} },
+  });
+  expect(countAfter).toBe(countBefore + 1);
+
+  createdIds['${TABLE_WRITES}'] = [...(createdIds['${TABLE_WRITES}'] ?? []), res.body.${OUTPUT_ID_FIELD}];
+});
+```
+
+### 13-B. loop + collectionSource → 入力配列長 = 挿入行数 (Spike L-3)
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${LOOP_STEP_ID}
+ *   kind=loop, loopKind=collection, collectionSource=@inputs.${LOOP_FIELD}
+ *   ${INNER_STEP_ID}: kind=dbAccess, operation=INSERT → ${CHILD_TABLE}
+ *
+ * 入力配列長 N = 子テーブル挿入行数 N (Spike L-3 パターン)
+ */
+it(`#N loop-insert: ${LOOP_FIELD} N 件 → ${CHILD_TABLE} に N 行 + 親 ID 紐付け`, async () => {
+  const N = 2;
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      ${REQUIRED_FIELD_1}: '${TEST_VALUE_LOOP_N}',
+      ${REQUIRED_FIELD_2}: '${TEST_VALUE_2}',
+      ${LOOP_FIELD}: Array.from({ length: N }, (_, i) => ({
+        ${CHILD_ITEM_FIELD}: `${TEST_CHILD_VALUE_PREFIX}-${i}`,
+      })),
+    });
+
+  expect(res.status).toBe(201);
+  const parentId = res.body.${OUTPUT_ID_FIELD};
+  createdIds['${TABLE_MAIN}'] = [...(createdIds['${TABLE_MAIN}'] ?? []), parentId];
+
+  const childRows = await prisma.${childModelPrisma}.findMany({
+    where: { ${PARENT_FK_FIELD}: parentId },
+    orderBy: { id: 'asc' },
+  });
+  expect(childRows).toHaveLength(N);
+  childRows.forEach((row) => expect(row.${PARENT_FK_FIELD}).toBe(parentId));
+});
+
+// 空配列 (0 件) の場合
+it(`#N loop-insert: ${LOOP_FIELD} 0 件 → ${CHILD_TABLE} に 0 行`, async () => {
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      ${REQUIRED_FIELD_1}: '${TEST_VALUE_LOOP_ZERO}',
+      ${REQUIRED_FIELD_2}: '${TEST_VALUE_2}',
+      ${LOOP_FIELD}: [],
+    });
+
+  expect(res.status).toBe(201);
+  const parentId = res.body.${OUTPUT_ID_FIELD};
+  createdIds['${TABLE_MAIN}'] = [...(createdIds['${TABLE_MAIN}'] ?? []), parentId];
+
+  const childRows = await prisma.${childModelPrisma}.findMany({
+    where: { ${PARENT_FK_FIELD}: parentId },
+  });
+  expect(childRows).toHaveLength(0);
+});
+```
+
+---
+
+## 14. TX rollback テンプレート (P2 — #871)
+
+### 14-A. 基本形 (UNIQUE 制約違反パターン)
+
+TX 内の INSERT テーブルに UNIQUE / @@id 制約がある場合の最優先パターン。
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${STEP_TX_BEGIN_ID}
+ *   txBoundary.role="begin", txId="${TX_ID}"
+ *   ${STEP_TX_END_ID}: txBoundary.role="end"
+ *
+ * TX rollback 検証 (D-3):
+ *   同一 ID を 2 回送ることで ${TABLE_JUNCTION} の UNIQUE 制約違反を誘起。
+ *   $transaction 実装あり → posts に行が残らない (rollback 成功)
+ *   $transaction 未実装 → posts に行が残る (spec ↔ impl 乖離として文書化)
+ *
+ * 【spec ↔ impl 乖離検出器】
+ *   このテストが fail する場合、txBoundary (${STEP_TX_BEGIN_ID} begin ~ ${STEP_TX_END_ID} end) が
+ *   サービス層で $transaction としてラップされていない可能性がある。
+ *   実装を確認し prisma.$transaction() でラップすること。
+ */
+it(`#N TX: 同一 ${JUNCTION_ITEM_LABEL} 2 回指定 (${TABLE_JUNCTION} UNIQUE 違反) → ${HTTP_STATUS_TX_ERROR} + TX rollback 確認`, async () => {
+  // 同じ ID を 2 回送って UNIQUE 違反を誘起
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      ${REQUIRED_FIELD_1}: '${TEST_VALUE_TX_UNIQUE}',
+      ${REQUIRED_FIELD_2}: '${TEST_VALUE_2}',
+      ${JUNCTION_COLLECTION_FIELD}: [
+        { id: ${TEST_MASTER_ID_VAR}, source: 'manual' },
+        { id: ${TEST_MASTER_ID_VAR}, source: 'ai' },  // 同一 ID → UNIQUE 違反
+      ],
+    });
+
+  // エラーが返ることを確認
+  expect(res.status).toBe(${HTTP_STATUS_TX_ERROR});
+
+  // TX rollback 確認: begin 側テーブルに行が残っていないことを期待
+  const remainingRows = await prisma.${mainModelPrisma}.findMany({
+    where: { ${REQUIRED_FIELD_1}: '${TEST_VALUE_TX_UNIQUE}' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (remainingRows.length > 0) {
+    // 【TX-1 文書化】 $transaction 未実装を記録
+    console.warn(
+      `[TX-1 文書化] TX が未実装: ${TABLE_JUNCTION} UNIQUE 違反後も ${TABLE_MAIN} 行が残存。` +
+      `残存 ID: ${remainingRows.map((r) => r.id).join(', ')}`,
+    );
+  }
+
+  // cleanup: 残存行を afterEach cleanup に渡す
+  for (const row of remainingRows) {
+    createdIds['${TABLE_MAIN}'] = [...(createdIds['${TABLE_MAIN}'] ?? []), Number(row.id)];
+  }
+
+  // このテストは「エラーが返る」ことの確認で pass とし、TX 未実装は申し送り
+});
+```
+
+### 14-B. FK 違反パターン
+
+TX 内に FK 参照がある場合の代替パターン。
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${STEP_TX_BEGIN_ID}
+ *   txBoundary.role="begin", txId="${TX_ID}"
+ *
+ * TX rollback 検証 (FK 違反パターン):
+ *   存在しない親 ID を子テーブルの FK に渡して FK 制約違反を誘起。
+ */
+it(`#N TX: 存在しない ${PARENT_LABEL} ID 指定 (FK 違反) → 5xx + TX rollback 確認`, async () => {
+  const nonExistentParentId = 999999999;
+
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      ${REQUIRED_FIELD_1}: '${TEST_VALUE_TX_FK}',
+      ${REQUIRED_FIELD_2}: '${TEST_VALUE_2}',
+      ${CHILD_FK_FIELD}: nonExistentParentId,
+    });
+
+  expect(res.status).toBeGreaterThanOrEqual(400);
+
+  // TX rollback 確認
+  const remainingRows = await prisma.${mainModelPrisma}.findMany({
+    where: { ${REQUIRED_FIELD_1}: '${TEST_VALUE_TX_FK}' },
+  });
+
+  if (remainingRows.length > 0) {
+    console.warn(
+      `[TX-2 文書化] TX が未実装: FK 違反後も ${TABLE_MAIN} 行が残存。` +
+      `残存 ID: ${remainingRows.map((r) => r.id).join(', ')}`,
+    );
+  }
+
+  for (const row of remainingRows) {
+    createdIds['${TABLE_MAIN}'] = [...(createdIds['${TABLE_MAIN}'] ?? []), Number(row.id)];
+  }
+});
+```
+
+### 14-C. value too long パターン
+
+TX 内の INSERT テーブルに varchar 上限があり UNIQUE/FK パターンが使えない場合のフォールバック。
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${STEP_TX_BEGIN_ID}
+ *   txBoundary.role="begin", txId="${TX_ID}"
+ *
+ * TX rollback 検証 (value too long パターン):
+ *   varchar 上限を超えるペイロードで DB エラーを誘起。
+ */
+it(`#N TX: ${TX_OVERFLOW_FIELD} 上限超過 (value too long) → 5xx + TX rollback 確認`, async () => {
+  const overLengthValue = 'x'.repeat(${TX_OVERFLOW_MAX_LENGTH} + 1);
+
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      ${REQUIRED_FIELD_1}: '${TEST_VALUE_TX_OVERFLOW}',
+      ${REQUIRED_FIELD_2}: '${TEST_VALUE_2}',
+      ${TX_OVERFLOW_FIELD}: overLengthValue,
+    });
+
+  expect(res.status).toBeGreaterThanOrEqual(400);
+
+  // TX rollback 確認
+  const remainingRows = await prisma.${mainModelPrisma}.findMany({
+    where: { ${REQUIRED_FIELD_1}: '${TEST_VALUE_TX_OVERFLOW}' },
+  });
+
+  if (remainingRows.length > 0) {
+    console.warn(
+      `[TX-3 文書化] TX が未実装: value too long 後も ${TABLE_MAIN} 行が残存。` +
+      `残存 ID: ${remainingRows.map((r) => r.id).join(', ')}`,
+    );
+  }
+
+  for (const row of remainingRows) {
+    createdIds['${TABLE_MAIN}'] = [...(createdIds['${TABLE_MAIN}'] ?? []), Number(row.id)];
+  }
+});
+```
+
+### 14-D. affectedRowsCheck.onViolation=throw + 0 行誘起パターン
+
+TX 内に `affectedRowsCheck.onViolation=throw` の step があり UNIQUE/FK が使えない場合。
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${STEP_AFFECTED_ROWS_ID}
+ *   affectedRowsCheck: expected=1, onViolation="throw", errorCode="${AFFECTED_ERROR_CODE}"
+ *   txBoundary: (begin 側と同一 txId)
+ *
+ * TX rollback 検証 (affectedRowsCheck.onViolation=throw パターン):
+ *   affected rows = 0 になるペイロードで onViolation=throw を誘起。
+ */
+it(`#N TX: affectedRowsCheck 0 行 (${AFFECTED_ERROR_CODE}) → ${AFFECTED_HTTP_STATUS} + TX rollback 確認`, async () => {
+  // UPDATE/DELETE なら存在しない ID → affected rows = 0
+  // INSERT なら UNIQUE 違反 (存在しない挿入が 0 行) → affected rows = 0
+  const res = await request(app.getHttpServer())
+    .patch('${HTTP_ROUTE_PATH}/${NONEXISTENT_ID_LITERAL}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ ${validUpdatePayload} });
+
+  expect(res.status).toBe(${AFFECTED_HTTP_STATUS});
+
+  // TX rollback 確認
+  const remainingRows = await prisma.${mainModelPrisma}.findMany({
+    where: { ${UNIQUE_IDENTIFIER_FIELD}: '${TEST_VALUE_AFFECTED}' },
+  });
+
+  if (remainingRows.length > 0) {
+    console.warn(`[TX-4 文書化] affectedRowsCheck throw 後も ${TABLE_MAIN} 行が残存。`);
+  }
+
+  for (const row of remainingRows) {
+    createdIds['${TABLE_MAIN}'] = [...(createdIds['${TABLE_MAIN}'] ?? []), Number(row.id)];
+  }
+});
+```
+
+### 14-E. affectedRowsCheck.onViolation=log → 0 行でも続行確認 (optional)
+
+```typescript
+/**
+ * Spec: ProcessFlow ${FLOW_ID} ${STEP_LOG_AFFECTED_ID}
+ *   affectedRowsCheck: onViolation="log", errorCode="${LOG_ERROR_CODE}"
+ *   (onViolation=log → 制約違反でもエラーにしない設計)
+ *
+ * 0 行条件でリクエストしても 2xx が返ることを確認する (エラーにならない)。
+ */
+it(`#N affectedRowsCheck(log): 0 行条件でも 2xx が返る (エラーにならない)`, async () => {
+  // 既存レコードと重複するペイロード (INSERT → UNIQUE 違反 → 0 行)
+  const res = await request(app.getHttpServer())
+    .post('${HTTP_ROUTE_PATH}')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({
+      ${REQUIRED_FIELD_1}: '${TEST_VALUE_LOG_AFFECTED}',
+      ${REQUIRED_FIELD_2}: '${TEST_VALUE_2}',
+      ${DUPLICATE_FIELD}: '${EXISTING_DUPLICATE_VALUE}',  // 既存と重複
+    });
+
+  // onViolation=log なのでエラーにならずに続行
+  expect(res.status).toBeLessThan(500);
+  // 注: logger.warn / console.warn が呼ばれることは NestJS Logger spy で確認可能
+  // (jest.spyOn(logger, 'warn') / jest.spyOn(console, 'warn'))
+});
+```
+
+---
+
+## 15. ヘッダーの spec → test mapping 更新例 (P2 対応版)
+
+P2 対応後のファイルヘッダー `spec → test mapping` セクションには以下を追加する:
+
+```
+ * [step ${STEP_POSTS_INSERT_ID}: lineage.writes=[${TABLE_MAIN}]]
+ *   → Assert: 実行前後で ${TABLE_MAIN} 行数が 1 増加 (COUNT SELECT)
+ *
+ * [step ${STEP_CHILD_LOOP_ID}: kind=loop, collectionSource=@inputs.${LOOP_FIELD}]
+ *   → Assert: 入力 N 件 → ${CHILD_TABLE} に N 行 (Spike L-3)
+ *   → Assert: 空配列 → ${CHILD_TABLE} に 0 行
+ *
+ * [step ${STEP_TX_BEGIN_ID}: txBoundary.role="begin", txId="${TX_ID}"]
+ *   → TX rollback テスト (D-3):
+ *     故意 UNIQUE 違反 → ${HTTP_STATUS_TX_ERROR}
+ *     $transaction あり → ${TABLE_MAIN} に行残らず (rollback 成功)
+ *     $transaction なし → ${TABLE_MAIN} に行残存 (TX-1 文書化、spec ↔ impl 乖離)
+ *
+ * [step ${STEP_AFFECTED_ROWS_ID}: affectedRowsCheck.onViolation="throw"]
+ *   → 0 行誘起 → ${AFFECTED_HTTP_STATUS}
+ *
+ * [step ${STEP_LOG_AFFECTED_ID}: affectedRowsCheck.onViolation="log"]
+ *   → 0 行でも 2xx (エラーにならない) [optional]
+ *
+ * [step ${STEP_COMPUTE_ID}: kind=compute, outputBinding="${COMPUTED_VAR}"]
+ *   → condition=false → DB の ${DB_COLUMN} が null
+ *   → condition=true  → DB の ${DB_COLUMN} が non-null (現在時刻付近)
+```

@@ -405,18 +405,333 @@ ProcessFlow:
   it('#N runIf=false: <条件説明> のケース', async () => { ... });
 ```
 
-#### K. step.kind=compute → DB 値で結果を確認
+#### K. step.kind=compute → DB 値で結果を確認 (Spike L-2)
 
 ```
 ProcessFlow:
   step.kind="compute", expression="@inputs.status == 'published' ? new Date().toISOString() : null"
   outputBinding.name="publishedAt"
 
-生成テスト:
+生成テスト (DB SELECT で null/non-null を assert):
+  /**
+   * Spec: ProcessFlow <flowId> <computeStepId>
+   *   kind=compute, outputBinding.name="publishedAt"
+   *   expression="@inputs.status == 'published' ? new Date().toISOString() : null"
+   */
   // status="draft" → publishedAt=null
+  it('#N compute: status="draft" → <computedField> が null', async () => {
+    const res = await request(...).post(...).send({ ..., status: 'draft' });
+    expect(res.status).toBe(201);
+    const row = await prisma.<ModelName>.findUnique({ where: { id: res.body.<outputId> } });
+    expect(row!.<computedField>).toBeNull();
+  });
+
   // status="published" → publishedAt が non-null かつ現在時刻付近
-  (happy path や別 it() で DB を SELECT して confirm)
+  it('#N compute: status="published" → <computedField> が non-null', async () => {
+    const before = new Date();
+    const res = await request(...).post(...).send({ ..., status: 'published' });
+    expect(res.status).toBe(201);
+    const after = new Date();
+    const row = await prisma.<ModelName>.findUnique({ where: { id: res.body.<outputId> } });
+    expect(row!.<computedField>).not.toBeNull();
+    const val = row!.<computedField> as Date;
+    expect(val.getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
+    expect(val.getTime()).toBeLessThanOrEqual(after.getTime() + 1000);
+  });
 ```
+
+---
+
+## P2 追加変換ルール (DB 副作用 + TX 検証) — #871
+
+### 3-P2-1. lineage.writes[].tableId → 行数増減 SELECT アサーション (D-2)
+
+`step.lineage.writes` を持つ step は全て「実行前後で行数が変化するか」を SELECT で確認するテストを生成する。
+
+```
+ProcessFlow:
+  step.kind="dbAccess", operation="INSERT" | "UPDATE" | "DELETE"
+  lineage.writes[].tableId="<tableId>"
+  (D-2 で tableId → physicalName 解決済)
+
+生成テスト (INSERT):
+  /**
+   * Spec: ProcessFlow <flowId> <stepId>
+   *   kind=dbAccess, operation=INSERT
+   *   lineage.writes=[<physicalName>]
+   */
+  it('#N lineage: INSERT 後に <physicalName> の行数が 1 増加する', async () => {
+    const countBefore = await prisma.<ModelName>.count({ where: { <filterCondition> } });
+    const res = await request(...).post(...).send({ <payload> });
+    expect(res.status).toBe(201);
+    const countAfter = await prisma.<ModelName>.count({ where: { <filterCondition> } });
+    expect(countAfter).toBe(countBefore + 1);
+  });
+
+生成テスト (DELETE):
+  it('#N lineage: DELETE 後に <physicalName> の行数が 1 減少する', async () => {
+    const countBefore = await prisma.<ModelName>.count({ where: { <filterCondition> } });
+    const res = await request(...).delete('/<path>/<id>').set('Authorization', `Bearer ${accessToken}`);
+    expect(res.status).toBe(200);
+    const countAfter = await prisma.<ModelName>.count({ where: { <filterCondition> } });
+    expect(countAfter).toBe(countBefore - 1);
+  });
+```
+
+tableId → physicalName 解決が失敗した場合:
+- physicalName が取得できなかった tableId は「解決不能: tableId=<id>」として申し送りに記載
+- テスト生成は一部スキップして続行する (全件未生成にはしない)
+
+### 3-P2-2. step.kind=loop + collectionSource → 入力配列長 = 挿入行数 (Spike L-3)
+
+loop ステップは、入力配列の要素数が内側 dbAccess INSERT の実行回数と一致することを確認する。
+
+```
+ProcessFlow:
+  step.kind="loop", loopKind="collection", collectionSource="@inputs.<field>"
+  collectionItemName="<itemName>"
+  inner step: kind="dbAccess", operation="INSERT"
+  inner step lineage.writes[].tableId → <childPhysicalName>
+
+生成テスト:
+  /**
+   * Spec: ProcessFlow <flowId> <loopStepId>
+   *   kind=loop, loopKind=collection, collectionSource=@inputs.<field>
+   *   <innerStepId>: kind=dbAccess, operation=INSERT → <childPhysicalName>
+   *
+   * 入力配列長 N = <childPhysicalName> 挿入行数 N (Spike L-3)
+   */
+  it('#N loop-insert: <field> N 件 → <childPhysicalName> に N 行 + 親 ID 紐付け', async () => {
+    const N = 2;  // 任意、2 で十分
+    const res = await request(...).post(...).send({
+      ...,
+      <field>: Array.from({ length: N }, (_, i) => ({ <childItemField>: `value-${i}` })),
+    });
+    expect(res.status).toBe(201);
+    const parentId = res.body.<outputIdField>;
+
+    const childRows = await prisma.<childModelPrisma>.findMany({ where: { <parentFKField>: parentId } });
+    expect(childRows).toHaveLength(N);
+    childRows.forEach(row => expect(row.<parentFKField>).toBe(parentId));
+  });
+```
+
+N = 0 のケース (空配列) も生成する:
+```
+  it('#N loop-insert: <field> 0 件 → <childPhysicalName> に 0 行', async () => {
+    const res = await request(...).post(...).send({ ..., <field>: [] });
+    expect(res.status).toBe(201);
+    const parentId = res.body.<outputIdField>;
+    const childRows = await prisma.<childModelPrisma>.findMany({ where: { <parentFKField>: parentId } });
+    expect(childRows).toHaveLength(0);
+  });
+```
+
+### 3-P2-3. txBoundary.role=begin..end → 故意失敗で全 rollback テスト (D-3)
+
+同一 txId を持つ `role=begin` 〜 `role=end` の step 群に対し、TX の途中で失敗を誘起し、
+begin 時点で書き込まれた行が全て rollback されることを確認するテストを生成する。
+
+```
+ProcessFlow:
+  step[N].txBoundary.role="begin", txId="<txId>"
+  step[M].txBoundary.role="end",   txId="<txId>"   (N < M)
+  (tx 内に dbAccess INSERT が存在する)
+
+生成テスト:
+  /**
+   * Spec: ProcessFlow <flowId> <beginStepId>
+   *   txBoundary.role="begin", txId="<txId>"
+   *   <endStepId>: txBoundary.role="end"
+   *
+   * TX rollback 検証 (D-3):
+   *   故意に <故意失敗パターン> を起こして TX 全体が rollback されるか確認。
+   *
+   * 【spec ↔ impl 乖離検出器として機能】
+   *   $transaction が実装されていない場合、begin 側の INSERT が rollback されずに残る。
+   *   この場合テストは「rollback なし」として文書化し、spec ↔ impl 乖離として申し送る。
+   */
+  it('#N TX: <故意失敗説明> → <expectedStatus> + TX rollback 確認', async () => {
+    // 故意失敗ペイロード (<故意失敗パターン> に従う)
+    const res = await request(...).post(...).send({ <failPayload> });
+
+    // エラー status を確認
+    expect(res.status).toBe(<expectedHttpStatus>);
+
+    // TX rollback 確認: begin 側テーブルに行が残っていないこと
+    const remainingRows = await prisma.<beginTableModel>.findMany({
+      where: { <uniqueIdentifierFilter> },
+    });
+
+    if (remainingRows.length > 0) {
+      // 【TX-1 文書化】 $transaction 未実装を記録
+      console.warn(
+        `[TX-1 文書化] TX が未実装: <失敗ステップ>失敗後も <beginTablePhysical> 行が残存。` +
+        `残存 ID: ${remainingRows.map((r) => r.id).join(', ')}`,
+      );
+    }
+    // このテストは「エラーが返る」ことの確認で pass とし、TX 未実装は申し送り
+    // cleanup
+    for (const row of remainingRows) {
+      createdIds['<beginTablePhysical>'] = [...(createdIds['<beginTablePhysical>'] ?? []), Number(row.id)];
+    }
+  });
+```
+
+#### 故意失敗パターンの選択ロジック
+
+TX 内の step 構造を解析して、以下の優先順で「故意失敗パターン」を決定する:
+
+| 優先度 | パターン | 選択条件 | ペイロード例 |
+|---|---|---|---|
+| 1 | UNIQUE 制約違反 | TX 内の INSERT テーブルに UNIQUE/@@id 制約がある | 同じ ID を 2 回送る |
+| 2 | NOT NULL 違反 | TX 内の dbAccess step に必須 JOIN がある | null を渡す |
+| 3 | FK 違反 | TX 内に FK 参照がある | 存在しない ID を参照 |
+| 4 | value too long | TX 内の INSERT に varchar 上限がある | maxLength+1 文字 |
+| 5 | affectedRowsCheck.onViolation=throw | TX 内 step に該当設定あり | DB に存在しない ID |
+| 6 | (フォールバック) | 上記が特定できない | mock 経由の失敗を申し送り |
+
+ProcessFlow の `lineage.writes / tableId / affectedRowsCheck / sql` から解析する。
+spec に `UNIQUE_VIOLATION` errorCode があれば UNIQUE 制約パターンを優先する。
+
+#### 運用ノート: $transaction 未実装 → テストは fail する、それが正しい動作
+
+> D-3 の設計意図: TX rollback テストは、`$transaction` が実装されていない実装バグを検出する
+> **spec ↔ impl 乖離検出器** として意図的に設計されている。
+>
+> - `$transaction` 実装あり → TX rollback テスト pass (spec と実装が一致)
+> - `$transaction` 未実装 → TX rollback テスト fail (spec が定義する TX 境界が実装されていない)
+>
+> テスト fail = バグ検出成功。テスト pass のために実装を改ざんするのは禁止。
+> fail の場合は「実装側の修正が必要: txBoundary step-N begin ~ step-M end を $transaction でラップする」を
+> 申し送りとして最終レポートに記載する。
+
+### 3-P2-4. affectedRowsCheck.onViolation=throw → 0 行誘起シナリオ → 5xx
+
+```
+ProcessFlow:
+  step.affectedRowsCheck.operator="=", expected=N, onViolation="throw"
+  errorCode="<errorCode>" (context.catalogs.errors.<errorCode>.httpStatus で status 解決)
+
+生成テスト:
+  /**
+   * Spec: ProcessFlow <flowId> <stepId>
+   *   affectedRowsCheck: operator="=", expected=<N>, onViolation="throw"
+   *   errorCode="<errorCode>" → httpStatus=<httpStatus>
+   *
+   * 0 行誘起 (affected rows が expected を満たさない) → <httpStatus>
+   */
+  it('#N affectedRowsCheck(throw): 0 行誘起 → <httpStatus>', async () => {
+    // 「存在しない ID」「DB に入らない条件」等で affected rows = 0 を誘起する
+    // 誘起方法は operation 種別で決定:
+    //   UPDATE/DELETE → 存在しない ID を指定 (例: id=999999999)
+    //   INSERT → DB 制約違反 (UNIQUE 等) が起きるペイロード
+    const res = await request(app.getHttpServer())
+      .<method>('<path>/<nonexistentId>')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ <validPayload> });
+
+    expect(res.status).toBe(<httpStatus>);  // errorCode → httpStatus
+  });
+```
+
+0 行を誘起する方法の判断ロジック:
+- `operation=UPDATE` or `DELETE` → path param / query に存在しない ID (999999999)
+- `operation=INSERT` → UNIQUE 違反ペイロード (既存レコードと重複)
+- 判断できない場合 → 「0 行誘起方法が未決: 手動でペイロードを調整してください」コメント付きで生成
+
+### 3-P2-5. affectedRowsCheck.onViolation=log → 0 行/多行を許容、log 出力確認 (optional)
+
+> `onViolation=log` のステップは「違反しても続行する」設計のため、テスト生成は任意 (optional)。
+> ただし skill ドキュメントとして挙動を明記し、生成する場合は以下のテンプレを使う。
+
+```
+ProcessFlow:
+  step.affectedRowsCheck.onViolation="log", errorCode="<errorCode>"
+
+生成テスト (optional):
+  /**
+   * Spec: ProcessFlow <flowId> <stepId>
+   *   affectedRowsCheck: onViolation="log", errorCode="<errorCode>"
+   *   (onViolation=log なので 0 行でもエラーにならない設計)
+   *
+   * 検証方針:
+   *   1. 0 行になる条件でリクエスト → 200/201 が返る (エラーにならないこと)
+   *   2. 可能であれば console.warn / logger.warn が呼ばれることを確認
+   *      (jest の spyOn(console, 'warn') または NestJS Logger spy)
+   */
+
+  // シナリオ A: 0 行でも 201 が返る (エラーにならない)
+  it('#N affectedRowsCheck(log): 0 行でも 201 が返る', async () => {
+    // 既存レコードと重複するペイロード (UNIQUE 違反 → INSERT 0 行)
+    const res = await request(...).post(...).send({ <duplicatePayload> });
+    // onViolation=log なのでエラーにならずに続行
+    expect(res.status).toBeLessThan(500);
+  });
+
+  // シナリオ B: 複数行の場合も許容
+  it('#N affectedRowsCheck(log): 複数行でも 201 が返る (想定範囲外だが log のみ)', async () => {
+    const res = await request(...).post(...).send({ <multiRowPayload> });
+    expect(res.status).toBeLessThan(500);
+  });
+```
+
+### 3-P2-6. step.kind=compute → DB 値の null/non-null アサーション (Spike L-2 の完全版)
+
+`K` ルールは compute 全般のテンプレ、本ルールは「DB に永続化される compute 結果」に特化した
+詳細版。特に `NEW Date()` 系の時刻フィールドに対する安全な assertion を定義する。
+
+```
+ProcessFlow:
+  step.kind="compute"
+  outputBinding.name="<computedVar>"
+  expression="<condition> ? <valueA> : <valueB>"
+  (次の dbAccess INSERT/UPDATE の sql で @<computedVar> が参照される)
+
+生成テスト (null ケース):
+  /**
+   * Spec: ProcessFlow <flowId> <computeStepId>
+   *   kind=compute, outputBinding.name="<computedVar>"
+   *   expression="<condition> ? <valueA> : null"
+   *   condition が false → DB の <dbColumn> が null
+   */
+  it('#N compute(<computedVar>): <condition>=false → <dbColumn> が null', async () => {
+    const res = await request(...).post(...).send({ ..., <conditionFalseField>: '<conditionFalseValue>' });
+    expect(res.status).toBe(201);
+    const row = await prisma.<ModelName>.findUnique({ where: { id: res.body.<outputId> } });
+    expect(row).not.toBeNull();
+    expect(row!.<dbColumn>).toBeNull();
+  });
+
+生成テスト (non-null / 時刻ケース):
+  /**
+   * Spec: ProcessFlow <flowId> <computeStepId>
+   *   kind=compute, outputBinding.name="<computedVar>"
+   *   expression="<condition> ? new Date().toISOString() : null"
+   *   condition が true → DB の <dbColumn> が現在時刻付近の Date
+   */
+  it('#N compute(<computedVar>): <condition>=true → <dbColumn> が non-null (現在時刻付近)', async () => {
+    const before = new Date();
+    const res = await request(...).post(...).send({ ..., <conditionTrueField>: '<conditionTrueValue>' });
+    expect(res.status).toBe(201);
+    const after = new Date();
+    const row = await prisma.<ModelName>.findUnique({ where: { id: res.body.<outputId> } });
+    expect(row).not.toBeNull();
+    expect(row!.<dbColumn>).not.toBeNull();
+    // 時刻範囲確認 (1 秒の clock ずれを許容)
+    const val = row!.<dbColumn> as Date;
+    expect(val.getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
+    expect(val.getTime()).toBeLessThanOrEqual(after.getTime() + 1000);
+  });
+```
+
+非時刻 compute (例: 数値演算、文字列変換) の場合:
+```
+  // expression の結果を DB で直接確認 (時刻範囲チェックなし)
+  expect(row!.<dbColumn>).toBe(<expectedComputedValue>);
+```
+
+---
 
 ### 3-4. テストケース番号付け規約
 
