@@ -28,17 +28,37 @@ const { writeScreen, writeScreenEntity, readScreenEntity } = await import("./pro
 
 const SCHEMAS_DIR = path.resolve(import.meta.dirname, "../../schemas");
 
+/** R-2: dataDir = "harmony" 固定で dataRoot を計算するヘルパー */
+function dataRoot(root: string): string {
+  return path.join(root, "harmony");
+}
+
 function expectedScreenSchemaRef(root: string): string {
   return path.relative(
-    path.join(root, "screens"),
+    path.join(dataRoot(root), "screens"),
     path.join(SCHEMAS_DIR, "v3", "screen.v3.schema.json"),
   ).replace(/\\/g, "/");
 }
 
+/** harmony.json の最小限有効な内容 (R-2: dataDir 必須) */
+const HARMONY_JSON_MIN = JSON.stringify({
+  schemaVersion: "v3",
+  dataDir: "harmony",
+  meta: {
+    id: "00000000-0000-4000-8000-000000000001",
+    name: "test",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  extensionsApplied: [],
+  entities: {},
+}, null, 2);
+
 async function ensureWorkspace(): Promise<void> {
   await fs.mkdir(TMP_ROOT, { recursive: true });
   try {
-    await fs.writeFile(path.join(TMP_ROOT, "project.json"), JSON.stringify({ name: "test" }), "utf-8");
+    // R-2: harmony.json (dataDir 必須) を workspace root 直下に配置
+    await fs.writeFile(path.join(TMP_ROOT, "harmony.json"), HARMONY_JSON_MIN, "utf-8");
   } catch {
     // ignore
   }
@@ -90,7 +110,8 @@ describe("draftStore", () => {
     });
 
     it("createDraft: 本体ファイルが存在すれば内容をコピーする", async () => {
-      const tablesDir = path.join(TMP_ROOT, "tables");
+      // R-2: 本体ファイルは <dataDir>/tables/ に格納される
+      const tablesDir = path.join(dataRoot(TMP_ROOT), "tables");
       await fs.mkdir(tablesDir, { recursive: true });
       await fs.writeFile(
         path.join(tablesDir, "tbl-copy.json"),
@@ -125,7 +146,8 @@ describe("draftStore", () => {
       const afterDraft = await readDraft(TEST_CLIENT_ID, "table", "tbl-commit");
       expect(afterDraft).toBeNull();
 
-      const bodyPath = path.join(TMP_ROOT, "tables", "tbl-commit.json");
+      // R-2: データは <root>/<dataDir>/tables/ に格納される
+      const bodyPath = path.join(dataRoot(TMP_ROOT), "tables", "tbl-commit.json");
       const body = JSON.parse(await fs.readFile(bodyPath, "utf-8"));
       expect(body).toMatchObject({ name: "orders" });
     });
@@ -135,7 +157,8 @@ describe("draftStore", () => {
       const r = await commitDraft(TEST_CLIENT_ID, "process-flow", "flow-001");
       expect(r.committed).toBe(true);
 
-      const bodyPath = path.join(TMP_ROOT, "actions", "flow-001.json");
+      // R-2: データは <root>/<dataDir>/actions/ に格納される
+      const bodyPath = path.join(dataRoot(TMP_ROOT), "actions", "flow-001.json");
       const body = JSON.parse(await fs.readFile(bodyPath, "utf-8"));
       expect(body).toMatchObject({ id: "flow-001" });
     });
@@ -145,7 +168,8 @@ describe("draftStore", () => {
       const r = await commitDraft(TEST_CLIENT_ID, "convention", "catalog");
       expect(r.committed).toBe(true);
 
-      const bodyPath = path.join(TMP_ROOT, "conventions", "catalog.json");
+      // R-2: データは <root>/<dataDir>/conventions/ に格納される
+      const bodyPath = path.join(dataRoot(TMP_ROOT), "conventions", "catalog.json");
       const body = JSON.parse(await fs.readFile(bodyPath, "utf-8"));
       expect(body).toMatchObject({ version: 1 });
     });
@@ -166,8 +190,8 @@ describe("draftStore", () => {
 
     it("screen-item: payload.screenId が指す screen に書き込まれる", async () => {
       const screenId = "scr-abc123";
-      // 書き込み先 screen が存在するよう事前にディレクトリを作成
-      const screensDir = path.join(TMP_ROOT, "screens");
+      // 書き込み先 screen が存在するよう事前にディレクトリを作成 (R-2: <dataDir>/screens/)
+      const screensDir = path.join(dataRoot(TMP_ROOT), "screens");
       await fs.mkdir(screensDir, { recursive: true });
       await fs.writeFile(
         path.join(screensDir, `${screenId}.design.json`),
@@ -189,8 +213,8 @@ describe("draftStore", () => {
       expect(afterDraft).toBeNull();
 
       // 正しい screenId のファイルに書き込まれていること ("singleton" ではない)
-      // writeScreenItems → writeScreenEntity は screens/{screenId}.json に items を保存する
-      const bodyPath = path.join(TMP_ROOT, "screens", `${screenId}.json`);
+      // writeScreenItems → writeScreenEntity は <dataDir>/screens/{screenId}.json に items を保存する
+      const bodyPath = path.join(dataRoot(TMP_ROOT), "screens", `${screenId}.json`);
       const body = JSON.parse(await fs.readFile(bodyPath, "utf-8"));
       expect(body).toMatchObject({ id: screenId, items: [{ id: "item-1" }] });
     });
@@ -281,11 +305,21 @@ describe("draftStore", () => {
     const CLIENT_B = "test-client-iso-B";
 
     beforeAll(async () => {
-      // 2 つのワークスペース root を作成
+      // 2 つのワークスペース root を作成 (R-2: harmony.json 配置が必要)
       await fs.mkdir(TMP_ROOT_A, { recursive: true });
-      await fs.writeFile(path.join(TMP_ROOT_A, "project.json"), JSON.stringify({ name: "A" }), "utf-8");
+      await fs.writeFile(path.join(TMP_ROOT_A, "harmony.json"), JSON.stringify({
+        schemaVersion: "v3", dataDir: "harmony",
+        meta: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "A",
+          createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        extensionsApplied: [], entities: {},
+      }, null, 2), "utf-8");
       await fs.mkdir(TMP_ROOT_B, { recursive: true });
-      await fs.writeFile(path.join(TMP_ROOT_B, "project.json"), JSON.stringify({ name: "B" }), "utf-8");
+      await fs.writeFile(path.join(TMP_ROOT_B, "harmony.json"), JSON.stringify({
+        schemaVersion: "v3", dataDir: "harmony",
+        meta: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "B",
+          createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        extensionsApplied: [], entities: {},
+      }, null, 2), "utf-8");
 
       _resetForTest();
       initWorkspaceState();
@@ -363,7 +397,8 @@ describe("draftStore", () => {
 
     it("writeScreen: 既存 entity の items[] が保持される", async () => {
       const screenId = "scr-items-test";
-      const screensDir = path.join(TMP_ROOT, "screens");
+      // R-2: スクリーンデータは <dataDir>/screens/ に格納される
+      const screensDir = path.join(dataRoot(TMP_ROOT), "screens");
       await fs.mkdir(screensDir, { recursive: true });
 
       const existingEntity = {
@@ -400,7 +435,8 @@ describe("draftStore", () => {
 
     it("writeScreen: $schema path が screens/ からの正しい相対 path になる", async () => {
       const screenId = "scr-schema-test";
-      const screensDir = path.join(TMP_ROOT, "screens");
+      // R-2: スクリーンデータは <dataDir>/screens/ に格納される
+      const screensDir = path.join(dataRoot(TMP_ROOT), "screens");
       await fs.mkdir(screensDir, { recursive: true });
 
       await writeScreen(screenId, { assets: [], styles: [], pages: [] }, TMP_ROOT);
@@ -414,7 +450,8 @@ describe("draftStore", () => {
 
     it("writeScreenEntity: 既存 entity の items[] が保持される", async () => {
       const screenId = "scr-entity-items-test";
-      const screensDir = path.join(TMP_ROOT, "screens");
+      // R-2: スクリーンデータは <dataDir>/screens/ に格納される
+      const screensDir = path.join(dataRoot(TMP_ROOT), "screens");
       await fs.mkdir(screensDir, { recursive: true });
 
       const existingEntity = {
