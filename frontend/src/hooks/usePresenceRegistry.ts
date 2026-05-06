@@ -106,6 +106,32 @@ function getStore(): PresenceRegistryStore {
   return window.__presenceRegistryStore;
 }
 
+// ── Activity level 判定 (Phase 5 暫定実装、Phase 7 で env 化予定) ────────────────────
+
+/**
+ * docs/spec/collab-presence.md § 9 (Activity taxonomy) の 5 段階 level。
+ * Phase 7 (#885) で threshold を env config 化予定。Phase 5 では hardcode。
+ */
+export type ActivityLevel = "live" | "active" | "idle" | "stale" | "abandoned";
+
+/**
+ * PresenceEntry の activity level を判定する純粋関数。
+ * Phase 7 で threshold を env から取得するよう変更予定。
+ */
+export function classifyActivity(entry: PresenceEntry, now: Date = new Date()): ActivityLevel {
+  const wsAlive = entry.focusAt !== null;
+  const actAge = (now.getTime() - new Date(entry.lastActivityAt).getTime()) / 1000;
+  const editAge = entry.lastEditAt
+    ? (now.getTime() - new Date(entry.lastEditAt).getTime()) / 1000
+    : Infinity;
+
+  if (wsAlive && editAge < 60) return "live";
+  if (wsAlive && actAge < 300) return "active";
+  if (actAge < 86400) return "idle";
+  if (wsAlive) return "stale";
+  return "abandoned";
+}
+
 // ── Public hooks ─────────────────────────────────────────────────────────────
 
 /**
