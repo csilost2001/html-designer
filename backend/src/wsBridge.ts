@@ -20,6 +20,12 @@ import {
   LockConflictError,
   LockNotHeldError,
 } from "./lockManager.js";
+import {
+  registerEditor as presenceRegisterEditor,
+  registerViewer as presenceRegisterViewer,
+  heartbeat as presenceHeartbeat,
+  list as presenceList,
+} from "./presenceManager.js";
 import { execSync } from "child_process";
 import { platform } from "node:os";
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
@@ -1085,6 +1091,70 @@ class WsBridge extends EventEmitter {
         case "lock.list": {
           const locks = listLocks();
           respond({ locks });
+          break;
+        }
+
+        // ── presence 管理 (#878 Phase 1) ──────────────────────────────────
+        case "presence.heartbeat": {
+          const {
+            resourceType: phrt,
+            resourceId: phrid,
+            kind: phkind,
+          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; kind: "activity" | "edit" };
+          const phWsId = wsId();
+          if (!phWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          const { changed, entry } = presenceHeartbeat(phWsId, clientId, phrt, phrid, phkind);
+          respond({ entry });
+          if (changed) {
+            const entries = presenceList(phWsId, phrt, phrid);
+            this.broadcast({
+              wsId: phWsId,
+              event: "presence:update",
+              data: { resourceType: phrt, resourceId: phrid, entries },
+            });
+          }
+          break;
+        }
+        case "presence.list": {
+          const { resourceType: plrt, resourceId: plrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const plWsId = wsId();
+          if (!plWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          const entries = presenceList(plWsId, plrt, plrid);
+          respond({ entries });
+          break;
+        }
+        case "presence.register": {
+          // Phase 1 では editor/viewer 手動登録 API を提供 (viewer role は Phase 2 で本格利用)
+          const {
+            resourceType: prrt,
+            resourceId: prrid,
+            role: prrole,
+            ownerLabel: prownerLabel,
+          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; role: "editor" | "viewer"; ownerLabel?: string };
+          const prWsId = wsId();
+          if (!prWsId) {
+            respondError("ワークスペースが選択されていません");
+            break;
+          }
+          let entry;
+          if (prrole === "editor") {
+            entry = presenceRegisterEditor(prWsId, clientId, prrt, prrid, prownerLabel);
+          } else {
+            entry = presenceRegisterViewer(prWsId, clientId, prrt, prrid);
+          }
+          respond({ entry });
+          const allEntries = presenceList(prWsId, prrt, prrid);
+          this.broadcast({
+            wsId: prWsId,
+            event: "presence:update",
+            data: { resourceType: prrt, resourceId: prrid, entries: allEntries },
+          });
           break;
         }
 
