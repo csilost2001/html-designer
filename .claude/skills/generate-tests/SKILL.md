@@ -1,57 +1,86 @@
 ---
 name: generate-tests
-description: project.techStack に基づき ProcessFlow JSON → backend integration test (E2E spec) を AI が生成する。P1 は TypeScript NestJS + jest (@nestjs/testing + supertest) をカバー。
-argument-hint: <flowId> [出力先ディレクトリ]
+description: project.techStack に基づき ProcessFlow JSON → backend integration test (E2E spec)、または Screen JSON → frontend component test (vitest + @testing-library/react) を AI が生成する。P1/P2 は TypeScript NestJS + jest、P3 は React + Next.js + vitest をカバー。
+argument-hint: <flowId|screenId> [出力先ディレクトリ]
 disable-model-invocation: true
 ---
 
 <!--
   使い方:
+    # ProcessFlow ID (backend E2E テスト生成 — P1/P2)
     /generate-tests 0671b051-4acc-49cf-ba92-9fa29b47f671
     /generate-tests 0671b051-4acc-49cf-ba92-9fa29b47f671 apps/api/test/generated
 
+    # Screen ID (frontend component テスト生成 — P3)
+    /generate-tests 31d56212-b654-46dc-b004-096c7382c404
+    /generate-tests 31d56212-b654-46dc-b004-096c7382c404 apps/web/src/__tests__
+
   目的:
-    ProcessFlow JSON を読み取り、spec → test の体系的な変換ルールに従い
-    NestJS E2E テストファイル (<flowName>.e2e-spec.ts) を生成する。
-    ゴールデン出力 (golden-examples/) を参照してテスト品質を均一化する。
+    ProcessFlow JSON / Screen JSON を読み取り、spec → test の体系的な変換ルールに従い
+    テストファイルを生成する。ゴールデン出力 (golden-examples/) を参照してテスト品質を均一化する。
+
+    test runner の使い分け (D-6 確定):
+      Backend NestJS     → jest (@nestjs/testing + supertest)    [P1/P2]
+      Frontend React/Next → vitest + @testing-library/react       [P3]
+      E2E (全体)         → Playwright                            [P4 以降]
 
   設計判断 (D-1〜D-7、#870 で確定):
-    D-1: 各 it() に "Spec: ProcessFlow <id> <step-id>" コメントでトレース anchor
+    D-1: 各 it() に "Spec: ProcessFlow/Screen <id> <step-id|item-id>" コメントでトレース anchor
     D-2: tableId → Prisma model 名の解決は harmony/tables/<id>.json の physicalName を参照
     D-3: txBoundary (begin..end) 含む step 群に故意失敗 TX rollback テストを生成
     D-4: section コメント anchor ベースで spec 由来 section のみ overwrite、人手 assertion section は保護
-    D-5: runIf 条件分岐は true / false 両方のテストを生成
-    D-6: test runner は NestJS jest (@nestjs/testing + supertest) で確定 (P1 スコープ)
-    D-7: SQLite では --runInBand 必須、Postgres/MySQL なら並列可
+    D-5: runIf 条件分岐は true / false 両方のテストを生成 (Screen の showIf も同様)
+    D-6: test runner の使い分け (確定):
+           NestJS backend → jest (@nestjs/testing + supertest)
+           React/Next frontend → vitest + @testing-library/react
+           E2E → Playwright (P4 以降)
+    D-7: SQLite では --runInBand 必須 (backend のみ)、Postgres/MySQL なら並列可
 
-  カバーするスコープ (P1):
-    - techStack.backend.framework = "nestjs" のみ (それ以外は中止)
-    - ProcessFlow inputs / validation / httpRoute / outputs / responses から test 生成
-    - DB 副作用 (dbAccess INSERT/UPDATE/DELETE) の Prisma SELECT 検証
-    - loop collectionSource の配列 N 件 assertion
-    - txBoundary 故意失敗テスト (TX 未実装の場合は文書化テストとして生成)
-    - runIf 分岐の両側テスト
-    - affectedRowsCheck.onViolation=throw の 0 行誘起テスト
-    - context.catalogs.errors → httpStatus assertion
+  カバーするスコープ:
 
-  P1 スコープ外 (別 ISSUE で逐次拡張):
-    - Spring Boot / Python FastAPI / Go Gin 等の他 techStack
-    - Screen → frontend test (E2E Playwright)
-    - 認証テンプレート (auth.method=session 等の非 jwt)
+    P1 (backend E2E — #870):
+      - techStack.backend.framework = "nestjs" のみ
+      - ProcessFlow inputs / validation / httpRoute / outputs / responses から test 生成
+      - runIf 分岐の両側テスト
+      - context.catalogs.errors → httpStatus assertion
+
+    P2 (backend DB 副作用 + TX — #871):
+      - DB 副作用 (dbAccess INSERT/UPDATE/DELETE) の Prisma SELECT 検証
+      - loop collectionSource の配列 N 件 assertion
+      - txBoundary 故意失敗テスト (TX 未実装の場合は文書化テストとして生成)
+      - affectedRowsCheck.onViolation=throw/log テスト
+      - step.kind=compute → DB 値の null/non-null アサーション
+
+    P3 (frontend component — #872):
+      - techStack.frontend.framework = "next" + library = "react" のみ
+      - Screen items[direction=input] → type 別 state 更新テスト
+      - Screen items[direction=output, valueFrom.kind=flowVariable] → msw mock → 表示 assert
+      - Screen events[].handlerFlowId → button click → fetch 発火テスト
+      - events[] 空配列の場合は skip テスト + 乖離検出ノートのみ生成
+      - renderWithProviders (useRouter / auth context wrap)
+
+  P3 スコープ外 (別 ISSUE で逐次拡張):
+    - Spring Boot / Python FastAPI 等の他 backend techStack
+    - P4: Playwright E2E (画面遷移 / 認証フロー全体)
     - CI 自動化 (本スキルは AI 対話駆動のため CI に乗せない)
 -->
 
-ProcessFlow `$ARGUMENTS` から、NestJS E2E テストコードを生成します。
+`$ARGUMENTS` から、テストコードを生成します。
 
 ## Step 0: 引数解析
 
 `$ARGUMENTS` を以下のように解析する。
 
-- 第1引数 `<flowId>` (必須): UUID v4 形式
+- 第1引数 `<id>` (必須): UUID v4 形式
   - UUID でない場合は「引数エラー: UUID v4 形式で指定してください」と報告して中止
 - 第2引数 `<出力先>` (任意): ディレクトリパス (default: `.tmp/generated-tests/<入力UUID8桁>/`)
 
 出力先ディレクトリが存在しない場合はテスト生成前に作成する。
+
+入力 UUID のルーティング (Step 1-2 で決定):
+- ProcessFlow ID にマッチ → backend E2E test 生成 (Step 1 → Step 3)
+- Screen ID にマッチ → frontend component test 生成 (Step 1 → Step P3)
+- どちらにもマッチしない → エラー報告して中止
 
 ## Step 1: 入力読込
 
@@ -69,13 +98,24 @@ harmony.techStack:
   auth.method
 ```
 
-### 1-2. 入力 UUID が processFlows に存在するか確認
+### 1-2. 入力 UUID のルーティング (ProcessFlow vs Screen)
 
-`harmony.json` の `entities.processFlows[].id` を照合する。
+`harmony.json` の `entities.processFlows[].id` と `entities.screens[].id` を照合する。
 
-- マッチ → ProcessFlow → backend test 生成へ (Step 3)
-- マッチしない → 「ProcessFlow ID が見つかりません (harmony.json の entities.processFlows を確認してください)」と報告して中止
-- Screen ID にマッチする場合 → 「P1 スコープ外: Screen の frontend test 生成は別スキルで対応予定です (ProcessFlow の flowId を指定してください)」と報告して中止
+```
+if entities.processFlows[].id にマッチ:
+  → ProcessFlow → backend test 生成へ (Step 2: techStack 検証 → Step 3)
+
+elif entities.screens[].id にマッチ:
+  → Screen → frontend component test 生成へ (Step P3-1: techStack 検証 → Step P3)
+
+else:
+  「ID が見つかりません: harmony.json の entities.processFlows / entities.screens を確認してください」
+  と報告して中止
+```
+
+**重要**: 同じ UUID が ProcessFlow と Screen 両方に存在する可能性は実際にはないが、
+processFlows を先にチェックし、マッチしない場合のみ screens をチェックする。
 
 ### 1-3. ProcessFlow JSON を Read で取得
 
@@ -96,20 +136,44 @@ ProcessFlow に登場する tableId を収集し、各テーブルの physicalNa
    例: "posts" → Post, "post_tags" → PostTag, "photos" → Photo
 ```
 
-## Step 2: techStack 制約検証 (P1 スコープチェック)
+## Step 2: techStack 制約検証
+
+ルーティング結果に応じて対応する検証を行う。
+
+### 2-A. ProcessFlow モード (backend test)
 
 以下を確認し、対象外の場合は中止する。
 
 ```
 if techStack.backend.framework !== "nestjs":
-  「P1 スコープ外: /generate-tests P1 は NestJS + jest のみサポートします。
+  「P1 スコープ外: /generate-tests P1/P2 は NestJS + jest のみサポートします。
    現在の techStack.backend.framework: "<value>"。
    他 techStack は別 ISSUE で対応予定。」と報告して中止
 
 if techStack.backend.language !== "typescript":
-  「P1 スコープ外: /generate-tests P1 は TypeScript のみサポートします。
+  「P1 スコープ外: /generate-tests P1/P2 は TypeScript のみサポートします。
    現在の techStack.backend.language: "<value>"。」と報告して中止
 ```
+
+→ 検証 OK → Step 3 (backend E2E test 生成) へ
+
+### 2-B. Screen モード (frontend component test)
+
+以下を確認し、対象外の場合は中止する。
+
+```
+if techStack.frontend.framework !== "next":
+  「P3 スコープ外: /generate-tests P3 は Next.js + React のみサポートします。
+   現在の techStack.frontend.framework: "<value>"。」と報告して中止
+
+if techStack.frontend.library !== "react":
+  「P3 スコープ外: /generate-tests P3 は React のみサポートします。
+   現在の techStack.frontend.library: "<value>"。」と報告して中止
+```
+
+→ 検証 OK → Step P3-1 (Screen component test 生成) へ
+
+---
 
 ## Step 3: ProcessFlow → backend E2E test 生成
 
@@ -853,6 +917,8 @@ smoke 検証: スキップ (<理由>)
 
 ## 最終レポート
 
+### ProcessFlow モード (P1/P2)
+
 ```markdown
 ## /generate-tests 完了: <processFlow.meta.name>
 
@@ -878,4 +944,316 @@ smoke 検証: スキップ (<理由>)
 ### 申し送り (P2 以降)
 - TX-1: <TX 実装状況>
 - その他
+```
+
+### Screen モード (P3)
+
+```markdown
+## /generate-tests 完了: <Screen.name> (component test)
+
+### 入力
+- Screen ID: <uuid>
+- Screen 名: <name>
+- Screen kind: <kind>
+- techStack: <frontend.library>/<frontend.framework>
+
+### 生成ファイル
+- `<出力先>/<screenName>.component.test.tsx` (N 行, M テストケース)
+- `<出力先>/vitest.config.ts` (vitest 設定)
+
+### items index
+| item.id | direction | type | valueFrom | msw mock URL |
+|---|---|---|---|---|
+| searchQuery | input | string | なし | — |
+| posts | output | array | flowVariable (e6f7a8b9-...) | GET /api/posts/search |
+| totalCount | output | integer | flowVariable (e6f7a8b9-...) | GET /api/posts/search (同上) |
+| ...
+
+### 生成テストケース一覧
+| # | description | spec anchor | Section |
+|---|---|---|---|
+| 1 | searchQuery が DOM に存在 | Screen <id> item:searchQuery | render |
+| ... | ... | ... | ... |
+| N (skip) | events テスト (#864 補完待ち) | Screen <id> events[] 空配列 | events |
+
+### smoke 検証
+- vitest 実行: ✓ N/N pass, M skip / スキップ (<理由>) / ❌ (<エラー詳細>)
+
+### 申し送り
+- EVENTS-1: events[] が空。#864 (events[] 補完) 完了後に再生成すること。
+- COMPONENT-1: 実際のコンポーネントパスは PLACEHOLDER。<推測パス> に配置想定。
+- その他
+```
+
+---
+
+## Step P3-1: Screen component test 生成 (P3)
+
+Step 1-2 で Screen ID にルーティングされた場合、以下の手順で frontend component test を生成する。
+
+テンプレート規約: `.claude/skills/generate-tests/templates/frontend/react-tailwind-next/COMPONENT_SPEC.md` を Read して参照すること。
+
+ゴールデン出力も参照: `.claude/skills/generate-tests/golden-examples/screens-list-component/`
+
+### P3-1. Screen JSON を Read で取得
+
+- active workspace: `<workspace>/screens/<id>.json`
+- フォールバック: `examples/<project-id>/harmony/screens/<id>.json`
+
+取得する情報:
+```
+Screen:
+  id, name, kind, path, auth, maturity
+  items[]:
+    id, label, type, direction
+    valueFrom.kind, valueFrom.processFlowId, valueFrom.variableName  (output の場合)
+    options[]  (enum の場合)
+    defaultValue, required, placeholder
+  events[]:
+    id, trigger.kind, trigger.itemId, handlerFlowId, description
+```
+
+### P3-2. processFlowId → httpRoute index の構築
+
+items[direction=output, valueFrom.kind=flowVariable] の processFlowId を収集し、各フローの httpRoute を解決する。
+
+```
+processFlowId 解決手順:
+1. output items から valueFrom.processFlowId を収集 (重複除去)
+2. 各 processFlowId について process-flows/<id>.json を Read
+3. actions[0].httpRoute.method + actions[0].httpRoute.path を取得
+4. map 化: { "<processFlowId>": { method: "GET", path: "/api/posts/search" } }
+
+解決失敗 (httpRoute が空 / JSON が見つからない):
+  → PLACEHOLDER "<API_BASE>/PLACEHOLDER_PATH" でテンプレ提示
+  → README.md の PLACEHOLDER 解決表に未解決として記録
+```
+
+### P3-3. events[].handlerFlowId → httpRoute 解決
+
+events 配列が空でない場合、各 event の handlerFlowId についても httpRoute を解決する。
+
+```
+handlerFlowId 解決手順:
+  processFlowId 解決と同様 (Step P3-2 の map を再利用)
+```
+
+events 配列が空の場合:
+→ Section 4 は skip テスト + 乖離検出ノートのみ生成する (P3 受け入れ基準 d)
+
+### P3-4. Screen → component test 変換ルール (4〜6 件)
+
+各ルールで生成する `it()` には必ず `// Spec: Screen <screenId> item:<item.id>` コメントを付与すること (D-1)。
+
+#### SC-A. 全 items → render テスト (DOM 存在確認)
+
+```
+Screen:
+  items[].id="<itemId>", items[].direction=any
+
+生成テスト (全 items):
+  /**
+   * Spec: Screen <screenId> item:<itemId>
+   *   direction=<direction>, type=<type>
+   */
+  it('#N <label> (data-testid="<itemId>") が表示される', () => {
+    renderWithProviders(<COMPONENT_NAME />);
+    expect(screen.getByTestId('<itemId>')).toBeInTheDocument();
+  });
+```
+
+**実装前提**: コンポーネント側は各 item に `data-testid={item.id}` を付与する。
+`data-testid` は `data-item-id` と等価な意味を持つが、@testing-library/react では `getByTestId` が `data-testid` をデフォルトで解釈する。
+
+#### SC-B. items[direction=input] → type 別 state 更新テスト
+
+type に応じて以下のスニペットを選択する:
+
+| items[].type | DOM element | テスト手法 |
+|---|---|---|
+| string | `<input type="text">` | `userEvent.type()` |
+| integer / number | `<input type="number">` | `fireEvent.change()` |
+| enum (options あり) | `<select>` | `userEvent.selectOptions()` |
+| array (複数選択) | checkbox 群 / `<select multiple>` | `userEvent.click()` / `userEvent.selectOptions()` |
+| boolean | `<input type="checkbox">` / toggle | `userEvent.click()` |
+| date | `<input type="date">` | `fireEvent.change()` |
+| text (長文) | `<textarea>` | `userEvent.type()` |
+
+各 input item について 1〜2 件の it() を生成する (通常の値変更 + defaultValue の初期値確認)。
+
+#### SC-C. items[direction=output, valueFrom.kind=flowVariable] → msw mock → 表示 assert
+
+```
+Screen:
+  items[].direction="output"
+  items[].valueFrom.kind="flowVariable"
+  items[].valueFrom.processFlowId="<processFlowId>"
+  items[].valueFrom.variableName="<variableName>"
+
+(Step P3-2 で解決済み: processFlowId → httpRoute)
+
+生成テスト:
+  /**
+   * Spec: Screen <screenId> item:<outputItemId>
+   *   direction=output, valueFrom.kind=flowVariable
+   *   processFlowId=<processFlowId>, variableName=<variableName>
+   *
+   * msw で <HTTP_METHOD> <HTTP_PATH> をインターセプト → mock レスポンス → 表示 assert
+   */
+  it('#N <label> が API レスポンスから表示される', async () => {
+    renderWithProviders(<COMPONENT_NAME />);
+    await waitFor(() => {
+      // PLACEHOLDER: mock レスポンスのフィールドが表示されること
+      expect(screen.getByText('<mock_response_field_value>')).toBeInTheDocument();
+    });
+  });
+```
+
+同一 processFlowId を参照する複数の output items は、msw handler 1 個で対応する (重複追加しない)。
+
+#### SC-D. items[direction=output, valueFrom なし] → DOM 存在確認のみ
+
+```
+Screen:
+  items[].direction="output"
+  (valueFrom なし、または valueFrom.kind != "flowVariable")
+
+生成テスト:
+  /**
+   * Spec: Screen <screenId> item:<outputItemId>
+   *   direction=output (valueFrom なし: コンポーネント内部 state or props)
+   */
+  it('#N <label> (data-testid="<outputItemId>") が DOM に存在する', () => {
+    renderWithProviders(<COMPONENT_NAME />);
+    expect(screen.getByTestId('<outputItemId>')).toBeInTheDocument();
+  });
+```
+
+#### SC-E. events[].handlerFlowId → click → fetch 発火テスト
+
+events 配列が空でない場合のみ生成する。
+
+```
+Screen:
+  events[].trigger.kind="click"
+  events[].trigger.itemId="<triggerItemId>"
+  events[].handlerFlowId="<handlerFlowId>"
+  (Step P3-3 で解決済み: handlerFlowId → httpRoute)
+
+生成テスト:
+  /**
+   * Spec: Screen <screenId> events[<N>]
+   *   trigger.kind=click, trigger.itemId=<triggerItemId>
+   *   handlerFlowId=<handlerFlowId> → <HTTP_METHOD> <HTTP_PATH>
+   */
+  it('#N <イベント説明> ボタンをクリックすると <HTTP_METHOD> <HTTP_PATH> が呼ばれる', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const user = userEvent.setup();
+    renderWithProviders(<COMPONENT_NAME />);
+
+    const button = screen.getByTestId('<triggerItemId>');
+    await user.click(button);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('<HTTP_PATH>'),
+        expect.objectContaining({ method: '<HTTP_METHOD>' }),
+      );
+    });
+
+    vi.unstubAllGlobals();
+  });
+```
+
+#### SC-F. events[] 空配列 → skip テスト + 乖離検出ノート
+
+```
+Screen:
+  events[] = []  (空配列)
+
+生成テスト:
+  /**
+   * NOTICE: Screen <screenId> の events[] は現在空配列です。
+   * events[] 補完 (#864) が完了したら再生成してください:
+   *   /generate-tests <screenId>
+   *
+   * 【spec ↔ impl 乖離検出ノート】
+   * events 未定義の状態では、コンポーネントのボタン/アクションが
+   * 特定の ProcessFlow を呼ぶことを spec で追跡できない。
+   * 補完後に Section 4 を自動更新する。
+   */
+  it.skip('#N events テストは events[] 補完 (#864) 完了後に生成予定', () => {});
+```
+
+### P3-5. テストケース番号付け規約 (Screen)
+
+- `#1〜#N` render: 全 items の DOM 存在確認 (items[] の順序通り)
+- `#N+1〜` input: direction=input の type 別 state 更新
+- `#M+1〜` output: direction=output の API 反映確認
+- `#L+1〜` events: click → fetch 発火 (または skip)
+
+### P3-6. テストファイルの構造
+
+```typescript
+/**
+ * コンポーネントテスト: <Screen.name> (<Screen.kind>)
+ *
+ * // ===HARMONY_GENERATED_SECTION_START screenId=<screenId>===
+ * // ===HARMONY_GENERATED_SECTION_END===
+ *
+ * Screen: <screenId> (<Screen.name>)
+ * (mapping summary)
+ */
+
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { renderWithProviders } from '@/test/renderWithProviders';
+// import <COMPONENT_NAME> from '<COMPONENT_PATH>';  // PLACEHOLDER
+
+// ===HARMONY_GENERATED_SECTION_START screenId=<screenId>===
+const handlers = [/* msw handlers */];
+// ===HARMONY_GENERATED_SECTION_END===
+
+const server = setupServer(...handlers);
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterAll(() => server.close());
+beforeEach(() => server.resetHandlers());
+
+describe('<Screen.name> コンポーネント', () => {
+
+  describe('Section 1: render', () => { /* SC-A */ });
+
+  describe('Section 2: input', () => { /* SC-B */ });
+
+  describe('Section 3: output', () => { /* SC-C / SC-D */ });
+
+  describe('Section 4: events', () => { /* SC-E or SC-F */ });
+
+});
+```
+
+### P3-7. 出力ファイル
+
+```
+<出力先>/
+  <screenName>.component.test.tsx   (本体テストファイル)
+  vitest.config.ts                  (最小 vitest 設定)
+```
+
+### P3-8. smoke 検証 (vitest)
+
+```bash
+# frontend プロジェクトルートで実行
+cd apps/web && npx vitest --reporter=verbose --testPathPattern="<generated-filename>"
+```
+
+実行環境が整っていない場合はスキップし、最終レポートに以下を記載:
+```
+smoke 検証: スキップ (vitest 未設定 / npm install 未実施)
+推奨コマンド: cd apps/web && npx vitest <filename>.component.test
 ```
