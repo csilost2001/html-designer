@@ -12,6 +12,7 @@ import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import {
   DiscardConfirmDialog,
   ForceReleaseConfirmDialog,
@@ -264,6 +265,15 @@ export function SequenceEditor() {
           label: "シーケンス一覧",
           onClick: () => navigate(wsPath("/sequence/list")),
         } satisfies EditorHeaderBackLink}
+        extraRight={
+          <EditSessionDropdown
+            resourceType="sequence"
+            resourceId={sequenceId ?? ""}
+            currentMode={mode}
+            currentSessionId={sessionId}
+            onStartEditing={() => { void actions.startEditing(); }}
+          />
+        }
         saveReset={isReadonly ? undefined : {
           isDirty,
           isSaving,

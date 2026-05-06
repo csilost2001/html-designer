@@ -68,6 +68,7 @@ import { EditorHeader } from "../common/EditorHeader";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import "../../styles/editMode.css";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -760,6 +761,13 @@ export function ProcessFlowEditor() {
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
         extraRight={
           <>
+            <EditSessionDropdown
+              resourceType="process-flow"
+              resourceId={processFlowId ?? ""}
+              currentMode={mode}
+              currentSessionId={sessionId}
+              onStartEditing={() => { void editActions.startEditing(); }}
+            />
             <button
               type="button"
               className={`btn btn-sm ${drawingMode ? "btn-danger" : "btn-outline-secondary"}`}

@@ -654,6 +654,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         screenId={screenId}
         isReadonly={isReadonly}
         editor={undefined}
+        sessionMode={mode}
+        sessionId={sessionId}
+        onStartEditing={editActions.startEditing}
       />
     );
     const puckProps: PuckRenderEditorProps = {
@@ -705,6 +708,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       backLink={onBack ? { label: screenName ?? "画面デザイン", onClick: onBack } : undefined}
       screenId={screenId}
       isReadonly={isReadonly}
+      sessionMode={mode}
+      sessionId={sessionId}
+      onStartEditing={editActions.startEditing}
     />
   );
   // GrapesJSRenderEditorProps で GrapesJS 固有 callback を型レベル required として渡す

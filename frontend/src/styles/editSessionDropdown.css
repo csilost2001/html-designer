@@ -1,0 +1,181 @@
+/**
+ * editSessionDropdown.css (#882 Phase 4)
+ * EditSessionDropdown コンポーネント用スタイル
+ */
+
+/* ── ルートコンテナ ─────────────────────────────────────────────────────────── */
+.esd-root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── 集約バッジ (トグルボタン) ─────────────────────────────────────────────── */
+.esd-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.esd-badge-icon {
+  font-size: 13px;
+}
+
+.esd-badge-label {
+  font-size: 12px;
+}
+
+.esd-chevron {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ── ドロップダウン本体 ───────────────────────────────────────────────────────── */
+.esd-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1000;
+  min-width: 280px;
+  max-width: 400px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 6px 0;
+}
+
+/* ── 区切り線 ──────────────────────────────────────────────────────────────── */
+.esd-divider {
+  margin: 4px 0;
+  border-color: #dee2e6;
+  opacity: 0.5;
+}
+
+/* ── 現在の正規版行 ─────────────────────────────────────────────────────────── */
+.esd-section-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.esd-current-row {
+  color: #495057;
+}
+
+.esd-current-badge {
+  font-size: 10px;
+}
+
+/* ── PresenceEntry 行 ────────────────────────────────────────────────────────── */
+.esd-entry-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.esd-entry-row:hover {
+  background: #f8f9fa;
+}
+
+.esd-entry-me {
+  background: #f0f4ff;
+}
+
+.esd-entry-me:hover {
+  background: #e8efff;
+}
+
+/* ── ステータスドット ───────────────────────────────────────────────────────── */
+.esd-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.esd-dot-active {
+  background: #28a745;
+}
+
+.esd-dot-editing {
+  background: #28a745;
+}
+
+.esd-dot-viewer {
+  background: #ffc107;
+}
+
+.esd-dot-self {
+  background: #6c757d;
+}
+
+/* ── role アイコン ──────────────────────────────────────────────────────────── */
+.esd-role-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* ── ラベル / 時間 ─────────────────────────────────────────────────────────── */
+.esd-row-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.esd-row-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.esd-row-owner-label {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.esd-row-time {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ── アクションボタン群 ──────────────────────────────────────────────────────── */
+.esd-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.esd-action-btn {
+  font-size: 11px;
+  padding: 1px 6px;
+  line-height: 1.4;
+}
+
+.esd-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── 新規 draft ボタン ───────────────────────────────────────────────────────── */
+.esd-new-draft-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.esd-new-draft-btn:hover {
+  background: #f0f4ff;
+  color: #0a58ca;
+}

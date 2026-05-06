@@ -18,6 +18,7 @@ import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import {
   DiscardConfirmDialog,
   ForceReleaseConfirmDialog,
@@ -965,6 +966,15 @@ export function ScreenItemsView() {
           </span>
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
+        extraRight={
+          <EditSessionDropdown
+            resourceType="screen-item"
+            resourceId={screenId ?? ""}
+            currentMode={mode}
+            currentSessionId={sessionId}
+            onStartEditing={() => { void actions.startEditing(); }}
+          />
+        }
         saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
       />
 
