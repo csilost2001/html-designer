@@ -366,7 +366,10 @@ test('投稿作成 → 詳細表示', async () => {
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './e2e',
+  // P4 生成物はプロジェクトルート直下: spec.ts と config.ts が同階層に配置される
+  // testDir: './e2e' にすると discover されないため '.' を使用
+  testDir: '.',
+  testMatch: '*.e2e.spec.ts',
 
   // SQLite --workers=1 必須 (D-7)
   // Postgres/MySQL の場合は fullyParallel: true, workers: undefined に変更可

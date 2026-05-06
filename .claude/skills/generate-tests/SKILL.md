@@ -993,7 +993,7 @@ smoke 検証: スキップ (<理由>)
 | # | description | spec anchor |
 |---|---|---|
 | 1 | happy path: 全フィールド指定 → 201 | act-001 responses[id="201-created"] |
-| 2 | validation: title 欠落 → 400 | act-001 step-01 required |
+| 2 | validation: title 欠落 → 400 | act-001 step:step-01 required |
 | ...
 
 ### smoke 検証
@@ -1307,7 +1307,9 @@ describe('<Screen.name> コンポーネント', () => {
 
 ```bash
 # frontend プロジェクトルートで実行
-cd apps/web && npx vitest --reporter=verbose --testPathPattern="<generated-filename>"
+# vitest は positional filename で対象を絞る (--testPathPattern は Jest 専用 option)
+# run を明示して watch mode を避ける
+cd apps/web && npx vitest run --reporter=verbose <generated-filename>
 ```
 
 実行環境が整っていない場合はスキップし、最終レポートに以下を記載:
