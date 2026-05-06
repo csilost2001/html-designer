@@ -9,6 +9,8 @@ import {
   discardDraft,
   hasDraft,
   listDrafts,
+  flushAllDirty,
+  initDraftStoreBroadcast,
   type DraftResourceType,
 } from "./draftStore.js";
 import {
@@ -999,9 +1001,10 @@ class WsBridge extends EventEmitter {
         }
         case "draft.update": {
           const { type: dt, id: did, payload: dp } = (params ?? {}) as { type: DraftResourceType; id: string; payload: unknown };
-          await updateDraft(clientId, dt, did, dp);
+          // #880 Phase 3: wsId を渡す。draft-update broadcast は draftStore 内から実行。
+          // draft.changed op:"updated" は flush 完了時にのみ発火 (中間状態とは分離)。
+          await updateDraft(clientId, dt, did, dp, wsId());
           respond({ updated: true });
-          this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "updated" }, excludeClientId: clientId });
           break;
         }
         case "draft.commit": {
@@ -1280,3 +1283,19 @@ class WsBridge extends EventEmitter {
 }
 
 export const wsBridge = new WsBridge();
+
+// #880 Phase 3: draftStore に broadcast 関数を注入 (circular dep 回避)
+initDraftStoreBroadcast((opts) => wsBridge.broadcast(opts));
+
+// #880 Phase 3: shutdown 時に dirty shadow を flush する
+async function _flushAndExit(signal: string): Promise<void> {
+  console.error(`[WsBridge] ${signal}: flushing dirty drafts...`);
+  try {
+    await flushAllDirty();
+  } catch (e) {
+    console.error("[WsBridge] flushAllDirty error:", e);
+  }
+}
+
+process.on("SIGTERM", () => { _flushAndExit("SIGTERM").catch(() => {}); });
+process.on("SIGINT", () => { _flushAndExit("SIGINT").catch(() => {}); });

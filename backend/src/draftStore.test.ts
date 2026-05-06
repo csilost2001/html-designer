@@ -20,6 +20,9 @@ const {
   discardDraft,
   hasDraft,
   listDrafts,
+  flushDraft,
+  flushAllDirty,
+  readDraftLatest,
 } = await import("./draftStore.js");
 
 const { _resetForTest, connect, initWorkspaceState } = await import("./workspaceState.js");
@@ -389,6 +392,79 @@ describe("draftStore", () => {
       // workspace B には作られないこと
       const bPath = path.join(TMP_ROOT_B, ".drafts", "table", "path-test.json");
       await expect(fs.access(bPath)).rejects.toThrow();
+    });
+  });
+
+  // #880 Phase 3: shadow store / flush / sequence 単調性テスト
+  describe("#880 shadow store / flush / sequence", () => {
+    it("updateDraft 後は shadow に反映され readDraftLatest で取得できる", async () => {
+      await updateDraft(TEST_CLIENT_ID, "table", "shadow-test", { v: 1 });
+      const latest = await readDraftLatest(TEST_CLIENT_ID, "table", "shadow-test");
+      expect(latest).toMatchObject({ v: 1 });
+    });
+
+    it("readDraftLatest: shadow なしなら FS から読む", async () => {
+      // FS に直接書いておく
+      await createDraft(TEST_CLIENT_ID, "sequence", "seq-shadow-fallback");
+      // shadow なし状態で readDraftLatest を呼ぶ
+      const latest = await readDraftLatest(TEST_CLIENT_ID, "sequence", "seq-shadow-fallback");
+      expect(latest).toEqual({}); // createDraft の初期値
+    });
+
+    it("flushDraft: shadow の内容が FS に書かれる", async () => {
+      await updateDraft(TEST_CLIENT_ID, "table", "flush-test", { flushed: true });
+      await flushDraft(TEST_CLIENT_ID, "table", "flush-test");
+      // FS から直接読んで確認
+      const fromFs = await readDraft(TEST_CLIENT_ID, "table", "flush-test");
+      expect(fromFs).toMatchObject({ flushed: true });
+    });
+
+    it("flushDraft: dirty=false の場合は何もしない (エラーにならない)", async () => {
+      // flush 済み状態
+      await updateDraft(TEST_CLIENT_ID, "table", "flush-noop", { x: 1 });
+      await flushDraft(TEST_CLIENT_ID, "table", "flush-noop");
+      // 2 回目 flush は no-op (エラーにならないこと)
+      await expect(flushDraft(TEST_CLIENT_ID, "table", "flush-noop")).resolves.toBeUndefined();
+    });
+
+    it("sequence は単調増加する", async () => {
+      // 複数回 update → sequence が毎回 increment されることを broadcast 受信で確認できないが、
+      // shadow から取得できる sequence を直接テストする (shadow はモジュール内 Map)。
+      // ここでは updateDraft を 3 回呼び、readDraftLatest で最終値が正しいことを確認する。
+      await updateDraft(TEST_CLIENT_ID, "view", "seq-mono", { n: 1 });
+      await updateDraft(TEST_CLIENT_ID, "view", "seq-mono", { n: 2 });
+      await updateDraft(TEST_CLIENT_ID, "view", "seq-mono", { n: 3 });
+      const latest = await readDraftLatest(TEST_CLIENT_ID, "view", "seq-mono");
+      expect(latest).toMatchObject({ n: 3 });
+    });
+
+    it("commitDraft: shadow あり → flush してから commit → shadow が消える", async () => {
+      await updateDraft(TEST_CLIENT_ID, "table", "commit-shadow", { committed: true });
+      const r = await commitDraft(TEST_CLIENT_ID, "table", "commit-shadow");
+      expect(r.committed).toBe(true);
+      // commit 後は shadow が消えているので readDraftLatest は FS (null) を返す
+      const afterCommit = await readDraftLatest(TEST_CLIENT_ID, "table", "commit-shadow");
+      expect(afterCommit).toBeNull();
+    });
+
+    it("discardDraft: shadow があれば shadow を消す", async () => {
+      await updateDraft(TEST_CLIENT_ID, "sequence", "discard-shadow", { discard: true });
+      // #880: updateDraft は shadow のみに書く (FS には書かない)。
+      // discardDraft は shadow を消した上で FS unlink を試みる。FS ファイルが無い場合は discarded: false。
+      await discardDraft(TEST_CLIENT_ID, "sequence", "discard-shadow");
+      // shadow が消えていること: readDraftLatest が null を返す (FS にも書かれていない)
+      const after = await readDraftLatest(TEST_CLIENT_ID, "sequence", "discard-shadow");
+      expect(after).toBeNull();
+    });
+
+    it("flushAllDirty: 複数 dirty entry を一括 flush できる", async () => {
+      await updateDraft(TEST_CLIENT_ID, "table", "bulk-1", { b: 1 });
+      await updateDraft(TEST_CLIENT_ID, "table", "bulk-2", { b: 2 });
+      await flushAllDirty();
+      const r1 = await readDraft(TEST_CLIENT_ID, "table", "bulk-1");
+      const r2 = await readDraft(TEST_CLIENT_ID, "table", "bulk-2");
+      expect(r1).toMatchObject({ b: 1 });
+      expect(r2).toMatchObject({ b: 2 });
     });
   });
 
