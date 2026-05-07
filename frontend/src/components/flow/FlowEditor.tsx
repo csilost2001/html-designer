@@ -54,7 +54,7 @@ import { resolveCssFramework } from "../../utils/resolveCssFramework";
 import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useFlowProjectSync } from "../../hooks/useFlowProjectSync";
-import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
+import { useEditSession } from "../../hooks/useEditSession";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import {
   DiscardConfirmDialog,

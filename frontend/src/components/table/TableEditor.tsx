@@ -16,7 +16,7 @@ import { listTables } from "../../store/tableStore";
 import { generateDdl, generateTableMarkdown } from "../../utils/ddlGenerator";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { useListSelection } from "../../hooks/useListSelection";

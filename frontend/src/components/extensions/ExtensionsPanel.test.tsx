@@ -10,29 +10,33 @@ vi.mock("../../mcp/mcpBridge", () => ({
     request: vi.fn(),
     onExtensionsChanged: vi.fn(() => () => undefined),
     onBroadcast: vi.fn(() => () => undefined),
-    // useEditSession 用: editing モードでセッション所有
+    // Phase 6 (#903): useEditSession (新 API) 用
     getSessionId: vi.fn(() => "test-session"),
-    getLock: vi.fn(async () => ({ entry: { ownerSessionId: "test-session" } })),
-    acquireLock: vi.fn(async () => undefined),
-    releaseLock: vi.fn(async () => undefined),
-    createDraft: vi.fn(async () => ({ created: true })),
-    updateDraft: vi.fn(async () => undefined),
-    commitDraft: vi.fn(async () => ({ committed: true })),
-    discardDraft: vi.fn(async () => ({ discarded: true })),
     hasDraft: vi.fn(async () => ({ exists: false })),
-    forceReleaseLock: vi.fn(async () => undefined),
   },
 }));
 
 const bridgeMock = vi.mocked(mcpBridge);
+
+const MOCK_EDIT_SESSION = {
+  id: "es-ext-001",
+  resourceType: "extension",
+  resourceId: "default",
+  state: "Active",
+  participants: { "test-session": { sessionId: "test-session", role: "Edit", joinedAt: new Date().toISOString(), lastActivityAt: new Date().toISOString(), displayLabel: "@test" } },
+  payload: null,
+  sequence: 1,
+  createdAt: new Date().toISOString(),
+  expiresAt: new Date(Date.now() + 86400000).toISOString(),
+  saveHistory: [],
+  lastActivityAt: new Date().toISOString(),
+};
 
 describe("ExtensionsPanel", () => {
   beforeEach(() => {
     bridgeMock.getExtensions.mockReset();
     bridgeMock.request.mockReset();
     bridgeMock.onExtensionsChanged.mockClear();
-    // セッション所有者として editing モードに設定
-    (bridgeMock.getLock as ReturnType<typeof vi.fn>).mockResolvedValue({ entry: { ownerSessionId: "test-session" } });
     (bridgeMock.hasDraft as ReturnType<typeof vi.fn>).mockResolvedValue({ exists: false });
     bridgeMock.getExtensions.mockResolvedValue({
       responseTypes: {
@@ -42,7 +46,13 @@ describe("ExtensionsPanel", () => {
         },
       },
     });
-    bridgeMock.request.mockResolvedValue({ success: true });
+    // Phase 6 (#903): editSession.create で editing モードに入る
+    (bridgeMock.request as ReturnType<typeof vi.fn>).mockImplementation(async (method: string) => {
+      if (method === "editSession.create") return { editSession: MOCK_EDIT_SESSION };
+      if (method === "editSession.save") return { saveEvent: { savedBy: "test-session", savedAt: new Date().toISOString(), sequence: 1 } };
+      if (method === "editSession.list") return { sessions: [MOCK_EDIT_SESSION] };
+      return { success: true };
+    });
   });
 
   it("renders five extension tabs", async () => {
@@ -58,6 +68,14 @@ describe("ExtensionsPanel", () => {
     render(<MemoryRouter initialEntries={["/extensions?tab=responseTypes"]}><ExtensionsPanel /></MemoryRouter>);
 
     expect(await screen.findByDisplayValue("ApiError")).toBeInTheDocument();
+
+    // Phase 6 (#903): 新 API では readonly から編集開始ボタンを押して editing モードに入る
+    const startButton = screen.queryByRole("button", { name: "編集開始" });
+    if (startButton) {
+      fireEvent.click(startButton);
+      await screen.findByRole("button", { name: "追加" });
+    }
+
     fireEvent.click(screen.getByRole("button", { name: "追加" }));
     fireEvent.change(screen.getAllByPlaceholderText("ApiError")[1], { target: { value: "Created" } });
     // EditModeToolbar の「保存」と tab の「保存」があるため getAllByRole で後者を選ぶ

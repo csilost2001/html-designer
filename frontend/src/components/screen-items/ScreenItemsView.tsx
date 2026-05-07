@@ -16,7 +16,7 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { EditSessionDropdown } from "../editing/EditSessionDropdown";

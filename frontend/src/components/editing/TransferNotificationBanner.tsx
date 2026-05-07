@@ -1,5 +1,5 @@
 /**
- * TransferNotificationBanner.tsx (#902 Phase 5)
+ * TransferNotificationBanner.tsx (#902 Phase 5, Phase 6 cleanup)
  *
  * editSession.roleChanged (op: "transferred") を受信して、
  * 元 owner / 新 owner に通知バナーを表示する。
@@ -8,7 +8,7 @@
  * - 自分が from (= 元 owner、Edit → View): 「@bob が編集を引き継ぎました」
  * - 自分が to (= 新 owner、View → Edit): 「@alice から編集を引き継ぎました」
  *
- * 後方互換: lock.changed op:"transferred" も引き続き受け取る (Phase 6 で削除予定)
+ * Phase 6 (#903): 旧 lock.changed listen 削除済み。editSession.roleChanged のみ購読。
  * autoclose: 5s
  */
 import { useEffect, useState, useCallback } from "react";
@@ -74,43 +74,6 @@ export function TransferNotificationBanner({
         // 自分が引き継いだ側 (新 owner)
         setBanner({
           message: `@${fromLabel} から編集を引き継ぎました`,
-          kind: "taken-by-me",
-        });
-      }
-    });
-
-    return unsub;
-  }, [resourceType, resourceId, clientId]);
-
-  // 後方互換: lock.changed op:"transferred" (Phase 6 で削除予定)
-  useEffect(() => {
-    const unsub = mcpBridge.onBroadcast("lock.changed", (data) => {
-      const d = data as {
-        resourceType: string;
-        resourceId: string;
-        op: string;
-        ownerSessionId?: string;
-        by?: string;
-        previousOwner?: string;
-      };
-
-      if (d.op !== "transferred") return;
-
-      // リソースフィルタ (指定がある場合のみ絞り込む)
-      if (resourceType && d.resourceType !== resourceType) return;
-      if (resourceId && d.resourceId !== resourceId) return;
-
-      const previousOwner = d.previousOwner ?? "";
-      const newOwner = d.ownerSessionId ?? d.by ?? "";
-
-      if (previousOwner === clientId) {
-        setBanner({
-          message: `あなたの draft は @${newOwner.slice(0, 8)} に引き継がれました`,
-          kind: "taken-from-me",
-        });
-      } else if (newOwner === clientId) {
-        setBanner({
-          message: `@${previousOwner.slice(0, 8)} さんの draft を引継ぎました`,
           kind: "taken-by-me",
         });
       }

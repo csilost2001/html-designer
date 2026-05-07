@@ -1,381 +1,22 @@
 /**
- * useEditSession.ts (#900 / meta #897 Phase 3)
+ * useEditSession.ts (#900 / meta #897 Phase 3, Phase 6 cleanup)
  *
  * docs/spec/edit-session-protocol.md §15.2 の UseEditSessionResult シグネチャに準拠した
- * 新 API と、後方互換のために残す旧 API (useEditSessionLegacy / @deprecated) を提供する。
+ * 新 API を提供する。
  *
- * 旧 API は Phase 6 で削除予定。
+ * 旧 API (useEditSessionLegacy / lock + draft 直呼び出しモデル) は Phase 6 (#903) で削除済み。
  *
  * ## 変更履歴
  * - Phase 3 (#900): 新 API (useEditSession v2) を追加
  *   - attach 時 initial fetchPayload (= §13.3 根本欠陥の解消)
  *   - editSession.update broadcast で sequence reorder 検出
  *   - EditSessionDropdown / useResourceEditor の内部用に設計
- * - 旧 API: useEditSessionLegacy に押し出し、@deprecated marker を付与
+ * - Phase 6 (#903): useEditSessionLegacy 削除、旧 lock/draft 依存を完全除去
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mcpBridge } from "../mcp/mcpBridge";
-import { usePresenceHeartbeat } from "./usePresenceHeartbeat";
 import type { DraftResourceType } from "../types/draft";
-
-// ── 共通型 ─────────────────────────────────────────────────────────────────────
-
-export type EditMode =
-  | { kind: "readonly" }
-  | { kind: "editing" }
-  | { kind: "viewer" }
-  | { kind: "locked-by-other"; ownerSessionId: string; ownerLabel?: string }
-  | { kind: "force-released-pending"; previousDraftExists: boolean }
-  | { kind: "after-force-unlock"; previousOwner: string };
-
-// ── 旧 API 型定義 (互換用、@deprecated) ────────────────────────────────────────
-
-/**
- * @deprecated Phase 6 で削除。useEditSession (新 API) に移行してください。
- */
-export interface UseLegacyEditSessionOptions {
-  resourceType: DraftResourceType;
-  resourceId: string;
-  sessionId: string;
-}
-
-/**
- * @deprecated Phase 6 で削除。UseEditSessionResult (新 API) に移行してください。
- */
-export interface UseLegacyEditSessionResult {
-  mode: EditMode;
-  loading: boolean;
-  error: Error | null;
-  isDirtyForTab: boolean;
-  /** viewer および readonly 以外の mode では編集不可 */
-  canEdit: boolean;
-  /** editing mode か否か */
-  isEditing: boolean;
-  actions: {
-    startEditing: () => Promise<void>;
-    save: () => Promise<void>;
-    discard: () => Promise<void>;
-    forceReleaseOther: () => Promise<void>;
-    handleForcedOut: (choice: "adopt" | "discard" | "continue") => Promise<void>;
-    handleAfterForceUnlock: (choice: "adopt" | "discard" | "continue") => Promise<void>;
-    refreshLockState: () => Promise<void>;
-  };
-}
-
-// ── 旧 API 実装 (互換維持用、@deprecated) ──────────────────────────────────────
-
-/**
- * @deprecated Phase 6 で削除。useEditSession (新 API、spec §15.2) に移行してください。
- * 旧 API は lock/draft 直呼び出しモデル。既存の consumer は Phase 6 まで引き続き動作する。
- */
-export function useEditSessionLegacy(opts: UseLegacyEditSessionOptions): UseLegacyEditSessionResult {
-  const { resourceType, resourceId, sessionId } = opts;
-
-  const [mode, setMode] = useState<EditMode>({ kind: "readonly" });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const modeRef = useRef<EditMode>(mode);
-  modeRef.current = mode;
-
-  // viewer mode では usePresenceHeartbeat を有効化する
-  const isViewerMode = mode.kind === "viewer";
-  usePresenceHeartbeat({
-    resourceType,
-    resourceId,
-    role: "viewer",
-    enabled: isViewerMode,
-  });
-
-  const refreshLockState = useCallback(async () => {
-    try {
-      const lockRes = await mcpBridge.getLock(resourceType, resourceId) as {
-        entry: { ownerSessionId: string } | null;
-      } | null;
-      const entry = lockRes?.entry ?? null;
-
-      if (!entry) {
-        setMode({ kind: "readonly" });
-        return;
-      }
-
-      if (entry.ownerSessionId === sessionId) {
-        setMode({ kind: "editing" });
-        return;
-      }
-
-      setMode({ kind: "locked-by-other", ownerSessionId: entry.ownerSessionId });
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, [resourceType, resourceId, sessionId]);
-
-  const refreshLockStateRef = useRef(refreshLockState);
-  refreshLockStateRef.current = refreshLockState;
-
-  useEffect(() => {
-    let cancelled = false;
-    // 切替前のリソース情報をキャプチャ (cleanup でゾンビロック解放に使う)
-    const prevResourceType = resourceType;
-    const prevResourceId = resourceId;
-
-    const init = async () => {
-      setLoading(true);
-      try {
-        const lockRes = await mcpBridge.getLock(resourceType, resourceId) as {
-          entry: { ownerSessionId: string } | null;
-        } | null;
-        const entry = lockRes?.entry ?? null;
-
-        if (cancelled) return;
-
-        if (!entry) {
-          const draftRes = await mcpBridge.hasDraft(resourceType, resourceId) as { exists: boolean } | null;
-          if (cancelled) return;
-          if (draftRes?.exists) {
-            setMode({ kind: "force-released-pending", previousDraftExists: true });
-          } else {
-            setMode({ kind: "readonly" });
-          }
-        } else if (entry.ownerSessionId === sessionId) {
-          setMode({ kind: "editing" });
-        } else {
-          setMode({ kind: "locked-by-other", ownerSessionId: entry.ownerSessionId });
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e : new Error(String(e)));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    init().catch(console.error);
-
-    return () => {
-      cancelled = true;
-      // resourceId 変更時: 旧リソースのロックを保持していた場合はゾンビロックを解放する
-      if (modeRef.current.kind === "editing") {
-        mcpBridge.discardDraft(prevResourceType, prevResourceId).catch(() => {});
-        mcpBridge.releaseLock(prevResourceType, prevResourceId, sessionId).catch(() => {});
-        setMode({ kind: "readonly" });
-      } else if (modeRef.current.kind === "viewer") {
-        // viewer mode から離脱: viewer サブスクリプションを解除する
-        mcpBridge.request("lock.unsubscribeViewer", { resourceType: prevResourceType, resourceId: prevResourceId }).catch(() => {});
-      }
-    };
-  }, [resourceType, resourceId, sessionId]);
-
-  useEffect(() => {
-    const unsubLock = mcpBridge.onBroadcast("lock.changed", (data) => {
-      const d = data as {
-        resourceType: string;
-        resourceId: string;
-        op: "acquired" | "released" | "force-released" | "transferred" | "viewer-joined" | "viewer-left";
-        ownerSessionId?: string;
-        by: string;
-        previousOwner?: string;
-        viewerCount?: number;
-      };
-
-      if (d.resourceType !== resourceType || d.resourceId !== resourceId) return;
-
-      const current = modeRef.current;
-
-      if (d.op === "acquired") {
-        if (d.ownerSessionId === sessionId) {
-          setMode({ kind: "editing" });
-        } else {
-          // 他のセッションがロックを取得: viewer mode だった場合は locked-by-other に遷移
-          if (current.kind !== "viewer") {
-            setMode({ kind: "locked-by-other", ownerSessionId: d.ownerSessionId ?? d.by });
-          }
-        }
-        return;
-      }
-
-      if (d.op === "released") {
-        if (current.kind === "editing") return;
-        // viewer mode は lock 解放後も維持 (readonly へは戻さない)
-        if (current.kind === "viewer") return;
-        setMode({ kind: "readonly" });
-        return;
-      }
-
-      if (d.op === "force-released") {
-        if (d.previousOwner === sessionId) {
-          // 自分が強制解除を受けた側 (evicted)
-          setMode({ kind: "force-released-pending", previousDraftExists: true });
-        } else if (d.by === sessionId) {
-          // 自分が強制解除を実行した側 (forcer)
-          setMode({ kind: "after-force-unlock", previousOwner: d.previousOwner ?? d.ownerSessionId ?? "" });
-        } else {
-          // viewer mode は force-release で影響を受けない
-          if (current.kind !== "viewer") {
-            setMode({ kind: "readonly" });
-          }
-        }
-        return;
-      }
-
-      if (d.op === "transferred") {
-        const previousOwner = d.previousOwner ?? "";
-        const newOwner = d.ownerSessionId ?? d.by ?? "";
-
-        if (previousOwner === sessionId) {
-          // 自分が引き継がれた側 (元 owner): editing → viewer に自動 fallback
-          mcpBridge.request("lock.subscribeAsViewer", { resourceType, resourceId }).catch(() => {});
-          setMode({ kind: "viewer" });
-        } else if (newOwner === sessionId) {
-          // 自分が新 owner (caller): viewer → editing に自動 promote
-          // lock は既に lockManager に登録済み、lock 取り直しは不要
-          setMode({ kind: "editing" });
-        }
-        return;
-      }
-
-      // viewer-joined / viewer-left: 状態変更なし (viewerCount は上位コンポーネントが必要なら別途ハンドル)
-    });
-
-    const unsubDraft = mcpBridge.onBroadcast("draft.changed", (data) => {
-      const d = data as {
-        type: string;
-        id: string;
-        op: string;
-      };
-
-      if (d.type !== resourceType || d.id !== resourceId) return;
-      // 自分が editing 中に他セッションが同じリソースの draft を更新した場合
-      // (通常発生しないが、競合検出のため lock state を再取得してログ出力する)
-      if (modeRef.current.kind === "editing") {
-        console.warn(`[useEditSessionLegacy] draft.changed received for ${resourceType}/${resourceId} while editing — refreshing lock state`);
-        refreshLockStateRef.current().catch(console.error);
-      }
-    });
-
-    return () => {
-      unsubLock();
-      unsubDraft();
-    };
-  }, [resourceType, resourceId, sessionId]);
-
-  const startEditing = useCallback(async () => {
-    setError(null);
-    try {
-      await mcpBridge.acquireLock(resourceType, resourceId, sessionId);
-      await mcpBridge.createDraft(resourceType, resourceId);
-      setMode({ kind: "editing" });
-    } catch (e) {
-      const err = e instanceof Error ? e : new Error(String(e));
-      // LockConflictError 時: viewer として自動 fallback を試みる
-      if (err.message.includes("既に") && err.message.includes("ロック中")) {
-        try {
-          await mcpBridge.request("lock.subscribeAsViewer", { resourceType, resourceId });
-          setMode({ kind: "viewer" });
-          return;
-        } catch {
-          // viewer subscribeAsViewer 失敗時は従来の locked-by-other に fallback
-          await refreshLockState();
-          return;
-        }
-      }
-      setError(err);
-      await refreshLockState();
-    }
-  }, [resourceType, resourceId, sessionId, refreshLockState]);
-
-  const save = useCallback(async () => {
-    setError(null);
-    try {
-      await mcpBridge.commitDraft(resourceType, resourceId);
-      await mcpBridge.releaseLock(resourceType, resourceId, sessionId);
-      setMode({ kind: "readonly" });
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, [resourceType, resourceId, sessionId]);
-
-  const discard = useCallback(async () => {
-    setError(null);
-    try {
-      await mcpBridge.discardDraft(resourceType, resourceId);
-      await mcpBridge.releaseLock(resourceType, resourceId, sessionId);
-      setMode({ kind: "readonly" });
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, [resourceType, resourceId, sessionId]);
-
-  const forceReleaseOther = useCallback(async () => {
-    setError(null);
-    try {
-      await mcpBridge.forceReleaseLock(resourceType, resourceId, sessionId);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, [resourceType, resourceId, sessionId]);
-
-  const handleForcedOut = useCallback(async (choice: "adopt" | "discard" | "continue") => {
-    setError(null);
-    try {
-      if (choice === "discard") {
-        await mcpBridge.discardDraft(resourceType, resourceId);
-        setMode({ kind: "readonly" });
-      } else if (choice === "continue") {
-        await mcpBridge.acquireLock(resourceType, resourceId, sessionId);
-        setMode({ kind: "editing" });
-      } else {
-        // adopt: draft はそのまま保持し readonly に戻る (解除者に引き渡す)
-        setMode({ kind: "readonly" });
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, [resourceType, resourceId, sessionId]);
-
-  const handleAfterForceUnlock = useCallback(async (choice: "adopt" | "discard" | "continue") => {
-    setError(null);
-    try {
-      if (choice === "discard") {
-        // 元の draft を削除して readonly に戻る
-        await mcpBridge.discardDraft(resourceType, resourceId);
-        setMode({ kind: "readonly" });
-      } else if (choice === "adopt" || choice === "continue") {
-        // 元の draft をそのまま自分のものとして lock を取得し editing へ
-        await mcpBridge.acquireLock(resourceType, resourceId, sessionId);
-        setMode({ kind: "editing" });
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    }
-  }, [resourceType, resourceId, sessionId]);
-
-  const isDirtyForTab =
-    mode.kind === "editing" ||
-    mode.kind === "force-released-pending";
-
-  // viewer mode は read-only 扱い (canEdit=false, isEditing=false)
-  const canEdit = mode.kind !== "viewer" && mode.kind !== "readonly" && mode.kind !== "locked-by-other";
-  const isEditing = mode.kind === "editing";
-
-  return {
-    mode,
-    loading,
-    error,
-    isDirtyForTab,
-    canEdit,
-    isEditing,
-    actions: {
-      startEditing,
-      save,
-      discard,
-      forceReleaseOther,
-      handleForcedOut,
-      handleAfterForceUnlock,
-      refreshLockState,
-    },
-  };
-}
 
 // ── 新 API 型定義 (spec §15.2) ─────────────────────────────────────────────────
 
@@ -387,6 +28,13 @@ export interface UseEditSessionOptions {
   resourceId: string;
   /** URL ?session= 復元時に渡す EditSession ID。undefined の場合は新規作成 flow */
   editSessionId?: string;
+  /**
+   * Phase 6 互換: 旧 useEditSessionLegacy で必須だった sessionId。
+   * 新 API では使用しない (mcpBridge が内部的に管理するため)。
+   * consumer コードの互換性維持のために受け付けるが無視される。
+   * @deprecated Phase 6 以降不要。将来削除予定。
+   */
+  sessionId?: string;
 }
 
 /**
@@ -447,6 +95,45 @@ export interface UseEditSessionResult {
   save(): Promise<void>;
   discard(): Promise<void>;
   detach(): Promise<void>;
+  /**
+   * Phase 6 互換フィールド: 旧 useEditSessionLegacy の mode 相当を myRole から計算。
+   * 旧 kind 文字列のうち "readonly" / "editing" / "viewer" は引き続き返す。
+   * "locked-by-other" / "force-released-pending" / "after-force-unlock" は
+   * 新 API では発生しない (EditSession モデルでは take-over / detach に置き換え)。
+   */
+  mode: EditMode;
+  /** Phase 6 互換フィールド: myRole === "Edit" の場合に true */
+  isDirtyForTab: boolean;
+  /** Phase 6 互換フィールド: actions オブジェクトとして旧 API を提供 */
+  actions: EditSessionActions;
+}
+
+/**
+ * EditMode — Phase 6 互換型。旧 useEditSessionLegacy の EditMode と同一シグネチャ。
+ * 旧 "locked-by-other" / "force-released-pending" / "after-force-unlock" は
+ * 新モデルでは発生しないが型定義は残して consumer コードの型エラーを防ぐ。
+ */
+export type EditMode =
+  | { kind: "readonly" }
+  | { kind: "editing" }
+  | { kind: "viewer" }
+  | { kind: "locked-by-other"; ownerSessionId: string; ownerLabel?: string }
+  | { kind: "force-released-pending"; previousDraftExists: boolean }
+  | { kind: "after-force-unlock"; previousOwner: string };
+
+/**
+ * EditSessionActions — Phase 6 互換型。旧 useEditSessionLegacy の actions 相当。
+ */
+export interface EditSessionActions {
+  startEditing(): Promise<void>;
+  save(): Promise<void>;
+  discard(): Promise<void>;
+  /** 旧 lock model の強制解除。新 API では editSession.detach に相当 (forced=true 相当) */
+  forceReleaseOther(): Promise<void>;
+  /** force-released-pending 状態からの復帰。新 API では発生しないため no-op */
+  handleForcedOut(choice: "discard" | "continue" | "adopt"): Promise<void>;
+  /** after-force-unlock 状態からの復帰。新 API では発生しないため no-op */
+  handleAfterForceUnlock(choice: "adopt" | "discard" | "continue"): Promise<void>;
 }
 
 // ── 新 API 実装 (spec §15.2 準拠) ─────────────────────────────────────────────
@@ -781,6 +468,29 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialEditSessionId]);
 
+  // ── Phase 6 互換: mode / isDirtyForTab / actions ───────────────────────────────
+
+  const mode: EditMode = useMemo(() => {
+    if (myRole === "Edit") return { kind: "editing" };
+    if (myRole === "View") return { kind: "viewer" };
+    return { kind: "readonly" };
+  }, [myRole]);
+
+  const isDirtyForTab = myRole === "Edit";
+
+  const actions: EditSessionActions = useMemo(() => ({
+    startEditing,
+    save,
+    discard,
+    forceReleaseOther: detach,  // 新 API では force-release = detach 相当
+    handleForcedOut: async (_choice: "discard" | "continue" | "adopt") => {
+      // 新 API では force-released-pending は発生しない (no-op)
+    },
+    handleAfterForceUnlock: async (_choice: "adopt" | "discard" | "continue") => {
+      // 新 API では after-force-unlock は発生しない (no-op)
+    },
+  }), [startEditing, save, discard, detach]);
+
   return {
     editSession,
     myRole,
@@ -795,5 +505,8 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     save,
     discard,
     detach,
+    mode,
+    isDirtyForTab,
+    actions,
   };
 }

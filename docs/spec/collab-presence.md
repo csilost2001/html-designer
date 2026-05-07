@@ -5,6 +5,8 @@
 > 本 spec は **overture (序章)** として継続有効: Direction B 採用根拠 (§ 2) / Forward-Compat 4 原則 (§ 3) / Activity taxonomy (§ 9) / Direction A への移行可能性 (本 spec の方針継続)。
 >
 > § 4-8 / § 11 のアーキテクチャ・状態遷移・broadcast プロトコル・既存 spec との関係は `edit-session-protocol.md` で置き換えられている。
+>
+> **Phase 6 (#903) 完了 (2026-05-07)**: lockManager / draftStore / onBehalfOfSession / SessionBadge を削除。lock.* / draft.* MCP tools 全削除。useEditSessionLegacy 削除。§ 4 アーキテクチャ図の lockManager/draftStore/presenceManager は obsolete。
 
 > **シリーズ**: メタ #876 / RFC 派生 #855 (Option B 採用)
 >

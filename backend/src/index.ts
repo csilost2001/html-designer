@@ -17,30 +17,10 @@ import { tools } from "./tools.js";
 import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles, readPuckComponents, writePuckComponents } from "./projectStorage.js";
-import {
-  createDraft,
-  readDraft,
-  updateDraft,
-  commitDraft,
-  discardDraft,
-  hasDraft,
-  listDrafts,
-  type DraftResourceType,
-} from "./draftStore.js";
 import { mcpTableToSpecEntry } from "./specExport.js";
 import { initWorkspaceState, getActivePath, setActivePath, clearActive, connect as wsConnect, disconnect as wsDisconnect, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError, workspaceContextManager } from "./workspaceState.js";
 import { listWorkspaces, upsertWorkspace, removeWorkspace, findById, findByPath, setLastActive } from "./recentStore.js";
 import { autoActivateOnStartup, inspectWorkspacePath, initializeWorkspace } from "./workspaceInit.js";
-import {
-  acquire as lockAcquire,
-  release as lockRelease,
-  forceRelease as lockForceRelease,
-  getLock,
-  listLocks,
-  LockConflictError,
-  LockNotHeldError,
-} from "./lockManager.js";
-import { resolveOnBehalfOfSession, logAuditIfDelegated } from "./onBehalfOfSession.js";
 import { initServerLog, shutdownServerLog, logInfo, logError, ingestClientLog } from "./serverLog.js";
 
 // 物理ログ初期化 (#750 follow-up): logs/ ディレクトリへ JSON Lines 形式で永続化
@@ -1277,128 +1257,8 @@ function createMcpServer(sessionId: string): Server {
         return { content: [{ type: "text", text: `id ${a.id} を recent から除外しました (ファイルは変更されません)。` }] };
       }
 
-      // ── draft 管理 (#685) ─────────────────────────────────────────
-      case "draft__read": {
-        const a = argRecord as { type: DraftResourceType; id: string };
-        const payload = await readDraft(sessionId, a.type, a.id);
-        return { content: [{ type: "text", text: JSON.stringify({ payload, exists: payload !== null }, null, 2) }] };
-      }
-
-      case "draft__update": {
-        const a = argRecord as { type: DraftResourceType; id: string; payload: unknown; onBehalfOfSession?: string };
-        if (a.onBehalfOfSession) {
-          if (!wsBridge.isActiveSession(a.onBehalfOfSession)) {
-            throw new McpError(ErrorCode.InvalidParams, `INVALID_ON_BEHALF_OF_SESSION: ${a.onBehalfOfSession}`);
-          }
-          logAuditIfDelegated("draft__update", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
-        }
-        // #880 Phase 3: wsId を渡す。draft-update broadcast は draftStore 内から実行。
-        // draft.changed op:"updated" は flush 完了時にのみ発火 (中間状態とは分離)。
-        await updateDraft(sessionId, a.type, a.id, a.payload, workspaceContextManager.getActivePath(sessionId));
-        return { content: [{ type: "text", text: JSON.stringify({ updated: true }) }] };
-      }
-
-      case "draft__commit": {
-        const a = argRecord as { type: DraftResourceType; id: string; onBehalfOfSession?: string };
-        if (a.onBehalfOfSession) {
-          if (!wsBridge.isActiveSession(a.onBehalfOfSession)) {
-            throw new McpError(ErrorCode.InvalidParams, `INVALID_ON_BEHALF_OF_SESSION: ${a.onBehalfOfSession}`);
-          }
-          logAuditIfDelegated("draft__commit", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
-        }
-        const r = await commitDraft(sessionId, a.type, a.id);
-        if (r.committed) {
-          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "committed" } });
-        }
-        return { content: [{ type: "text", text: JSON.stringify(r) }] };
-      }
-
-      case "draft__discard": {
-        const a = argRecord as { type: DraftResourceType; id: string; onBehalfOfSession?: string };
-        if (a.onBehalfOfSession) {
-          if (!wsBridge.isActiveSession(a.onBehalfOfSession)) {
-            throw new McpError(ErrorCode.InvalidParams, `INVALID_ON_BEHALF_OF_SESSION: ${a.onBehalfOfSession}`);
-          }
-          logAuditIfDelegated("draft__discard", { owner: a.onBehalfOfSession, actor: "mcp", isDelegated: true }, a.type, a.id);
-        }
-        const r = await discardDraft(sessionId, a.type, a.id);
-        if (r.discarded) {
-          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "draft.changed", data: { type: a.type, id: a.id, op: "discarded" } });
-        }
-        return { content: [{ type: "text", text: JSON.stringify(r) }] };
-      }
-
-      case "draft__has": {
-        const a = argRecord as { type: DraftResourceType; id: string };
-        const exists = await hasDraft(sessionId, a.type, a.id);
-        return { content: [{ type: "text", text: JSON.stringify({ exists }) }] };
-      }
-
-      case "draft__list": {
-        const drafts = await listDrafts(sessionId);
-        return { content: [{ type: "text", text: JSON.stringify({ drafts }, null, 2) }] };
-      }
-
-      // ── per-resource ロック管理 (#686) ─────────────────────────────
-      case "lock__acquire": {
-        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string; onBehalfOfSession?: string };
-        let resolved;
-        try {
-          resolved = resolveOnBehalfOfSession(a.sessionId, a.onBehalfOfSession, (id) => wsBridge.isActiveSession(id));
-        } catch (e) {
-          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
-        }
-        logAuditIfDelegated("lock__acquire", resolved, a.resourceType, a.resourceId);
-        try {
-          const entry = lockAcquire(a.resourceType, a.resourceId, resolved.owner, resolved.actor);
-          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "acquired", ownerSessionId: entry.ownerSessionId, by: resolved.actor } });
-          return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
-        } catch (e) {
-          if (e instanceof LockConflictError) {
-            return { content: [{ type: "text", text: JSON.stringify({ error: e.message, entry: e.entry }) }], isError: true };
-          }
-          throw e;
-        }
-      }
-
-      case "lock__release": {
-        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string; onBehalfOfSession?: string };
-        let resolved;
-        try {
-          resolved = resolveOnBehalfOfSession(a.sessionId, a.onBehalfOfSession, (id) => wsBridge.isActiveSession(id));
-        } catch (e) {
-          throw new McpError(ErrorCode.InvalidParams, e instanceof Error ? e.message : String(e));
-        }
-        logAuditIfDelegated("lock__release", resolved, a.resourceType, a.resourceId);
-        try {
-          const result = lockRelease(a.resourceType, a.resourceId, resolved.owner);
-          wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "released", ownerSessionId: resolved.owner, by: resolved.actor } });
-          return { content: [{ type: "text", text: JSON.stringify(result) }] };
-        } catch (e) {
-          if (e instanceof LockNotHeldError) {
-            return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
-          }
-          throw e;
-        }
-      }
-
-      case "lock__forceRelease": {
-        const a = argRecord as { resourceType: DraftResourceType; resourceId: string; sessionId: string };
-        const fr = lockForceRelease(a.resourceType, a.resourceId, a.sessionId);
-        wsBridge.broadcast({ wsId: workspaceContextManager.getActivePath(sessionId), event: "lock.changed", data: { resourceType: a.resourceType, resourceId: a.resourceId, op: "force-released", ownerSessionId: fr.previousOwner, by: a.sessionId, previousOwner: fr.previousOwner } });
-        return { content: [{ type: "text", text: JSON.stringify(fr) }] };
-      }
-
-      case "lock__get": {
-        const a = argRecord as { resourceType: DraftResourceType; resourceId: string };
-        const entry = getLock(a.resourceType, a.resourceId);
-        return { content: [{ type: "text", text: JSON.stringify({ entry }) }] };
-      }
-
-      case "lock__list": {
-        const locks = listLocks();
-        return { content: [{ type: "text", text: JSON.stringify({ locks }, null, 2) }] };
-      }
+      // draft__ / lock__ MCP tools 削除済 (Phase 6 #903)
+      // editSession.* API の直接呼び出しが正規経路。
 
       default:
         throw new McpError(ErrorCode.MethodNotFound, `未知のツール: ${name}`);

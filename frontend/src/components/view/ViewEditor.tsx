@@ -6,7 +6,7 @@ import { loadView, saveView } from "../../store/viewStore";
 import { listTables } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";

@@ -2,33 +2,6 @@ import { WebSocketServer, WebSocket } from "ws";
 import { EventEmitter } from "events";
 import { randomUUID } from "crypto";
 import {
-  createDraft,
-  readDraft,
-  updateDraft,
-  commitDraft,
-  discardDraft,
-  hasDraft,
-  listDrafts,
-  flushAllDirty,
-  transferDraft,
-  initDraftStoreBroadcast,
-  type DraftResourceType,
-} from "./draftStore.js";
-import {
-  acquire as lockAcquire,
-  release as lockRelease,
-  forceRelease as lockForceRelease,
-  transferLock as lockTransferLock,
-  getLock,
-  listLocks,
-  subscribeAsViewer as lockSubscribeAsViewer,
-  unsubscribeViewer as lockUnsubscribeViewer,
-  listViewers as lockListViewers,
-  LockConflictError,
-  LockNotHeldError,
-  LockOwnerMismatchError,
-} from "./lockManager.js";
-import {
   registerEditor as presenceRegisterEditor,
   registerViewer as presenceRegisterViewer,
   unregister as presenceUnregister,
@@ -60,7 +33,6 @@ import {
   inspectWorkspacePath,
   initializeWorkspace as initializeWorkspaceFolder,
 } from "./workspaceInit.js";
-import { reassignOnBehalfOf } from "./onBehalfOfSession.js";
 import {
   EditSessionStore,
   EditSessionNotFoundError,
@@ -237,15 +209,6 @@ class WsBridge extends EventEmitter {
    */
   private editSessionStores = new Map<string, EditSessionStore>();
 
-  /**
-   * 旧 lock.* API → 新 EditSessionStore の adapter マッピング (Phase 4, spec §18.4)。
-   * key = `${sessionId}::${resourceType}::${resourceId}` (旧 lock の identity)
-   * value = editSessionId (新 EditSessionStore の ID)
-   *
-   * Phase 6 で lock.* / draft.* 完全撤去時に一緒に削除する。
-   */
-  private legacyLockToEditSession = new Map<string, string>();
-
   get isConnected(): boolean {
     return this.clients.size > 0;
   }
@@ -281,22 +244,6 @@ class WsBridge extends EventEmitter {
       this.editSessionStores.set(wsId, store);
     }
     return store;
-  }
-
-  /**
-   * 旧 lock identity のキーを生成する (Phase 4 adapter helper)。
-   * key = `${sessionId}::${resourceType}::${resourceId}`
-   */
-  private _legacyKey(sessionId: string, resourceType: string, resourceId: string): string {
-    return `${sessionId}::${resourceType}::${resourceId}`;
-  }
-
-  /**
-   * 旧 lock identity から editSessionId を解決する (Phase 4 adapter helper)。
-   * 見つからない場合は null を返す。
-   */
-  private _resolveEditSessionId(sessionId: string, resourceType: string, resourceId: string): string | null {
-    return this.legacyLockToEditSession.get(this._legacyKey(sessionId, resourceType, resourceId)) ?? null;
   }
 
   /** MCP コマンドを送る先: 最後に接続した有効なクライアント */
@@ -1052,19 +999,6 @@ class WsBridge extends EventEmitter {
           if (closingPath && this.editSessionStores.has(closingPath)) {
             this.editSessionStores.delete(closingPath);
           }
-          // Phase 4 adapter: workspace 単位の legacyLockToEditSession エントリを cleanup (#901)
-          if (closingPath) {
-            // legacyLockToEditSession はグローバルな Map だが、workspace close 時に
-            // 該当 workspace 内のエントリを cleanup する。
-            // key は `${sessionId}::${resourceType}::${resourceId}` 形式で workspace path を含まないため、
-            // 同一 workspace 内の session (clientId) を基に cleanup する。
-            for (const key of this.legacyLockToEditSession.keys()) {
-              const [keySessionId] = key.split("::");
-              if (keySessionId === clientId) {
-                this.legacyLockToEditSession.delete(key);
-              }
-            }
-          }
           respond({ success: true });
           // workspace.close broadcast: close 前のパスを持つ session のみ受信 (#703 R-5 A-2)
           this.broadcast({ wsId: closingPath, event: "workspace.changed", data: {
@@ -1081,417 +1015,13 @@ class WsBridge extends EventEmitter {
           break;
         }
 
-        // ── draft 管理 (#685) ─────────────────────────────────────────
-        // Phase 4 (#901): 旧 draft.* handler は deprecation 経路で並行運用。
-        // 内部実装を EditSessionStore adapter として書き換え、旧 broadcast event の発火経路は維持。
-        // Phase 6 (#903) で完全削除予定。
-        case "draft.read": {
-          console.warn(`[Deprecated] draft.read is deprecated. Use editSession.fetchPayload instead. Will be removed in Phase 6 (#903).`);
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const drWsId = wsId();
-          // adapter: EditSessionStore.fetchCurrentPayload を使って payload を返す
-          const drEditSessionId = this._resolveEditSessionId(clientId, dt, did);
-          if (drEditSessionId && drWsId) {
-            const drStore = this.getOrCreateEditSessionStore(drWsId);
-            const drResult = drStore.fetchCurrentPayload(drEditSessionId);
-            respond({ payload: drResult?.payload ?? null, exists: drResult?.payload !== null && drResult !== null });
-          } else {
-            const payload = await readDraft(clientId, dt, did);
-            respond({ payload, exists: payload !== null });
-          }
-          break;
-        }
-        case "draft.update": {
-          console.warn(`[Deprecated] draft.update is deprecated. Use editSession.update instead. Will be removed in Phase 6 (#903).`);
-          const { type: dt, id: did, payload: dp } = (params ?? {}) as { type: DraftResourceType; id: string; payload: unknown };
-          const duWsId = wsId();
-          // adapter: EditSessionStore.update で opaque payload を更新 (sequence 増加)
-          const duEditSessionId = this._resolveEditSessionId(clientId, dt, did);
-          if (duEditSessionId && duWsId) {
-            const duStore = this.getOrCreateEditSessionStore(duWsId);
-            const { sequence: duSeq } = duStore.update(duEditSessionId, dp, clientId);
-            respond({ updated: true });
-            // 旧 broadcast event の発火経路を維持 (opaque envelope として透過)
-            this.broadcast({
-              wsId: duWsId,
-              event: "draft.changed",
-              data: { type: dt, id: did, op: "updated", sequence: duSeq, payload: dp, senderSessionId: clientId },
-            });
-          } else {
-            // フォールバック: 旧 draftStore
-            // #880 Phase 3: wsId を渡す。draft-update broadcast は draftStore 内から実行。
-            // draft.changed op:"updated" は flush 完了時にのみ発火 (中間状態とは分離)。
-            await updateDraft(clientId, dt, did, dp, duWsId);
-            respond({ updated: true });
-          }
-          break;
-        }
-        case "draft.commit": {
-          console.warn(`[Deprecated] draft.commit is deprecated. Use editSession.save instead. Will be removed in Phase 6 (#903).`);
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const dcWsId = wsId();
-          // adapter: EditSessionStore.save を呼んで saveHistory に追加
-          const dcEditSessionId = this._resolveEditSessionId(clientId, dt, did);
-          if (dcEditSessionId && dcWsId) {
-            const dcStore = this.getOrCreateEditSessionStore(dcWsId);
-            try {
-              await dcStore.save(dcEditSessionId, clientId);
-              respond({ committed: true });
-              // 旧 broadcast event の発火経路を維持
-              this.broadcast({ wsId: dcWsId, event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
-              if (dt === "puck-data") {
-                // #806 A-M-1: puck-data commit 時は puckDataChanged も broadcast
-                this.broadcast({ wsId: dcWsId, event: "puckDataChanged", data: { screenId: did }, excludeClientId: clientId });
-              }
-            } catch {
-              // fallback: 旧 draftStore に委譲
-              const r = await commitDraft(clientId, dt, did);
-              respond(r);
-              if (r.committed) {
-                this.broadcast({ wsId: dcWsId, event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
-                if (dt === "puck-data") {
-                  this.broadcast({ wsId: dcWsId, event: "puckDataChanged", data: { screenId: did }, excludeClientId: clientId });
-                }
-              }
-            }
-          } else {
-            const r = await commitDraft(clientId, dt, did);
-            respond(r);
-            if (r.committed) {
-              this.broadcast({ wsId: dcWsId, event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
-              // #806 A-M-1: puck-data commit 時は puckDataChanged も broadcast して cross-tab 上書き保護を機能させる。
-              // Designer.tsx は "puckDataChanged" event を購読しているため、draft.changed とは別に emit が必要。
-              if (dt === "puck-data") {
-                this.broadcast({ wsId: dcWsId, event: "puckDataChanged", data: { screenId: did }, excludeClientId: clientId });
-              }
-            }
-          }
-          break;
-        }
-        case "draft.discard": {
-          console.warn(`[Deprecated] draft.discard is deprecated. Use editSession.discard instead. Will be removed in Phase 6 (#903).`);
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const ddWsId = wsId();
-          // adapter: EditSessionStore.discard を呼んで Discarded 遷移
-          const ddEditSessionId = this._resolveEditSessionId(clientId, dt, did);
-          if (ddEditSessionId && ddWsId) {
-            const ddStore = this.getOrCreateEditSessionStore(ddWsId);
-            try {
-              await ddStore.discard(ddEditSessionId, "manual");
-              this.legacyLockToEditSession.delete(this._legacyKey(clientId, dt, did));
-              respond({ discarded: true });
-              // 旧 broadcast event の発火経路を維持
-              this.broadcast({ wsId: ddWsId, event: "draft.changed", data: { type: dt, id: did, op: "discarded" }, excludeClientId: clientId });
-            } catch {
-              const r = await discardDraft(clientId, dt, did);
-              respond(r);
-              if (r.discarded) {
-                this.broadcast({ wsId: ddWsId, event: "draft.changed", data: { type: dt, id: did, op: "discarded" }, excludeClientId: clientId });
-              }
-            }
-          } else {
-            const r = await discardDraft(clientId, dt, did);
-            respond(r);
-            if (r.discarded) {
-              this.broadcast({ wsId: ddWsId, event: "draft.changed", data: { type: dt, id: did, op: "discarded" }, excludeClientId: clientId });
-            }
-          }
-          break;
-        }
-        case "draft.has": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const exists = await hasDraft(clientId, dt, did);
-          respond({ exists });
-          break;
-        }
-        case "draft.list": {
-          const drafts = await listDrafts(clientId);
-          respond({ drafts });
-          break;
-        }
-        case "draft.create": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await createDraft(clientId, dt, did);
-          respond(r);
-          if (r.created) {
-            this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "created" }, excludeClientId: clientId });
-          }
-          break;
-        }
-
-        // ── per-resource ロック管理 (#686) ─────────────────────────────
-        // Phase 4 (#901): 旧 lock.* / draft.* handler は deprecation 経路で並行運用。
-        // 内部実装を EditSessionStore adapter として書き換え、旧 broadcast event の発火経路は維持。
-        // Phase 6 (#903) で完全削除予定。
-        case "lock.acquire": {
-          console.warn(`[Deprecated] lock.acquire is deprecated. Use editSession.create instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const laWsId = wsId();
-          try {
-            // adapter: EditSessionStore.create を呼んで新 EditSession を作成 (spec §18.4 Phase 4)
-            if (laWsId) {
-              const laStore = this.getOrCreateEditSessionStore(laWsId);
-              // 旧 lock の conflict チェック: 同リソースに既存 EditSession (Edit role 持ち) があれば拒否
-              const existingSessions = laStore.listByResource(lrt, lrid).filter((s) => s.state === "Active");
-              const editConflict = existingSessions.find((s) =>
-                Array.from(s.participants.values()).some((p) => p.role === "Edit")
-              );
-              if (editConflict) {
-                const conflictOwner = Array.from(editConflict.participants.values()).find((p) => p.role === "Edit")?.sessionId ?? "unknown";
-                respondError(`${lrt}:${lrid} は既に ${conflictOwner} がロック中です`);
-                break;
-              }
-              const laSession = laStore.create(clientId, lrt, lrid, clientId);
-              // マッピングに登録: 旧 lock identity → editSessionId
-              this.legacyLockToEditSession.set(this._legacyKey(clientId, lrt, lrid), laSession.id);
-              const legacyEntry = {
-                resourceType: lrt,
-                resourceId: lrid,
-                ownerSessionId: clientId,
-                actorSessionId: clientId,
-                acquiredAt: laSession.createdAt,
-              };
-              respond({ entry: legacyEntry });
-              const viewerCount = lockListViewers(lrt, lrid).length;
-              // 旧 broadcast event の発火経路を維持 (consumer 互換のため、Phase 6 で撤去)
-              this.broadcast({ wsId: laWsId, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: clientId, by: clientId, viewerCount } });
-            } else {
-              // workspace 未選択の場合は旧 lockManager にフォールバック
-              const entry = lockAcquire(lrt, lrid, clientId);
-              respond({ entry });
-              const viewerCount = lockListViewers(lrt, lrid).length;
-              this.broadcast({ wsId: laWsId, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId, viewerCount } });
-            }
-          } catch (e) {
-            if (e instanceof LockConflictError) {
-              respondError(e.message);
-            } else {
-              throw e;
-            }
-          }
-          break;
-        }
-        case "lock.release": {
-          console.warn(`[Deprecated] lock.release is deprecated. Use editSession.setRole (View) instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const lrWsId = wsId();
-          try {
-            const editSessionId = this._resolveEditSessionId(clientId, lrt, lrid);
-            if (editSessionId && lrWsId) {
-              // adapter: EditSessionStore の session を discard することで解放
-              const lrStore = this.getOrCreateEditSessionStore(lrWsId);
-              try {
-                await lrStore.discard(editSessionId, "manual");
-              } catch { /* ignore if already discarded */ }
-              this.legacyLockToEditSession.delete(this._legacyKey(clientId, lrt, lrid));
-              respond({ released: true });
-            } else {
-              // フォールバック: 旧 lockManager
-              const result = lockRelease(lrt, lrid, clientId);
-              respond(result);
-            }
-            const viewerCount = lockListViewers(lrt, lrid).length;
-            // 旧 broadcast event の発火経路を維持
-            this.broadcast({ wsId: lrWsId, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId, viewerCount } });
-          } catch (e) {
-            if (e instanceof LockNotHeldError) {
-              respondError(e.message);
-            } else {
-              throw e;
-            }
-          }
-          break;
-        }
-        case "lock.forceRelease": {
-          console.warn(`[Deprecated] lock.forceRelease is deprecated. Use editSession.detach (forced=true) instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const ffrWsId = wsId();
-          // adapter: 対象リソースに紐付く EditSession を全て discard
-          if (ffrWsId) {
-            const ffrStore = this.getOrCreateEditSessionStore(ffrWsId);
-            const sessions = ffrStore.listByResource(lrt, lrid).filter((s) => s.state === "Active");
-            for (const s of sessions) {
-              try { await ffrStore.discard(s.id, "manual"); } catch { /* ignore */ }
-              // マッピングからも削除
-              for (const [key, val] of this.legacyLockToEditSession.entries()) {
-                if (val === s.id) this.legacyLockToEditSession.delete(key);
-              }
-            }
-          }
-          const fr = lockForceRelease(lrt, lrid, clientId);
-          respond(fr);
-          const viewerCount = lockListViewers(lrt, lrid).length;
-          // 旧 broadcast event の発火経路を維持
-          this.broadcast({ wsId: ffrWsId, event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner, viewerCount } });
-          break;
-        }
-        case "lock.get": {
-          console.warn(`[Deprecated] lock.get is deprecated. Use editSession.list instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const lgWsId = wsId();
-          if (lgWsId) {
-            // adapter: EditSessionStore から active EditSession を探してロック状態を合成
-            const lgStore = this.getOrCreateEditSessionStore(lgWsId);
-            const sessions = lgStore.listByResource(lrt, lrid).filter((s) => s.state === "Active");
-            const editSession = sessions.find((s) =>
-              Array.from(s.participants.values()).some((p) => p.role === "Edit")
-            );
-            if (editSession) {
-              const editor = Array.from(editSession.participants.values()).find((p) => p.role === "Edit");
-              const legacyEntry = editor ? {
-                resourceType: lrt,
-                resourceId: lrid,
-                ownerSessionId: editor.sessionId,
-                actorSessionId: editor.sessionId,
-                acquiredAt: editSession.createdAt,
-              } : null;
-              respond({ entry: legacyEntry });
-            } else {
-              respond({ entry: getLock(lrt, lrid) });
-            }
-          } else {
-            const entry = getLock(lrt, lrid);
-            respond({ entry });
-          }
-          break;
-        }
-        case "lock.list": {
-          console.warn(`[Deprecated] lock.list is deprecated. Use editSession.list instead. Will be removed in Phase 6 (#903).`);
-          const locks = listLocks();
-          respond({ locks });
-          break;
-        }
-        case "lock.subscribeAsViewer": {
-          console.warn(`[Deprecated] lock.subscribeAsViewer is deprecated. Use editSession.attachAsView instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: svrt, resourceId: svrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const svWsId = wsId();
-          if (!svWsId) {
-            respondError("ワークスペースが選択されていません");
-            break;
-          }
-          // adapter: 対象リソースの active EditSession に View で参加、なければ lockSubscribeAsViewer にフォールバック
-          const svStore = this.getOrCreateEditSessionStore(svWsId);
-          const svSessions = svStore.listByResource(svrt, svrid).filter((s) => s.state === "Active");
-          const svEditSession = svSessions.find((s) =>
-            Array.from(s.participants.values()).some((p) => p.role === "Edit")
-          );
-          if (svEditSession) {
-            svStore.attachAsView(svEditSession.id, clientId, clientId);
-          }
-          const viewerEntry = lockSubscribeAsViewer(clientId, svrt, svrid);
-          presenceRegisterViewer(svWsId, clientId, svrt, svrid);
-          respond({ entry: viewerEntry });
-          const viewerCount = lockListViewers(svrt, svrid).length;
-          // 旧 broadcast event の発火経路を維持
-          this.broadcast({ wsId: svWsId, event: "lock.changed", data: { resourceType: svrt, resourceId: svrid, op: "viewer-joined", by: clientId, viewerCount } });
-          const presenceEntries = presenceList(svWsId, svrt, svrid);
-          this.broadcast({ wsId: svWsId, event: "presence:update", data: { resourceType: svrt, resourceId: svrid, entries: presenceEntries } });
-          break;
-        }
-        case "lock.unsubscribeViewer": {
-          console.warn(`[Deprecated] lock.unsubscribeViewer is deprecated. Use editSession.detach instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: uvrt, resourceId: uvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const uvWsId = wsId();
-          // adapter: 対象リソースの active EditSession から detach を試みる
-          if (uvWsId) {
-            const uvStore = this.getOrCreateEditSessionStore(uvWsId);
-            const uvSessions = uvStore.listByResource(uvrt, uvrid).filter((s) => s.state === "Active");
-            for (const s of uvSessions) {
-              const p = s.participants.get(clientId);
-              if (p && p.role === "View") {
-                try { uvStore.detach(s.id, clientId); } catch { /* ignore */ }
-              }
-            }
-          }
-          lockUnsubscribeViewer(clientId, uvrt, uvrid);
-          if (uvWsId) {
-            presenceUnregister(uvWsId, clientId, uvrt, uvrid);
-          }
-          respond({ unsubscribed: true });
-          const viewerCount = lockListViewers(uvrt, uvrid).length;
-          // 旧 broadcast event の発火経路を維持
-          this.broadcast({ wsId: uvWsId, event: "lock.changed", data: { resourceType: uvrt, resourceId: uvrid, op: "viewer-left", by: clientId, viewerCount } });
-          if (uvWsId) {
-            const presenceEntries = presenceList(uvWsId, uvrt, uvrid);
-            this.broadcast({ wsId: uvWsId, event: "presence:update", data: { resourceType: uvrt, resourceId: uvrid, entries: presenceEntries } });
-          }
-          break;
-        }
-        case "lock.listViewers": {
-          console.warn(`[Deprecated] lock.listViewers is deprecated. Use editSession.list instead. Will be removed in Phase 6 (#903).`);
-          const { resourceType: lvrt, resourceId: lvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const viewerList = lockListViewers(lvrt, lvrid);
-          respond({ viewers: viewerList });
-          break;
-        }
-        case "lock.transferLock": {
-          console.warn(`[Deprecated] lock.transferLock is deprecated. Use editSession.transferEdit instead. Will be removed in Phase 6 (#903).`);
-          // spec § 8.1: viewer (新 owner = caller) が現 lock owner (from) からロックを引き継ぐ
-          // params: { resourceType, resourceId, fromSessionId }
-          // fromSessionId = 現 lock owner (alice)、callerSessionId (clientId) = 新 owner (bob)
-          const { resourceType: tlrt, resourceId: tlrid, fromSessionId: tlFrom } =
-            (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; fromSessionId: string };
-          const tlWsId = wsId();
-          try {
-            // adapter: EditSessionStore.transferEdit を呼んで新 store 上で role swap
-            const tlEditSessionId = this._resolveEditSessionId(tlFrom, tlrt, tlrid);
-            if (tlEditSessionId && tlWsId) {
-              const tlStore = this.getOrCreateEditSessionStore(tlWsId);
-              // toSessionId (clientId) が View として参加していなければ先に attachAsView
-              const tlSession = tlStore.get(tlEditSessionId);
-              if (tlSession && !tlSession.participants.has(clientId)) {
-                tlStore.attachAsView(tlEditSessionId, clientId, clientId);
-              }
-              tlStore.transferEdit(tlFrom, clientId, tlEditSessionId);
-              // マッピングを更新: from のキーを削除して to のキーに付け替え
-              this.legacyLockToEditSession.delete(this._legacyKey(tlFrom, tlrt, tlrid));
-              this.legacyLockToEditSession.set(this._legacyKey(clientId, tlrt, tlrid), tlEditSessionId);
-            }
-            const tlResult = lockTransferLock(tlFrom, clientId, tlrt, tlrid);
-            // draft の移譲 (shadow + FS)
-            await transferDraft(tlFrom, clientId, tlrt, tlrid);
-            // AI onBehalfOfSession reassign (option A: actor 引継ぎ)
-            reassignOnBehalfOf(tlFrom, clientId);
-            respond(tlResult);
-            const viewerCount = lockListViewers(tlrt, tlrid).length;
-            // 旧 broadcast event の発火経路を維持
-            this.broadcast({
-              wsId: tlWsId,
-              event: "lock.changed",
-              data: {
-                resourceType: tlrt,
-                resourceId: tlrid,
-                op: "transferred",
-                ownerSessionId: clientId,
-                by: clientId,
-                previousOwner: tlFrom,
-                viewerCount,
-              },
-            });
-            // presence も更新
-            if (tlWsId) {
-              presenceUnregister(tlWsId, tlFrom, tlrt, tlrid);
-              presenceRegisterEditor(tlWsId, clientId, tlrt, tlrid);
-              const presenceEntries = presenceList(tlWsId, tlrt, tlrid);
-              this.broadcast({ wsId: tlWsId, event: "presence:update", data: { resourceType: tlrt, resourceId: tlrid, entries: presenceEntries } });
-            }
-          } catch (e) {
-            if (e instanceof LockNotHeldError || e instanceof LockOwnerMismatchError) {
-              respondError(e.message);
-            } else {
-              throw e;
-            }
-          }
-          break;
-        }
-
         // ── presence 管理 (#878 Phase 1) ──────────────────────────────────
         case "presence.heartbeat": {
           const {
             resourceType: phrt,
             resourceId: phrid,
             kind: phkind,
-          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; kind: "activity" | "edit" };
+          } = (params ?? {}) as { resourceType: EditSessionResourceType; resourceId: string; kind: "activity" | "edit" };
           const phWsId = wsId();
           if (!phWsId) {
             respondError("ワークスペースが選択されていません");
@@ -1511,7 +1041,7 @@ class WsBridge extends EventEmitter {
           break;
         }
         case "presence.list": {
-          const { resourceType: plrt, resourceId: plrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const { resourceType: plrt, resourceId: plrid } = (params ?? {}) as { resourceType: EditSessionResourceType; resourceId: string };
           const plWsId = wsId();
           if (!plWsId) {
             respondError("ワークスペースが選択されていません");
@@ -1528,7 +1058,7 @@ class WsBridge extends EventEmitter {
             resourceId: prrid,
             role: prrole,
             ownerLabel: prownerLabel,
-          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; role: "editor" | "viewer"; ownerLabel?: string };
+          } = (params ?? {}) as { resourceType: EditSessionResourceType; resourceId: string; role: "editor" | "viewer"; ownerLabel?: string };
           const prWsId = wsId();
           if (!prWsId) {
             respondError("ワークスペースが選択されていません");
@@ -1856,22 +1386,6 @@ class WsBridge extends EventEmitter {
 }
 
 export const wsBridge = new WsBridge();
-
-// #880 Phase 3: draftStore に broadcast 関数を注入 (circular dep 回避)
-initDraftStoreBroadcast((opts) => wsBridge.broadcast(opts));
-
-// #880 Phase 3: shutdown 時に dirty shadow を flush する
-async function _flushAndExit(signal: string): Promise<void> {
-  console.error(`[WsBridge] ${signal}: flushing dirty drafts...`);
-  try {
-    await flushAllDirty();
-  } catch (e) {
-    console.error("[WsBridge] flushAllDirty error:", e);
-  }
-}
-
-process.on("SIGTERM", () => { _flushAndExit("SIGTERM").catch(() => {}); });
-process.on("SIGINT", () => { _flushAndExit("SIGINT").catch(() => {}); });
 
 // ── EditSession シリアライズヘルパー (Phase 2) ────────────────────────────────
 

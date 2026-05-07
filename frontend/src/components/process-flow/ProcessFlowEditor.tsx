@@ -50,7 +50,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
+import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { mcpBridge } from "../../mcp/mcpBridge";

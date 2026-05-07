@@ -12,7 +12,7 @@ import type { CssFramework } from "../types/v3/project";
 import { resolveCssFramework } from "../utils/resolveCssFramework";
 import { resolveEditorKind } from "../utils/resolveEditorKind";
 import type { EditorKind } from "../utils/resolveEditorKind";
-import { useEditSessionLegacy as useEditSession } from "../hooks/useEditSession";
+import { useEditSession } from "../hooks/useEditSession";
 import { useSessionUrlSync } from "../hooks/useSessionUrlSync";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
 import {

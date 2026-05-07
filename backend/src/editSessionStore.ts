@@ -14,11 +14,24 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomBytes } from "node:crypto";
-import type { DraftResourceType } from "./draftStore.js";
-
 // ── 公開型定義 (spec §3.2 / §10.2) ──────────────────────────────────────────
 
-export type { DraftResourceType };
+/**
+ * DraftResourceType — Phase 6 (#903): draftStore.ts 削除に伴い editSessionStore.ts に移管。
+ * frontend/src/types/draft.ts と同一リスト (両方を編集同期すること)。
+ */
+export type DraftResourceType =
+  | "screen"
+  | "puck-data"
+  | "table"
+  | "process-flow"
+  | "view"
+  | "view-definition"
+  | "screen-item"
+  | "sequence"
+  | "extension"
+  | "convention"
+  | "flow";
 
 export interface ParticipantInfo {
   sessionId: string;

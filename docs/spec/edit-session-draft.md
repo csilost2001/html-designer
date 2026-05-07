@@ -757,6 +757,8 @@ type LockChangedEvent =
 
 > **関連 spec (2026-05-07 改訂)**: 本 spec の lock + draft + onBehalfOfSession の 3 層モデルは [`edit-session-protocol.md`](./edit-session-protocol.md) で **EditSession 一級概念に統一する正規プロトコル**として再定義された。本 spec の D-3〜D-7 (lock 関連) は edit-session-protocol § 3-7 に置き換わる。D-1 (autosave 廃止) / D-8〜D-12 は維持。
 >
+> **Phase 6 (#903) 完了 (2026-05-07)**: lockManager.ts / draftStore.ts / onBehalfOfSession.ts を削除。lock.* / draft.* MCP tools/handlers を全削除。D-3〜D-7 は実装完全置き換え済み。
+>
 > 採用根拠と Activity taxonomy は overture として [`collab-presence.md`](./collab-presence.md) (#876 / RFC #855) を継続参照。
 
 ### 10.1 draft 一覧画面
