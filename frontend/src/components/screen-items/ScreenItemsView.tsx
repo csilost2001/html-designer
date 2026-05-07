@@ -17,6 +17,7 @@ import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import {
@@ -25,6 +26,7 @@ import {
   ForcedOutChoiceDialog,
   AfterForceUnlockChoiceDialog,
 } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import {
@@ -449,10 +451,18 @@ export function ScreenItemsView() {
     onNotFound: () => navigate(wsPath("/screen/list"), { replace: true }),
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialScreenItemsSessionId } = useSessionUrlSync({
+    resourceType: "screen-item",
+    resourceId: screenId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "screen-item",
     resourceId: screenId ?? "",
     sessionId,
+    editSessionId: initialScreenItemsSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -467,9 +477,11 @@ export function ScreenItemsView() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!screenId || !fileRef.current) return;
-      mcpBridge.updateDraft("screen-item", screenId, fileRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, screenId]);
+  }, [isReadonly, update, screenId, editSession]);
 
   const updateSilentWithDraft = useCallback((fn: (f: ScreenItemsDocument) => void) => {
     if (isReadonly) return;
@@ -477,9 +489,11 @@ export function ScreenItemsView() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!screenId || !fileRef.current) return;
-      mcpBridge.updateDraft("screen-item", screenId, fileRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, updateSilent, screenId]);
+  }, [isReadonly, updateSilent, screenId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -489,12 +503,12 @@ export function ScreenItemsView() {
       clearTimeout(draftUpdateTimer.current);
       draftUpdateTimer.current = null;
     }
-    if (screenId && fileRef.current) {
-      await mcpBridge.updateDraft("screen-item", screenId, fileRef.current);
+    if (screenId && fileRef.current && editSession?.id) {
+      await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current });
     }
     await resourceHandleSave();
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions, screenId]);
+  }, [isReadonly, isSaving, resourceHandleSave, actions, screenId, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -514,9 +528,9 @@ export function ScreenItemsView() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (screenId) await mcpBridge.discardDraft("screen-item", screenId);
+    await actions.discard();
     await reload();
-  }, [screenId, reload]);
+  }, [actions, reload]);
 
   // タブ dirty マーク
   useEffect(() => {
@@ -532,9 +546,9 @@ export function ScreenItemsView() {
     if (!screenId) return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("screen-item", screenId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "screen-item", resourceId: screenId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind, screenId]);
@@ -973,6 +987,7 @@ export function ScreenItemsView() {
             currentMode={mode}
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
+            onViewerAttached={syncSessionToUrl}
           />
         }
         saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}
@@ -1495,6 +1510,14 @@ export function ScreenItemsView() {
         onClose={() => setCandidatesModalOpen(false)}
         onAddCandidates={handleAddCandidates}
       />
+
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
     </div>
   );
 }

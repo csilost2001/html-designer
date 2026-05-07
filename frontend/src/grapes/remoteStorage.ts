@@ -62,11 +62,13 @@ export function ensureValidProject(
 export function registerRemoteStorage(editor: GEditor, screenId: string): void {
   editor.StorageManager.add("remote", {
     async load(): Promise<Record<string, unknown>> {
-      // draft が存在すれば draft を優先して読み込む (編集セッション継続)
+      // EditSession draft が存在すれば優先して読み込む (編集セッション継続)
       try {
-        const draftCheck = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
-        if (draftCheck?.exists) {
-          const draftData = await mcpBridge.readDraft("screen", screenId) as Record<string, unknown> | null;
+        const sessionsResult = await mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as { sessions: Array<{ id: string }> } | null;
+        if (sessionsResult && sessionsResult.sessions.length > 0) {
+          const esId = sessionsResult.sessions[0].id;
+          const payloadResult = await mcpBridge.request("editSession.fetchPayload", { editSessionId: esId }) as { payload: unknown } | null;
+          const draftData = payloadResult?.payload as Record<string, unknown> | null;
           if (draftData && Object.keys(draftData).length > 0) {
             return ensureValidProject(draftData, screenId, "draft-server");
           }
@@ -101,7 +103,7 @@ export function registerRemoteStorage(editor: GEditor, screenId: string): void {
 // 以前の localStorage ベースの API は廃止するが、呼び出し元のコード整理のために
 // stub を残す。Designer.tsx は新 API (editActions / mcpBridge) を直接使う。
 
-/** @deprecated 新モデルでは mcpBridge.hasDraft を使用する */
+/** @deprecated 新モデルでは mcpBridge.request("editSession.list", ...) を使用する */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function hasScreenDraft(_screenId: string): boolean {
   return false;

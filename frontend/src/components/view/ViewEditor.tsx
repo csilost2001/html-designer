@@ -7,6 +7,7 @@ import { listTables } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
@@ -17,6 +18,7 @@ import {
   ForcedOutChoiceDialog,
   AfterForceUnlockChoiceDialog,
 } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import { generateViewDdl } from "./generateViewDdl";
@@ -67,10 +69,18 @@ export function ViewEditor() {
     onNotFound: handleNotFound,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { initialEditSessionId: initialViewSessionId } = useSessionUrlSync({
+    resourceType: "view",
+    resourceId: viewId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "view",
     resourceId: viewId ?? "",
     sessionId,
+    editSessionId: initialViewSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -86,9 +96,11 @@ export function ViewEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!viewId || !viewRef.current) return;
-      mcpBridge.updateDraft("view", viewId, viewRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: viewRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, viewId]);
+  }, [isReadonly, update, viewId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -114,9 +126,9 @@ export function ViewEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (viewId) await mcpBridge.discardDraft("view", viewId);
+    await actions.discard();
     await reload();
-  }, [viewId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -133,9 +145,9 @@ export function ViewEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("view", viewId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "view", resourceId: viewId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [viewId, sessionLoading, mode.kind]);
@@ -260,6 +272,14 @@ export function ViewEditor() {
           ownerSessionId={lockedByOther.ownerSessionId}
           onConfirm={handleForceRelease}
           onCancel={() => setShowForceReleaseDialog(false)}
+        />
+      )}
+
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
         />
       )}
 

@@ -36,6 +36,7 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink, type EditorHeaderUndoRedo } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
@@ -46,6 +47,7 @@ import {
   ForcedOutChoiceDialog,
   AfterForceUnlockChoiceDialog,
 } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import { MaturityBadge } from "../process-flow/MaturityBadge";
@@ -231,10 +233,18 @@ export function ViewDefinitionEditor() {
     onLoaded: handleLoaded,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialViewDefSessionId } = useSessionUrlSync({
+    resourceType: "view-definition",
+    resourceId: viewDefinitionId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "view-definition",
     resourceId: viewDefinitionId ?? "",
     sessionId,
+    editSessionId: initialViewDefSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -250,9 +260,11 @@ export function ViewDefinitionEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!viewDefinitionId || !viewDefRef.current) return;
-      mcpBridge.updateDraft("view-definition", viewDefinitionId, viewDefRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: viewDefRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, viewDefinitionId]);
+  }, [isReadonly, update, viewDefinitionId, editSession]);
 
   const updateSilentWithDraft = useCallback((fn: (s: ViewDefinition) => void) => {
     if (isReadonly) return;
@@ -260,9 +272,11 @@ export function ViewDefinitionEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!viewDefinitionId || !viewDefRef.current) return;
-      mcpBridge.updateDraft("view-definition", viewDefinitionId, viewDefRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: viewDefRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, updateSilent, viewDefinitionId]);
+  }, [isReadonly, updateSilent, viewDefinitionId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -288,9 +302,9 @@ export function ViewDefinitionEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (viewDefinitionId) await mcpBridge.discardDraft("view-definition", viewDefinitionId);
+    await actions.discard();
     await reload();
-  }, [viewDefinitionId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -307,9 +321,9 @@ export function ViewDefinitionEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("view-definition", viewDefinitionId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "view-definition", resourceId: viewDefinitionId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [viewDefinitionId, sessionLoading, mode.kind]);
@@ -607,6 +621,14 @@ export function ViewDefinitionEditor() {
         />
       )}
 
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
+
       <EditorHeader
         title={
           <>
@@ -631,6 +653,7 @@ export function ViewDefinitionEditor() {
             currentMode={mode}
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
+            onViewerAttached={syncSessionToUrl}
           />
         }
         saveReset={isReadonly ? undefined : {

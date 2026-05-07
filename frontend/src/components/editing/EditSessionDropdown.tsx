@@ -1,19 +1,22 @@
 /**
- * EditSessionDropdown.tsx (#882 Phase 4)
+ * EditSessionDropdown.tsx (#900 Phase 3)
  *
- * エディタヘッダ用セッション切替プルダウン UI。
- * docs/spec/collab-presence.md § 5 (lock 状態遷移) / § 8 (Take-over フロー) に準拠。
+ * エディタヘッダ用 EditSession 切替プルダウン UI。
+ * spec docs/spec/edit-session-protocol.md §15.2 / §9.4 に準拠。
  *
- * - 集約バッジ (closed): "📄 正規版" / "✏️ 編集中" / "👁 観察中"
- * - 展開: 各 PresenceEntry を 1 行表示 + アクションボタン
- * - [↪引継] は Phase 6 (#884) でアクティブ化予定 — 本 Phase では disabled + tooltip のみ
+ * 変更点 (Phase 3):
+ * - データソース: usePresenceFor (旧) → editSession.list (新)
+ * - AI 表示: displayLabel.includes("@AI") で "Alice@AI" 形式を表示
+ * - アクション: 観察 [👁] (attachAsView) / 引継 [↪] (transferEdit) / 破棄 [×] (discard)
+ * - 集約バッジ: EditMode (旧互換) から myRole (新 API) ベースに切替可
+ *
+ * 後方互換: currentMode (旧 EditMode) は引き続き受け付ける (Phase 6 で削除予定)
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import { usePresenceFor, classifyActivity, type PresenceEntry, type ActivityLevel } from "../../hooks/usePresenceRegistry";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import type { DraftResourceType } from "../../types/draft";
 import type { EditMode } from "../../hooks/useEditSession";
-import { PresenceBadge } from "./PresenceBadge";
+import type { EditSessionData, ParticipantInfo } from "../../hooks/useEditSession";
 import "../../styles/editSessionDropdown.css";
 
 // ── 型 ──────────────────────────────────────────────────────────────────────
@@ -24,7 +27,7 @@ export interface EditSessionDropdownProps {
   currentMode: EditMode;
   currentSessionId: string;
   /** viewer として attach 後の callback (URL 更新等) */
-  onViewerAttached?: (sessionId: string) => void;
+  onViewerAttached?: (editSessionId: string) => void;
   /** 新規 draft 作成 (startEditing 相当) */
   onStartEditing?: () => void;
 }
@@ -43,16 +46,22 @@ function relativeTime(isoString: string): string {
   return `${diffDay} 日前`;
 }
 
-// ── role アイコン ─────────────────────────────────────────────────────────────
+// ── AI participant 判定 ────────────────────────────────────────────────────────
 
-function RoleIcon({ entry }: { entry: PresenceEntry }) {
-  if (entry.ownerLabel) {
-    return <span title="AI 借受" className="esd-role-icon">🤖</span>;
-  }
-  if (entry.role === "editor") {
-    return <span title="編集中" className="esd-role-icon">✏️</span>;
-  }
-  return <span title="観察中" className="esd-role-icon">👁</span>;
+/**
+ * participant が AI かどうかを判定する。
+ * spec §10.3: displayLabel が "Name@AI" 形式 or parentHumanSessionId が存在する。
+ */
+function isAIParticipant(p: ParticipantInfo): boolean {
+  return !!p.parentHumanSessionId || p.displayLabel.endsWith("@AI");
+}
+
+/**
+ * AI participant の表示ラベルを整形する。
+ * spec §10.3: "Alice@AI" 形式。displayLabel がそのまま使える。
+ */
+function participantDisplayLabel(p: ParticipantInfo): string {
+  return p.displayLabel || `@${p.sessionId.slice(0, 8)}`;
 }
 
 // ── 集約バッジ ────────────────────────────────────────────────────────────────
@@ -67,6 +76,111 @@ function AggregateBadge({ mode }: { mode: EditMode }) {
   return <><span className="esd-badge-icon">📄</span><span className="esd-badge-label">正規版</span></>;
 }
 
+// ── EditSession 行コンポーネント ──────────────────────────────────────────────
+
+interface EditSessionRowProps {
+  session: EditSessionData;
+  currentSessionId: string;
+  onViewerAttach: (editSessionId: string) => void;
+  onTakeOver: (editSessionId: string) => void;
+  onDiscard: (editSessionId: string) => void;
+}
+
+function EditSessionRow({
+  session,
+  currentSessionId,
+  onViewerAttach,
+  onTakeOver,
+  onDiscard,
+}: EditSessionRowProps) {
+  const allParticipants = Object.values(session.participants);
+  const editor = allParticipants.find((p) => p.role === "Edit");
+  const viewers = allParticipants.filter((p) => p.role === "View");
+
+  const isDiscarded = session.state === "Discarded";
+  const myParticipant = allParticipants.find((p) => p.sessionId === currentSessionId);
+  const amIViewer = myParticipant?.role === "View";
+  const amIEditor = myParticipant?.role === "Edit";
+
+  return (
+    <div
+      className={`esd-session-row ${isDiscarded ? "esd-session-discarded" : ""}`}
+      data-testid={`esd-session-${session.id}`}
+    >
+      {/* EditSession の状態アイコン + ID 短縮 */}
+      <span className="esd-session-state-icon">
+        {isDiscarded ? "🗑" : "📝"}
+      </span>
+      <span className="esd-session-id text-muted" title={session.id}>
+        {session.id.slice(0, 12)}
+      </span>
+
+      {/* editor 表示 */}
+      {editor && (
+        <span className="esd-session-editor ms-1" title={editor.sessionId}>
+          {isAIParticipant(editor) && <span className="esd-role-icon">🤖</span>}
+          <span className="esd-row-owner-label">{participantDisplayLabel(editor)}</span>
+          <span className="esd-role-icon ms-1" title="編集中">✏️</span>
+        </span>
+      )}
+
+      {/* viewer 数 */}
+      {viewers.length > 0 && (
+        <span className="esd-viewer-count ms-1 text-muted">
+          +{viewers.length} 👁
+        </span>
+      )}
+
+      {/* 最終活動時刻 */}
+      <span className="esd-row-time text-muted ms-1">
+        {relativeTime(session.lastActivityAt)}
+      </span>
+
+      {/* アクションボタン群 */}
+      <div className="esd-actions ms-auto">
+        {/* [👁 観察]: View で attach — 自分が未参加、かつ Active */}
+        {!isDiscarded && !myParticipant && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary esd-action-btn"
+            onClick={() => onViewerAttach(session.id)}
+            title="観察モードで閲覧"
+            data-testid={`esd-viewer-btn-${session.id}`}
+          >
+            👁
+          </button>
+        )}
+
+        {/* [↪ 引継]: View から Edit へ take-over — 自分が viewer、かつ editor がいる */}
+        {!isDiscarded && amIViewer && editor && !amIEditor && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-warning esd-action-btn ms-1"
+            onClick={() => onTakeOver(session.id)}
+            title="編集権を引き継ぐ"
+            data-testid={`esd-takeover-btn-${session.id}`}
+          >
+            ↪
+          </button>
+        )}
+
+        {/* [× 破棄]: 自分が Edit role、かつ Active */}
+        {!isDiscarded && amIEditor && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-danger esd-action-btn ms-1"
+            onClick={() => onDiscard(session.id)}
+            title="編集セッションを破棄"
+            data-testid={`esd-discard-btn-${session.id}`}
+          >
+            ×
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── メインコンポーネント ───────────────────────────────────────────────────────
 
 export function EditSessionDropdown({
@@ -78,8 +192,48 @@ export function EditSessionDropdown({
   onStartEditing,
 }: EditSessionDropdownProps) {
   const [open, setOpen] = useState(false);
+  const [sessions, setSessions] = useState<EditSessionData[]>([]);
+  const [listLoading, setListLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const entries = usePresenceFor(resourceType, resourceId);
+
+  // ── editSession.list を取得 ──────────────────────────────────────────────────
+  const fetchSessions = useCallback(async () => {
+    setListLoading(true);
+    try {
+      const result = await mcpBridge.request("editSession.list", {
+        resourceType,
+        resourceId,
+      }) as { sessions: EditSessionData[] };
+      setSessions(result.sessions ?? []);
+    } catch (e) {
+      console.warn("[EditSessionDropdown] editSession.list failed:", e);
+      setSessions([]);
+    } finally {
+      setListLoading(false);
+    }
+  }, [resourceType, resourceId]);
+
+  // ── 展開時に editSession.list を取得 ─────────────────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    void fetchSessions();
+  }, [open, fetchSessions]);
+
+  // ── broadcast 受信時に list を更新 ──────────────────────────────────────────
+  useEffect(() => {
+    const refresh = () => {
+      if (open) void fetchSessions();
+    };
+    const unsubs = [
+      mcpBridge.onBroadcast("editSession.created", refresh),
+      mcpBridge.onBroadcast("editSession.attached", refresh),
+      mcpBridge.onBroadcast("editSession.detached", refresh),
+      mcpBridge.onBroadcast("editSession.roleChanged", refresh),
+      mcpBridge.onBroadcast("editSession.saved", refresh),
+      mcpBridge.onBroadcast("editSession.discarded", refresh),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, [open, fetchSessions]);
 
   // ── クリックアウトサイドで閉じる ───────────────────────────────────────────
   useEffect(() => {
@@ -95,52 +249,59 @@ export function EditSessionDropdown({
 
   // ── [👁 観察] — viewer として attach ─────────────────────────────────────
   const handleViewerAttach = useCallback(
-    async (entry: PresenceEntry) => {
+    async (editSessionId: string) => {
       try {
-        await mcpBridge.request("lock.subscribeAsViewer", {
-          resourceType,
-          resourceId,
+        await mcpBridge.request("editSession.attachAsView", {
+          editSessionId,
         });
-        onViewerAttached?.(entry.sessionId);
+        onViewerAttached?.(editSessionId);
         setOpen(false);
       } catch (e) {
-        console.error("[EditSessionDropdown] subscribeAsViewer failed:", e);
+        console.error("[EditSessionDropdown] attachAsView failed:", e);
       }
     },
-    [resourceType, resourceId, onViewerAttached],
+    [onViewerAttached],
   );
 
-  // ── [↪ 引継] — 現 lock owner から lock を引き継ぐ (#884 Phase 6) ──────────
+  // ── [↪ 引継] — take-over ──────────────────────────────────────────────────
   const handleTakeOver = useCallback(
-    async (entry: PresenceEntry) => {
+    async (editSessionId: string) => {
+      const session = sessions.find((s) => s.id === editSessionId);
+      const editorLabel = Object.values(session?.participants ?? {}).find((p) => p.role === "Edit")?.displayLabel;
       const confirmed = window.confirm(
-        `@${entry.ownerLabel ?? entry.sessionId} さんの編集権を引き継ぎます。\n` +
-        `現在の編集状態 (draft) はそのまま引き継がれます。\n` +
-        `${entry.ownerLabel ?? entry.sessionId} さんには通知が届きます。よろしいですか?`,
+        `${editorLabel ? `@${editorLabel}` : "現在の編集者"} さんの編集権を引き継ぎます。\n` +
+        `現在の編集状態 (payload) はそのまま引き継がれます。よろしいですか?`,
       );
       if (!confirmed) return;
       try {
-        await mcpBridge.request("lock.transferLock", {
-          resourceType,
-          resourceId,
-          fromSessionId: entry.sessionId,
+        await mcpBridge.request("editSession.transferEdit", {
+          editSessionId,
+          toSessionId: currentSessionId,
         });
-        // 本セッションは editor mode に昇格 (broadcast 経由で useEditSession が反応)
         setOpen(false);
       } catch (e) {
-        console.error("[EditSessionDropdown] transferLock failed:", e);
+        console.error("[EditSessionDropdown] transferEdit failed:", e);
       }
     },
-    [resourceType, resourceId],
+    [sessions, currentSessionId],
   );
 
-  // ── [▶ 再開] — 自分の前回 draft session に attach ────────────────────────
-  const handleResume = useCallback(async () => {
-    if (onStartEditing) {
-      onStartEditing();
-    }
-    setOpen(false);
-  }, [onStartEditing]);
+  // ── [× 破棄] — discard ────────────────────────────────────────────────────
+  const handleDiscard = useCallback(
+    async (editSessionId: string) => {
+      const confirmed = window.confirm(
+        "この編集セッションを破棄しますか? 30 日間は復元可能です。",
+      );
+      if (!confirmed) return;
+      try {
+        await mcpBridge.request("editSession.discard", { editSessionId });
+        await fetchSessions();
+      } catch (e) {
+        console.error("[EditSessionDropdown] discard failed:", e);
+      }
+    },
+    [fetchSessions],
+  );
 
   // ── [+ 新規 draft を作成] ─────────────────────────────────────────────────
   const handleNewDraft = useCallback(async () => {
@@ -178,86 +339,27 @@ export function EditSessionDropdown({
             )}
           </div>
 
-          {entries.length > 0 && <hr className="esd-divider" />}
-
-          {/* 各 PresenceEntry */}
-          {entries.map((entry) => {
-            const isMe = entry.sessionId === currentSessionId;
-            const isCurrentViewing =
-              currentMode.kind === "viewer" && entry.sessionId === currentSessionId;
-            const isEditor = entry.role === "editor";
-
-            // activity level: server-side computed を優先、fallback は frontend
-            const entryWithLevel = entry as PresenceEntry & { level?: ActivityLevel };
-            const activityLevel = entryWithLevel.level ?? classifyActivity(entry);
-
-            return (
-              <div
-                key={entry.sessionId}
-                className={`esd-entry-row ${isMe ? "esd-entry-me" : ""}`}
-                role="option"
-                data-testid={`esd-entry-${entry.sessionId}`}
-              >
-                {/* activity level badge: PresenceBadge で色 + screen reader 対応 */}
-                <PresenceBadge level={activityLevel} showText={false} size="sm" />
-
-                {/* role アイコン */}
-                <RoleIcon entry={entry} />
-
-                {/* ラベル (ownerLabel or sessionId 短縮) */}
-                <span className="esd-row-owner-label" title={entry.sessionId}>
-                  {entry.ownerLabel ?? `@${entry.sessionId.slice(0, 8)}`}
-                </span>
-
-                {/* 経過時間 */}
-                <span className="esd-row-time text-muted ms-1">
-                  {relativeTime(entry.lastActivityAt)}
-                </span>
-
-                {/* アクションボタン群 */}
-                <div className="esd-actions ms-auto">
-                  {/* [👁 観察]: viewer として attach — 自分以外の editor entry に表示 */}
-                  {!isMe && isEditor && currentMode.kind !== "viewer" && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary esd-action-btn"
-                      onClick={() => void handleViewerAttach(entry)}
-                      title="観察モードで閲覧"
-                      data-testid={`esd-viewer-btn-${entry.sessionId}`}
-                    >
-                      👁
-                    </button>
-                  )}
-
-                  {/* [↪ 引継]: Phase 6 (#884) で活性化 */}
-                  {!isMe && isEditor && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-warning esd-action-btn ms-1"
-                      onClick={() => void handleTakeOver(entry)}
-                      title="編集権を引き継ぐ"
-                      data-testid={`esd-takeover-btn-${entry.sessionId}`}
-                    >
-                      ↪
-                    </button>
-                  )}
-
-                  {/* [▶ 再開]: 自分の前回 draft */}
-                  {isMe && !isCurrentViewing && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-primary esd-action-btn"
-                      onClick={() => void handleResume()}
-                      title="前回の編集を再開"
-                      data-testid={`esd-resume-btn-${entry.sessionId}`}
-                    >
-                      ▶
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {/* EditSession 一覧 */}
+          {listLoading ? (
+            <div className="esd-loading text-muted px-2 py-1">
+              <span className="spinner-border spinner-border-sm me-1" role="status" />
+              読み込み中...
+            </div>
+          ) : (
+            <>
+              {sessions.length > 0 && <hr className="esd-divider" />}
+              {sessions.map((session) => (
+                <EditSessionRow
+                  key={session.id}
+                  session={session}
+                  currentSessionId={currentSessionId}
+                  onViewerAttach={handleViewerAttach}
+                  onTakeOver={handleTakeOver}
+                  onDiscard={handleDiscard}
+                />
+              ))}
+            </>
+          )}
 
           <hr className="esd-divider" />
 

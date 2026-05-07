@@ -74,8 +74,17 @@ export async function executeRescue(
   data?: unknown,
 ): Promise<void> {
   if (action === "adopt" && data !== undefined) {
-    await mcpBridge.createDraft("screen", screenId);
-    await mcpBridge.updateDraft("screen", screenId, data);
+    // 新 EditSession を作成して旧 localStorage データを payload として書き込む
+    const created = await mcpBridge.request("editSession.create", {
+      resourceType: "screen",
+      resourceId: screenId,
+    }) as { editSession: { id: string } } | null;
+    if (created?.editSession?.id) {
+      await mcpBridge.request("editSession.update", {
+        editSessionId: created.editSession.id,
+        payload: data,
+      });
+    }
   }
   clearLegacyLocalStorage(screenId);
 }

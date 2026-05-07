@@ -1,3 +1,8 @@
+/**
+ * useDraftRegistry.test.ts — Phase 6 (#903) リファクタ後テスト
+ *
+ * 旧 draft.list / draft.changed ベースから editSession.list / editSession.* broadcast ベースに移行済み。
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useDraftRegistry } from "./useDraftRegistry";
@@ -28,9 +33,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   broadcastHandlers.clear();
   (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValue({
-    drafts: [
-      { type: "table", id: "tbl-001", mtimeMs: 1000 },
-      { type: "process-flow", id: "pf-001", mtimeMs: 2000 },
+    sessions: [
+      { id: "es-001", resourceType: "table", resourceId: "tbl-001", state: "Active" },
+      { id: "es-002", resourceType: "process-flow", resourceId: "pf-001", state: "Active" },
+      { id: "es-003", resourceType: "view", resourceId: "view-old", state: "Discarded" },
     ],
   });
 });
@@ -39,51 +45,46 @@ afterEach(() => {
   broadcastHandlers.clear();
 });
 
-describe("useDraftRegistry", () => {
-  it("mount 時に draft.list を fetch して Map を構築する", async () => {
+describe("useDraftRegistry (Phase 6: editSession.list ベース)", () => {
+  it("mount 時に editSession.list を fetch して Active session を Map に構築する", async () => {
     const { result } = renderHook(() => useDraftRegistry());
 
     await act(async () => {
       await Promise.resolve();
     });
 
-    expect(mcpBridge.request).toHaveBeenCalledWith("draft.list");
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.list", {});
     expect(result.current.hasDraft("table", "tbl-001")).toBe(true);
     expect(result.current.hasDraft("process-flow", "pf-001")).toBe(true);
+    // Discarded state は含まない
+    expect(result.current.hasDraft("view", "view-old")).toBe(false);
     expect(result.current.hasDraft("table", "not-exist")).toBe(false);
   });
 
-  it("broadcast op=created で Map にエントリを追加する", async () => {
+  it("editSession.created broadcast で Map を再取得する", async () => {
     const { result } = renderHook(() => useDraftRegistry());
 
     await act(async () => {
       await Promise.resolve();
     });
 
-    expect(result.current.hasDraft("view", "view-001")).toBe(false);
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValue({
+      sessions: [
+        { id: "es-001", resourceType: "table", resourceId: "tbl-001", state: "Active" },
+        { id: "es-002", resourceType: "process-flow", resourceId: "pf-001", state: "Active" },
+        { id: "es-004", resourceType: "view", resourceId: "view-001", state: "Active" },
+      ],
+    });
 
-    act(() => {
-      fireBroadcast("draft.changed", { type: "view", id: "view-001", op: "created" });
+    await act(async () => {
+      fireBroadcast("editSession.created", { editSession: { id: "es-004" } });
+      await Promise.resolve();
     });
 
     expect(result.current.hasDraft("view", "view-001")).toBe(true);
   });
 
-  it("broadcast op=updated で Map にエントリを追加する", async () => {
-    const { result } = renderHook(() => useDraftRegistry());
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    act(() => {
-      fireBroadcast("draft.changed", { type: "sequence", id: "seq-001", op: "updated" });
-    });
-
-    expect(result.current.hasDraft("sequence", "seq-001")).toBe(true);
-  });
-
-  it("broadcast op=committed で Map からエントリを削除する", async () => {
+  it("editSession.discarded broadcast で Map を再取得し Discarded 分が除外される", async () => {
     const { result } = renderHook(() => useDraftRegistry());
 
     await act(async () => {
@@ -92,43 +93,35 @@ describe("useDraftRegistry", () => {
 
     expect(result.current.hasDraft("table", "tbl-001")).toBe(true);
 
-    act(() => {
-      fireBroadcast("draft.changed", { type: "table", id: "tbl-001", op: "committed" });
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValue({
+      sessions: [
+        { id: "es-001", resourceType: "table", resourceId: "tbl-001", state: "Discarded" },
+        { id: "es-002", resourceType: "process-flow", resourceId: "pf-001", state: "Active" },
+      ],
+    });
+
+    await act(async () => {
+      fireBroadcast("editSession.discarded", { editSessionId: "es-001", reason: "manual" });
+      await Promise.resolve();
     });
 
     expect(result.current.hasDraft("table", "tbl-001")).toBe(false);
   });
 
-  it("broadcast op=discarded で Map からエントリを削除する", async () => {
-    const { result } = renderHook(() => useDraftRegistry());
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(result.current.hasDraft("process-flow", "pf-001")).toBe(true);
-
-    act(() => {
-      fireBroadcast("draft.changed", { type: "process-flow", id: "pf-001", op: "discarded" });
-    });
-
-    expect(result.current.hasDraft("process-flow", "pf-001")).toBe(false);
-  });
-
-  it("unmount 時に onBroadcast の unsubscribe が呼ばれる", async () => {
+  it("unmount 時に editSession.* broadcast の unsubscribe が呼ばれる", async () => {
     const { unmount } = renderHook(() => useDraftRegistry());
 
     await act(async () => {
       await Promise.resolve();
     });
 
-    const handlersBefore = broadcastHandlers.get("draft.changed")?.size ?? 0;
-    expect(handlersBefore).toBeGreaterThan(0);
+    const handlersCreated = broadcastHandlers.get("editSession.created")?.size ?? 0;
+    expect(handlersCreated).toBeGreaterThan(0);
 
     unmount();
 
-    const handlersAfter = broadcastHandlers.get("draft.changed")?.size ?? 0;
-    expect(handlersAfter).toBe(handlersBefore - 1);
+    const handlersAfter = broadcastHandlers.get("editSession.created")?.size ?? 0;
+    expect(handlersAfter).toBe(handlersCreated - 1);
   });
 
   it("MCP 未接続時は空 Map で初期化される", async () => {

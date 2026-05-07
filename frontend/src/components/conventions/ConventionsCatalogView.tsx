@@ -134,7 +134,7 @@ export function ConventionsCatalogView() {
     broadcastName: "conventionsChanged",
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "convention",
     resourceId: "singleton",
     sessionId,
@@ -152,9 +152,11 @@ export function ConventionsCatalogView() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!catalogRef.current) return;
-      mcpBridge.updateDraft("convention", "singleton", catalogRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: catalogRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update]);
+  }, [isReadonly, update, editSession]);
 
   const updateSilentWithDraft = useCallback((fn: (c: ConventionsCatalog) => void) => {
     if (isReadonly) return;
@@ -162,9 +164,11 @@ export function ConventionsCatalogView() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!catalogRef.current) return;
-      mcpBridge.updateDraft("convention", "singleton", catalogRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: catalogRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, updateSilent]);
+  }, [isReadonly, updateSilent, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -174,12 +178,12 @@ export function ConventionsCatalogView() {
       clearTimeout(draftUpdateTimer.current);
       draftUpdateTimer.current = null;
     }
-    if (catalogRef.current) {
-      await mcpBridge.updateDraft("convention", "singleton", catalogRef.current);
+    if (catalogRef.current && editSession?.id) {
+      await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: catalogRef.current });
     }
     await resourceHandleSave();
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+  }, [isReadonly, isSaving, resourceHandleSave, actions, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -199,9 +203,9 @@ export function ConventionsCatalogView() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    await mcpBridge.discardDraft("convention", "singleton");
+    await actions.discard();
     await reload();
-  }, [reload]);
+  }, [actions, reload]);
 
   // タブ dirty マーク
   useEffect(() => {
@@ -215,9 +219,9 @@ export function ConventionsCatalogView() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("convention", "singleton") as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "convention", resourceId: "singleton" }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind]);

@@ -172,8 +172,7 @@ broadcast({
 | `customBlocksChanged` | custom-blocks.json 書込み時 | actor activePath |
 | `erLayoutChanged` / `screenLayoutChanged` | レイアウト保存時 | actor activePath |
 | `conventionsChanged` | conventions/catalog.json 書込み時 | actor activePath |
-| `draft.changed` | draft 作成 / 更新 / commit / discard 時 | actor activePath |
-| `lock.changed` | lock 取得 / 解放 / 強制解除時 | actor activePath |
+| `editSession.created` / `attached` / `detached` / `roleChanged` / `update` / `saved` / `discarded` / `expired` | EditSession ライフサイクル全般 (#897 で旧 `draft.changed` / `lock.changed` を統合) | actor activePath |
 
 ### 6.3 `wsId === null` (全配信) の用途
 

@@ -109,7 +109,7 @@ function applyThemeToCanvas(editor: GEditor, variant: ThemeId, framework: CssFra
 /** GrapesJS options を構築する。
  *
  * #815 PR-C で `storageManager.type: "none"` に変更。明示 load (editor.loadProjectData) +
- * 明示 save (editor.getProjectData → mcpBridge.updateDraft / commitDraft) に統一し、
+ * 明示 save (editor.getProjectData → mcpBridge.request("editSession.update") / editSession.save) に統一し、
  * registerRemoteStorage 経由の自動 load/store 経路を撤去した。
  */
 function buildGjsOptions(): object {

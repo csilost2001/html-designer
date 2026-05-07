@@ -9,6 +9,7 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
@@ -19,6 +20,7 @@ import {
   ForcedOutChoiceDialog,
   AfterForceUnlockChoiceDialog,
 } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import { generateSequenceDdl } from "./generateSequenceDdl";
@@ -69,10 +71,18 @@ export function SequenceEditor() {
     onNotFound: handleNotFound,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialSequenceSessionId } = useSessionUrlSync({
+    resourceType: "sequence",
+    resourceId: sequenceId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "sequence",
     resourceId: sequenceId ?? "",
     sessionId,
+    editSessionId: initialSequenceSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -88,9 +98,11 @@ export function SequenceEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!sequenceId || !seqRef.current) return;
-      mcpBridge.updateDraft("sequence", sequenceId, seqRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: seqRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, sequenceId]);
+  }, [isReadonly, update, sequenceId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -116,9 +128,9 @@ export function SequenceEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (sequenceId) await mcpBridge.discardDraft("sequence", sequenceId);
+    await actions.discard();
     await reload();
-  }, [sequenceId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -135,9 +147,9 @@ export function SequenceEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("sequence", sequenceId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "sequence", resourceId: sequenceId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sequenceId, sessionLoading, mode.kind]);
@@ -259,6 +271,14 @@ export function SequenceEditor() {
         />
       )}
 
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
+
       <EditorHeader
         title={<><i className="bi bi-arrow-repeat" /> シーケンス編集: <code>{seq.physicalName}</code></>}
         backLink={{
@@ -272,6 +292,7 @@ export function SequenceEditor() {
             currentMode={mode}
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
+            onViewerAttached={syncSessionToUrl}
           />
         }
         saveReset={isReadonly ? undefined : {

@@ -52,6 +52,7 @@ import {
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
 import { STEP_TYPE_COLORS } from "../../types/action";
@@ -67,6 +68,7 @@ import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { EditorHeader } from "../common/EditorHeader";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
@@ -247,10 +249,19 @@ export function ProcessFlowEditor() {
   });
 
   const sessionId = mcpBridge.getSessionId();
-  const { mode, loading: sessionLoading, isDirtyForTab, actions: editActions } = useEditSession({
+
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialProcessFlowSessionId } = useSessionUrlSync({
+    resourceType: "process-flow",
+    resourceId: processFlowId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "process-flow",
     resourceId: processFlowId ?? "",
     sessionId,
+    editSessionId: initialProcessFlowSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -279,9 +290,11 @@ export function ProcessFlowEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!processFlowId || !groupRef.current) return;
-      mcpBridge.updateDraft("process-flow", processFlowId, groupRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: groupRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [processFlowId]);
+  }, [processFlowId, editSession]);
 
   const updateGroupWithDraft = useCallback((fn: (g: ProcessFlow) => void) => {
     if (isReadonly) return;
@@ -313,9 +326,9 @@ export function ProcessFlowEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (processFlowId) await mcpBridge.discardDraft("process-flow", processFlowId);
+    await editActions.discard();
     await handleReset();
-  }, [processFlowId, handleReset]);
+  }, [editActions, handleReset]);
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
@@ -357,9 +370,9 @@ export function ProcessFlowEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("process-flow", processFlowId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "process-flow", resourceId: processFlowId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [processFlowId, sessionLoading, mode.kind]);
@@ -738,6 +751,14 @@ export function ProcessFlowEditor() {
         />
       )}
 
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
+
       {showForceReleaseDialog && lockedByOther && (
         <ForceReleaseConfirmDialog
           ownerSessionId={lockedByOther.ownerSessionId}
@@ -767,6 +788,7 @@ export function ProcessFlowEditor() {
               currentMode={mode}
               currentSessionId={sessionId}
               onStartEditing={() => { void editActions.startEditing(); }}
+              onViewerAttached={syncSessionToUrl}
             />
             <button
               type="button"

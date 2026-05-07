@@ -69,6 +69,9 @@ data/
 # 編集中 draft ファイル (個人の作業中間状態、git 管理対象外)
 data/.drafts/
 
+# 編集セッション履歴 FS (#897)
+.edit-sessions/
+
 # Playwright test artifacts
 frontend/test-results/
 frontend/playwright-report/

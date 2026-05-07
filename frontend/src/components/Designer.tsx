@@ -13,6 +13,7 @@ import { resolveCssFramework } from "../utils/resolveCssFramework";
 import { resolveEditorKind } from "../utils/resolveEditorKind";
 import type { EditorKind } from "../utils/resolveEditorKind";
 import { useEditSession } from "../hooks/useEditSession";
+import { useSessionUrlSync } from "../hooks/useSessionUrlSync";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
 import {
   DiscardConfirmDialog,
@@ -20,6 +21,7 @@ import {
   ForcedOutChoiceDialog,
   AfterForceUnlockChoiceDialog,
 } from "./editing/ConfirmDialogs";
+import { SaveConflictDialog } from "./editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "./editing/ResumeOrDiscardDialog";
 import { PuckBackend } from "../editor/PuckBackend";
 import { GrapesJSBackend } from "../editor/GrapesJSBackend";
@@ -110,10 +112,18 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   // useEditSession — TableEditor:77 と同型
   const sessionId = mcpBridge.getSessionId();
-  const { mode, loading: sessionLoading, isDirtyForTab, actions: editActions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialDesignSessionId } = useSessionUrlSync({
+    resourceType: "screen",
+    resourceId: screenId,
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "screen",
     resourceId: screenId,
     sessionId,
+    editSessionId: initialDesignSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -133,12 +143,14 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     let cancelled = false;
     (async () => {
       // editorKind が puck なら puck-data draft を確認、それ以外 or 未解決なら screen draft も確認
-      const [screenDraft, puckDraft] = await Promise.all([
-        mcpBridge.hasDraft("screen", screenId) as Promise<{ exists: boolean } | null>,
-        mcpBridge.hasDraft("puck-data", screenId) as Promise<{ exists: boolean } | null>,
+      const [screenSessions, puckSessions] = await Promise.all([
+        mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
+        mcpBridge.request("editSession.list", { resourceType: "puck-data", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
       ]);
       if (cancelled) return;
-      if (screenDraft?.exists || puckDraft?.exists) setShowResumeDialog(true);
+      const screenHasDraft = screenSessions && screenSessions.sessions.length > 0;
+      const puckHasDraft = puckSessions && puckSessions.sessions.length > 0;
+      if (screenHasDraft || puckHasDraft) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
@@ -187,11 +199,12 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // GrapesJS の draftRead — draft 優先 → 本体ファイル fallback (#815 PR-C: 明示 load)
   const grapesDraftRead = useCallback(async (): Promise<unknown> => {
     try {
-      const draftCheck = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
-      if (draftCheck?.exists) {
-        const draftData = await mcpBridge.readDraft("screen", screenId);
-        if (draftData && typeof draftData === "object" && Object.keys(draftData).length > 0) {
-          return draftData;
+      const sessionsResult = await mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as { sessions: Array<{ id: string }> } | null;
+      if (sessionsResult && sessionsResult.sessions.length > 0) {
+        const esId = sessionsResult.sessions[0].id;
+        const payloadResult = await mcpBridge.request("editSession.fetchPayload", { editSessionId: esId }) as { payload: unknown } | null;
+        if (payloadResult?.payload && typeof payloadResult.payload === "object" && Object.keys(payloadResult.payload).length > 0) {
+          return payloadResult.payload;
         }
       }
     } catch {
@@ -278,9 +291,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     draftUpdateTimer.current = setTimeout(() => {
       const data = editorApiRef.current?.getProjectData();
       if (data === undefined) return;
-      mcpBridge.updateDraft("screen", screenId, data).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: data }).catch(console.error);
+      }
     }, 300);
-  }, [screenId]);
+  }, [screenId, editSession]);
 
   // タブがアクティブになったときにキャンバスをリフレッシュ（display:none から復帰）
   useEffect(() => {
@@ -289,33 +304,32 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     }
   }, [isActive]);
 
-  /** 保存: 保留中の debounce を flush してから commitDraft + releaseLock */
+  /** 保存: 保留中の debounce を flush してから editSession.save */
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
     setIsSaving(true);
     try {
       if (editorKind === "puck") {
-        // Puck 画面: "puck-data" draft を commit し、orphan "screen" draft を discard してから
-        // "screen" ロックを解放 (#806 M-1 / M-3: orphan draft cleanup)
+        // Puck 画面: pending payload を flush してから EditSession.save で確定保存 (#806 M-1, autosave廃止 D-1)
+        // P1-2 fix (#907): puckPendingPayloadRef を読み出してから editSession.update 送信し、
+        // その後 puckFlushRef でタイマーキャンセル + null クリア (送信前に clear すると null payload で save される)。
+        const puckPending = puckPendingPayloadRef.current;
+        if (puckPending !== null && puckPending !== undefined && editSession?.id) {
+          await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: puckPending });
+        }
         if (puckFlushRef.current) {
           puckFlushRef.current();
           puckFlushRef.current = null;
         }
-        await mcpBridge.commitDraft("puck-data", screenId);
-        // "screen" draft (startEditing が作成した空 draft) を orphan として残さず破棄する
-        const screenDraftExists = await mcpBridge.hasDraft("screen", screenId) as { exists: boolean } | null;
-        if (screenDraftExists?.exists) {
-          await mcpBridge.discardDraft("screen", screenId);
-        }
-        await mcpBridge.releaseLock("screen", screenId, sessionId);
+        await editActions.save();
       } else {
-        // GrapesJS 画面: 保留中の debounce timer があれば即時 flush
+        // GrapesJS 画面: 保留中の debounce timer があれば即時 flush してから EditSession.save
         if (draftUpdateTimer.current) {
           clearTimeout(draftUpdateTimer.current);
           draftUpdateTimer.current = null;
           const data = editorApiRef.current?.getProjectData();
-          if (data !== undefined) {
-            await mcpBridge.updateDraft("screen", screenId, data);
+          if (data !== undefined && editSession?.id) {
+            await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: data });
           }
         }
         await editActions.save();
@@ -348,7 +362,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } finally {
       setIsSaving(false);
     }
-  }, [screenId, tabId, isReadonly, isSaving, editorKind, sessionId, editActions, showError]);
+  }, [screenId, tabId, isReadonly, isSaving, editorKind, editActions, showError, editSession]);
 
   /** 破棄: discardDraft + releaseLock → 本体ファイル再読込 */
   const handleDiscard = useCallback(async () => {
@@ -356,13 +370,6 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     try {
       // "screen" draft を discard (editActions.discard が処理)
       await editActions.discard();
-      // Puck 画面の場合: "puck-data" draft も併せて破棄 (M-3: orphan draft cleanup)
-      if (editorKind === "puck") {
-        const puckDraftExists = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
-        if (puckDraftExists?.exists) {
-          await mcpBridge.discardDraft("puck-data", screenId);
-        }
-      }
       // GrapesJS は API.reload() で本体ファイル再読込 + UndoManager.clear() + reconcile を実行する
       await editorApiRef.current?.reload();
       setIsDirtyState(false);
@@ -378,7 +385,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         context: { screenId, tabId },
       });
     }
-  }, [screenId, tabId, editorKind, editActions, showError]);
+  }, [screenId, tabId, editActions, showError]);
 
   const handleForceRelease = useCallback(async () => {
     setShowForceReleaseDialog(false);
@@ -392,17 +399,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    // "screen" draft を破棄 (GrapesJS / Puck 共通)
-    await mcpBridge.discardDraft("screen", screenId);
-    // Puck 画面の場合: "puck-data" draft も併せて破棄 (M-3: orphan draft cleanup)
-    if (editorKind === "puck") {
-      const puckDraftExists = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
-      if (puckDraftExists?.exists) {
-        await mcpBridge.discardDraft("puck-data", screenId);
-      }
-    }
+    // EditSession を破棄 (screen / puck-data 共通 — EditSession が持つ payload を含め全て破棄)
+    await editActions.discard();
     await editorApiRef.current?.reload();
-  }, [screenId, editorKind]);
+  }, [editActions]);
 
   // ServerChangeBanner からの reload はページ本体への戻り
   const handleServerChangeReload = useCallback(async () => {
@@ -441,13 +441,20 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     legacyDataRef.current = null;
   }, [screenId]);
 
-  // Puck の draftRead — draft 優先 → 本体 puck-data.json fallback (#815 PR-C)
+  // Puck の draftRead — EditSession draft 優先 → 本体 puck-data.json fallback (#815 PR-C)
   const puckDraftRead = useCallback(async (): Promise<unknown> => {
-    // M-2: 2 段フォールバック — draft → committed puck-data.json → EMPTY (#806)
-    const hasDraftResult = await mcpBridge.hasDraft("puck-data", screenId) as { exists: boolean } | null;
-    if (hasDraftResult?.exists) {
-      const draftData = await mcpBridge.readDraft("puck-data", screenId);
-      return draftData;
+    // M-2: 2 段フォールバック — EditSession draft → committed puck-data.json → EMPTY (#806)
+    try {
+      const sessionsResult = await mcpBridge.request("editSession.list", { resourceType: "puck-data", resourceId: screenId }) as { sessions: Array<{ id: string }> } | null;
+      if (sessionsResult && sessionsResult.sessions.length > 0) {
+        const esId = sessionsResult.sessions[0].id;
+        const payloadResult = await mcpBridge.request("editSession.fetchPayload", { editSessionId: esId }) as { payload: unknown } | null;
+        if (payloadResult?.payload !== null && payloadResult?.payload !== undefined) {
+          return payloadResult.payload;
+        }
+      }
+    } catch {
+      // MCP 未接続等 → fallback
     }
     const committedData = await mcpBridge.loadPuckData(screenId);
     if (committedData !== null) return committedData;
@@ -485,15 +492,13 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
     // puckFlushRef にフラッシュ関数を登録 (handleSave が呼ぶ)。
     // pending payload + timer は ref 経由で保持し、handleSave / unmount から参照可能にする。
+    // autosave 廃止 (D-1) のため、flush は pending timer のキャンセルのみ。handleSave が editActions.save() を呼ぶ。
     puckFlushRef.current = () => {
       if (puckPendingTimerRef.current !== null) {
         clearTimeout(puckPendingTimerRef.current);
         puckPendingTimerRef.current = null;
       }
-      if (puckPendingPayloadRef.current !== null) {
-        mcpBridge.updateDraft("puck-data", screenId, puckPendingPayloadRef.current).catch(console.error);
-        puckPendingPayloadRef.current = null;
-      }
+      puckPendingPayloadRef.current = null;
     };
 
     backend
@@ -517,23 +522,15 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     };
   }, [editorKind, screenId, puckDraftRead]);
 
-  // Puck onChange handler — debounce で updateDraft を呼び、dirty 状態を更新する。
+  // Puck onChange handler — dirty 状態を更新する。autosave 廃止 (D-1) のため debounce updateDraft は行わない。
   const handlePuckChange = useCallback(
     (newState: EditorState) => {
       if (isReadonlyRef.current) return;
       setIsDirtyState(true);
       isDirtyRef.current = true;
       puckPendingPayloadRef.current = newState.payload;
-      if (puckPendingTimerRef.current !== null) clearTimeout(puckPendingTimerRef.current);
-      puckPendingTimerRef.current = setTimeout(() => {
-        puckPendingTimerRef.current = null;
-        if (puckPendingPayloadRef.current !== null) {
-          mcpBridge.updateDraft("puck-data", screenId, puckPendingPayloadRef.current).catch(console.error);
-          puckPendingPayloadRef.current = null;
-        }
-      }, 300);
     },
-    [screenId],
+    [],
   );
 
   // Puck 画面の cross-tab 上書き保護 (Sh-1: puckDataChanged broadcast 購読)。
@@ -614,6 +611,14 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         />
       )}
 
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
+
       {serverChanged && (
         <ServerChangeBanner
           onReload={handleServerChangeReload}
@@ -657,6 +662,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         sessionMode={mode}
         sessionId={sessionId}
         onStartEditing={editActions.startEditing}
+        onViewerAttached={syncSessionToUrl}
       />
     );
     const puckProps: PuckRenderEditorProps = {
@@ -711,6 +717,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       sessionMode={mode}
       sessionId={sessionId}
       onStartEditing={editActions.startEditing}
+      onViewerAttached={syncSessionToUrl}
     />
   );
   // GrapesJSRenderEditorProps で GrapesJS 固有 callback を型レベル required として渡す

@@ -55,6 +55,7 @@ import { useUndoKeyboard } from "../../hooks/useUndoKeyboard";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useFlowProjectSync } from "../../hooks/useFlowProjectSync";
 import { useEditSession } from "../../hooks/useEditSession";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import {
   DiscardConfirmDialog,
@@ -62,6 +63,7 @@ import {
   ForcedOutChoiceDialog,
   AfterForceUnlockChoiceDialog,
 } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { openTab, makeTabId, setDirty as setTabDirty } from "../../store/tabStore";
@@ -153,10 +155,18 @@ function FlowEditorInner() {
 
   const sessionId = mcpBridge.getSessionId();
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { initialEditSessionId: initialFlowSessionId } = useSessionUrlSync({
+    resourceType: "flow",
+    resourceId: "singleton",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "flow",
     resourceId: "singleton",
     sessionId,
+    editSessionId: initialFlowSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -248,9 +258,9 @@ function FlowEditorInner() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("flow", "singleton") as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "flow", resourceId: "singleton" }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind]);
@@ -290,12 +300,12 @@ function FlowEditorInner() {
       if (projectRef.current) {
         saveProject(projectRef.current).catch(console.error);
         // ドラフト更新 (edit-session-draft)
-        if (!isReadonly) {
-          mcpBridge.updateDraft("flow", "singleton", projectRef.current).catch(console.error);
+        if (!isReadonly && editSession?.id) {
+          mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: projectRef.current }).catch(console.error);
         }
       }
     }, 300);
-  }, [isReadonly]);
+  }, [isReadonly, editSession]);
 
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
     if (!projectRef.current) return;
@@ -767,7 +777,9 @@ function FlowEditorInner() {
       clearTimeout(saveDebounceRef.current);
       saveDebounceRef.current = null;
     }
-    await mcpBridge.updateDraft("flow", "singleton", projectRef.current);
+    if (editSession?.id) {
+      await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: projectRef.current });
+    }
     setIsSaving(true);
     try {
       await persistProject(projectRef.current);
@@ -785,7 +797,7 @@ function FlowEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, isReadonly, actions, showError, dismissServerBanner]);
+  }, [isSaving, isReadonly, actions, showError, dismissServerBanner, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -811,9 +823,9 @@ function FlowEditorInner() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    await mcpBridge.discardDraft("flow", "singleton");
+    await actions.discard();
     await reloadProject();
-  }, [reloadProject]);
+  }, [actions, reloadProject]);
 
   const handleReset = useCallback(async () => {
     undoStackRef.current = [];
@@ -1055,6 +1067,14 @@ function FlowEditorInner() {
         onDelete={edgeModal.editId ? () => { handleEdgeDeleteFromModal().catch(console.error); } : undefined}
         onClose={() => setEdgeModal({ open: false })}
       />
+
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
     </div>
   );
 }

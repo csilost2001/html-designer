@@ -12,7 +12,7 @@
  * - heartbeat の return 型に levelChanged を追加 (broadcast 効率化)
  * - list() の return 型を PresenceEntryWithLevel に変更
  */
-import type { DraftResourceType } from "./draftStore.js";
+import type { DraftResourceType } from "./editSessionStore.js";
 import { presenceConfig } from "./presenceConfig.js";
 
 export type PresenceRole = "editor" | "viewer";

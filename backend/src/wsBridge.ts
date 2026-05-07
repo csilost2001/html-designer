@@ -2,33 +2,6 @@ import { WebSocketServer, WebSocket } from "ws";
 import { EventEmitter } from "events";
 import { randomUUID } from "crypto";
 import {
-  createDraft,
-  readDraft,
-  updateDraft,
-  commitDraft,
-  discardDraft,
-  hasDraft,
-  listDrafts,
-  flushAllDirty,
-  transferDraft,
-  initDraftStoreBroadcast,
-  type DraftResourceType,
-} from "./draftStore.js";
-import {
-  acquire as lockAcquire,
-  release as lockRelease,
-  forceRelease as lockForceRelease,
-  transferLock as lockTransferLock,
-  getLock,
-  listLocks,
-  subscribeAsViewer as lockSubscribeAsViewer,
-  unsubscribeViewer as lockUnsubscribeViewer,
-  listViewers as lockListViewers,
-  LockConflictError,
-  LockNotHeldError,
-  LockOwnerMismatchError,
-} from "./lockManager.js";
-import {
   registerEditor as presenceRegisterEditor,
   registerViewer as presenceRegisterViewer,
   unregister as presenceUnregister,
@@ -60,7 +33,14 @@ import {
   inspectWorkspacePath,
   initializeWorkspace as initializeWorkspaceFolder,
 } from "./workspaceInit.js";
-import { reassignOnBehalfOf } from "./onBehalfOfSession.js";
+import {
+  EditSessionStore,
+  EditSessionNotFoundError,
+  EditSessionStateError,
+  EditSessionPermissionError,
+  EditSessionParticipantError,
+  type DraftResourceType as EditSessionResourceType,
+} from "./editSessionStore.js";
 import {
   readProject,
   writeProject,
@@ -223,6 +203,13 @@ class WsBridge extends EventEmitter {
   private lastMessageAt: number | null = null;
   /** プロセス起動時刻 (ms) */
   private readonly startedAt: number = Date.now();
+  /**
+   * EditSessionStore を workspace 単位で管理 (spec §15.1, Phase 2)。
+   * key = wsId (workspace root path)。既存 lockManager / draftStore と同じ lazy 生成パターン。
+   */
+  private editSessionStores = new Map<string, EditSessionStore>();
+  /** spec §12.4 / §18.3: 1h 周期の EditSession cleanupExpired タイマー */
+  private editSessionCleanupTimer: NodeJS.Timeout | null = null;
 
   get isConnected(): boolean {
     return this.clients.size > 0;
@@ -246,6 +233,19 @@ class WsBridge extends EventEmitter {
       wsConnections: this.clients.size,
       uptimeMs: Date.now() - this.startedAt,
     };
+  }
+
+  /**
+   * wsId (workspace root path) に対応する EditSessionStore を lazy 生成して返す (Phase 2, spec §15.1)。
+   * 既存 lockManager / draftStore の workspace 単位インスタンス化パターンと同様。
+   */
+  private getOrCreateEditSessionStore(wsId: string): EditSessionStore {
+    let store = this.editSessionStores.get(wsId);
+    if (!store) {
+      store = new EditSessionStore(wsId);
+      this.editSessionStores.set(wsId, store);
+    }
+    return store;
   }
 
   /** MCP コマンドを送る先: 最後に接続した有効なクライアント */
@@ -273,11 +273,67 @@ class WsBridge extends EventEmitter {
         data: { resourceType, resourceId, entries },
       });
     });
+
+    // spec §12.4 / §18.3: EditSession の 1h 周期 cleanupExpired を開始
+    this._startEditSessionCleanupInterval();
+  }
+
+  /**
+   * spec §12.4 / §18.3 準拠: 1 時間に 1 回 全 EditSessionStore に cleanupExpired を実行する。
+   * Active + 全員 View + 無活動 → Discarded 遷移 / Discarded + retention 経過 → 完全削除。
+   */
+  private _startEditSessionCleanupInterval(intervalMs = 60 * 60 * 1000): void {
+    if (this.editSessionCleanupTimer !== null) return; // 二重起動防止
+    this.editSessionCleanupTimer = setInterval(async () => {
+      const now = new Date();
+      for (const [wsId, store] of this.editSessionStores.entries()) {
+        try {
+          const results = await store.cleanupExpired(now, 2 /* ttlDays */, 7 /* retentionDays */);
+          for (const { editSession, action } of results) {
+            if (action === "discarded") {
+              this.broadcast({
+                wsId,
+                event: "editSession.expired",
+                data: { editSessionId: editSession.id, reason: "ttl" },
+              });
+            }
+          }
+        } catch (e) {
+          console.error(`[WsBridge] EditSession cleanupExpired error (wsId=${wsId}):`, e);
+        }
+      }
+    }, intervalMs);
+  }
+
+  /** spec §12.4: cleanupExpired タイマーを停止する。shutdown / テスト用。 */
+  stopEditSessionCleanup(): void {
+    if (this.editSessionCleanupTimer !== null) {
+      clearInterval(this.editSessionCleanupTimer);
+      this.editSessionCleanupTimer = null;
+    }
   }
 
   /** Phase 7 (#885): cleanup タイマーを停止する。shutdown hook 用。 */
   stopPresenceCleanup(): void {
     presenceStopCleanupInterval();
+  }
+
+  /** HTTP + WebSocket サーバを停止し全接続を切断する。shutdown hook 用。 */
+  stop(): void {
+    presenceStopCleanupInterval();
+    this.stopEditSessionCleanup();
+    if (this.wss) {
+      for (const client of this.wss.clients) {
+        client.terminate();
+      }
+      this.wss.close();
+      this.wss = null;
+    }
+    if (this.httpServer) {
+      this.httpServer.closeAllConnections?.();
+      this.httpServer.close();
+      this.httpServer = null;
+    }
   }
 
   private async _bind(retries = 3): Promise<void> {
@@ -997,6 +1053,10 @@ class WsBridge extends EventEmitter {
             throw e;
           }
           await setLastActiveWorkspace(null);
+          // workspace close 時に EditSessionStore も cleanup (#899 Phase 2)
+          if (closingPath && this.editSessionStores.has(closingPath)) {
+            this.editSessionStores.delete(closingPath);
+          }
           respond({ success: true });
           // workspace.close broadcast: close 前のパスを持つ session のみ受信 (#703 R-5 A-2)
           this.broadcast({ wsId: closingPath, event: "workspace.changed", data: {
@@ -1013,207 +1073,13 @@ class WsBridge extends EventEmitter {
           break;
         }
 
-        // ── draft 管理 (#685) ─────────────────────────────────────────
-        case "draft.read": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const payload = await readDraft(clientId, dt, did);
-          respond({ payload, exists: payload !== null });
-          break;
-        }
-        case "draft.update": {
-          const { type: dt, id: did, payload: dp } = (params ?? {}) as { type: DraftResourceType; id: string; payload: unknown };
-          // #880 Phase 3: wsId を渡す。draft-update broadcast は draftStore 内から実行。
-          // draft.changed op:"updated" は flush 完了時にのみ発火 (中間状態とは分離)。
-          await updateDraft(clientId, dt, did, dp, wsId());
-          respond({ updated: true });
-          break;
-        }
-        case "draft.commit": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await commitDraft(clientId, dt, did);
-          respond(r);
-          if (r.committed) {
-            this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "committed" }, excludeClientId: clientId });
-            // #806 A-M-1: puck-data commit 時は puckDataChanged も broadcast して cross-tab 上書き保護を機能させる。
-            // Designer.tsx は "puckDataChanged" event を購読しているため、draft.changed とは別に emit が必要。
-            if (dt === "puck-data") {
-              this.broadcast({ wsId: wsId(), event: "puckDataChanged", data: { screenId: did }, excludeClientId: clientId });
-            }
-          }
-          break;
-        }
-        case "draft.discard": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await discardDraft(clientId, dt, did);
-          respond(r);
-          if (r.discarded) {
-            this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "discarded" }, excludeClientId: clientId });
-          }
-          break;
-        }
-        case "draft.has": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const exists = await hasDraft(clientId, dt, did);
-          respond({ exists });
-          break;
-        }
-        case "draft.list": {
-          const drafts = await listDrafts(clientId);
-          respond({ drafts });
-          break;
-        }
-        case "draft.create": {
-          const { type: dt, id: did } = (params ?? {}) as { type: DraftResourceType; id: string };
-          const r = await createDraft(clientId, dt, did);
-          respond(r);
-          if (r.created) {
-            this.broadcast({ wsId: wsId(), event: "draft.changed", data: { type: dt, id: did, op: "created" }, excludeClientId: clientId });
-          }
-          break;
-        }
-
-        // ── per-resource ロック管理 (#686) ─────────────────────────────
-        case "lock.acquire": {
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          try {
-            const entry = lockAcquire(lrt, lrid, clientId);
-            respond({ entry });
-            const viewerCount = lockListViewers(lrt, lrid).length;
-            this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "acquired", ownerSessionId: entry.ownerSessionId, by: clientId, viewerCount } });
-          } catch (e) {
-            if (e instanceof LockConflictError) {
-              respondError(e.message);
-            } else {
-              throw e;
-            }
-          }
-          break;
-        }
-        case "lock.release": {
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          try {
-            const result = lockRelease(lrt, lrid, clientId);
-            respond(result);
-            const viewerCount = lockListViewers(lrt, lrid).length;
-            this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "released", ownerSessionId: clientId, by: clientId, viewerCount } });
-          } catch (e) {
-            if (e instanceof LockNotHeldError) {
-              respondError(e.message);
-            } else {
-              throw e;
-            }
-          }
-          break;
-        }
-        case "lock.forceRelease": {
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const fr = lockForceRelease(lrt, lrid, clientId);
-          respond(fr);
-          const viewerCount = lockListViewers(lrt, lrid).length;
-          this.broadcast({ wsId: wsId(), event: "lock.changed", data: { resourceType: lrt, resourceId: lrid, op: "force-released", ownerSessionId: fr.previousOwner, by: clientId, previousOwner: fr.previousOwner, viewerCount } });
-          break;
-        }
-        case "lock.get": {
-          const { resourceType: lrt, resourceId: lrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const entry = getLock(lrt, lrid);
-          respond({ entry });
-          break;
-        }
-        case "lock.list": {
-          const locks = listLocks();
-          respond({ locks });
-          break;
-        }
-        case "lock.subscribeAsViewer": {
-          const { resourceType: svrt, resourceId: svrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const svWsId = wsId();
-          if (!svWsId) {
-            respondError("ワークスペースが選択されていません");
-            break;
-          }
-          const viewerEntry = lockSubscribeAsViewer(clientId, svrt, svrid);
-          presenceRegisterViewer(svWsId, clientId, svrt, svrid);
-          respond({ entry: viewerEntry });
-          const viewerCount = lockListViewers(svrt, svrid).length;
-          this.broadcast({ wsId: svWsId, event: "lock.changed", data: { resourceType: svrt, resourceId: svrid, op: "viewer-joined", by: clientId, viewerCount } });
-          const presenceEntries = presenceList(svWsId, svrt, svrid);
-          this.broadcast({ wsId: svWsId, event: "presence:update", data: { resourceType: svrt, resourceId: svrid, entries: presenceEntries } });
-          break;
-        }
-        case "lock.unsubscribeViewer": {
-          const { resourceType: uvrt, resourceId: uvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const uvWsId = wsId();
-          lockUnsubscribeViewer(clientId, uvrt, uvrid);
-          if (uvWsId) {
-            presenceUnregister(uvWsId, clientId, uvrt, uvrid);
-          }
-          respond({ unsubscribed: true });
-          const viewerCount = lockListViewers(uvrt, uvrid).length;
-          this.broadcast({ wsId: uvWsId, event: "lock.changed", data: { resourceType: uvrt, resourceId: uvrid, op: "viewer-left", by: clientId, viewerCount } });
-          if (uvWsId) {
-            const presenceEntries = presenceList(uvWsId, uvrt, uvrid);
-            this.broadcast({ wsId: uvWsId, event: "presence:update", data: { resourceType: uvrt, resourceId: uvrid, entries: presenceEntries } });
-          }
-          break;
-        }
-        case "lock.listViewers": {
-          const { resourceType: lvrt, resourceId: lvrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
-          const viewerList = lockListViewers(lvrt, lvrid);
-          respond({ viewers: viewerList });
-          break;
-        }
-        case "lock.transferLock": {
-          // spec § 8.1: viewer (新 owner = caller) が現 lock owner (from) からロックを引き継ぐ
-          // params: { resourceType, resourceId, fromSessionId }
-          // fromSessionId = 現 lock owner (alice)、callerSessionId (clientId) = 新 owner (bob)
-          const { resourceType: tlrt, resourceId: tlrid, fromSessionId: tlFrom } =
-            (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; fromSessionId: string };
-          const tlWsId = wsId();
-          try {
-            const tlResult = lockTransferLock(tlFrom, clientId, tlrt, tlrid);
-            // draft の移譲 (shadow + FS)
-            await transferDraft(tlFrom, clientId, tlrt, tlrid);
-            // AI onBehalfOfSession reassign (option A: actor 引継ぎ)
-            reassignOnBehalfOf(tlFrom, clientId);
-            respond(tlResult);
-            const viewerCount = lockListViewers(tlrt, tlrid).length;
-            this.broadcast({
-              wsId: tlWsId,
-              event: "lock.changed",
-              data: {
-                resourceType: tlrt,
-                resourceId: tlrid,
-                op: "transferred",
-                ownerSessionId: clientId,
-                by: clientId,
-                previousOwner: tlFrom,
-                viewerCount,
-              },
-            });
-            // presence も更新
-            if (tlWsId) {
-              presenceUnregister(tlWsId, tlFrom, tlrt, tlrid);
-              presenceRegisterEditor(tlWsId, clientId, tlrt, tlrid);
-              const presenceEntries = presenceList(tlWsId, tlrt, tlrid);
-              this.broadcast({ wsId: tlWsId, event: "presence:update", data: { resourceType: tlrt, resourceId: tlrid, entries: presenceEntries } });
-            }
-          } catch (e) {
-            if (e instanceof LockNotHeldError || e instanceof LockOwnerMismatchError) {
-              respondError(e.message);
-            } else {
-              throw e;
-            }
-          }
-          break;
-        }
-
         // ── presence 管理 (#878 Phase 1) ──────────────────────────────────
         case "presence.heartbeat": {
           const {
             resourceType: phrt,
             resourceId: phrid,
             kind: phkind,
-          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; kind: "activity" | "edit" };
+          } = (params ?? {}) as { resourceType: EditSessionResourceType; resourceId: string; kind: "activity" | "edit" };
           const phWsId = wsId();
           if (!phWsId) {
             respondError("ワークスペースが選択されていません");
@@ -1233,7 +1099,7 @@ class WsBridge extends EventEmitter {
           break;
         }
         case "presence.list": {
-          const { resourceType: plrt, resourceId: plrid } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string };
+          const { resourceType: plrt, resourceId: plrid } = (params ?? {}) as { resourceType: EditSessionResourceType; resourceId: string };
           const plWsId = wsId();
           if (!plWsId) {
             respondError("ワークスペースが選択されていません");
@@ -1250,7 +1116,7 @@ class WsBridge extends EventEmitter {
             resourceId: prrid,
             role: prrole,
             ownerLabel: prownerLabel,
-          } = (params ?? {}) as { resourceType: DraftResourceType; resourceId: string; role: "editor" | "viewer"; ownerLabel?: string };
+          } = (params ?? {}) as { resourceType: EditSessionResourceType; resourceId: string; role: "editor" | "viewer"; ownerLabel?: string };
           const prWsId = wsId();
           if (!prWsId) {
             respondError("ワークスペースが選択されていません");
@@ -1269,6 +1135,333 @@ class WsBridge extends EventEmitter {
             event: "presence:update",
             data: { resourceType: prrt, resourceId: prrid, entries: allEntries },
           });
+          break;
+        }
+
+        // ── EditSession 管理 (#899 / meta #897 Phase 2) ──────────────────
+        // spec docs/spec/edit-session-protocol.md §14 / §15.1 に準拠。
+        // 旧 lock.* / draft.* handler は変更しない (Phase 4 で adapter 化、Phase 6 で削除)。
+
+        case "editSession.create": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const {
+            resourceType: esRt,
+            resourceId: esRid,
+            displayLabel: esLabel,
+          } = (params ?? {}) as {
+            resourceType: EditSessionResourceType;
+            resourceId: string;
+            displayLabel?: string;
+          };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          const esSession = esStore.create(
+            clientId,
+            esRt,
+            esRid,
+            esLabel ?? clientId,
+          );
+          respond({ editSession: _serializeEditSession(esSession) });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.created",
+            data: { editSession: _serializeEditSession(esSession) },
+          });
+          break;
+        }
+
+        case "editSession.attachAsView": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const {
+            editSessionId: esAvId,
+            displayLabel: esAvLabel,
+            parentHumanSessionId: esAvParent,
+          } = (params ?? {}) as {
+            editSessionId: string;
+            displayLabel?: string;
+            parentHumanSessionId?: string;
+          };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          const participant = esStore.attachAsView(
+            esAvId,
+            clientId,
+            esAvLabel ?? clientId,
+            esAvParent,
+          );
+          const fetchResult = esStore.fetchCurrentPayload(esAvId);
+          respond({
+            participant,
+            payload: fetchResult?.payload ?? null,
+            sequence: fetchResult?.sequence ?? 0,
+          });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.attached",
+            data: { editSessionId: esAvId, participant },
+          });
+          break;
+        }
+
+        case "editSession.detach": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const { editSessionId: esDtId } = (params ?? {}) as { editSessionId: string };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          esStore.detach(esDtId, clientId);
+          respond({ detached: true });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.detached",
+            data: { editSessionId: esDtId, sessionId: clientId },
+          });
+          break;
+        }
+
+        case "editSession.setRole": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const {
+            editSessionId: esRoleId,
+            role: esNewRole,
+          } = (params ?? {}) as { editSessionId: string; role: "Edit" | "View" };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          const esRoleSession = esStore.get(esRoleId);
+          const oldRole = esRoleSession?.participants.get(clientId)?.role ?? null;
+          const updatedParticipant = esStore.setRole(esRoleId, clientId, esNewRole);
+          respond({ participant: updatedParticipant });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.roleChanged",
+            data: {
+              editSessionId: esRoleId,
+              sessionId: clientId,
+              oldRole,
+              newRole: esNewRole,
+            },
+          });
+          break;
+        }
+
+        case "editSession.transferEdit": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const {
+            editSessionId: esTrId,
+          } = (params ?? {}) as { editSessionId: string; toSessionId?: string };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+
+          // P2-1: caller (clientId) は take-over を実行する viewer (= toSessionId)。
+          // fromSessionId (現 Edit holder) は EditSession の participants から自動検索する (#907 regression 解消)。
+          const esTrSession = esStore.getById(esTrId);
+          const esTrFromSessionId = esTrSession
+            ? (Array.from(esTrSession.participants.values()).find((p) => p.role === "Edit")?.sessionId ?? clientId)
+            : clientId;
+
+          const { from: esTrFrom, to: esTrNew } = esStore.transferEdit(
+            esTrFromSessionId,
+            clientId,  // caller = take-over 実行者 = new Edit holder
+            esTrId,
+          );
+          respond({ from: esTrFrom, to: esTrNew });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.roleChanged",
+            data: {
+              editSessionId: esTrId,
+              sessionId: clientId,  // clientId = take-over 実行者 = new Edit holder
+              oldRole: "View" as const,
+              newRole: "Edit" as const,
+              op: "transferred",
+              transferTo: clientId,
+            },
+          });
+          break;
+        }
+
+        case "editSession.update": {
+          // opaque envelope: payload は server で解釈しない (Forward-Compat 原則 ①)
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const {
+            editSessionId: esUpId,
+            payload: esUpPayload,
+          } = (params ?? {}) as { editSessionId: string; payload: unknown };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          const { sequence: esSeq } = esStore.update(esUpId, esUpPayload, clientId);
+          respond({ sequence: esSeq });
+          // senderSessionId 付きで全員に broadcast (excludeClientId 不要 = 全員受信)
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.update",
+            data: {
+              editSessionId: esUpId,
+              sequence: esSeq,
+              payload: esUpPayload, // opaque: そのまま透過
+              senderSessionId: clientId,
+            },
+          });
+          break;
+        }
+
+        case "editSession.save": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const { editSessionId: esSvId, force } = (params ?? {}) as { editSessionId: string; force?: boolean };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+
+          // spec §9.3 last-save-wins 衝突検出: force フラグなしの場合のみ
+          if (!force) {
+            const allSessions = esStore.listByResource(
+              esStore.getById(esSvId)?.resourceType ?? "process-flow",
+              esStore.getById(esSvId)?.resourceId ?? "",
+            );
+            // 自分以外の active EditSession が既に save 済みかチェック
+            const conflicting = allSessions.find(
+              (s) => s.id !== esSvId && s.state === "Active" && s.saveHistory.length > 0,
+            );
+            if (conflicting) {
+              const lastSave = conflicting.saveHistory[conflicting.saveHistory.length - 1];
+              const otherParticipants = Array.from(conflicting.participants.values());
+              const editor = otherParticipants.find((p) => p.role === "Edit") ?? otherParticipants[0];
+              respond({
+                ok: false,
+                conflict: {
+                  other: {
+                    editSessionId: conflicting.id,
+                    savedBy: lastSave.savedBy,
+                    savedAt: lastSave.savedAt,
+                    displayLabel: editor?.displayLabel ?? lastSave.savedBy,
+                  },
+                },
+              });
+              break;
+            }
+          }
+
+          const saveEvent = await esStore.save(esSvId, clientId);
+
+          // P1-1: 本体 resource file へ atomic write (#907 regression 解消)
+          // editSession.save は saveHistory 記録に加え、in-memory payload を本体ファイルに書き込む。
+          // payload が null (まだ editSession.update が 1 度も呼ばれていない) の場合はスキップ。
+          const esSvSession = esStore.getById(esSvId);
+          if (esSvSession && esSvSession.payload !== null && esSvSession.payload !== undefined) {
+            const esSvRoot = resolveRoot(clientId);
+            const esSvType = esSvSession.resourceType;
+            const esSvResId = esSvSession.resourceId;
+            const esSvPayload = esSvSession.payload;
+            try {
+              switch (esSvType) {
+                case "screen":
+                  await writeScreen(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "puck-data":
+                  await writePuckData(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "table":
+                  await writeTable(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "process-flow":
+                  await writeProcessFlow(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "view":
+                  await writeView(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "view-definition":
+                  await writeViewDefinition(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "screen-item": {
+                  // screen-item payload は { screenId, items, ... } 形式
+                  const siPayload = esSvPayload as { screenId?: string } | null;
+                  const siScreenId = siPayload && typeof siPayload.screenId === "string" && siPayload.screenId
+                    ? siPayload.screenId
+                    : esSvResId;
+                  await writeScreenItems(siScreenId, esSvPayload, esSvRoot);
+                  break;
+                }
+                case "sequence":
+                  await writeSequence(esSvResId, esSvPayload, esSvRoot);
+                  break;
+                case "flow":
+                  // flow (画面フロー) は FlowEditor が persistProject() で harmony.json + screen-layout.json を
+                  // 既に書き込んでいるため、ここでは二重書き込みを避けスキップ。
+                  // editSession.save はサーバ側 saveHistory 記録のみ担う。
+                  break;
+                case "extension":
+                case "convention":
+                  // extension / convention は専用 MCP tool handler が書き込むため、ここではスキップ。
+                  break;
+                default:
+                  // 未対応 type は無視 (schema 拡張時に追加)
+                  break;
+              }
+            } catch (esSvWriteErr) {
+              console.error(`[editSession.save] resource file 書き込み失敗 (type=${esSvType}, id=${esSvResId}):`, esSvWriteErr);
+              // 書き込み失敗でも saveHistory / broadcast は続行 (可用性優先)
+            }
+          }
+
+          respond({ ok: true, saveEvent });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.saved",
+            data: {
+              editSessionId: esSvId,
+              savedBy: saveEvent.savedBy,
+              savedAt: saveEvent.savedAt,
+              sequence: saveEvent.sequence,
+            },
+          });
+          break;
+        }
+
+        case "editSession.discard": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const { editSessionId: esDiscId } = (params ?? {}) as { editSessionId: string };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          await esStore.discard(esDiscId, "manual");
+          respond({ discarded: true });
+          this.broadcast({
+            wsId: esWsId,
+            event: "editSession.discarded",
+            data: { editSessionId: esDiscId, reason: "manual" as const },
+          });
+          break;
+        }
+
+        case "editSession.list": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const {
+            resourceType: esLstRt,
+            resourceId: esLstRid,
+          } = (params ?? {}) as { resourceType?: EditSessionResourceType; resourceId?: string };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          let sessions;
+          if (esLstRt && esLstRid) {
+            sessions = esStore.listByResource(esLstRt, esLstRid);
+          } else {
+            // filter なし: 全 EditSession を返す (store の private map を公開するため list all)
+            sessions = esStore.listAll();
+          }
+          respond({ sessions: sessions.map(_serializeEditSession) });
+          // broadcast なし (response only)
+          break;
+        }
+
+        case "editSession.fetchPayload": {
+          const esWsId = wsId();
+          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          const { editSessionId: esFpId } = (params ?? {}) as { editSessionId: string };
+          const esStore = this.getOrCreateEditSessionStore(esWsId);
+          const fetchPayloadResult = esStore.fetchCurrentPayload(esFpId);
+          if (!fetchPayloadResult) {
+            respondError(`EditSession ${esFpId} が見つかりません`);
+            break;
+          }
+          respond({ payload: fetchPayloadResult.payload, sequence: fetchPayloadResult.sequence });
+          // broadcast なし (response only)
           break;
         }
 
@@ -1350,18 +1543,17 @@ class WsBridge extends EventEmitter {
 
 export const wsBridge = new WsBridge();
 
-// #880 Phase 3: draftStore に broadcast 関数を注入 (circular dep 回避)
-initDraftStoreBroadcast((opts) => wsBridge.broadcast(opts));
+// ── EditSession シリアライズヘルパー (Phase 2) ────────────────────────────────
 
-// #880 Phase 3: shutdown 時に dirty shadow を flush する
-async function _flushAndExit(signal: string): Promise<void> {
-  console.error(`[WsBridge] ${signal}: flushing dirty drafts...`);
-  try {
-    await flushAllDirty();
-  } catch (e) {
-    console.error("[WsBridge] flushAllDirty error:", e);
-  }
+/**
+ * EditSession の Map<string, ParticipantInfo> を JSON シリアライズ可能な
+ * Record<string, ParticipantInfo> に変換して返す。
+ * spec §14.3 broadcast の wsId scoping と同様の理由で、
+ * participants の Map は Object.fromEntries で変換する (editSessionStore.ts の FS write と同じ手法)。
+ */
+function _serializeEditSession(session: import("./editSessionStore.js").EditSession): unknown {
+  return {
+    ...session,
+    participants: Object.fromEntries(session.participants.entries()),
+  };
 }
-
-process.on("SIGTERM", () => { _flushAndExit("SIGTERM").catch(() => {}); });
-process.on("SIGINT", () => { _flushAndExit("SIGINT").catch(() => {}); });

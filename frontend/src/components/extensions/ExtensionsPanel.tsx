@@ -95,9 +95,9 @@ export function ExtensionsPanel() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("extension", active) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "extension", resourceId: active }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [active, sessionLoading, mode.kind]);
@@ -137,7 +137,6 @@ export function ExtensionsPanel() {
       // タブ切替確認で「破棄して切替」
       setShowDiscardDialog(false);
       await actions.discard();
-      await mcpBridge.discardDraft("extension", active);
       await load(true);
       setActive(pendingTab);
       setSearchParams({ tab: pendingTab });
@@ -147,7 +146,7 @@ export function ExtensionsPanel() {
       await actions.discard();
       await load(true);
     }
-  }, [pendingTab, actions, active, load, setSearchParams]);
+  }, [pendingTab, actions, load, setSearchParams]);
 
   const handleDiscardCancel = useCallback(() => {
     setShowDiscardDialog(false);
@@ -166,9 +165,9 @@ export function ExtensionsPanel() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    await mcpBridge.discardDraft("extension", active);
+    await actions.discard();
     await load(true);
-  }, [active, load]);
+  }, [actions, load]);
 
   const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 

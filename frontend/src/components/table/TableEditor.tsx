@@ -18,6 +18,7 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
+import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { useListSelection } from "../../hooks/useListSelection";
 import { useListClipboard } from "../../hooks/useListClipboard";
 import { useListKeyboard } from "../../hooks/useListKeyboard";
@@ -34,6 +35,7 @@ import { TriggersDefaultsTab } from "./TriggersDefaultsTab";
 import { renumber } from "../../utils/listOrder";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
+import { SaveConflictDialog } from "../editing/SaveConflictDialog";
 import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
 import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
@@ -77,10 +79,18 @@ export function TableEditor() {
     onNotFound: handleNotFound,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialTableSessionId } = useSessionUrlSync({
+    resourceType: "table",
+    resourceId: tableId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "table",
     resourceId: tableId ?? "",
     sessionId,
+    editSessionId: initialTableSessionId,
   });
 
   const isReadonly = mode.kind !== "editing";
@@ -96,9 +106,11 @@ export function TableEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!tableId || !tableRef.current) return;
-      mcpBridge.updateDraft("table", tableId, tableRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: tableRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, tableId]);
+  }, [isReadonly, update, tableId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -124,9 +136,9 @@ export function TableEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (tableId) await mcpBridge.discardDraft("table", tableId);
+    await actions.discard();
     await reload();
-  }, [tableId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -143,9 +155,9 @@ export function TableEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("table", tableId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "table", resourceId: tableId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [tableId, sessionLoading, mode.kind]);
@@ -225,6 +237,14 @@ export function TableEditor() {
         />
       )}
 
+      {saveConflict && (
+        <SaveConflictDialog
+          conflict={saveConflict}
+          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onCancel={onSaveConflictCancel}
+        />
+      )}
+
       <EditorHeader
         variant="dark"
         backLink={{ label: "テーブル一覧", onClick: () => navigate(wsPath("/table/list")) }}
@@ -260,6 +280,7 @@ export function TableEditor() {
               currentMode={mode}
               currentSessionId={sessionId}
               onStartEditing={() => { void actions.startEditing(); }}
+              onViewerAttached={syncSessionToUrl}
             />
             <button
               className="editor-header-undo-btn"

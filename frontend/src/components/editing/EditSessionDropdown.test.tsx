@@ -1,40 +1,32 @@
 /**
- * EditSessionDropdown.test.tsx (#882 Phase 4)
- * RTL で展開 / アクション dispatch / role アイコン表示を検証する。
+ * EditSessionDropdown.test.tsx (#900 Phase 3)
+ *
+ * RTL で展開 / アクション dispatch / editSession.list 表示 / AI@表示 を検証する。
+ *
+ * 変更 (Phase 3):
+ * - データソース: usePresenceFor (旧) → editSession.list (新)
+ * - AI participant 表示: "@Alice@AI" 形式の確認
+ * - 観察ボタン: attachAsView 呼び出し確認
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { EditSessionDropdown } from "./EditSessionDropdown";
-import type { PresenceEntry } from "../../hooks/usePresenceRegistry";
+import type { EditSessionData } from "../../hooks/useEditSession";
 
 // ── モック ─────────────────────────────────────────────────────────────────
 
-// usePresenceFor が返す entries をテストごとに制御
-let mockEntries: PresenceEntry[] = [];
-
-vi.mock("../../hooks/usePresenceRegistry", () => ({
-  usePresenceFor: () => mockEntries,
-  // classifyActivity は EditSessionDropdown で fallback として使用する pure function
-  classifyActivity: (entry: PresenceEntry) => {
-    // テスト環境では常に "active" を返す (表示構造の検証のみ行うため)
-    if (entry.focusAt && entry.lastEditAt) return "live";
-    if (entry.focusAt) return "active";
-    return "idle";
-  },
-}));
-
-// mcpBridge.request をモック
-const mockRequest = vi.fn().mockResolvedValue({});
+const mockRequest = vi.fn().mockResolvedValue({ sessions: [] });
 vi.mock("../../mcp/mcpBridge", () => ({
   mcpBridge: {
     request: (...args: unknown[]) => mockRequest(...args),
+    onBroadcast: vi.fn(() => () => {}),
   },
 }));
 
 // CSS import は Vitest 環境で副作用なし
 vi.mock("../../styles/editSessionDropdown.css", () => ({}));
 
-// ── テスト ─────────────────────────────────────────────────────────────────
+// ── テストデータ ─────────────────────────────────────────────────────────────
 
 const defaultProps = {
   resourceType: "process-flow" as const,
@@ -43,24 +35,54 @@ const defaultProps = {
   currentSessionId: "session-self",
 };
 
-function makeEntry(overrides: Partial<PresenceEntry> = {}): PresenceEntry {
+function makeEditSession(overrides: Partial<EditSessionData> = {}): EditSessionData {
   return {
-    sessionId: "session-alice",
+    id: "es-test-001",
     resourceType: "process-flow",
     resourceId: "flow-001",
-    role: "editor",
+    state: "Active",
+    participants: {
+      "session-alice": {
+        sessionId: "session-alice",
+        role: "Edit",
+        joinedAt: new Date().toISOString(),
+        lastActivityAt: new Date().toISOString(),
+        displayLabel: "@alice",
+      },
+    },
+    payload: null,
+    sequence: 0,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    saveHistory: [],
     lastActivityAt: new Date().toISOString(),
-    lastEditAt: new Date().toISOString(),
-    focusAt: new Date().toISOString(),
-    ownerLabel: null,
     ...overrides,
   };
 }
 
+function makeAIEditSession(): EditSessionData {
+  return makeEditSession({
+    id: "es-ai-001",
+    participants: {
+      "session-alice": {
+        sessionId: "session-alice",
+        role: "Edit",
+        joinedAt: new Date().toISOString(),
+        lastActivityAt: new Date().toISOString(),
+        displayLabel: "Alice@AI",
+        parentHumanSessionId: "session-human-alice",
+      },
+    },
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockEntries = [];
+  // デフォルト: sessions が空
+  mockRequest.mockResolvedValue({ sessions: [] });
 });
+
+// ── テスト ─────────────────────────────────────────────────────────────────
 
 describe("EditSessionDropdown", () => {
   it("closed 状態では 📄 正規版 バッジが表示される", () => {
@@ -89,14 +111,16 @@ describe("EditSessionDropdown", () => {
     expect(screen.getByText("観察中")).toBeTruthy();
   });
 
-  it("トグルボタンをクリックするとドロップダウンが展開される", () => {
+  it("トグルボタンをクリックするとドロップダウンが展開される", async () => {
     render(<EditSessionDropdown {...defaultProps} />);
     const toggle = screen.getByTestId("esd-toggle-btn");
     fireEvent.click(toggle);
-    expect(screen.getByTestId("esd-dropdown")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("esd-dropdown")).toBeTruthy();
+    });
   });
 
-  it("展開後、ドロップダウン外をクリックすると閉じる", () => {
+  it("展開後、ドロップダウン外をクリックすると閉じる", async () => {
     render(
       <div>
         <EditSessionDropdown {...defaultProps} />
@@ -104,30 +128,69 @@ describe("EditSessionDropdown", () => {
       </div>,
     );
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    expect(screen.getByTestId("esd-dropdown")).toBeTruthy();
+    await waitFor(() => screen.getByTestId("esd-dropdown"));
     fireEvent.mouseDown(screen.getByTestId("outside"));
     expect(screen.queryByTestId("esd-dropdown")).toBeNull();
   });
 
-  it("+ 新規 draft を作成 ボタンが表示され、クリックで onStartEditing が呼ばれる", () => {
+  it("+ 新規 draft を作成 ボタンが表示され、クリックで onStartEditing が呼ばれる", async () => {
     const onStartEditing = vi.fn();
     render(<EditSessionDropdown {...defaultProps} onStartEditing={onStartEditing} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
+    await waitFor(() => screen.getByTestId("esd-new-draft-btn"));
     fireEvent.click(screen.getByTestId("esd-new-draft-btn"));
     expect(onStartEditing).toHaveBeenCalledTimes(1);
   });
 
-  it("editor role の他人エントリに 👁 観察 ボタンが表示される", () => {
-    const editorEntry = makeEntry({ sessionId: "session-alice", role: "editor" });
-    mockEntries = [editorEntry];
+  // ── editSession.list ベースのテスト ─────────────────────────────────────────
+
+  it("展開時に editSession.list が呼ばれる", async () => {
     render(<EditSessionDropdown {...defaultProps} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    expect(screen.getByTestId(`esd-viewer-btn-session-alice`)).toBeTruthy();
+
+    await waitFor(() => {
+      expect(mockRequest).toHaveBeenCalledWith("editSession.list", {
+        resourceType: "process-flow",
+        resourceId: "flow-001",
+      });
+    });
   });
 
-  it("[👁 観察] クリックで lock.subscribeAsViewer が呼ばれる", async () => {
-    const editorEntry = makeEntry({ sessionId: "session-alice", role: "editor" });
-    mockEntries = [editorEntry];
+  it("2 つの EditSession が両方表示される", async () => {
+    mockRequest.mockResolvedValue({
+      sessions: [
+        makeEditSession({ id: "es-001" }),
+        makeEditSession({ id: "es-002" }),
+      ],
+    });
+
+    render(<EditSessionDropdown {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("esd-toggle-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("esd-session-es-001")).toBeTruthy();
+      expect(screen.getByTestId("esd-session-es-002")).toBeTruthy();
+    });
+  });
+
+  it("未参加の EditSession には [👁 観察] ボタンが表示される", async () => {
+    mockRequest.mockResolvedValue({
+      sessions: [makeEditSession({ id: "es-001" })],
+    });
+
+    render(<EditSessionDropdown {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("esd-toggle-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("esd-viewer-btn-es-001")).toBeTruthy();
+    });
+  });
+
+  it("[👁 観察] クリックで editSession.attachAsView が呼ばれ onViewerAttached が発火する", async () => {
+    mockRequest
+      .mockResolvedValueOnce({ sessions: [makeEditSession({ id: "es-001" })] }) // list
+      .mockResolvedValueOnce({ participant: {}, payload: null, sequence: 0 });  // attachAsView
+
     const onViewerAttached = vi.fn();
     render(
       <EditSessionDropdown
@@ -136,75 +199,120 @@ describe("EditSessionDropdown", () => {
       />,
     );
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    fireEvent.click(screen.getByTestId(`esd-viewer-btn-session-alice`));
+
+    await waitFor(() => screen.getByTestId("esd-viewer-btn-es-001"));
+    fireEvent.click(screen.getByTestId("esd-viewer-btn-es-001"));
+
     await waitFor(() => {
-      expect(mockRequest).toHaveBeenCalledWith("lock.subscribeAsViewer", {
-        resourceType: "process-flow",
-        resourceId: "flow-001",
+      expect(mockRequest).toHaveBeenCalledWith("editSession.attachAsView", {
+        editSessionId: "es-001",
       });
+      expect(onViewerAttached).toHaveBeenCalledWith("es-001");
     });
-    expect(onViewerAttached).toHaveBeenCalledWith("session-alice");
   });
 
-  it("[↪ 引継] ボタンは active になっている (#884 Phase 6 で活性化済)", () => {
-    const editorEntry = makeEntry({ sessionId: "session-alice", role: "editor" });
-    mockEntries = [editorEntry];
+  it("AI participant の 'Alice@AI' 表示が確認される", async () => {
+    mockRequest.mockResolvedValue({
+      sessions: [makeAIEditSession()],
+    });
+
     render(<EditSessionDropdown {...defaultProps} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    const takeoverBtn = screen.getByTestId(`esd-takeover-btn-session-alice`);
-    expect((takeoverBtn as HTMLButtonElement).disabled).toBe(false);
+
+    await waitFor(() => {
+      // "Alice@AI" という displayLabel が表示されること
+      expect(screen.getByText("Alice@AI")).toBeTruthy();
+    });
   });
 
-  it("自分のエントリには [▶ 再開] ボタンが表示される", () => {
-    const selfEntry = makeEntry({
-      sessionId: "session-self",
-      role: "editor",
+  it("Discarded EditSession には観察ボタンが表示されない", async () => {
+    mockRequest.mockResolvedValue({
+      sessions: [makeEditSession({ id: "es-discarded", state: "Discarded" })],
     });
-    mockEntries = [selfEntry];
+
     render(<EditSessionDropdown {...defaultProps} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    expect(screen.getByTestId(`esd-resume-btn-session-self`)).toBeTruthy();
+
+    await waitFor(() => screen.getByTestId("esd-session-es-discarded"));
+    expect(screen.queryByTestId("esd-viewer-btn-es-discarded")).toBeNull();
   });
 
-  it("[▶ 再開] クリックで onStartEditing が呼ばれる", () => {
-    const selfEntry = makeEntry({
-      sessionId: "session-self",
-      role: "editor",
-    });
-    mockEntries = [selfEntry];
-    const onStartEditing = vi.fn();
-    render(
-      <EditSessionDropdown
-        {...defaultProps}
-        onStartEditing={onStartEditing}
-      />,
-    );
-    fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    fireEvent.click(screen.getByTestId(`esd-resume-btn-session-self`));
-    expect(onStartEditing).toHaveBeenCalledTimes(1);
-  });
+  // ── Phase 7 (#904) 追加ケース: AI 表示 / take-over / discard ────────────────
 
-  it("AI 借受エントリには 🤖 アイコンが表示される", () => {
-    const aiEntry = makeEntry({
-      sessionId: "session-ai",
-      role: "editor",
-      ownerLabel: "@ai (alice 代行)",
+  it("Phase7: AI participant を含む EditSession では 'AI' ラベルが表示される (spec §10.3)", async () => {
+    mockRequest.mockResolvedValue({
+      sessions: [makeAIEditSession()],
     });
-    mockEntries = [aiEntry];
+
     render(<EditSessionDropdown {...defaultProps} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    expect(screen.getByTitle("AI 借受")).toBeTruthy();
-    expect(screen.getByText("@ai (alice 代行)")).toBeTruthy();
+
+    await waitFor(() => {
+      // "Alice@AI" という displayLabel が表示されること (spec §10.3 Alice@AI 形式)
+      expect(screen.getByText("Alice@AI")).toBeTruthy();
+    });
   });
 
-  it("viewer role エントリには 👁 アイコンが表示される", () => {
-    const viewerEntry = makeEntry({
-      sessionId: "session-bob",
-      role: "viewer",
+  it("Phase7: 自分が View の場合 [↪ 引継] ボタンが表示される (spec §7.2 View 経由必須)", async () => {
+    // session-self が View participant として参加している
+    mockRequest.mockResolvedValue({
+      sessions: [
+        makeEditSession({
+          id: "es-takeover-test",
+          participants: {
+            "session-alice": {
+              sessionId: "session-alice",
+              role: "Edit",
+              joinedAt: new Date().toISOString(),
+              lastActivityAt: new Date().toISOString(),
+              displayLabel: "@alice",
+            },
+            "session-self": {
+              sessionId: "session-self",
+              role: "View",
+              joinedAt: new Date().toISOString(),
+              lastActivityAt: new Date().toISOString(),
+              displayLabel: "@self",
+            },
+          },
+        }),
+      ],
     });
-    mockEntries = [viewerEntry];
+
     render(<EditSessionDropdown {...defaultProps} />);
     fireEvent.click(screen.getByTestId("esd-toggle-btn"));
-    expect(screen.getByTitle("観察中")).toBeTruthy();
+
+    await waitFor(() => {
+      // View として参加中 → take-over ボタンが表示される
+      expect(screen.getByTestId("esd-takeover-btn-es-takeover-test")).toBeTruthy();
+    });
+  });
+
+  it("Phase7: 自分が Edit の場合 [× 破棄] ボタンが表示される", async () => {
+    // session-self が Edit participant として参加している
+    mockRequest.mockResolvedValue({
+      sessions: [
+        makeEditSession({
+          id: "es-discard-test",
+          participants: {
+            "session-self": {
+              sessionId: "session-self",
+              role: "Edit",
+              joinedAt: new Date().toISOString(),
+              lastActivityAt: new Date().toISOString(),
+              displayLabel: "@self",
+            },
+          },
+        }),
+      ],
+    });
+
+    render(<EditSessionDropdown {...defaultProps} currentMode={{ kind: "editing" }} />);
+    fireEvent.click(screen.getByTestId("esd-toggle-btn"));
+
+    await waitFor(() => {
+      // Edit として参加中 → discard ボタンが表示される
+      expect(screen.getByTestId("esd-discard-btn-es-discard-test")).toBeTruthy();
+    });
   });
 });
