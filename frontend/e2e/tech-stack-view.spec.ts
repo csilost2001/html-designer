@@ -1,87 +1,62 @@
 /**
  * 技術スタック選定画面 E2E テスト (#826)
  *
- * カバー範囲:
- *   1. /project/tech-stack を開くと TechStackView が表示される
- *   2. カテゴリクリックでパネルが切り替わる
- *   3. ラジオ選択後に保存できる (localStorage に techStack が反映される)
- *   4. puck + thymeleaf の組合せで制約違反 warning が表示される
- *
- * 前提: dev サーバー起動済み、MCP 不要 (localStorage プロジェクトセットアップ)
+ * #926: realWorkspace + 実 backend 経由に移植。
  */
 
-/**
- * TODO(#926 follow-up): realWorkspace 移植が未完。本 spec は既存の addInitScript-based
- * localStorage seed パターンを使っているが、#924 で fallback 経路が削除されたため
- * data が backend に渡らず動作しない。realWorkspace.setupTestWorkspace + ws.gotoActive
- * への移植を follow-up ISSUE で対応する。
- */
 import { test, expect, type Page } from "@playwright/test";
+import {
+  setupTestWorkspace,
+  cleanupRealWorkspaces,
+  isMcpRunning,
+  type OpenedWorkspace,
+} from "./helpers/realWorkspace";
 
-const FAKE_WS_ID = "e2e-fake-ws-tech-stack-view";
+const dummyProject = {
+  version: 1,
+  name: "技術スタック E2E テスト用プロジェクト",
+  screens: [], groups: [], edges: [], tables: [], processFlows: [],
+  techStack: {
+    designer:   { editorKind: "grapesjs", cssFramework: "bootstrap" },
+    backend:    { language: "java", framework: "spring-boot" },
+    database:   { type: "postgresql", version: "16" },
+    frontend:   { library: "thymeleaf" },
+    auth:       { method: "session" },
+    deployment: { target: "docker" },
+  },
+};
 
-function makeDummyProject() {
-  const now = new Date().toISOString();
-  return {
-    $schema: "../../schemas/v3/project.v3.schema.json",
-    schemaVersion: "v3",
-    meta: {
-      id: "e2e-tech-stack-0000-4000-8000-000000000000",
-      name: "技術スタック E2E テスト用プロジェクト",
-      createdAt: now,
-      updatedAt: now,
-      mode: "upstream",
-      maturity: "draft",
-    },
-    extensionsApplied: [],
-    techStack: {
-      designer:   { editorKind: "grapesjs", cssFramework: "bootstrap" },
-      backend:    { language: "java", framework: "spring-boot" },
-      database:   { type: "postgresql", version: "16" },
-      frontend:   { library: "thymeleaf" },
-      auth:       { method: "session" },
-      deployment: { target: "docker" },
-    },
-    entities: {
-      screens: [],
-      screenGroups: [],
-      screenTransitions: [],
-      tables: [],
-      processFlows: [],
-      views: [],
-      viewDefinitions: [],
-      sequences: [],
-    },
-  };
-}
+const WS_KEY = "issue-926-tech-stack-view";
+let mcpAvailable = false;
+let ws: OpenedWorkspace;
 
 async function setup(page: Page) {
-  const project = makeDummyProject();
-  await page.addInitScript(
-    ({ project, wsId }: { project: object; wsId: string }) => {
-      localStorage.setItem("workspace-e2e-bypass", "true");
-      localStorage.setItem("flow-project", JSON.stringify(project));
-      localStorage.setItem("v3-project", JSON.stringify(project));
-      localStorage.setItem("active-workspace-id", wsId);
-      localStorage.removeItem("harmony-open-tabs");
-      localStorage.removeItem("harmony-active-tab");
-    },
-    { project, wsId: FAKE_WS_ID },
-  );
-  await page.goto("/project/tech-stack");
+  await ws.gotoActive(page, "/project/tech-stack");
 }
 
-test.describe.skip("技術スタック選定画面 (#826)", () => {
+test.describe("技術スタック選定画面 (#826)", () => {
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+    if (!mcpAvailable) return;
+    ws = await setupTestWorkspace({ key: WS_KEY, project: dummyProject });
+  });
+
+  test.afterAll(async () => {
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+  });
+
   test("ページが表示される — カテゴリペイン + デザイナーパネルが存在する", async ({ page }) => {
     await setup(page);
-    // カテゴリツリーが表示される
     await expect(page.locator("text=デザイナー")).toBeVisible();
     await expect(page.locator("text=バックエンド")).toBeVisible();
     await expect(page.locator("text=データベース")).toBeVisible();
     await expect(page.locator("text=フロントエンド")).toBeVisible();
     await expect(page.locator("text=認証")).toBeVisible();
     await expect(page.locator("text=デプロイ")).toBeVisible();
-    // デザイナーカテゴリのラジオが表示される
     await expect(page.locator('input[name="designer-editor-kind"][value="grapesjs"]')).toBeVisible();
     await expect(page.locator('input[name="designer-editor-kind"][value="puck"]')).toBeVisible();
   });
@@ -97,7 +72,6 @@ test.describe.skip("技術スタック選定画面 (#826)", () => {
     await setup(page);
     await page.locator("button", { hasText: "データベース" }).click();
     await expect(page.locator('input[name="database-type"][value="postgresql"]')).toBeVisible();
-    // バージョン入力 (placeholder 確認)
     await expect(page.locator('input[placeholder*="16"]')).toBeVisible();
   });
 
@@ -108,14 +82,10 @@ test.describe.skip("技術スタック選定画面 (#826)", () => {
 
   test("puck + thymeleaf の組合せで制約違反 warning が表示される", async ({ page }) => {
     await setup(page);
-    // デザイナー: puck に切り替え
     await page.locator('input[name="designer-editor-kind"][value="puck"]').click();
-    // フロントエンドカテゴリに移動して thymeleaf を選択
     await page.locator("button", { hasText: "フロントエンド" }).click();
     await page.locator('input[name="frontend-library"][value="thymeleaf"]').click();
-    // 右ペインに制約違反が表示される
     await expect(page.locator("text=制約違反")).toBeVisible();
-    // 保存ボタンが disabled になる
     await expect(page.locator("button", { hasText: "保存" })).toBeDisabled();
   });
 });
