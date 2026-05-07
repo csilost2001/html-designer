@@ -698,7 +698,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1055; /* dropdown (1040) / edit-mode-modal-backdrop (1050) より上 */
 }
 .screen-item-picker {
   background: #fff;
@@ -809,7 +809,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1055; /* dropdown (1040) / edit-mode-modal-backdrop (1050) より上 */
 }
 
 .process-flow-modal {

@@ -717,7 +717,7 @@ body[data-gjs-dragging] .panel-left-wrapper.is-autohide .panel-left {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1055; /* dropdown (1040) / edit-mode-modal-backdrop (1050) より上 */
 }
 
 .code-modal {
