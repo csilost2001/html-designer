@@ -106,6 +106,16 @@ export interface UseEditSessionResult {
   isDirtyForTab: boolean;
   /** Phase 6 互換フィールド: actions オブジェクトとして旧 API を提供 */
   actions: EditSessionActions;
+  /**
+   * spec §9.3 last-save-wins: save 試行時に衝突が検出された場合の情報。
+   * null 以外の場合は SaveConflictDialog を表示する。
+   * 上書き確認後は onSaveConflictOverwrite() を、キャンセルは onSaveConflictCancel() を呼ぶ。
+   */
+  saveConflict: SaveConflictInfo | null;
+  /** spec §9.3: 衝突を無視して上書き save を実行 (force=true) */
+  onSaveConflictOverwrite(): Promise<void>;
+  /** spec §9.3: 衝突ダイアログをキャンセル (save 中止) */
+  onSaveConflictCancel(): void;
 }
 
 /**
@@ -148,6 +158,14 @@ export interface EditSessionActions {
  * - broadcast editSession.update 受信時は sequence を比較して reorder 破棄
  * - payload は opaque (unknown 型) で扱う (Forward-Compat 原則 ①)
  */
+/** spec §9.3 衝突情報 — save 応答に含まれる */
+export interface SaveConflictInfo {
+  editSessionId: string;
+  savedBy: string;
+  savedAt: string;
+  displayLabel: string;
+}
+
 export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResult {
   const { resourceType, resourceId, editSessionId: initialEditSessionId } = opts;
 
@@ -156,6 +174,8 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
   const [payload, setPayload] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  /** spec §9.3: 衝突ダイアログ表示用 — null なら非表示 */
+  const [saveConflict, setSaveConflict] = useState<SaveConflictInfo | null>(null);
 
   // sequence tracking for reorder detection (§14.1 / useResourceEditor のパターンと同様)
   const lastSeqRef = useRef(0);
@@ -389,7 +409,10 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
 
   // ── save ─────────────────────────────────────────────────────────────────────
 
-  const save = useCallback(async () => {
+  /**
+   * spec §9.3 last-save-wins: force=true で衝突無視上書き save を実行する内部 helper。
+   */
+  const _saveForce = useCallback(async () => {
     setError(null);
     const es = editSessionRef.current;
     if (!es) {
@@ -400,7 +423,33 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     try {
       await mcpBridge.request("editSession.save", {
         editSessionId: es.id,
+        force: true,
       });
+      setSaveConflict(null);
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const save = useCallback(async () => {
+    setError(null);
+    const es = editSessionRef.current;
+    if (!es) {
+      setError(new Error("EditSession がアクティブでありません"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await mcpBridge.request("editSession.save", {
+        editSessionId: es.id,
+      }) as { ok?: boolean; conflict?: { other: SaveConflictInfo }; saveEvent?: unknown } | undefined;
+      // spec §9.3: 衝突検出 — backend が { ok: false, conflict: { other: ... } } を返した場合
+      if (res && res.ok === false && res.conflict) {
+        setSaveConflict(res.conflict.other);
+        return;
+      }
       // saveHistory は broadcast editSession.saved で refreshEditSessionState が呼ばれる
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
@@ -491,6 +540,16 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     },
   }), [startEditing, save, discard, detach]);
 
+  // ── spec §9.3 last-save-wins 衝突ハンドラ ────────────────────────────────────
+
+  const onSaveConflictOverwrite = useCallback(async () => {
+    await _saveForce();
+  }, [_saveForce]);
+
+  const onSaveConflictCancel = useCallback(() => {
+    setSaveConflict(null);
+  }, []);
+
   return {
     editSession,
     myRole,
@@ -508,5 +567,8 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     mode,
     isDirtyForTab,
     actions,
+    saveConflict,
+    onSaveConflictOverwrite,
+    onSaveConflictCancel,
   };
 }

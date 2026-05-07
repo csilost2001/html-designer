@@ -464,6 +464,118 @@ describe("useEditSession (新 API, spec §15.2)", () => {
     expect(result.current.payload).toEqual({ data: "auto-attached" });
   });
 });
+// ── ケース: spec §9.3 last-save-wins 衝突検出 → saveConflict / force 上書き ──
+
+describe("useEditSession spec §9.3 last-save-wins 衝突解決", () => {
+  const CONFLICT_INFO = {
+    editSessionId: "es-other-001",
+    savedBy: "session-bob",
+    savedAt: new Date().toISOString(),
+    displayLabel: "@bob",
+  };
+
+  it("save: backend が conflict 応答を返した場合 saveConflict がセットされる", async () => {
+    // startEditing
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.startEditing();
+    });
+
+    // save 応答で conflict を返す
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      conflict: { other: CONFLICT_INFO },
+    });
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    // saveConflict がセットされていること
+    expect(result.current.saveConflict).toEqual(CONFLICT_INFO);
+  });
+
+  it("onSaveConflictOverwrite: force=true で editSession.save を再実行し saveConflict をクリアする", async () => {
+    // startEditing
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.startEditing();
+    });
+
+    // save 応答で conflict を返す
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      conflict: { other: CONFLICT_INFO },
+    });
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(result.current.saveConflict).not.toBeNull();
+
+    // force=true で上書き save
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      saveEvent: { savedBy: SESSION_ID, savedAt: new Date().toISOString(), sequence: 2 },
+    });
+
+    await act(async () => {
+      await result.current.onSaveConflictOverwrite();
+    });
+
+    // saveConflict がクリアされていること
+    expect(result.current.saveConflict).toBeNull();
+    // force=true で editSession.save が呼ばれたことを確認
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.save", {
+      editSessionId: "es-test-001",
+      force: true,
+    });
+  });
+
+  it("onSaveConflictCancel: saveConflict をクリアして save 中止", async () => {
+    // startEditing
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.startEditing();
+    });
+
+    // save 応答で conflict を返す
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      conflict: { other: CONFLICT_INFO },
+    });
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(result.current.saveConflict).not.toBeNull();
+
+    // キャンセル
+    act(() => {
+      result.current.onSaveConflictCancel();
+    });
+
+    expect(result.current.saveConflict).toBeNull();
+  });
+});
+
 // Phase 6 (#903): useEditSessionLegacy テスト削除済み。
 
 // ══════════════════════════════════════════════════════════════════════════════

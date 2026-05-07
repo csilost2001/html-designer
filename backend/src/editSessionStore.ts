@@ -598,6 +598,14 @@ export class EditSessionStore {
   }
 
   /**
+   * 指定 ID の EditSession を返す (active / discarded 問わず)。
+   * 存在しない場合は null。spec §9.3 衝突検出の resourceType/resourceId 参照用。
+   */
+  getById(editSessionId: string): EditSession | null {
+    return this.store.get(editSessionId) ?? null;
+  }
+
+  /**
    * テスト用: store を初期化する。
    */
   _resetForTest(): void {

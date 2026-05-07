@@ -208,6 +208,8 @@ class WsBridge extends EventEmitter {
    * key = wsId (workspace root path)。既存 lockManager / draftStore と同じ lazy 生成パターン。
    */
   private editSessionStores = new Map<string, EditSessionStore>();
+  /** spec §12.4 / §18.3: 1h 周期の EditSession cleanupExpired タイマー */
+  private editSessionCleanupTimer: NodeJS.Timeout | null = null;
 
   get isConnected(): boolean {
     return this.clients.size > 0;
@@ -271,6 +273,44 @@ class WsBridge extends EventEmitter {
         data: { resourceType, resourceId, entries },
       });
     });
+
+    // spec §12.4 / §18.3: EditSession の 1h 周期 cleanupExpired を開始
+    this._startEditSessionCleanupInterval();
+  }
+
+  /**
+   * spec §12.4 / §18.3 準拠: 1 時間に 1 回 全 EditSessionStore に cleanupExpired を実行する。
+   * Active + 全員 View + 無活動 → Discarded 遷移 / Discarded + retention 経過 → 完全削除。
+   */
+  private _startEditSessionCleanupInterval(intervalMs = 60 * 60 * 1000): void {
+    if (this.editSessionCleanupTimer !== null) return; // 二重起動防止
+    this.editSessionCleanupTimer = setInterval(async () => {
+      const now = new Date();
+      for (const [wsId, store] of this.editSessionStores.entries()) {
+        try {
+          const results = await store.cleanupExpired(now, 2 /* ttlDays */, 7 /* retentionDays */);
+          for (const { editSession, action } of results) {
+            if (action === "discarded") {
+              this.broadcast({
+                wsId,
+                event: "editSession.expired",
+                data: { editSessionId: editSession.id, reason: "ttl" },
+              });
+            }
+          }
+        } catch (e) {
+          console.error(`[WsBridge] EditSession cleanupExpired error (wsId=${wsId}):`, e);
+        }
+      }
+    }, intervalMs);
+  }
+
+  /** spec §12.4: cleanupExpired タイマーを停止する。shutdown / テスト用。 */
+  stopEditSessionCleanup(): void {
+    if (this.editSessionCleanupTimer !== null) {
+      clearInterval(this.editSessionCleanupTimer);
+      this.editSessionCleanupTimer = null;
+    }
   }
 
   /** Phase 7 (#885): cleanup タイマーを停止する。shutdown hook 用。 */
@@ -281,6 +321,7 @@ class WsBridge extends EventEmitter {
   /** HTTP + WebSocket サーバを停止し全接続を切断する。shutdown hook 用。 */
   stop(): void {
     presenceStopCleanupInterval();
+    this.stopEditSessionCleanup();
     if (this.wss) {
       for (const client of this.wss.clients) {
         client.terminate();
@@ -1259,10 +1300,40 @@ class WsBridge extends EventEmitter {
         case "editSession.save": {
           const esWsId = wsId();
           if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
-          const { editSessionId: esSvId } = (params ?? {}) as { editSessionId: string };
+          const { editSessionId: esSvId, force } = (params ?? {}) as { editSessionId: string; force?: boolean };
           const esStore = this.getOrCreateEditSessionStore(esWsId);
+
+          // spec §9.3 last-save-wins 衝突検出: force フラグなしの場合のみ
+          if (!force) {
+            const allSessions = esStore.listByResource(
+              esStore.getById(esSvId)?.resourceType ?? "process-flow",
+              esStore.getById(esSvId)?.resourceId ?? "",
+            );
+            // 自分以外の active EditSession が既に save 済みかチェック
+            const conflicting = allSessions.find(
+              (s) => s.id !== esSvId && s.state === "Active" && s.saveHistory.length > 0,
+            );
+            if (conflicting) {
+              const lastSave = conflicting.saveHistory[conflicting.saveHistory.length - 1];
+              const otherParticipants = Array.from(conflicting.participants.values());
+              const editor = otherParticipants.find((p) => p.role === "Edit") ?? otherParticipants[0];
+              respond({
+                ok: false,
+                conflict: {
+                  other: {
+                    editSessionId: conflicting.id,
+                    savedBy: lastSave.savedBy,
+                    savedAt: lastSave.savedAt,
+                    displayLabel: editor?.displayLabel ?? lastSave.savedBy,
+                  },
+                },
+              });
+              break;
+            }
+          }
+
           const saveEvent = await esStore.save(esSvId, clientId);
-          respond({ saveEvent });
+          respond({ ok: true, saveEvent });
           this.broadcast({
             wsId: esWsId,
             event: "editSession.saved",
