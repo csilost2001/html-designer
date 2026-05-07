@@ -27,7 +27,8 @@ export interface IntegrityIssue {
     | "UNKNOWN_ERROR_CODE"
     | "UNKNOWN_SYSTEM_REF"
     | "UNKNOWN_TYPE_REF"
-    | "UNKNOWN_SECRET_REF";
+    | "UNKNOWN_SECRET_REF"
+    | "UNKNOWN_MODEL_REF";
   /** 参照しようとした値 */
   value: string;
   /** エラーメッセージ */
@@ -55,6 +56,7 @@ export function checkReferentialIntegrity(
   const hasExtensions = extensions !== undefined && typeIds.size > 0;
   const secretKeys = new Set(Object.keys(merged.secrets ?? {}));
   const hasSecretsCatalog = secretKeys.size > 0;
+  const modelEndpointKeys = new Set(Object.keys(merged.modelEndpoints ?? {}));
 
   // externalSystems (merged: project + flow level).*.auth.tokenRef 内の @secret.* 参照を検査
   if (hasSecretsCatalog) {
@@ -103,6 +105,7 @@ export function checkReferentialIntegrity(
     });
     walkSteps(action.steps ?? [], `actions[${ai}].steps`, (step, path) => {
       checkStep(step, path, responseIds, errorCodes, hasErrorCatalog, systemIds, hasSystemCatalog, issues, secretKeys, hasSecretsCatalog);
+      checkAiModelRef(step, path, modelEndpointKeys, issues);
     });
 
     // context.catalogs.errors -> responses 参照
@@ -260,4 +263,25 @@ function checkStep(
       }
     });
   }
+}
+
+// aiCall / aiAgent は v3 TypeScript Step union に未追加のため (stepGuards.ts の BUILTIN_STEP_KINDS を参照)、
+// kind 判定は string 比較で行い modelRef を構造的に取り出す。schema 上は AiCallStep / AiAgentStep の
+// 必須フィールドとして定義済み。
+function checkAiModelRef(
+  step: Step,
+  path: string,
+  modelEndpointKeys: Set<string>,
+  issues: IntegrityIssue[],
+): void {
+  const s = step as { kind: string; modelRef?: string };
+  if (s.kind !== "aiCall" && s.kind !== "aiAgent") return;
+  if (!s.modelRef) return;
+  if (modelEndpointKeys.has(s.modelRef)) return;
+  issues.push({
+    path: `${path}.modelRef`,
+    code: "UNKNOWN_MODEL_REF",
+    value: s.modelRef,
+    message: `aiCall/aiAgent.modelRef "${s.modelRef}" が modelEndpoints catalog (project + flow merged) に存在しません`,
+  });
 }

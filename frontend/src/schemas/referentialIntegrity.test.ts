@@ -264,6 +264,141 @@ describe("checkReferentialIntegrity — typeRef (#261)", () => {
   });
 });
 
+describe("checkReferentialIntegrity — modelRef (#941)", () => {
+  it("flow level modelEndpoints に存在する modelRef は OK", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      context: { catalogs: { modelEndpoints: {
+        summarizeModel: { provider: "anthropic", model: "claude-haiku-4-5" },
+      } } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", kind: "aiCall", description: "", modelRef: "summarizeModel", messages: [] },
+        ],
+      }],
+    } as never));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("project level modelEndpoints (merged) に存在する modelRef も OK", () => {
+    const issues = checkReferentialIntegrity(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [
+            { id: "s1", kind: "aiCall", description: "", modelRef: "projectModel", messages: [] },
+          ],
+        }],
+      } as never),
+      undefined,
+      { modelEndpoints: { projectModel: { provider: "openai", model: "gpt-4" } } },
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("flow level が project level を override (同名キー)", () => {
+    const issues = checkReferentialIntegrity(
+      makeGroup({
+        context: { catalogs: { modelEndpoints: {
+          shared: { provider: "anthropic", model: "claude-opus-4-7" },
+        } } },
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [
+            { id: "s1", kind: "aiCall", description: "", modelRef: "shared", messages: [] },
+          ],
+        }],
+      } as never),
+      undefined,
+      { modelEndpoints: { shared: { provider: "openai", model: "gpt-4" } } },
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("タイポした modelRef を UNKNOWN_MODEL_REF として検出", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      context: { catalogs: { modelEndpoints: {
+        summarizeModel: { provider: "anthropic", model: "claude-haiku-4-5" },
+      } } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", kind: "aiCall", description: "", modelRef: "summarizModel", messages: [] },
+        ],
+      }],
+    } as never));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_MODEL_REF");
+    expect(issues[0].value).toBe("summarizModel");
+    expect(issues[0].path).toBe("actions[0].steps[0].modelRef");
+  });
+
+  it("modelEndpoints catalog が空でも aiCall がある場合は検出", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", kind: "aiCall", description: "", modelRef: "anyModel", messages: [] },
+        ],
+      }],
+    } as never));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_MODEL_REF");
+  });
+
+  it("aiAgent.modelRef も検査対象", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      context: { catalogs: { modelEndpoints: {
+        agentModel: { provider: "anthropic", model: "claude-opus-4-7" },
+      } } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          {
+            id: "s1", kind: "aiAgent", description: "",
+            modelRef: "missingAgentModel",
+            messages: [], tools: [{ name: "search" }],
+          },
+        ],
+      }],
+    } as never));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_MODEL_REF");
+    expect(issues[0].value).toBe("missingAgentModel");
+  });
+
+  it("ネスト (loop.steps 内) の aiCall.modelRef も検査", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      context: { catalogs: { modelEndpoints: { good: {} } } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "lp", kind: "loop", description: "", loopKind: "count",
+          steps: [
+            { id: "ai", kind: "aiCall", description: "", modelRef: "bad", messages: [] },
+          ],
+        }],
+      }],
+    } as never));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_MODEL_REF");
+    expect(issues[0].path).toBe("actions[0].steps[0].steps[0].modelRef");
+  });
+
+  it("aiCall/aiAgent 以外の step の modelRef 風プロパティは検査対象外", () => {
+    const issues = checkReferentialIntegrity(makeGroup({
+      context: { catalogs: { modelEndpoints: { real: {} } } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [
+          { id: "s1", kind: "compute", description: "", expression: "" },
+        ],
+      }],
+    } as never));
+    expect(issues).toHaveLength(0);
+  });
+});
+
 describe("checkReferentialIntegrity — systemRef (#261)", () => {
   it("externalSystemCatalog 定義時、未登録 systemRef を検出", () => {
     const issues = checkReferentialIntegrity(makeGroup({
