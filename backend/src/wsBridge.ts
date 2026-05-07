@@ -40,6 +40,8 @@ import {
   EditSessionPermissionError,
   EditSessionParticipantError,
   type DraftResourceType as EditSessionResourceType,
+  type ParticipantInfo as EditSessionParticipantInfo,
+  type SaveEvent as EditSessionSaveEvent,
 } from "./editSessionStore.js";
 import {
   readProject,
@@ -248,6 +250,314 @@ class WsBridge extends EventEmitter {
     return store;
   }
 
+  // ── EditSession public API (#906, MCP tool + WS handler 共有) ─────────────────
+  // sessionId は workspace 解決 + actor (participant.sessionId) として使われる。
+  // WS 経由は WebSocket clientId、MCP 経由は MCP sessionId をそのまま渡す
+  // (workspaceContextManager は両 namespace を統一管理する、#700 R-2)。
+
+  /**
+   * sessionId から active workspace path (wsId) を解決する。未選択時は WorkspaceUnsetError を throw。
+   * #917 review M-1: plain Error だと index.ts の catch ブロックで McpError(InvalidParams) に
+   * 変換されず汎用 isError に落ちるため、他 workspace 依存 MCP tool と同じ requireActivePath を使う。
+   */
+  private _resolveActiveWsId(sessionId: string): string {
+    return workspaceContextManager.requireActivePath(sessionId);
+  }
+
+  /** spec §5 step 1: 新規 EditSession を作成し initial Edit participant として登録 + broadcast */
+  editSessionCreate(
+    sessionId: string,
+    resourceType: EditSessionResourceType,
+    resourceId: string,
+    displayLabel?: string,
+    parentHumanSessionId?: string,
+  ): { editSession: unknown } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const session = store.create(
+      sessionId,
+      resourceType,
+      resourceId,
+      displayLabel ?? sessionId,
+      parentHumanSessionId !== undefined ? { parentHumanSessionId } : undefined,
+    );
+    const serialized = _serializeEditSession(session);
+    this.broadcast({ wsId, event: "editSession.created", data: { editSession: serialized } });
+    return { editSession: serialized };
+  }
+
+  /** spec §5 step 2: View role で attach + initial payload fetch + broadcast */
+  editSessionAttachAsView(
+    sessionId: string,
+    editSessionId: string,
+    displayLabel?: string,
+    parentHumanSessionId?: string,
+  ): { participant: EditSessionParticipantInfo; payload: unknown; sequence: number } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const participant = store.attachAsView(
+      editSessionId,
+      sessionId,
+      displayLabel ?? sessionId,
+      parentHumanSessionId,
+    );
+    const fetchResult = store.fetchCurrentPayload(editSessionId);
+    this.broadcast({
+      wsId,
+      event: "editSession.attached",
+      data: { editSessionId, participant },
+    });
+    return {
+      participant,
+      payload: fetchResult?.payload ?? null,
+      sequence: fetchResult?.sequence ?? 0,
+    };
+  }
+
+  /** participant detach + broadcast (Edit role は事前に View 降格必要) */
+  editSessionDetach(sessionId: string, editSessionId: string): { detached: true } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    store.detach(editSessionId, sessionId);
+    this.broadcast({
+      wsId,
+      event: "editSession.detached",
+      data: { editSessionId, sessionId },
+    });
+    return { detached: true };
+  }
+
+  /** participant role 変更 + broadcast (通常は transferEdit を使う) */
+  editSessionSetRole(
+    sessionId: string,
+    editSessionId: string,
+    newRole: "Edit" | "View",
+  ): { participant: EditSessionParticipantInfo } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const session = store.get(editSessionId);
+    const oldRole = session?.participants.get(sessionId)?.role ?? null;
+    const updatedParticipant = store.setRole(editSessionId, sessionId, newRole);
+    this.broadcast({
+      wsId,
+      event: "editSession.roleChanged",
+      data: { editSessionId, sessionId, oldRole, newRole },
+    });
+    return { participant: updatedParticipant };
+  }
+
+  /** spec §7: take-over (caller = new Edit holder)。fromSessionId は participants から自動検索 */
+  editSessionTransferEdit(
+    sessionId: string,
+    editSessionId: string,
+  ): { from: EditSessionParticipantInfo; to: EditSessionParticipantInfo } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const targetSession = store.getById(editSessionId);
+    if (!targetSession) {
+      throw new EditSessionNotFoundError(editSessionId);
+    }
+    // #917 review S-2: editor 不在時に caller fallback すると "from は Edit role ではない" と
+    // 不明瞭なエラーが返るため、editor 不在を明示的に検出してより正確なエラーを throw する。
+    const editor = Array.from(targetSession.participants.values()).find((p) => p.role === "Edit");
+    if (!editor) {
+      throw new EditSessionStateError(
+        `EditSession ${editSessionId} に Edit role の participant が存在しないため take-over できません`,
+      );
+    }
+    const result = store.transferEdit(editor.sessionId, sessionId, editSessionId);
+    this.broadcast({
+      wsId,
+      event: "editSession.roleChanged",
+      data: {
+        editSessionId,
+        sessionId,
+        oldRole: "View" as const,
+        newRole: "Edit" as const,
+        op: "transferred",
+        transferTo: sessionId,
+      },
+    });
+    return result;
+  }
+
+  /** spec §13.2 update: payload を更新 + broadcast (FS write なし、Forward-Compat 原則 ④) */
+  editSessionUpdate(
+    sessionId: string,
+    editSessionId: string,
+    payload: unknown,
+  ): { sequence: number } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const { sequence } = store.update(editSessionId, payload, sessionId);
+    this.broadcast({
+      wsId,
+      event: "editSession.update",
+      data: { editSessionId, sequence, payload, senderSessionId: sessionId },
+    });
+    return { sequence };
+  }
+
+  /**
+   * spec §5 step 5 / §8: 確定保存。stage パラメータで 2 段階保存をサポート (#912)。
+   *   - stage 未指定: conflict check + saveHistory + 本体書き込み + broadcast
+   *   - stage: "checkOnly": conflict check のみ
+   *   - stage: "commit": conflict check skip、saveHistory + 本体書き込み + broadcast
+   * 衝突時は { ok: false, conflict } を return value で signal (throw しない)。
+   */
+  async editSessionSave(
+    sessionId: string,
+    editSessionId: string,
+    opts?: { force?: boolean; stage?: "checkOnly" | "commit" },
+  ): Promise<
+    | { ok: true; saveEvent?: EditSessionSaveEvent }
+    | { ok: false; conflict: { other: { editSessionId: string; savedBy: string; savedAt: string; displayLabel: string } } }
+  > {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const force = opts?.force === true;
+    const stage = opts?.stage;
+
+    // spec §9.3 last-save-wins 衝突検出
+    if (!force && stage !== "commit") {
+      const targetSession = store.getById(editSessionId);
+      const allSessions = store.listByResource(
+        targetSession?.resourceType ?? "process-flow",
+        targetSession?.resourceId ?? "",
+      );
+      const conflicting = allSessions.find(
+        (s) => s.id !== editSessionId && s.state === "Active" && s.saveHistory.length > 0,
+      );
+      if (conflicting) {
+        const lastSave = conflicting.saveHistory[conflicting.saveHistory.length - 1];
+        const otherParticipants = Array.from(conflicting.participants.values());
+        const editor = otherParticipants.find((p) => p.role === "Edit") ?? otherParticipants[0];
+        return {
+          ok: false,
+          conflict: {
+            other: {
+              editSessionId: conflicting.id,
+              savedBy: lastSave.savedBy,
+              savedAt: lastSave.savedAt,
+              displayLabel: editor?.displayLabel ?? lastSave.savedBy,
+            },
+          },
+        };
+      }
+    }
+
+    // stage: "checkOnly" は conflict check のみで終了
+    if (stage === "checkOnly") {
+      return { ok: true };
+    }
+
+    const saveEvent = await store.save(editSessionId, sessionId);
+
+    // 本体 resource file へ atomic write (P1-1, #907 regression 解消)
+    const session = store.getById(editSessionId);
+    if (session && session.payload !== null && session.payload !== undefined) {
+      const root = resolveRoot(sessionId);
+      const type = session.resourceType;
+      const resId = session.resourceId;
+      const payload = session.payload;
+      try {
+        switch (type) {
+          case "screen":
+            await writeScreen(resId, payload, root);
+            break;
+          case "puck-data":
+            await writePuckData(resId, payload, root);
+            break;
+          case "table":
+            await writeTable(resId, payload, root);
+            break;
+          case "process-flow":
+            await writeProcessFlow(resId, payload, root);
+            break;
+          case "view":
+            await writeView(resId, payload, root);
+            break;
+          case "view-definition":
+            await writeViewDefinition(resId, payload, root);
+            break;
+          case "screen-item": {
+            const siPayload = payload as { screenId?: string } | null;
+            const siScreenId = siPayload && typeof siPayload.screenId === "string" && siPayload.screenId
+              ? siPayload.screenId
+              : resId;
+            await writeScreenItems(siScreenId, payload, root);
+            break;
+          }
+          case "sequence":
+            await writeSequence(resId, payload, root);
+            break;
+          case "flow":
+          case "extension":
+          case "convention":
+            // flow は frontend persistProject() が書き込む / extension/convention は専用 MCP tool 経由のため skip
+            break;
+          default:
+            break;
+        }
+      } catch (writeErr) {
+        console.error(`[editSession.save] resource file 書き込み失敗 (type=${type}, id=${resId}):`, writeErr);
+        // 書き込み失敗でも saveHistory / broadcast は続行 (可用性優先)
+      }
+    }
+
+    this.broadcast({
+      wsId,
+      event: "editSession.saved",
+      data: {
+        editSessionId,
+        savedBy: saveEvent.savedBy,
+        savedAt: saveEvent.savedAt,
+        sequence: saveEvent.sequence,
+      },
+    });
+    return { ok: true, saveEvent };
+  }
+
+  /** spec §5 step 6a: Active → Discarded + broadcast */
+  async editSessionDiscard(sessionId: string, editSessionId: string): Promise<{ discarded: true }> {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    await store.discard(editSessionId, "manual");
+    this.broadcast({
+      wsId,
+      event: "editSession.discarded",
+      data: { editSessionId, reason: "manual" as const },
+    });
+    return { discarded: true };
+  }
+
+  /** EditSession 一覧を返す (filter なしで全件、resourceType+resourceId 指定で絞り込み) */
+  editSessionList(
+    sessionId: string,
+    filter?: { resourceType?: EditSessionResourceType; resourceId?: string },
+  ): { sessions: unknown[] } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const sessions = filter?.resourceType && filter?.resourceId
+      ? store.listByResource(filter.resourceType, filter.resourceId)
+      : store.listAll();
+    return { sessions: sessions.map(_serializeEditSession) };
+  }
+
+  /** spec §13.3: 現在の payload + sequence を取得 (broadcast 待ちなし) */
+  editSessionFetchPayload(
+    sessionId: string,
+    editSessionId: string,
+  ): { payload: unknown; sequence: number } {
+    const wsId = this._resolveActiveWsId(sessionId);
+    const store = this.getOrCreateEditSessionStore(wsId);
+    const result = store.fetchCurrentPayload(editSessionId);
+    if (!result) {
+      throw new EditSessionNotFoundError(editSessionId);
+    }
+    return result;
+  }
+
   /** MCP コマンドを送る先: 最後に接続した有効なクライアント */
   private get activeClient(): WebSocket | null {
     for (let i = this.clientOrder.length - 1; i >= 0; i--) {
@@ -290,11 +600,20 @@ class WsBridge extends EventEmitter {
         try {
           const results = await store.cleanupExpired(now, 2 /* ttlDays */, 7 /* retentionDays */);
           for (const { editSession, action } of results) {
+            // #917 review S-1: spec §12.4 / §14.1 準拠の broadcast event 名に修正
+            //   - "discarded" (TTL 経過 Active → Discarded): editSession.discarded (reason: "ttl")
+            //   - "deleted" (retention 経過 Discarded → 完全削除): editSession.expired
             if (action === "discarded") {
               this.broadcast({
                 wsId,
+                event: "editSession.discarded",
+                data: { editSessionId: editSession.id, reason: "ttl" as const },
+              });
+            } else if (action === "deleted") {
+              this.broadcast({
+                wsId,
                 event: "editSession.expired",
-                data: { editSessionId: editSession.id, reason: "ttl" },
+                data: { editSessionId: editSession.id },
               });
             }
           }
@@ -1143,8 +1462,7 @@ class WsBridge extends EventEmitter {
         // 旧 lock.* / draft.* handler は変更しない (Phase 4 で adapter 化、Phase 6 で削除)。
 
         case "editSession.create": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionCreate を adapter として呼ぶ (MCP tool と共有)
           const {
             resourceType: esRt,
             resourceId: esRid,
@@ -1154,25 +1472,17 @@ class WsBridge extends EventEmitter {
             resourceId: string;
             displayLabel?: string;
           };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          const esSession = esStore.create(
-            clientId,
-            esRt,
-            esRid,
-            esLabel ?? clientId,
-          );
-          respond({ editSession: _serializeEditSession(esSession) });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.created",
-            data: { editSession: _serializeEditSession(esSession) },
-          });
+          try {
+            const result = this.editSessionCreate(clientId, esRt, esRid, esLabel);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.attachAsView": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionAttachAsView を adapter として呼ぶ
           const {
             editSessionId: esAvId,
             displayLabel: esAvLabel,
@@ -1182,305 +1492,123 @@ class WsBridge extends EventEmitter {
             displayLabel?: string;
             parentHumanSessionId?: string;
           };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          const participant = esStore.attachAsView(
-            esAvId,
-            clientId,
-            esAvLabel ?? clientId,
-            esAvParent,
-          );
-          const fetchResult = esStore.fetchCurrentPayload(esAvId);
-          respond({
-            participant,
-            payload: fetchResult?.payload ?? null,
-            sequence: fetchResult?.sequence ?? 0,
-          });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.attached",
-            data: { editSessionId: esAvId, participant },
-          });
+          try {
+            const result = this.editSessionAttachAsView(clientId, esAvId, esAvLabel, esAvParent);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.detach": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionDetach を adapter として呼ぶ
           const { editSessionId: esDtId } = (params ?? {}) as { editSessionId: string };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          esStore.detach(esDtId, clientId);
-          respond({ detached: true });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.detached",
-            data: { editSessionId: esDtId, sessionId: clientId },
-          });
+          try {
+            const result = this.editSessionDetach(clientId, esDtId);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.setRole": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionSetRole を adapter として呼ぶ
           const {
             editSessionId: esRoleId,
             role: esNewRole,
           } = (params ?? {}) as { editSessionId: string; role: "Edit" | "View" };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          const esRoleSession = esStore.get(esRoleId);
-          const oldRole = esRoleSession?.participants.get(clientId)?.role ?? null;
-          const updatedParticipant = esStore.setRole(esRoleId, clientId, esNewRole);
-          respond({ participant: updatedParticipant });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.roleChanged",
-            data: {
-              editSessionId: esRoleId,
-              sessionId: clientId,
-              oldRole,
-              newRole: esNewRole,
-            },
-          });
+          try {
+            const result = this.editSessionSetRole(clientId, esRoleId, esNewRole);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.transferEdit": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
-          const {
-            editSessionId: esTrId,
-          } = (params ?? {}) as { editSessionId: string; toSessionId?: string };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-
-          // P2-1: caller (clientId) は take-over を実行する viewer (= toSessionId)。
-          // fromSessionId (現 Edit holder) は EditSession の participants から自動検索する (#907 regression 解消)。
-          const esTrSession = esStore.getById(esTrId);
-          const esTrFromSessionId = esTrSession
-            ? (Array.from(esTrSession.participants.values()).find((p) => p.role === "Edit")?.sessionId ?? clientId)
-            : clientId;
-
-          const { from: esTrFrom, to: esTrNew } = esStore.transferEdit(
-            esTrFromSessionId,
-            clientId,  // caller = take-over 実行者 = new Edit holder
-            esTrId,
-          );
-          respond({ from: esTrFrom, to: esTrNew });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.roleChanged",
-            data: {
-              editSessionId: esTrId,
-              sessionId: clientId,  // clientId = take-over 実行者 = new Edit holder
-              oldRole: "View" as const,
-              newRole: "Edit" as const,
-              op: "transferred",
-              transferTo: clientId,
-            },
-          });
+          // #906: 公開 API editSessionTransferEdit を adapter として呼ぶ
+          // (caller = take-over 実行者 = new Edit holder; fromSessionId は participants から自動検索)
+          const { editSessionId: esTrId } = (params ?? {}) as { editSessionId: string; toSessionId?: string };
+          try {
+            const result = this.editSessionTransferEdit(clientId, esTrId);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.update": {
           // opaque envelope: payload は server で解釈しない (Forward-Compat 原則 ①)
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionUpdate を adapter として呼ぶ
           const {
             editSessionId: esUpId,
             payload: esUpPayload,
           } = (params ?? {}) as { editSessionId: string; payload: unknown };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          const { sequence: esSeq } = esStore.update(esUpId, esUpPayload, clientId);
-          respond({ sequence: esSeq });
-          // senderSessionId 付きで全員に broadcast (excludeClientId 不要 = 全員受信)
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.update",
-            data: {
-              editSessionId: esUpId,
-              sequence: esSeq,
-              payload: esUpPayload, // opaque: そのまま透過
-              senderSessionId: clientId,
-            },
-          });
+          try {
+            const result = this.editSessionUpdate(clientId, esUpId, esUpPayload);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.save": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
-          // P2 fix (#912): stage パラメータで 2 段階保存をサポート (FlowEditor 等、frontend が本体ファイル
-          // 書き込みを担う resource type 用)。
-          //   - stage 未指定 (default): 従来通り conflict check + saveHistory 記録 + 本体書き込み + broadcast
-          //   - stage: "checkOnly" : conflict check のみ。saveHistory / 本体書き込み / broadcast なし
-          //   - stage: "commit"    : conflict check skip。saveHistory 記録 + 本体書き込み + broadcast
-          // FlowEditor は checkOnly → frontend persistProject() → commit の順で呼ぶことで、
-          // persistProject 失敗時に saveHistory が record されない (整合性向上、recoverable)。
+          // #906: 公開 API editSessionSave を adapter として呼ぶ (#912 stage パラメータ含む)
           const { editSessionId: esSvId, force, stage } = (params ?? {}) as {
             editSessionId: string;
             force?: boolean;
             stage?: "checkOnly" | "commit";
           };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-
-          // spec §9.3 last-save-wins 衝突検出:
-          //   - force フラグありの場合は skip (overwrite 確認後)
-          //   - stage: "commit" の場合は skip (checkOnly で事前チェック済み)
-          if (!force && stage !== "commit") {
-            const allSessions = esStore.listByResource(
-              esStore.getById(esSvId)?.resourceType ?? "process-flow",
-              esStore.getById(esSvId)?.resourceId ?? "",
-            );
-            // 自分以外の active EditSession が既に save 済みかチェック
-            const conflicting = allSessions.find(
-              (s) => s.id !== esSvId && s.state === "Active" && s.saveHistory.length > 0,
-            );
-            if (conflicting) {
-              const lastSave = conflicting.saveHistory[conflicting.saveHistory.length - 1];
-              const otherParticipants = Array.from(conflicting.participants.values());
-              const editor = otherParticipants.find((p) => p.role === "Edit") ?? otherParticipants[0];
-              respond({
-                ok: false,
-                conflict: {
-                  other: {
-                    editSessionId: conflicting.id,
-                    savedBy: lastSave.savedBy,
-                    savedAt: lastSave.savedAt,
-                    displayLabel: editor?.displayLabel ?? lastSave.savedBy,
-                  },
-                },
-              });
-              break;
-            }
+          try {
+            const result = await this.editSessionSave(clientId, esSvId, { force, stage });
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
           }
-
-          // stage: "checkOnly" は conflict check のみで終了 (saveHistory 記録 / 本体書き込み / broadcast なし)
-          if (stage === "checkOnly") {
-            respond({ ok: true });
-            break;
-          }
-
-          const saveEvent = await esStore.save(esSvId, clientId);
-
-          // P1-1: 本体 resource file へ atomic write (#907 regression 解消)
-          // editSession.save は saveHistory 記録に加え、in-memory payload を本体ファイルに書き込む。
-          // payload が null (まだ editSession.update が 1 度も呼ばれていない) の場合はスキップ。
-          const esSvSession = esStore.getById(esSvId);
-          if (esSvSession && esSvSession.payload !== null && esSvSession.payload !== undefined) {
-            const esSvRoot = resolveRoot(clientId);
-            const esSvType = esSvSession.resourceType;
-            const esSvResId = esSvSession.resourceId;
-            const esSvPayload = esSvSession.payload;
-            try {
-              switch (esSvType) {
-                case "screen":
-                  await writeScreen(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "puck-data":
-                  await writePuckData(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "table":
-                  await writeTable(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "process-flow":
-                  await writeProcessFlow(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "view":
-                  await writeView(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "view-definition":
-                  await writeViewDefinition(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "screen-item": {
-                  // screen-item payload は { screenId, items, ... } 形式
-                  const siPayload = esSvPayload as { screenId?: string } | null;
-                  const siScreenId = siPayload && typeof siPayload.screenId === "string" && siPayload.screenId
-                    ? siPayload.screenId
-                    : esSvResId;
-                  await writeScreenItems(siScreenId, esSvPayload, esSvRoot);
-                  break;
-                }
-                case "sequence":
-                  await writeSequence(esSvResId, esSvPayload, esSvRoot);
-                  break;
-                case "flow":
-                  // flow (画面フロー) は FlowEditor が persistProject() で harmony.json + screen-layout.json を
-                  // 既に書き込んでいるため、ここでは二重書き込みを避けスキップ。
-                  // editSession.save はサーバ側 saveHistory 記録のみ担う。
-                  break;
-                case "extension":
-                case "convention":
-                  // extension / convention は専用 MCP tool handler が書き込むため、ここではスキップ。
-                  break;
-                default:
-                  // 未対応 type は無視 (schema 拡張時に追加)
-                  break;
-              }
-            } catch (esSvWriteErr) {
-              console.error(`[editSession.save] resource file 書き込み失敗 (type=${esSvType}, id=${esSvResId}):`, esSvWriteErr);
-              // 書き込み失敗でも saveHistory / broadcast は続行 (可用性優先)
-            }
-          }
-
-          respond({ ok: true, saveEvent });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.saved",
-            data: {
-              editSessionId: esSvId,
-              savedBy: saveEvent.savedBy,
-              savedAt: saveEvent.savedAt,
-              sequence: saveEvent.sequence,
-            },
-          });
           break;
         }
 
         case "editSession.discard": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionDiscard を adapter として呼ぶ
           const { editSessionId: esDiscId } = (params ?? {}) as { editSessionId: string };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          await esStore.discard(esDiscId, "manual");
-          respond({ discarded: true });
-          this.broadcast({
-            wsId: esWsId,
-            event: "editSession.discarded",
-            data: { editSessionId: esDiscId, reason: "manual" as const },
-          });
+          try {
+            const result = await this.editSessionDiscard(clientId, esDiscId);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
+          }
           break;
         }
 
         case "editSession.list": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionList を adapter として呼ぶ
           const {
             resourceType: esLstRt,
             resourceId: esLstRid,
           } = (params ?? {}) as { resourceType?: EditSessionResourceType; resourceId?: string };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          let sessions;
-          if (esLstRt && esLstRid) {
-            sessions = esStore.listByResource(esLstRt, esLstRid);
-          } else {
-            // filter なし: 全 EditSession を返す (store の private map を公開するため list all)
-            sessions = esStore.listAll();
+          try {
+            const result = this.editSessionList(clientId, { resourceType: esLstRt, resourceId: esLstRid });
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
           }
-          respond({ sessions: sessions.map(_serializeEditSession) });
-          // broadcast なし (response only)
           break;
         }
 
         case "editSession.fetchPayload": {
-          const esWsId = wsId();
-          if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
+          // #906: 公開 API editSessionFetchPayload を adapter として呼ぶ
           const { editSessionId: esFpId } = (params ?? {}) as { editSessionId: string };
-          const esStore = this.getOrCreateEditSessionStore(esWsId);
-          const fetchPayloadResult = esStore.fetchCurrentPayload(esFpId);
-          if (!fetchPayloadResult) {
-            respondError(`EditSession ${esFpId} が見つかりません`);
-            break;
+          try {
+            const result = this.editSessionFetchPayload(clientId, esFpId);
+            respond(result);
+          } catch (e) {
+            respondError(e instanceof Error ? e.message : String(e));
           }
-          respond({ payload: fetchPayloadResult.payload, sequence: fetchPayloadResult.sequence });
-          // broadcast なし (response only)
           break;
         }
 

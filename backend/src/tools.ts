@@ -1387,4 +1387,163 @@ export const tools = [
   // 旧 draft__read / draft__update / draft__commit / draft__discard / draft__has / draft__list /
   // lock__acquire / lock__release / lock__forceRelease / lock__get / lock__list は Phase 6 (#903) で削除。
   // editSession.* API が正規経路。
+
+  // ── EditSession MCP tools (#906) ──────────────────────────────────────────────
+  // AI エージェント (MCP 経由) が edit-session を直接操作するための tool 群。
+  // 旧 draft__/lock__ の MCP tool 削除に伴う後継。実装は wsBridge の editSession* 公開 API
+  // を adapter として呼ぶ (WS handler と共有)。spec docs/spec/edit-session-protocol.md 準拠。
+  {
+    name: "editSession__create",
+    description:
+      "新規 EditSession を作成して initial Edit participant として登録します。" +
+      "指定 resource (画面 / テーブル / 処理フロー等) の編集セッションを開始する際に使います。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        resourceType: {
+          type: "string",
+          enum: [
+            "screen", "puck-data", "table", "process-flow", "view", "view-definition",
+            "screen-item", "sequence", "extension", "convention", "flow",
+          ],
+          description: "編集対象 resource の種別",
+        },
+        resourceId: { type: "string", description: "編集対象 resource の ID (singleton resource は \"singleton\" 等)" },
+        displayLabel: { type: "string", description: "participant の表示名 (例: \"@alice\" / \"AI@bot\")。省略時は sessionId" },
+      },
+      required: ["resourceType", "resourceId"],
+    },
+  },
+  {
+    name: "editSession__attach_as_view",
+    description:
+      "既存 EditSession に View role で attach します。response に現在の payload + sequence が含まれます。" +
+      "別エージェントが編集中の resource を観察 / 引き継ぎ準備する際に使います。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+        displayLabel: { type: "string", description: "participant の表示名。省略時は sessionId" },
+        parentHumanSessionId: { type: "string", description: "AI participant の場合、指示元 human の sessionId" },
+      },
+      required: ["editSessionId"],
+    },
+  },
+  {
+    name: "editSession__detach",
+    description:
+      "EditSession から完全離脱します。Edit role の場合は事前に View に降格 (set_role) する必要があります。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+      },
+      required: ["editSessionId"],
+    },
+  },
+  {
+    name: "editSession__set_role",
+    description:
+      "自身の participant role を変更します。通常は take-over (transfer_edit) を使い、本 tool は限定的な role 変更用 (Edit → View 降格等)。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+        role: { type: "string", enum: ["Edit", "View"], description: "新しい role" },
+      },
+      required: ["editSessionId", "role"],
+    },
+  },
+  {
+    name: "editSession__transfer_edit",
+    description:
+      "Edit role を atomic に take-over します。caller が new Edit holder になり、現 Edit holder は View に降格します。" +
+      "事前に attach_as_view で View 参加していること (spec §7.2)。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+      },
+      required: ["editSessionId"],
+    },
+  },
+  {
+    name: "editSession__update",
+    description:
+      "EditSession の payload を更新し sequence を increment します。FS write はせず in-memory snapshot のみ更新 (Forward-Compat 原則)。" +
+      "AI が draft 編集を反映する際に使います。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+        payload: { description: "新しい payload (opaque、resourceType ごとに schema が異なる)" },
+      },
+      required: ["editSessionId", "payload"],
+    },
+  },
+  {
+    name: "editSession__save",
+    description:
+      "EditSession の現時点 payload を本体ファイルに確定保存します (saveHistory 記録 + broadcast 含む)。" +
+      "spec §9.3 last-save-wins: 衝突時は { ok: false, conflict } を返します。" +
+      "stage パラメータで 2 段階保存をサポート (checkOnly / commit)。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+        force: { type: "boolean", description: "true で衝突 check skip (overwrite 確認後)" },
+        stage: {
+          type: "string",
+          enum: ["checkOnly", "commit"],
+          description: "checkOnly = 衝突 check のみ / commit = saveHistory 記録 + broadcast (衝突 check skip)",
+        },
+      },
+      required: ["editSessionId"],
+    },
+  },
+  {
+    name: "editSession__discard",
+    description:
+      "EditSession を Active → Discarded に遷移させます。draft が破棄され retention 期間 (7日) 後に完全削除されます。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+      },
+      required: ["editSessionId"],
+    },
+  },
+  {
+    name: "editSession__list",
+    description:
+      "EditSession 一覧を取得します。resourceType + resourceId 指定で絞り込み、未指定で全件返却。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        resourceType: {
+          type: "string",
+          enum: [
+            "screen", "puck-data", "table", "process-flow", "view", "view-definition",
+            "screen-item", "sequence", "extension", "convention", "flow",
+          ],
+          description: "絞り込み: resource 種別",
+        },
+        resourceId: { type: "string", description: "絞り込み: resource ID (resourceType と同時指定)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "editSession__fetch_payload",
+    description:
+      "EditSession の現在の payload + sequence を取得します (broadcast 待ちなし)。" +
+      "別 session が attach した直後の initial fetch や、cross-session take-over 後の同期に使います。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        editSessionId: { type: "string", description: "対象 EditSession の ID" },
+      },
+      required: ["editSessionId"],
+    },
+  },
 ];

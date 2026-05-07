@@ -1263,6 +1263,127 @@ function createMcpServer(sessionId: string): Server {
       // draft__ / lock__ MCP tools 削除済 (Phase 6 #903)
       // editSession.* API の直接呼び出しが正規経路。
 
+      // ── EditSession MCP tools (#906) ────────────────────────────────────────
+      // wsBridge の editSession* 公開 API を adapter として呼ぶ。WS handler と同一実装を共有。
+
+      case "editSession__create": {
+        const a = argRecord;
+        if (typeof a.resourceType !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "resourceType は必須です");
+        }
+        if (typeof a.resourceId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "resourceId は必須です");
+        }
+        const result = wsBridge.editSessionCreate(
+          sessionId,
+          a.resourceType as Parameters<typeof wsBridge.editSessionCreate>[1],
+          a.resourceId,
+          typeof a.displayLabel === "string" ? a.displayLabel : undefined,
+        );
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__attach_as_view": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        const result = wsBridge.editSessionAttachAsView(
+          sessionId,
+          a.editSessionId,
+          typeof a.displayLabel === "string" ? a.displayLabel : undefined,
+          typeof a.parentHumanSessionId === "string" ? a.parentHumanSessionId : undefined,
+        );
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__detach": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        const result = wsBridge.editSessionDetach(sessionId, a.editSessionId);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__set_role": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        if (a.role !== "Edit" && a.role !== "View") {
+          throw new McpError(ErrorCode.InvalidParams, "role は \"Edit\" または \"View\" である必要があります");
+        }
+        const result = wsBridge.editSessionSetRole(sessionId, a.editSessionId, a.role);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__transfer_edit": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        const result = wsBridge.editSessionTransferEdit(sessionId, a.editSessionId);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__update": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        if (!("payload" in a)) {
+          throw new McpError(ErrorCode.InvalidParams, "payload は必須です");
+        }
+        const result = wsBridge.editSessionUpdate(sessionId, a.editSessionId, a.payload);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__save": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        const stage = a.stage;
+        if (stage !== undefined && stage !== "checkOnly" && stage !== "commit") {
+          throw new McpError(ErrorCode.InvalidParams, "stage は \"checkOnly\" または \"commit\" である必要があります");
+        }
+        const result = await wsBridge.editSessionSave(sessionId, a.editSessionId, {
+          force: typeof a.force === "boolean" ? a.force : undefined,
+          stage,
+        });
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__discard": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        const result = await wsBridge.editSessionDiscard(sessionId, a.editSessionId);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__list": {
+        const a = argRecord;
+        const result = wsBridge.editSessionList(sessionId, {
+          resourceType: typeof a.resourceType === "string"
+            ? (a.resourceType as Parameters<typeof wsBridge.editSessionList>[1] extends { resourceType?: infer R } ? R : never)
+            : undefined,
+          resourceId: typeof a.resourceId === "string" ? a.resourceId : undefined,
+        });
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
+      case "editSession__fetch_payload": {
+        const a = argRecord;
+        if (typeof a.editSessionId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "editSessionId は必須です");
+        }
+        const result = wsBridge.editSessionFetchPayload(sessionId, a.editSessionId);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      }
+
       default:
         throw new McpError(ErrorCode.MethodNotFound, `未知のツール: ${name}`);
     }
