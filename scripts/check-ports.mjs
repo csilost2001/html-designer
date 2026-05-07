@@ -40,8 +40,7 @@ if (occupied.length > 0) {
   for (const { port } of occupied) {
     console.error(
       `\x1b[31m[check-ports]\x1b[0m Port ${port} はすでに使用中です。` +
-      ` 起動済みのプロセスを確認してください (例: 前回の \`npm run dev\` が残っている)。` +
-      ` 終了させてから再実行してください。`,
+      ` \`npm run kill\` でプロセスを終了してから再実行するか、\`npm run restart\` で一括再起動してください。`,
     );
   }
   process.exit(1);
