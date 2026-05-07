@@ -68,17 +68,27 @@ disable-model-invocation: true
       - DB seed/truncate helper (Prisma)
       - playwright.config.ts 雛形 (webServer はコメントアウト — AI は dev server を spawn しない)
 
-    P5 (AI flow mock + 実 API 切替 — #874):
-      - kind=externalSystem の step 検出 → externalSystems catalog 参照 → mock target 自動決定
-      - mock mode: jest.spyOn / vi.spyOn で provider HTTP を stub (token 消費なし)
-      - 実 API mode: RUN_AI_INTEGRATION=1 env で describe.runIf 切替、CI default skip
-      - 4 観点変換ルール:
-          AI-1: 信頼度フィルタ (step.kind=compute で threshold 適用) → mock AI response でフィルタ検証
-          AI-2: API key 未設定 → 503 fallback (CLAUDE_API_KEY="" 設定で期待)
-          AI-3: JSON parse 失敗 → 500 + retry/log (malformed JSON mock → 検証)
-          AI-4: 502 retry policy → maxAttempts 回目まで再試行 → 最終 502 (spy 呼出回数確認)
-      - @env.* / @secret.* 参照は #859 未解決のため literal fallback
-      - @conv.* 参照 (#859 解決後に transparent 対応)
+    P5 (AI flow mock + 実 API 切替 — #874 / Phase 2-B):
+      - kind ∈ {aiCall, aiAgent} の step 検出 → modelEndpoints catalog (project + flow merge) 参照
+      - mock target: AI runtime / provider service interface (Phase 2-C で確定、現状 PLACEHOLDER)
+      - mock 戻り値は spec の outputBinding 正規化形式: { text?, object?, raw?, finishReason?, usage?, toolCalls? }
+      - mock mode: jest.spyOn / vi.spyOn で AI runtime service を stub (token 消費なし)
+      - 実 API mode: RUN_AI_INTEGRATION=1 env で ternary (jest+vitest 両互換)、CI default skip
+      - responseFormat 別の mock 戦略 (P5-3):
+          text         → { text }
+          json         → { object, raw }   (object は schema 制約なし)
+          structuredObject → { object, raw } (object は responseFormat.schema 準拠、テスト fixture も schema 準拠で書く)
+          streaming    → { text } (完了後 assembled、partial chunks は本層で扱わない)
+      - AiMessageSpread 検出 → ref (例: @turnContext) を辿り fixture 用変数を生成
+      - AiImageSource: fileRef / url(literal) / url(@-expression) / base64 を別々に fixture 化
+      - 4 観点変換ルール (responseFormat-aware):
+          AI-1: 業務フィルタ (compute step が @<bind>.object.* に filter / map 等を適用) → mock object でフィルタ検証
+          AI-2: secret 未設定 → 503 fallback (modelEndpoint.auth.tokenRef → secrets.<key>.name → env var)
+          AI-3: response format violation (json/structuredObject のみ) → runtime parse / schema 失敗 → 502
+                text / streaming は AI-3 を skip (parse step が無いため)
+          AI-4: provider 呼び出し失敗 → outcomes.failure.action=abort → step responses[] の失敗 responseId を返す
+      - tools / aiAgent: functionRef は context.catalogs.functions 参照、aiAgent は最終 assistant message のみ受け取る
+      - 旧 externalSystem + systemRef=claudeApi パターンは Phase 2-A (PR #937) で全 sample が aiCall 化済 → 検出対象外
 
   P5 スコープ外 (別 ISSUE で逐次拡張):
     - Spring Boot / Python FastAPI 等の他 backend techStack
@@ -1585,18 +1595,27 @@ smoke 検証: スキップ (dev server 未起動 / playwright install 未実施)
 
 ---
 
-## Step P5: AI flow mock + 実 API 切替テスト生成 — #874
+## Step P5: AI flow mock + 実 API 切替テスト生成 — #874 / Phase 2-B
 
-ProcessFlow に `kind=externalSystem` の step が含まれる場合、P5 ルートが自動的に有効化される。
+ProcessFlow に `kind ∈ {aiCall, aiAgent}` の step が含まれる場合、P5 ルートが自動的に有効化される。
 P5 は P1/P2 と並列して生成する (P1/P2 の happy path / validation テストに加えて AI 固有テストを追加)。
+
+> **Phase 2-A (PR #937, 2026-05-08) の前提**: 旧 `kind=externalSystem` + `systemRef=claudeApi` /
+> 旧 `english-learning:LlmDialog` パターンは全 sample で `aiCall` に移行済。本 skill は
+> aiCall / aiAgent のみを認識する。旧パターンが残るフローは Phase 2-A 移行漏れなので spec 側で起票。
+
+> **Phase 2-C (`/generate-code`) との関係**: 実 backend 実装の AI runtime / SDK 切替は別 PR で対応する。
+> Phase 2-B (本 skill) は **テストの方を先に書ける** ように設計する。mock target は実装側 interface
+> 名が確定するまで PLACEHOLDER (`AI_RUNTIME_SERVICE_*`) を生成し、Phase 2-C の実装到達と同時に
+> README の差替え手順で実 interface に置換する。
 
 テンプレート規約: `.claude/skills/generate-tests/templates/backend/typescript-nestjs/E2E_SPEC.md` の Section 16 (AI flow セクション) を Read して参照すること。
 
 ゴールデン出力も参照:
 ```
 .claude/skills/generate-tests/golden-examples/diary-ai-tag-suggest/
-  ai-tag-suggest.e2e-spec.ts   — AIタグ提案 mock + 実 API テスト (9+ tests)
-  mocks/claude-api.ts          — Claude API mock helper
+  ai-tag-suggest.e2e-spec.ts   — AIタグ提案 (aiCall + structuredObject) mock + 実 API テスト
+  mocks/ai-runtime.ts          — AI runtime service mock helper (provider 中立形式)
   README.md                    — PLACEHOLDER 解決表 + 再 invocation 例
 ```
 
@@ -1606,125 +1625,373 @@ ProcessFlow JSON を読み込み、以下の条件で AI flow かどうかを判
 
 ```
 AI flow 判定条件:
-  actions[].steps[] に step.kind = "externalSystem" が含まれ、かつ
-  step.systemRef が context.catalogs.externalSystems に定義されている場合 → AI flow
+  actions[].steps[] (および inlineBranch.{ok,ng} / branches[].steps / elseBranch.steps を再帰探索)
+  に step.kind ∈ { "aiCall", "aiAgent" } が 1 件以上含まれる場合 → AI flow
 
-externalSystems の AI 系判定 (現状はシステム名の慣習で判定):
-  - 名前に "ai", "claude", "openai", "gpt", "llm", "ml" を含む (case-insensitive) → AI system
-  - それ以外 (Stripe 決済 API 等) → 通常の externalSystem (P5 スコープ外)
+旧パターンの扱い (Phase 2-A 完了後):
+  - kind="externalSystem" + systemRef がモデル系名 (claudeApi 等) は P5 検出対象外。
+    Phase 2-A で全 sample 移行済み。残存は移行漏れとして report に warning を出力する。
 
-AI flow が 1 件以上含まれる ProcessFlow → P5 テスト生成をトリガー
+aiCall vs aiAgent の差分:
+  - aiCall:  single-shot 呼び出し。tools 任意。outputBinding は最終 assistant message。
+  - aiAgent: tools 必須 (minItems=1) + maxIterations。tool call ループはランタイムが内部処理し、
+             outputBinding には最終 assistant message のみが入る。途中の tool 呼び出しは
+             個別 step として現れない (spec §「outputBinding の値構造」)。
+             → テスト観点は aiCall と同じ 4 観点 + agent 特有テスト (P5-3 補足) を追加する。
 ```
 
-### P5-2. externalSystems catalog 参照 → mock target 決定
+### P5-2. modelEndpoints catalog 解決 → mock target 決定
 
 ```
-catalog 参照フロー:
-  1. step.systemRef → context.catalogs.externalSystems[systemRef] を取得
-  2. 取得した catalog エントリから以下を抽出:
-     - baseUrl: "@env.CLAUDE_API_BASE_URL" → PLACEHOLDER として記録 (#859 解決前)
-     - auth.tokenRef: "@secret.claudeApiKey" → PLACEHOLDER として記録
-     - retryPolicy: { maxAttempts, backoff, initialDelayMs }
-     - timeoutMs
-  3. secrets catalog: context.catalogs.secrets[secretName] → env 変数名 を取得
-     例: secrets.claudeApiKey.name = "CLAUDE_API_KEY"
+catalog merge ルール (#939 提案 C, 2026-05-08):
+  1. project level catalog: examples/<project-id>/harmony/catalogs/external.json
+       (workspace モードでは <workspace>/catalogs/external.json)
+  2. flow level catalog:    <flow>.context.catalogs.modelEndpoints
+  3. merge: 同一キーなら flow level が project level を override
+  4. step.modelRef → merged.modelEndpoints[modelRef] = ModelEndpointEntry を取得
 
-@env.* / @secret.* 参照の扱い (P5 時点):
-  @env.CLAUDE_API_BASE_URL → PLACEHOLDER = "https://api.anthropic.com" (デフォルト)
-  @secret.claudeApiKey → env var CLAUDE_API_KEY を参照
+ModelEndpointEntry から抽出する情報:
+  - provider:   anthropic / openai / google / aws-bedrock / ollama / azure-openai / namespace:custom
+  - model:      provider 固有 model ID (例: 'claude-opus-4-7')
+  - endpoint:   API base URL (省略時 provider default)
+  - auth:       { kind: bearer/basic/apiKey/oauth2/iamRole/azureAd/none, tokenRef?: '@secret.<key>' }
+  - defaults:   { temperature, maxTokens, topP, topK, stopSequences } (推論パラメータ)
+  - fallback:   primary 失敗時の別 modelEndpoint key (任意)
 
-  注: #859 (フレームワーク @conv.ai.* / @env.* 参照サポート) 解決後は catalog から直接解決可能になる。
-  解決後の差替えポイントは README の「#859 解決後の差替え」セクションに記録する。
+secrets 解決:
+  auth.tokenRef = "@secret.<secretKey>" → merged.secrets[secretKey] を取得
+    secrets.<key>.source = "env" の場合: secrets.<key>.name が env var 名 (例: ANTHROPIC_API_KEY)
+    Phase 2-B 時点では env source のみ想定 (vault 等は別 ISSUE)
 
-mock target の決定 (P5 現在):
-  - NestJS service 層で HttpService.post() を呼ぶ実装が前提 (#865 AI provider 抽象化は OPEN)
-  - jest.spyOn(httpService, 'post') または axios の mock interceptor を使用
-  - #865 解決後: provider 抽象化 interface 単位の mock に置換 (README に差替えポイントを記録)
+mock target の決定 (Phase 2-B 時点):
+  - 実装側に AI runtime service が存在することを前提に PLACEHOLDER 生成:
+      AI_RUNTIME_SERVICE_TYPE   (例: AiRuntimeService — Phase 2-C で確定)
+      AI_RUNTIME_SERVICE_METHOD (例: invoke / execute — Phase 2-C で確定)
+  - mock 対象 method の戻り値型は spec §「outputBinding の値構造」に従う正規化形式:
+      AiInvocationResult = {
+        text?: string;                          // text / streaming / json (人間可読部)
+        object?: unknown;                       // json / structuredObject (parse 済み)
+        raw?: string;                           // json / structuredObject (provider 生 JSON 文字列)
+        finishReason?: string;
+        usage?: { inputTokens?: number; outputTokens?: number };
+        toolCalls?: Array<{ id: string; name: string; arguments: unknown }>;
+      }
+  - jest: jest.spyOn(aiRuntime, 'invoke').mockResolvedValueOnce(<AiInvocationResult>)
+  - vitest (P3 採用、ただし AI flow は P1/P2 backend なので jest 固定): 同パターン
+
+@env.* / @secret.* 参照の扱い (Phase 2-B 時点):
+  @secret.<secretKey> → merged.secrets[secretKey].name から env var 名を抽出
+                        テスト内では process.env.<env-name> を直接参照 (#859 未解決)
+  @env.<envKey>       → harmony.json の context.envCatalog (#859 解決後) から取得予定。
+                        現状は PLACEHOLDER + literal fallback。
+  @conv.<key>         → conventions catalog から解決 (#859 解決後)。現状は compute step
+                        expression からリテラル抽出 (例: 0.6)。
 ```
 
-### P5-3. step.kind=externalSystem → テスト変換ルール
+### P5-3. step.kind=aiCall|aiAgent → テスト変換ルール
 
-AI flow 検出後、以下の 4 観点 (AI-1〜AI-4) でテストを自動生成する。
-各 `it()` には必ず D-1 anchor `// Spec: ProcessFlow <flowId> step:<step-id> [ai-mode:mock|live]` を付与する。
+AI flow 検出後、以下の 4 観点 (AI-1〜AI-4) でテストを自動生成する。各 `it()` には D-1 anchor
+`// Spec: ProcessFlow <flowId> step:<step-id> [ai-mode:mock|live]` を必ず付与する。
 
-#### AI-1: 信頼度フィルタ検証
+#### responseFormat 別の mock 戻り値構造
 
-対象 step: `step.kind=compute` で AI レスポンスの `.filter(t => t.confidence >= <threshold>)` を処理する step。
+`step.responseFormat.kind` を見て mock の戻り値を分岐する。未指定は `text` 扱い。
+
+| responseFormat.kind | mock 戻り値 | 後続 step での参照 |
+|---|---|---|
+| `text` (default) | `{ text: '<生成テキスト>', finishReason: 'end_turn', usage: {...} }` | `@<bind>.text` |
+| `json` | `{ object: <任意 JSON>, raw: '<JSON 文字列>', ...meta }` | `@<bind>.object` / `@<bind>.raw` |
+| `structuredObject` | `{ object: <responseFormat.schema 準拠>, raw: '<JSON.stringify(object)>', ...meta }` | `@<bind>.object.<field>` |
+| `streaming` | `{ text: '<完了後 assembled>', ...meta }` (本テスト層では partial chunks を扱わない) | `@<bind>.text` |
+
+`tools` を含む aiCall / aiAgent で tool call が発生したパスを mock する場合は上記に加え:
+```ts
+{ toolCalls: [{ id, name, arguments }] }
+```
+を返す。aiAgent は最終 assistant message を上記正規化形式で返す (途中の tool 呼び出しは
+ランタイムが処理するため mock 対象外)。
+
+#### AI-1: 業務フィルタ / map 検証 (responseFormat-aware)
+
+対象: `step.kind=compute` で `@<aiBinding>.object.*` または `@<aiBinding>.text` を加工する step。
 
 ```
 変換ルール:
-  1. compute step の expression から threshold 値を抽出
-     例: expression = "JSON.parse(...).filter(t => t.confidence >= 0.6)"
-     → threshold = 0.6
-  2. mock AI response を用意:
-     - 信頼度 >= threshold のタグ (採用期待)
-     - 信頼度 < threshold のタグ (除外期待)
-     - 閾値ちょうど (= threshold) のタグ (採用期待、境界値)
-  3. 生成テスト:
-     - mock response に threshold 未満が含まれる → レスポンスに除外されていること
-     - mock response に threshold 以上が含まれる → レスポンスに含まれること
-     - 閾値ちょうど → 含まれること (境界値テスト)
+  1. 後続 compute step の expression を解析:
+     - aiCall.responseFormat=structuredObject → "@aiResponse.object.<field>.filter(...).map(...)" 形式
+       例 (diary タグ提案): "@aiResponse.object.tags.filter(t => t.confidence >= @conv.limit.tagSuggestThreshold)..."
+     - aiCall.responseFormat=text/streaming → "@aiResponse.text" を文字列加工する
+     - aiCall.responseFormat=json → "@aiResponse.object.*" (構造制約なし)
+  2. filter 条件 (例: confidence >= threshold) を抽出。
+     - リテラル比較 → 値を直接使用
+     - @conv.* 参照 → conventions catalog から解決 (Phase 2-B 時点: PLACEHOLDER + 補助 const)
+  3. mock の object に境界値を含む fixture を構築 (responseFormat.schema 準拠で書く):
+     - 閾値超過 (採用期待) / 閾値未満 (除外期待) / 閾値ちょうど (採用期待、境界値)
+  4. 生成テスト:
+     - aiResponse.object に閾値未満を含む fixture → response から除外されていること
+     - aiResponse.object に閾値以上を含む fixture → response に含まれていること
+     - 境界値ちょうど → 含まれていること
+  5. AI-1 該当 compute が見つからない場合は AI-1 を skip し、申し送りに記録する。
 
-#859 注記: threshold は現状 compute step の expression にリテラルとして埋め込まれている。
-           #859 解決後は catalog conventions.ai.tagSuggestThreshold を参照する形に変わる予定。
-           差替えポイントを README に記録すること。
+注: 旧版 (externalSystem) の "JSON.parse(@aiResponse.content[0].text).filter(...)" は廃止。
+    aiCall (structuredObject) では runtime が JSON parse 済み → user code は @<bind>.object.* を直接参照する。
 ```
 
-#### AI-2: API key 未設定 → 503 fallback
+#### AI-2: secret 未設定 → 503 fallback
 
 ```
 変換ルール:
-  1. secrets catalog から env var 名を取得 (例: CLAUDE_API_KEY)
-  2. mock で API key 未設定状態を再現:
-     const originalKey = process.env.CLAUDE_API_KEY;
-     process.env.CLAUDE_API_KEY = '';
-     // リクエスト実行
-     process.env.CLAUDE_API_KEY = originalKey; // afterEach で restore
-  3. 期待 HTTP status: 503 (Service Unavailable)
-     注: API key 未設定の場合は provider への呼び出し前に 503 を返す実装が前提
-     実装が 401 / 500 を返す場合はその status に合わせて修正する (コメントに明記)
+  1. step.modelRef → merged.modelEndpoints[modelRef].auth.tokenRef ('@secret.<key>') を取得
+  2. merged.secrets[<key>].name を env var 名として抽出 (例: ANTHROPIC_API_KEY)
+  3. mock で API key 未設定状態を再現:
+     const originalKey = process.env.ANTHROPIC_API_KEY;
+     process.env.ANTHROPIC_API_KEY = '';
+     try {
+       // リクエスト実行
+       expect(res.status).toBe(503);
+     } finally {
+       process.env.ANTHROPIC_API_KEY = originalKey;  // 必ず restore
+     }
+  4. 期待 HTTP status: 503 (Service Unavailable)
+     注: API key 未設定時は provider 呼び出し前に 503 を返す実装が前提。
+         実装が 401 / 500 を返す場合はその status に合わせて修正する旨をコメントに明記。
 
 生成テスト:
-  #N API key 未設定 → 503 Service Unavailable
+  #N AI-2: <ENV_VAR_NAME> 未設定 → 503 Service Unavailable
+
+modelEndpoint.auth.kind が "none" / "iamRole" / "azureAd" の場合の扱い:
+  - "none":    AI-2 を skip (env secret 不要のため)
+  - "iamRole": AI-2 を skip + 申し送りに「IAM ロール解決失敗テストは別 ISSUE 候補」と記載
+  - "azureAd": 同上 (Azure AD 認証失敗テストは別 ISSUE)
 ```
 
-#### AI-3: JSON parse 失敗 → 500 + retry/log
+#### AI-3: response format violation (responseFormat-aware)
+
+旧版 (externalSystem) の「JSON.parse 失敗 → 500」は user code 側で parse していた前提。
+aiCall では runtime が parse / schema 検証を担うため、AI-3 の生成可否は responseFormat に依存する。
+
+```
+分岐ルール:
+  responseFormat.kind = "text"            → AI-3 を skip (parse / 検証ステップが無い)
+  responseFormat.kind = "streaming"       → AI-3 を skip (assembled text のみ受け取る)
+  responseFormat.kind = "json"            → AI-3 生成: provider が malformed JSON を返した想定
+                                            mock で raw=invalid を返し、runtime parse 失敗 → 502 期待
+  responseFormat.kind = "structuredObject" → AI-3 生成: provider 出力が schema 違反の想定
+                                            mock で object=schema 違反値 (例: required field 欠落) を返し、
+                                            runtime schema 検証失敗 → 502 期待
+
+mock 例 (structuredObject、schema 違反):
+  jest.spyOn(aiRuntime, 'invoke').mockResolvedValueOnce({
+    object: { tags: [{ slug: 'x' }] },  // confidence 必須が欠落 → schema violation
+    raw: '{"tags":[{"slug":"x"}]}',
+  });
+
+生成テスト (該当時):
+  #N AI-3: AI 応答が responseFormat 不適合 (<kind>) → 502 (provider violation)
+
+注:
+  - 旧 AI-3 の HTTP 500 は user code parse エラー由来。runtime parse / 検証失敗は仕様上 502
+    (provider 側エラー) として扱う。実装が 500 を返す場合は申し送り + コメント上書き。
+  - aiAgent は最終 assistant message のみで判定 (途中 tool call の format violation は対象外)。
+```
+
+#### AI-4: provider 呼び出し失敗 → outcomes.failure
 
 ```
 変換ルール:
-  1. externalSystem step の後続 compute step で JSON.parse() が使われる場合を検出
-     例: step-04.expression = "JSON.parse(@aiResponse.content[0].text)"
-  2. mock で malformed JSON レスポンスを返す:
-     jest.spyOn(httpService, 'post').mockResolvedValueOnce({
-       data: { content: [{ text: 'NOT_VALID_JSON' }] }
-     });
-  3. 期待: HTTP 500 が返ること
-  4. retry policy は関係なし (parse 失敗は retry 対象外)
+  1. step.outcomes.failure を取得 (#937 移行後の標準形):
+     { action: "abort" | "continue" | "compensate", description?, jumpTo?, sideEffects?, sameAs? }
+  2. action="abort" の場合: step.actions[].responses[] から該当する failure responseId を解決し、
+     その HTTP status を期待値とする (例: 502-ai-error → 502)。
+  3. mock で provider 呼び出しが reject するよう設定:
+     jest.spyOn(aiRuntime, 'invoke').mockRejectedValueOnce(
+       new Error('Mock provider error')
+     );
+     ※ retry policy は Phase 2-B 時点では modelEndpoint に未定義。SDK 内部の retry は
+        Phase 2-C で確定するため、AI-4 は単発失敗のみテストし「retry 回数」は assertion しない。
+        retry が定義された段階で AI-4-b としてサブテストを追加する (申し送り)。
+  4. 期待 HTTP status: failure responseId に対応する status (catalog から解決)。
+     responseId がない / responses[] 未定義の場合は 502 をデフォルトとする。
 
 生成テスト:
-  #N AI レスポンス JSON parse 失敗 → 500 (malformed JSON mock)
+  #N AI-4: provider 呼び出し失敗 → <statusCode> (<errorCode>)
+
+aiAgent 補足:
+  - maxIterations 超過パスは現状 outcomes.failure として未確定 (spec 拡張候補)。
+    Phase 2-B では mock 1 回失敗のみテスト、agent loop は申し送り。
 ```
 
-#### AI-4: 502 retry policy → maxAttempts 確認
+### P5-4. AiMessageSpread の検出と fixture 化
 
 ```
-変換ルール:
-  1. retryPolicy から maxAttempts / backoff / initialDelayMs を取得
-     例: { maxAttempts: 2, backoff: "exponential", initialDelayMs: 1000 }
-  2. mock で maxAttempts 回連続 502 エラーを返す:
-     jest.spyOn(httpService, 'post')
-       .mockRejectedValueOnce({ response: { status: 502 } })  // 1回目 → retry
-       .mockRejectedValueOnce({ response: { status: 502 } }); // 2回目 → abort
-  3. spy の呼出回数確認: expect(spy).toHaveBeenCalledTimes(maxAttempts)
-  4. 期待 HTTP status: 502 (AI_API_ERROR)
-  5. retry 時の delay は jest.useFakeTimers() で短縮 (実時間を待たない)
+検出:
+  step.messages[] を走査し、各要素について oneOf を判定:
+    - { role, content } 型     → 通常メッセージ (AiMessage)
+    - { kind: "spread", ref }  → 動的展開 (AiMessageSpread) ★ 検出対象
 
-生成テスト:
-  #N AI API 502 エラー → maxAttempts (=2) 回 retry → 最終 502 (AI_API_ERROR)
-    + spy.toHaveBeenCalledTimes(2) の呼出回数確認
+fixture 化:
+  ref が "@<varName>" 形式の場合:
+    1. ref から varName を抽出 (例: "@turnContext" → "turnContext")
+    2. varName の出所を解決:
+       - actions[0].inputs[].name == varName → request body / query から渡る
+       - 直前の compute / dbAccess の outputBinding.name == varName → 直前 step が値を生成
+       - context.ambientVariables[].name == varName → JWT / session から取得
+    3. テスト fixture: AiMessage 互換配列 [{ role: 'user'|'assistant'|'system', content: string }, ...]
+       を input として渡す (typical: 過去 turns 2〜3 件)
+
+mock 戻り値への影響:
+  spread item は LLM への input 側のみに影響。mock の戻り値 (AiInvocationResult) は responseFormat 通り。
+  mock 内で input を assert する場合は AI runtime service の引数を spy するが、AiMessageSpread が
+  正しく展開されたかの検証は本層では skip し、Phase 2-C の runtime ユニットテスト側に委ねる。
+
+例: english-learning 96118ae1 (会話ターン進行)
+  step-03 messages:
+    [
+      { role: 'system', content: '...' },
+      { kind: 'spread', ref: '@turnContext' },
+      { role: 'user', content: '@userInput' }
+    ]
+
+  → action.inputs[] に turnContext (string) があるが、spec 上は "DialogTurn[] の JSON 文字列 (暫定)"
+     と書かれている (#939 提案 A 移行で type を AiMessage[] に変えるのが理想だが、現状は string)。
+     テスト fixture では JSON.parse 後に AiMessage[] になる文字列を渡す。
+     例: turnContext = JSON.stringify([
+           { role: 'user', content: 'Hello!' },
+           { role: 'assistant', content: 'Hi, how are you?' }
+         ])
+     を request body に含めて送る。
 ```
 
-### P5-4. mock mode vs 実 API mode の切替ロジック
+### P5-5. AiImageSource variant の生成例
+
+`step.messages[].content[]` に `{ type: "image", source: ... }` がある場合、source.kind 別に fixture を生成する。
+
+```
+source.kind = "fileRef":
+  source = { kind: "fileRef", ref: "@inputs.photo" }
+  → action.inputs[] に "photo" (file 型) がある前提
+  → テスト fixture:
+       const photoFile = Buffer.from(<test image data>);
+       request(...).field('title', '...').attach('photo', photoFile, 'test.jpg')
+     または upload helper 経由で fileRef を obtain して payload に渡す。
+  → mock 側は photo の内容を検証しない (provider が実際に画像を解釈しないため)。
+
+source.kind = "url" (literal):
+  source = { kind: "url", url: "https://cdn.example.com/photo.jpg" }
+  → 固定 URL のため fixture は不要。リクエスト body に追加情報は要らない。
+  → mock は無条件で AI 応答を返す (URL の到達性は本層では検証しない)。
+
+source.kind = "url" (expression "@<var>"):
+  source = { kind: "url", url: "@photoRow.url" }
+  → @photoRow が直前の dbAccess outputBinding か、@inputs.imageUrl が action input か等を解析:
+       photoRow = SELECT 結果 → seed data で photos.url が解決される必要あり (P2 連携)
+       inputs.imageUrl = string → request body に imageUrl を含める
+  → テスト fixture: request body / DB seed で URL 値を埋める。
+     必要に応じて HEAD 200 を返す mock URL を選ぶ (例: https://example.com/test.jpg。
+     本層では URL 到達は検証せず、provider mock が応答を返すだけ)。
+
+source.kind = "base64":
+  source = { kind: "base64", data: "<base64>", mediaType: "image/jpeg" }
+  → mock 入力に base64 データが含まれる。テスト fixture で短い base64 (1x1 透明 PNG 等) を準備し、
+     リクエスト body に含めるか step input に直書きする。
+
+例: diary b0c1d2e3 (画像 alt 生成)
+  step-05 messages[1].content[0].source = { kind: "url", url: "@targetImageUrl" }
+  step-04 で targetImageUrl = @photoRow.url ?? @inputs.imageUrl と算出
+  → test fixture (2 通り):
+     (a) photoId 指定 → DB seed で photos に該当 row + url を入れる → @photoRow.url が解決される
+     (b) imageUrl 指定 → request body に imageUrl: 'https://example.com/test.jpg' を直接含める
+```
+
+### P5-6. mock helper の構造 (provider 中立)
+
+旧版の `mocks/claude-api.ts` (Anthropic 形式の HTTP レスポンス mock) は廃止。Phase 2-B では
+**provider 中立な AI runtime service mock** を生成する。
+
+```typescript
+// mocks/ai-runtime.ts
+//
+// AI runtime service mock helper (provider 中立形式)
+// Phase 2-B / 2-C: ProcessFlow.aiCall / aiAgent step に対応する runtime invocation を mock する。
+// 戻り値は spec §「outputBinding の値構造」に従う正規化形式 (provider 別の content[] / choices[] は隠蔽)。
+//
+// PLACEHOLDER: AI_RUNTIME_SERVICE_TYPE / AI_RUNTIME_SERVICE_METHOD は Phase 2-C で確定する。
+//   現状の暫定: AiRuntimeService.invoke (TypeScript NestJS、Anthropic SDK / OpenAI SDK 抽象化)
+
+import type { AiRuntimeService } from '<PLACEHOLDER>'; // Phase 2-C: 実 import パス
+
+export interface AiInvocationResult {
+  text?: string;
+  object?: unknown;
+  raw?: string;
+  finishReason?: string;
+  usage?: { inputTokens?: number; outputTokens?: number };
+  toolCalls?: Array<{ id: string; name: string; arguments: unknown }>;
+}
+
+// (a) text format helper
+export function mockAiText(svc: AiRuntimeService, text: string): jest.SpyInstance {
+  const result: AiInvocationResult = {
+    text,
+    finishReason: 'end_turn',
+    usage: { inputTokens: 50, outputTokens: 100 },
+  };
+  return jest.spyOn(svc, 'invoke').mockResolvedValue(result);
+}
+
+// (b) structuredObject helper (schema 準拠の object を渡す)
+export function mockAiStructured(svc: AiRuntimeService, object: unknown): jest.SpyInstance {
+  const result: AiInvocationResult = {
+    object,
+    raw: JSON.stringify(object),
+    finishReason: 'end_turn',
+    usage: { inputTokens: 50, outputTokens: 100 },
+  };
+  return jest.spyOn(svc, 'invoke').mockResolvedValue(result);
+}
+
+// (c) json helper (free-form JSON、object 制約なし)
+export function mockAiJson(svc: AiRuntimeService, object: unknown): jest.SpyInstance {
+  // structuredObject と同形だが、AI-3 (schema violation) の文脈で使い分ける
+  return mockAiStructured(svc, object);
+}
+
+// (d) streaming helper (完了後の assembled text)
+export function mockAiStreaming(svc: AiRuntimeService, text: string): jest.SpyInstance {
+  return mockAiText(svc, text); // 本層では text と同一 (partial chunks は別層)
+}
+
+// (e) failure helper (provider 呼び出し失敗 — AI-4 / AI-3)
+export function mockAiFailure(svc: AiRuntimeService, error?: Error): jest.SpyInstance {
+  return jest.spyOn(svc, 'invoke').mockRejectedValue(error ?? new Error('Mock provider error'));
+}
+
+// (f) format violation helper (AI-3、structuredObject schema 違反 / json malformed)
+export function mockAiFormatViolation(svc: AiRuntimeService): jest.SpyInstance {
+  // runtime が parse / schema 検証で失敗するケース。raw を invalid JSON にする。
+  // または object を schema 違反 (required field 欠落) にする。
+  return jest.spyOn(svc, 'invoke').mockRejectedValue(
+    new Error('Mock provider returned response that violates declared responseFormat'),
+  );
+}
+
+// (g) tool call helper (aiCall + tools / aiAgent、最終 assistant message に toolCalls を含む想定)
+export function mockAiWithToolCalls(
+  svc: AiRuntimeService,
+  text: string,
+  toolCalls: Array<{ id: string; name: string; arguments: unknown }>,
+): jest.SpyInstance {
+  const result: AiInvocationResult = {
+    text,
+    toolCalls,
+    finishReason: 'tool_use',
+    usage: { inputTokens: 50, outputTokens: 100 },
+  };
+  return jest.spyOn(svc, 'invoke').mockResolvedValue(result);
+}
+```
+
+### P5-7. mock mode vs 実 API mode の切替ロジック
 
 > **ternary パターン (jest + vitest 両互換)**: 条件付き skip には `describe.skipIf` (Vitest 専用) ではなく
 > ternary `(cond ? describe : describe.skip)(name, fn)` を使う。jest 環境では `describe.skipIf` が
@@ -1732,129 +1999,140 @@ AI flow 検出後、以下の 4 観点 (AI-1〜AI-4) でテストを自動生成
 > 動作するこのパターンを推奨形とする。
 
 ```typescript
-// mock mode (default): jest.spyOn で stub
-describe('POST /api/ai/tag-suggest (AIタグ提案 E2E) [mock mode]', () => {
-  let httpServiceSpy: jest.SpyInstance;
+import { mockAiStructured, mockAiFailure } from './mocks/ai-runtime';
 
-  beforeEach(() => {
-    // HttpService.post を stub
-    // NOTE: NestJS の HttpService が Axios ラッパーの場合、axiosRef.post を spyOn する
-    httpServiceSpy = jest.spyOn(httpService, 'axiosRef').mockImplementation(...);
-  });
+describe('POST <httpRoute.path> (<action.name> E2E) [mock mode]', () => {
+  let aiRuntimeSpy: jest.SpyInstance | undefined;
 
   afterEach(() => {
-    httpServiceSpy.mockRestore();
+    if (aiRuntimeSpy) {
+      aiRuntimeSpy.mockRestore();
+      aiRuntimeSpy = undefined;
+    }
   });
 
-  // AI-1〜AI-4 の各テスト
+  // AI-1: structuredObject の filter (responseFormat=structuredObject の場合)
+  it('#N AI-1: confidence < threshold は除外', async () => {
+    aiRuntimeSpy = mockAiStructured(aiRuntime, {
+      tags: [
+        { slug: 'high', name: '高', confidence: 0.9 },
+        { slug: 'low',  name: '低', confidence: 0.4 }, // threshold 0.6 未満
+      ],
+    });
+    // ...
+  });
+
+  // AI-4: provider 失敗
+  it('#N AI-4: provider 失敗 → 502', async () => {
+    aiRuntimeSpy = mockAiFailure(aiRuntime);
+    // ...
+  });
 });
 
-// 実 API mode: RUN_AI_INTEGRATION=1 の場合のみ実行
-// NOTE: describe.skipIf は Vitest 専用 API。jest では TypeError になるため
-//       ternary パターン (jest + vitest 両互換) を使用する。
+// 実 API mode (CI default skip)
 (process.env.RUN_AI_INTEGRATION === '1' ? describe : describe.skip)(
-  'POST /api/ai/tag-suggest (AIタグ提案 E2E) [live API]',
+  'POST <httpRoute.path> (<action.name> E2E) [live API]',
   () => {
-    // 実際の Claude API を叩くテスト (CI では skip)
-    // 必要: CLAUDE_API_KEY env var の設定
-
-    // AI-5: 実 API happy path (基本的なタグ候補取得)
-    // AI-6: 実 API 信頼度フィルタ (実際のモデル出力に依存するため assertion は緩め)
-  }
+    // 実 API テスト (AI-5 happy path / AI-6 非決定論的 assertion)
+    // 必要 env var: secrets catalog から解決した API key (例: ANTHROPIC_API_KEY)
+  },
 );
 ```
 
-### P5-5. @env.* / @secret.* / @conv.* 参照解決の skill 内 index
+### P5-8. 参照解決 index (Phase 2-B 時点)
 
 P5 テスト生成時に参照する外部依存の解決方法を統一する:
 
 ```
-参照解決テーブル (#859 解決前の現状対応):
+@secret.<key>
+  → modelEndpoint.auth.tokenRef = "@secret.<key>" → secrets[<key>].name = "<ENV_VAR_NAME>"
+  → テスト内記録: process.env.<ENV_VAR_NAME>
+  → 例: @secret.anthropicApiKey → ANTHROPIC_API_KEY
+  → 例: @secret.openaiApiKey   → OPENAI_API_KEY (将来 provider 切替時)
 
-  @env.CLAUDE_API_BASE_URL
-    → 現状: PLACEHOLDER "https://api.anthropic.com" を使用
-    → #859 解決後: harmony.json の context.envCatalog から解決 (transparent)
-    → テスト内記録: process.env.CLAUDE_API_BASE_URL || 'https://api.anthropic.com'
+@env.<key>
+  → harmony.json の context.envCatalog (#859 解決後) から取得予定。
+  → 現状: PLACEHOLDER + literal fallback。
 
-  @secret.claudeApiKey
-    → 現状: secrets.claudeApiKey.name = "CLAUDE_API_KEY" から env var 名を取得
-    → テスト内記録: process.env.CLAUDE_API_KEY (存在確認 → 未設定時 503 テスト)
-    → live mode では必須: process.env.CLAUDE_API_KEY が設定済み前提
+@conv.<dotted.path>
+  → conventions catalog から解決 (#859 解決後)。
+  → 現状: compute step の expression からリテラル値を抽出 (例: 0.6)。
+  → const 化して PLACEHOLDER として README に記録。
 
-  @conv.ai.tagSuggestThreshold
-    → 現状: compute step の expression からリテラル値を抽出 (例: 0.6)
-    → #859 解決後: conventions catalog の ai.tagSuggestThreshold から解決
-    → テスト内記録: const AI_TAG_SUGGEST_THRESHOLD = 0.6; // TODO: #859 解決後に catalog 参照
-
-  @conv.ai.*model (モデル名)
-    → 現状: externalSystem step の httpCall.body にリテラル文字列 'claude-opus-4-7'
-    → #859 解決後: conventions catalog の ai.<featureModel> から解決
-    → テスト内記録: mock では model 名チェックをスキップ (spy の引数検証には含めない)
+@<varName> (action input / step output / ambient variable)
+  → action.inputs[] / step.outputBinding / context.ambientVariables から解決。
+  → AiMessageSpread.ref / AiImageSource (url=expression) で頻出。
 ```
 
-### P5-6. ai-specific PLACEHOLDER 解決表 (README 必須項目)
+### P5-9. ai-specific PLACEHOLDER 解決表 (README 必須項目)
 
 P5 golden 生成時の README には以下の PLACEHOLDER 解決表を含めること:
 
-| PLACEHOLDER | 解決元 | 現状値 / 確認方法 | #解決後の差替えポイント |
+| PLACEHOLDER | 解決元 | 例 | 差替えポイント |
 |---|---|---|---|
-| `AI_TAG_SUGGEST_THRESHOLD` | step-04.expression のリテラル | `0.6` | `#859` 解決後: conventions.ai.tagSuggestThreshold |
-| `CLAUDE_API_BASE_URL` | externalSystems.claudeApi.baseUrl | `https://api.anthropic.com` | `#859` 解決後: @env カタログ |
-| `CLAUDE_API_KEY` | secrets.claudeApiKey.name | `process.env.CLAUDE_API_KEY` | — (env var は解決不要) |
-| `AI_MODEL_NAME` | httpCall.body の model リテラル | `'claude-opus-4-7'` | `#859` 解決後: @conv.ai.* |
-| `HTTP_SERVICE_SPY_TARGET` | NestJS HttpService の実装 | `httpService.axiosRef` または `httpService.post` | `#865` 解決後: provider interface |
+| `AI_RUNTIME_SERVICE_TYPE` | Phase 2-C 確定 (NestJS の AI runtime service クラス名) | `AiRuntimeService` | Phase 2-C 実装到達後に実 type へ |
+| `AI_RUNTIME_SERVICE_METHOD` | Phase 2-C 確定 (invoke / execute 等) | `'invoke'` | 同上 |
+| `AI_THRESHOLD_VALUE` | compute step の filter expression リテラル | `0.6` | `#859` 解決後: `@conv.<...>` catalog 参照 |
+| `AI_API_KEY_ENV` | `secrets.<key>.name` | `ANTHROPIC_API_KEY` | — (env var は解決不要) |
+| `AI_MODEL_NAME` | `modelEndpoint.model` | `claude-opus-4-7` | provider 切替時は catalog 編集で完結 |
+| `AI_PROVIDER` | `modelEndpoint.provider` | `anthropic` | 同上 |
+| `RESPONSE_FORMAT_KIND` | `step.responseFormat.kind` (default `text`) | `structuredObject` | — |
+| `FAILURE_RESPONSE_STATUS` | outcomes.failure → responses[].status | `502` | — |
 
-### P5-7. 出力ファイル
+### P5-10. 出力ファイル
 
 ```
 <出力先>/
   <flowName>.e2e-spec.ts   — AI flow テスト (mock mode + 実 API mode)
   mocks/
-    <systemName>.ts        — mock helper (spy factory)
+    ai-runtime.ts          — AI runtime service mock helper (provider 中立)
   README.md                — PLACEHOLDER 解決表 + CI 設定例 + 再 invocation 例
 ```
 
-### P5-8. 最終レポート (P5 モード)
+### P5-11. 最終レポート (P5 モード)
 
 ```markdown
-## /generate-tests 完了: <flowName> (AI flow mock + 実 API 切替)
+## /generate-tests 完了: <flowName> (AI flow mock + 実 API 切替、Phase 2-B)
 
 ### 入力
 - ProcessFlow: <flowId> (<meta.name>)
-- 検出 AI steps: <step-id> (<systemRef>)
-- retryPolicy: maxAttempts=<N>, backoff=<type>, initialDelayMs=<ms>
+- 検出 AI steps: <step-id> (kind=<aiCall|aiAgent>, modelRef=<key>, responseFormat=<kind>)
+- modelEndpoint: provider=<...>, model=<...>, auth.kind=<...>
 
 ### AI flow 検出結果
-| step.id | kind | systemRef | AI 系? | 備考 |
-|---|---|---|---|---|
-| <step-id> | externalSystem | claudeApi | ✅ | Claude AI API |
+| step.id | kind | modelRef | responseFormat | tools | 備考 |
+|---|---|---|---|---|---|
+| <step-id> | aiCall | <modelRef> | structuredObject | — | — |
 
 ### 4 観点変換結果
-| 観点 | 生成テスト | assertion |
-|---|---|---|
-| AI-1: 信頼度フィルタ | #N threshold 未満 → 除外 / ≥ threshold → 含まれる | length 確認 |
-| AI-2: API key 未設定 | #N CLAUDE_API_KEY="" → 503 | status 確認 |
-| AI-3: JSON parse 失敗 | #N malformed JSON → 500 | status 確認 |
-| AI-4: 502 retry | #N 502×2 → spy.toHaveBeenCalledTimes(2) → 最終 502 | spy + status |
+| 観点 | 生成テスト | assertion | 備考 |
+|---|---|---|---|
+| AI-1: 業務フィルタ | #N threshold 未満 → 除外 / ≥ threshold → 含まれる | length / 個別要素 | compute step が無い場合は skip |
+| AI-2: secret 未設定 | #N <ENV>="" → 503 | status | auth.kind=none/iam/azureAd は skip |
+| AI-3: format violation | #N runtime 検証失敗 → 502 | status | text/streaming は skip |
+| AI-4: provider 失敗 | #N reject → <failureStatus> | status | retry は Phase 2-C で再評価 |
 
-### @env.* / @secret.* / @conv.* 解決状況
-| 参照 | 解決方法 | 残 PLACEHOLDER |
-|---|---|---|
-| @env.CLAUDE_API_BASE_URL | PLACEHOLDER (literal fallback) | #859 解決後に差替え |
-| @secret.claudeApiKey | env var CLAUDE_API_KEY | — |
-| @conv.ai.tagSuggestThreshold | compute step リテラル 0.6 | #859 解決後に差替え |
+### catalog 解決結果
+| 参照 | 解決元 | 解決値 | 備考 |
+|---|---|---|---|
+| step.modelRef | merged.modelEndpoints | <provider> / <model> | project + flow merge 済 |
+| auth.tokenRef | merged.secrets | env var <ENV_NAME> | source=env 前提 |
+| AiMessageSpread.ref (該当時) | action.inputs / outputBinding | <fixture 生成方法> | — |
+| AiImageSource (該当時) | source.kind 別 | <fileRef|url|base64> | source.kind=url(@<var>) は変数解決済 |
 
 ### 生成ファイル
 - `<出力先>/<flowName>.e2e-spec.ts` (N 行, M テスト)
-- `<出力先>/mocks/<systemName>.ts`
+- `<出力先>/mocks/ai-runtime.ts`
 - `<出力先>/README.md`
 
 ### smoke 検証
-- jest 実行: スキップ (dev server 未起動)
+- jest 実行: スキップ (Phase 2-C 実装到達前のため)
 - 推奨コマンド: cd apps/api && npx jest <flowName>.e2e-spec.ts --runInBand
+  (Phase 2-C 完了後、AI runtime service 実装が来てから実行)
 
 ### 申し送り
-- PLACEHOLDER: AI_TAG_SUGGEST_THRESHOLD=0.6 → #859 解決後に catalog 参照へ
-- PLACEHOLDER: HTTP_SERVICE_SPY_TARGET → #865 解決後に provider interface mock へ
-- live API テスト: RUN_AI_INTEGRATION=1 CLAUDE_API_KEY=<key> npx jest --runInBand で実行
+- PLACEHOLDER: AI_RUNTIME_SERVICE_TYPE / AI_RUNTIME_SERVICE_METHOD → Phase 2-C で確定
+- PLACEHOLDER: AI_THRESHOLD_VALUE = <値> → #859 解決後に @conv.<key> 参照へ
+- live API テスト: RUN_AI_INTEGRATION=1 <ENV_VAR>=<key> npx jest --runInBand で実行
+- aiAgent の場合: maxIterations 超過パスは Phase 2-B では未対応 (spec 拡張候補、別 ISSUE)
 ```
