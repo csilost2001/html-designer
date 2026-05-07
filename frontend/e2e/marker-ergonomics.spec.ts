@@ -51,6 +51,12 @@ let wsResolved: OpenedWorkspace;
 async function setupEditor(page: Page) {
   await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
   await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  }
+  await page.getByTestId("edit-mode-start").click();
+  await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
 async function setupDashboard(page: Page, fixture: OpenedWorkspace) {
   await page.addInitScript(() => {

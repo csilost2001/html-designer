@@ -9,13 +9,15 @@
  * - mode 切替 (upstream/downstream)
  * - ProcessFlowListView の maturity フィルタ
  */
-/**
- * TODO(#926 follow-up): realWorkspace 移植が未完。本 spec は既存の addInitScript-based
- * localStorage seed パターンを使っているが、#924 で fallback 経路が削除されたため
- * data が backend に渡らず動作しない。realWorkspace.setupTestWorkspace + ws.gotoActive
- * への移植を follow-up ISSUE で対応する。
- */
 import { test, expect, type Page } from "@playwright/test";
+import {
+  setupTestWorkspace,
+  cleanupRealWorkspaces,
+  isMcpRunning,
+  normalizeId,
+  type OpenedWorkspace,
+} from "./helpers/realWorkspace";
+
 
 const groupId = "ag-maturity-test";
 
@@ -77,62 +79,48 @@ const dummyProject = {
 };
 
 async function setupEditor(page: Page) {
-  await page.addInitScript(({ project, group }) => {
-    localStorage.setItem("workspace-e2e-bypass", "true");
-      localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
-    localStorage.removeItem("harmony-open-tabs");
-    localStorage.removeItem("harmony-active-tab");
-  }, { project: dummyProject, group: dummyGroup });
-  await page.goto(`/process-flow/edit/${groupId}`);
-  await expect(page.locator(".process-flow-editor")).toBeVisible({ timeout: 10000 }).catch(async () => {
-    // 別の top-level class を試す (フェイルセーフ)
-    await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 5000 });
+  await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
+  await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  }
+  await page.getByTestId("edit-mode-start").click();
+  await expect(page.getByTestId("edit-mode-save")).toBeVisible();
+}
+
+// realWorkspace 移植 (#926): 実 backend 経由の dummy fixture
+// ProcessFlow body は dummyGroup を v3 shape (top-level id + meta) で再利用する。
+const dummyGroupBody: Record<string, unknown> = {
+  id: groupId,
+  $schema: "../../../schemas/v3/process-flow.v3.schema.json",
+  meta: { id: groupId, name: dummyGroup.name, kind: dummyGroup.type ?? dummyGroup.kind ?? "screen", mode: "upstream", maturity: "draft", version: "1.0.0", createdAt: dummyGroup.createdAt ?? "2026-05-08T00:00:00.000Z", updatedAt: dummyGroup.updatedAt ?? "2026-05-08T00:00:00.000Z" },
+  actions: dummyGroup.actions,
+  ...((dummyGroup as Record<string, unknown>).markers !== undefined ? { markers: (dummyGroup as Record<string, unknown>).markers } : {}),
+};
+
+const WS_KEY = "issue-926-maturity-notes.spec";
+let mcpAvailable = false;
+let ws: OpenedWorkspace;
+
+test.describe("成熟度バッジ (#185/#189)", () => {
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
   });
-}
 
-async function setupList(page: Page) {
-  const moreGroups = [
-    { ...dummyProject.processFlows[0] },
-    {
-      id: "ag-committed",
-      no: 2,
-      name: "確定フロー",
-      type: "screen",
-      actionCount: 1,
-      updatedAt: new Date().toISOString(),
-      maturity: "committed",
-    },
-    {
-      id: "ag-provisional",
-      no: 3,
-      name: "暫定フロー",
-      type: "batch",
-      actionCount: 1,
-      updatedAt: new Date().toISOString(),
-      maturity: "provisional",
-    },
-  ];
-  const project = { ...dummyProject, processFlows: moreGroups };
-  await page.addInitScript(({ project, groups }) => {
-    localStorage.setItem("workspace-e2e-bypass", "true");
-      localStorage.setItem("flow-project", JSON.stringify(project));
-    for (const g of groups) {
-      localStorage.setItem(`process-flow-${g.id}`, JSON.stringify({
-        id: g.id, name: g.name, type: g.type, description: "",
-        maturity: g.maturity, mode: "upstream",
-        actions: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      }));
-    }
-    localStorage.removeItem("harmony-open-tabs");
-    localStorage.removeItem("harmony-active-tab");
-    localStorage.removeItem("list-view-mode:process-flow-list");
-  }, { project, groups: moreGroups });
-  await page.goto("/process-flow/list");
-  await expect(page.locator(".process-flow-page")).toBeVisible();
-}
+  test.afterAll(async () => {
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
 
-test.describe.skip("成熟度バッジ (#185/#189)", () => {
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await setupTestWorkspace({
+      key: WS_KEY,
+      project: dummyProject,
+      processFlows: [dummyGroupBody as unknown as { id: string }],
+    });
+  });
+
   test("ステップカードに maturity バッジが表示される", async ({ page }) => {
     await setupEditor(page);
     // アクションタブが開いており、ステップが表示されている
@@ -159,7 +147,7 @@ test.describe.skip("成熟度バッジ (#185/#189)", () => {
   });
 });
 
-test.describe.skip("付箋 (#195/#199)", () => {
+test.describe("付箋 (#195/#199)", () => {
   test("ステップを展開して付箋を追加できる、件数バッジが出る", async ({ page }) => {
     await setupEditor(page);
     // 最初のステップカードのヘッダをクリックして展開
@@ -181,7 +169,7 @@ test.describe.skip("付箋 (#195/#199)", () => {
   });
 });
 
-test.describe.skip("モード切替 + 下流警告 (#191/#197)", () => {
+test.describe("モード切替 + 下流警告 (#191/#197)", () => {
   test("モードを下流に切り替えると warning が表示される (draft あり)", async ({ page }) => {
     await setupEditor(page);
     // 下流ボタンを押す
@@ -191,7 +179,7 @@ test.describe.skip("モード切替 + 下流警告 (#191/#197)", () => {
   });
 });
 
-test.describe.skip("処理フロー一覧のカード成熟度 + フィルタ (#187/#219/#233)", () => {
+test.describe("処理フロー一覧のカード成熟度 + フィルタ (#187/#219/#233)", () => {
   test("カードに maturity バッジが表示される", async ({ page }) => {
     await setupList(page);
     // 各カード内に .maturity-badge がある

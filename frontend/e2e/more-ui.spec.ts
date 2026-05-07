@@ -62,6 +62,21 @@ async function expandStep(page: Page, index: number) {
   return card;
 }
 
+async function gotoEditor(page: Page, subPath: string) {
+  await ws.gotoActive(page, subPath);
+  await expect(page.locator(".step-editor, .process-flow-content, .dashboard-grid, .function-counts-panel").first()).toBeVisible({ timeout: 10000 });
+  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  }
+  // process-flow editor が画面に出ていれば edit-mode-start を click。dashboard 等他経路は skip。
+  const editStart = page.getByTestId("edit-mode-start");
+  if (await editStart.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await editStart.click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible();
+  }
+}
+
 test.describe("more-ui (#244)", () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
@@ -83,8 +98,7 @@ test.describe("more-ui (#244)", () => {
 
   test.describe("ComputeStep 編集 (#214)", () => {
     test("expression 入力が保持される", async ({ page }) => {
-      await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
-      await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+      await gotoEditor(page, `/process-flow/edit/${normalizeId(groupId)}`);
       const card = await expandStep(page, 0);
       const exprInput = card.locator('input[placeholder*="Math.floor"]').first();
       await expect(exprInput).toBeVisible();
@@ -97,8 +111,7 @@ test.describe("more-ui (#244)", () => {
 
   test.describe("ReturnStep 編集 (#214)", () => {
     test("responseRef + bodyExpression が編集できる", async ({ page }) => {
-      await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
-      await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+      await gotoEditor(page, `/process-flow/edit/${normalizeId(groupId)}`);
       const card = await expandStep(page, 1);
       const refInput = card.locator('input[placeholder*="409-stock-shortage"]').first();
       await expect(refInput).toBeVisible();
@@ -111,8 +124,7 @@ test.describe("more-ui (#244)", () => {
 
   test.describe("External outcomes 編集 (#220)", () => {
     test("outcomes パネルが表示され success/failure が見える", async ({ page }) => {
-      await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
-      await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+      await gotoEditor(page, `/process-flow/edit/${normalizeId(groupId)}`);
       const card = await expandStep(page, 2);
       const panel = card.locator(".external-outcomes-panel");
       await expect(panel).toBeVisible();
@@ -123,8 +135,7 @@ test.describe("more-ui (#244)", () => {
 
   test.describe("Dashboard 処理フロー成熟度パネル (#234)", () => {
     test("パネルが表示されクリックで一覧へ遷移する", async ({ page }) => {
-      await ws.gotoActive(page, "/");
-      await expect(page.locator(".dashboard-grid, .function-counts-panel").first()).toBeVisible({ timeout: 10000 });
+      await gotoEditor(page, "/");
       const panel = page.locator(".process-flow-maturity-panel");
       await expect(panel).toBeVisible();
       await expect(panel.getByText("確定フロー率")).toBeVisible();
@@ -134,8 +145,7 @@ test.describe("more-ui (#244)", () => {
 
   test.describe("StructuredFields 表形式切替 (#226)", () => {
     test("自由記述 → 表形式 → フィールド追加", async ({ page }) => {
-      await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
-      await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+      await gotoEditor(page, `/process-flow/edit/${normalizeId(groupId)}`);
       const panel = page.locator(".structured-fields-editor").first();
       await expect(panel).toBeVisible();
       await panel.locator("button[title*='表形式']").click();

@@ -34,6 +34,10 @@ test.describe("規約カタログ編集ビュー (#317)", () => {
     ws = await setupTestWorkspace({ key: WS_KEY, project: dummyProject });
     await ws.gotoActive(page, "/conventions/catalog");
     await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+    }
     // 編集モードに入る (#683 edit-session-draft)。13 カテゴリタブの可視確認テスト以外は editing 必須
     await page.getByTestId("edit-mode-start").click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible();

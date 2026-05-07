@@ -3,13 +3,15 @@
  *
  * StepCard ヘッダに todo/question/attention/chat 各色のチップが表示されることを検証。
  */
-/**
- * TODO(#926 follow-up): realWorkspace 移植が未完。本 spec は既存の addInitScript-based
- * localStorage seed パターンを使っているが、#924 で fallback 経路が削除されたため
- * data が backend に渡らず動作しない。realWorkspace.setupTestWorkspace + ws.gotoActive
- * への移植を follow-up ISSUE で対応する。
- */
 import { test, expect, type Page } from "@playwright/test";
+import {
+  setupTestWorkspace,
+  cleanupRealWorkspaces,
+  isMcpRunning,
+  normalizeId,
+  type OpenedWorkspace,
+} from "./helpers/realWorkspace";
+
 
 const groupId = "ag-stepchip";
 
@@ -43,18 +45,48 @@ const dummyProject = {
 };
 
 async function setup(page: Page) {
-  await page.addInitScript(({ project, group }) => {
-    localStorage.setItem("workspace-e2e-bypass", "true");
-      localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.setItem(`process-flow-${group.id}`, JSON.stringify(group));
-    localStorage.removeItem("harmony-open-tabs");
-    localStorage.removeItem("harmony-active-tab");
-  }, { project: dummyProject, group: dummyGroup });
-  await page.goto(`/process-flow/edit/${groupId}`);
+  await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
   await expect(page.locator(".step-editor, .process-flow-content").first()).toBeVisible({ timeout: 10000 });
+  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  }
+  await page.getByTestId("edit-mode-start").click();
+  await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
 
-test.describe.skip("StepCard kind 別マーカーバッジ (#261)", () => {
+// realWorkspace 移植 (#926): 実 backend 経由の dummy fixture
+// ProcessFlow body は dummyGroup を v3 shape (top-level id + meta) で再利用する。
+const dummyGroupBody: Record<string, unknown> = {
+  id: groupId,
+  $schema: "../../../schemas/v3/process-flow.v3.schema.json",
+  meta: { id: groupId, name: dummyGroup.name, kind: dummyGroup.type ?? dummyGroup.kind ?? "screen", mode: "upstream", maturity: "draft", version: "1.0.0", createdAt: dummyGroup.createdAt ?? "2026-05-08T00:00:00.000Z", updatedAt: dummyGroup.updatedAt ?? "2026-05-08T00:00:00.000Z" },
+  actions: dummyGroup.actions,
+  ...((dummyGroup as Record<string, unknown>).markers !== undefined ? { markers: (dummyGroup as Record<string, unknown>).markers } : {}),
+};
+
+const WS_KEY = "issue-926-stepcard-marker-kind-badge.spec";
+let mcpAvailable = false;
+let ws: OpenedWorkspace;
+
+test.describe("StepCard kind 別マーカーバッジ (#261)", () => {
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+  });
+
+  test.afterAll(async () => {
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await setupTestWorkspace({
+      key: WS_KEY,
+      project: dummyProject,
+      processFlows: [dummyGroupBody as unknown as { id: string }],
+    });
+  });
+
   test("s1 に todo/question/attention 色分けチップが表示される", async ({ page }) => {
     await setup(page);
     // s1 の StepCard ヘッダ内に step-marker-chip 要素あり
