@@ -851,7 +851,114 @@ describe("useEditSession Phase 7 追加: broadcast 反映の網羅 (spec §14 / 
   });
 });
 
-// ── #909 fix: cross-session takeOver(targetId) で payload を同期する ──
+// ── #909 / #912 fix: saveCheckConflict / saveCommit / cross-session takeOver payload 同期 ──
+
+describe("useEditSession #912 fix: 2 段階保存 (saveCheckConflict / saveCommit)", () => {
+  it("saveCheckConflict: stage='checkOnly' で editSession.save を呼び conflicted=false を返す", async () => {
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+    await act(async () => { await result.current.startEditing(); });
+
+    // checkOnly stage の応答 (ok: true、saveEvent なし)
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+
+    let checkResult: { conflicted: boolean; failed?: boolean } | undefined;
+    await act(async () => {
+      checkResult = await result.current.saveCheckConflict();
+    });
+
+    expect(checkResult).toEqual({ conflicted: false });
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.save", {
+      editSessionId: "es-test-001",
+      stage: "checkOnly",
+    });
+  });
+
+  it("saveCheckConflict: conflict 応答時に saveConflict をセットして conflicted=true を返す", async () => {
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+    await act(async () => { await result.current.startEditing(); });
+
+    const conflictInfo = {
+      editSessionId: "es-other-001",
+      savedBy: "session-bob",
+      savedAt: new Date().toISOString(),
+      displayLabel: "@bob",
+    };
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      conflict: { other: conflictInfo },
+    });
+
+    let checkResult: { conflicted: boolean; failed?: boolean } | undefined;
+    await act(async () => {
+      checkResult = await result.current.saveCheckConflict();
+    });
+
+    expect(checkResult).toEqual({ conflicted: true });
+    expect(result.current.saveConflict).toEqual(conflictInfo);
+  });
+
+  it("saveCommit: stage='commit' で editSession.save を呼び saveConflict をクリアする", async () => {
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+    await act(async () => { await result.current.startEditing(); });
+
+    // 先に conflict を発生させて saveConflict をセット
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      conflict: { other: { editSessionId: "es-other-001", savedBy: "x", savedAt: "y", displayLabel: "z" } },
+    });
+    await act(async () => { await result.current.save(); });
+    expect(result.current.saveConflict).not.toBeNull();
+
+    // commit 応答
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      saveEvent: { savedBy: SESSION_ID, savedAt: new Date().toISOString(), sequence: 2 },
+    });
+
+    let commitResult: { failed?: boolean } | undefined;
+    await act(async () => {
+      commitResult = await result.current.saveCommit();
+    });
+
+    expect(commitResult).toEqual({});
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.save", {
+      editSessionId: "es-test-001",
+      stage: "commit",
+    });
+    // saveConflict がクリアされること (overwrite path 経由対応)
+    expect(result.current.saveConflict).toBeNull();
+  });
+
+  it("saveCommit: backend reject 時 { failed: true } を返す", async () => {
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+    await act(async () => { await result.current.startEditing(); });
+
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("network error"));
+
+    let commitResult: { failed?: boolean } | undefined;
+    await act(async () => {
+      commitResult = await result.current.saveCommit();
+    });
+
+    expect(commitResult).toEqual({ failed: true });
+  });
+});
 
 describe("useEditSession #909 fix: cross-session takeOver(targetId) で payload を同期する", () => {
   it("cross-session takeOver: target session の payload + sequence を fetchPayload で取得して state に反映", async () => {

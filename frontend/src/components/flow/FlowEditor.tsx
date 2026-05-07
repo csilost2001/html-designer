@@ -162,7 +162,7 @@ function FlowEditorInner() {
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveCheckConflict, saveCommit, saveConflict, onSaveConflictCancel } = useEditSession({
     resourceType: "flow",
     resourceId: "singleton",
     sessionId,
@@ -782,10 +782,14 @@ function FlowEditorInner() {
     }
     setIsSaving(true);
     try {
-      // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
-      const { conflicted, failed } = await actions.save();
-      if (conflicted || failed) return;
+      // P2 fix (#912): 2 段階保存。flow は backend editSession.save で本体書き込みを skip し、
+      // 代わりに frontend persistProject() が harmony.json + screen-layout.json を書く設計のため、
+      // saveHistory 記録が persist 失敗時に先行記録される問題を解消するため checkOnly → persist → commit の順で実行する。
+      const checkResult = await saveCheckConflict();
+      if (checkResult.conflicted || checkResult.failed) return;
       await persistProject(projectRef.current);
+      const commitResult = await saveCommit();
+      if (commitResult.failed) return;
       setIsDirty(false);
       isDirtyRef.current = false;
       dismissServerBanner();
@@ -799,7 +803,7 @@ function FlowEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, isReadonly, actions, showError, dismissServerBanner, editSession]);
+  }, [isSaving, isReadonly, saveCheckConflict, saveCommit, showError, dismissServerBanner, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -1074,12 +1078,14 @@ function FlowEditorInner() {
         <SaveConflictDialog
           conflict={saveConflict}
           onOverwrite={async () => {
-            // P1 fix (#908 round-6): backend editSession.save は flow を write skip するため、
-            // 上書き確認後に frontend で persistProject による本体書き込みを実行する。
+            // P2 fix (#912): flow は backend editSession.save で write skip されるため、
+            // 上書き確認後に frontend で persistProject() を先に実行し、saveCommit() で saveHistory を記録する。
+            // (persist 失敗時に saveHistory が先行記録される問題を解消)
             try {
-              await onSaveConflictOverwrite();
               if (projectRef.current) {
                 await persistProject(projectRef.current);
+                const commitResult = await saveCommit();
+                if (commitResult.failed) return;
                 setIsDirty(false);
                 isDirtyRef.current = false;
                 dismissServerBanner();

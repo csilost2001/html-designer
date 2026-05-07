@@ -103,6 +103,18 @@ export interface UseEditSessionResult {
    * 呼び出し元は conflicted === true なら postSave / cleanup をスキップすること。
    */
   save(): Promise<{ conflicted: boolean; failed?: boolean }>;
+  /**
+   * P2 fix (#912): 2 段階保存の前段。conflict check のみを実行し、saveHistory 記録 / broadcast はしない。
+   * frontend が本体ファイル書き込みを担う resource (FlowEditor 等) が、persistProject 失敗時に
+   * saveHistory が先行記録される問題を解消するために使う。
+   */
+  saveCheckConflict(): Promise<{ conflicted: boolean; failed?: boolean }>;
+  /**
+   * P2 fix (#912): 2 段階保存の後段。conflict check skip、saveHistory 記録 + broadcast。
+   * checkOnly → 本体ファイル書き込み (frontend) → commit の順で使う。
+   * commit 失敗は { failed: true } で signal される。
+   */
+  saveCommit(): Promise<{ failed?: boolean }>;
   discard(): Promise<void>;
   detach(): Promise<void>;
   /**
@@ -502,6 +514,64 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     }
   }, []);
 
+  /**
+   * P2 fix (#912): 2 段階保存の前段 — conflict check のみ。
+   * 衝突検出時は saveConflict state にセットして { conflicted: true } を返す。
+   */
+  const saveCheckConflict = useCallback(async (): Promise<{ conflicted: boolean; failed?: boolean }> => {
+    setError(null);
+    const es = editSessionRef.current;
+    if (!es) {
+      setError(new Error("EditSession がアクティブでありません"));
+      return { conflicted: false };
+    }
+    setLoading(true);
+    try {
+      const res = await mcpBridge.request("editSession.save", {
+        editSessionId: es.id,
+        stage: "checkOnly",
+      }) as { ok?: boolean; conflict?: { other: SaveConflictInfo } } | undefined;
+      if (res && res.ok === false && res.conflict) {
+        setSaveConflict(res.conflict.other);
+        return { conflicted: true };
+      }
+      return { conflicted: false };
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return { conflicted: false, failed: true };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * P2 fix (#912): 2 段階保存の後段 — saveHistory 記録 + broadcast。conflict check skip。
+   * checkOnly 後の本体書き込み成功後に呼ぶ。
+   */
+  const saveCommit = useCallback(async (): Promise<{ failed?: boolean }> => {
+    setError(null);
+    const es = editSessionRef.current;
+    if (!es) {
+      setError(new Error("EditSession がアクティブでありません"));
+      return { failed: true };
+    }
+    setLoading(true);
+    try {
+      await mcpBridge.request("editSession.save", {
+        editSessionId: es.id,
+        stage: "commit",
+      });
+      // saveConflict は overwrite path 経由の場合に残っている可能性があるため明示的にクリア。
+      setSaveConflict(null);
+      return {};
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return { failed: true };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // ── discard ───────────────────────────────────────────────────────────────────
 
   const discard = useCallback(async () => {
@@ -606,6 +676,8 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     takeOver,
     releaseEdit,
     save,
+    saveCheckConflict,
+    saveCommit,
     discard,
     detach,
     mode,
