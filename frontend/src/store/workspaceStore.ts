@@ -32,6 +32,13 @@ export interface WorkspaceInspectResult {
   reason?: string;
 }
 
+/** backend ホスト OS 情報 (#858: WSL2 環境で placeholder を切り替えるため) */
+export interface HostInfo {
+  platform: "linux" | "win32" | "darwin" | "other";
+  isWSL: boolean;
+  homeDir: string;
+}
+
 // ─── 内部ストア ───────────────────────────────────────────────────────────────
 
 type Listener = () => void;
@@ -155,6 +162,34 @@ async function _doLoadWorkspaces(): Promise<void> {
 export async function inspectWorkspace(path: string): Promise<WorkspaceInspectResult> {
   const result = (await mcpBridge.request("workspace.inspect", { path })) as WorkspaceInspectResult;
   return result;
+}
+
+let _hostInfoCache: HostInfo | null = null;
+let _hostInfoInflight: Promise<HostInfo> | null = null;
+
+/**
+ * backend のホスト OS 情報を取得 (セッション内 1 回キャッシュ、#858)。
+ * WSL2 / macOS / Windows でパス入力欄の placeholder 文字列を切り替えるために使う。
+ */
+export async function getHostInfo(): Promise<HostInfo> {
+  if (_hostInfoCache) return _hostInfoCache;
+  if (_hostInfoInflight) return _hostInfoInflight;
+  _hostInfoInflight = (async () => {
+    try {
+      const info = (await mcpBridge.request("workspace.hostInfo")) as HostInfo;
+      _hostInfoCache = info;
+      return info;
+    } finally {
+      _hostInfoInflight = null;
+    }
+  })();
+  return _hostInfoInflight;
+}
+
+/** @internal テスト専用: hostInfo キャッシュをクリア */
+export function __resetHostInfoCacheForTest(): void {
+  _hostInfoCache = null;
+  _hostInfoInflight = null;
 }
 
 export async function openWorkspace(pathOrId: string, useId = false): Promise<string> {

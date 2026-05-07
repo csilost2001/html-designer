@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import {
@@ -9,7 +9,10 @@ import {
   inspectWorkspace,
   initAndOpen,
   removeWorkspace,
+  getHostInfo,
   type WorkspaceEntry,
+  type HostInfo,
+  type WorkspaceInspectResult,
 } from "../../store/workspaceStore";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
@@ -46,38 +49,107 @@ interface AddWorkspaceDialogProps {
   onAdded: () => void;
 }
 
+type InspectStatus = "idle" | "inspecting" | "ready" | "needsInit" | "notFound" | "invalid" | "error";
+
+/**
+ * host info から OS 別の絶対パス例を生成 (#858)。
+ * placeholder と説明文の両方で使う。
+ *
+ * - WSL: `/home/<user>/projects/my-app` (Windows ファイルダイアログから到達不可、テキスト入力必須)
+ * - Linux native: `/home/<user>/projects/my-app`
+ * - macOS: `/Users/<user>/projects/my-app` (homeDir をそのまま使う)
+ * - Windows: `C:\\Users\\<user>\\projects\\my-app`
+ *
+ * homeDir 末尾の trailing separator を保持しないよう注意。
+ */
+function buildOsAwareExamplePath(host: HostInfo | null): string {
+  // host info 取得前のフォールバック
+  if (!host) return "workspaces/my-app";
+  const sep = host.platform === "win32" ? "\\" : "/";
+  const home = host.homeDir.replace(/[\\/]+$/, "");
+  return `${home}${sep}projects${sep}my-app`;
+}
+
+/** placeholder 用の短い例 (workspaces/ プレフィクスを必ず含むこと: #755 e2e regression 防止) */
+function buildPlaceholder(host: HostInfo | null): string {
+  const example = buildOsAwareExamplePath(host);
+  return `${example} または workspaces/my-app`;
+}
+
 export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps) {
   const [path, setPath] = useState("");
-  const [status, setStatus] = useState<"idle" | "inspecting" | "ready" | "needsInit" | "notFound" | "invalid" | "error">("idle");
+  const [status, setStatus] = useState<InspectStatus>("idle");
   const [inspectName, setInspectName] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [pickedFolderHint, setPickedFolderHint] = useState<string | null>(null);
+  const [host, setHost] = useState<HostInfo | null>(null);
+  const [showRecent, setShowRecent] = useState(false);
+  const debounceRef = useRef<number | null>(null);
+  const inflightSeqRef = useRef(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // デフォルトの新規作成推奨パス (サーバ側 workspaces/ ディレクトリ) をヒントとして表示するだけ。
-  // ブラウザの file picker では絶対パスを取得できないため、ここではプレースホルダ文字列のみ使用。
-  // 推奨パスは workspaces/<新規 wsId>/ (例: workspaces/my-project)
-  const defaultPathHint = "workspaces/my-project";
+  // recent workspace 一覧 (store から取得、prefix-match で suggest)
+  const recentWorkspaces = getState().workspaces;
 
-  const handleInspect = async () => {
-    const trimmed = path.trim();
-    if (!trimmed) return;
+  // host info を取得 (失敗は黙って null のまま、placeholder はフォールバックを使う)
+  useEffect(() => {
+    let cancelled = false;
+    getHostInfo()
+      .then((info) => { if (!cancelled) setHost(info); })
+      .catch(() => { /* 取得失敗 → null のまま */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // debounced auto-inspect: 入力が落ち着いてから 400ms で自動 inspect
+  // 競合した古い request の結果で UI を上書きしないよう seq でガード
+  const runInspect = useCallback(async (target: string) => {
+    const trimmed = target.trim();
+    if (!trimmed) {
+      setStatus("idle");
+      setInspectName(null);
+      setErrorMsg(null);
+      return;
+    }
+    const seq = ++inflightSeqRef.current;
     setStatus("inspecting");
     setErrorMsg(null);
     setInspectName(null);
     try {
-      const result = await inspectWorkspace(trimmed);
-      setStatus(result.status as typeof status);
+      const result: WorkspaceInspectResult = await inspectWorkspace(trimmed);
+      if (seq !== inflightSeqRef.current) return; // 古い結果は破棄
+      setStatus(result.status);
       setInspectName(result.name ?? null);
-      // invalid ステータスの場合は reason をエラーメッセージとして表示 (#852 R-3)
-      if (result.status === "invalid" && "reason" in result) {
-        setErrorMsg((result as { reason: string }).reason ?? null);
+      if (result.status === "invalid" && result.reason) {
+        setErrorMsg(result.reason);
       }
     } catch (e) {
+      if (seq !== inflightSeqRef.current) return;
       setStatus("error");
       setErrorMsg(e instanceof Error ? e.message : String(e));
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+    }
+    if (!path.trim()) {
+      setStatus("idle");
+      setInspectName(null);
+      setErrorMsg(null);
+      return;
+    }
+    debounceRef.current = window.setTimeout(() => {
+      runInspect(path);
+    }, 400);
+    return () => {
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, [path, runInspect]);
 
   const handleOpen = async () => {
     const trimmed = path.trim();
@@ -127,41 +199,140 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
     }
   };
 
-  const hasPickerSupport = "showDirectoryPicker" in window;
+  const hasPickerSupport = typeof window !== "undefined" && "showDirectoryPicker" in window;
+  const placeholder = buildPlaceholder(host);
+  const exampleAbs = buildOsAwareExamplePath(host);
+
+  // recent dropdown: 入力中の文字列で path / name を絞り込み
+  const filteredRecents = useMemo(() => {
+    const q = path.trim().toLowerCase();
+    if (!q) return recentWorkspaces.slice(0, 5);
+    return recentWorkspaces
+      .filter((w) => w.path.toLowerCase().includes(q) || w.name.toLowerCase().includes(q))
+      .slice(0, 5);
+  }, [path, recentWorkspaces]);
+
+  // dropdown 外クリックで閉じる
+  useEffect(() => {
+    if (!showRecent) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (inputRef.current && !inputRef.current.contains(target)) {
+        // dropdown 内クリックは別途閉じる (handleSelectRecent)
+        const dropdown = document.getElementById("workspace-recent-dropdown");
+        if (!dropdown || !dropdown.contains(target)) {
+          setShowRecent(false);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showRecent]);
+
+  const handleSelectRecent = (entry: WorkspaceEntry) => {
+    setPath(entry.path);
+    setShowRecent(false);
+    inputRef.current?.focus();
+  };
 
   return (
     <div className="tbl-modal-overlay" onClick={onClose}>
-      <div className="tbl-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "480px" }}>
+      <div className="tbl-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
         <div className="tbl-modal-title">ワークスペースを追加</div>
 
         <label className="tbl-field">
-          <span>フォルダのパス</span>
-          <div style={{ display: "flex", gap: "6px" }}>
+          <span>フォルダの絶対パス</span>
+          <div style={{ display: "flex", gap: "6px", position: "relative" }}>
             <input
+              ref={inputRef}
               type="text"
               value={path}
-              onChange={(e) => { setPath(e.target.value); setStatus("idle"); setInspectName(null); setErrorMsg(null); }}
-              placeholder={`workspaces/my-project (例: C:\\repos\\my-app\\${defaultPathHint})`}
+              onChange={(e) => { setPath(e.target.value); setShowRecent(true); }}
+              onFocus={() => setShowRecent(true)}
+              placeholder={placeholder}
               autoFocus
-              style={{ flex: 1 }}
-              onKeyDown={(e) => { if (e.key === "Enter") handleInspect(); }}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              style={{ flex: 1, fontFamily: "monospace" }}
+              data-testid="workspace-path-input"
             />
             {hasPickerSupport && (
-              <button className="tbl-btn tbl-btn-ghost" onClick={handlePickFolder} title="フォルダ名を確認 (絶対パスは別途入力)">
+              <button
+                type="button"
+                className="tbl-btn tbl-btn-ghost"
+                onClick={handlePickFolder}
+                title="フォルダ名を確認 (絶対パスは別途入力)"
+                tabIndex={-1}
+              >
                 <i className="bi bi-folder2-open" />
               </button>
+            )}
+            {showRecent && filteredRecents.length > 0 && (
+              <ul
+                id="workspace-recent-dropdown"
+                role="listbox"
+                aria-label="最近使ったワークスペース"
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: hasPickerSupport ? "44px" : 0,
+                  marginTop: "2px",
+                  padding: 0,
+                  listStyle: "none",
+                  background: "var(--card-bg, #fff)",
+                  border: "1px solid var(--border, #ccc)",
+                  borderRadius: "4px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  zIndex: 10,
+                }}
+              >
+                {filteredRecents.map((w) => (
+                  <li key={w.id} role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectRecent(w)}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "6px 10px",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>{w.name}</div>
+                      <div style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "var(--muted-text, #888)" }}>
+                        {w.path}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </label>
 
-        <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
-          推奨: リポジトリ直下の <code>workspaces/</code> フォルダに新規作成してください (例: <code>workspaces/{defaultPathHint.split("/")[1]}</code>)。
-          任意の絶対パスも使用できます。
+        <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 6px" }}>
+          推奨: 絶対パスで指定 (例: <code style={{ fontFamily: "monospace" }}>{exampleAbs}</code>)。
+          リポジトリ直下の <code>workspaces/my-app</code> 形式の相対パスも使用できます。
         </p>
+
+        {host?.isWSL && (
+          <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 6px" }}>
+            <i className="bi bi-info-circle" /> WSL2 環境を検出しました。Windows ブラウザの「フォルダ参照」では Linux パス
+            (<code>/home/...</code>) に到達できないため、上の入力欄に手動で絶対パスを入力してください。
+          </p>
+        )}
 
         {hasPickerSupport && (
           <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
-            ※「フォルダ選択」はフォルダ名の確認のみ可能です (ブラウザ仕様で絶対パス取得不可)。上の入力欄には絶対パスを必ず手動入力してください。
+            ※「フォルダ選択」ボタンはフォルダ名の確認のみ可能です (ブラウザ仕様で絶対パス取得不可)。
           </p>
         )}
 
@@ -171,116 +342,110 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
           </p>
         )}
 
-        {status === "idle" && (
-          <div className="tbl-modal-btns">
-            <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
-            <button
-              className="tbl-btn tbl-btn-primary"
-              onClick={handleInspect}
-              disabled={!path.trim()}
-            >
-              <i className="bi bi-search" /> 確認
-            </button>
+        {/* インライン状態表示 (debounced auto-inspect の結果) */}
+        {status === "inspecting" && (
+          <div
+            data-testid="workspace-status"
+            data-status="inspecting"
+            style={{ padding: "6px 10px", color: "var(--muted-text, #888)", fontSize: "0.85rem" }}
+          >
+            <i className="bi bi-hourglass-split" /> 確認中...
           </div>
         )}
 
-        {status === "inspecting" && (
-          <p style={{ color: "var(--muted-text, #888)" }}>確認中...</p>
-        )}
-
         {status === "ready" && (
-          <>
-            <div style={{ padding: "8px 12px", background: "var(--success-bg, #d4edda)", borderRadius: "4px", marginBottom: "12px", color: "var(--success-text, #155724)" }}>
-              <i className="bi bi-check-circle" /> ワークスペースが見つかりました
-              {inspectName && <> — <strong>{inspectName}</strong></>}
-            </div>
-            <div className="tbl-modal-btns">
-              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
-              <button className="tbl-btn tbl-btn-primary" onClick={handleOpen} disabled={processing}>
-                {processing ? "開いています..." : "開く"}
-              </button>
-            </div>
-          </>
+          <div
+            data-testid="workspace-status"
+            data-status="ready"
+            style={{ padding: "8px 12px", background: "var(--success-bg, #d4edda)", borderRadius: "4px", marginBottom: "12px", color: "var(--success-text, #155724)" }}
+          >
+            <i className="bi bi-check-circle" /> ワークスペースが見つかりました
+            {inspectName && <> — <strong>{inspectName}</strong></>}
+          </div>
         )}
 
         {status === "needsInit" && (
-          <>
-            <div style={{ padding: "8px 12px", background: "var(--warning-bg, #fff3cd)", borderRadius: "4px", marginBottom: "12px", color: "var(--warning-text, #856404)" }}>
-              <i className="bi bi-exclamation-triangle" /> フォルダは空です。初期化してワークスペースを作成しますか？
-            </div>
-            <div className="tbl-modal-btns">
-              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
-              <button className="tbl-btn tbl-btn-primary" onClick={handleInit} disabled={processing}>
-                {processing ? "初期化中..." : "初期化して開く"}
-              </button>
-            </div>
-          </>
+          <div
+            data-testid="workspace-status"
+            data-status="needsInit"
+            style={{ padding: "8px 12px", background: "var(--warning-bg, #fff3cd)", borderRadius: "4px", marginBottom: "12px", color: "var(--warning-text, #856404)" }}
+          >
+            <i className="bi bi-exclamation-triangle" /> フォルダは空です。初期化してワークスペースを作成しますか？
+          </div>
         )}
 
         {status === "notFound" && (
-          <>
-            <div style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}>
-              <i className="bi bi-x-circle" /> フォルダが見つかりません。パスを確認するか、このパスに新規作成できます。
-            </div>
-            <div className="tbl-modal-btns">
-              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
-              <button
-                className="tbl-btn tbl-btn-ghost"
-                onClick={handleInspect}
-                disabled={!path.trim()}
-              >
-                <i className="bi bi-arrow-clockwise" /> 再確認
-              </button>
-              <button
-                className="tbl-btn tbl-btn-primary"
-                onClick={handleInit}
-                disabled={processing || !path.trim()}
-                title="このパスにフォルダを作成し、harmony.json を初期化します"
-              >
-                {processing ? "作成中..." : "フォルダを作成して初期化"}
-              </button>
-            </div>
-          </>
+          <div
+            data-testid="workspace-status"
+            data-status="notFound"
+            style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}
+          >
+            <i className="bi bi-x-circle" /> フォルダが見つかりません。パスを確認するか、このパスに新規作成できます。
+          </div>
         )}
 
         {status === "invalid" && (
-          <>
-            <div style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}>
-              <i className="bi bi-exclamation-circle" /> harmony.json が不正です。ファイルを修正するか、初期化し直してください。
-              {errorMsg && <div style={{ fontSize: "0.8rem", marginTop: "4px", opacity: 0.8 }}>{errorMsg}</div>}
-            </div>
-            <div className="tbl-modal-btns">
-              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
-              <button
-                className="tbl-btn tbl-btn-primary"
-                onClick={handleInspect}
-                disabled={!path.trim()}
-              >
-                <i className="bi bi-arrow-clockwise" /> 再確認
-              </button>
-            </div>
-          </>
+          <div
+            data-testid="workspace-status"
+            data-status="invalid"
+            style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}
+          >
+            <i className="bi bi-exclamation-circle" /> harmony.json が不正です。ファイルを修正するか、初期化し直してください。
+            {errorMsg && <div style={{ fontSize: "0.8rem", marginTop: "4px", opacity: 0.8 }}>{errorMsg}</div>}
+          </div>
         )}
 
         {status === "error" && (
-          <>
-            <div style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}>
-              <i className="bi bi-x-circle" /> エラー: {errorMsg}
-            </div>
-            <div className="tbl-modal-btns">
-              <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>閉じる</button>
-              <button
-                className="tbl-btn tbl-btn-primary"
-                onClick={handleInspect}
-                disabled={!path.trim()}
-              >
-                <i className="bi bi-arrow-clockwise" /> 再試行
-              </button>
-            </div>
-          </>
+          <div
+            data-testid="workspace-status"
+            data-status="error"
+            style={{ padding: "8px 12px", background: "var(--danger-bg, #f8d7da)", borderRadius: "4px", marginBottom: "12px", color: "var(--danger-text, #721c24)" }}
+          >
+            <i className="bi bi-x-circle" /> エラー: {errorMsg}
+          </div>
         )}
 
-        {errorMsg && status !== "error" && status !== "notFound" && (
+        {/* アクションボタン:
+            - debounced auto-inspect が走るため通常は「確認」を押す必要はないが、
+              即時再検証したい場合のために secondary 「確認」ボタンを常設する (#858 + #755 e2e regression 防止)
+            - status に応じて primary アクション (開く / 初期化 / 作成) を出す */}
+        <div className="tbl-modal-btns">
+          <button className="tbl-btn tbl-btn-ghost" onClick={onClose}>キャンセル</button>
+
+          <button
+            className="tbl-btn tbl-btn-ghost"
+            onClick={() => runInspect(path)}
+            disabled={!path.trim() || status === "inspecting"}
+            title="入力したパスの状態を即時確認します (通常は自動で実行)"
+          >
+            <i className="bi bi-search" /> 確認
+          </button>
+
+          {status === "ready" && (
+            <button className="tbl-btn tbl-btn-primary" onClick={handleOpen} disabled={processing}>
+              {processing ? "開いています..." : "開く"}
+            </button>
+          )}
+
+          {status === "needsInit" && (
+            <button className="tbl-btn tbl-btn-primary" onClick={handleInit} disabled={processing}>
+              {processing ? "初期化中..." : "初期化して開く"}
+            </button>
+          )}
+
+          {status === "notFound" && (
+            <button
+              className="tbl-btn tbl-btn-primary"
+              onClick={handleInit}
+              disabled={processing || !path.trim()}
+              title="このパスにフォルダを作成し、harmony.json を初期化します"
+            >
+              {processing ? "作成中..." : "フォルダを作成して初期化"}
+            </button>
+          )}
+        </div>
+
+        {errorMsg && status !== "error" && status !== "notFound" && status !== "invalid" && (
           <div style={{ color: "var(--danger-text, #721c24)", fontSize: "0.85rem", marginTop: "8px" }}>
             {errorMsg}
           </div>
