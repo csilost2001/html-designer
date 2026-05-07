@@ -58,7 +58,7 @@ N=2 で表現方法が分裂しており、放置すると後続 sample (CRM / E
 - **provider** (enum): `anthropic` / `openai` / `google` / `aws-bedrock` / `ollama` / `azure-openai` または拡張 `namespace:provider` 形式
 - **model**: provider 固有のモデル ID
 - **endpoint**: API base URL (省略時は provider のデフォルト、Ollama / 自前 BYO endpoint で必須)
-- **auth**: `ExternalAuth` (kind: bearer / apiKey / oauth2 / iamRole / azureAd / none、tokenRef は `@secret.<key>` 参照)
+- **auth**: `ExternalAuth` (kind: bearer / basic / apiKey / oauth2 / iamRole / azureAd / none、tokenRef は `@secret.<key>` 参照)
 - **defaults**: temperature / maxTokens 等のデフォルト推論パラメータ (step 側 parameters で override)
 - **fallback**: プライマリ失敗時の fallback endpoint key (推奨: 別 provider)
 
@@ -115,12 +115,14 @@ N=2 で表現方法が分裂しており、放置すると後続 sample (CRM / E
 
 ### `AiResponseFormat`
 
-| kind | 説明 |
-|---|---|
-| `text` | デフォルト、自由テキスト |
-| `json` | free-form JSON、parse のみ (schema 制約なし) |
-| `structuredObject` + `schema` | JSON Schema 準拠の構造化出力 (Anthropic / OpenAI / Dify 共通) |
-| `streaming` | SSE / WebSocket、partial response |
+| kind | 追加 field | 説明 |
+|---|---|---|
+| `text` | (なし) | デフォルト、自由テキスト。`kind` 以外の field は不可 (`additionalProperties: false`) |
+| `json` | `description?` | free-form JSON、parse のみ (schema 制約なし) |
+| `structuredObject` | `schema` (必須) + `name?` | JSON Schema 準拠の構造化出力 (Anthropic / OpenAI / Dify 共通) |
+| `streaming` | `description?` | SSE / WebSocket、partial response |
+
+各 variant は schema で `additionalProperties: false`。`text` は `kind` のみ、他 variant も列挙された field 以外は不可。
 
 ## 使用例
 
@@ -259,6 +261,8 @@ env 切替の典型:
 - `examples/diary` の `externalSystem` step + `catalogs.externalSystems.claudeApi` を `aiCall` + `catalogs.modelEndpoints.<key>` に移行
 - `examples/english-learning` の `english-learning:LlmDialog` を `aiAgent` (multi-turn) に移行
 - `examples/english-learning/harmony/extensions/english-learning.v3.json` から `LlmDialog` stepKind 定義を削除 (`TtsGenerate` / `SttEvaluate` は当面残す)
+- `/generate-tests` skill の AI flow 検出ロジックを **`kind=aiCall|aiAgent`** に対応させる (現状 `kind=externalSystem` + `systemRef=claudeApi` 等の旧パターン検出のままだと、Phase 2 移行後の sample で AI flow が検出されず、生成テストが旧 fixture 期待のままになる)
+- `/generate-code` skill のテンプレート (`templates/backend/typescript-nestjs/` / `templates/backend/java-spring-boot/`) に `aiCall` / `aiAgent` step の SDK 切替コード生成ロジックを追加 (現状 `SKILL.md` の step kind table に方針記述のみで、テンプレート本体は未対応)
 
 ## 関連
 

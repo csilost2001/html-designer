@@ -280,6 +280,22 @@ describe("AI step kind core schema (#935)", () => {
       expect(validateProcessFlow(data)).toBe(false);
     });
 
+    it("aiAgent with tools: [] (empty array, minItems=1 violation)", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiAgent",
+            description: "empty tools array",
+            modelRef: "summarizeModel",
+            messages: [{ role: "user", content: "x" }],
+            tools: [],
+          },
+        ])
+      );
+      expect(validateProcessFlow(data)).toBe(false);
+    });
+
     it("modelEndpoint with unknown provider (not matching enum or extension pattern)", () => {
       const data = envelope(baseAction([]));
       const me = (data.context.catalogs as Record<string, Record<string, unknown>>).modelEndpoints;
