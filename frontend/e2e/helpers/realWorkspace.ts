@@ -270,6 +270,62 @@ export function sendBrowserRequest(method: string, params: unknown = {}): Promis
   });
 }
 
+/**
+ * 複数 RPC を同一 WS connection (= 同一 clientId / 同一 per-session activePath) で実行する。
+ * `workspace.open` で activePath を設定後、続けて `editSession.list / discard` 等を発火するのに使う。
+ */
+export async function withBrowserSession<T>(
+  fn: (call: (method: string, params?: unknown) => Promise<unknown>) => Promise<T>,
+): Promise<T> {
+  return new Promise<T>((resolveOuter, rejectOuter) => {
+    const ws = new WebSocketImpl("ws://localhost:5179");
+    const clientId = `e2e-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+    let registered = false;
+    const queue: Array<() => void> = [];
+    const flushQueue = () => {
+      while (queue.length > 0) queue.shift()?.();
+    };
+    ws.on("open", () => {
+      ws.send(JSON.stringify({ type: "register", clientId }));
+      registered = true;
+      flushQueue();
+    });
+    ws.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data.toString()) as { type?: string; id?: string; error?: string; result?: unknown };
+        if (msg.type === "response" && typeof msg.id === "string") {
+          const handler = pending.get(msg.id);
+          if (handler) {
+            clearTimeout(handler.timer);
+            pending.delete(msg.id);
+            if (msg.error) handler.reject(new Error(msg.error));
+            else handler.resolve(msg.result);
+          }
+        }
+      } catch { /* ignore */ }
+    });
+    ws.on("error", (err) => rejectOuter(new Error(`WebSocket error: ${err.message}`)));
+
+    const call = (method: string, params: unknown = {}): Promise<unknown> => new Promise((resolveCall, rejectCall) => {
+      const reqId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const timer = setTimeout(() => {
+        pending.delete(reqId);
+        rejectCall(new Error(`Timeout waiting for response to ${method}`));
+      }, 10000);
+      pending.set(reqId, { resolve: resolveCall, reject: rejectCall, timer });
+      const send = () => ws.send(JSON.stringify({ type: "request", id: reqId, method, params }));
+      if (registered) send();
+      else queue.push(send);
+    });
+
+    fn(call).then(
+      (value) => { try { ws.close(); } catch { /* ignore */ } resolveOuter(value); },
+      (err) => { try { ws.close(); } catch { /* ignore */ } rejectOuter(err); },
+    );
+  });
+}
+
 // ── 内部: harmony.json 構築 ─────────────────────────────────────────────────
 
 const SCHEMA_REF = "../schemas/v3/harmony.v3.schema.json";
@@ -508,10 +564,25 @@ export async function setupTestWorkspace(opts: SetupTestWorkspaceOptions): Promi
     await writeJson(path.join(dataDir, "screen-layout.json"), opts.screenLayout);
   }
 
-  // backend に open。存在しないと workspace.open が reject するので setup 完了後に呼ぶ。
-  const result = await sendBrowserRequest("workspace.open", { path: workspacePath }) as {
+  // backend に open + 過去 test 由来の in-memory editSession を全件 discard を SAME WS で実行する。
+  // editSessionStore は backend プロセス生存期間中ずっと sessions を保持するため、
+  // 同 wsId を再利用する e2e では前回の draft が ResumeOrDiscardDialog として再表示される。
+  // workspace.open で activePath を立てた直後に editSession.list/discard を同 clientId で
+  // 呼ぶ必要がある (clientId が異なると `_resolveActiveWsId` で別 ws に解決される)。
+  const result = await withBrowserSession<{
     active: { id: string; path: string; name: string };
-  };
+  }>(async (call) => {
+    const opened = await call("workspace.open", { path: workspacePath }) as {
+      active: { id: string; path: string; name: string };
+    };
+    try {
+      const sessions = await call("editSession.list", {}) as { sessions?: Array<{ id: string }> } | null;
+      for (const s of sessions?.sessions ?? []) {
+        await call("editSession.discard", { editSessionId: s.id }).catch(() => undefined);
+      }
+    } catch { /* best-effort */ }
+    return opened;
+  });
   if (!result?.active?.id) {
     throw new Error(`workspace.open did not return active.id for ${workspacePath}`);
   }

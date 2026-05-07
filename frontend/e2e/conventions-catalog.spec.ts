@@ -34,6 +34,9 @@ test.describe("規約カタログ編集ビュー (#317)", () => {
     ws = await setupTestWorkspace({ key: WS_KEY, project: dummyProject });
     await ws.gotoActive(page, "/conventions/catalog");
     await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
+    // 編集モードに入る (#683 edit-session-draft)。13 カテゴリタブの可視確認テスト以外は editing 必須
+    await page.getByTestId("edit-mode-start").click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible();
   });
 
   test("13 カテゴリタブが 3 グループで見える (#555)", async ({ page }) => {
