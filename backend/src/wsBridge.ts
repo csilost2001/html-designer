@@ -33,6 +33,7 @@ import {
   inspectWorkspacePath,
   initializeWorkspace as initializeWorkspaceFolder,
 } from "./workspaceInit.js";
+import { getHostInfo } from "./hostInfo.js";
 import {
   EditSessionStore,
   EditSessionNotFoundError,
@@ -1367,6 +1368,11 @@ class WsBridge extends EventEmitter {
           }
           const r = await inspectWorkspacePath(targetPath);
           respond(r);
+          break;
+        }
+        case "workspace.hostInfo": {
+          const info = await getHostInfo();
+          respond(info);
           break;
         }
         case "workspace.open": {
