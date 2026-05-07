@@ -142,3 +142,37 @@ describe("DesignSubToolbarGrapesJSBridge (#824)", () => {
     vi.doUnmock("@grapesjs/react");
   });
 });
+
+// ── onTakeOver prop 伝播 (#908 P2 Must-fix) ──────────────────────────────────
+
+/**
+ * P2 fix (#908): DesignSubToolbar の Props に onTakeOver が追加され、
+ * EditSessionDropdown に渡されることを確認する回帰テスト。
+ *
+ * EditSessionDropdown の実際の take-over 動作は EditSessionDropdown.test.tsx で検証済み。
+ * 本テストは onTakeOver prop が Props 型に存在し、コンポーネントが crash せず
+ * render できることを保証するスモークテスト。
+ */
+describe("DesignSubToolbar — onTakeOver prop (#908 P2 fix)", () => {
+  it("onTakeOver prop を渡しても crash しない", () => {
+    const onTakeOver = vi.fn(async () => { /* ok */ });
+    expect(() => {
+      render(
+        <DesignSubToolbar
+          {...baseProps}
+          editor={undefined}
+          onTakeOver={onTakeOver}
+        />,
+      );
+    }).not.toThrow();
+    expect(screen.getByTestId("editor-header")).toBeInTheDocument();
+  });
+
+  it("onTakeOver を省略しても crash しない (optional prop)", () => {
+    // onTakeOver が省略された場合も EditSessionDropdown 内部 fallback が動く
+    expect(() => {
+      render(<DesignSubToolbar {...baseProps} editor={undefined} />);
+    }).not.toThrow();
+    expect(screen.getByTestId("editor-header")).toBeInTheDocument();
+  });
+});

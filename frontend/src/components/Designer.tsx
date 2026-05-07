@@ -116,8 +116,11 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // P1-A fix (#908): editorKind が "puck" の場合は resourceType を "puck-data" にする。
   // editorKind 解決は非同期 (useEffect) のため、解決前は "screen" を仮置きし、
   // 解決後に正しい type を反映する。
-  // useEditSession の resourceType が変わると EditSession が再初期化される (= 正しい挙動)。
+  // 注意: useEditSession の resourceType が変わっても hook 内部 state (editSession/myRole) は
+  // 自動リセットされない。startEditing は "編集開始" ボタン押下時に呼ばれるため、
+  // editorKind 解決完了フラグ (editorKindResolved) で未解決中の startEditing をガードする。
   const [resolvedEditSessionResourceType, setResolvedEditSessionResourceType] = useState<"screen" | "puck-data">("screen");
+  const [editorKindResolved, setEditorKindResolved] = useState(false);
 
   // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
   const { syncSessionToUrl, initialEditSessionId: initialDesignSessionId } = useSessionUrlSync({
@@ -126,7 +129,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, takeOver: editTakeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: resolvedEditSessionResourceType,
     resourceId: screenId,
     sessionId,
@@ -182,6 +185,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       setEditorKind(ek);
       // P1-A: Puck 画面の editSession は "puck-data" branch を通すよう resourceType を更新する
       setResolvedEditSessionResourceType(ek === "puck" ? "puck-data" : "screen");
+      setEditorKindResolved(true);
     }).catch((e) => {
       console.warn("[Designer] cssFramework/editorKind resolve failed, using defaults", e);
     });
@@ -199,6 +203,17 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     editorApiRef.current?.applyTheme(themeId, cssFrameworkRef.current);
   // cssFrameworkRef は ref なので依存配列不要
   }, []);
+
+  // editorKind 解決完了後のみ startEditing を許可するガードラップ
+  // editorKind 解決前に startEditing が呼ばれると誤った resourceType で EditSession が
+  // 作成される可能性があるため、解決まで待機する。
+  const handleStartEditing = useCallback(async () => {
+    if (!editorKindResolved) {
+      console.warn("[Designer] startEditing called before editorKind resolved, skipping");
+      return;
+    }
+    await editActions.startEditing();
+  }, [editorKindResolved, editActions]);
 
   // isReadonly の ref 版 (Puck onChange handler 等の closure からアクセスするため)
   const isReadonlyRef = useRef(isReadonly);
@@ -404,8 +419,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   const handleResumeContinue = useCallback(async () => {
     setShowResumeDialog(false);
-    await editActions.startEditing();
-  }, [editActions]);
+    await handleStartEditing();
+  }, [handleStartEditing]);
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
@@ -569,7 +584,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       {/* 編集モードツールバー */}
       <EditModeToolbar
         mode={mode}
-        onStartEditing={editActions.startEditing}
+        onStartEditing={handleStartEditing}
         onSave={handleSave}
         onDiscardClick={() => setShowDiscardDialog(true)}
         onForceReleaseClick={() => setShowForceReleaseDialog(true)}
@@ -671,8 +686,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         editor={undefined}
         sessionMode={mode}
         sessionId={sessionId}
-        onStartEditing={editActions.startEditing}
+        onStartEditing={handleStartEditing}
         onViewerAttached={syncSessionToUrl}
+        onTakeOver={editTakeOver}
       />
     );
     const puckProps: PuckRenderEditorProps = {
@@ -686,7 +702,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       onTogglePin: togglePin,
       onClosePanel: closePanel,
       screenId,
-      onStartEditing: editActions.startEditing,
+      onStartEditing: handleStartEditing,
       onChange: handlePuckChange,
       onReady: handlePuckReady,
       // Puck も EditorApi.reload() で再ロードできるよう reloadPayload を提供
@@ -726,8 +742,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       isReadonly={isReadonly}
       sessionMode={mode}
       sessionId={sessionId}
-      onStartEditing={editActions.startEditing}
+      onStartEditing={handleStartEditing}
       onViewerAttached={syncSessionToUrl}
+      onTakeOver={editTakeOver}
     />
   );
   // GrapesJSRenderEditorProps で GrapesJS 固有 callback を型レベル required として渡す
@@ -743,7 +760,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     onTogglePin: togglePin,
     onClosePanel: closePanel,
     screenId,
-    onStartEditing: editActions.startEditing,
+    onStartEditing: handleStartEditing,
     onChange: handleGrapesChange,
     onReady: handleGrapesReady,
     onServerChanged: handleGrapesServerChanged,

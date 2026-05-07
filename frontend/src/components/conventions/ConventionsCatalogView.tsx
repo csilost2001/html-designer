@@ -122,7 +122,8 @@ export function ConventionsCatalogView() {
     isDirty, isSaving, serverChanged,
     update, updateSilent, commit,
     undo, redo, canUndo, canRedo,
-    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    handleReset, dismissServerBanner,
+    postSave,
     reload,
   } = useResourceEditor<ConventionsCatalog>({
     tabType: "conventions-catalog",
@@ -181,9 +182,12 @@ export function ConventionsCatalogView() {
     if (catalogRef.current && editSession?.id) {
       await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: catalogRef.current });
     }
-    await resourceHandleSave();
+    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
+    // editSession.save が conflict なしと判断してから backend が本体ファイルを書き込む。
+    // postSave は frontend dirty クリア + mtime ack のみ (ファイル書き込みなし)。
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions, editSession]);
+    await postSave();
+  }, [isReadonly, isSaving, postSave, actions, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);

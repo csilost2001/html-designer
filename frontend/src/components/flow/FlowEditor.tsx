@@ -782,8 +782,10 @@ function FlowEditorInner() {
     }
     setIsSaving(true);
     try {
-      await persistProject(projectRef.current);
+      // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
+      // editSession.save が conflict なしと判断してから persistProject でファイルを書き込む。
       await actions.save();
+      await persistProject(projectRef.current);
       setIsDirty(false);
       isDirtyRef.current = false;
       dismissServerBanner();
