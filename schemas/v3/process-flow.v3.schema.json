@@ -866,13 +866,13 @@
             "kind": { "const": "aiCall" },
             "modelRef": {
               "$ref": "common.v3.schema.json#/$defs/Identifier",
-              "description": "context.catalogs.modelEndpoints のキー参照。"
+              "description": "context.catalogs.modelEndpoints (flow level) または harmony/catalogs/external.json (project level) のキー参照。"
             },
             "messages": {
               "type": "array",
               "minItems": 1,
-              "items": { "$ref": "#/$defs/AiMessage" },
-              "description": "LLM に送信する messages 配列。system / user / assistant の role 別に並べる。"
+              "items": { "$ref": "#/$defs/AiMessageItem" },
+              "description": "LLM に送信する messages 配列。system / user / assistant の role 別に並べる。AiMessageSpread item で動的な配列展開 (会話履歴の挿入等) も許容 (#939 提案 A、2026-05-08)。"
             },
             "tools": {
               "type": "array",
@@ -902,8 +902,8 @@
             "messages": {
               "type": "array",
               "minItems": 1,
-              "items": { "$ref": "#/$defs/AiMessage" },
-              "description": "初期 messages。agent loop 開始時の context (system + user)。"
+              "items": { "$ref": "#/$defs/AiMessageItem" },
+              "description": "初期 messages。agent loop 開始時の context (system + user)。AiMessageSpread item で動的展開 (会話履歴の挿入等) を許容 (#939 提案 A、2026-05-08)。"
             },
             "tools": {
               "type": "array",
@@ -927,6 +927,14 @@
       "unevaluatedProperties": false
     },
 
+    "AiMessageItem": {
+      "description": "messages[] の要素 1 件。通常の AiMessage または AiMessageSpread (動的配列展開ディレクティブ) のいずれか (#939 提案 A、2026-05-08)。",
+      "oneOf": [
+        { "$ref": "#/$defs/AiMessage" },
+        { "$ref": "#/$defs/AiMessageSpread" }
+      ]
+    },
+
     "AiMessage": {
       "description": "LLM 入力メッセージ 1 件。Anthropic Messages / OpenAI Chat Completions の messages 構造に対応。content は string (シンプルテキスト) または array of content blocks (multimodal) を許容。",
       "type": "object",
@@ -946,6 +954,21 @@
           ]
         },
         "name": { "type": "string", "description": "tool 結果メッセージ等で使う name (任意)。" }
+      }
+    },
+
+    "AiMessageSpread": {
+      "description": "messages[] 内の動的配列展開ディレクティブ。ref が指す変数 (AiMessage 互換配列、例: 会話履歴 DialogTurn[]) をランタイムが本位置に inline 展開する。multi-turn 会話で過去 turns を role 別に LLM へ伝える際に使用 (#939 提案 A、2026-05-08)。",
+      "type": "object",
+      "required": ["kind", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "spread" },
+        "ref": {
+          "$ref": "common.v3.schema.json#/$defs/ExpressionString",
+          "description": "AiMessage 互換配列を持つ変数参照 (例: '@turnContext')。展開対象は { role: 'user'|'assistant'|'system', content: string } の配列を期待し、ランタイムが各要素を AiMessage として messages[] に展開する。"
+        },
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
       }
     },
 
@@ -974,7 +997,7 @@
     },
 
     "AiImageSource": {
-      "description": "vision input の画像ソース。fileRef (ScreenItem type=file / step output 等の式参照) / url / base64 の 3 形式。",
+      "description": "vision input の画像ソース。fileRef (ScreenItem type=file / step output 等の式参照、ローカルファイル想定) / url (HTTP(S) URL、storage / CDN 上の画像) / base64 (リテラル data) の 3 形式。url は literal URI または ExpressionString 経由のランタイム変数 (#939 提案 B、2026-05-08) の双方を許容する。",
       "oneOf": [
         {
           "type": "object",
@@ -984,7 +1007,7 @@
             "kind": { "const": "fileRef" },
             "ref": {
               "$ref": "common.v3.schema.json#/$defs/ExpressionString",
-              "description": "ScreenItem (type=file) または step output 等の式参照 (例: '@inputs.photo' / '@uploaded.file')。"
+              "description": "ScreenItem (type=file) または step output 等の式参照 (例: '@inputs.photo' / '@uploaded.file')。ローカルファイル / アップロード済 file ハンドルを想定。"
             }
           }
         },
@@ -994,7 +1017,13 @@
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "url" },
-            "url": { "type": "string", "format": "uri" }
+            "url": {
+              "description": "Vision API に渡す画像 URL。リテラル http(s) URI またはランタイム変数参照 (@-prefix expression) を許容 (#939 提案 B、2026-05-08)。oneOf branch は url 形式 (`^https?://...`) と expression 形式 (`^@`) で discriminate するため、両者の意図が schema 上明確に分離される。",
+              "oneOf": [
+                { "type": "string", "format": "uri", "pattern": "^https?://", "description": "literal な http(s) URI (例: 'https://cdn.example.com/photo.jpg')。" },
+                { "type": "string", "pattern": "^@[A-Za-z_][A-Za-z0-9_.\\[\\]]*$", "description": "ランタイム変数参照式 (例: '@photoRow.url' / '@inputs.imageUrl'、storage / CDN 上の URL を変数経由で渡す)。" }
+              ]
+            }
           }
         },
         {
@@ -1004,7 +1033,7 @@
           "properties": {
             "kind": { "const": "base64" },
             "mediaType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp", "image/gif"] },
-            "data": { "type": "string", "description": "base64-encoded 画像データ (literal)。実用は fileRef 推奨、本形式は test fixture / 小規模アイコン等に限定。" }
+            "data": { "type": "string", "description": "base64-encoded 画像データ (literal)。実用は fileRef / url 推奨、本形式は test fixture / 小規模アイコン等に限定。" }
           }
         }
       ]

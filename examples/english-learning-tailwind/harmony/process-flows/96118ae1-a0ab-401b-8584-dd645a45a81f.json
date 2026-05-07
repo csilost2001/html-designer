@@ -26,28 +26,6 @@
           "description": "aiCall step が外部 LLM API から正常応答を得られなかった場合。"
         }
       },
-      "modelEndpoints": {
-        "dialogModel": {
-          "provider": "anthropic",
-          "model": "claude-opus-4-7",
-          "auth": {
-            "kind": "bearer",
-            "tokenRef": "@secret.anthropicApiKey"
-          },
-          "defaults": {
-            "maxTokens": 500,
-            "temperature": 0.7
-          },
-          "description": "英会話学習用の対話モデル。日本語学習者向けに CEFR レベルに応じた英文応答を返す。provider 切替 (OpenAI / Google 等) は本 catalog 編集だけで完結。"
-        }
-      },
-      "secrets": {
-        "anthropicApiKey": {
-          "source": "env",
-          "name": "ANTHROPIC_API_KEY",
-          "description": "Anthropic API の認証キー。"
-        }
-      },
       "events": {
         "el.turn.completed": {
           "description": "1 会話ターンが正常完了し、turn_logs に INSERT された直後に発行する。",
@@ -236,7 +214,7 @@
         {
           "id": "step-03",
           "kind": "aiCall",
-          "description": "core stepKind aiCall + modelEndpoints.dialogModel で LLM 呼び出しを行う。provider 選択は modelEndpoints catalog で完結。messages[] に system プロンプト + (会話履歴) + 最新 user 発話を並べる。messages[] は静的配列のため、prior turns は @turnContext (DialogTurn[] JSON 文字列) として user content に埋め込む暫定形 (動的 spread は core schema の今後の拡張候補)。ストリーム応答 (SSE / WebSocket) は実装側が処理し、本フローでは完了後の assistant テキストを受け取る。",
+          "description": "core stepKind aiCall + modelEndpoints.dialogModel で LLM 呼び出しを行う。messages[] は system プロンプト + spread (会話履歴 @turnContext を role 別に展開) + 最新 user 発話を並べる。spread item は #939 提案 A で導入された動的展開機構で、ランタイムが @turnContext (DialogTurn[]) を AiMessage 列として inline 展開する。これにより LLM API の意図 (role 別に過去 turns を構造的に伝える) と整合し、文字列埋め込み暫定形が解消された。ストリーム応答 (SSE / WebSocket) は実装側が処理し、本フローでは完了後の assistant テキストを受け取る。",
           "modelRef": "dialogModel",
           "messages": [
             {
@@ -244,8 +222,13 @@
               "content": "あなたは日本人英語学習者向けの会話パートナーです。学習者の CEFR レベル (A1〜C2) に合った語彙と文法で英語応答してください。応答は 1〜3 文程度に抑え、次の発話を促す問いかけを含めると望ましい。"
             },
             {
+              "kind": "spread",
+              "ref": "@turnContext",
+              "description": "過去会話履歴 (DialogTurn[]) を role 別に展開。turnNumber 順で user / assistant が交互に並ぶ想定。"
+            },
+            {
               "role": "user",
-              "content": "[会話履歴 (DialogTurn[])]\n@turnContext\n\n[最新の発話]\n@userInput"
+              "content": "@userInput"
             }
           ],
           "outputBinding": { "name": "aiResponse" },

@@ -13,6 +13,7 @@
  * 単純な regex ベースの識別子抽出 + スコープ走査。
  * 式の完全パースや型推論は今は行わない (path 部分は無視、root 識別子のみ検査)。
  */
+import { mergeCatalogsForFlow, type ProjectCatalogs } from "./projectCatalogs";
 import type {
   ProcessFlow,
   Step,
@@ -74,11 +75,16 @@ function fieldNames(fields: StructuredField[] | undefined): string[] {
  * 全 @ 参照の識別子スコープ検証。
  * 空配列なら問題なし。
  */
-export function checkIdentifierScopes(group: ProcessFlow): IdentifierIssue[] {
+export function checkIdentifierScopes(
+  group: ProcessFlow,
+  projectCatalogs?: ProjectCatalogs,
+): IdentifierIssue[] {
   const issues: IdentifierIssue[] = [];
   const ambientFields = group.context?.ambientVariables;
   const ambientNames = new Set(fieldNames(ambientFields));
-  const envVarNames = new Set(Object.keys(group.context?.catalogs?.envVars ?? {}));
+  // #939 提案 C: project-level catalogs と flow-level の envVars を merge して検査
+  const merged = mergeCatalogsForFlow(group, projectCatalogs);
+  const envVarNames = new Set(Object.keys(merged.envVars ?? {}));
 
   group.actions.forEach((action, ai) => {
     const knownInAction = new Set<string>(ambientNames);
@@ -269,7 +275,7 @@ function checkStep(
           path: `${path}.${field}`,
           code: "UNKNOWN_IDENTIFIER",
           identifier: key ? `env.${refPath.join(".")}` : "env",
-          message: `@env.${refPath.join(".")} が context.catalogs.envVars で宣言されていません`,
+          message: `@env.${refPath.join(".")} が envVars catalog (project + flow merged) で宣言されていません`,
         });
         continue;
       }

@@ -15,6 +15,7 @@
  */
 import type { ProcessFlow, Step } from "../types/v3";
 import type { LoadedExtensions } from "./loadExtensions";
+import { mergeCatalogsForFlow, type ProjectCatalogs } from "./projectCatalogs";
 import { isBuiltinStep } from "./stepGuards";
 
 export interface IntegrityIssue {
@@ -40,20 +41,26 @@ const SECRET_RE = /@secret\.([a-zA-Z_][\w-]*)/g;
 export function checkReferentialIntegrity(
   group: ProcessFlow,
   extensions?: LoadedExtensions,
+  projectCatalogs?: ProjectCatalogs,
 ): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
+  // #939 提案 C: project-level catalogs と flow-level catalogs を merge する。
+  // flow-level が同名キーで override する semantics。
+  const merged = mergeCatalogsForFlow(group, projectCatalogs);
   const errorCodes = new Set(Object.keys(group.context?.catalogs?.errors ?? {}));
   const hasErrorCatalog = errorCodes.size > 0;
-  const systemIds = new Set(Object.keys(group.context?.catalogs?.externalSystems ?? {}));
+  const systemIds = new Set(Object.keys(merged.externalSystems ?? {}));
   const hasSystemCatalog = systemIds.size > 0;
   const typeIds = new Set(Object.keys(extensions?.responseTypes ?? {}));
   const hasExtensions = extensions !== undefined && typeIds.size > 0;
-  const secretKeys = new Set(Object.keys(group.context?.catalogs?.secrets ?? {}));
+  const secretKeys = new Set(Object.keys(merged.secrets ?? {}));
   const hasSecretsCatalog = secretKeys.size > 0;
 
-  // context.catalogs.externalSystems.*.auth.tokenRef 内の @secret.* 参照を検査
+  // externalSystems (merged: project + flow level).*.auth.tokenRef 内の @secret.* 参照を検査
   if (hasSecretsCatalog) {
-    Object.entries(group.context?.catalogs?.externalSystems ?? {}).forEach(([k, entry]) => {
+    type ExtSysEntry = { auth?: { tokenRef?: string } };
+    Object.entries(merged.externalSystems ?? {}).forEach(([k, rawEntry]) => {
+      const entry = rawEntry as ExtSysEntry;
       const tok = entry.auth?.tokenRef;
       if (tok) {
         let m: RegExpExecArray | null;
@@ -63,7 +70,7 @@ export function checkReferentialIntegrity(
               path: `context.catalogs.externalSystems.${k}.auth.tokenRef`,
               code: "UNKNOWN_SECRET_REF",
               value: `@secret.${m[1]}`,
-              message: `@secret.${m[1]} が context.catalogs.secrets に存在しません`,
+              message: `@secret.${m[1]} が secrets catalog (project + flow merged) に存在しません`,
             });
           }
         }

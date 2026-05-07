@@ -24,28 +24,6 @@
           "responseId": "502-ai-error",
           "description": "AI モデルへのリクエストが失敗した場合。"
         }
-      },
-      "modelEndpoints": {
-        "proofreadModel": {
-          "provider": "anthropic",
-          "model": "claude-opus-4-7",
-          "auth": {
-            "kind": "bearer",
-            "tokenRef": "@secret.anthropicApiKey"
-          },
-          "defaults": {
-            "maxTokens": 4096,
-            "temperature": 0.3
-          },
-          "description": "本文校正に使うモデル (敬体/常体/誤字訂正、structuredObject 形式で diff を返す)。"
-        }
-      },
-      "secrets": {
-        "anthropicApiKey": {
-          "source": "env",
-          "name": "ANTHROPIC_API_KEY",
-          "description": "Anthropic API の認証キー。"
-        }
       }
     },
     "ambientVariables": [

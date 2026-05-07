@@ -341,4 +341,250 @@ describe("AI step kind core schema (#935)", () => {
       expect(validateProcessFlow(data)).toBe(false);
     });
   });
+
+  describe("#939 提案 A — messages spread item (動的会話履歴展開)", () => {
+    it("valid: aiCall messages with spread item between system + user", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiCall",
+            description: "multi-turn dialog with history spread",
+            modelRef: "summarizeModel",
+            messages: [
+              { role: "system", content: "You are a helpful assistant." },
+              { kind: "spread", ref: "@turnContext", description: "prior turns" },
+              { role: "user", content: "@userInput" },
+            ],
+            outputBinding: { name: "aiResponse" },
+          },
+        ])
+      );
+      const ok = validateProcessFlow(data);
+      expect(ok, ok ? "" : dumpErrors()).toBe(true);
+    });
+
+    it("valid: aiAgent messages with spread item allowed too", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiAgent",
+            description: "agent with history spread",
+            modelRef: "summarizeModel",
+            messages: [
+              { role: "system", content: "agent prompt" },
+              { kind: "spread", ref: "@history" },
+              { role: "user", content: "@input" },
+            ],
+            tools: [{ kind: "functionRef", ref: "lookupGlossary" }],
+            outputBinding: { name: "agentResult" },
+          },
+        ])
+      );
+      const ok = validateProcessFlow(data);
+      expect(ok, ok ? "" : dumpErrors()).toBe(true);
+    });
+
+    it("invalid: spread with extra unknown property", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiCall",
+            description: "x",
+            modelRef: "summarizeModel",
+            messages: [
+              { role: "user", content: "x" },
+              { kind: "spread", ref: "@history", unexpected: 42 },
+            ],
+          },
+        ])
+      );
+      expect(validateProcessFlow(data)).toBe(false);
+    });
+
+    it("invalid: spread missing ref", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiCall",
+            description: "x",
+            modelRef: "summarizeModel",
+            messages: [
+              { role: "user", content: "x" },
+              { kind: "spread" },
+            ],
+          },
+        ])
+      );
+      expect(validateProcessFlow(data)).toBe(false);
+    });
+  });
+
+  describe("#939 提案 B — AiImageSource.url ExpressionString 対応", () => {
+    it("valid: literal http URI in url variant", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiCall",
+            description: "x",
+            modelRef: "summarizeModel",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "x" },
+                  {
+                    type: "image",
+                    source: { kind: "url", url: "https://cdn.example.com/photo.jpg" },
+                  },
+                ],
+              },
+            ],
+            outputBinding: { name: "x" },
+          },
+        ])
+      );
+      const ok = validateProcessFlow(data);
+      expect(ok, ok ? "" : dumpErrors()).toBe(true);
+    });
+
+    it("valid: ExpressionString runtime variable in url variant", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiCall",
+            description: "x",
+            modelRef: "summarizeModel",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "x" },
+                  {
+                    type: "image",
+                    source: { kind: "url", url: "@photoRow.url" },
+                  },
+                ],
+              },
+            ],
+            outputBinding: { name: "x" },
+          },
+        ])
+      );
+      const ok = validateProcessFlow(data);
+      expect(ok, ok ? "" : dumpErrors()).toBe(true);
+    });
+
+    it("invalid: url variant with non-URI / non-Expression string (plain text)", () => {
+      const data = envelope(
+        baseAction([
+          {
+            id: "step-01",
+            kind: "aiCall",
+            description: "x",
+            modelRef: "summarizeModel",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "image", source: { kind: "url", url: "not-a-uri-and-no-at-prefix" } },
+                ],
+              },
+            ],
+          },
+        ])
+      );
+      expect(validateProcessFlow(data)).toBe(false);
+    });
+  });
+});
+
+describe("#939 提案 C — external-catalogs.v3 schema (project レベル共有 catalog)", () => {
+  let validateExternalCatalogs: ValidateFunction;
+
+  beforeAll(() => {
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(ajv);
+    for (const f of readdirSync(v3Dir)) {
+      if (!f.endsWith(".json")) continue;
+      const schemaObj = loadJson(join(v3Dir, f)) as { $id?: string };
+      if (typeof schemaObj.$id !== "string") continue;
+      ajv.addSchema(schemaObj as object, schemaObj.$id);
+    }
+    const v = ajv.getSchema(
+      "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/external-catalogs.v3.schema.json"
+    );
+    if (!v) throw new Error("external-catalogs.v3.schema.json not loaded");
+    validateExternalCatalogs = v;
+  });
+
+  it("valid: minimal modelEndpoints + secrets catalog", () => {
+    const data = {
+      $schema: "../../../../schemas/v3/external-catalogs.v3.schema.json",
+      version: "1.0.0",
+      description: "test fixture",
+      updatedAt: "2026-05-08T00:00:00.000Z",
+      modelEndpoints: {
+        sharedSummarizer: {
+          provider: "anthropic",
+          model: "claude-opus-4-7",
+          auth: { kind: "bearer", tokenRef: "@secret.anthropicApiKey" },
+        },
+      },
+      secrets: {
+        anthropicApiKey: { source: "env", name: "ANTHROPIC_API_KEY" },
+      },
+    };
+    const ok = validateExternalCatalogs(data);
+    if (!ok) console.error(validateExternalCatalogs.errors);
+    expect(ok).toBe(true);
+  });
+
+  it("valid: all 6 catalog kinds present", () => {
+    const data = {
+      version: "1.0.0",
+      modelEndpoints: { m1: { provider: "openai", model: "gpt-4o" } },
+      secrets: { k: { source: "env", name: "K" } },
+      envVars: { MY_VAR: { type: "string", description: "x" } },
+      events: { "topic.x": { description: "x", payload: { type: "object" } } },
+      functions: { fn1: { signature: "fn1(): string", description: "x", returnType: "string" } },
+      externalSystems: { s1: { name: "S1", baseUrl: "https://x.example.com" } },
+    };
+    const ok = validateExternalCatalogs(data);
+    if (!ok) console.error(validateExternalCatalogs.errors);
+    expect(ok).toBe(true);
+  });
+
+  it("invalid: unknown top-level property rejected (additionalProperties:false)", () => {
+    const data = {
+      version: "1.0.0",
+      unknownCatalog: { x: 1 },
+    };
+    expect(validateExternalCatalogs(data)).toBe(false);
+  });
+
+  it("invalid: modelEndpoints entry with unknown provider", () => {
+    const data = {
+      version: "1.0.0",
+      modelEndpoints: {
+        bad: { provider: "InvalidProvider", model: "x" },
+      },
+    };
+    expect(validateExternalCatalogs(data)).toBe(false);
+  });
+
+  it("invalid: envVars key not UPPER_SNAKE", () => {
+    const data = {
+      version: "1.0.0",
+      envVars: {
+        lowerCase: { type: "string", description: "x" },
+      },
+    };
+    expect(validateExternalCatalogs(data)).toBe(false);
+  });
 });

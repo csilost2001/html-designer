@@ -40,7 +40,39 @@ N=2 で表現方法が分裂しており、放置すると後続 sample (CRM / E
 
 `aiCall` は tool 結果を後続 step (compute / dbAccess) で評価する用途、`aiAgent` は LLM 自身が tool 結果を見て次の tool を選ぶ自律 loop。tool が無い単発呼び出しは `aiCall` を使う。
 
-### catalog: `context.catalogs.modelEndpoints`
+### catalog の階層 (project level + flow level、#939 提案 C、2026-05-08)
+
+外部 catalog (modelEndpoints / secrets / envVars / events / functions / externalSystems) は 2 階層で管理する:
+
+| 階層 | 配置 | 用途 |
+|---|---|---|
+| **project level** | `harmony/catalogs/external.json` (schema: `external-catalogs.v3.schema.json`) | 1 sample (project) 全体で共有。複数 flow が同じ provider / secret / endpoint を使う場合、本ファイルに集約 |
+| **flow level** | `<flow>.json` の `context.catalogs.*` | 個別 flow に閉じる定義 / project level の override |
+
+**merge 規則**: 同じカテゴリ + 同じキーが両階層に存在する場合、**flow level が project level を override** する。typing 用途では merge 後の view を共通インターフェース (`ProjectCatalogs`) として扱う。
+
+例: 4 つの AI flow がすべて同じ Anthropic API を使う diary project では、project level に集約することで定義を 4 重複から 1 つに削減できる。
+
+```jsonc
+// examples/diary/harmony/catalogs/external.json (project level)
+{
+  "$schema": "../../../../schemas/v3/external-catalogs.v3.schema.json",
+  "version": "1.0.0",
+  "modelEndpoints": {
+    "summarizeModel": { "provider": "anthropic", ... },
+    "tagSuggestModel": { "provider": "anthropic", ... },
+    "altTextModel": { ... },
+    "proofreadModel": { ... }
+  },
+  "secrets": {
+    "anthropicApiKey": { "source": "env", "name": "ANTHROPIC_API_KEY" }
+  }
+}
+```
+
+各 flow は `context.catalogs` を持たずに直接 `modelRef: "summarizeModel"` で project level catalog のキーを参照する。
+
+### catalog: `context.catalogs.modelEndpoints` (flow level)
 
 ```json
 "modelEndpoints": {
@@ -105,9 +137,13 @@ N=2 で表現方法が分裂しており、放置すると後続 sample (CRM / E
 
 `outcomes.failure.action = "abort"` で失敗時は HTTP 5xx 応答 (`responses[]` から responseId 一致を選択) を返し、outputBinding には何も入らない (`runIf` でガードされる後続 step は skip)。
 
-### `AiMessage.content`
+### `messages[]` の AiMessageItem (#939 提案 A、2026-05-08)
 
-`string` (シンプルテキスト) または content blocks 配列 (text / image)。Anthropic / OpenAI と整合。
+messages[] の各要素は **AiMessage** (通常メッセージ) または **AiMessageSpread** (動的展開ディレクティブ) のいずれか。`AiMessageItem` の oneOf で表現する。
+
+#### AiMessage (通常メッセージ)
+
+`role` (system / user / assistant) + `content` (string または content blocks 配列)。Anthropic / OpenAI と整合。
 
 ```json
 { "role": "user", "content": "本文を要約してください: @inputs.body" }
@@ -120,7 +156,34 @@ N=2 で表現方法が分裂しており、放置すると後続 sample (CRM / E
 ]}
 ```
 
-`image.source` は 3 形式: `fileRef` (推奨、ScreenItem type=file / step output 参照) / `url` / `base64` (test fixture 等限定)。
+#### AiMessageSpread (動的配列展開)
+
+```json
+{ "kind": "spread", "ref": "@turnContext", "description": "過去会話履歴を展開" }
+```
+
+ランタイムが `ref` の指す変数 (AiMessage 互換配列、典型例: 会話履歴 `DialogTurn[]`) を本位置に inline 展開する。multi-turn 会話で過去 turns を **role 別に構造的に LLM へ伝える** ことができる。
+
+例: english-learning S-2 progress-turn flow
+
+```json
+"messages": [
+  { "role": "system", "content": "あなたは英会話パートナーです..." },
+  { "kind": "spread", "ref": "@turnContext" },
+  { "role": "user", "content": "@userInput" }
+]
+```
+
+ランタイムは `@turnContext` (DialogTurn[]) を `[{role:"user", content:"..."}, {role:"assistant", content:"..."}, ...]` の AiMessage 列として展開し、結果として LLM に送信される messages[] は `[system, user(履歴1), assistant(履歴1), user(履歴2), assistant(履歴2), ..., user(最新)]` となる。
+
+### `AiMessage.content`
+
+`string` (シンプルテキスト、式補間 `@<var>` 含む) または content blocks 配列 (text / image)。
+
+`image.source` は 3 形式:
+- `fileRef`: ScreenItem (type=file) / step output 等の式参照 (ローカルファイル / アップロードハンドル)
+- `url`: HTTP(S) URL。**literal な http(s) URI** または **`@`-prefix expression (ランタイム変数参照)** のいずれか (#939 提案 B、2026-05-08 で expression 対応)。例: `{ "kind": "url", "url": "@photoRow.url" }`
+- `base64`: base64-encoded データ (test fixture / 小規模アイコン等に限定)
 
 ### `AiToolRef`
 
@@ -276,6 +339,14 @@ env 切替の典型:
 2. **将来 core 化**: 業務アプリ横断の汎用ニーズが見えた時点 (N=3+ で複数 sample が同じ概念を再発明している状況) で `aiTts` / `aiStt` / `aiEmbedding` / `aiImageGen` を core に追加する候補
 
 英語学習 sample の domain 固有 fieldType (`cefrLevel` / `ipa` / `audioUrl` / `pronunciationScore` / `dialogTurn`) は業務ドメイン固有のため namespace 拡張に残す (core 化対象外)。
+
+## 関連 schema 拡張 (#939、2026-05-08)
+
+Phase 2-A の dogfood で発見された 3 つの schema 制約を解消した拡張 (本仕様書の「採用設計」セクション全体に統合済み):
+
+- **提案 A (messages spread item)**: `aiCall.messages[]` / `aiAgent.messages[]` の各要素を `AiMessage | AiMessageSpread` に拡張。動的会話履歴展開を schema レベルで表現可能に (上記「messages[] の AiMessageItem」節参照)
+- **提案 B (image url ExpressionString)**: `AiImageSource.url` variant の url field をリテラル http(s) URI または `@`-prefix expression の oneOf に拡張。ランタイム変数 URL を schema 上正しく表現可能に (上記「AiMessage.content」節参照)
+- **提案 C (project level catalogs)**: `harmony/catalogs/external.json` で project 全体の modelEndpoints / secrets / envVars / events / functions / externalSystems を共有定義。flow level (`context.catalogs.*`) は override 機構として機能 (上記「catalog の階層」節参照)
 
 ## 既存表現からの移行 (Phase 2)
 
