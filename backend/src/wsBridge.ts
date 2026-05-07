@@ -1307,11 +1307,24 @@ class WsBridge extends EventEmitter {
         case "editSession.save": {
           const esWsId = wsId();
           if (!esWsId) { respondError("ワークスペースが選択されていません"); break; }
-          const { editSessionId: esSvId, force } = (params ?? {}) as { editSessionId: string; force?: boolean };
+          // P2 fix (#912): stage パラメータで 2 段階保存をサポート (FlowEditor 等、frontend が本体ファイル
+          // 書き込みを担う resource type 用)。
+          //   - stage 未指定 (default): 従来通り conflict check + saveHistory 記録 + 本体書き込み + broadcast
+          //   - stage: "checkOnly" : conflict check のみ。saveHistory / 本体書き込み / broadcast なし
+          //   - stage: "commit"    : conflict check skip。saveHistory 記録 + 本体書き込み + broadcast
+          // FlowEditor は checkOnly → frontend persistProject() → commit の順で呼ぶことで、
+          // persistProject 失敗時に saveHistory が record されない (整合性向上、recoverable)。
+          const { editSessionId: esSvId, force, stage } = (params ?? {}) as {
+            editSessionId: string;
+            force?: boolean;
+            stage?: "checkOnly" | "commit";
+          };
           const esStore = this.getOrCreateEditSessionStore(esWsId);
 
-          // spec §9.3 last-save-wins 衝突検出: force フラグなしの場合のみ
-          if (!force) {
+          // spec §9.3 last-save-wins 衝突検出:
+          //   - force フラグありの場合は skip (overwrite 確認後)
+          //   - stage: "commit" の場合は skip (checkOnly で事前チェック済み)
+          if (!force && stage !== "commit") {
             const allSessions = esStore.listByResource(
               esStore.getById(esSvId)?.resourceType ?? "process-flow",
               esStore.getById(esSvId)?.resourceId ?? "",
@@ -1337,6 +1350,12 @@ class WsBridge extends EventEmitter {
               });
               break;
             }
+          }
+
+          // stage: "checkOnly" は conflict check のみで終了 (saveHistory 記録 / 本体書き込み / broadcast なし)
+          if (stage === "checkOnly") {
+            respond({ ok: true });
+            break;
           }
 
           const saveEvent = await esStore.save(esSvId, clientId);

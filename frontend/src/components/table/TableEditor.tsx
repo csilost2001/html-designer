@@ -250,7 +250,14 @@ export function TableEditor() {
       {saveConflict && (
         <SaveConflictDialog
           conflict={saveConflict}
-          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onOverwrite={async () => {
+            try {
+              await onSaveConflictOverwrite();
+              await postSave();
+            } catch (e) {
+              console.error("[TableEditor] save overwrite failed:", e);
+            }
+          }}
           onCancel={onSaveConflictCancel}
         />
       )}

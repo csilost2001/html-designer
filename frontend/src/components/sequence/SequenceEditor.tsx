@@ -284,7 +284,14 @@ export function SequenceEditor() {
       {saveConflict && (
         <SaveConflictDialog
           conflict={saveConflict}
-          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onOverwrite={async () => {
+            try {
+              await onSaveConflictOverwrite();
+              await postSave();
+            } catch (e) {
+              console.error("[SequenceEditor] save overwrite failed:", e);
+            }
+          }}
           onCancel={onSaveConflictCancel}
         />
       )}

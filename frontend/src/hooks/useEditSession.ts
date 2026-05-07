@@ -103,6 +103,18 @@ export interface UseEditSessionResult {
    * 呼び出し元は conflicted === true なら postSave / cleanup をスキップすること。
    */
   save(): Promise<{ conflicted: boolean; failed?: boolean }>;
+  /**
+   * P2 fix (#912): 2 段階保存の前段。conflict check のみを実行し、saveHistory 記録 / broadcast はしない。
+   * frontend が本体ファイル書き込みを担う resource (FlowEditor 等) が、persistProject 失敗時に
+   * saveHistory が先行記録される問題を解消するために使う。
+   */
+  saveCheckConflict(): Promise<{ conflicted: boolean; failed?: boolean }>;
+  /**
+   * P2 fix (#912): 2 段階保存の後段。conflict check skip、saveHistory 記録 + broadcast。
+   * checkOnly → 本体ファイル書き込み (frontend) → commit の順で使う。
+   * commit 失敗は { failed: true } で signal される。
+   */
+  saveCommit(): Promise<{ failed?: boolean }>;
   discard(): Promise<void>;
   detach(): Promise<void>;
   /**
@@ -379,6 +391,10 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
    * P2 fix (#908): targetEditSessionId を指定すると、hook の current editSession とは
    * 別の session に対して transferEdit を実行できる (EditSessionDropdown で選択した session)。
    * 未指定時は hook の current editSession に対して実行する (従来動作)。
+   *
+   * Should-fix (#909): cross-session take-over (target が hook の current session と異なる) 時は、
+   * hook の payload / sequence / lastSeqRef を target session のものに切り替える。
+   * 切替えないと editor が古い session の payload を表示し続ける。
    */
   const takeOver = useCallback(async (targetEditSessionId?: string) => {
     setError(null);
@@ -397,6 +413,19 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
         toSessionId: "", // server 側が clientId を使うため空で良い (handler 実装上、fromSessionId は clientId から自動判定)
       });
       setMyRole("Edit");
+
+      // Should-fix (#909): cross-session take-over 時は target session の payload + sequence を fetch して
+      // hook の state を target session のものに切り替える。同 session 内の take-over は broadcast 経由で
+      // payload が同期済みなので fetch 不要。
+      const isCrossSession = !es || es.id !== editSessionId;
+      if (isCrossSession) {
+        const fetchResult = await mcpBridge.request("editSession.fetchPayload", {
+          editSessionId,
+        }) as { payload: unknown; sequence: number };
+        setPayload(fetchResult.payload);
+        lastSeqRef.current = fetchResult.sequence ?? 0;
+      }
+
       await refreshEditSessionState(editSessionId);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
@@ -482,6 +511,65 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
       return { conflicted: false, failed: true };
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  /**
+   * P2 fix (#912): 2 段階保存の前段 — conflict check のみ。
+   * 衝突検出時は saveConflict state にセットして { conflicted: true } を返す。
+   *
+   * 注意: hook の `loading` 状態はトグルしない (#916 review Should-fix)。
+   * 本メソッドは saveCheckConflict → persistProject → saveCommit の 3 段で必ずペア使用される
+   * 設計のため、独立してローディング状態を上書きすると persistProject 中に sessionLoading=false に
+   * 落ちる「チカチカ」が発生する。caller (FlowEditor) が独自の `isSaving` で 3 段全体をラップする。
+   */
+  const saveCheckConflict = useCallback(async (): Promise<{ conflicted: boolean; failed?: boolean }> => {
+    setError(null);
+    const es = editSessionRef.current;
+    if (!es) {
+      setError(new Error("EditSession がアクティブでありません"));
+      return { conflicted: false };
+    }
+    try {
+      const res = await mcpBridge.request("editSession.save", {
+        editSessionId: es.id,
+        stage: "checkOnly",
+      }) as { ok?: boolean; conflict?: { other: SaveConflictInfo } } | undefined;
+      if (res && res.ok === false && res.conflict) {
+        setSaveConflict(res.conflict.other);
+        return { conflicted: true };
+      }
+      return { conflicted: false };
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return { conflicted: false, failed: true };
+    }
+  }, []);
+
+  /**
+   * P2 fix (#912): 2 段階保存の後段 — saveHistory 記録 + broadcast。conflict check skip。
+   * checkOnly 後の本体書き込み成功後に呼ぶ。
+   *
+   * 注意: hook の `loading` 状態はトグルしない (saveCheckConflict と同理由、#916 review Should-fix)。
+   */
+  const saveCommit = useCallback(async (): Promise<{ failed?: boolean }> => {
+    setError(null);
+    const es = editSessionRef.current;
+    if (!es) {
+      setError(new Error("EditSession がアクティブでありません"));
+      return { failed: true };
+    }
+    try {
+      await mcpBridge.request("editSession.save", {
+        editSessionId: es.id,
+        stage: "commit",
+      });
+      // saveConflict は overwrite path 経由の場合に残っている可能性があるため明示的にクリア。
+      setSaveConflict(null);
+      return {};
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return { failed: true };
     }
   }, []);
 
@@ -589,6 +677,8 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     takeOver,
     releaseEdit,
     save,
+    saveCheckConflict,
+    saveCommit,
     discard,
     detach,
     mode,

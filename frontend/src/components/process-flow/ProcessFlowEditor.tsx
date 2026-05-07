@@ -764,7 +764,14 @@ export function ProcessFlowEditor() {
       {saveConflict && (
         <SaveConflictDialog
           conflict={saveConflict}
-          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onOverwrite={async () => {
+            try {
+              await onSaveConflictOverwrite();
+              await hookPostSave();
+            } catch (e) {
+              console.error("[ProcessFlowEditor] save overwrite failed:", e);
+            }
+          }}
           onCancel={onSaveConflictCancel}
         />
       )}
