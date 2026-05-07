@@ -173,14 +173,17 @@ export function DraftHistoryModal({
 
   // ── 復元 ─────────────────────────────────────────────────────────────────────
   const handleRestore = useCallback(
-    async (historyId: string) => {
+    async (entry: DraftHistoryEntry) => {
       if (!window.confirm("このスナップショットから新規 EditSession を作成して復元しますか?")) {
         return;
       }
-      setRestoring(historyId);
+      setRestoring(entry.historyId);
       try {
+        // ownerLabel を displayLabel として渡し、復元後の EditSession owner 表示を継承する
+        const displayLabel = entry.ownerLabel || `restored-${entry.editSessionId.slice(0, 8)}`;
         const result = await mcpBridge.request("editSession.restoreFromHistory", {
-          historyId,
+          historyId: entry.historyId,
+          displayLabel,
         }) as { editSession: { id: string } };
         const newEditSessionId = result.editSession?.id;
         if (!newEditSessionId) throw new Error("editSession.id が返りませんでした");
@@ -284,7 +287,7 @@ export function DraftHistoryModal({
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-primary flex-shrink-0"
-                      onClick={() => void handleRestore(entry.historyId)}
+                      onClick={() => void handleRestore(entry)}
                       disabled={restoring !== null}
                       title="このスナップショットから復元"
                       data-testid={`draft-history-restore-btn-${entry.historyId}`}

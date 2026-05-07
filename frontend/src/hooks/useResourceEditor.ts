@@ -40,7 +40,7 @@ export interface UseResourceEditorOptions<T> {
    * #891 fix: EditMode の kind 文字列を直接受け入れるよう拡張。
    * "viewer" のみ broadcast 受信が有効、それ以外は early-return するため副作用なし。
    */
-  viewerMode?: "viewer" | "editor" | "editing" | "readonly" | "locked-by-other" | "force-released-pending" | "after-force-unlock";
+  viewerMode?: "viewer" | "editing" | "readonly";
   /** viewer mode の draft-update / editSession.update フィルタ用 resourceType */
   viewerResourceType?: DraftResourceType;
   /**

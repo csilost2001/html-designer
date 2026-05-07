@@ -465,7 +465,8 @@ export function ScreenItemsView() {
     broadcastIdField: "screenId",
     onNotFound: () => navigate(wsPath("/screen/list"), { replace: true }),
     // #891 fix: viewer mode で mid-edit broadcast を受信するため渡す
-    viewerMode: mode.kind,
+    // 新 API では "viewer" | "editing" | "readonly" の 3 値のみ返す (legacy 値は発生しない)
+    viewerMode: mode.kind as "viewer" | "editing" | "readonly",
     viewerResourceType: "screen-item",
     viewerEditSessionId: editSession?.id,
   });
