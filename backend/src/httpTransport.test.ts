@@ -124,16 +124,53 @@ describe("backend HTTP transport (#302)", () => {
   }, 30000);
 
   afterAll(async () => {
+    // shell:true で cmd.exe / sh 経由のため、server.kill("SIGTERM") は親 shell しか
+    // 殺さず孫の node.js が orphan になってポートを占有し続ける。
+    // OS 別に process tree を強制終了し、最後にポート占有プロセスを掃除する (#905 fix)。
+    const { execSync } = await import("node:child_process");
+
     if (server && server.pid) {
-      // Windows: shell:true で cmd.exe 経由の場合、process tree ごと強制終了する。
-      // server.kill("SIGTERM") は cmd.exe しか殺さず node.js が orphan になってポートを占有し続けるため
-      // taskkill /F /T で子孫まで含めてまとめて終了する (#700 R-2 test fix)
       try {
-        const { execSync } = await import("node:child_process");
-        execSync(`taskkill /F /T /PID ${server.pid}`, { stdio: "ignore" });
+        if (process.platform === "win32") {
+          execSync(`taskkill /F /T /PID ${server.pid}`, { stdio: "ignore" });
+        } else {
+          // Linux / macOS / WSL2: 自身 + 子孫を強制終了
+          try {
+            execSync(`pkill -9 -P ${server.pid}`, { stdio: "ignore" });
+          } catch { /* no children */ }
+          try {
+            execSync(`kill -9 ${server.pid}`, { stdio: "ignore" });
+          } catch { /* already exited */ }
+        }
       } catch { /* ignore — already exited */ }
     }
-    // Windows ではポート解放に時間がかかることがある
+
+    // 残存したポート占有プロセスを sweep する fallback (#905):
+    // shell:true 経由で起動した tsx 孫プロセスが上記 kill で取り切れなかった場合の
+    // 最後の砦。次回起動時の killStaleProcessOnPort が同じことをするが、ここで掃除して
+    // おくことで test 間の冪等性を担保する。
+    try {
+      if (process.platform === "win32") {
+        const out = execSync(`netstat -ano -p tcp | findstr LISTENING | findstr :${TEST_PORT}`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+        const pids = new Set<string>();
+        for (const line of out.split(/\r?\n/)) {
+          const m = line.match(/\s(\d+)\s*$/);
+          if (m) pids.add(m[1]);
+        }
+        for (const pid of pids) {
+          try { execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" }); } catch { /* ignore */ }
+        }
+      } else {
+        const out = execSync(`lsof -ti tcp:${TEST_PORT} -sTCP:LISTEN`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+        for (const pid of out.split(/\s+/)) {
+          if (pid) {
+            try { execSync(`kill -9 ${pid}`, { stdio: "ignore" }); } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch { /* lsof / netstat exit 1 = no listener: 正常 */ }
+
+    // ポート解放を待つ
     await delay(500);
     // #758: fixture workspace の cleanup
     if (tempFixtureDir) {
