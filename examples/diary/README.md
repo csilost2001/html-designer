@@ -33,7 +33,7 @@ examples/diary/
     ├── process-flows/           # 9 ProcessFlow (CRUD 5 + AI 4)
     ├── screens/                 # 5 screens (.json + .design.json)
     ├── conventions/
-    │   └── catalog.json         # i18n / regex / limits / AI 設定 / messages
+    │   └── catalog.json         # i18n / regex / limit / msg (メッセージ / 境界値 等)
     ├── views/
     ├── view-definitions/
     ├── sequences/

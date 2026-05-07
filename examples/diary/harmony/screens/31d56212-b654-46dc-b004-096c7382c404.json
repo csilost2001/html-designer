@@ -52,7 +52,7 @@
             { "name": "id", "type": "integer", "required": true },
             { "name": "title", "type": "string", "required": true },
             { "name": "summary", "type": "string" },
-            { "name": "heroImageUrl", "type": "string" },
+            { "name": "thumbnailUrl", "type": "string" },
             { "name": "mood", "type": "string" },
             { "name": "weather", "type": "string" },
             { "name": "location", "type": "string" },
@@ -77,11 +77,11 @@
         }
       },
       "direction": "output",
-      "description": "投稿検索フローから返却された投稿オブジェクト配列。id / title / summary / heroImageUrl / mood / weather / location / tags / status / publishedAt を含む。",
+      "description": "投稿検索フローから返却された投稿オブジェクト配列。id / title / summary / thumbnailUrl / mood / weather / location / tags / status / publishedAt を含む。",
       "valueFrom": {
         "kind": "flowVariable",
         "processFlowId": "e6f7a8b9-c0d1-4e2f-8a3b-4c5d6e7f8a9b",
-        "variableName": "posts"
+        "variableName": "items"
       }
     },
     {
@@ -112,7 +112,7 @@
       "valueFrom": {
         "kind": "flowVariable",
         "processFlowId": "e6f7a8b9-c0d1-4e2f-8a3b-4c5d6e7f8a9b",
-        "variableName": "totalCount"
+        "variableName": "total"
       }
     }
   ],

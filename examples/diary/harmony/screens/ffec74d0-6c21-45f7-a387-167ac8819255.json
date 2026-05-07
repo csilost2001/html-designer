@@ -152,13 +152,13 @@
           "fields": [
             { "name": "id", "type": "integer", "required": true },
             { "name": "url", "type": "string", "required": true },
-            { "name": "altText", "type": "string" },
-            { "name": "order", "type": "integer" }
+            { "name": "alt", "type": "string" },
+            { "name": "orderIndex", "type": "integer" }
           ]
         }
       },
       "direction": "output",
-      "description": "この投稿に添付された写真配列 (id / url / altText / order を含む)。lightbox 対応。",
+      "description": "この投稿に添付された写真配列 (id / url / alt / orderIndex を含む)。lightbox 対応。",
       "valueFrom": {
         "kind": "flowVariable",
         "processFlowId": "d5e6f7a8-b9c0-4d1e-8f2a-3b4c5d6e7f8a",
