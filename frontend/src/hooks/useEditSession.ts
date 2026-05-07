@@ -102,7 +102,7 @@ export interface UseEditSessionResult {
    * P1 fix (#908): conflict 時は { conflicted: true } を返す。
    * 呼び出し元は conflicted === true なら postSave / cleanup をスキップすること。
    */
-  save(): Promise<{ conflicted: boolean }>;
+  save(): Promise<{ conflicted: boolean; failed?: boolean }>;
   discard(): Promise<void>;
   detach(): Promise<void>;
   /**
@@ -150,7 +150,7 @@ export interface EditSessionActions {
    * P1 fix (#908): conflict 時は { conflicted: true } を返す。
    * 呼び出し元は conflicted === true なら postSave / cleanup をスキップすること。
    */
-  save(): Promise<{ conflicted: boolean }>;
+  save(): Promise<{ conflicted: boolean; failed?: boolean }>;
   discard(): Promise<void>;
   /** 旧 lock model の強制解除。新 API では editSession.detach に相当 (forced=true 相当) */
   forceReleaseOther(): Promise<void>;
@@ -454,7 +454,7 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     }
   }, []);
 
-  const save = useCallback(async (): Promise<{ conflicted: boolean }> => {
+  const save = useCallback(async (): Promise<{ conflicted: boolean; failed?: boolean }> => {
     setError(null);
     const es = editSessionRef.current;
     if (!es) {
@@ -475,8 +475,11 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
       // saveHistory は broadcast editSession.saved で refreshEditSessionState が呼ばれる
       return { conflicted: false };
     } catch (e) {
+      // P2 fix (#908 round-6): backend reject (transient failure) を caller に signal で伝播。
+      // throw だと React onClick の async handler で unhandled rejection になるため、
+      // 戻り値の failed フラグで明示。caller は (conflicted || failed) なら postSave skip。
       setError(e instanceof Error ? e : new Error(String(e)));
-      return { conflicted: false };
+      return { conflicted: false, failed: true };
     } finally {
       setLoading(false);
     }

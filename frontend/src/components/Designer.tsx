@@ -191,6 +191,10 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       setEditorKindResolved(true);
     }).catch((e) => {
       console.warn("[Designer] cssFramework/editorKind resolve failed, using defaults", e);
+      // P2 fix (#908 round-6): metadata load 失敗時も defaults でレンダリングするので resolved にする。
+      // 設定しないと editorKindResolved が永遠 false で handleStartEditing が silent no-op、
+      // fallback 経路で編集ボタンが効かなくなる。
+      if (!cancelled) setEditorKindResolved(true);
     });
     return () => { cancelled = true; };
   }, [screenId]);
@@ -351,7 +355,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         }
         // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
         const puckSaveResult = await editActions.save();
-        if (puckSaveResult.conflicted) return;
+        if (puckSaveResult.conflicted || puckSaveResult.failed) return;
       } else {
         // GrapesJS 画面: 保留中の debounce timer があれば即時 flush してから EditSession.save
         if (draftUpdateTimer.current) {
@@ -364,7 +368,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         }
         // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
         const grapesJsSaveResult = await editActions.save();
-        if (grapesJsSaveResult.conflicted) return;
+        if (grapesJsSaveResult.conflicted || grapesJsSaveResult.failed) return;
       }
       setIsDirtyState(false);
       isDirtyRef.current = false;

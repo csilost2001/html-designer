@@ -342,8 +342,8 @@ export function ProcessFlowEditor() {
       await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: groupRef.current });
     }
     // P1 fix (#908): conflict 時は hookPostSave をスキップして clean 化を防ぐ。
-    const { conflicted } = await editActions.save();
-    if (conflicted) return;
+    const { conflicted, failed } = await editActions.save();
+    if (conflicted || failed) return;
     await hookPostSave();
   }, [group, isReadonly, hookPostSave, tableDefs, conventions, extensions, editActions, editSession]);
 

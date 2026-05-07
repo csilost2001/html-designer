@@ -123,8 +123,8 @@ export function TableEditor() {
       await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: tableRef.current });
     }
     // P1 fix (#908): conflict 時は postSave をスキップして clean 化を防ぐ。
-    const { conflicted } = await actions.save();
-    if (conflicted) return;
+    const { conflicted, failed } = await actions.save();
+    if (conflicted || failed) return;
     await postSave();
   }, [isReadonly, isSaving, actions, postSave, editSession]);
 

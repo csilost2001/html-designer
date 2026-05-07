@@ -783,8 +783,8 @@ function FlowEditorInner() {
     setIsSaving(true);
     try {
       // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
-      const { conflicted } = await actions.save();
-      if (conflicted) return;
+      const { conflicted, failed } = await actions.save();
+      if (conflicted || failed) return;
       await persistProject(projectRef.current);
       setIsDirty(false);
       isDirtyRef.current = false;
@@ -1073,7 +1073,22 @@ function FlowEditorInner() {
       {saveConflict && (
         <SaveConflictDialog
           conflict={saveConflict}
-          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onOverwrite={async () => {
+            // P1 fix (#908 round-6): backend editSession.save は flow を write skip するため、
+            // 上書き確認後に frontend で persistProject による本体書き込みを実行する。
+            try {
+              await onSaveConflictOverwrite();
+              if (projectRef.current) {
+                await persistProject(projectRef.current);
+                setIsDirty(false);
+                isDirtyRef.current = false;
+                dismissServerBanner();
+                await acknowledgeServerMtime("project");
+              }
+            } catch (e) {
+              console.error("[FlowEditor] save overwrite failed:", e);
+            }
+          }}
           onCancel={onSaveConflictCancel}
         />
       )}
