@@ -226,6 +226,23 @@ export function ProcessFlowEditor() {
       .catch(() => setExtensions(undefined));
   }, []);
 
+  const sessionId = mcpBridge.getSessionId();
+
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialProcessFlowSessionId } = useSessionUrlSync({
+    resourceType: "process-flow",
+    resourceId: processFlowId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, takeOver: editTakeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+    resourceType: "process-flow",
+    resourceId: processFlowId ?? "",
+    sessionId,
+    editSessionId: initialProcessFlowSessionId,
+  });
+
   const {
     state: group,
     isDirty, isSaving, serverChanged,
@@ -246,22 +263,10 @@ export function ProcessFlowEditor() {
     broadcastIdField: "id",
     onNotFound: handleNotFound,
     onLoaded: handleLoaded,
-  });
-
-  const sessionId = mcpBridge.getSessionId();
-
-  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
-  const { syncSessionToUrl, initialEditSessionId: initialProcessFlowSessionId } = useSessionUrlSync({
-    resourceType: "process-flow",
-    resourceId: processFlowId ?? "",
-  });
-
-  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, takeOver: editTakeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
-    resourceType: "process-flow",
-    resourceId: processFlowId ?? "",
-    sessionId,
-    editSessionId: initialProcessFlowSessionId,
+    // #891 fix: viewer mode で mid-edit broadcast を受信するため渡す
+    viewerMode: mode.kind,
+    viewerResourceType: "process-flow",
+    viewerEditSessionId: editSession?.id,
   });
 
   const isReadonly = mode.kind !== "editing";

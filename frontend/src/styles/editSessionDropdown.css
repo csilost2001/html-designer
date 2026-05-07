@@ -34,11 +34,12 @@
 }
 
 /* ── ドロップダウン本体 ───────────────────────────────────────────────────────── */
+/* z-index 階層: dropdown (1040) < edit-mode-modal-backdrop (1050) < overlay ダイアログ (1055) */
 .esd-dropdown {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: 1000;
+  z-index: 1040;
   min-width: 280px;
   max-width: 400px;
   background: #fff;

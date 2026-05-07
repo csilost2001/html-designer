@@ -36,8 +36,11 @@ export interface UseResourceEditorOptions<T> {
    * #880 Phase 3: viewer mode で broadcast を受信して state を更新する。
    * "viewer" を指定すると read-only で editor の中間状態を追従する。
    * resourceType は draft-update / editSession.update フィルタに使用 (id と組み合わせて絞り込む)。
+   *
+   * #891 fix: EditMode の kind 文字列を直接受け入れるよう拡張。
+   * "viewer" のみ broadcast 受信が有効、それ以外は early-return するため副作用なし。
    */
-  viewerMode?: "viewer" | "editor" | "readonly";
+  viewerMode?: "viewer" | "editing" | "readonly";
   /** viewer mode の draft-update / editSession.update フィルタ用 resourceType */
   viewerResourceType?: DraftResourceType;
   /**

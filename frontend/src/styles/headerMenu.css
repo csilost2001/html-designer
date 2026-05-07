@@ -32,7 +32,7 @@
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  z-index: 1000;
+  z-index: 1040; /* dropdown 層 (esd-dropdown と同層) */
   min-width: 200px;
   background: #27293a;
   border: 1px solid #3b3e55;

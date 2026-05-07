@@ -54,6 +54,21 @@ export function SequenceEditor() {
 
   const sessionId = mcpBridge.getSessionId();
 
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialSequenceSessionId } = useSessionUrlSync({
+    resourceType: "sequence",
+    resourceId: sequenceId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+    resourceType: "sequence",
+    resourceId: sequenceId ?? "",
+    sessionId,
+    editSessionId: initialSequenceSessionId,
+  });
+
   const {
     state: seq,
     isDirty, isSaving, serverChanged,
@@ -69,20 +84,11 @@ export function SequenceEditor() {
     broadcastName: "sequenceChanged",
     broadcastIdField: "sequenceId",
     onNotFound: handleNotFound,
-  });
-
-  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
-  const { syncSessionToUrl, initialEditSessionId: initialSequenceSessionId } = useSessionUrlSync({
-    resourceType: "sequence",
-    resourceId: sequenceId ?? "",
-  });
-
-  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
-    resourceType: "sequence",
-    resourceId: sequenceId ?? "",
-    sessionId,
-    editSessionId: initialSequenceSessionId,
+    // #891 fix: viewer mode で mid-edit broadcast を受信するため渡す
+    // 新 API では "viewer" | "editing" | "readonly" の 3 値のみ返す (legacy 値は発生しない)
+    viewerMode: mode.kind as "viewer" | "editing" | "readonly",
+    viewerResourceType: "sequence",
+    viewerEditSessionId: editSession?.id,
   });
 
   const isReadonly = mode.kind !== "editing";

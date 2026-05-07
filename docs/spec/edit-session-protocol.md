@@ -589,6 +589,26 @@ Active EditSession の中間状態は in-memory のみ。crash 時:
 
 → Phase 2 以降の最適化対象。Phase 1 では crash 時消失を許容。
 
+### 13.6 history snapshot 永続化パス
+
+draft history snapshot は以下のパスに保存する:
+
+```
+<workspaceRoot>/.edit-sessions-history/<resourceType>/<resourceId>/<historyId>.json
+```
+
+`historyId` の形式は `<timestamp-safe>--<sessionIdPrefix>-<rand>` である。
+`timestamp-safe` は ISO8601 タイムスタンプのコロン `:` を `-` に置換したもの (Windows ファイル名互換)。
+二重ハイフン `--` を区切り文字として timestamp 部と sessionId prefix 部の境界を明示する。
+
+例: `2026-05-07T18-30-00.000Z--es01hxabc-f3a9.json`
+
+snapshot 取得契機は EditSession の `discard` / `transferEdit` / `save` 時。fire-and-forget で記録され、本処理を阻害しない。
+
+7 日経過した snapshot は `cleanupExpired({ olderThanDays: 7 })` で自動削除される。削除は `setInterval` 1 時間周期の cleanup に組み込む (§ 12.4 参照)。
+
+なお `.edit-sessions-history/` は § 13.4 表の `.edit-sessions/` (EditSession 本体 history FS) とは別ディレクトリである。前者は **payload snapshot** の保持、後者は **EditSession 自体 (metadata + saveHistory)** の保持と責務が分かれる。
+
 ---
 
 ## 14. broadcast プロトコル

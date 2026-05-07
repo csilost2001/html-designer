@@ -118,6 +118,13 @@ export function ConventionsCatalogView() {
 
   const sessionId = mcpBridge.getSessionId();
 
+  // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+    resourceType: "convention",
+    resourceId: "singleton",
+    sessionId,
+  });
+
   const {
     state: catalog,
     isDirty, isSaving, serverChanged,
@@ -134,12 +141,11 @@ export function ConventionsCatalogView() {
     load: loadCatalog,
     save: saveCatalog,
     broadcastName: "conventionsChanged",
-  });
-
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
-    resourceType: "convention",
-    resourceId: "singleton",
-    sessionId,
+    // #891 fix: viewer mode で mid-edit broadcast を受信するため渡す
+    // 新 API では "viewer" | "editing" | "readonly" の 3 値のみ返す (legacy 値は発生しない)
+    viewerMode: mode.kind as "viewer" | "editing" | "readonly",
+    viewerResourceType: "convention",
+    viewerEditSessionId: editSession?.id,
   });
 
   const isReadonly = mode.kind !== "editing";
