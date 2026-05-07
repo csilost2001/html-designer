@@ -57,7 +57,7 @@ export function SequenceEditor() {
   const {
     state: seq,
     isDirty, isSaving, serverChanged,
-    update, handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    update, postSave, handleReset, dismissServerBanner,
     reload,
   } = useResourceEditor<Sequence>({
     tabType: "sequence",
@@ -78,7 +78,7 @@ export function SequenceEditor() {
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "sequence",
     resourceId: sequenceId ?? "",
     sessionId,
@@ -106,9 +106,10 @@ export function SequenceEditor() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
-    await resourceHandleSave();
+    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+    await postSave();
+  }, [isReadonly, isSaving, actions, postSave]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -293,6 +294,7 @@ export function SequenceEditor() {
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
             onViewerAttached={syncSessionToUrl}
+            onTakeOver={takeOver}
           />
         }
         saveReset={isReadonly ? undefined : {

@@ -233,7 +233,7 @@ export function ProcessFlowEditor() {
     updateSilent: updateGroupSilent,
     commit: commitGroup,
     undo, redo, canUndo, canRedo,
-    handleSave: hookHandleSave,
+    postSave: hookPostSave,
     handleReset, dismissServerBanner,
   } = useResourceEditor<ProcessFlow>({
     tabType: "process-flow",
@@ -257,7 +257,7 @@ export function ProcessFlowEditor() {
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, takeOver: editTakeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "process-flow",
     resourceId: processFlowId ?? "",
     sessionId,
@@ -333,9 +333,10 @@ export function ProcessFlowEditor() {
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
     if (!group || isReadonly || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions }))) return;
-    await hookHandleSave();
+    // P1-B fix (#908): conflict check (editActions.save) を本体書き込みより先に実行する。
     await editActions.save();
-  }, [group, isReadonly, hookHandleSave, tableDefs, conventions, extensions, editActions]);
+    await hookPostSave();
+  }, [group, isReadonly, hookPostSave, tableDefs, conventions, extensions, editActions]);
 
   // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
   const sensors = useSensors(
@@ -789,6 +790,7 @@ export function ProcessFlowEditor() {
               currentSessionId={sessionId}
               onStartEditing={() => { void editActions.startEditing(); }}
               onViewerAttached={syncSessionToUrl}
+              onTakeOver={editTakeOver}
             />
             <button
               type="button"

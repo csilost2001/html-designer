@@ -65,7 +65,7 @@ export function TableEditor() {
     state: table,
     isDirty, isSaving, serverChanged,
     update, undo, redo, canUndo, canRedo,
-    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    postSave, handleReset, dismissServerBanner,
     reload,
   } = useResourceEditor<Table>({
     tabType: "table",
@@ -86,7 +86,7 @@ export function TableEditor() {
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "table",
     resourceId: tableId ?? "",
     sessionId,
@@ -114,9 +114,12 @@ export function TableEditor() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
-    await resourceHandleSave();
+    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
+    // editSession.save が conflict なしと判断してから backend が本体ファイルを書き込む。
+    // postSave は frontend dirty クリア + mtime ack のみ (ファイル書き込みなし)。
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+    await postSave();
+  }, [isReadonly, isSaving, actions, postSave]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -281,6 +284,7 @@ export function TableEditor() {
               currentSessionId={sessionId}
               onStartEditing={() => { void actions.startEditing(); }}
               onViewerAttached={syncSessionToUrl}
+              onTakeOver={takeOver}
             />
             <button
               className="editor-header-undo-btn"

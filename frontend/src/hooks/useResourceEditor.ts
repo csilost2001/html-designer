@@ -68,6 +68,13 @@ export interface UseResourceEditorResult<T> {
 
   /** 保存実行（clean 化 + mtime ack）*/
   handleSave: () => Promise<void>;
+  /**
+   * P1-B fix (#908): conflict check 後の後処理のみ実行（ファイル書き込みなし）。
+   * editSession.save がファイル書き込みを担う場合に使う。
+   * markClean() + acknowledgeServerMtime() + setServerChanged(false) + setIsSaving 管理を行う。
+   * 呼び出し側は事前に editSession.update (debounce flush) と actions.save() (conflict check) を完了させること。
+   */
+  postSave: () => Promise<void>;
   /** リセット実行（draft 破棄 + backend 再ロード + undo クリア）*/
   handleReset: () => Promise<void>;
   /** バナーのみ閉じる（state は変えない）*/
@@ -189,6 +196,26 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
     }
   }, [state, id, save, markClean, mtimeKind]);
 
+  /**
+   * P1-B fix (#908): ファイル書き込みなしで後処理のみ実行。
+   * editSession.save (conflict check + backend 書き込み) の後に呼ぶ。
+   * - markClean(): draft クリア + isDirty → false + tabDirty → false
+   * - acknowledgeServerMtime(): mtime を記録
+   * - setServerChanged(false): サーバ変更バナーを閉じる
+   * - isSaving の管理: setIsSaving(true/false) でラップ
+   */
+  const postSave = useCallback(async () => {
+    if (!id) return;
+    setIsSaving(true);
+    try {
+      markClean();
+      await acknowledgeServerMtime(mtimeKind, id);
+      setServerChanged(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [id, markClean, mtimeKind]);
+
   const handleReset = useCallback(async () => {
     if (!id) return;
     clearDraft(draftKind, id);
@@ -305,6 +332,7 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
     canUndo,
     canRedo,
     handleSave,
+    postSave,
     handleReset,
     dismissServerBanner,
     reload,

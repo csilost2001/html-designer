@@ -55,7 +55,7 @@ export function ViewEditor() {
   const {
     state: view,
     isDirty, isSaving, serverChanged,
-    update, updateSilent, commit, handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    update, updateSilent, commit, postSave, handleReset, dismissServerBanner,
     reload,
   } = useResourceEditor<View>({
     tabType: "view",
@@ -104,9 +104,10 @@ export function ViewEditor() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
-    await resourceHandleSave();
+    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+    await postSave();
+  }, [isReadonly, isSaving, actions, postSave]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);

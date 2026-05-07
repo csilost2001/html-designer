@@ -437,7 +437,7 @@ export function ScreenItemsView() {
     isDirty, isSaving, serverChanged,
     update, updateSilent, commit,
     undo, redo, canUndo, canRedo,
-    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    postSave, handleReset, dismissServerBanner,
     reload,
   } = useResourceEditor<ScreenItemsDocument>({
     tabType: "screen-items",
@@ -458,7 +458,7 @@ export function ScreenItemsView() {
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "screen-item",
     resourceId: screenId ?? "",
     sessionId,
@@ -506,9 +506,10 @@ export function ScreenItemsView() {
     if (screenId && fileRef.current && editSession?.id) {
       await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current });
     }
-    await resourceHandleSave();
+    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions, screenId, editSession]);
+    await postSave();
+  }, [isReadonly, isSaving, actions, postSave, screenId, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -988,6 +989,7 @@ export function ScreenItemsView() {
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
             onViewerAttached={syncSessionToUrl}
+            onTakeOver={takeOver}
           />
         }
         saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: () => setShowDiscardDialog(true) }}

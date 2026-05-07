@@ -112,15 +112,22 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
 
   // useEditSession — TableEditor:77 と同型
   const sessionId = mcpBridge.getSessionId();
+
+  // P1-A fix (#908): editorKind が "puck" の場合は resourceType を "puck-data" にする。
+  // editorKind 解決は非同期 (useEffect) のため、解決前は "screen" を仮置きし、
+  // 解決後に正しい type を反映する。
+  // useEditSession の resourceType が変わると EditSession が再初期化される (= 正しい挙動)。
+  const [resolvedEditSessionResourceType, setResolvedEditSessionResourceType] = useState<"screen" | "puck-data">("screen");
+
   // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
   const { syncSessionToUrl, initialEditSessionId: initialDesignSessionId } = useSessionUrlSync({
-    resourceType: "screen",
+    resourceType: resolvedEditSessionResourceType,
     resourceId: screenId,
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
   const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
-    resourceType: "screen",
+    resourceType: resolvedEditSessionResourceType,
     resourceId: screenId,
     sessionId,
     editSessionId: initialDesignSessionId,
@@ -160,6 +167,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   //   1. screen.design.* (画面個別指定)
   //   2. project.techStack.designer.* (project default)
   //   3. "bootstrap" / "grapesjs" (最終 default)
+  // P1-A fix (#908): editorKind が決まったら resolvedEditSessionResourceType を更新する。
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -172,6 +180,8 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       cssFrameworkRef.current = fw;
       const ek = resolveEditorKind(screen.design, raw.techStack);
       setEditorKind(ek);
+      // P1-A: Puck 画面の editSession は "puck-data" branch を通すよう resourceType を更新する
+      setResolvedEditSessionResourceType(ek === "puck" ? "puck-data" : "screen");
     }).catch((e) => {
       console.warn("[Designer] cssFramework/editorKind resolve failed, using defaults", e);
     });

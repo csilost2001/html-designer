@@ -260,3 +260,50 @@ describe("useResourceEditor: broadcast", () => {
     expect(hook.result.current.serverChanged).toBe(false);
   });
 });
+
+// ── postSave (#908 P1-B fix) ─────────────────────────────────────────────────
+
+describe("useResourceEditor: postSave (#908 P1-B fix)", () => {
+  it("postSave: save 関数を呼ばずに isDirty=false・draft 削除・タブ clean になる", async () => {
+    const save = vi.fn(async () => { /* ok */ });
+    const { hook } = setup({ save });
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "changed"; }));
+    expect(hook.result.current.isDirty).toBe(true);
+
+    // postSave は save() を呼ばない (editSession.save が backend 側で書き込みを担う)
+    await act(async () => { await hook.result.current.postSave(); });
+
+    expect(save).not.toHaveBeenCalled(); // save 関数は呼ばれない
+    expect(hook.result.current.isDirty).toBe(false);
+    expect(hasDraft("table", "abc")).toBe(false);
+    expect(getTabs().find((t) => t.id === makeTabId("table", "abc"))?.isDirty).toBe(false);
+  });
+
+  it("postSave: isSaving は true → false と変化する", async () => {
+    const { hook } = setup();
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "changed"; }));
+
+    // postSave 後は isSaving が false に戻る
+    await act(async () => { await hook.result.current.postSave(); });
+    expect(hook.result.current.isSaving).toBe(false);
+  });
+
+  it("postSave: handleSave との違い — handleSave は save() を呼ぶが postSave は呼ばない", async () => {
+    const save = vi.fn(async () => { /* ok */ });
+    const { hook } = setup({ save });
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "v1"; }));
+
+    // handleSave は save() を呼ぶ
+    await act(async () => { await hook.result.current.handleSave(); });
+    expect(save).toHaveBeenCalledTimes(1);
+
+    // postSave は save() を呼ばない
+    act(() => hook.result.current.update((d) => { d.name = "v2"; }));
+    await act(async () => { await hook.result.current.postSave(); });
+    expect(save).toHaveBeenCalledTimes(1); // 変わらず 1 回のまま
+    expect(hook.result.current.isDirty).toBe(false);
+  });
+});
