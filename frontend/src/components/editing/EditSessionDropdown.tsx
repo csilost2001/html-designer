@@ -31,11 +31,12 @@ export interface EditSessionDropdownProps {
   /** 新規 draft 作成 (startEditing 相当) */
   onStartEditing?: () => void;
   /**
-   * P2 fix (#908): take-over callback — useEditSession.takeOver() を呼ぶ。
+   * P2 fix (#908): take-over callback — useEditSession.takeOver(editSessionId) を呼ぶ。
+   * editSessionId には選択した EditSession の ID が渡される。
    * 省略時は内部で mcpBridge.request("editSession.transferEdit") を直接呼ぶ (非推奨 fallback)。
    * myRole の即時反映には onTakeOver の指定が必須。
    */
-  onTakeOver?: () => Promise<void>;
+  onTakeOver?: (editSessionId: string) => Promise<void>;
 }
 
 // ── 相対時間 ─────────────────────────────────────────────────────────────────
@@ -282,8 +283,9 @@ export function EditSessionDropdown({
       if (!confirmed) return;
       try {
         if (onTakeOver) {
-          // P2 fix (#908): useEditSession.takeOver() 経由で実行し myRole を即時更新する
-          await onTakeOver();
+          // P2 fix (#908): useEditSession.takeOver(editSessionId) 経由で実行し、
+          // 選択した session に対して take-over を実行する。myRole も即時更新される。
+          await onTakeOver(editSessionId);
         } else {
           // fallback: onTakeOver が指定されていない場合は直接 transferEdit を呼ぶ
           // (myRole は broadcast 経由でのみ更新されるため遅延する可能性あり)

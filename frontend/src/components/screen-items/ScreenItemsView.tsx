@@ -506,8 +506,9 @@ export function ScreenItemsView() {
     if (screenId && fileRef.current && editSession?.id) {
       await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current });
     }
-    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
-    await actions.save();
+    // P1 fix (#908): conflict 時は postSave をスキップして clean 化を防ぐ。
+    const { conflicted } = await actions.save();
+    if (conflicted) return;
     await postSave();
   }, [isReadonly, isSaving, actions, postSave, screenId, editSession]);
 

@@ -782,9 +782,9 @@ function FlowEditorInner() {
     }
     setIsSaving(true);
     try {
-      // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
-      // editSession.save が conflict なしと判断してから persistProject でファイルを書き込む。
-      await actions.save();
+      // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
+      const { conflicted } = await actions.save();
+      if (conflicted) return;
       await persistProject(projectRef.current);
       setIsDirty(false);
       isDirtyRef.current = false;

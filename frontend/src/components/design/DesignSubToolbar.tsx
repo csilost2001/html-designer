@@ -80,11 +80,12 @@ interface Props {
   /** (#902 Phase 5) viewer として EditSession に attach した後の callback (URL 同期用) */
   onViewerAttached?: (editSessionId: string) => void;
   /**
-   * P2 fix (#908): take-over callback — useEditSession.takeOver() を呼ぶ。
+   * P2 fix (#908): take-over callback — useEditSession.takeOver(editSessionId) を呼ぶ。
+   * editSessionId には選択した EditSession の ID が渡される。
    * 省略時は EditSessionDropdown が内部 fallback を使う (myRole 即時更新なし)。
    * myRole の即時反映には onTakeOver の指定が必須。
    */
-  onTakeOver?: () => Promise<void>;
+  onTakeOver?: (editSessionId: string) => Promise<void>;
 }
 
 export function DesignSubToolbar({ panelMode, onOpenPanel, activeTheme, onThemeChange, mcpStatus, backLink, isDirty, isSaving, onSaveToFile, onReset, screenId, isReadonly, editor, sessionMode, sessionId, onStartEditing, onViewerAttached, onTakeOver }: Props) {

@@ -187,6 +187,79 @@ describe("useEditSession (新 API, spec §15.2)", () => {
     expect(result.current.myRole).toBe("Edit");
   });
 
+  // ── P2 fix (#908): takeOver(targetEditSessionId) — 指定した session に take-over ──
+
+  it("P2 (#908): takeOver(targetEditSessionId) — 指定した editSessionId で transferEdit を呼ぶ", async () => {
+    // startEditing で Edit 状態の session を作る (hook の current)
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.startEditing();
+    });
+
+    // 別 session (es-other-001) を takeOver する
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      from: { sessionId: "session-editor", role: "View" },
+      to: { sessionId: SESSION_ID, role: "Edit" },
+    });
+    // refreshEditSessionState
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessions: [{ ...MOCK_EDIT_SESSION, id: "es-other-001" }],
+    });
+
+    await act(async () => {
+      await result.current.takeOver("es-other-001");
+    });
+
+    // P2 fix: 指定した editSessionId で transferEdit が呼ばれること
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.transferEdit", expect.objectContaining({
+      editSessionId: "es-other-001",
+    }));
+    // myRole が Edit になること
+    expect(result.current.myRole).toBe("Edit");
+  });
+
+  it("P2 (#908): takeOver() 引数なし — hook の current editSession に対して transferEdit を呼ぶ", async () => {
+    // attach して View 状態を作る
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      participant: { sessionId: SESSION_ID, role: "View" },
+      payload: null,
+      sequence: 0,
+    });
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessions: [MOCK_EDIT_SESSION],
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.attach("es-test-001");
+    });
+
+    // takeOver() — 引数なし → hook の current session
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      from: { sessionId: "session-editor", role: "View" },
+      to: { sessionId: SESSION_ID, role: "Edit" },
+    });
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessions: [MOCK_EDIT_SESSION],
+    });
+
+    await act(async () => {
+      await result.current.takeOver();
+    });
+
+    // 引数なし時は hook の current editSession (es-test-001) に対して transferEdit
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.transferEdit", expect.objectContaining({
+      editSessionId: "es-test-001",
+    }));
+    expect(result.current.myRole).toBe("Edit");
+  });
+
   // ── ケース 4: releaseEdit → setRole("View") 呼び出し、myRole が Edit → View ──
 
   it("4. releaseEdit: editSession.setRole(View) を呼び myRole が View になる", async () => {
@@ -541,6 +614,70 @@ describe("useEditSession spec §9.3 last-save-wins 衝突解決", () => {
       editSessionId: "es-test-001",
       force: true,
     });
+  });
+
+  // ── P1 fix (#908): save が conflict 時に { conflicted: true } を返すことを確認 ──
+
+  it("P1 (#908): save が conflict 応答を受けた場合 { conflicted: true } を返す", async () => {
+    // startEditing
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.startEditing();
+    });
+
+    // save 応答で conflict を返す
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      conflict: { other: {
+        editSessionId: "es-other-001",
+        savedBy: "session-bob",
+        savedAt: new Date().toISOString(),
+        displayLabel: "@bob",
+      }},
+    });
+
+    let saveResult: { conflicted: boolean } | undefined;
+    await act(async () => {
+      saveResult = await result.current.save();
+    });
+
+    // P1 fix: { conflicted: true } が返ること
+    expect(saveResult).toEqual({ conflicted: true });
+    // saveConflict がセットされていること (ダイアログ表示用)
+    expect(result.current.saveConflict).not.toBeNull();
+  });
+
+  it("P1 (#908): save が成功した場合 { conflicted: false } を返す", async () => {
+    // startEditing
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+
+    await act(async () => {
+      await result.current.startEditing();
+    });
+
+    // save 成功
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      saveEvent: { savedBy: SESSION_ID, savedAt: new Date().toISOString(), sequence: 2 },
+    });
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValue({ sessions: [MOCK_EDIT_SESSION] });
+
+    let saveResult: { conflicted: boolean } | undefined;
+    await act(async () => {
+      saveResult = await result.current.save();
+    });
+
+    // 成功時は { conflicted: false }
+    expect(saveResult).toEqual({ conflicted: false });
+    expect(result.current.saveConflict).toBeNull();
   });
 
   it("onSaveConflictCancel: saveConflict をクリアして save 中止", async () => {

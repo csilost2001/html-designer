@@ -333,8 +333,9 @@ export function ProcessFlowEditor() {
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
     if (!group || isReadonly || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions }))) return;
-    // P1-B fix (#908): conflict check (editActions.save) を本体書き込みより先に実行する。
-    await editActions.save();
+    // P1 fix (#908): conflict 時は hookPostSave をスキップして clean 化を防ぐ。
+    const { conflicted } = await editActions.save();
+    if (conflicted) return;
     await hookPostSave();
   }, [group, isReadonly, hookPostSave, tableDefs, conventions, extensions, editActions]);
 

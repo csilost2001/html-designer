@@ -346,7 +346,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
           puckFlushRef.current();
           puckFlushRef.current = null;
         }
-        await editActions.save();
+        // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
+        const puckSaveResult = await editActions.save();
+        if (puckSaveResult.conflicted) return;
       } else {
         // GrapesJS 画面: 保留中の debounce timer があれば即時 flush してから EditSession.save
         if (draftUpdateTimer.current) {
@@ -357,7 +359,9 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
             await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: data });
           }
         }
-        await editActions.save();
+        // P1 fix (#908): conflict 時は cleanup をスキップして clean 化を防ぐ。
+        const grapesJsSaveResult = await editActions.save();
+        if (grapesJsSaveResult.conflicted) return;
       }
       setIsDirtyState(false);
       isDirtyRef.current = false;

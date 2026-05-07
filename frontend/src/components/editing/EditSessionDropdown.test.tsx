@@ -360,8 +360,9 @@ describe("EditSessionDropdown", () => {
     fireEvent.click(screen.getByTestId("esd-takeover-btn-es-takeover-p2"));
 
     await waitFor(() => {
-      // onTakeOver が呼ばれること (useEditSession.takeOver() 経由)
+      // onTakeOver が選択した editSessionId を引数として呼ばれること (P2 fix #908)
       expect(onTakeOver).toHaveBeenCalledTimes(1);
+      expect(onTakeOver).toHaveBeenCalledWith("es-takeover-p2");
       // editSession.transferEdit を直接呼んでいないこと
       expect(mockRequest).not.toHaveBeenCalledWith("editSession.transferEdit", expect.anything());
     });

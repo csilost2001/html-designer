@@ -106,8 +106,9 @@ export function SequenceEditor() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
-    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
-    await actions.save();
+    // P1 fix (#908): conflict 時は postSave をスキップして clean 化を防ぐ。
+    const { conflicted } = await actions.save();
+    if (conflicted) return;
     await postSave();
   }, [isReadonly, isSaving, actions, postSave]);
 

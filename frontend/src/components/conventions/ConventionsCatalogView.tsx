@@ -184,8 +184,9 @@ export function ConventionsCatalogView() {
     }
     // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
     // editSession.save が conflict なしと判断してから backend が本体ファイルを書き込む。
-    // postSave は frontend dirty クリア + mtime ack のみ (ファイル書き込みなし)。
-    await actions.save();
+    // P1 fix (#908): conflict 時は postSave をスキップして clean 化を防ぐ。
+    const { conflicted } = await actions.save();
+    if (conflicted) return;
     await postSave();
   }, [isReadonly, isSaving, postSave, actions, editSession]);
 
