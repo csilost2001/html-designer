@@ -850,3 +850,83 @@ describe("useEditSession Phase 7 追加: broadcast 反映の網羅 (spec §14 / 
     expect(result.current.myRole).toBe("Edit");
   });
 });
+
+// ── #909 fix: cross-session takeOver(targetId) で payload を同期する ──
+
+describe("useEditSession #909 fix: cross-session takeOver(targetId) で payload を同期する", () => {
+  it("cross-session takeOver: target session の payload + sequence を fetchPayload で取得して state に反映", async () => {
+    // startEditing で current session を作る (id=es-test-001)
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      editSession: MOCK_EDIT_SESSION,
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+    await act(async () => { await result.current.startEditing(); });
+
+    expect(result.current.payload).toEqual({ data: "initial" });
+    expect(result.current.editSession?.id).toBe("es-test-001");
+
+    // 別 session (es-target-002) を takeOver する
+    // 1. transferEdit response
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      from: { sessionId: "session-other", role: "View" },
+      to: { sessionId: SESSION_ID, role: "Edit" },
+    });
+    // 2. fetchPayload response (cross-session 検知時に呼ばれる)
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      payload: { data: "target-payload" },
+      sequence: 42,
+    });
+    // 3. refreshEditSessionState: editSession.list response
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessions: [{ ...MOCK_EDIT_SESSION, id: "es-target-002", payload: { data: "target-payload" }, sequence: 42 }],
+    });
+
+    await act(async () => {
+      await result.current.takeOver("es-target-002");
+    });
+
+    // fetchPayload が target session に対して呼ばれたことを確認
+    expect(mcpBridge.request).toHaveBeenCalledWith("editSession.fetchPayload", {
+      editSessionId: "es-target-002",
+    });
+    // payload が target session のものに切り替わったこと
+    expect(result.current.payload).toEqual({ data: "target-payload" });
+    // myRole が Edit になったこと
+    expect(result.current.myRole).toBe("Edit");
+    // editSession state が target session に切り替わったこと
+    expect(result.current.editSession?.id).toBe("es-target-002");
+  });
+
+  it("same-session takeOver: 同じ session への take-over は fetchPayload を呼ばない", async () => {
+    // attach で View 状態を作る (id=es-test-001)
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      participant: { sessionId: SESSION_ID, role: "View" },
+      payload: { data: "view-payload" },
+      sequence: 5,
+    });
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessions: [MOCK_EDIT_SESSION_WITH_VIEW],
+    });
+
+    const { result } = renderHook(() => useEditSession(NEW_OPTS));
+    await act(async () => { await result.current.attach("es-test-001"); });
+
+    // takeOver(targetId) で同じ session を指定
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      from: { sessionId: "session-editor", role: "View" },
+      to: { sessionId: SESSION_ID, role: "Edit" },
+    });
+    (mcpBridge.request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessions: [MOCK_EDIT_SESSION],
+    });
+
+    await act(async () => {
+      await result.current.takeOver("es-test-001");
+    });
+
+    // fetchPayload は呼ばれていない (同 session は broadcast 経由で payload 同期済み)
+    expect(mcpBridge.request).not.toHaveBeenCalledWith("editSession.fetchPayload", expect.anything());
+    expect(result.current.myRole).toBe("Edit");
+  });
+});

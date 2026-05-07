@@ -379,6 +379,10 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
    * P2 fix (#908): targetEditSessionId を指定すると、hook の current editSession とは
    * 別の session に対して transferEdit を実行できる (EditSessionDropdown で選択した session)。
    * 未指定時は hook の current editSession に対して実行する (従来動作)。
+   *
+   * Should-fix (#909): cross-session take-over (target が hook の current session と異なる) 時は、
+   * hook の payload / sequence / lastSeqRef を target session のものに切り替える。
+   * 切替えないと editor が古い session の payload を表示し続ける。
    */
   const takeOver = useCallback(async (targetEditSessionId?: string) => {
     setError(null);
@@ -397,6 +401,19 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
         toSessionId: "", // server 側が clientId を使うため空で良い (handler 実装上、fromSessionId は clientId から自動判定)
       });
       setMyRole("Edit");
+
+      // Should-fix (#909): cross-session take-over 時は target session の payload + sequence を fetch して
+      // hook の state を target session のものに切り替える。同 session 内の take-over は broadcast 経由で
+      // payload が同期済みなので fetch 不要。
+      const isCrossSession = !es || es.id !== editSessionId;
+      if (isCrossSession) {
+        const fetchResult = await mcpBridge.request("editSession.fetchPayload", {
+          editSessionId,
+        }) as { payload: unknown; sequence: number };
+        setPayload(fetchResult.payload);
+        lastSeqRef.current = fetchResult.sequence ?? 0;
+      }
+
       await refreshEditSessionState(editSessionId);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
