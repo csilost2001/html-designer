@@ -157,25 +157,47 @@ LLM 会話呼び出しは **core stepKind `aiCall` + `context.catalogs.modelEndp
 
 特に「LLM 応答の構造」「カラオケ用 wordTimings」「PhoneDiff 構造」等は `CustomStepKind.outputType` (FieldType) または `extensions.fieldTypes` の object 型 fieldType として表現すれば、schema 本体を触らずに済むはず。
 
-### 3.5 外部 AI (LLM/TTS/STT) の ProcessFlow 表現方針
+### 3.5 外部 AI の ProcessFlow 表現方針
 
-外部 AI 呼び出しは **`stepKind` 拡張で表現** し、実際の API 呼び出し詳細は description で記述する。**`type: "other"` (汎用エスケープ) は使わない** — namespace 拡張で表現できるならそちらを優先することがフレームワーク思想に沿う。
+外部 AI 呼び出しは概念別に **2 系統で表現**:
+
+1. **LLM 会話呼び出し**: core stepKind `aiCall` + `context.catalogs.modelEndpoints.<key>` (#935 / #865 で 2026-05-08 移行済み)。provider 切替が catalog 編集で完結し、tool use / structured output / vision input が業界共通の messages + responseFormat 構造で表現できる
+2. **業務ドメイン固有 AI 呼び出し** (TTS / STT / 発音採点 等): 当面 namespace 拡張 stepKind (`english-learning:TtsGenerate` / `english-learning:SttEvaluate`)。汎用エスケープ `type: "other"` は使わない — namespace 拡張で表現できるならそちらを優先することがフレームワーク思想に沿う
 
 ```jsonc
-// 例: S-2 progress-turn flow の LLM 呼び出しステップ (ExtensionStep)
+// 例: S-2 progress-turn flow の LLM 呼び出しステップ (core stepKind aiCall)
 {
-  "kind": "english-learning:LlmDialog",
+  "kind": "aiCall",
   "id": "step-llm-call",
-  "config": { "context": "@var.turnContext", "userInput": "@var.userInput" },
+  "modelRef": "dialogModel",
+  "messages": [
+    { "role": "system", "content": "あなたは日本人英語学習者向けの会話パートナーです。CEFR レベルに合った語彙と文法で英語応答してください。" },
+    { "role": "user", "content": "[会話履歴]\n@turnContext\n\n[最新の発話]\n@userInput" }
+  ],
   "outputBinding": { "name": "aiResponse" },
-  "description": "OpenAI GPT-4 / Anthropic Claude 等の LLM API を呼び出す。実装側で provider 選択。temperature 0.7 推奨。"
+  "description": "core stepKind aiCall + modelEndpoints.dialogModel で LLM 呼び出し。provider 選択は modelEndpoints catalog で完結。"
+}
+
+// modelEndpoints catalog (context.catalogs.modelEndpoints.dialogModel)
+// provider/model/auth/defaults を 1 箇所に集約。step 側は modelRef のみ持つ
+```
+
+```jsonc
+// 例: TTS 呼び出しステップ (namespace 拡張、業務ドメイン固有)
+{
+  "kind": "english-learning:TtsGenerate",
+  "id": "step-tts",
+  "config": { "text": "@aiResponse.text" },
+  "outputBinding": { "name": "aiAudioUrl" },
+  "description": "AI 応答テキストを TTS で音声化する。"
 }
 ```
 
 これにより:
-- ProcessFlow viewer 上で LLM 呼び出しが他 step と同じ抽象レベルで表示される
-- `CustomStepKind.schema` で `config` の入力構造が型安全に縛られ、`CustomStepKind.outputType` で `outputBinding` 結果型が後続 step の型推論で使える
-- 実装詳細 (provider / endpoint / auth) は description で記述、LLM 後段生成時にコード化
+- ProcessFlow viewer 上で LLM 呼び出し / TTS / STT が他 step と同じ抽象レベルで表示される
+- aiCall は `messages` (system/user/assistant role 別) + `tools` + `responseFormat` (text / json / structuredObject / streaming) の業界共通構造で型安全に表現
+- TTS / STT は `CustomStepKind.schema` で `config` の入力構造を縛り、`outputType` で `outputBinding` 結果型を後続 step の型推論で使える
+- 実装詳細は modelEndpoints catalog (LLM) または stepKind description (TTS/STT) に集約され、コード生成時に展開
 
 ### 3.6 動作確認は data/ コピー (retail と同じ運用)
 

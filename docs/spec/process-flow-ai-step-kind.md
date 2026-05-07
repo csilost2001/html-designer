@@ -82,6 +82,29 @@ N=2 で表現方法が分裂しており、放置すると後続 sample (CRM / E
 - `tools` が **必須** (`minItems=1`、tool なしなら `aiCall` を使う)
 - `maxIterations` (integer, default 10) で tool call ループ上限を指定
 
+### `outputBinding` の値構造 (provider 中立な正規化形式)
+
+`aiCall` / `aiAgent` の outputBinding は、provider 固有応答 (Anthropic `content[].text` / OpenAI `choices[].message.content` / Bedrock `output.message.content` 等) をランタイムが以下の正規化形式に変換した値を受け取る。後続 step (`compute` / `dbAccess` / `return`) はこの形式を前提に式参照する。
+
+| `responseFormat.kind` | outputBinding の値構造 | 後続 step での参照 |
+|---|---|---|
+| `text` (デフォルト、未指定) | `{ text: string, finishReason?: string, usage?: TokenUsage }` | `@<binding>.text` |
+| `json` | `{ object: any, raw: string, finishReason?: string, usage?: TokenUsage }` | `@<binding>.object` (parse 済み) / `@<binding>.raw` (生 JSON 文字列) |
+| `structuredObject` | `{ object: <responseFormat.schema 準拠オブジェクト>, raw: string, finishReason?: string, usage?: TokenUsage }` | `@<binding>.object.<field>` (型安全、JSON Schema 適合確認済み) |
+| `streaming` | `{ text: string, finishReason?: string, usage?: TokenUsage }` (完了後) | `@<binding>.text` (本フローでは partial を扱わない、SSE / WebSocket は実装層) |
+
+`tools` を伴う `aiCall` / `aiAgent` で tool call が発生した場合は、上記に加え:
+
+```ts
+{
+  toolCalls?: Array<{ id: string, name: string, arguments: any }>
+}
+```
+
+`aiAgent` は agent loop 完了後の最終 assistant メッセージを上記形式で受け取り、途中の tool 呼び出しはランタイムが自動処理する (個別 step として現れない)。
+
+`outcomes.failure.action = "abort"` で失敗時は HTTP 5xx 応答 (`responses[]` から responseId 一致を選択) を返し、outputBinding には何も入らない (`runIf` でガードされる後続 step は skip)。
+
 ### `AiMessage.content`
 
 `string` (シンプルテキスト) または content blocks 配列 (text / image)。Anthropic / OpenAI と整合。

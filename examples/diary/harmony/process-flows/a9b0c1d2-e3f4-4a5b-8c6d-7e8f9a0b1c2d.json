@@ -223,8 +223,8 @@
         {
           "id": "step-04",
           "kind": "compute",
-          "description": "structuredObject の出力 (aiResponse.object.tags) を信頼度フィルタ (0.6 以上) と isNew フラグで加工する。閾値は conventions/catalog.json の limit.tagSuggestThreshold に準拠。",
-          "expression": "@aiResponse.object.tags.filter(t => t.confidence >= 0.6).map(t => ({ ...t, isNew: !@allTagSlugs.some(s => s.slug === t.slug) }))",
+          "description": "structuredObject の出力 (aiResponse.object.tags) を信頼度フィルタと isNew フラグで加工する。閾値は @conv.limit.tagSuggestThreshold (現在 0.6) を参照し、conventions 編集だけで全フローに反映できるよう抽象化する。",
+          "expression": "@aiResponse.object.tags.filter(t => t.confidence >= @conv.limit.tagSuggestThreshold).map(t => ({ ...t, isNew: !@allTagSlugs.some(s => s.slug === t.slug) }))",
           "outputBinding": {
             "name": "candidates"
           }
