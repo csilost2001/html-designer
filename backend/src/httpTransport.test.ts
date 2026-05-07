@@ -211,8 +211,171 @@ describe("backend HTTP transport (#302)", () => {
     expect(res.body).toContain("harmony-mcp");
   });
 
-  // NOTE: draft__* / lock__* MCP tool E2E は #897 シリーズで legacy MCP tool が削除されたため除去。
-  // 新 protocol 用 editSession__* MCP tool 追加は #906 で別途対応。
+  // NOTE: draft__* / lock__* MCP tool E2E は #897 シリーズで legacy MCP tool が削除された。
+  // 後継として editSession__* MCP tool E2E を以下に追加 (#906)。
+
+  // ── editSession__* MCP tool E2E (#906) ──────────────────────────────────────
+  // MCP HTTP transport は stateless (sessionIdGenerator: undefined) のため request 毎に
+  // 新規 sessionId が発行され、editSession の participant 継続性が成立しない。
+  // そこで:
+  //   - HTTP MCP 経由テスト: tool dispatch (tools/list 登録 + params validation + 単発呼び出し)
+  //   - WS roundtrip テスト: lifecycle (create → update → list → fetch_payload → save → discard、stable clientId)
+  // 両方を組み合わせて、wsBridge.editSession* 公開 API (HTTP/WS 共有) を全経路で検証する。
+  describe("editSession__* MCP tools — HTTP dispatch (#906)", () => {
+    it("tools/list に editSession__* 10 件が登録されている", async () => {
+      const res = await mcpCall("tools/list", undefined, { id: 1, params: {} });
+      const body = res.body;
+      // SSE / JSON どちらでも parse できるように
+      let json: unknown;
+      if (body.includes("data:")) {
+        const dataLine = body.split(/\r?\n/).find((l) => l.startsWith("data:"));
+        json = JSON.parse(dataLine!.slice(5).trim());
+      } else {
+        json = JSON.parse(body);
+      }
+      const r = json as { result: { tools: Array<{ name: string }> } };
+      const editSessionTools = r.result.tools.filter((t) => t.name.startsWith("editSession__"));
+      expect(editSessionTools).toHaveLength(10);
+      const names = editSessionTools.map((t) => t.name).sort();
+      expect(names).toEqual([
+        "editSession__attach_as_view",
+        "editSession__create",
+        "editSession__detach",
+        "editSession__discard",
+        "editSession__fetch_payload",
+        "editSession__list",
+        "editSession__save",
+        "editSession__set_role",
+        "editSession__transfer_edit",
+        "editSession__update",
+      ]);
+    });
+  });
+
+  describe("editSession__* lifecycle — WS roundtrip (#906)", () => {
+    /**
+     * 同一 WS 接続で複数 request を同期的に投げて response を集める helper。
+     * stable clientId (= participant.sessionId) 前提のテストに使う。
+     */
+    async function wsLifecycle(
+      clientId: string,
+      requests: Array<{ id: string; method: string; params?: Record<string, unknown> }>,
+    ): Promise<Array<{ id: string; result?: unknown; error?: string }>> {
+      return new Promise((resolve, reject) => {
+        const ws = new WebSocket(WS_URL);
+        const responses: Array<{ id: string; result?: unknown; error?: string }> = [];
+        const timer = setTimeout(() => {
+          ws.close();
+          reject(new Error("WS lifecycle timeout"));
+        }, 10_000);
+
+        ws.once("open", () => {
+          ws.send(JSON.stringify({ type: "register", clientId }));
+          for (const req of requests) {
+            ws.send(JSON.stringify({ type: "request", ...req }));
+          }
+        });
+
+        ws.on("message", (data: Buffer) => {
+          const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+          if (msg.type === "response" && typeof msg.id === "string") {
+            responses.push({ id: msg.id, result: msg.result, error: msg.error as string | undefined });
+            if (responses.length === requests.length) {
+              clearTimeout(timer);
+              ws.close();
+              resolve(responses);
+            }
+          }
+        });
+
+        ws.once("error", (e) => {
+          clearTimeout(timer);
+          reject(e);
+        });
+      });
+    }
+
+    it("editSession 1-6 step フロー: create → update → list → fetch_payload → save → discard", async () => {
+      const clientId = `lifecycle-test-${Date.now()}`;
+      const resourceType = "table";
+      const resourceId = `tbl-lifecycle-${Date.now()}`;
+
+      // step 1: create
+      const r1 = await wsLifecycle(clientId, [
+        { id: "create", method: "editSession.create", params: { resourceType, resourceId, displayLabel: "@vitest" } },
+      ]);
+      expect(r1[0].error).toBeUndefined();
+      const created = r1[0].result as { editSession: { id: string; sequence: number } };
+      expect(created.editSession.id).toMatch(/^es-/);
+      const editSessionId = created.editSession.id;
+
+      // step 2-6: update → list → fetch_payload → save → discard を同一 connection で連続実行
+      const r2 = await wsLifecycle(clientId, [
+        { id: "update", method: "editSession.update", params: { editSessionId, payload: { columns: [{ name: "id" }], dataDir: "harmony" } } },
+        { id: "list", method: "editSession.list", params: { resourceType, resourceId } },
+        { id: "fetch", method: "editSession.fetchPayload", params: { editSessionId } },
+        { id: "save", method: "editSession.save", params: { editSessionId } },
+        { id: "discard", method: "editSession.discard", params: { editSessionId } },
+      ]);
+
+      const byId = (id: string) => r2.find((r) => r.id === id);
+
+      // step 2: update
+      expect(byId("update")?.error).toBeUndefined();
+      expect((byId("update")?.result as { sequence: number }).sequence).toBe(1);
+
+      // step 3: list
+      const listed = byId("list")?.result as { sessions: Array<{ id: string; state: string }> };
+      expect(listed.sessions).toHaveLength(1);
+      expect(listed.sessions[0].id).toBe(editSessionId);
+
+      // step 4: fetch_payload
+      const fetched = byId("fetch")?.result as { payload: { columns: Array<{ name: string }> }; sequence: number };
+      expect(fetched.payload.columns[0].name).toBe("id");
+      expect(fetched.sequence).toBe(1);
+
+      // step 5: save
+      const saved = byId("save")?.result as { ok: boolean; saveEvent?: { sequence: number } };
+      expect(saved.ok).toBe(true);
+      expect(saved.saveEvent?.sequence).toBe(1);
+
+      // step 6: discard
+      expect(byId("discard")?.error).toBeUndefined();
+      expect((byId("discard")?.result as { discarded: boolean }).discarded).toBe(true);
+    });
+
+    it("editSession.save の 2 段階保存 (stage=checkOnly → stage=commit、#912 連携)", async () => {
+      const clientId = `stage-test-${Date.now()}`;
+      const r1 = await wsLifecycle(clientId, [
+        { id: "create", method: "editSession.create", params: { resourceType: "process-flow", resourceId: `pf-stage-${Date.now()}` } },
+      ]);
+      const editSessionId = (r1[0].result as { editSession: { id: string } }).editSession.id;
+
+      const r2 = await wsLifecycle(clientId, [
+        { id: "update", method: "editSession.update", params: { editSessionId, payload: { name: "stage-test" } } },
+        { id: "checkOnly", method: "editSession.save", params: { editSessionId, stage: "checkOnly" } },
+        { id: "commit", method: "editSession.save", params: { editSessionId, stage: "commit" } },
+      ]);
+
+      // checkOnly は saveEvent なし
+      const checkOnly = r2.find((r) => r.id === "checkOnly")?.result as { ok: boolean; saveEvent?: unknown };
+      expect(checkOnly.ok).toBe(true);
+      expect(checkOnly.saveEvent).toBeUndefined();
+
+      // commit は saveEvent あり (sequence=1)
+      const commit = r2.find((r) => r.id === "commit")?.result as { ok: boolean; saveEvent?: { sequence: number } };
+      expect(commit.ok).toBe(true);
+      expect(commit.saveEvent?.sequence).toBe(1);
+    });
+
+    it("editSession.fetchPayload: 存在しない editSessionId は error を返す", async () => {
+      const r = await wsLifecycle(`fp-not-found-${Date.now()}`, [
+        { id: "fetch", method: "editSession.fetchPayload", params: { editSessionId: "es-non-existent-zzz" } },
+      ]);
+      expect(r[0].error).toBeDefined();
+      expect(r[0].error).toContain("見つかりません");
+    });
+  });
 
   it("同一 port で WebSocket も受け付ける (ws:// upgrade)", async () => {
     const ws = new WebSocket(WS_URL);
