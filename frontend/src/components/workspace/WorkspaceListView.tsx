@@ -135,6 +135,9 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
       window.clearTimeout(debounceRef.current);
     }
     if (!path.trim()) {
+      // 空入力に戻した瞬間、進行中 inspect の遅延 response が
+      // idle 状態を ready/notFound 等に上書きしないよう seq を bump して破棄する
+      inflightSeqRef.current++;
       setStatus("idle");
       setInspectName(null);
       setErrorMsg(null);
@@ -249,6 +252,18 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
               value={path}
               onChange={(e) => { setPath(e.target.value); setShowRecent(true); }}
               onFocus={() => setShowRecent(true)}
+              onKeyDown={(e) => {
+                // Escape: dropdown を閉じる (input は focus に残す)
+                // Tab: dropdown を閉じてから次要素へ移動 (default 動作)
+                if (e.key === "Escape") {
+                  if (showRecent) {
+                    e.stopPropagation();
+                    setShowRecent(false);
+                  }
+                } else if (e.key === "Tab") {
+                  setShowRecent(false);
+                }
+              }}
               placeholder={placeholder}
               autoFocus
               spellCheck={false}

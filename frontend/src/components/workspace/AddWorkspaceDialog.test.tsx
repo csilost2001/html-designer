@@ -174,7 +174,7 @@ describe("AddWorkspaceDialog (#858)", () => {
     expect(input.value).toBe("/home/user/projects/diary");
   });
 
-  it("入力中の文字列で recent エントリを prefix-match で絞り込む", async () => {
+  it("入力中の文字列で recent エントリを substring-match で絞り込む", async () => {
     getHostInfoMock.mockResolvedValue(makeHost());
     inspectWorkspaceMock.mockResolvedValue({ status: "notFound", path: "" } satisfies WorkspaceInspectResult);
 
@@ -187,5 +187,77 @@ describe("AddWorkspaceDialog (#858)", () => {
     expect(screen.getByText("Diary")).toBeTruthy();
     // Retail はマッチしないので非表示
     expect(screen.queryByText("Retail")).toBeNull();
+  });
+
+  it("Escape キーで recent dropdown が閉じる (input focus は維持) (SF-3)", async () => {
+    getHostInfoMock.mockResolvedValue(makeHost());
+    inspectWorkspaceMock.mockResolvedValue({ status: "notFound", path: "" } satisfies WorkspaceInspectResult);
+
+    render(<AddWorkspaceDialog onClose={() => {}} onAdded={() => {}} />);
+
+    const input = await screen.findByTestId("workspace-path-input");
+    fireEvent.focus(input);
+    expect(screen.queryByRole("listbox", { name: "最近使ったワークスペース" })).toBeTruthy();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("listbox", { name: "最近使ったワークスペース" })).toBeNull();
+    });
+  });
+
+  it("Tab キーで recent dropdown が閉じる (SF-3)", async () => {
+    getHostInfoMock.mockResolvedValue(makeHost());
+    inspectWorkspaceMock.mockResolvedValue({ status: "notFound", path: "" } satisfies WorkspaceInspectResult);
+
+    render(<AddWorkspaceDialog onClose={() => {}} onAdded={() => {}} />);
+
+    const input = await screen.findByTestId("workspace-path-input");
+    fireEvent.focus(input);
+    expect(screen.queryByRole("listbox", { name: "最近使ったワークスペース" })).toBeTruthy();
+
+    fireEvent.keyDown(input, { key: "Tab" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("listbox", { name: "最近使ったワークスペース" })).toBeNull();
+    });
+  });
+
+  it("入力を空に戻すと進行中 inspect の遅延結果で UI が上書きされない (MF-1 race fix)", async () => {
+    getHostInfoMock.mockResolvedValue(makeHost());
+    // 1 回目の inspect は遅延して resolve するよう細工
+    let resolveFirst: (v: WorkspaceInspectResult) => void = () => {};
+    const firstPromise = new Promise<WorkspaceInspectResult>((res) => { resolveFirst = res; });
+    inspectWorkspaceMock.mockReturnValueOnce(firstPromise);
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<AddWorkspaceDialog onClose={() => {}} onAdded={() => {}} />);
+    const input = await screen.findByTestId("workspace-path-input");
+
+    // パスを入力 → debounce 完了 → inspectWorkspace が呼ばれて pending 状態
+    fireEvent.change(input, { target: { value: "/home/user/projects/diary" } });
+    await act(async () => { vi.advanceTimersByTime(400); });
+    await waitFor(() => {
+      expect(inspectWorkspaceMock).toHaveBeenCalledWith("/home/user/projects/diary");
+    });
+
+    // この時点で status="inspecting" バッジが描画されているはず
+    expect(screen.getByTestId("workspace-status").getAttribute("data-status")).toBe("inspecting");
+
+    // パスを空に戻す → 進行中の inspect は seq guard で破棄されるべき
+    fireEvent.change(input, { target: { value: "" } });
+    // 空入力で status badge は消える (idle)
+    await waitFor(() => {
+      expect(screen.queryByTestId("workspace-status")).toBeNull();
+    });
+
+    // 遅延していた 1 回目の inspect が後から resolve しても、
+    // status badge は再描画されない (seq guard で結果が破棄される)
+    resolveFirst({ status: "ready", path: "/home/user/projects/diary", name: "Diary" });
+    vi.useRealTimers();
+
+    // 100ms 待っても status badge は出ない
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId("workspace-status")).toBeNull();
   });
 });
