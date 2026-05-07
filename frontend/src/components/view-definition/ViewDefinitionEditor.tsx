@@ -634,7 +634,14 @@ export function ViewDefinitionEditor() {
       {saveConflict && (
         <SaveConflictDialog
           conflict={saveConflict}
-          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onOverwrite={async () => {
+            try {
+              await onSaveConflictOverwrite();
+              await postSave();
+            } catch (e) {
+              console.error("[ViewDefinitionEditor] save overwrite failed:", e);
+            }
+          }}
           onCancel={onSaveConflictCancel}
         />
       )}

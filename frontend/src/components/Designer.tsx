@@ -336,6 +336,32 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     }
   }, [isActive]);
 
+  /**
+   * P1 fix (#912): editSession.save 成功後 (通常 save と overwrite 両方) で共通に呼ぶ cleanup。
+   * 通常 save: editActions.save() が conflict / failed でない場合に呼ぶ
+   * overwrite: SaveConflictDialog の onOverwrite 内で onSaveConflictOverwrite() 後に呼ぶ
+   */
+  const commitAfterSave = useCallback(async () => {
+    setIsDirtyState(false);
+    isDirtyRef.current = false;
+    setDirty(tabId, false);
+    setServerChanged(false);
+    await acknowledgeServerMtime("screen", screenId);
+    // サムネイル生成 (GrapesJS のみ — Puck は API.captureThumbnail() が null を返す)
+    const api = editorApiRef.current;
+    if (api && !api.isCanvasEmpty()) {
+      api.captureThumbnail().then(async (thumbnail) => {
+        if (!thumbnail) return;
+        try {
+          const project = await loadProject();
+          await updateScreenThumbnail(project, screenId, thumbnail);
+        } catch {
+          // サムネイル保存失敗は無視
+        }
+      });
+    }
+  }, [screenId, tabId]);
+
   /** 保存: 保留中の debounce を flush してから editSession.save */
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -370,24 +396,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         const grapesJsSaveResult = await editActions.save();
         if (grapesJsSaveResult.conflicted || grapesJsSaveResult.failed) return;
       }
-      setIsDirtyState(false);
-      isDirtyRef.current = false;
-      setDirty(tabId, false);
-      setServerChanged(false);
-      await acknowledgeServerMtime("screen", screenId);
-      // サムネイル生成 (GrapesJS のみ — Puck は API.captureThumbnail() が null を返す)
-      const api = editorApiRef.current;
-      if (api && !api.isCanvasEmpty()) {
-        api.captureThumbnail().then(async (thumbnail) => {
-          if (!thumbnail) return;
-          try {
-            const project = await loadProject();
-            await updateScreenThumbnail(project, screenId, thumbnail);
-          } catch {
-            // サムネイル保存失敗は無視
-          }
-        });
-      }
+      await commitAfterSave();
     } catch (e) {
       console.error("[Designer] save failed:", e);
       showError({
@@ -398,7 +407,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     } finally {
       setIsSaving(false);
     }
-  }, [screenId, tabId, isReadonly, isSaving, editorKind, editActions, showError, editSession]);
+  }, [screenId, tabId, isReadonly, isSaving, editorKind, editActions, showError, editSession, commitAfterSave]);
 
   /** 破棄: discardDraft + releaseLock → 本体ファイル再読込 */
   const handleDiscard = useCallback(async () => {
@@ -650,7 +659,14 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       {saveConflict && (
         <SaveConflictDialog
           conflict={saveConflict}
-          onOverwrite={() => { void onSaveConflictOverwrite(); }}
+          onOverwrite={async () => {
+            try {
+              await onSaveConflictOverwrite();
+              await commitAfterSave();
+            } catch (e) {
+              console.error("[Designer] save overwrite failed:", e);
+            }
+          }}
           onCancel={onSaveConflictCancel}
         />
       )}
