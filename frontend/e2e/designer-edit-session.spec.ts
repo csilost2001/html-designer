@@ -19,8 +19,11 @@
 import { test, expect } from "@playwright/test";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "node:url";
 
 const SCREEN_ID = `scr-e2e-edit-session-${Date.now()}`;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, "../../data");
 const SCREENS_DIR = path.join(DATA_DIR, "screens");
 

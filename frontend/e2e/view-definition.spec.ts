@@ -4,7 +4,7 @@
  * data が backend に渡らず動作しない。realWorkspace.setupTestWorkspace + ws.gotoActive
  * への移植を follow-up ISSUE で対応する。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 
@@ -12,12 +12,12 @@ const TABLE_ID = "eb574288-88f2-419f-ac5e-56a9948e8f46";
 const CREATED_NAME = "E2E 商品ビュー";
 const UPDATED_NAME = "E2E 商品ビュー 更新";
 
-const sampleTable = JSON.parse(
-  readFileSync(
-    resolve(process.cwd(), "../docs/sample-project-v3/retail/tables/eb574288-88f2-419f-ac5e-56a9948e8f46.json"),
-    "utf8",
-  ),
-);
+// describe.skip で本 spec は実行されないが、トップレベルで参照ファイルが見つからないと
+// playwright の collection phase で fail するので、欠損時は dummy で fall through する。
+const sampleTablePath = resolve(process.cwd(), "../docs/sample-project-v3/retail/tables/eb574288-88f2-419f-ac5e-56a9948e8f46.json");
+const sampleTable = existsSync(sampleTablePath)
+  ? JSON.parse(readFileSync(sampleTablePath, "utf8"))
+  : { name: "", physicalName: "", category: "", columns: [] };
 
 async function seedRetailTable(page: Page) {
   const now = new Date().toISOString();
