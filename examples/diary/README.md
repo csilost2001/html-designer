@@ -33,7 +33,7 @@ examples/diary/
     ├── process-flows/           # 9 ProcessFlow (CRUD 5 + AI 4)
     ├── screens/                 # 5 screens (.json + .design.json)
     ├── conventions/
-    │   └── catalog.json         # i18n / regex / limits / AI 設定 / messages
+    │   └── catalog.json         # i18n / regex / limit / msg (メッセージ / 境界値 等)
     ├── views/
     ├── view-definitions/
     ├── sequences/
@@ -105,7 +105,7 @@ examples/diary/
 | 認証フロー (login/refresh/logout) ProcessFlow として未明示 | #863 |
 | screen items の `events[]` 補完 — `/generate-code` 精度向上 | #864 |
 | AI provider 抽象化 (Ollama / OpenAI 切替対応) | #865 |
-| `@conv.ai.*` / `@env.*` 参照 (現状リテラル文字列で迂回) | #859 (framework 改善) |
+| AI モデル / 環境値参照 (現状リテラル文字列で迂回) | #859 (framework 改善) |
 
 ## 検証
 
