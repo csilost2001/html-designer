@@ -3,7 +3,7 @@
   "meta": {
     "id": "f7a8b9c0-d1e2-4f3a-8b4c-5d6e7f8a9b0c",
     "name": "AI要約生成",
-    "description": "投稿本文を Claude AI へ送信し、3-5 文の日本語要約を生成して posts.summary に書き戻す処理フロー。投稿作成/更新後に非同期で呼ぶ想定 (TX 外、idempotent)。AI モデル名 (claude-opus-4-7) は本 PR 時点でリテラル文字列としてハードコード。",
+    "description": "投稿本文を Claude AI へ送信し、3-5 文の日本語要約を生成して posts.summary に書き戻す処理フロー。投稿作成/更新後に非同期で呼ぶ想定 (TX 外、idempotent)。使用モデルは conventions/catalog.json の extensionCategories.ai.summarizeModel を参照。",
     "kind": "common",
     "maturity": "draft",
     "createdAt": "2026-05-06T14:00:00.000Z",
@@ -46,6 +46,13 @@
           "source": "env",
           "name": "CLAUDE_API_KEY",
           "description": "Claude API の認証キー。"
+        }
+      },
+      "envVars": {
+        "CLAUDE_API_BASE_URL": {
+          "type": "string",
+          "description": "Claude API base URL",
+          "default": "https://api.anthropic.com"
         }
       }
     },
@@ -183,7 +190,7 @@
           "httpCall": {
             "method": "POST",
             "path": "/v1/messages",
-            "body": "{ model: 'claude-opus-4-7', max_tokens: 512, messages: [{ role: 'user', content: '以下の日記の文章を 3〜5 文で日本語で要約してください。\\n\\n' + @targetBody }] }"
+            "body": "{ model: @conv.ai.summarizeModel.model, max_tokens: 512, messages: [{ role: 'user', content: '以下の日記の文章を 3〜5 文で日本語で要約してください。\\n\\n' + @targetBody }] }"
           },
           "outputBinding": {
             "name": "aiResponse"

@@ -1,7 +1,7 @@
 {
   "$schema": "../../../../schemas/v3/conventions.v3.schema.json",
   "version": "0.1.0",
-  "description": "日記アプリの横断規約カタログ。i18n / フォーマット / 正規表現 / メッセージ / 境界値 を集約。",
+  "description": "日記アプリの横断規約カタログ。i18n / フォーマット / 正規表現 / メッセージ / 境界値 / AI 拡張カテゴリを集約。",
   "updatedAt": "2026-05-06T12:40:00.000Z",
   "i18n": {
     "supportedLocales": ["ja-JP"],
@@ -37,7 +37,8 @@
     "summaryAi": { "value": 500, "unit": "char", "description": "AI 生成 summary の最大文字数。" },
     "tagPerPost": { "value": 10, "unit": "integer", "description": "投稿 1 件に付与するタグの上限。" },
     "photoPerPost": { "value": 30, "unit": "integer", "description": "投稿 1 件の写真上限。" },
-    "photoFileSize": { "value": 10485760, "unit": "bytes", "description": "写真 1 枚のファイルサイズ上限 (10MB)。" }
+    "photoFileSize": { "value": 10485760, "unit": "bytes", "description": "写真 1 枚のファイルサイズ上限 (10MB)。" },
+    "tagSuggestThreshold": { "value": 0.6, "unit": "ratio", "description": "AI 提案タグの最低信頼度。0.6 未満は UI に表示しない" }
   },
   "msg": {
     "validation.title.required": {
@@ -64,6 +65,34 @@
       "template": "ユーザー名は英数字 (3-32 文字) で入力してください",
       "params": [],
       "description": "ユーザー名形式が不正な時のバリデーションメッセージ。"
+    },
+    "proofreadStyle": {
+      "template": "casual-diary",
+      "description": "校正の既定トーン。日記なら casual、公開ブログなら polite/professional"
+    }
+  },
+  "extensionCategories": {
+    "ai": {
+      "summarizeModel": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-7",
+        "description": "本文の要約に使うモデル。長文から 3-5 文の要約を出す"
+      },
+      "altTextModel": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-7",
+        "description": "Vision API で画像 alt text を生成。日本語で簡潔に (40-100 字)"
+      },
+      "proofreadModel": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-7",
+        "description": "本文校正に使うモデル (敬体/常体/誤字訂正)"
+      },
+      "tagSuggestModel": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-7",
+        "description": "本文からタグ候補を提案するモデル (信頼度 score 付き)"
+      }
     }
   }
 }

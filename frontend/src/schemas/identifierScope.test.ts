@@ -199,6 +199,72 @@ describe("checkIdentifierScopes — @conv.* は検査対象外", () => {
   });
 });
 
+describe("checkIdentifierScopes — @env.* catalog 参照", () => {
+  it("context.catalogs.envVars で宣言された @env.CLAUDE_API_BASE_URL は参照 OK", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      context: {
+        catalogs: {
+          envVars: {
+            CLAUDE_API_BASE_URL: {
+              type: "string",
+              description: "Claude API base URL",
+              default: "https://api.anthropic.com",
+            },
+          },
+        },
+      },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", kind: "externalSystem", description: "",
+          systemRef: "claudeApi",
+          httpCall: { method: "POST", path: "@env.CLAUDE_API_BASE_URL + '/v1/messages'" },
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(0);
+  });
+
+  it("未宣言の @env.UNKNOWN_KEY は UNKNOWN_IDENTIFIER", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      context: { catalogs: { envVars: {} } },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", kind: "externalSystem", description: "",
+          systemRef: "claudeApi",
+          httpCall: { method: "POST", path: "@env.UNKNOWN_KEY + '/v1/messages'" },
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].identifier).toBe("env.UNKNOWN_KEY");
+    expect(issues[0].code).toBe("UNKNOWN_IDENTIFIER");
+  });
+
+  it("@env.CLAUDE_API_BASE_URL.subfield は未サポートとして reject", () => {
+    const issues = checkIdentifierScopes(makeGroup({
+      context: {
+        catalogs: {
+          envVars: {
+            CLAUDE_API_BASE_URL: { type: "string" },
+          },
+        },
+      },
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1", kind: "compute", description: "",
+          expression: "@env.CLAUDE_API_BASE_URL.subfield",
+          outputBinding: "x",
+        }],
+      }],
+    }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].identifier).toBe("env.CLAUDE_API_BASE_URL.subfield");
+  });
+});
+
 describe("checkIdentifierScopes — SQL 内の @identifier", () => {
   it("SQL 内の @ 参照も検査", () => {
     const issues = checkIdentifierScopes(makeGroup({
