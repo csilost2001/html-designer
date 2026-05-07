@@ -255,11 +255,13 @@ class WsBridge extends EventEmitter {
   // WS 経由は WebSocket clientId、MCP 経由は MCP sessionId をそのまま渡す
   // (workspaceContextManager は両 namespace を統一管理する、#700 R-2)。
 
-  /** sessionId から active workspace path (wsId) を解決する。未選択時は throw。 */
+  /**
+   * sessionId から active workspace path (wsId) を解決する。未選択時は WorkspaceUnsetError を throw。
+   * #917 review M-1: plain Error だと index.ts の catch ブロックで McpError(InvalidParams) に
+   * 変換されず汎用 isError に落ちるため、他 workspace 依存 MCP tool と同じ requireActivePath を使う。
+   */
   private _resolveActiveWsId(sessionId: string): string {
-    const wsId = workspaceContextManager.getActivePath(sessionId);
-    if (!wsId) throw new Error("ワークスペースが選択されていません");
-    return wsId;
+    return workspaceContextManager.requireActivePath(sessionId);
   }
 
   /** spec §5 step 1: 新規 EditSession を作成し initial Edit participant として登録 + broadcast */
@@ -352,10 +354,18 @@ class WsBridge extends EventEmitter {
     const wsId = this._resolveActiveWsId(sessionId);
     const store = this.getOrCreateEditSessionStore(wsId);
     const targetSession = store.getById(editSessionId);
-    const fromSessionId = targetSession
-      ? (Array.from(targetSession.participants.values()).find((p) => p.role === "Edit")?.sessionId ?? sessionId)
-      : sessionId;
-    const result = store.transferEdit(fromSessionId, sessionId, editSessionId);
+    if (!targetSession) {
+      throw new EditSessionNotFoundError(editSessionId);
+    }
+    // #917 review S-2: editor 不在時に caller fallback すると "from は Edit role ではない" と
+    // 不明瞭なエラーが返るため、editor 不在を明示的に検出してより正確なエラーを throw する。
+    const editor = Array.from(targetSession.participants.values()).find((p) => p.role === "Edit");
+    if (!editor) {
+      throw new EditSessionStateError(
+        `EditSession ${editSessionId} に Edit role の participant が存在しないため take-over できません`,
+      );
+    }
+    const result = store.transferEdit(editor.sessionId, sessionId, editSessionId);
     this.broadcast({
       wsId,
       event: "editSession.roleChanged",
@@ -590,11 +600,20 @@ class WsBridge extends EventEmitter {
         try {
           const results = await store.cleanupExpired(now, 2 /* ttlDays */, 7 /* retentionDays */);
           for (const { editSession, action } of results) {
+            // #917 review S-1: spec §12.4 / §14.1 準拠の broadcast event 名に修正
+            //   - "discarded" (TTL 経過 Active → Discarded): editSession.discarded (reason: "ttl")
+            //   - "deleted" (retention 経過 Discarded → 完全削除): editSession.expired
             if (action === "discarded") {
               this.broadcast({
                 wsId,
+                event: "editSession.discarded",
+                data: { editSessionId: editSession.id, reason: "ttl" as const },
+              });
+            } else if (action === "deleted") {
+              this.broadcast({
+                wsId,
                 event: "editSession.expired",
-                data: { editSessionId: editSession.id, reason: "ttl" },
+                data: { editSessionId: editSession.id },
               });
             }
           }
