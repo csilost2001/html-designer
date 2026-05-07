@@ -75,9 +75,10 @@ ProcessFlow JSON に含めるべき要素 (5/5 達成サンプル準拠):
 | `ambientVariables` | requestId / sessionUserId 等の暗黙変数定義 |
 | `errorCatalog` | 5 件以上、key + httpStatus + defaultMessage + responseRef |
 | `externalSystemCatalog` | 連携する外部システム (auth / baseUrl / timeoutMs / openApiSpec 任意) |
+| `modelEndpointCatalog` | AI モデルエンドポイント (provider / model / auth / defaults / fallback) — `aiCall` / `aiAgent` step から参照 (#935) |
 | `secretsCatalog` | 各 API トークン (source / name / rotationDays) |
 | `domainsCatalog` | ID 系・金額系等のドメイン型 (constraints 付き) |
-| `functionsCatalog` | 業務固有関数のシグネチャ (signature / returnType / examples) |
+| `functionsCatalog` | 業務固有関数のシグネチャ (signature / returnType / examples) — `aiCall.tools[].functionRef` から tool として再利用可 |
 | `actions[]` | 1-3 アクション。各 trigger / inputs / outputs / responses / steps |
 | `testScenarios` | 3 件以上 (happy path / validation error / 業務エッジケース)、各 SELECT 対象テーブルについて行ありパターン + 行なしパターン (新規ユーザー / 初回利用) を網羅 (#608) |
 
