@@ -432,6 +432,21 @@ export function ScreenItemsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenId]);
 
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { syncSessionToUrl, initialEditSessionId: initialScreenItemsSessionId } = useSessionUrlSync({
+    resourceType: "screen-item",
+    resourceId: screenId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+    resourceType: "screen-item",
+    resourceId: screenId ?? "",
+    sessionId,
+    editSessionId: initialScreenItemsSessionId,
+  });
+
   const {
     state: file,
     isDirty, isSaving, serverChanged,
@@ -449,20 +464,10 @@ export function ScreenItemsView() {
     broadcastName: "screenItemsChanged",
     broadcastIdField: "screenId",
     onNotFound: () => navigate(wsPath("/screen/list"), { replace: true }),
-  });
-
-  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
-  const { syncSessionToUrl, initialEditSessionId: initialScreenItemsSessionId } = useSessionUrlSync({
-    resourceType: "screen-item",
-    resourceId: screenId ?? "",
-  });
-
-  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
-    resourceType: "screen-item",
-    resourceId: screenId ?? "",
-    sessionId,
-    editSessionId: initialScreenItemsSessionId,
+    // #891 fix: viewer mode で mid-edit broadcast を受信するため渡す
+    viewerMode: mode.kind,
+    viewerResourceType: "screen-item",
+    viewerEditSessionId: editSession?.id,
   });
 
   const isReadonly = mode.kind !== "editing";

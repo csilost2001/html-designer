@@ -52,6 +52,21 @@ export function ViewEditor() {
 
   const sessionId = mcpBridge.getSessionId();
 
+  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
+  const { initialEditSessionId: initialViewSessionId } = useSessionUrlSync({
+    resourceType: "view",
+    resourceId: viewId ?? "",
+  });
+
+  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
+  // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+    resourceType: "view",
+    resourceId: viewId ?? "",
+    sessionId,
+    editSessionId: initialViewSessionId,
+  });
+
   const {
     state: view,
     isDirty, isSaving, serverChanged,
@@ -67,20 +82,10 @@ export function ViewEditor() {
     broadcastName: "viewChanged",
     broadcastIdField: "viewId",
     onNotFound: handleNotFound,
-  });
-
-  // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
-  const { initialEditSessionId: initialViewSessionId } = useSessionUrlSync({
-    resourceType: "view",
-    resourceId: viewId ?? "",
-  });
-
-  // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
-    resourceType: "view",
-    resourceId: viewId ?? "",
-    sessionId,
-    editSessionId: initialViewSessionId,
+    // #891 fix: viewer mode で mid-edit broadcast を受信するため渡す
+    viewerMode: mode.kind,
+    viewerResourceType: "view",
+    viewerEditSessionId: editSession?.id,
   });
 
   const isReadonly = mode.kind !== "editing";
