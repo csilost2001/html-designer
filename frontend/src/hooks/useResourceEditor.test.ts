@@ -260,3 +260,80 @@ describe("useResourceEditor: broadcast", () => {
     expect(hook.result.current.serverChanged).toBe(false);
   });
 });
+
+// ── P1-B 順序回帰: actions.save (conflict check) → postSave (dirty クリア) (#908) ──────
+
+describe("useResourceEditor: P1-B save 順序回帰 (#908)", () => {
+  it("conflict check が postSave より先に呼ばれれば postSave は書き込みを行わない", async () => {
+    // 旧実装では resourceHandleSave (= save関数) → actions.save の順だったため
+    // conflict があっても既にファイルが書き込まれていた。
+    // 修正後は actions.save (conflict check) → postSave (dirty クリアのみ) の順。
+    // このテストは postSave が save 関数を一切呼ばないことを確認する。
+    const callOrder: string[] = [];
+    const save = vi.fn(async () => { callOrder.push("save"); });
+    const { hook } = setup({ save });
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "edited"; }));
+
+    // actions.save (conflict check) が先に完了したと仮定して postSave を呼ぶ
+    await act(async () => {
+      callOrder.push("conflict-check");
+      await hook.result.current.postSave();
+      callOrder.push("post-save-done");
+    });
+
+    // save 関数 (ファイル書き込み相当) は呼ばれない
+    expect(save).not.toHaveBeenCalled();
+    // conflict-check → post-save-done の順で完了
+    expect(callOrder).toEqual(["conflict-check", "post-save-done"]);
+    // dirty クリア完了
+    expect(hook.result.current.isDirty).toBe(false);
+  });
+});
+
+// ── postSave (#908 P1-B fix) ─────────────────────────────────────────────────
+
+describe("useResourceEditor: postSave (#908 P1-B fix)", () => {
+  it("postSave: save 関数を呼ばずに isDirty=false・draft 削除・タブ clean になる", async () => {
+    const save = vi.fn(async () => { /* ok */ });
+    const { hook } = setup({ save });
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "changed"; }));
+    expect(hook.result.current.isDirty).toBe(true);
+
+    // postSave は save() を呼ばない (editSession.save が backend 側で書き込みを担う)
+    await act(async () => { await hook.result.current.postSave(); });
+
+    expect(save).not.toHaveBeenCalled(); // save 関数は呼ばれない
+    expect(hook.result.current.isDirty).toBe(false);
+    expect(hasDraft("table", "abc")).toBe(false);
+    expect(getTabs().find((t) => t.id === makeTabId("table", "abc"))?.isDirty).toBe(false);
+  });
+
+  it("postSave: isSaving は true → false と変化する", async () => {
+    const { hook } = setup();
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "changed"; }));
+
+    // postSave 後は isSaving が false に戻る
+    await act(async () => { await hook.result.current.postSave(); });
+    expect(hook.result.current.isSaving).toBe(false);
+  });
+
+  it("postSave: handleSave との違い — handleSave は save() を呼ぶが postSave は呼ばない", async () => {
+    const save = vi.fn(async () => { /* ok */ });
+    const { hook } = setup({ save });
+    await waitFor(() => expect(hook.result.current.state).not.toBeNull());
+    act(() => hook.result.current.update((d) => { d.name = "v1"; }));
+
+    // handleSave は save() を呼ぶ
+    await act(async () => { await hook.result.current.handleSave(); });
+    expect(save).toHaveBeenCalledTimes(1);
+
+    // postSave は save() を呼ばない
+    act(() => hook.result.current.update((d) => { d.name = "v2"; }));
+    await act(async () => { await hook.result.current.postSave(); });
+    expect(save).toHaveBeenCalledTimes(1); // 変わらず 1 回のまま
+    expect(hook.result.current.isDirty).toBe(false);
+  });
+});

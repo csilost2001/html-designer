@@ -90,9 +90,19 @@ export interface UseEditSessionResult {
   error: Error | null;
   startEditing(): Promise<void>;
   attach(editSessionId: string): Promise<void>;
-  takeOver(): Promise<void>;
+  /**
+   * View → Edit に昇格 (atomic、prevEditor は View に降格)。
+   * P2 fix (#908): targetEditSessionId を指定すると、hook の current editSession とは
+   * 別の session に対して transferEdit を実行できる (EditSessionDropdown で選択した session)。
+   * 未指定時は hook の current editSession に対して実行する。
+   */
+  takeOver(targetEditSessionId?: string): Promise<void>;
   releaseEdit(): Promise<void>;
-  save(): Promise<void>;
+  /**
+   * P1 fix (#908): conflict 時は { conflicted: true } を返す。
+   * 呼び出し元は conflicted === true なら postSave / cleanup をスキップすること。
+   */
+  save(): Promise<{ conflicted: boolean; failed?: boolean }>;
   discard(): Promise<void>;
   detach(): Promise<void>;
   /**
@@ -136,7 +146,11 @@ export type EditMode =
  */
 export interface EditSessionActions {
   startEditing(): Promise<void>;
-  save(): Promise<void>;
+  /**
+   * P1 fix (#908): conflict 時は { conflicted: true } を返す。
+   * 呼び出し元は conflicted === true なら postSave / cleanup をスキップすること。
+   */
+  save(): Promise<{ conflicted: boolean; failed?: boolean }>;
   discard(): Promise<void>;
   /** 旧 lock model の強制解除。新 API では editSession.detach に相当 (forced=true 相当) */
   forceReleaseOther(): Promise<void>;
@@ -361,22 +375,29 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
 
   // ── takeOver ─────────────────────────────────────────────────────────────────
 
-  const takeOver = useCallback(async () => {
+  /**
+   * P2 fix (#908): targetEditSessionId を指定すると、hook の current editSession とは
+   * 別の session に対して transferEdit を実行できる (EditSessionDropdown で選択した session)。
+   * 未指定時は hook の current editSession に対して実行する (従来動作)。
+   */
+  const takeOver = useCallback(async (targetEditSessionId?: string) => {
     setError(null);
     const es = editSessionRef.current;
-    if (!es) {
+    const editSessionId = targetEditSessionId ?? es?.id;
+    if (!editSessionId) {
       setError(new Error("EditSession がアクティブでありません"));
       return;
     }
     setLoading(true);
     try {
       // transferEdit: 現在の Edit participant から自分 (View) へ atomic に移譲
+      // P2 fix (#908): targetEditSessionId 指定時はそれに作用する
       await mcpBridge.request("editSession.transferEdit", {
-        editSessionId: es.id,
+        editSessionId,
         toSessionId: "", // server 側が clientId を使うため空で良い (handler 実装上、fromSessionId は clientId から自動判定)
       });
       setMyRole("Edit");
-      await refreshEditSessionState(es.id);
+      await refreshEditSessionState(editSessionId);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
@@ -433,12 +454,12 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
     }
   }, []);
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<{ conflicted: boolean; failed?: boolean }> => {
     setError(null);
     const es = editSessionRef.current;
     if (!es) {
       setError(new Error("EditSession がアクティブでありません"));
-      return;
+      return { conflicted: false };
     }
     setLoading(true);
     try {
@@ -446,13 +467,19 @@ export function useEditSession(opts: UseEditSessionOptions): UseEditSessionResul
         editSessionId: es.id,
       }) as { ok?: boolean; conflict?: { other: SaveConflictInfo }; saveEvent?: unknown } | undefined;
       // spec §9.3: 衝突検出 — backend が { ok: false, conflict: { other: ... } } を返した場合
+      // P1 fix (#908): conflict 時は { conflicted: true } を返し、呼び出し元が postSave をスキップできるようにする
       if (res && res.ok === false && res.conflict) {
         setSaveConflict(res.conflict.other);
-        return;
+        return { conflicted: true };
       }
       // saveHistory は broadcast editSession.saved で refreshEditSessionState が呼ばれる
+      return { conflicted: false };
     } catch (e) {
+      // P2 fix (#908 round-6): backend reject (transient failure) を caller に signal で伝播。
+      // throw だと React onClick の async handler で unhandled rejection になるため、
+      // 戻り値の failed フラグで明示。caller は (conflicted || failed) なら postSave skip。
       setError(e instanceof Error ? e : new Error(String(e)));
+      return { conflicted: false, failed: true };
     } finally {
       setLoading(false);
     }

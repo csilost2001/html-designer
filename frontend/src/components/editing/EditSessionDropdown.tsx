@@ -30,6 +30,13 @@ export interface EditSessionDropdownProps {
   onViewerAttached?: (editSessionId: string) => void;
   /** 新規 draft 作成 (startEditing 相当) */
   onStartEditing?: () => void;
+  /**
+   * P2 fix (#908): take-over callback — useEditSession.takeOver(editSessionId) を呼ぶ。
+   * editSessionId には選択した EditSession の ID が渡される。
+   * 省略時は内部で mcpBridge.request("editSession.transferEdit") を直接呼ぶ (非推奨 fallback)。
+   * myRole の即時反映には onTakeOver の指定が必須。
+   */
+  onTakeOver?: (editSessionId: string) => Promise<void>;
 }
 
 // ── 相対時間 ─────────────────────────────────────────────────────────────────
@@ -190,6 +197,7 @@ export function EditSessionDropdown({
   currentSessionId,
   onViewerAttached,
   onStartEditing,
+  onTakeOver,
 }: EditSessionDropdownProps) {
   const [open, setOpen] = useState(false);
   const [sessions, setSessions] = useState<EditSessionData[]>([]);
@@ -274,16 +282,24 @@ export function EditSessionDropdown({
       );
       if (!confirmed) return;
       try {
-        await mcpBridge.request("editSession.transferEdit", {
-          editSessionId,
-          toSessionId: currentSessionId,
-        });
+        if (onTakeOver) {
+          // P2 fix (#908): useEditSession.takeOver(editSessionId) 経由で実行し、
+          // 選択した session に対して take-over を実行する。myRole も即時更新される。
+          await onTakeOver(editSessionId);
+        } else {
+          // fallback: onTakeOver が指定されていない場合は直接 transferEdit を呼ぶ
+          // (myRole は broadcast 経由でのみ更新されるため遅延する可能性あり)
+          await mcpBridge.request("editSession.transferEdit", {
+            editSessionId,
+            toSessionId: currentSessionId,
+          });
+        }
         setOpen(false);
       } catch (e) {
-        console.error("[EditSessionDropdown] transferEdit failed:", e);
+        console.error("[EditSessionDropdown] transferEdit/takeOver failed:", e);
       }
     },
-    [sessions, currentSessionId],
+    [sessions, currentSessionId, onTakeOver],
   );
 
   // ── [× 破棄] — discard ────────────────────────────────────────────────────

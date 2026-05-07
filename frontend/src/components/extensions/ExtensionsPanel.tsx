@@ -121,8 +121,11 @@ export function ExtensionsPanel() {
     setSaving(true);
     setMessage(null);
     try {
+      // P1 fix (#908 Opus round-3): conflict check を本体書き込み前に実行
+      // actions.save() は conflict 時 { conflicted: true } を返す (postSave / 本体書き込みをスキップして dialog 経由で対処)
+      const { conflicted, failed } = await actions.save();
+      if (conflicted || failed) return;
       await mcpBridge.request("saveExtensionPackage", { type: kind, content });
-      await actions.save();
       setMessage("保存しました。");
       await load(true);
     } catch (e) {

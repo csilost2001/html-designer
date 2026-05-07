@@ -217,7 +217,7 @@ export function ViewDefinitionEditor() {
   const {
     state: viewDefinition,
     isDirty, isSaving, serverChanged,
-    update, updateSilent, commit, handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    update, updateSilent, commit, postSave, handleReset, dismissServerBanner,
     undo, redo, canUndo, canRedo,
     reload,
   } = useResourceEditor<ViewDefinition>({
@@ -240,7 +240,7 @@ export function ViewDefinitionEditor() {
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "view-definition",
     resourceId: viewDefinitionId ?? "",
     sessionId,
@@ -280,9 +280,19 @@ export function ViewDefinitionEditor() {
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
-    await resourceHandleSave();
-    await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions]);
+    // P1 fix (#908 round-5): debounce 中の draft を flush して即送信、その後 conflict check
+    if (draftUpdateTimer.current) {
+      clearTimeout(draftUpdateTimer.current);
+      draftUpdateTimer.current = null;
+    }
+    if (viewDefRef.current && editSession?.id) {
+      await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: viewDefRef.current });
+    }
+    // P1 fix (#908): conflict 時は postSave をスキップして clean 化を防ぐ。
+    const { conflicted, failed } = await actions.save();
+    if (conflicted || failed) return;
+    await postSave();
+  }, [isReadonly, isSaving, actions, postSave, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -654,6 +664,7 @@ export function ViewDefinitionEditor() {
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
             onViewerAttached={syncSessionToUrl}
+            onTakeOver={takeOver}
           />
         }
         saveReset={isReadonly ? undefined : {

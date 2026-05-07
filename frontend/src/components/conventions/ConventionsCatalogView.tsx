@@ -122,7 +122,8 @@ export function ConventionsCatalogView() {
     isDirty, isSaving, serverChanged,
     update, updateSilent, commit,
     undo, redo, canUndo, canRedo,
-    handleSave: resourceHandleSave, handleReset, dismissServerBanner,
+    handleReset, dismissServerBanner,
+    postSave,
     reload,
   } = useResourceEditor<ConventionsCatalog>({
     tabType: "conventions-catalog",
@@ -181,9 +182,17 @@ export function ConventionsCatalogView() {
     if (catalogRef.current && editSession?.id) {
       await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: catalogRef.current });
     }
-    await resourceHandleSave();
-    await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions, editSession]);
+    // P1-B fix (#908): conflict check (actions.save) を本体書き込みより先に実行する。
+    // P1 fix (#908): conflict 時は postSave をスキップして clean 化を防ぐ。
+    const { conflicted, failed } = await actions.save();
+    if (conflicted || failed) return;
+    // P1 fix (#908 round-5): convention は backend editSession.save で write skip されるため、
+    // ここで catalog 本体ファイル書き込みを実行する (Extensions と同パターン)。
+    if (catalogRef.current) {
+      await saveCatalog(catalogRef.current);
+    }
+    await postSave();
+  }, [isReadonly, isSaving, postSave, actions, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);

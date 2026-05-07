@@ -315,4 +315,104 @@ describe("EditSessionDropdown", () => {
       expect(screen.getByTestId("esd-discard-btn-es-discard-test")).toBeTruthy();
     });
   });
+
+  // ── P2 fix (#908): take-over で onTakeOver が呼ばれる ───────────────────────
+
+  it("#908 P2: [↪ 引継] クリックで onTakeOver callback が呼ばれ myRole が即時更新できる", async () => {
+    // session-self が View participant として参加している
+    mockRequest.mockResolvedValue({
+      sessions: [
+        makeEditSession({
+          id: "es-takeover-p2",
+          participants: {
+            "session-alice": {
+              sessionId: "session-alice",
+              role: "Edit",
+              joinedAt: new Date().toISOString(),
+              lastActivityAt: new Date().toISOString(),
+              displayLabel: "@alice",
+            },
+            "session-self": {
+              sessionId: "session-self",
+              role: "View",
+              joinedAt: new Date().toISOString(),
+              lastActivityAt: new Date().toISOString(),
+              displayLabel: "@self",
+            },
+          },
+        }),
+      ],
+    });
+
+    const onTakeOver = vi.fn().mockResolvedValue(undefined);
+    // window.confirm を自動承認
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(
+      <EditSessionDropdown
+        {...defaultProps}
+        onTakeOver={onTakeOver}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("esd-toggle-btn"));
+
+    await waitFor(() => screen.getByTestId("esd-takeover-btn-es-takeover-p2"));
+    fireEvent.click(screen.getByTestId("esd-takeover-btn-es-takeover-p2"));
+
+    await waitFor(() => {
+      // onTakeOver が選択した editSessionId を引数として呼ばれること (P2 fix #908)
+      expect(onTakeOver).toHaveBeenCalledTimes(1);
+      expect(onTakeOver).toHaveBeenCalledWith("es-takeover-p2");
+      // editSession.transferEdit を直接呼んでいないこと
+      expect(mockRequest).not.toHaveBeenCalledWith("editSession.transferEdit", expect.anything());
+    });
+
+    vi.restoreAllMocks();
+  });
+
+  it("#908 P2: onTakeOver が未指定の場合は editSession.transferEdit を fallback で直接呼ぶ", async () => {
+    mockRequest
+      .mockResolvedValueOnce({
+        sessions: [
+          makeEditSession({
+            id: "es-fallback-p2",
+            participants: {
+              "session-alice": {
+                sessionId: "session-alice",
+                role: "Edit",
+                joinedAt: new Date().toISOString(),
+                lastActivityAt: new Date().toISOString(),
+                displayLabel: "@alice",
+              },
+              "session-self": {
+                sessionId: "session-self",
+                role: "View",
+                joinedAt: new Date().toISOString(),
+                lastActivityAt: new Date().toISOString(),
+                displayLabel: "@self",
+              },
+            },
+          }),
+        ],
+      })
+      .mockResolvedValue({ ok: true }); // transferEdit mock
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<EditSessionDropdown {...defaultProps} />); // onTakeOver 未指定
+    fireEvent.click(screen.getByTestId("esd-toggle-btn"));
+
+    await waitFor(() => screen.getByTestId("esd-takeover-btn-es-fallback-p2"));
+    fireEvent.click(screen.getByTestId("esd-takeover-btn-es-fallback-p2"));
+
+    await waitFor(() => {
+      // fallback: editSession.transferEdit が直接呼ばれること
+      expect(mockRequest).toHaveBeenCalledWith("editSession.transferEdit", expect.objectContaining({
+        editSessionId: "es-fallback-p2",
+        toSessionId: "session-self",
+      }));
+    });
+
+    vi.restoreAllMocks();
+  });
 });
