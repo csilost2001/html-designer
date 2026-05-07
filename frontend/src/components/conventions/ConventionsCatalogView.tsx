@@ -12,7 +12,7 @@ import { TableSubToolbar } from "../table/TableSubToolbar";
 import { EditorHeader } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSession } from "../../hooks/useEditSession";
+import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import {
   DiscardConfirmDialog,

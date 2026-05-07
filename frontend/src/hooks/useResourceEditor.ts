@@ -33,13 +33,19 @@ export interface UseResourceEditorOptions<T> {
   /** broadcast 受信時に dirty でなければ自動リロードするか（デフォルト true）*/
   autoReloadOnClean?: boolean;
   /**
-   * #880 Phase 3: viewer mode で draft-update broadcast を受信して state を更新する。
+   * #880 Phase 3: viewer mode で broadcast を受信して state を更新する。
    * "viewer" を指定すると read-only で editor の中間状態を追従する。
-   * resourceType は draft-update フィルタに使用 (id と組み合わせて絞り込む)。
+   * resourceType は draft-update / editSession.update フィルタに使用 (id と組み合わせて絞り込む)。
    */
   viewerMode?: "viewer" | "editor" | "readonly";
-  /** viewer mode の draft-update フィルタ用 resourceType */
+  /** viewer mode の draft-update / editSession.update フィルタ用 resourceType */
   viewerResourceType?: DraftResourceType;
+  /**
+   * #900 Phase 3: editSession.update broadcast を受信する場合の EditSession ID。
+   * この値が指定されている場合、editSession.update broadcast で editSessionId フィルタを行う。
+   * 指定されない場合は旧 draft-update (resourceType/resourceId) でフィルタする。
+   */
+  viewerEditSessionId?: string;
 }
 
 export interface UseResourceEditorResult<T> {
@@ -86,6 +92,7 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
     autoReloadOnClean = true,
     viewerMode,
     viewerResourceType,
+    viewerEditSessionId,
   } = opts;
 
   const [isDirty, setIsDirty] = useState(false);
@@ -242,13 +249,33 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
     });
   }, [reload]);
 
-  // #880 Phase 3: viewer mode — draft-update broadcast を受信して state を更新する (sequence reorder 破棄)
+  // #880 Phase 3 / #900 Phase 3: viewer mode — broadcast を受信して state を更新する (sequence reorder 破棄)
   // lastSeq は effect の再実行 (viewer attach) ごとに 0 リセットする。
   // これは viewer attach 時にサーバから最新 snapshot を再受信する想定のため、
   // 旧 sequence との連続性を保つ必要がなく、常に最初の update から受け入れる。
   useEffect(() => {
-    if (viewerMode !== "viewer" || !id || !viewerResourceType) return;
+    if (viewerMode !== "viewer" || !id) return;
     let lastSeq = 0;
+
+    // 新 API: editSession.update broadcast (viewerEditSessionId が指定されている場合)
+    if (viewerEditSessionId) {
+      return mcpBridge.onBroadcast("editSession.update", (data) => {
+        const d = data as {
+          editSessionId: string;
+          sequence?: number;
+          payload?: unknown;
+          senderSessionId?: string;
+        };
+        if (d.editSessionId !== viewerEditSessionId) return;
+        if (typeof d.sequence === "number" && d.sequence <= lastSeq) return; // reorder 破棄
+        lastSeq = d.sequence ?? lastSeq;
+        // read-only render: payload を完全置換 (opaque envelope)
+        resetState(d.payload as T);
+      });
+    }
+
+    // 旧 API: draft-update broadcast (viewerResourceType が指定されている場合)
+    if (!viewerResourceType) return;
     return mcpBridge.onBroadcast("draft-update", (data) => {
       const d = data as {
         resourceType?: string;
@@ -263,7 +290,7 @@ export function useResourceEditor<T>(opts: UseResourceEditorOptions<T>): UseReso
       // read-only render: payload を完全置換
       resetState(d.payload as T);
     });
-  }, [viewerMode, viewerResourceType, id, resetState]);
+  }, [viewerMode, viewerResourceType, viewerEditSessionId, id, resetState]);
 
   return {
     state,

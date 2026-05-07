@@ -34,7 +34,7 @@ import { loadViewDefinition, saveViewDefinition } from "../../store/viewDefiniti
 import { listTables, loadTable } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSession } from "../../hooks/useEditSession";
+import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink, type EditorHeaderUndoRedo } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";

@@ -12,7 +12,7 @@ import type { CssFramework } from "../types/v3/project";
 import { resolveCssFramework } from "../utils/resolveCssFramework";
 import { resolveEditorKind } from "../utils/resolveEditorKind";
 import type { EditorKind } from "../utils/resolveEditorKind";
-import { useEditSession } from "../hooks/useEditSession";
+import { useEditSessionLegacy as useEditSession } from "../hooks/useEditSession";
 import { EditModeToolbar } from "./editing/EditModeToolbar";
 import {
   DiscardConfirmDialog,

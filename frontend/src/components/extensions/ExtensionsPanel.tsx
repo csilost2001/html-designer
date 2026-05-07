@@ -7,7 +7,7 @@ import { FieldTypesTab } from "./FieldTypesTab";
 import { TriggersTab } from "./TriggersTab";
 import { DbOperationsTab } from "./DbOperationsTab";
 import { ResponseTypesTab } from "./ResponseTypesTab";
-import { useEditSession } from "../../hooks/useEditSession";
+import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import {
   DiscardConfirmDialog,

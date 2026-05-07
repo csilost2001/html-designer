@@ -7,7 +7,7 @@ import { loadConventions } from "../../store/conventionsStore";
 import { listTables, loadTable } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
-import { useEditSession } from "../../hooks/useEditSession";
+import { useEditSessionLegacy as useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { EditorHeader, type EditorHeaderSaveReset, type EditorHeaderBackLink } from "../common/EditorHeader";
 import { ServerChangeBanner } from "../common/ServerChangeBanner";
