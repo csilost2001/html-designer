@@ -2,7 +2,7 @@
  * remoteStorage.test.ts (#689)
  *
  * edit-session-draft モデルの remoteStorage load() ロジックをユニットテスト。
- * - draft 優先ロード
+ * - EditSession draft 優先ロード (editSession.list + editSession.fetchPayload)
  * - draft なし時の本体 fallback
  */
 
@@ -12,8 +12,6 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 vi.mock("../mcp/mcpBridge", () => {
   return {
     mcpBridge: {
-      hasDraft: vi.fn(),
-      readDraft: vi.fn(),
       request: vi.fn(),
     },
   };
@@ -30,12 +28,11 @@ import { mcpBridge } from "../mcp/mcpBridge";
 import type { Editor as GEditor } from "grapesjs";
 
 const mockBridge = mcpBridge as {
-  hasDraft: ReturnType<typeof vi.fn>;
-  readDraft: ReturnType<typeof vi.fn>;
   request: ReturnType<typeof vi.fn>;
 };
 
 const SCREEN_ID = "test-screen-remote-001";
+const EDIT_SESSION_ID = "es-remote-001";
 
 const DRAFT_DATA = {
   assets: [],
@@ -73,27 +70,41 @@ describe("registerRemoteStorage — load()", () => {
     const { registerRemoteStorage } = await import("./remoteStorage");
     registerRemoteStorage(mockEditor, SCREEN_ID);
 
-    mockBridge.hasDraft.mockResolvedValue({ exists: true });
-    mockBridge.readDraft.mockResolvedValue(DRAFT_DATA);
+    // editSession.list → session あり → editSession.fetchPayload → DRAFT_DATA
+    mockBridge.request.mockImplementation(async (method: string) => {
+      if (method === "editSession.list") {
+        return { sessions: [{ id: EDIT_SESSION_ID }] };
+      }
+      if (method === "editSession.fetchPayload") {
+        return { payload: DRAFT_DATA, sequence: 1 };
+      }
+      return null;
+    });
 
     const result = await registeredStorage!.load();
     expect(result).toEqual(DRAFT_DATA);
-    expect(mockBridge.hasDraft).toHaveBeenCalledWith("screen", SCREEN_ID);
-    expect(mockBridge.readDraft).toHaveBeenCalledWith("screen", SCREEN_ID);
-    expect(mockBridge.request).not.toHaveBeenCalled();
+    expect(mockBridge.request).toHaveBeenCalledWith("editSession.list", { resourceType: "screen", resourceId: SCREEN_ID });
+    expect(mockBridge.request).toHaveBeenCalledWith("editSession.fetchPayload", { editSessionId: EDIT_SESSION_ID });
   });
 
   test("draft がない場合は本体ファイルを返す", async () => {
     const { registerRemoteStorage } = await import("./remoteStorage");
     registerRemoteStorage(mockEditor, SCREEN_ID);
 
-    mockBridge.hasDraft.mockResolvedValue({ exists: false });
-    mockBridge.request.mockResolvedValue(CANONICAL_DATA);
+    // editSession.list → session なし → loadScreen → CANONICAL_DATA
+    mockBridge.request.mockImplementation(async (method: string) => {
+      if (method === "editSession.list") {
+        return { sessions: [] };
+      }
+      if (method === "loadScreen") {
+        return CANONICAL_DATA;
+      }
+      return null;
+    });
 
     const result = await registeredStorage!.load();
     expect(result).toEqual(CANONICAL_DATA);
-    expect(mockBridge.hasDraft).toHaveBeenCalledWith("screen", SCREEN_ID);
-    expect(mockBridge.readDraft).not.toHaveBeenCalled();
+    expect(mockBridge.request).toHaveBeenCalledWith("editSession.list", { resourceType: "screen", resourceId: SCREEN_ID });
     expect(mockBridge.request).toHaveBeenCalledWith("loadScreen", { screenId: SCREEN_ID });
   });
 
@@ -101,20 +112,36 @@ describe("registerRemoteStorage — load()", () => {
     const { registerRemoteStorage } = await import("./remoteStorage");
     registerRemoteStorage(mockEditor, SCREEN_ID);
 
-    mockBridge.hasDraft.mockRejectedValue(new Error("MCP disconnected"));
-    mockBridge.request.mockResolvedValue(CANONICAL_DATA);
+    let callCount = 0;
+    mockBridge.request.mockImplementation(async (method: string) => {
+      if (method === "editSession.list") {
+        throw new Error("MCP disconnected");
+      }
+      if (method === "loadScreen") {
+        callCount++;
+        return CANONICAL_DATA;
+      }
+      return null;
+    });
 
     const result = await registeredStorage!.load();
     expect(result).toEqual(CANONICAL_DATA);
-    expect(mockBridge.request).toHaveBeenCalledWith("loadScreen", { screenId: SCREEN_ID });
+    expect(callCount).toBe(1);
   });
 
   test("本体データが空の場合は EMPTY_PROJECT を返す", async () => {
     const { registerRemoteStorage } = await import("./remoteStorage");
     registerRemoteStorage(mockEditor, SCREEN_ID);
 
-    mockBridge.hasDraft.mockResolvedValue({ exists: false });
-    mockBridge.request.mockResolvedValue(null);
+    mockBridge.request.mockImplementation(async (method: string) => {
+      if (method === "editSession.list") {
+        return { sessions: [] };
+      }
+      if (method === "loadScreen") {
+        return null;
+      }
+      return null;
+    });
 
     const result = await registeredStorage!.load();
     // EMPTY_PROJECT 構造を持つことを確認

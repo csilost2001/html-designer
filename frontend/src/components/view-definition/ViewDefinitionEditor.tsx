@@ -232,7 +232,7 @@ export function ViewDefinitionEditor() {
     onLoaded: handleLoaded,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "view-definition",
     resourceId: viewDefinitionId ?? "",
     sessionId,
@@ -257,9 +257,11 @@ export function ViewDefinitionEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!viewDefinitionId || !viewDefRef.current) return;
-      mcpBridge.updateDraft("view-definition", viewDefinitionId, viewDefRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: viewDefRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, viewDefinitionId]);
+  }, [isReadonly, update, viewDefinitionId, editSession]);
 
   const updateSilentWithDraft = useCallback((fn: (s: ViewDefinition) => void) => {
     if (isReadonly) return;
@@ -267,9 +269,11 @@ export function ViewDefinitionEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!viewDefinitionId || !viewDefRef.current) return;
-      mcpBridge.updateDraft("view-definition", viewDefinitionId, viewDefRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: viewDefRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, updateSilent, viewDefinitionId]);
+  }, [isReadonly, updateSilent, viewDefinitionId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -295,9 +299,9 @@ export function ViewDefinitionEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (viewDefinitionId) await mcpBridge.discardDraft("view-definition", viewDefinitionId);
+    await actions.discard();
     await reload();
-  }, [viewDefinitionId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -314,9 +318,9 @@ export function ViewDefinitionEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("view-definition", viewDefinitionId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "view-definition", resourceId: viewDefinitionId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [viewDefinitionId, sessionLoading, mode.kind]);

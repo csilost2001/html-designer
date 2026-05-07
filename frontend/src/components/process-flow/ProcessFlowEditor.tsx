@@ -248,7 +248,7 @@ export function ProcessFlowEditor() {
   });
 
   const sessionId = mcpBridge.getSessionId();
-  const { mode, loading: sessionLoading, isDirtyForTab, actions: editActions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions } = useEditSession({
     resourceType: "process-flow",
     resourceId: processFlowId ?? "",
     sessionId,
@@ -286,9 +286,11 @@ export function ProcessFlowEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!processFlowId || !groupRef.current) return;
-      mcpBridge.updateDraft("process-flow", processFlowId, groupRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: groupRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [processFlowId]);
+  }, [processFlowId, editSession]);
 
   const updateGroupWithDraft = useCallback((fn: (g: ProcessFlow) => void) => {
     if (isReadonly) return;
@@ -320,9 +322,9 @@ export function ProcessFlowEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (processFlowId) await mcpBridge.discardDraft("process-flow", processFlowId);
+    await editActions.discard();
     await handleReset();
-  }, [processFlowId, handleReset]);
+  }, [editActions, handleReset]);
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
@@ -364,9 +366,9 @@ export function ProcessFlowEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("process-flow", processFlowId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "process-flow", resourceId: processFlowId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [processFlowId, sessionLoading, mode.kind]);

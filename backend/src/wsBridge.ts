@@ -278,6 +278,23 @@ class WsBridge extends EventEmitter {
     presenceStopCleanupInterval();
   }
 
+  /** HTTP + WebSocket サーバを停止し全接続を切断する。shutdown hook 用。 */
+  stop(): void {
+    presenceStopCleanupInterval();
+    if (this.wss) {
+      for (const client of this.wss.clients) {
+        client.terminate();
+      }
+      this.wss.close();
+      this.wss = null;
+    }
+    if (this.httpServer) {
+      this.httpServer.closeAllConnections?.();
+      this.httpServer.close();
+      this.httpServer = null;
+    }
+  }
+
   private async _bind(retries = 3): Promise<void> {
     return new Promise((resolve, reject) => {
       // HTTP サーバに WS をアタッチ (同一 port で HTTP + WS を提供 — #302)

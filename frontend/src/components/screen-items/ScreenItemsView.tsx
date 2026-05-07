@@ -450,7 +450,7 @@ export function ScreenItemsView() {
     onNotFound: () => navigate(wsPath("/screen/list"), { replace: true }),
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "screen-item",
     resourceId: screenId ?? "",
     sessionId,
@@ -474,9 +474,11 @@ export function ScreenItemsView() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!screenId || !fileRef.current) return;
-      mcpBridge.updateDraft("screen-item", screenId, fileRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, screenId]);
+  }, [isReadonly, update, screenId, editSession]);
 
   const updateSilentWithDraft = useCallback((fn: (f: ScreenItemsDocument) => void) => {
     if (isReadonly) return;
@@ -484,9 +486,11 @@ export function ScreenItemsView() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!screenId || !fileRef.current) return;
-      mcpBridge.updateDraft("screen-item", screenId, fileRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, updateSilent, screenId]);
+  }, [isReadonly, updateSilent, screenId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -496,12 +500,12 @@ export function ScreenItemsView() {
       clearTimeout(draftUpdateTimer.current);
       draftUpdateTimer.current = null;
     }
-    if (screenId && fileRef.current) {
-      await mcpBridge.updateDraft("screen-item", screenId, fileRef.current);
+    if (screenId && fileRef.current && editSession?.id) {
+      await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: fileRef.current });
     }
     await resourceHandleSave();
     await actions.save();
-  }, [isReadonly, isSaving, resourceHandleSave, actions, screenId]);
+  }, [isReadonly, isSaving, resourceHandleSave, actions, screenId, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -521,9 +525,9 @@ export function ScreenItemsView() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (screenId) await mcpBridge.discardDraft("screen-item", screenId);
+    await actions.discard();
     await reload();
-  }, [screenId, reload]);
+  }, [actions, reload]);
 
   // タブ dirty マーク
   useEffect(() => {
@@ -539,9 +543,9 @@ export function ScreenItemsView() {
     if (!screenId) return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("screen-item", screenId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "screen-item", resourceId: screenId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind, screenId]);

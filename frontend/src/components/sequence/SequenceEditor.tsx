@@ -70,7 +70,7 @@ export function SequenceEditor() {
     onNotFound: handleNotFound,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "sequence",
     resourceId: sequenceId ?? "",
     sessionId,
@@ -95,9 +95,11 @@ export function SequenceEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!sequenceId || !seqRef.current) return;
-      mcpBridge.updateDraft("sequence", sequenceId, seqRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: seqRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, sequenceId]);
+  }, [isReadonly, update, sequenceId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -123,9 +125,9 @@ export function SequenceEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (sequenceId) await mcpBridge.discardDraft("sequence", sequenceId);
+    await actions.discard();
     await reload();
-  }, [sequenceId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -142,9 +144,9 @@ export function SequenceEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("sequence", sequenceId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "sequence", resourceId: sequenceId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sequenceId, sessionLoading, mode.kind]);

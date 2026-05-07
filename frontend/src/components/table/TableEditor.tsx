@@ -78,7 +78,7 @@ export function TableEditor() {
     onNotFound: handleNotFound,
   });
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "table",
     resourceId: tableId ?? "",
     sessionId,
@@ -103,9 +103,11 @@ export function TableEditor() {
     if (draftUpdateTimer.current) clearTimeout(draftUpdateTimer.current);
     draftUpdateTimer.current = setTimeout(() => {
       if (!tableId || !tableRef.current) return;
-      mcpBridge.updateDraft("table", tableId, tableRef.current).catch(console.error);
+      if (editSession?.id) {
+        mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: tableRef.current }).catch(console.error);
+      }
     }, 300);
-  }, [isReadonly, update, tableId]);
+  }, [isReadonly, update, tableId, editSession]);
 
   const handleSave = useCallback(async () => {
     if (isReadonly || isSaving) return;
@@ -131,9 +133,9 @@ export function TableEditor() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    if (tableId) await mcpBridge.discardDraft("table", tableId);
+    await actions.discard();
     await reload();
-  }, [tableId, reload]);
+  }, [actions, reload]);
 
   useSaveShortcut(() => {
     if (isDirty && !isSaving && !isReadonly) handleSave();
@@ -150,9 +152,9 @@ export function TableEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("table", tableId) as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "table", resourceId: tableId }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [tableId, sessionLoading, mode.kind]);

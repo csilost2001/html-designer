@@ -12,8 +12,6 @@ vi.mock("../mcp/mcpBridge", () => {
   return {
     mcpBridge: {
       request: vi.fn(),
-      createDraft: vi.fn(),
-      updateDraft: vi.fn(),
     },
   };
 });
@@ -29,8 +27,6 @@ import { mcpBridge } from "../mcp/mcpBridge";
 
 const mockBridge = mcpBridge as {
   request: ReturnType<typeof vi.fn>;
-  createDraft: ReturnType<typeof vi.fn>;
-  updateDraft: ReturnType<typeof vi.fn>;
 };
 
 const SCREEN_ID = "test-screen-001";
@@ -113,16 +109,31 @@ describe("checkLegacyLocalStorage", () => {
 });
 
 describe("executeRescue", () => {
-  test("adopt: createDraft + updateDraft を呼び localStorage を削除する", async () => {
+  test("adopt: editSession.create + editSession.update を呼び localStorage を削除する", async () => {
     localStorageMock.setItem(LOCAL_KEY, JSON.stringify(LEGACY_DATA));
     localStorageMock.setItem(DRAFT_MARKER_KEY, "1");
-    mockBridge.createDraft.mockResolvedValue(undefined);
-    mockBridge.updateDraft.mockResolvedValue(undefined);
+    const EDIT_SESSION_ID = "es-test-001";
+    // editSession.create の応答をモック
+    mockBridge.request.mockImplementation(async (method: string) => {
+      if (method === "editSession.create") {
+        return { editSession: { id: EDIT_SESSION_ID } };
+      }
+      if (method === "editSession.update") {
+        return { sequence: 1 };
+      }
+      return undefined;
+    });
 
     await executeRescue(SCREEN_ID, "adopt", LEGACY_DATA);
 
-    expect(mockBridge.createDraft).toHaveBeenCalledWith("screen", SCREEN_ID);
-    expect(mockBridge.updateDraft).toHaveBeenCalledWith("screen", SCREEN_ID, LEGACY_DATA);
+    expect(mockBridge.request).toHaveBeenCalledWith("editSession.create", {
+      resourceType: "screen",
+      resourceId: SCREEN_ID,
+    });
+    expect(mockBridge.request).toHaveBeenCalledWith("editSession.update", {
+      editSessionId: EDIT_SESSION_ID,
+      payload: LEGACY_DATA,
+    });
     expect(localStorageMock.getItem(LOCAL_KEY)).toBeNull();
     expect(localStorageMock.getItem(DRAFT_MARKER_KEY)).toBeNull();
   });
@@ -133,8 +144,7 @@ describe("executeRescue", () => {
 
     await executeRescue(SCREEN_ID, "discard");
 
-    expect(mockBridge.createDraft).not.toHaveBeenCalled();
-    expect(mockBridge.updateDraft).not.toHaveBeenCalled();
+    expect(mockBridge.request).not.toHaveBeenCalled();
     expect(localStorageMock.getItem(LOCAL_KEY)).toBeNull();
     expect(localStorageMock.getItem(DRAFT_MARKER_KEY)).toBeNull();
   });

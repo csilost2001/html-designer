@@ -32,23 +32,26 @@ initServerLog(projectRoot);
 // stdin は監視しない (#302: HTTP transport に統一、stdio 廃止)。
 function setupLifecycle(): void {
   const exitHandler = (reason: string) => {
-    logInfo("lifecycle", `Exiting: ${reason}`);
-    // Phase 7 (#885): presence cleanup タイマーを停止
-    wsBridge.stopPresenceCleanup();
-    shutdownServerLog();
+    try {
+      logInfo("lifecycle", `Exiting: ${reason}`);
+      wsBridge.stop();
+      shutdownServerLog();
+    } catch { /* ignore shutdown errors */ }
     process.exit(0);
   };
   process.on("SIGTERM", () => exitHandler("SIGTERM"));
   process.on("SIGINT", () => exitHandler("SIGINT"));
   process.on("disconnect", () => exitHandler("disconnected from parent"));
   process.on("uncaughtException", (err) => {
-    logError("lifecycle", "uncaughtException", { error: err.message, stack: err.stack });
+    try { logError("lifecycle", "uncaughtException", { error: err.message, stack: err.stack }); } catch { /* ignore */ }
   });
   process.on("unhandledRejection", (reason) => {
-    logError("lifecycle", "unhandledRejection", {
-      reason: reason instanceof Error ? reason.message : String(reason),
-      stack: reason instanceof Error ? reason.stack : undefined,
-    });
+    try {
+      logError("lifecycle", "unhandledRejection", {
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+      });
+    } catch { /* ignore */ }
   });
 }
 

@@ -1004,10 +1004,11 @@ class McpBridgeImpl {
         case "saveScreen": {
           const { screenId: saveScreenId } = (params ?? {}) as { screenId: string };
           if (!saveScreenId) { respondError("screenId は必須です"); break; }
-          // edit-session モデル下では draft.commit 経由で本体ファイルに書き込む
-          const hasDraftResult = await this.hasDraft("screen", saveScreenId) as { exists: boolean } | null;
-          if (hasDraftResult?.exists) {
-            await this.commitDraft("screen", saveScreenId);
+          // edit-session モデル下では editSession.save 経由で本体ファイルに書き込む
+          const sessionsResult = await this.request("editSession.list", { resourceType: "screen", resourceId: saveScreenId }) as { sessions: Array<{ id: string }> } | null;
+          if (sessionsResult && sessionsResult.sessions.length > 0) {
+            const esId = sessionsResult.sessions[0].id;
+            await this.request("editSession.save", { editSessionId: esId });
           }
           setDirty(makeTabId("design", saveScreenId), false);
           respond({ success: true });
@@ -1019,10 +1020,11 @@ class McpBridgeImpl {
           const results: { screenId: string; success: boolean; error?: string }[] = [];
           for (const tab of dirtyTabs) {
             try {
-              // edit-session モデル下では draft.commit 経由で本体ファイルに書き込む
-              const hasDraftResult = await this.hasDraft("screen", tab.resourceId) as { exists: boolean } | null;
-              if (hasDraftResult?.exists) {
-                await this.commitDraft("screen", tab.resourceId);
+              // edit-session モデル下では editSession.save 経由で本体ファイルに書き込む
+              const sessionsResult = await this.request("editSession.list", { resourceType: "screen", resourceId: tab.resourceId }) as { sessions: Array<{ id: string }> } | null;
+              if (sessionsResult && sessionsResult.sessions.length > 0) {
+                const esId = sessionsResult.sessions[0].id;
+                await this.request("editSession.save", { editSessionId: esId });
               }
               setDirty(tab.id, false);
               results.push({ screenId: tab.resourceId, success: true });
@@ -1148,50 +1150,10 @@ class McpBridgeImpl {
     }
   }
 
-  // ── lock / draft wrapper (PR-4) ──────────────────────────────────────────
+  // ── セッション / Puck Data API ──────────────────────────────────────────
 
   getSessionId(): string {
     return this.clientId;
-  }
-
-  acquireLock(resourceType: string, resourceId: string, sessionId: string): Promise<unknown> {
-    return this.request("lock.acquire", { resourceType, resourceId, sessionId });
-  }
-
-  releaseLock(resourceType: string, resourceId: string, sessionId: string): Promise<unknown> {
-    return this.request("lock.release", { resourceType, resourceId, sessionId });
-  }
-
-  forceReleaseLock(resourceType: string, resourceId: string, sessionId: string): Promise<unknown> {
-    return this.request("lock.forceRelease", { resourceType, resourceId, sessionId });
-  }
-
-  getLock(resourceType: string, resourceId: string): Promise<unknown> {
-    return this.request("lock.get", { resourceType, resourceId });
-  }
-
-  readDraft(resourceType: string, id: string): Promise<unknown> {
-    return this.request("draft.read", { type: resourceType, id });
-  }
-
-  updateDraft(resourceType: string, id: string, payload: unknown): Promise<unknown> {
-    return this.request("draft.update", { type: resourceType, id, payload });
-  }
-
-  commitDraft(resourceType: string, id: string): Promise<unknown> {
-    return this.request("draft.commit", { type: resourceType, id });
-  }
-
-  discardDraft(resourceType: string, id: string): Promise<unknown> {
-    return this.request("draft.discard", { type: resourceType, id });
-  }
-
-  hasDraft(resourceType: string, id: string): Promise<unknown> {
-    return this.request("draft.has", { type: resourceType, id });
-  }
-
-  createDraft(resourceType: string, id: string): Promise<unknown> {
-    return this.request("draft.create", { type: resourceType, id });
   }
 
   // #806: Puck Data 専用 API (screens/<id>/puck-data.json)

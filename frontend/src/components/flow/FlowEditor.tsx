@@ -153,7 +153,7 @@ function FlowEditorInner() {
 
   const sessionId = mcpBridge.getSessionId();
 
-  const { mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions } = useEditSession({
     resourceType: "flow",
     resourceId: "singleton",
     sessionId,
@@ -248,9 +248,9 @@ function FlowEditorInner() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.hasDraft("flow", "singleton") as { exists: boolean } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "flow", resourceId: "singleton" }) as { sessions: unknown[] } | null;
       if (cancelled) return;
-      if (res?.exists) setShowResumeDialog(true);
+      if (res && res.sessions.length > 0) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind]);
@@ -290,12 +290,12 @@ function FlowEditorInner() {
       if (projectRef.current) {
         saveProject(projectRef.current).catch(console.error);
         // ドラフト更新 (edit-session-draft)
-        if (!isReadonly) {
-          mcpBridge.updateDraft("flow", "singleton", projectRef.current).catch(console.error);
+        if (!isReadonly && editSession?.id) {
+          mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: projectRef.current }).catch(console.error);
         }
       }
     }, 300);
-  }, [isReadonly]);
+  }, [isReadonly, editSession]);
 
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
     if (!projectRef.current) return;
@@ -767,7 +767,9 @@ function FlowEditorInner() {
       clearTimeout(saveDebounceRef.current);
       saveDebounceRef.current = null;
     }
-    await mcpBridge.updateDraft("flow", "singleton", projectRef.current);
+    if (editSession?.id) {
+      await mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: projectRef.current });
+    }
     setIsSaving(true);
     try {
       await persistProject(projectRef.current);
@@ -785,7 +787,7 @@ function FlowEditorInner() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, isReadonly, actions, showError, dismissServerBanner]);
+  }, [isSaving, isReadonly, actions, showError, dismissServerBanner, editSession]);
 
   const handleDiscard = useCallback(async () => {
     setShowDiscardDialog(false);
@@ -811,9 +813,9 @@ function FlowEditorInner() {
 
   const handleResumeDiscard = useCallback(async () => {
     setShowResumeDialog(false);
-    await mcpBridge.discardDraft("flow", "singleton");
+    await actions.discard();
     await reloadProject();
-  }, [reloadProject]);
+  }, [actions, reloadProject]);
 
   const handleReset = useCallback(async () => {
     undoStackRef.current = [];
