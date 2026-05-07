@@ -8,6 +8,7 @@ import {
   setFlowStorageBackend,
   type FlowStorageBackend,
 } from "../store/flowStore";
+import { setScreenLayoutStorageBackend } from "../store/screenLayoutStore";
 import type { FlowProject } from "../types/flow";
 
 vi.mock("../mcp/mcpBridge", () => {
@@ -135,10 +136,15 @@ beforeEach(() => {
     deleteScreenData: vi.fn().mockResolvedValue(undefined),
   };
   setFlowStorageBackend(passiveBackend);
+  setScreenLayoutStorageBackend({
+    loadScreenLayout: vi.fn().mockResolvedValue(null),
+    saveScreenLayout: vi.fn().mockResolvedValue(undefined),
+  });
 });
 
 afterEach(() => {
   setFlowStorageBackend(null);
+  setScreenLayoutStorageBackend(null);
 });
 
 describe("broadcast received while dirty - shows banner, does not reload", () => {

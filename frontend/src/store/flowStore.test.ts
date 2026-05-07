@@ -10,6 +10,7 @@ import {
   setFlowDraftMode,
   setFlowStorageBackend,
 } from "./flowStore";
+import { setScreenLayoutStorageBackend } from "./screenLayoutStore";
 import type { FlowProject } from "../types/flow";
 import type {
   LocalId,
@@ -126,6 +127,10 @@ function mkNonEmptyProject(): FlowProject {
 describe("flowStore データ消失ガード (2026-04-22)", () => {
   beforeEach(() => {
     setFlowStorageBackend(null);
+    setScreenLayoutStorageBackend({
+      loadScreenLayout: vi.fn().mockResolvedValue(null),
+      saveScreenLayout: vi.fn().mockResolvedValue(undefined),
+    });
     setFlowDraftMode(false);
     localStorage.clear();
   });
@@ -220,6 +225,7 @@ describe("flowStore データ消失ガード (2026-04-22)", () => {
 
   it("loadProject: backend 未設定なら明示エラー (#924 fallback 廃止)", async () => {
     setFlowStorageBackend(null);
+    setScreenLayoutStorageBackend(null);
     await expect(loadProject()).rejects.toThrow(/backend が初期化されていません/);
   });
 
@@ -291,6 +297,10 @@ describe("addScreen opts (#825)", () => {
 
   beforeEach(() => {
     setFlowStorageBackend(makePassiveBackend());
+    setScreenLayoutStorageBackend({
+      loadScreenLayout: vi.fn().mockResolvedValue(null),
+      saveScreenLayout: vi.fn().mockResolvedValue(undefined),
+    });
     setFlowDraftMode(false);
     localStorage.clear();
   });

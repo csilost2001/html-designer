@@ -9,6 +9,7 @@ import type {
 } from "../types/v3";
 import type { FlowStorageBackend } from "./flowStore";
 import { setFlowDraftMode, setFlowStorageBackend } from "./flowStore";
+import { setScreenLayoutStorageBackend } from "./screenLayoutStore";
 import type { ViewDefinitionStorageBackend as StoreViewDefinitionStorageBackend } from "./viewDefinitionStore";
 import {
   commitViewDefinitions,
@@ -58,6 +59,10 @@ describe("viewDefinitionStore", () => {
   beforeEach(() => {
     setViewDefinitionStorageBackend(null);
     setFlowStorageBackend(null);
+    setScreenLayoutStorageBackend({
+      loadScreenLayout: vi.fn().mockResolvedValue(null),
+      saveScreenLayout: vi.fn().mockResolvedValue(undefined),
+    });
     setFlowDraftMode(false);
     localStorage.clear();
   });
