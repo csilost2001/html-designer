@@ -199,6 +199,75 @@ describe("checkConventionReferences", () => {
     expect(issues.some((i) => i.code === "UNKNOWN_CONV_CATEGORY")).toBe(true);
   });
 
+  it("extensionCategories の @conv.ai.summarizeModel.model は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{
+            id: "s1", kind: "externalSystem", description: "",
+            systemRef: "claudeApi",
+            httpCall: {
+              method: "POST",
+              path: "/v1/messages",
+              body: "{ model: @conv.ai.summarizeModel.model }",
+            },
+          }],
+        }],
+      }),
+      {
+        ...catalog,
+        extensionCategories: {
+          ai: {
+            summarizeModel: { provider: "anthropic", model: "claude-opus-4-7" },
+          },
+        },
+      },
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("extensionCategories の @conv.ai.altTextModel.model は accept", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "@conv.ai.altTextModel.model" }],
+        }],
+      }),
+      {
+        ...catalog,
+        extensionCategories: {
+          ai: {
+            altTextModel: { provider: "anthropic", model: "claude-opus-4-7" },
+          },
+        },
+      },
+    );
+    expect(issues).toHaveLength(0);
+  });
+
+  it("extensionCategories の未定義 key は UNKNOWN_CONV_CATEGORY として検出", () => {
+    const issues = checkConventionReferences(
+      makeGroup({
+        actions: [{
+          id: "a1", name: "f", trigger: "click",
+          steps: [{ id: "s1", type: "other", description: "@conv.ai.unknownModel.model" }],
+        }],
+      }),
+      {
+        ...catalog,
+        extensionCategories: {
+          ai: {
+            summarizeModel: { provider: "anthropic", model: "claude-opus-4-7" },
+          },
+        },
+      },
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("UNKNOWN_CONV_CATEGORY");
+  });
+
   it("@conv.scope.customerRegion は accept", () => {
     const issues = checkConventionReferences(
       makeGroup({
@@ -971,4 +1040,3 @@ describe("#783 context.catalogs.domains.constraints[].patternRef 検証", () => 
     expect(hit?.code).toBe("UNKNOWN_CONV_LIMIT");
   });
 });
-

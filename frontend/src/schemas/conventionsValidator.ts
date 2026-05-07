@@ -93,7 +93,7 @@ function resolveCategory(catalog: ConventionsCatalog, category: string): Record<
     case "numbering": return catalog.numbering ?? null;
     case "tx": return catalog.tx ?? null;
     case "externalOutcomeDefaults": return catalog.externalOutcomeDefaults ?? null;
-    default: return null;
+    default: return catalog.extensionCategories?.[category] ?? null;
   }
 }
 

@@ -38,6 +38,9 @@ export interface IdentifierIssue {
  * - secret: @secret.* secretsCatalog 参照
  * - conv  : @conv.* conventions 参照 (conventionsValidator でカバー)
  * - ambient: @ambient.* 旧形式の ambient 参照
+ *
+ * @env.* は special-case として checkStep 内で context.catalogs.envVars と突合するため
+ * ここには含めない (下記 root === "env" ブランチを参照)。
  */
 const BUILTIN_AMBIENTS = new Set<string>([
   "fn",
@@ -48,13 +51,13 @@ const BUILTIN_AMBIENTS = new Set<string>([
   "ambient",
 ]);
 
-/** 任意の文字列から @identifier の root 部分を抽出 (property path は無視) */
-function extractIdentifiers(src: string): string[] {
-  const result: string[] = [];
-  const re = /@([a-zA-Z_][\w]*)/g;
+/** 任意の文字列から @identifier と property path を抽出 */
+function extractReferences(src: string): Array<{ root: string; path: string[] }> {
+  const result: Array<{ root: string; path: string[] }> = [];
+  const re = /@([a-zA-Z_][\w]*)(?:\.([a-zA-Z_][\w]*(?:\.[a-zA-Z_][\w]*)*))?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(src)) !== null) {
-    result.push(m[1]);
+    result.push({ root: m[1], path: m[2]?.split(".") ?? [] });
   }
   return result;
 }
@@ -75,6 +78,7 @@ export function checkIdentifierScopes(group: ProcessFlow): IdentifierIssue[] {
   const issues: IdentifierIssue[] = [];
   const ambientFields = group.context?.ambientVariables;
   const ambientNames = new Set(fieldNames(ambientFields));
+  const envVarNames = new Set(Object.keys(group.context?.catalogs?.envVars ?? {}));
 
   group.actions.forEach((action, ai) => {
     const knownInAction = new Set<string>(ambientNames);
@@ -94,6 +98,7 @@ export function checkIdentifierScopes(group: ProcessFlow): IdentifierIssue[] {
       `actions[${ai}].steps`,
       knownInAction,
       [],
+      envVarNames,
       issues,
     );
   });
@@ -111,12 +116,13 @@ function walkSteps(
   basePath: string,
   known: Set<string>,
   loopItems: string[],
+  envVarNames: Set<string>,
   issues: IdentifierIssue[],
 ): void {
   steps.forEach((step, i) => {
     const path = `${basePath}[${i}]`;
     const available = new Set<string>([...known, ...loopItems]);
-    checkStep(step, path, available, issues);
+    checkStep(step, path, available, envVarNames, issues);
 
     // outputBinding は StepBaseProps 共通フィールド。拡張 step も継承するため kind 関係なく known に追加
     const bindName = getBindingName(step.outputBinding);
@@ -138,39 +144,39 @@ function walkSteps(
     // loopItems はループ配下のみ有効 (ループ外に leak させない)。
     if (step.kind === "branch") {
       step.branches.forEach((b, bi) => {
-        walkSteps(b.steps, `${path}.branches[${bi}].steps`, known, loopItems, issues);
+        walkSteps(b.steps, `${path}.branches[${bi}].steps`, known, loopItems, envVarNames, issues);
       });
       if (step.elseBranch) {
-        walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, known, loopItems, issues);
+        walkSteps(step.elseBranch.steps, `${path}.elseBranch.steps`, known, loopItems, envVarNames, issues);
       }
     }
     if (step.kind === "loop") {
       const childLoopItems = step.collectionItemName
         ? [...loopItems, step.collectionItemName]
         : loopItems;
-      walkSteps(step.steps, `${path}.steps`, known, childLoopItems, issues);
+      walkSteps(step.steps, `${path}.steps`, known, childLoopItems, envVarNames, issues);
     }
     if (step.kind === "transactionScope") {
-      walkSteps(step.steps, `${path}.steps`, known, loopItems, issues);
-      if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, known, loopItems, issues);
+      walkSteps(step.steps, `${path}.steps`, known, loopItems, envVarNames, issues);
+      if (step.onCommit) walkSteps(step.onCommit, `${path}.onCommit`, known, loopItems, envVarNames, issues);
       if (step.onRollback) {
         const onRollbackKnown = new Set([...known, "error"]);
-        walkSteps(step.onRollback, `${path}.onRollback`, onRollbackKnown, loopItems, issues);
+        walkSteps(step.onRollback, `${path}.onRollback`, onRollbackKnown, loopItems, envVarNames, issues);
       }
     }
     if (step.kind === "workflow") {
-      if (step.onApproved) walkSteps(step.onApproved, `${path}.onApproved`, known, loopItems, issues);
-      if (step.onRejected) walkSteps(step.onRejected, `${path}.onRejected`, known, loopItems, issues);
-      if (step.onTimeout) walkSteps(step.onTimeout, `${path}.onTimeout`, known, loopItems, issues);
+      if (step.onApproved) walkSteps(step.onApproved, `${path}.onApproved`, known, loopItems, envVarNames, issues);
+      if (step.onRejected) walkSteps(step.onRejected, `${path}.onRejected`, known, loopItems, envVarNames, issues);
+      if (step.onTimeout) walkSteps(step.onTimeout, `${path}.onTimeout`, known, loopItems, envVarNames, issues);
     }
     if (step.kind === "validation" && step.inlineBranch) {
-      walkSteps(step.inlineBranch.ok, `${path}.inlineBranch.ok`, known, loopItems, issues);
-      walkSteps(step.inlineBranch.ng, `${path}.inlineBranch.ng`, known, loopItems, issues);
+      walkSteps(step.inlineBranch.ok, `${path}.inlineBranch.ok`, known, loopItems, envVarNames, issues);
+      walkSteps(step.inlineBranch.ng, `${path}.inlineBranch.ng`, known, loopItems, envVarNames, issues);
     }
     if (step.kind === "externalSystem") {
       Object.entries(step.outcomes ?? {}).forEach(([k, spec]) => {
         if (spec?.sideEffects) {
-          walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, known, loopItems, issues);
+          walkSteps(spec.sideEffects, `${path}.outcomes.${k}.sideEffects`, known, loopItems, envVarNames, issues);
         }
       });
     }
@@ -178,7 +184,13 @@ function walkSteps(
 }
 
 /** 1 step の式フィールドを全走査、@ 識別子を known と突合 */
-function checkStep(step: Step, path: string, availableIn: Set<string>, issues: IdentifierIssue[]): void {
+function checkStep(
+  step: Step,
+  path: string,
+  availableIn: Set<string>,
+  envVarNames: Set<string>,
+  issues: IdentifierIssue[],
+): void {
   // 拡張 step の固有 property は config に閉じるため、組み込み step に絞って検査
   if (!isBuiltinStep(step)) return;
   // ValidationStep は自分自身の rules[] 評価結果 fieldErrors を同じ step の ngBodyExpression
@@ -248,16 +260,27 @@ function checkStep(step: Step, path: string, availableIn: Set<string>, issues: I
   }
 
   for (const { src, field } of expressions) {
-    const ids = extractIdentifiers(src);
-    for (const id of ids) {
-      // 組み込み関数・グローバル識別子は宣言不要
-      if (BUILTIN_AMBIENTS.has(id)) continue;
-      if (!available.has(id)) {
+    const refs = extractReferences(src);
+    for (const { root, path: refPath } of refs) {
+      if (root === "env") {
+        const [key, subfield] = refPath;
+        if (key && !subfield && envVarNames.has(key)) continue;
         issues.push({
           path: `${path}.${field}`,
           code: "UNKNOWN_IDENTIFIER",
-          identifier: id,
-          message: `@${id} がこのスコープで宣言されていません (inputs / outputs / outputBinding / ambientVariables / loop item のいずれにも無い)`,
+          identifier: key ? `env.${refPath.join(".")}` : "env",
+          message: `@env.${refPath.join(".")} が context.catalogs.envVars で宣言されていません`,
+        });
+        continue;
+      }
+      // 組み込み関数・グローバル識別子は宣言不要
+      if (BUILTIN_AMBIENTS.has(root)) continue;
+      if (!available.has(root)) {
+        issues.push({
+          path: `${path}.${field}`,
+          code: "UNKNOWN_IDENTIFIER",
+          identifier: root,
+          message: `@${root} がこのスコープで宣言されていません (inputs / outputs / outputBinding / ambientVariables / loop item のいずれにも無い)`,
         });
       }
     }
