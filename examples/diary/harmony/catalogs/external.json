@@ -1,0 +1,67 @@
+{
+  "$schema": "../../../../schemas/v3/external-catalogs.v3.schema.json",
+  "version": "1.0.0",
+  "description": "diary project の外部 catalog 共有定義 (#939 提案 C)。AI モデル / シークレット は本ファイルに集約し、process-flows/ 配下の各 flow から参照する。flow level (context.catalogs.*) でも override 可能だが、現状は project level のみで完結する。",
+  "updatedAt": "2026-05-08T00:00:00.000Z",
+  "modelEndpoints": {
+    "summarizeModel": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.anthropicApiKey"
+      },
+      "defaults": {
+        "maxTokens": 512,
+        "temperature": 0.7
+      },
+      "description": "本文の要約に使うモデル。長文から 3-5 文の要約を出す。"
+    },
+    "tagSuggestModel": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.anthropicApiKey"
+      },
+      "defaults": {
+        "maxTokens": 512,
+        "temperature": 0.5
+      },
+      "description": "本文からタグ候補を提案するモデル (信頼度 score 付き、structuredObject 形式)。"
+    },
+    "altTextModel": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.anthropicApiKey"
+      },
+      "defaults": {
+        "maxTokens": 256,
+        "temperature": 0.4
+      },
+      "description": "Vision 入力対応モデル。画像を理解し alt text を日本語で簡潔に (40-100 字) 生成する。"
+    },
+    "proofreadModel": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.anthropicApiKey"
+      },
+      "defaults": {
+        "maxTokens": 4096,
+        "temperature": 0.3
+      },
+      "description": "本文校正に使うモデル (敬体/常体/誤字訂正、structuredObject 形式で diff を返す)。"
+    }
+  },
+  "secrets": {
+    "anthropicApiKey": {
+      "source": "env",
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API の認証キー。diary project 全体で共有。"
+    }
+  }
+}

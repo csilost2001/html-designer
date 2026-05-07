@@ -26,6 +26,7 @@ import { checkViewDefinitions } from "../src/schemas/viewDefinitionValidator.js"
 import { checkScreenNavigation } from "../src/schemas/screenNavigationValidator.js";
 import { resolveScreenItemRefs } from "../src/schemas/screenItemRefResolver.js";
 import { loadExtensionsFromBundle, type ExtensionsBundle, type LoadedExtensions } from "../src/schemas/loadExtensions.js";
+import type { ProjectCatalogs } from "../src/schemas/projectCatalogs.js";
 import { checkAntipatterns } from "../src/schemas/processFlowAntipatternValidator.js";
 import type { Screen } from "../src/types/v3/screen.js";
 import type { Conventions } from "../src/types/v3/conventions.js";
@@ -46,6 +47,8 @@ interface ProjectResources {
   viewDefinitions: ViewDefinition[];
   screenTransitions: ScreenTransitionEntry[];
   flowsDir: string;
+  /** project レベル外部 catalog (#939 提案 C、harmony/catalogs/external.json)。読み込み失敗 / ファイル無しの場合は null */
+  externalCatalogs: ProjectCatalogs | null;
 }
 
 interface ValidationIssue {
@@ -90,6 +93,24 @@ function loadTablesFromDir(dir: string): TableDefinition[] {
     return files.map((f) => JSON.parse(readFileSync(join(dir, f), "utf-8")) as TableDefinition);
   } catch {
     return [];
+  }
+}
+
+function loadExternalCatalogs(filePath: string): ProjectCatalogs | null {
+  if (!existsSync(filePath)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(filePath, "utf-8")) as Record<string, unknown>;
+    // $schema / version / description / updatedAt は metadata なので除外し、catalog 種別 6 つのみ抽出
+    return {
+      modelEndpoints: raw.modelEndpoints as Record<string, unknown> | undefined,
+      secrets: raw.secrets as Record<string, unknown> | undefined,
+      envVars: raw.envVars as Record<string, unknown> | undefined,
+      events: raw.events as Record<string, unknown> | undefined,
+      functions: raw.functions as Record<string, unknown> | undefined,
+      externalSystems: raw.externalSystems as Record<string, unknown> | undefined,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -180,6 +201,8 @@ function discoverProject(projectDirArg: string): ProjectResources {
   // R-4 #853: エンティティデータは dataDir 配下 (harmony/) に移動済
   const dataDir = resolveDataDirPath(projectDir);
   const conventions = loadConventionsFromFile(join(dataDir, "conventions", "catalog.json"));
+  // #939 提案 C: harmony/catalogs/external.json で project-level の外部 catalog を共有定義
+  const externalCatalogs = loadExternalCatalogs(join(dataDir, "catalogs", "external.json"));
   return {
     projectId,
     displayName,
@@ -191,6 +214,7 @@ function discoverProject(projectDirArg: string): ProjectResources {
     viewDefinitions: loadViewDefinitionsFromDir(join(dataDir, "view-definitions")),
     screenTransitions: loadScreenTransitionsFromProjectJson(projectDir),
     flowsDir: join(dataDir, "process-flows"),
+    externalCatalogs,
   };
 }
 
@@ -483,11 +507,13 @@ export async function runValidation(projectDirArg: string): Promise<ValidationSu
       issues.push(issue("conventionsValidator", i.code, i.path, i.message));
     }
 
-    for (const i of checkReferentialIntegrity(flow, extensions)) {
+    // #939 提案 C: project-level catalogs (harmony/catalogs/external.json) を渡すことで
+    // 各 flow が project-level + flow-level の merged view で参照解決できる
+    for (const i of checkReferentialIntegrity(flow, extensions, project.externalCatalogs ?? undefined)) {
       issues.push(issue("referentialIntegrity", i.code, i.path, i.message));
     }
 
-    for (const i of checkIdentifierScopes(flow)) {
+    for (const i of checkIdentifierScopes(flow, project.externalCatalogs ?? undefined)) {
       issues.push(issue("identifierScope", i.code, i.path, `@${i.identifier} - ${i.message}`));
     }
 

@@ -30,28 +30,6 @@
           "responseId": "502-ai-error",
           "description": "AI モデル (vision) へのリクエストが失敗した場合。"
         }
-      },
-      "modelEndpoints": {
-        "altTextModel": {
-          "provider": "anthropic",
-          "model": "claude-opus-4-7",
-          "auth": {
-            "kind": "bearer",
-            "tokenRef": "@secret.anthropicApiKey"
-          },
-          "defaults": {
-            "maxTokens": 256,
-            "temperature": 0.4
-          },
-          "description": "Vision 入力対応モデル。画像を理解し alt text を日本語で簡潔に (40-100 字) 生成する。"
-        }
-      },
-      "secrets": {
-        "anthropicApiKey": {
-          "source": "env",
-          "name": "ANTHROPIC_API_KEY",
-          "description": "Anthropic API の認証キー。"
-        }
       }
     },
     "ambientVariables": [
@@ -228,8 +206,8 @@
                 {
                   "type": "image",
                   "source": {
-                    "kind": "fileRef",
-                    "ref": "@targetImageUrl"
+                    "kind": "url",
+                    "url": "@targetImageUrl"
                   }
                 },
                 {

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../../schemas/v3/external-catalogs.v3.schema.json",
+  "version": "1.0.0",
+  "description": "english-learning project の外部 catalog 共有定義 (#939 提案 C)。AI モデル / シークレットは本ファイルに集約し、process-flows/ 配下の各 flow から参照する。",
+  "updatedAt": "2026-05-08T00:00:00.000Z",
+  "modelEndpoints": {
+    "dialogModel": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "auth": {
+        "kind": "bearer",
+        "tokenRef": "@secret.anthropicApiKey"
+      },
+      "defaults": {
+        "maxTokens": 500,
+        "temperature": 0.7
+      },
+      "description": "英会話学習用の対話モデル。日本語学習者向けに CEFR レベルに応じた英文応答を返す。provider 切替 (OpenAI / Google 等) は本 catalog 編集だけで完結。"
+    }
+  },
+  "secrets": {
+    "anthropicApiKey": {
+      "source": "env",
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API の認証キー。english-learning project 全体で共有。"
+    }
+  }
+}

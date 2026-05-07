@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/external-catalogs.v3.schema.json",
+  "title": "External Catalogs (v3 project-level 共有カタログ)",
+  "description": "プロジェクト全体で共有する外部システム / AI / シークレット / 環境変数 / イベント / 関数の catalog 定義。1 sample (project) 内で複数 ProcessFlow が同じ provider / secret / endpoint を参照する場合、本ファイルに集約することで重複排除と一括変更を可能にする。flow level (context.catalogs.*) と本 file の両方で同じカテゴリを定義した場合、flow level が project level を override する (#939 提案 C、2026-05-08)。配置: harmony/catalogs/external.json。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "$ref": "common.v3.schema.json#/$defs/SemVer" },
+    "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+    "updatedAt": { "$ref": "common.v3.schema.json#/$defs/Timestamp" },
+
+    "modelEndpoints": {
+      "type": "object",
+      "description": "AI モデルエンドポイント catalog。process-flow.v3 schema の context.catalogs.modelEndpoints と同型 (provider/model/auth/defaults/fallback)。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+      "additionalProperties": { "$ref": "process-flow.v3.schema.json#/$defs/ModelEndpointEntry" }
+    },
+
+    "secrets": {
+      "type": "object",
+      "description": "シークレット catalog。process-flow.v3 schema の context.catalogs.secrets と同型 (source/name/description)。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+      "additionalProperties": { "$ref": "process-flow.v3.schema.json#/$defs/SecretEntry" }
+    },
+
+    "envVars": {
+      "type": "object",
+      "description": "環境変数 catalog。process-flow.v3 schema の context.catalogs.envVars と同型 (type/description/default)。キーは UPPER_SNAKE。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/EnvVarKey" },
+      "additionalProperties": { "$ref": "process-flow.v3.schema.json#/$defs/EnvVarEntry" }
+    },
+
+    "events": {
+      "type": "object",
+      "description": "イベント pub/sub catalog。process-flow.v3 schema の context.catalogs.events と同型。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/EventTopic" },
+      "additionalProperties": { "$ref": "process-flow.v3.schema.json#/$defs/EventEntry" }
+    },
+
+    "functions": {
+      "type": "object",
+      "description": "組み込み関数 catalog。process-flow.v3 schema の context.catalogs.functions と同型。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+      "additionalProperties": { "$ref": "process-flow.v3.schema.json#/$defs/FunctionEntry" }
+    },
+
+    "externalSystems": {
+      "type": "object",
+      "description": "外部システム catalog (HTTP API 等)。process-flow.v3 schema の context.catalogs.externalSystems と同型。",
+      "propertyNames": { "$ref": "common.v3.schema.json#/$defs/Identifier" },
+      "additionalProperties": { "$ref": "process-flow.v3.schema.json#/$defs/ExternalSystemCatalogEntry" }
+    }
+  }
+}
