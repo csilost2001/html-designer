@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type { Table, TableEntry, TableId, PhysicalName, DisplayName, Timestamp } from "../../types/v3";
 import { type SqlDialect, SQL_DIALECT_LABELS } from "../../utils/ddlGenerator";
 import { listTables, createTable, loadTable, saveTable, loadTableValidationMap, commitTables } from "../../store/tableStore";
@@ -48,6 +49,7 @@ function formatDate(iso: string): string {
 
 export function TableListView() {
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const [projectName, setProjectName] = useState("プロジェクト");
   const [query, setQuery] = useState("");
   const { hasDraft } = useDraftRegistry();
@@ -157,8 +159,8 @@ export function TableListView() {
 
   const handleActivate = useCallback((t: TableEntry) => {
     if (editor.isDeleted(t.id)) return; // 削除マーク中は編集画面に遷移しない
-    navigate(`/table/edit/${t.id}`);
-  }, [navigate, editor]);
+    navigate(wsPath(`/table/edit/${t.id}`));
+  }, [navigate, editor, wsPath]);
 
   const handleDelete = (items: TableEntry[]) => {
     // ghost 方式: マークするだけ
@@ -303,7 +305,7 @@ export function TableListView() {
     setAddName("");
     setAddLogical("");
     setAddCategory("");
-    navigate(`/table/edit/${table.id}`);
+    navigate(wsPath(`/table/edit/${table.id}`));
   };
 
   // docs/spec/list-common.md §3.11: 右クリックメニュー項目を構築
@@ -375,7 +377,7 @@ export function TableListView() {
         disabled: items.length !== 1,
         disabledReason: items.length !== 1 ? "1 件選択時のみ有効" : undefined,
         onClick: () => {
-          if (items.length === 1) navigate(`/table/edit/${encodeURIComponent(items[0].id)}`);
+          if (items.length === 1) navigate(wsPath(`/table/edit/${encodeURIComponent(items[0].id)}`));
         },
       },
       {
@@ -383,7 +385,7 @@ export function TableListView() {
         disabled: items.length !== 1,
         disabledReason: items.length !== 1 ? "1 件選択時のみ有効" : undefined,
         onClick: () => {
-          if (items.length === 1) navigate(`/table/edit/${encodeURIComponent(items[0].id)}`);
+          if (items.length === 1) navigate(wsPath(`/table/edit/${encodeURIComponent(items[0].id)}`));
         },
       },
       {
@@ -791,7 +793,7 @@ export function TableListView() {
             onClose={() => setHistoryModal(null)}
             onRestore={(editSessionId) => {
               setHistoryModal(null);
-              navigate(`/table/edit/${encodeURIComponent(historyModal.resourceId)}?session=${encodeURIComponent(editSessionId)}`);
+              navigate(wsPath(`/table/edit/${encodeURIComponent(historyModal.resourceId)}?session=${encodeURIComponent(editSessionId)}`));
             }}
           />
         )}
