@@ -13,10 +13,12 @@ import {
 } from "./helpers/realWorkspace";
 
 // header (project.processFlows[]) 用 — actionCount / kind 等の表示用 meta を持つ
+// schema v3 EntryBase: id (Uuid), no, name, updatedAt 必須
+const __ts = "2026-05-08T00:00:00.000Z";
 const dummyGroups = [
-  { id: "ag-0001", name: "ログイン処理", kind: "screen", actionCount: 3, screenId: "screen-1" },
-  { id: "ag-0002", name: "月次集計バッチ", kind: "batch", actionCount: 5 },
-  { id: "ag-0003", name: "共通バリデーション", kind: "common", actionCount: 2 },
+  { id: "11111111-1111-4111-8111-111111111111", no: 1, name: "ログイン処理", kind: "screen", actionCount: 3, screenId: "screen-1", updatedAt: __ts },
+  { id: "22222222-2222-4222-8222-222222222222", no: 2, name: "月次集計バッチ", kind: "batch", actionCount: 5, updatedAt: __ts },
+  { id: "33333333-3333-4333-8333-333333333333", no: 3, name: "共通バリデーション", kind: "common", actionCount: 2, updatedAt: __ts },
 ];
 
 // body (process-flows/<id>.json) 用 — v3 ProcessFlow shape
