@@ -51,6 +51,9 @@ test.describe("#148 一覧 ソート中 Read-only + No 列", () => {
 
   test.describe("No 列 (永続フィールド §3.10)", () => {
     test("初期表示の No は配列順で 1..5", async ({ page }) => {
+      // backend からの projects + screens 取得を待つ
+      await expect(page.locator(".data-list-row").first()).toBeVisible({ timeout: 10000 });
+      await expect(page.locator(".data-list-row")).toHaveCount(5);
       const nos = await page.locator(".data-list-td-num").allTextContents();
       expect(nos).toEqual(["1", "2", "3", "4", "5"]);
     });

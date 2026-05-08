@@ -68,6 +68,8 @@ test.describe("画面一覧", () => {
   });
 
   test("カード既定で 3 件、表切替可、検索絞り込み", async ({ page }) => {
+    // backend からの projects + screens 取得を待つ
+    await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".data-list-card")).toHaveCount(3);
     await page.getByRole("button", { name: "表表示" }).click();
     await expect(page.locator(".data-list-row")).toHaveCount(3);
