@@ -35,11 +35,11 @@ test.describe("拡張管理 UI (#447)", () => {
 
   test("レスポンス型を追加して保存できる", async ({ page }) => {
     await ws.gotoActive(page, "/extensions?tab=responseTypes");
-    // edit-mode-start 経由で編集モードに入る (#683)
+    // edit-mode-start 経由で編集モードに入る (#683) — editing 遷移確認
     const editStart = page.getByTestId("edit-mode-start");
-    if (await editStart.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await editStart.click();
-    }
+    await expect(editStart).toBeVisible({ timeout: 5000 });
+    await editStart.click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByRole("button", { name: "追加" }).click();
     await page.getByPlaceholder("ApiError").last().fill("E2EResponse");
     await page.locator(".response-type-schema").last().fill('{"type":"object","properties":{"code":{"type":"string"}}}');
