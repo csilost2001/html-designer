@@ -136,10 +136,7 @@ test.describe("marker-ergonomics (#261)", () => {
     });
   });
 
-  // TODO(#926 follow-up): MarkersSummaryPanel.tsx は g.markers (top-level) を読むが、
-  // ProcessFlow v3 schema 上 markers は g.authoring.markers に格納される (editor 側はこちらを
-  // 使う)。product 側の参照 path 統一が必要。本 PR の責務は localStorage 廃止なのでここは skip。
-  test.describe.skip("Dashboard marker summary", () => {
+  test.describe("Dashboard marker summary", () => {
     test("未解決 2 件 + kind 別内訳表示", async ({ page }) => {
       await setupDashboard(page, ws);
       const panel = page.locator(".markers-summary-panel");

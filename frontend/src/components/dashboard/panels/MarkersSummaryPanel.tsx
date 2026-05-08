@@ -41,7 +41,7 @@ async function fetchSummary(): Promise<Summary> {
   for (const meta of metas) {
     const g: ProcessFlow | null = await loadProcessFlow(meta.id);
     if (!g) continue;
-    const unresolved = (g.markers ?? []).filter((m) => !m.resolvedAt);
+    const unresolved = (g.authoring?.markers ?? []).filter((m) => !m.resolvedAt);
     if (unresolved.length === 0) continue;
     for (const m of unresolved) {
       s.byKind[m.kind] = (s.byKind[m.kind] ?? 0) + 1;
