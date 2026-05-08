@@ -255,6 +255,20 @@ export function ViewDefinitionEditor() {
 
   const isReadonly = mode.kind !== "editing";
 
+  // #960: 「作成して編集」経由で sessionStorage に flag があれば auto-edit モードで開く。
+  const autoEditFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoEditFiredRef.current) return;
+    if (!viewDefinitionId) return;
+    if (mode.kind !== "readonly") return;
+    if (sessionLoading) return;
+    const key = `harmony-auto-edit:view-definition:${viewDefinitionId}`;
+    if (sessionStorage.getItem(key) !== "1") return;
+    autoEditFiredRef.current = true;
+    sessionStorage.removeItem(key);
+    void actions.startEditing();
+  }, [viewDefinitionId, mode.kind, sessionLoading, actions]);
+
   const viewDefRef = useRef<ViewDefinition | null>(null);
   useEffect(() => { viewDefRef.current = viewDefinition ?? null; }, [viewDefinition]);
 

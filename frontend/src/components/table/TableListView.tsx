@@ -305,6 +305,8 @@ export function TableListView() {
     setAddName("");
     setAddLogical("");
     setAddCategory("");
+    // #960: 「作成して編集」は auto-edit モードで Editor を開く (sessionStorage 経由)。
+    sessionStorage.setItem(`harmony-auto-edit:table:${table.id}`, "1");
     navigate(wsPath(`/table/edit/${table.id}`));
   };
 

@@ -237,6 +237,10 @@ export function SequenceListView() {
     setAddPhysicalName("");
     setAddName("");
     setAddPhysicalNameError("");
+    // #960: 「作成して編集」は auto-edit モードで Editor を開く。
+    // URL query は AppShell の tab→URL sync useEffect で上書きされるため
+    // sessionStorage 経由で Editor に edit 起動を伝える。 Editor 側で 1 回読んで削除。
+    sessionStorage.setItem(`harmony-auto-edit:sequence:${seq.id}`, "1");
     navigate(wsPath(`/sequence/edit/${encodeURIComponent(seq.id)}`));
   };
 

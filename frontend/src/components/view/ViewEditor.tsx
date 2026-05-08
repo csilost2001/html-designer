@@ -91,6 +91,20 @@ export function ViewEditor() {
 
   const isReadonly = mode.kind !== "editing";
 
+  // #960: 「作成して編集」経由で sessionStorage に flag があれば auto-edit モードで開く。
+  const autoEditFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoEditFiredRef.current) return;
+    if (!viewId) return;
+    if (mode.kind !== "readonly") return;
+    if (sessionLoading) return;
+    const key = `harmony-auto-edit:view:${viewId}`;
+    if (sessionStorage.getItem(key) !== "1") return;
+    autoEditFiredRef.current = true;
+    sessionStorage.removeItem(key);
+    void actions.startEditing();
+  }, [viewId, mode.kind, sessionLoading, actions]);
+
   const viewRef = useRef<View | null>(null);
   useEffect(() => { viewRef.current = view ?? null; }, [view]);
 

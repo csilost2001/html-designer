@@ -93,6 +93,22 @@ export function SequenceEditor() {
 
   const isReadonly = mode.kind !== "editing";
 
+  // #960: 「作成して編集」経由で sessionStorage に flag があれば auto-edit モードで開く。
+  // ListView 側で setItem("harmony-auto-edit:sequence:<id>", "1") される。
+  // Editor 側で 1 回読んで削除し、 startEditing を発火する。
+  const autoEditFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoEditFiredRef.current) return;
+    if (!sequenceId) return;
+    if (mode.kind !== "readonly") return;
+    if (sessionLoading) return;
+    const key = `harmony-auto-edit:sequence:${sequenceId}`;
+    if (sessionStorage.getItem(key) !== "1") return;
+    autoEditFiredRef.current = true;
+    sessionStorage.removeItem(key);
+    void actions.startEditing();
+  }, [sequenceId, mode.kind, sessionLoading, actions]);
+
   const seqRef = useRef<Sequence | null>(null);
   useEffect(() => { seqRef.current = seq ?? null; }, [seq]);
 
