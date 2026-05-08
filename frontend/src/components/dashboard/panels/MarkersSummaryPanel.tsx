@@ -51,11 +51,11 @@ async function fetchSummary(): Promise<Summary> {
         kind: m.kind,
         body: m.body,
         createdAt: m.createdAt,
-        processFlowId: g.id,
-        processFlowName: g.name,
+        processFlowId: g.meta.id,
+        processFlowName: g.meta.name,
       });
     }
-    s.perGroup.push({ id: g.id, name: g.name, count: unresolved.length });
+    s.perGroup.push({ id: g.meta.id, name: g.meta.name, count: unresolved.length });
   }
   s.perGroup.sort((a, b) => b.count - a.count);
   // 新しい順 (desc)
