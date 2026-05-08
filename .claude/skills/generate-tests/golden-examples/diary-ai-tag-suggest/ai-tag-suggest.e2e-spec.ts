@@ -160,8 +160,7 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E) [mock mode]', () => {
    *   validation rule: field=title, type=required
    */
   it('#1 validation: title 欠落 → 400 VALIDATION_ERROR', async () => {
-    aiRuntimeSpy = mockAiStructured(aiRuntime, { tags: [] } as MockTagSuggestResult);
-
+    // step-01 (validation) で 400 を返すため AI step (step-03) は呼ばれない → mock 不要
     const res = await request(app.getHttpServer())
       .post('/api/ai/tag-suggest')
       .set('Authorization', `Bearer ${accessToken}`)
@@ -175,8 +174,7 @@ describe('POST /api/ai/tag-suggest (AIタグ提案 E2E) [mock mode]', () => {
    *   validation rule: field=body, type=required
    */
   it('#2 validation: body 欠落 → 400 VALIDATION_ERROR', async () => {
-    aiRuntimeSpy = mockAiStructured(aiRuntime, { tags: [] } as MockTagSuggestResult);
-
+    // step-01 (validation) で 400 を返すため AI step (step-03) は呼ばれない → mock 不要
     const res = await request(app.getHttpServer())
       .post('/api/ai/tag-suggest')
       .set('Authorization', `Bearer ${accessToken}`)

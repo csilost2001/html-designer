@@ -210,7 +210,7 @@ jobs:
 - step-03 の `kind: "aiCall"` + `modelRef: "tagSuggestModel"` → mock target: `aiRuntime` (PLACEHOLDER) ✅
 - step-03 の `responseFormat.kind: "structuredObject"` → `mockAiStructured(...)` ヘルパー使用 ✅
 - step-04 expression リテラル `0.6` → `AI_TAG_SUGGEST_THRESHOLD = 0.6` const 化 ✅
-- step.outcomes.failure → 502 (action.responses[id="502-ai-error"].status) ✅
+- step.outcomes.failure (action="abort") → 間接解決: catalog.errors.AI_API_ERROR.responseId="502-ai-error" → responses["502-ai-error"].status=502 (catalog に entry が無い場合は AI の慣例として 502 default) ✅
 - `@secret.anthropicApiKey` → `secrets.anthropicApiKey.name = "ANTHROPIC_API_KEY"` 解決 ✅
 - modelEndpoint.defaults.maxTokens=512 → live mode コスト記録 ✅
 
