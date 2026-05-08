@@ -109,7 +109,6 @@ test.describe("画面デザイナー edit-session — シナリオ 2: 編集中 
 
   test("編集開始 → 破棄確認 → readonly に戻る", async ({ page }) => {
     await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
-    await page.waitForLoadState("networkidle");
     await page.waitForTimeout(500);
     for (let _i = 0; _i < 3; _i++) {
       if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
@@ -145,7 +144,6 @@ test.describe("画面デザイナー edit-session — シナリオ 3: 再オー�
 
   test("draft が残っている状態で再オープン → ResumeOrDiscardDialog 表示", async ({ page }) => {
     await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
-    await page.waitForLoadState("networkidle");
     // 前テスト残骸の draft が ResumeOrDiscardDialog として出る場合があるので dismiss
     await page.waitForTimeout(500);
     for (let _i = 0; _i < 3; _i++) {
