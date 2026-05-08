@@ -1,6 +1,23 @@
+/**
+ * Designer MCP reconnect / screenChanged broadcast 動作の E2E テスト (#578 / #948)。
+ *
+ * #948: 旧 FakeWebSocket + localStorage seed 駆動の legacy パターンは
+ * #683 (real backend 必須) + #924 (localStorage fallback なし) で動作不能になったため、
+ * realWorkspace fixture + 永続 WS (sendBrowserRequest, #958) で全面書き直し。
+ *
+ * 検証する挙動:
+ * 1. MCP 再接続時に editor.load が呼ばれない (unnecessary reload を起こさない)
+ * 2. screenChanged broadcast 受信時に editor.reload() で canvas を更新
+ */
 import { test, expect, type Page } from "@playwright/test";
+import { setupTestWorkspace, cleanupRealWorkspaces, isMcpRunning, normalizeId, type OpenedWorkspace } from "../helpers/realWorkspace";
+import { sendBrowserRequest, openBrowserSessionWorkspace, closeBrowserSession } from "./_helpers";
+import { buildProject } from "../__fixtures__/builders";
+import type { ProjectEntities, Timestamp } from "../../src/types/v3";
 
-const SCREEN_ID = "issue-578-designer-reconnect";
+const SCREEN_ID = "ddddddd1-0001-4000-8001-000000000001";
+const SCREEN_NORM = normalizeId(SCREEN_ID);
+const FIXED_TS = "2026-05-08T00:00:00.000Z" as unknown as Timestamp;
 
 const initialScreen = {
   dataSources: [],
@@ -8,10 +25,7 @@ const initialScreen = {
   styles: [],
   pages: [{
     frames: [{
-      component: {
-        type: "wrapper",
-        components: "<main><h1>Initial server HTML</h1></main>",
-      },
+      component: { type: "wrapper", components: "<main><h1>Initial server HTML</h1></main>" },
       id: "frame-initial",
     }],
     id: "page-initial",
@@ -26,10 +40,7 @@ const changedScreen = {
   styles: [],
   pages: [{
     frames: [{
-      component: {
-        type: "wrapper",
-        components: "<main><h1>Changed by server broadcast</h1></main>",
-      },
+      component: { type: "wrapper", components: "<main><h1>Changed by server broadcast</h1></main>" },
       id: "frame-changed",
     }],
     id: "page-changed",
@@ -38,168 +49,57 @@ const changedScreen = {
   symbols: [],
 };
 
-const project = {
-  version: 1,
+const project = buildProject({
   name: "issue-578-designer-reconnect",
-  screens: [{
-    id: SCREEN_ID,
-    no: 1,
-    name: "Issue 578 Designer",
-    kind: "standard",
-    updatedAt: new Date("2026-04-29T00:00:00.000Z").toISOString(),
-  }],
-  groups: [],
-  edges: [],
-  tables: [],
-  processFlows: [],
-  updatedAt: new Date("2026-04-29T00:00:00.000Z").toISOString(),
-};
+  entities: {
+    screens: [{ id: SCREEN_ID, no: 1, name: "Issue 578 Designer", path: "/issue-578", kind: "form", hasDesign: true, updatedAt: FIXED_TS }],
+  } as ProjectEntities,
+});
 
-const tab = {
-  id: `design:${SCREEN_ID}`,
+const dummyTab = {
+  id: `design:${SCREEN_NORM}`,
   type: "design",
-  resourceId: SCREEN_ID,
+  resourceId: SCREEN_NORM,
   label: "Issue 578 Designer",
   isDirty: false,
   isPinned: false,
 };
 
-async function setupDesigner(page: Page) {
-  await page.addInitScript(({ project, tab, screenId, initialScreen }) => {
-    localStorage.setItem("flow-project", JSON.stringify(project));
+const WS_KEY = "issue-578-designer-reconnect";
+
+async function setupDesigner(page: Page, ws: OpenedWorkspace): Promise<void> {
+  await page.addInitScript((tab) => {
     localStorage.setItem("harmony-open-tabs", JSON.stringify([tab]));
     localStorage.setItem("harmony-active-tab", tab.id);
-    localStorage.removeItem(`gjs-screen-${screenId}-draft`);
-    localStorage.setItem(`gjs-screen-${screenId}`, JSON.stringify(initialScreen));
+  }, dummyTab);
+  await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
 
-    type Listener = (event?: { data?: string }) => void;
-
-    class FakeWebSocket {
-      static CONNECTING = 0;
-      static OPEN = 1;
-      static CLOSING = 2;
-      static CLOSED = 3;
-
-      readonly url: string;
-      readyState = FakeWebSocket.CONNECTING;
-      onopen: Listener | null = null;
-      onmessage: Listener | null = null;
-      onclose: Listener | null = null;
-      onerror: Listener | null = null;
-      private listeners = new Map<string, Set<Listener>>();
-
-      constructor(url: string) {
-        this.url = url;
-        const w = window as unknown as {
-          __e2eMcpSockets?: FakeWebSocket[];
-        };
-        w.__e2eMcpSockets = [...(w.__e2eMcpSockets ?? []), this];
-        setTimeout(() => {
-          this.readyState = FakeWebSocket.OPEN;
-          this.onopen?.();
-          this.emit("open");
-        }, 0);
-      }
-
-      addEventListener(type: string, listener: Listener) {
-        if (!this.listeners.has(type)) this.listeners.set(type, new Set());
-        this.listeners.get(type)!.add(listener);
-      }
-
-      removeEventListener(type: string, listener: Listener) {
-        this.listeners.get(type)?.delete(listener);
-      }
-
-      send(raw: string) {
-        const msg = JSON.parse(raw) as {
-          type?: string;
-          id?: string;
-          method?: string;
-          params?: { screenId?: string };
-        };
-        if (msg.type !== "request" || !msg.id) return;
-
-        let result: unknown = { success: true };
-        if (msg.method === "loadScreen") {
-          const w = window as unknown as {
-            __e2eMcpScreenData?: Record<string, unknown>;
-          };
-          result = msg.params?.screenId === screenId ? w.__e2eMcpScreenData : null;
-        } else if (msg.method === "getFileMtime") {
-          result = { mtime: Date.now() };
-        } else if (msg.method === "loadCustomBlocks") {
-          result = [];
-        } else if (msg.method === "getExtensions") {
-          result = {};
-        }
-
-        setTimeout(() => {
-          this.serverMessage({ type: "response", id: msg.id, result });
-        }, 0);
-      }
-
-      close() {
-        if (this.readyState === FakeWebSocket.CLOSED) return;
-        this.readyState = FakeWebSocket.CLOSED;
-        this.onclose?.();
-        this.emit("close");
-      }
-
-      serverMessage(message: unknown) {
-        this.onmessage?.({ data: JSON.stringify(message) });
-        this.emit("message", { data: JSON.stringify(message) });
-      }
-
-      private emit(type: string, event?: { data?: string }) {
-        this.listeners.get(type)?.forEach((listener) => listener(event));
-      }
-    }
-
-    Object.defineProperty(window, "WebSocket", {
-      configurable: true,
-      writable: true,
-      value: FakeWebSocket,
-    });
-
-    const w = window as unknown as {
-      __e2eMcpScreenData?: Record<string, unknown>;
-      __e2eMcpBroadcast?: (event: string, data: unknown) => void;
-      __e2eMcpSockets?: Array<{ serverMessage: (message: unknown) => void }>;
-    };
-    w.__e2eMcpScreenData = initialScreen;
-    w.__e2eMcpBroadcast = (event, data) => {
-      const socket = w.__e2eMcpSockets?.at(-1);
-      socket?.serverMessage({ type: "broadcast", event, data });
-    };
-  }, { project, tab, screenId: SCREEN_ID, initialScreen });
-
-  await page.goto(`/screen/design/${SCREEN_ID}`);
-  await expect(page.locator(".gjs-frame")).toBeVisible({ timeout: 15000 });
+  // edit-mode-start (= Designer 起動成功) + editor global expose を待つ
+  await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   await page.waitForFunction(() => {
-    const w = window as unknown as {
-      editor?: { getHtml: () => string };
-      __mcpBridge?: { getStatus: () => string };
-    };
-    return !!w.editor && w.__mcpBridge?.getStatus() === "connected";
+    const w = window as unknown as { editor?: { getHtml: () => string } };
+    return !!w.editor && typeof w.editor.getHtml === "function";
   }, { timeout: 15000 });
 
+  // initial server HTML 描画完了を確認
   await page.waitForFunction(() => {
     const w = window as unknown as { editor?: { getHtml: () => string } };
     return w.editor?.getHtml().includes("Initial server HTML");
   }, { timeout: 15000 });
 
+  // editor.loadProjectData を override してカウント (#815 PR-C で reload は loadProjectData ベース)
   await page.evaluate(() => {
     const w = window as unknown as {
-      editor?: { load: (...args: unknown[]) => Promise<unknown> };
+      editor?: { loadProjectData: (...args: unknown[]) => unknown };
       __e2eLoadCalls?: number;
     };
     if (!w.editor) throw new Error("GrapesJS editor not found");
-    const originalLoad = w.editor.load.bind(w.editor);
+    const original = w.editor.loadProjectData.bind(w.editor);
     w.__e2eLoadCalls = 0;
-    w.editor.load = async (...args: unknown[]) => {
+    w.editor.loadProjectData = ((...args: unknown[]) => {
       w.__e2eLoadCalls = (w.__e2eLoadCalls ?? 0) + 1;
-      return originalLoad(...args);
-    };
+      return original(...args);
+    }) as never;
   });
 }
 
@@ -218,18 +118,39 @@ async function loadCallCount(page: Page): Promise<number> {
   });
 }
 
-// TODO(#948): FakeWebSocket 全置換 + localStorage seed が
-// #683 (real backend 必須) + #924 (localStorage fallback なし) と非互換。
-// realWorkspace + sendBrowserRequest 経路で全文書き直し必要 (調査済、
-// `.tmp/issue-bodies-945/945-C-investigation.md` 参照)。#948 で対応。
-test.describe.skip("Designer MCP reconnect reload behavior (#578) (#948 follow-up: realWorkspace 書き換え待ち)", () => {
-  test("MCP reconnect does not call editor.load or change clean canvas HTML", async ({ page }) => {
-    await setupDesigner(page);
+test.describe("Designer MCP reconnect reload behavior (#578) (#948)", () => {
+  let mcpAvailable = false;
+  let ws: OpenedWorkspace;
+
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+    if (!mcpAvailable) return;
+    ws = await setupTestWorkspace({
+      key: WS_KEY,
+      project,
+      screenDesigns: [{ id: SCREEN_ID, data: initialScreen }],
+    });
+    // 永続 WS (sendBrowserRequest 用) を ws.workspacePath に open しておく (#958)
+    await openBrowserSessionWorkspace(ws.workspacePath);
+  });
+
+  test.afterAll(async () => {
+    await closeBrowserSession();
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
+  test.beforeEach(async () => {
+    if (!mcpAvailable) test.skip(true, "backend (port 5179) が起動していません");
+  });
+
+  test("MCP reconnect does not call editor.loadProjectData or change clean canvas HTML", async ({ page }) => {
+    await setupDesigner(page, ws);
 
     const beforeHtml = await canvasHtml(page);
     const beforeLoads = await loadCallCount(page);
 
-    const statuses = await page.evaluate(async ({ changedScreen }) => {
+    // __mcpBridge.stop() / start() で再接続シミュレート (real backend に対して新 WS)
+    const statuses = await page.evaluate(async () => {
       const w = window as unknown as {
         editor?: unknown;
         __mcpBridge?: {
@@ -238,54 +159,54 @@ test.describe.skip("Designer MCP reconnect reload behavior (#578) (#948 follow-u
           getStatus: () => string;
           onStatusChange: (cb: (status: string) => void) => () => void;
         };
-        __e2eMcpScreenData?: Record<string, unknown>;
       };
       if (!w.editor || !w.__mcpBridge) throw new Error("Designer MCP bridge not ready");
 
       const seen: string[] = [];
       const unsubscribe = w.__mcpBridge.onStatusChange((status) => seen.push(status));
-      w.__e2eMcpScreenData = changedScreen;
       w.__mcpBridge.stop();
       w.__mcpBridge.start(w.editor);
       await new Promise<void>((resolve, reject) => {
         const startedAt = Date.now();
         const tick = () => {
-          if (w.__mcpBridge?.getStatus() === "connected") {
-            resolve();
-          } else if (Date.now() - startedAt > 5000) {
-            reject(new Error("Timed out waiting for MCP reconnect"));
-          } else {
-            setTimeout(tick, 20);
-          }
+          if (w.__mcpBridge?.getStatus() === "connected") resolve();
+          else if (Date.now() - startedAt > 5000) reject(new Error("Timed out waiting for MCP reconnect"));
+          else setTimeout(tick, 20);
         };
         tick();
       });
       unsubscribe();
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // 再接続後 broadcast 等が来ていれば 100ms 内に load が呼ばれる猶予
+      await new Promise((resolve) => setTimeout(resolve, 200));
       return seen;
-    }, { changedScreen });
+    });
 
     expect(statuses).toContain("disconnected");
     expect(statuses).toContain("connected");
+    // 再接続だけで loadProjectData が呼ばれてはいけない (= unnecessary reload を起こさない)
     expect(await loadCallCount(page)).toBe(beforeLoads);
-    expect(await canvasHtml(page)).toBe(beforeHtml);
+    // server-change-banner は出ない (broadcast を受信していないため)
     await expect(page.locator(".server-change-banner")).toHaveCount(0);
+    // 再接続前後で canvas HTML が等価 (内部状態を壊さない)。
+    // ただし mcpBridge.stop()/start() の lifecycle で getHtml が一時的に
+    // throw する場合があるので、 polling で安定値を取得する。
+    await expect.poll(async () => {
+      try {
+        return await canvasHtml(page);
+      } catch {
+        return null;
+      }
+    }, { timeout: 5000 }).toBe(beforeHtml);
   });
 
   test("screenChanged broadcast reloads a clean Designer canvas from server state", async ({ page }) => {
-    await setupDesigner(page);
+    await setupDesigner(page, ws);
 
-    await page.evaluate(({ changedScreen, screenId }) => {
-      const w = window as unknown as {
-        __e2eMcpScreenData?: Record<string, unknown>;
-        __e2eMcpBroadcast?: (event: string, data: unknown) => void;
-      };
-      if (!w.__e2eMcpBroadcast) throw new Error("MCP broadcast test helper not ready");
-      w.__e2eMcpScreenData = changedScreen;
-      w.__e2eMcpBroadcast("screenChanged", { screenId });
-    }, { changedScreen, screenId: SCREEN_ID });
+    // 別 WS client (sendBrowserRequest 経由) で saveScreen → backend が screenChanged broadcast
+    await sendBrowserRequest("saveScreen", { screenId: SCREEN_NORM, data: changedScreen });
 
-    await expect.poll(() => loadCallCount(page)).toBe(1);
-    await expect.poll(() => canvasHtml(page)).toContain("Changed by server broadcast");
+    // browser が broadcast を受信して reload → loadProjectData が呼ばれて canvas 更新
+    await expect.poll(() => loadCallCount(page), { timeout: 10000 }).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => canvasHtml(page), { timeout: 10000 }).toContain("Changed by server broadcast");
   });
 });
