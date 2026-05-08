@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -148,7 +147,6 @@ interface ContextMenu {
 
 function FlowEditorInner() {
   const navigate = useNavigate();
-  const { wsPath } = useWorkspacePath();
   const projectRef = useRef<FlowProject | null>(null);
   const { fitView, zoomTo } = useReactFlow();
   const { showError } = useErrorDialog();
@@ -370,7 +368,7 @@ function FlowEditorInner() {
       const screenName = (node.data as { name?: string }).name ?? node.id;
       openTab({ id: makeTabId("design", node.id), type: "design", resourceId: node.id, label: screenName });
     }
-    navigate(wsPath(`/screen/design/${node.id}`));
+    navigate(`/screen/design/${node.id}`);
   }, [navigate]);
 
   const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
@@ -546,7 +544,7 @@ function FlowEditorInner() {
       ? ((nodes.find((n) => n.id === screenId)!.data as { name?: string }).name ?? screenId)
       : screenId;
     openTab({ id: makeTabId("design", screenId), type: "design", resourceId: screenId, label: screenName });
-    navigate(wsPath(`/screen/design/${screenId}`));
+    navigate(`/screen/design/${screenId}`);
     setContextMenu(null);
   }, [contextMenu, navigate, nodes]);
 
