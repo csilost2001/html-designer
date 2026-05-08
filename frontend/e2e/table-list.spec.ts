@@ -73,6 +73,7 @@ test.describe("テーブル一覧", () => {
 
     test("ダブルクリックで編集画面へ遷移", async ({ page }) => {
       const card = page.locator(".data-list-card").first();
+      await expect(card).toBeVisible({ timeout: 10000 });
       await card.dblclick();
       await expect(page).toHaveURL(/\/w\/[^/]+\/table\/edit\//);
     });
