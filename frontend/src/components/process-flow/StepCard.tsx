@@ -405,14 +405,14 @@ export function StepCard({
   const addBranch = () => {
     if (step.kind !== "branch") return;
     const code = String.fromCharCode(65 + step.branches.length);
-    const newBranch: Branch = { id: generateUUID(), code, condition: "", steps: [] };
+    const newBranch: Branch = { id: generateUUID(), code, condition: { kind: "expression", expression: "" }, steps: [] };
     onChange({ branches: [...step.branches, newBranch] } as Partial<Step>);
     onCommit?.();
   };
 
   const addElseBranch = () => {
     if (step.kind !== "branch") return;
-    const elseBranch: Branch = { id: generateUUID(), code: "ELSE", condition: "", steps: [] };
+    const elseBranch: Branch = { id: generateUUID(), code: "ELSE", condition: { kind: "expression", expression: "" }, steps: [] };
     onChange({ elseBranch } as Partial<Step>);
     onCommit?.();
   };
@@ -1399,7 +1399,7 @@ export function StepCard({
                               placeholder="errorCode (例: STOCK_SHORTAGE)"
                               onChange={(e) => setBranchAt(bi, {
                                 ...br,
-                                condition: { ...br.condition as { kind: "tryCatch"; errorCode: string; description?: string }, errorCode: e.target.value },
+                                condition: { ...br.condition, errorCode: e.target.value },
                               })}
                               onBlur={onCommit}
                             />
