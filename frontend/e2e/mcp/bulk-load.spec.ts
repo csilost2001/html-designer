@@ -1,11 +1,28 @@
 import { test, expect } from "@playwright/test";
-import { isMcpRunning, sendBrowserRequest } from "./_helpers";
+import { isMcpRunning, sendBrowserRequest, openBrowserSessionWorkspace, closeBrowserSession } from "./_helpers";
+import { setupTestWorkspace, cleanupRealWorkspaces } from "../helpers/realWorkspace";
+import { buildProject } from "../__fixtures__/builders";
 
-// TODO(#958): mcp-tools.spec.ts と同じく sendBrowserRequest 構造修正待ち
-test.describe.skip("wsBridge bulk load (#587) (#958 follow-up)", () => {
+const WS_KEY = "issue-958-mcp-bulk-load";
+
+// #958: 永続 WS + clientId 共有構造 + beforeAll workspace.open で activePath を立てる
+test.describe("wsBridge bulk load (#587) (#958)", () => {
+  let mcpAvailable = false;
+
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+    if (!mcpAvailable) return;
+    const ws = await setupTestWorkspace({ key: WS_KEY, project: buildProject({ name: "mcp-bulk-load-e2e" }) });
+    await openBrowserSessionWorkspace(ws.workspacePath);
+  });
+
+  test.afterAll(async () => {
+    await closeBrowserSession();
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
   test.beforeEach(async () => {
-    const running = await isMcpRunning();
-    if (!running) test.skip();
+    if (!mcpAvailable) test.skip();
   });
 
   test("listAllTables は配列を返す", async () => {
