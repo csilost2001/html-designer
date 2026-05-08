@@ -18,7 +18,7 @@ Java Spring Boot では以下 2 系統が候補。**default は Spring AI** (Spr
 
 | 用途 | 推奨 SDK | 備考 |
 |---|---|---|
-| 単純な aiCall (text / json / structuredObject) | `spring-ai-{anthropic,openai,bedrock,vertexai-gemini,azure-openai,ollama}-spring-boot-starter` | provider ごとに starter を切替、`ChatClient` 抽象化 |
+| 単純な aiCall (text / json / structuredObject) | `spring-ai-starter-model-{anthropic,openai,bedrock-converse,vertexai-gemini,azure-openai,ollama}` (1.0.0 GA 以降の新 naming) | provider ごとに starter を切替、`ChatClient` 抽象化 |
 | aiAgent (tool use loop) | `spring-ai-*` の `ChatClient` + `tools()` | maxIterations は手書きで loop |
 | 高度な agent / memory / RAG | `langchain4j` | OptIn、追加依存が必要 |
 
@@ -197,7 +197,7 @@ auto-wiring を機能させる。
 ```java
 package com.example.{{project.meta.name | camelCase}}.ai.provider;
 
-// build.gradle: implementation 'org.springframework.ai:spring-ai-anthropic-spring-boot-starter'
+// build.gradle: implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
 import com.example.{{project.meta.name | camelCase}}.ai.AiProvider;
 // ...
 import org.springframework.ai.anthropic.AnthropicChatModel;
@@ -252,7 +252,7 @@ public class AnthropicAiProvider implements AiProvider {
 ### provider/OpenAiAiProvider.java
 
 ```java
-// build.gradle: implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
+// build.gradle: implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 @Component("openai")
 public class OpenAiAiProvider implements AiProvider {
     // OpenAiChatModel + ChatClient で同様に実装
@@ -263,8 +263,7 @@ public class OpenAiAiProvider implements AiProvider {
 ### provider/BedrockAiProvider.java
 
 ```java
-// build.gradle: implementation 'org.springframework.ai:spring-ai-bedrock-converse-spring-boot-starter'
-//   または 'org.springframework.ai:spring-ai-bedrock-spring-boot-starter'
+// build.gradle: implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
 @Component("aws-bedrock")
 public class BedrockAiProvider implements AiProvider {
     // BedrockConverseChatModel を使うと provider 中立 (Anthropic / Meta / Mistral 全部叩ける)。
@@ -275,17 +274,20 @@ public class BedrockAiProvider implements AiProvider {
 ### provider/AzureOpenAiAiProvider.java
 
 ```java
-// build.gradle: implementation 'org.springframework.ai:spring-ai-azure-openai-spring-boot-starter'
+// build.gradle: implementation 'org.springframework.ai:spring-ai-starter-model-azure-openai'
 @Component("azure-openai")
 public class AzureOpenAiAiProvider implements AiProvider {
-    // azureAd 認証は TokenCredential を別途構築 (DefaultAzureCredentialBuilder 等)
+    // apiKey は endpoint.auth.kind="azureAd" の場合 null で渡される。
+    // その場合は DefaultAzureCredentialBuilder().build() で TokenCredential を構築し、
+    // AzureOpenAiChatModel.builder().tokenCredential(...) に渡す。
+    //   if (apiKey == null && "azureAd".equals(endpoint.auth().kind())) { ... }
 }
 ```
 
 ### provider/GoogleAiProvider.java
 
 ```java
-// build.gradle: implementation 'org.springframework.ai:spring-ai-vertex-ai-gemini-spring-boot-starter'
+// build.gradle: implementation 'org.springframework.ai:spring-ai-starter-model-vertexai-gemini'
 @Component("google")
 public class GoogleAiProvider implements AiProvider {
     // VertexAiGeminiChatModel
@@ -295,7 +297,7 @@ public class GoogleAiProvider implements AiProvider {
 ### provider/OllamaAiProvider.java
 
 ```java
-// build.gradle: implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
+// build.gradle: implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
 @Component("ollama")
 public class OllamaAiProvider implements AiProvider {
     // ローカル Ollama 用、auth.kind='none' 想定
@@ -349,11 +351,27 @@ public record AiContentBlock(String type, String text, AiImageSource source,
     public record ToolResultRef(String toolCallId, Object result, Boolean isError) {}
 }
 
-public record AiImageSource(String kind, String url, String fileRef, String data, String mediaType) {}
+/**
+ * spec の `AiImageSource` (oneOf 3 形式) に対応する sealed interface。
+ * field 名は schema の各 branch に正確に一致 (fileRef は `ref`、url は `url`、base64 は `data`+`mediaType`)。
+ */
+public sealed interface AiImageSource {
+    record FileRef(String ref) implements AiImageSource {}                       // schema: ExpressionString (例: '@inputs.photo')
+    record Url(String url) implements AiImageSource {}                           // schema: literal URI または ExpressionString
+    record Base64(String data, String mediaType) implements AiImageSource {}
+}
 
 public record AiResponseFormat(String kind, java.util.Map<String, Object> schema) {}
 
-public record AiToolRef(String name, String description, java.util.Map<String, Object> schema) {}
+/**
+ * spec の `AiToolRef` (oneOf 2 形式) に対応する sealed interface。
+ * functionRef は context.catalogs.functions[ref] を解決して provider 形式に変換、
+ * inline は name/description/parameters をそのまま provider 形式へ詰め替える。
+ */
+public sealed interface AiToolRef {
+    record FunctionRef(String ref) implements AiToolRef {}
+    record Inline(String name, String description, java.util.Map<String, Object> parameters) implements AiToolRef {}
+}
 
 /**
  * runtime 用の正規化形式。ProcessFlow JSON 上の schema は
@@ -466,16 +484,26 @@ schema enum: `continue` / `abort` / `compensate` (3 値のみ)。
 | `continue` | `try/catch` で吸収 + 代替パス step を実行 |
 | `compensate` | `try/catch` + 補償 step (`sideEffects[]`) 実行。TX 内なら DB rollback も併用 |
 
-`jumpTo` は **action 値ではなく補助フィールド** (LocalId 型)。`continue` / `compensate` と
-**併用** して「失敗時にこの step に goto」を表現する。生成パターン:
+`jumpTo` は **action 値ではなく補助フィールド** (LocalId、任意文字列)。`continue` / `compensate` と
+**併用** して「失敗時にこの step に goto」を表現する。LocalId は連番でないため命名規約推測は不可 —
+codegen は **`Map<String LocalId, generated method name>`** を保持して dispatch する。生成パターン:
 
 ```java
+// codegen が dispatch table を生成 (各 step を method 化)
+private Object dispatchStep(String stepId, StepCtx ctx) {
+    return switch (stepId) {
+        case "step-09" -> runStepStep09(ctx);    // codegen 内 Map で LocalId → method 名を解決
+        case "tx-recover" -> runStepTxRecover(ctx);
+        default -> throw new IllegalStateException("Unknown step id: " + stepId);
+    };
+}
+
 try {
     AiInvocationResult aiResponse = aiRuntime.invoke(...);
 } catch (ResponseStatusException e) {
     if (e.getStatusCode().value() == 502) {
         // outcomes.failure: { action: "continue", jumpTo: "step-09" }
-        return executeStep09(...); // jumpTo target を method 化して呼ぶ
+        return dispatchStep("step-09", ctx);
     }
     throw e;
 }

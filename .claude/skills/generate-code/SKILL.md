@@ -300,14 +300,17 @@ AI flow を持つ業務 Service だけが `AiRuntimeService` を inject:
 
 利用 provider に応じて以下を追加 (生成時に判定):
 
+Spring AI artifact ID は **1.0.0 GA (2025-05) で命名規則変更** あり (`spring-ai-<provider>-spring-boot-starter` →
+`spring-ai-starter-model-<provider>`)。本表は GA 以降の新 naming を採用:
+
 | provider | NestJS 依存 | Java Spring Boot 依存 |
 |---|---|---|
-| `anthropic` | `@anthropic-ai/sdk` | `org.springframework.ai:spring-ai-anthropic-spring-boot-starter` |
-| `openai` | `openai` | `org.springframework.ai:spring-ai-openai-spring-boot-starter` |
-| `google` | `@google/generative-ai` | `org.springframework.ai:spring-ai-vertex-ai-gemini-spring-boot-starter` |
-| `aws-bedrock` | `@aws-sdk/client-bedrock-runtime` | `org.springframework.ai:spring-ai-bedrock-converse-spring-boot-starter` |
-| `azure-openai` | `openai` (Azure config) | `org.springframework.ai:spring-ai-azure-openai-spring-boot-starter` |
-| `ollama` | (fetch のみ、追加不要) | `org.springframework.ai:spring-ai-ollama-spring-boot-starter` |
+| `anthropic` | `@anthropic-ai/sdk` | `org.springframework.ai:spring-ai-starter-model-anthropic` |
+| `openai` | `openai` | `org.springframework.ai:spring-ai-starter-model-openai` |
+| `google` | `@google/generative-ai` | `org.springframework.ai:spring-ai-starter-model-vertexai-gemini` |
+| `aws-bedrock` | `@aws-sdk/client-bedrock-runtime` | `org.springframework.ai:spring-ai-starter-model-bedrock-converse` |
+| `azure-openai` | `openai` (Azure config) + (azureAd 時) `@azure/identity` | `org.springframework.ai:spring-ai-starter-model-azure-openai` |
+| `ollama` | (fetch のみ、追加不要) | `org.springframework.ai:spring-ai-starter-model-ollama` |
 | `namespace:custom` | (extension hook) | (extension hook) |
 
 加えて NestJS 側は AJV (`ajv`) を `responseFormat=structuredObject` 検証用に推奨追加。

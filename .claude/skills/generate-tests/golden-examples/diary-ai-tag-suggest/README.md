@@ -132,6 +132,10 @@ npx jest --testPathPattern=ai-tag-suggest --runInBand
 - `--runInBand` は SQLite を使用しているため必須 (D-7)。
 - Phase 2-C 確定後、`aiRuntime = moduleFixture.get<AiRuntimeService>(AiRuntimeService)` で DI 取得済。
   `/generate-code` で `<出力先>/src/ai/ai-runtime.service.ts` が生成されていれば本 golden はそのまま動作する。
+- 本 golden の TypeScript ファイル (`mocks/ai-runtime.ts` / `ai-tag-suggest.e2e-spec.ts`) は
+  **harmony 本 repo の tsc 対象外** (`frontend/tsconfig.app.json` の `include` は `src` のみ)。
+  `import { AiRuntimeService } from '../src/ai/ai-runtime.service'` は **生成後の apps/api プロジェクト
+  内で解決される想定** であり、harmony repo 内には実装ファイル本体は存在しない (テンプレート参照前提)。
 
 ### 実 API mode
 

@@ -64,24 +64,28 @@ export interface AiContentBlock {
   toolResult?: { toolCallId: string; result: unknown; isError?: boolean };
 }
 
-export interface AiImageSource {
-  kind: 'url' | 'fileRef' | 'base64';
-  url?: string;             // url-literal / url-expression
-  fileRef?: string;         // fileRef
-  data?: string;            // base64
-  mediaType?: string;       // image/jpeg etc.
-}
+/**
+ * spec の `AiImageSource` (oneOf 3 形式) に対応する discriminated union。
+ * field 名は schema の各 branch に正確に一致 (fileRef は `ref`、url は `url`、base64 は `data`+`mediaType`)。
+ */
+export type AiImageSource =
+  | { kind: 'fileRef'; ref: string }            // schema: ExpressionString (例: '@inputs.photo')
+  | { kind: 'url'; url: string }                // schema: literal URI または ExpressionString
+  | { kind: 'base64'; data: string; mediaType: string };
 
 export interface AiResponseFormat {
   kind: 'text' | 'json' | 'structuredObject' | 'streaming';
   schema?: object; // structuredObject のとき必須 (JSON Schema)
 }
 
-export interface AiToolRef {
-  name: string;
-  description?: string;
-  schema?: object; // tool input の JSON Schema
-}
+/**
+ * spec の `AiToolRef` (oneOf 2 形式) に対応する discriminated union。
+ * functionRef は context.catalogs.functions[ref] を解決して provider 形式に変換、
+ * inline は name/description/parameters をそのまま provider 形式へ詰め替える。
+ */
+export type AiToolRef =
+  | { kind: 'functionRef'; ref: string }
+  | { kind: 'inline'; name: string; description: string; parameters: Record<string, unknown> };
 
 /**
  * runtime 用の正規化形式。ProcessFlow JSON 上の schema は
@@ -231,6 +235,8 @@ export class AiRuntimeService {
     request: AiInvocationRequest,
     apiKey: string | undefined,
   ): Promise<AiInvocationResult> {
+    // apiKey は呼び出し前に requiresApiKey() ガード済 (bearer/apiKey でない限り undefined)。
+    // azure-openai は azureAd / apiKey の両方を許容するため provider 内で auth.kind を見て分岐する。
     switch (endpoint.provider) {
       case 'anthropic':
         return this.invokeAnthropic(endpoint, request, apiKey!);
@@ -239,9 +245,9 @@ export class AiRuntimeService {
       case 'google':
         return this.invokeGoogle(endpoint, request, apiKey!);
       case 'aws-bedrock':
-        return this.invokeBedrock(endpoint, request); // IAM role
+        return this.invokeBedrock(endpoint, request); // IAM role (apiKey 不要)
       case 'azure-openai':
-        return this.invokeAzureOpenAI(endpoint, request, apiKey!);
+        return this.invokeAzureOpenAI(endpoint, request, apiKey); // apiKey は azureAd 時 undefined
       case 'ollama':
         return this.invokeOllama(endpoint, request); // auth.kind='none' 想定
       default:
@@ -417,13 +423,23 @@ export class AiRuntimeService {
   private async invokeAzureOpenAI(
     endpoint: ModelEndpointEntry,
     request: AiInvocationRequest,
-    apiKey: string,
+    apiKey: string | undefined,
   ): Promise<AiInvocationResult> {
-    // npm i openai (Azure 互換 client)
+    // npm i openai (Azure 互換 client) + (azureAd 時) @azure/identity
     // import { AzureOpenAI } from 'openai';
+    // import { DefaultAzureCredential, getBearerTokenProvider } from '@azure/identity';
+    //
+    // const isAzureAd = endpoint.auth.kind === 'azureAd';
     // const client = new AzureOpenAI({
-    //   endpoint: endpoint.endpoint, deployment: endpoint.model, apiKey,
-    //   apiVersion: '2024-10-21', // azureAd 認証時は azureADTokenProvider を渡す
+    //   endpoint: endpoint.endpoint,
+    //   deployment: endpoint.model,
+    //   apiVersion: '2024-10-21',
+    //   ...(isAzureAd
+    //     ? { azureADTokenProvider: getBearerTokenProvider(
+    //         new DefaultAzureCredential(),
+    //         'https://cognitiveservices.azure.com/.default',
+    //       ) }
+    //     : { apiKey }),
     // });
     // ... (略、OpenAI と同形)
 
@@ -637,16 +653,27 @@ const aiResponse = await this.aiRuntime.invoke({
 | `continue` | `try { ... } catch (e) { ... }` で吸収 + alternative path の step を実行 |
 | `compensate` | catch + 補償 step (`sideEffects[]`) を実行。TX 内なら DB rollback を併用 |
 
-`jumpTo` は `action` の値ではなく **補助フィールド** (LocalId)。`continue` / `compensate` と
-**併用** して「失敗時にこの step に goto」を表現する。生成パターン:
+`jumpTo` は `action` の値ではなく **補助フィールド** (LocalId、任意文字列)。`continue` / `compensate` と
+**併用** して「失敗時にこの step に goto」を表現する。LocalId は連番でないため命名規約推測は不可 —
+codegen は **`Map<LocalId, generatedMethodName>`** を保持して dispatch する。生成パターン:
 
 ```typescript
+// codegen が以下のような dispatch table を生成 (各 step に対し 1 method)
+private async dispatchStep(stepId: string, ctx: StepCtx): Promise<unknown> {
+  switch (stepId) {
+    case 'step-09': return this.runStepStep09(ctx);   // step.id → method 名は codegen 内 Map で解決
+    case 'tx-recover': return this.runStepTxRecover(ctx);
+    // ...
+    default: throw new Error(`Unknown step id: ${stepId}`);
+  }
+}
+
 try {
   const aiResponse = await this.aiRuntime.invoke({ ... });
 } catch (e) {
   if (e instanceof HttpException && e.getStatus() === 502) {
     // outcomes.failure: { action: 'continue', jumpTo: 'step-09' }
-    return this.executeStep09(...); // jumpTo target を関数化して呼ぶ
+    return await this.dispatchStep('step-09', ctx);
   }
   throw e;
 }
