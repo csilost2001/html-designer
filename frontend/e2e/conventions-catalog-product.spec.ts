@@ -173,6 +173,14 @@ test.describe("プロダクト規約タブ (#347)", () => {
 
     // SPA リロード ではなく workspace 経由で再 navigate (page.reload は backend 接続を切るため)
     await ws.gotoActive(page, "/conventions/catalog");
+    // ResumeOrDiscardDialog が出たら破棄
+    await page.waitForTimeout(500);
+    for (let _i = 0; _i < 3; _i++) {
+      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+      } else { break; }
+    }
     await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
 
     // スコープタブを開いてエントリが残っていることを確認 (backend persist)

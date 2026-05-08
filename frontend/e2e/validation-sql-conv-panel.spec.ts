@@ -125,7 +125,8 @@ test.beforeEach(async () => {
   test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
   ws = await setupTestWorkspace({
     key: WS_KEY,
-    project: dummyProject,
+    project,
+    tables: [tableDef],
     processFlows: [dummyGroupBody as unknown as { id: string }],
   });
 });

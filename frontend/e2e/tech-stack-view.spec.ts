@@ -51,12 +51,12 @@ test.describe("技術スタック選定画面 (#826)", () => {
 
   test("ページが表示される — カテゴリペイン + デザイナーパネルが存在する", async ({ page }) => {
     await setup(page);
-    await expect(page.locator("text=デザイナー")).toBeVisible();
-    await expect(page.locator("text=バックエンド")).toBeVisible();
-    await expect(page.locator("text=データベース")).toBeVisible();
-    await expect(page.locator("text=フロントエンド")).toBeVisible();
-    await expect(page.locator("text=認証")).toBeVisible();
-    await expect(page.locator("text=デプロイ")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /デザイナー/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /バックエンド/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /データベース/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /フロントエンド/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /認証/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /デプロイ/ })).toBeVisible();
     await expect(page.locator('input[name="designer-editor-kind"][value="grapesjs"]')).toBeVisible();
     await expect(page.locator('input[name="designer-editor-kind"][value="puck"]')).toBeVisible();
   });
@@ -85,7 +85,7 @@ test.describe("技術スタック選定画面 (#826)", () => {
     await page.locator('input[name="designer-editor-kind"][value="puck"]').click();
     await page.locator("button", { hasText: "フロントエンド" }).click();
     await page.locator('input[name="frontend-library"][value="thymeleaf"]').click();
-    await expect(page.locator("text=制約違反")).toBeVisible();
+    await expect(page.getByText("制約違反", { exact: true })).toBeVisible();
     await expect(page.locator("button", { hasText: "保存" })).toBeDisabled();
   });
 });

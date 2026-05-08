@@ -44,6 +44,21 @@ const WS_KEY = "issue-926-screen-items";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
+/** screen-items を backend file から読む (debounce save 後の persistence 確認) */
+async function readScreenItemsFile(screenId: string): Promise<{ items: Array<Record<string, unknown>> } | null> {
+  const sidNorm = normalizeId(screenId);
+  const file = path.join(ws.workspacePath, "harmony", "screen-items", `${sidNorm}.json`);
+  for (let i = 0; i < 30; i++) {
+    try {
+      const raw = await fs.readFile(file, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  return null;
+}
+
 interface SetupOptions {
   catalog?: typeof sampleCatalog;
   /** screen-items を {screen-items-<id>: {screenId, items}} 形式で渡す → backend file へ書く */
@@ -69,10 +84,15 @@ async function setup(page: Page, opts: SetupOptions = {}) {
   }
   await ws.gotoActive(page, `/screen/items/${SCREEN1_NORM}`);
   await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
-  // edit-mode-start クリック (#683 readonly mode)
-  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
-    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
-    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  // edit-mode-start クリック (#683 readonly mode) — retry-loop で modal-backdrop intercept 回避
+  await page.waitForTimeout(500);
+  for (let _i = 0; _i < 3; _i++) {
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    } else {
+      break;
+    }
   }
   const editStart = page.getByTestId("edit-mode-start");
   if (await editStart.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -127,7 +147,7 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
     // scr-2 の URL に遷移
-    await page.goto(`/w/${ws.wsId}/screen/items/${SCREEN2_NORM}`);
+    await ws.gotoActive(page, `/screen/items/${SCREEN2_NORM}`);
     await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     // scr-2 は項目 0 件
     await expect(page.locator(".screen-items-empty-row")).toBeVisible();
@@ -287,10 +307,7 @@ test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () 
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
     // localStorage に errorMessages が書き込まれていることを確認
-    const stored = await page.evaluate((sid) => {
-      const raw = localStorage.getItem(`screen-items-${sid}`);
-      return raw ? JSON.parse(raw) : null;
-    }, screenId1);
+    const stored = await readScreenItemsFile(screenId1);
     expect(stored).not.toBeNull();
     expect(stored.items[0].errorMessages?.required).toBe("@conv.msg.required");
   });
@@ -324,7 +341,7 @@ test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () 
     // 保存して別画面に遷移
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    await page.goto(`/w/${ws.wsId}/screen/items/${SCREEN2_NORM}`);
+    await ws.gotoActive(page, `/screen/items/${SCREEN2_NORM}`);
     await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     // scr-2 では展開行なし
     await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
@@ -362,10 +379,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
     // localStorage で確認
-    const stored = await page.evaluate((sid) => {
-      const raw = localStorage.getItem(`screen-items-${sid}`);
-      return raw ? JSON.parse(raw) : null;
-    }, screenId1);
+    const stored = await readScreenItemsFile(screenId1);
     expect(stored).not.toBeNull();
     expect(stored.items[0].readonly).toBe(true);
   });
@@ -383,10 +397,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
     await placeholderInput.blur();
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    const stored = await page.evaluate((sid) => {
-      const raw = localStorage.getItem(`screen-items-${sid}`);
-      return raw ? JSON.parse(raw) : null;
-    }, screenId1);
+    const stored = await readScreenItemsFile(screenId1);
     expect(stored?.items[0].placeholder).toBe("例: user@example.com");
   });
 
@@ -403,10 +414,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
     await helperTextInput.blur();
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    const stored = await page.evaluate((sid) => {
-      const raw = localStorage.getItem(`screen-items-${sid}`);
-      return raw ? JSON.parse(raw) : null;
-    }, screenId1);
+    const stored = await readScreenItemsFile(screenId1);
     expect(stored?.items[0].helperText).toBe("半角英数字で入力してください");
   });
 
@@ -423,10 +431,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
     await visibleWhenInput.blur();
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    const stored = await page.evaluate((sid) => {
-      const raw = localStorage.getItem(`screen-items-${sid}`);
-      return raw ? JSON.parse(raw) : null;
-    }, screenId1);
+    const stored = await readScreenItemsFile(screenId1);
     expect(stored?.items[0].visibleWhen).toBe("@inputs.role === 'admin'");
   });
 
@@ -459,61 +464,55 @@ test.describe("詳細フィールド展開行 (#353)", () => {
     // 保存して別画面に遷移
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    await page.goto(`/w/${ws.wsId}/screen/items/${SCREEN2_NORM}`);
+    await ws.gotoActive(page, `/screen/items/${SCREEN2_NORM}`);
     await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
   });
 });
 
 test.describe("per-screen タブ独立編集 (#696)", () => {
-  /**
-   * 2 画面の項目定義を別タブで開いて独立編集できることを確認する。
-   * localStorage モードで動作するため MCP 不要。
-   */
+  test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await setupTestWorkspace({ key: WS_KEY, project: dummyProject });
+  });
+
+  /** edit-mode 起動 (modal-backdrop retry-loop 込み) */
+  async function startEdit(p: import("@playwright/test").Page) {
+    await p.waitForTimeout(500);
+    for (let _i = 0; _i < 3; _i++) {
+      if (await p.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        await p.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+        await p.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+      } else { break; }
+    }
+    const editStart = p.getByTestId("edit-mode-start");
+    if (await editStart.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await editStart.click();
+      await expect(p.getByTestId("edit-mode-save")).toBeVisible();
+    }
+  }
+
   test("2 画面のタブを独立編集: 片方を保存しても他方の dirty が保持される", async ({ browser }) => {
-    // 2 コンテキストで別タブをシミュレート (同一ページ内での複数タブは難しいため URL 切替で代替)
-    // ここでは 1 コンテキスト内で 2 ページを開き、それぞれ独立した localStorage を持つことを確認
     const context = await browser.newContext();
-
-    const setupLocal = async (p: import("@playwright/test").Page, targetScreenId: string) => {
-      await p.addInitScript(({ project, sid }) => {
-        localStorage.setItem("workspace-e2e-bypass", "true");
-        localStorage.setItem("flow-project", JSON.stringify(project));
-        localStorage.removeItem("harmony-open-tabs");
-        localStorage.removeItem("harmony-active-tab");
-        for (const k of Object.keys(localStorage)) {
-          if (k.startsWith("screen-items-") || k.startsWith("draft-screen-items-")) {
-            localStorage.removeItem(k);
-          }
-        }
-      }, {
-        project: dummyProject,
-        sid: targetScreenId,
-      });
-      await p.goto(`/w/ws-e2e/screen/items/${targetScreenId}`);
-      await expect(p.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
-    };
-
-    // タブ1: scr-1 を開いて項目追加
     const page1 = await context.newPage();
-    await setupLocal(page1, screenId1);
+    await ws.gotoActive(page1, `/screen/items/${SCREEN1_NORM}`);
+    await expect(page1.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
+    await startEdit(page1);
     await page1.locator(".screen-items-view button:has-text('項目追加')").click();
     await page1.locator('.screen-items-table input[placeholder="email"]').first().fill("screen1Field");
-    // dirty になっていること (保存ボタンが有効)
     await expect(page1.locator(".srb-btn-save")).toBeEnabled({ timeout: 3000 });
 
-    // タブ2: scr-2 を開いて別の項目追加
     const page2 = await context.newPage();
-    await setupLocal(page2, screenId2);
+    await ws.gotoActive(page2, `/screen/items/${SCREEN2_NORM}`);
+    await expect(page2.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
+    await startEdit(page2);
     await page2.locator(".screen-items-view button:has-text('項目追加')").click();
     await page2.locator('.screen-items-table input[placeholder="email"]').first().fill("screen2Field");
     await expect(page2.locator(".srb-btn-save")).toBeEnabled({ timeout: 3000 });
 
-    // タブ2 だけ保存 → タブ1 は dirty のまま
     await page2.locator(".srb-btn-save").click();
     await expect(page2.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-
-    // タブ1 は保存ボタンがまだ有効 (dirty 保持)
     await expect(page1.locator(".srb-btn-save")).toBeEnabled();
 
     await context.close();

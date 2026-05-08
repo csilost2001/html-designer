@@ -81,8 +81,8 @@ test.describe("カスタムステップカードパレット (#447)", () => {
     await page.getByTestId("edit-mode-start").click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 
-    // カスタムセクションのラベル (.step-toolbar 内の小見出しを限定)
-    await expect(page.locator(".step-toolbar").getByText("カスタム", { exact: true })).toBeVisible();
+    // カスタムセクションのラベル (.step-toolbar 内の小見出しを限定; div.small.text-muted)
+    await expect(page.locator(".step-toolbar div.small.text-muted").filter({ hasText: /^カスタム$/ })).toBeVisible();
     const card = page.getByRole("button", { name: /テストカスタム/ }).first();
     await expect(card).toBeDisabled();
   });
