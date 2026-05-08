@@ -694,10 +694,14 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   }, [location.pathname]);
 
   // アクティブタブ → URL 同期
-  // workspace 未選択中 (active=null) や /workspace/select 表示中は同期を停止する。
+  // workspace が完全未選択 (active=null + wsId 無し) や /workspace/select 表示中は同期を停止する。
   // localStorage に残った activeTabId が design:xxx 等を指していると、guard が
   // /workspace/select に redirect → 直後に本 effect が /screen/design/xxx へ navigate
   // を上書き → guard が再度 redirect、というループ / flicker を起こすため。
+  //
+  // ただし URL に wsId がある場合 (= /w/:wsId/* 経由) は recovery 中でも navigate 許可 (#957)。
+  // tab → URL は activeTab.resourceId だけで決まり workspace state race の影響は無く、
+  // recovery 完了後に Designer mount のフローを保てる。
   // workspace-list タブだけは select 画面からの誘導でも進入可能なので例外扱い。
   const activeTab = tabs.find((t) => t.id === activeTabId);
   // 前回 sync 済 activeTabId を ref で保持。本当に activeTabId が変化した時だけ navigate する
@@ -706,7 +710,11 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   useEffect(() => {
     if (!activeTab) return;
     if (location.pathname === "/workspace/select") return;
-    if (workspaceState.active === null && !workspaceState.lockdown && activeTab.type !== "workspace-list") {
+    // workspace 未確立でも URL に wsId がある場合は navigate 許可 (#957)。
+    // tab → URL は activeTab.resourceId だけで決まるため、 workspace state の race は影響しない。
+    // recovery 中 (active=null + wsId 有) でもタブクリックで URL を切替えて、
+    // recovery 完了後に Designer mount のフローを保つ。
+    if (workspaceState.active === null && !workspaceState.lockdown && !wsId && activeTab.type !== "workspace-list") {
       return;
     }
     // activeTabId が前回 sync 済の値と同じなら何もしない
