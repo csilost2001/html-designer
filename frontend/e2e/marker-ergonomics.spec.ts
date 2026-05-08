@@ -24,28 +24,28 @@ const baseActions = [{
     { id: "s2", type: "dbAccess", description: "検索", tableName: "x", operation: "SELECT", maturity: "draft" },
   ],
 }] as ReturnType<typeof buildProcessFlow>["actions"];
-const baseGroupBody = buildProcessFlow({
+const baseMarkers = [
+  { id: "m1", kind: "todo", body: "A", author: "human", createdAt: "2026-04-20T00:00:00Z" },
+  { id: "m2", kind: "question", body: "B", author: "human", createdAt: "2026-04-20T00:00:00Z" },
+];
+const dummyGroupBody = buildProcessFlow({
   id: groupId,
   name: "erg test",
   kind: "screen",
   mode: "upstream",
   actions: baseActions,
+  authoring: { markers: baseMarkers },
 });
-const dummyGroupBody = {
-  ...baseGroupBody,
+const dummyGroupResolvedBody = buildProcessFlow({
+  id: groupId,
+  name: "erg test",
+  kind: "screen",
+  mode: "upstream",
+  actions: baseActions,
   authoring: {
-    markers: [
-      { id: "m1", kind: "todo", body: "A", author: "human", createdAt: "2026-04-20T00:00:00Z" },
-      { id: "m2", kind: "question", body: "B", author: "human", createdAt: "2026-04-20T00:00:00Z" },
-    ],
+    markers: baseMarkers.map((m) => ({ ...m, resolvedAt: "2026-04-20T01:00:00Z" })),
   },
-};
-const dummyGroupResolvedBody = {
-  ...baseGroupBody,
-  authoring: {
-    markers: dummyGroupBody.authoring.markers.map((m) => ({ ...m, resolvedAt: "2026-04-20T01:00:00Z" })),
-  },
-};
+});
 
 const dummyProject = buildProject({
   name: "erg",
