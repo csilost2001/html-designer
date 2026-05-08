@@ -306,7 +306,7 @@ test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () 
     await setup(page, {
       catalog: sampleCatalog,
       screenItems: { [`screen-items-${screenId1}`]: preSeeded },
-    });)
+    });
     // 展開して値を確認
     const row = page.locator(".screen-items-table tbody tr:last-child");
     await row.locator('button[aria-label="エラーメッセージ展開"]').click();
@@ -437,7 +437,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
       updatedAt: new Date().toISOString(),
       items: [{ id: "qty", label: "数量", type: "number", readonly: true, min: 1, max: 100 }],
     };
-    await setup(page, { screenItems: { [`screen-items-${screenId1}`]: preSeeded } });)
+    await setup(page, { screenItems: { [`screen-items-${screenId1}`]: preSeeded } });
     const row = page.locator(".screen-items-table tbody tr:last-child");
     await row.locator('button[aria-label="詳細展開"]').click();
     const detailRow = page.locator(".screen-items-detail-row").last();

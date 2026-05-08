@@ -27,9 +27,15 @@ let ws: OpenedWorkspace;
 async function setupFlowEditor(page: Page) {
   await ws.gotoActive(page, "/screen/flow");
   await expect(page.locator(".flow-root")).toBeVisible();
-  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
-    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
-    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  // ResumeOrDiscardDialog 遅延表示への retry-loop (#683 edit-session-draft 残骸対応)
+  await page.waitForTimeout(500);
+  for (let _i = 0; _i < 3; _i++) {
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    } else {
+      break;
+    }
   }
   // 画面作成は edit モードで行う必要がある
   const editStart = page.getByTestId("edit-mode-start");
