@@ -52,11 +52,7 @@ async function setupProcessFlowEditor(page: Page) {
   await ws.gotoActive(page, `/process-flow/edit/${PF_NORM}`);
   await expect(page.locator(".process-flow-page")).toBeVisible();
   // ResumeOrDiscardDialog 遅延表示への retry-loop (#683 edit-session-draft 残骸対応)
-  // dialog が出るまで最大 2s 待つ + 出たら dismiss、出ないなら continue
-  await Promise.race([
-    page.locator(".edit-mode-modal-backdrop").waitFor({ state: "visible", timeout: 2000 }),
-    page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 2000 }),
-  ]).catch(() => undefined);
+  await page.waitForTimeout(500);
   for (let _i = 0; _i < 3; _i++) {
     if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
       await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
@@ -65,7 +61,6 @@ async function setupProcessFlowEditor(page: Page) {
       break;
     }
   }
-  await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   await page.getByTestId("edit-mode-start").click();
   await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }

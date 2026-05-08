@@ -46,15 +46,7 @@ test.describe("#148 一覧 ソート中 Read-only + No 列", () => {
     });
     await ws.gotoActive(page, "/screen/list");
     await expect(page.locator(".screen-list-page")).toBeVisible();
-    // ResumeOrDiscardDialog dismiss
-    await page.waitForTimeout(300);
-    for (let _i = 0; _i < 3; _i++) {
-      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
-        await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
-        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
-      } else { break; }
-    }
-    await expect(page.locator(".data-list-row").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.locator(".data-list-row").first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".data-list-row")).toHaveCount(5);
   });
 
