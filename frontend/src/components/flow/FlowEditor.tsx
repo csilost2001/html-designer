@@ -255,6 +255,7 @@ function FlowEditorInner() {
   const { serverChanged, dismissServerBanner } = useFlowProjectSync({
     reload: reloadProject,
     isDirtyRef,
+    setIsDirty,
     navigate,
   });
 

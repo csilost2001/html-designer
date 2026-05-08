@@ -10,6 +10,7 @@ import { acknowledgeServerMtime, hasServerBeenUpdated } from "../utils/serverMti
 interface UseFlowProjectSyncOptions {
   reload: () => Promise<void>;
   isDirtyRef: MutableRefObject<boolean>;
+  setIsDirty: (dirty: boolean) => void;
   navigate?: (path: string) => void;
 }
 
@@ -21,6 +22,7 @@ interface UseFlowProjectSyncResult {
 export function useFlowProjectSync({
   reload,
   isDirtyRef,
+  setIsDirty,
   navigate,
 }: UseFlowProjectSyncOptions): UseFlowProjectSyncResult {
   const [serverChanged, setServerChanged] = useState(false);
@@ -36,6 +38,7 @@ export function useFlowProjectSync({
 
     const unsubDraft = subscribeToFlowDraftSaves(() => {
       isDirtyRef.current = true;
+      setIsDirty(true);
     });
 
     const handleExternalChange = () => {
@@ -83,7 +86,7 @@ export function useFlowProjectSync({
       unsubProject();
       unsubStatus();
     };
-  }, [isDirtyRef, navigate, reload]);
+  }, [isDirtyRef, navigate, reload, setIsDirty]);
 
   return { serverChanged, dismissServerBanner };
 }
