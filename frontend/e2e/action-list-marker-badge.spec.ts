@@ -22,13 +22,15 @@ const fullGroupWithMarkers = {
   $schema: "../../../schemas/v3/process-flow.v3.schema.json",
   meta: { id: "ag-with-markers", name: "マーカー入り", kind: "screen", mode: "upstream", maturity: "draft", version: "1.0.0", createdAt: baseTs, updatedAt: baseTs },
   actions: [{ id: "act-1", name: "", trigger: "click", maturity: "draft", responses: [{id:"201-ok",status:201}], steps: [] }],
-  markers: [
-    { id: "m1", kind: "todo", body: "ここ直して", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
-    { id: "m2", kind: "todo", body: "これも", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
-    { id: "m3", kind: "question", body: "なぜ?", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
-    { id: "m4", kind: "attention", body: "注意", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
-    { id: "m5", kind: "todo", body: "処理済", author: "human", createdAt: "2026-04-21T00:00:00.000Z", resolvedAt: "2026-04-21T01:00:00.000Z", resolvedBy: "ai" },
-  ],
+  authoring: {
+    markers: [
+      { id: "m1", kind: "todo", body: "ここ直して", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
+      { id: "m2", kind: "todo", body: "これも", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
+      { id: "m3", kind: "question", body: "なぜ?", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
+      { id: "m4", kind: "attention", body: "注意", author: "human", createdAt: "2026-04-21T00:00:00.000Z" },
+      { id: "m5", kind: "todo", body: "処理済", author: "human", createdAt: "2026-04-21T00:00:00.000Z", resolvedAt: "2026-04-21T01:00:00.000Z", resolvedBy: "ai" },
+    ],
+  },
 };
 
 const fullGroupClean = {
@@ -36,7 +38,7 @@ const fullGroupClean = {
   $schema: "../../../schemas/v3/process-flow.v3.schema.json",
   meta: { id: "ag-clean", name: "マーカーなし", kind: "batch", mode: "upstream", maturity: "draft", version: "1.0.0", createdAt: baseTs, updatedAt: baseTs },
   actions: [{ id: "act-2", name: "", trigger: "click", maturity: "draft", responses: [{id:"201-ok",status:201}], steps: [] }],
-  markers: [],
+  authoring: { markers: [] },
 };
 
 const dummyProject = {

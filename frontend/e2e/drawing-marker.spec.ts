@@ -64,7 +64,7 @@ const dummyGroupBody: Record<string, unknown> = {
   $schema: "../../../schemas/v3/process-flow.v3.schema.json",
   meta: { id: groupId, name: dummyGroup.name, kind: dummyGroup.type ?? dummyGroup.kind ?? "screen", mode: "upstream", maturity: "draft", version: "1.0.0", createdAt: dummyGroup.createdAt ?? "2026-05-08T00:00:00.000Z", updatedAt: dummyGroup.updatedAt ?? "2026-05-08T00:00:00.000Z" },
   actions: dummyGroup.actions,
-  ...((dummyGroup as Record<string, unknown>).markers !== undefined ? { markers: (dummyGroup as Record<string, unknown>).markers } : {}),
+  ...((dummyGroup as Record<string, unknown>).markers !== undefined ? { authoring: { markers: (dummyGroup as Record<string, unknown>).markers } } : {}),
 };
 
 const WS_KEY = "issue-926-drawing-marker";
