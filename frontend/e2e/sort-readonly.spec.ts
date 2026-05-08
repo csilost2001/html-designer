@@ -46,6 +46,7 @@ test.describe("#148 一覧 ソート中 Read-only + No 列", () => {
     });
     await ws.gotoActive(page, "/screen/list");
     await expect(page.locator(".screen-list-page")).toBeVisible();
+    await expect(page.locator(".data-list-row").first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".data-list-row")).toHaveCount(5);
   });
 

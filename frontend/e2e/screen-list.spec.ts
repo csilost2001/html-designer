@@ -86,6 +86,8 @@ test.describe("画面一覧", () => {
 
   test("Delete で ghost 表示、リセットで戻る", async ({ page }) => {
     page.on("dialog", (d) => d.accept());
+    // backend からの screens 取得を待つ
+    await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
     await page.locator(".data-list-card").first().click();
     await page.keyboard.press("Delete");
     await expect(page.locator(".data-list-card.ghost")).toHaveCount(1);
