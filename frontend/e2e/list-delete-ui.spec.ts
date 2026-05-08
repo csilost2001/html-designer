@@ -46,6 +46,8 @@ test.describe("#147 一覧 削除 UI", () => {
     });
     await ws.gotoActive(page, "/screen/list");
     await expect(page.locator(".screen-list-page")).toBeVisible();
+    // backend 取得 + render 完了待ち
+    await expect(page.locator(".data-list-row").first()).toBeVisible({ timeout: 20000 });
     await expect(page.locator(".data-list-row")).toHaveCount(3);
   });
 

@@ -50,6 +50,15 @@ test.describe("テーブル一覧", () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
     await ws.gotoActive(page, "/table/list");
     await expect(page.locator(".table-list-page")).toBeVisible();
+    // ResumeOrDiscardDialog dismiss + backend 取得 + render 完了待ち
+    await page.waitForTimeout(300);
+    for (let _i = 0; _i < 3; _i++) {
+      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+      } else { break; }
+    }
+    await expect(page.locator(".data-list-card, .data-list-row").first()).toBeVisible({ timeout: 20000 });
   });
 
   test.describe("表示切替・検索", () => {
