@@ -52,7 +52,8 @@ test.describe("拡張管理 UI (#447)", () => {
     await page.getByRole("button", { name: "追加" }).click();
     await page.getByPlaceholder("ApiError").last().fill("E2EResponse");
     await page.locator(".response-type-schema").last().fill('{"type":"object","properties":{"code":{"type":"string"}}}');
-    await page.getByRole("button", { name: "保存" }).click();
+    // ResponseTypesTab 内の primary 保存 button (edit-mode-save と区別)
+    await page.locator(".extensions-panel button.btn-primary", { hasText: "保存" }).click();
     await expect(page.getByText("保存しました。")).toBeVisible({ timeout: 10000 });
     await expect(page.getByDisplayValue("E2EResponse")).toBeVisible();
   });
