@@ -6,6 +6,8 @@ const BASE_URL = `http://localhost:${VITE_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // e2e/__fixtures__/builders/*.test.ts は Vitest テストのため Playwright から除外
+  testMatch: /.*\.spec\.ts$/,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
