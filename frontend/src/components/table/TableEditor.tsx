@@ -101,6 +101,20 @@ export function TableEditor() {
 
   const isReadonly = mode.kind !== "editing";
 
+  // #960: 「作成して編集」経由で sessionStorage に flag があれば auto-edit モードで開く。
+  const autoEditFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoEditFiredRef.current) return;
+    if (!tableId) return;
+    if (mode.kind !== "readonly") return;
+    if (sessionLoading) return;
+    const key = `harmony-auto-edit:table:${tableId}`;
+    if (sessionStorage.getItem(key) !== "1") return;
+    autoEditFiredRef.current = true;
+    sessionStorage.removeItem(key);
+    void actions.startEditing();
+  }, [tableId, mode.kind, sessionLoading, actions]);
+
   const tableRef = useRef<Table | null>(null);
   useEffect(() => { tableRef.current = table ?? null; }, [table]);
 

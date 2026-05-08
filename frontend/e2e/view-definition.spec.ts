@@ -101,10 +101,9 @@ test.describe("ビュー定義 E2E", () => {
     await expect(page).toHaveURL(/\/w\/[^/]+\/view-definition\/edit\//);
     await expect(page.getByText("ビュー定義編集").first()).toBeVisible();
 
-    // edit-session-draft (#683): エディタは readonly で開くため明示的に編集開始する。
-    // 「作成して編集」ボタンの命名に反する UX gap (#960 で改善予定)
-    await page.getByTestId("edit-mode-start").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // #960: 「作成して編集」経由は auto-edit モードで開く (sessionStorage 経由で
+    // ViewDefinitionEditor が自動的に actions.startEditing() を発火)。
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 
     await page.getByLabel(/表示名/).fill(UPDATED_NAME);
     // SaveResetButtons の保存ボタン (edit-mode-save と区別)

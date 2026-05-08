@@ -336,6 +336,8 @@ export function ViewDefinitionListView() {
       resourceId: String(vd.id),
       label: vd.name,
     });
+    // #960: 「作成して編集」は auto-edit モードで Editor を開く (sessionStorage 経由)。
+    sessionStorage.setItem(`harmony-auto-edit:view-definition:${vd.id}`, "1");
     navigate(wsPath(`/view-definition/edit/${encodeURIComponent(String(vd.id))}`));
   };
 
