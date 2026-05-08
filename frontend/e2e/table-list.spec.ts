@@ -55,6 +55,8 @@ test.describe("テーブル一覧", () => {
   test.describe("表示切替・検索", () => {
     test("既定はカードレイアウト、ViewModeToggle で表に切替可能", async ({ page }) => {
       await expect(page.locator(".tables-data-list.data-list-layout-grid")).toBeVisible();
+      // backend 取得待ち
+      await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
       await expect(page.locator(".data-list-card")).toHaveCount(3);
       await page.getByRole("button", { name: "表表示" }).click();
       await expect(page.locator(".tables-data-list .data-list-table")).toBeVisible();
@@ -95,6 +97,8 @@ test.describe("テーブル一覧", () => {
     });
 
     test("Ctrl+A で全選択、Esc で選択解除", async ({ page }) => {
+      // backend 取得待ち
+      await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
       await page.locator(".data-list-card").first().click();
       await page.keyboard.press("Control+a");
       const cards = page.locator(".data-list-card");
