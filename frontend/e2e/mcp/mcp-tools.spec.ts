@@ -15,20 +15,36 @@
 import { test, expect } from "@playwright/test";
 import * as path from "path";
 import * as fs from "fs";
-import { isMcpRunning, sendBrowserRequest } from "./_helpers";
+import { isMcpRunning, sendBrowserRequest, openBrowserSessionWorkspace, closeBrowserSession } from "./_helpers";
+import { setupTestWorkspace, cleanupRealWorkspaces } from "../helpers/realWorkspace";
+import { buildProject } from "../__fixtures__/builders";
 
+const WS_KEY = "issue-958-mcp-tools";
 
 // ─── テスト ─────────────────────────────────────────────────────────────────
 
-// TODO(#958): sendBrowserRequest が短命 WS で都度 clientId を発行する
-// ため、workspace.open を呼んでも次の request で活性 path が消える
-// (#683 backend per-session activePath 廃止後の構造的問題)。
-// _helpers.ts の sendBrowserRequest を「WS 永続化 + clientId 共有 + 初回 workspace.open」
-// 構造に書き直す必要あり。本 ISSUE スコープ外、#958 で対応。
-test.describe.skip("wsBridge ファイル操作 (#958 follow-up: sendBrowserRequest 構造修正待ち)", () => {
+// #958: sendBrowserRequest を永続 WS + clientId 共有構造に書き直し、
+// beforeAll で test workspace を作成 + openBrowserSessionWorkspace で永続 WS の
+// activePath を立てる。
+test.describe("wsBridge ファイル操作 (#958)", () => {
+  let mcpAvailable = false;
+  let workspacePath: string | null = null;
+
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+    if (!mcpAvailable) return;
+    const ws = await setupTestWorkspace({ key: WS_KEY, project: buildProject({ name: "mcp-tools-e2e" }) });
+    workspacePath = ws.workspacePath;
+    await openBrowserSessionWorkspace(workspacePath);
+  });
+
+  test.afterAll(async () => {
+    await closeBrowserSession();
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
   test.beforeEach(async () => {
-    const running = await isMcpRunning();
-    if (!running) test.skip();
+    if (!mcpAvailable) test.skip();
   });
 
   test("loadProject でプロジェクトデータが返る", async () => {
