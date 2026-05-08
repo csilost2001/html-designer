@@ -157,19 +157,8 @@ test.describe("プロダクト規約タブ (#347)", () => {
     await expect(page.locator(".conventions-key-badge", { hasText: "willDelete" })).toHaveCount(0);
   });
 
-  test("scope エントリを保存してリロード後も値が残る", async ({ page }) => {
-    // conventions-catalog を消さずに setup — リロード後に localStorage から復元できることを検証
-    await page.addInitScript(({ project }) => {
-      localStorage.setItem("workspace-e2e-bypass", "true");
-      localStorage.setItem("flow-project", JSON.stringify(project));
-      localStorage.removeItem("harmony-open-tabs");
-      localStorage.removeItem("harmony-active-tab");
-      localStorage.removeItem("conventions-catalog");
-      localStorage.removeItem("draft-conventions-catalog-main");
-    }, { project: dummyProject });
-    await page.goto("/conventions/catalog");
-    await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
-
+  test("scope エントリを保存してリロード後も値が残る (backend persist)", async ({ page }) => {
+    // beforeEach で setup 済 (workspace 開いて edit-mode に入っている状態)
     await page.locator(".conventions-category-tab", { hasText: "スコープ" }).click();
     await page.locator(".conventions-new-key-input").fill("persistTest");
     await page.locator(".conventions-entries button:has-text('追加')").click();
@@ -182,11 +171,11 @@ test.describe("プロダクト規約タブ (#347)", () => {
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).not.toHaveClass(/dirty/, { timeout: 5000 });
 
-    // リロード
-    await page.reload();
+    // SPA リロード ではなく workspace 経由で再 navigate (page.reload は backend 接続を切るため)
+    await ws.gotoActive(page, "/conventions/catalog");
     await expect(page.locator(".conventions-catalog-view")).toBeVisible({ timeout: 10000 });
 
-    // スコープタブを開いてエントリが残っていることを確認
+    // スコープタブを開いてエントリが残っていることを確認 (backend persist)
     await page.locator(".conventions-category-tab", { hasText: "スコープ" }).click();
     await expect(page.locator(".conventions-key-badge", { hasText: "persistTest" })).toBeVisible();
     await expect(page.locator('.conventions-table input[placeholder="domestic"]').first()).toHaveValue("overseas");

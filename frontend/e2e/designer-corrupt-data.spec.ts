@@ -73,7 +73,8 @@ test.describe("Designer 破損データ耐性 (#131)", () => {
     await setupDesignerWithRawData(page, {}, key);
     await expect(page.locator(".tab-error-fallback")).not.toBeVisible();
     await expect(page.locator(".app-error-fallback")).not.toBeVisible();
-    await expect(page.locator(".srb-btn-reset")).toBeVisible({ timeout: 15000 });
+    // edit-session-draft (#683): readonly モードの edit-mode-start ボタンが Designer の起動成功マーカー
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 
   test("pages 欠落データでも起動し、ErrorDialog も出ない", async ({ page }) => {
@@ -82,14 +83,16 @@ test.describe("Designer 破損データ耐性 (#131)", () => {
     await setupDesignerWithRawData(page, { assets: [], styles: [], dataSources: [] }, key);
     await expect(page.locator(".tab-error-fallback")).not.toBeVisible();
     await expect(page.locator(".error-dialog-panel")).not.toBeVisible();
-    await expect(page.locator(".srb-btn-reset")).toBeVisible({ timeout: 15000 });
+    // edit-session-draft (#683): readonly モードの edit-mode-start ボタンが Designer の起動成功マーカー
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 
   test("破損データ起動時に errorLog に痕跡が残る", async ({ page }) => {
     const key = `${WS_KEY_PREFIX}-errorlog`;
     wsKeys.push(key);
     await setupDesignerWithRawData(page, {}, key);
-    await expect(page.locator(".srb-btn-reset")).toBeVisible({ timeout: 15000 });
+    // edit-session-draft (#683): readonly モードの edit-mode-start ボタンが Designer の起動成功マーカー
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
 
     const log = await page.evaluate(() => {
       const raw = localStorage.getItem("designer-error-log");
