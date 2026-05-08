@@ -422,6 +422,11 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   }, [workspaceState.active?.id]);
 
   // ルーティングガード: wsId が active と異なる、または active===null の場合の処理
+  // 並行発行ガード (#963): 同一 wsId に対する workspace.open の二重発行を抑止する。
+  // useEffect は workspaceState 更新等で何度も再実行されるため、未完了 RPC があれば
+  // 同 wsId の再発行を skip する。RPC 完了 (success or fail) で ref をクリア。
+  const recoveryPendingRef = useRef<string | null>(null);
+
   // backend offline 時の localStorage fallback は #923 シリーズで廃止 (spec D-8)。
   // 接続失敗は AppShell 上位の `connectionFailed` (`markFailed()` 経由) が
   // `ConnectionFailedView` で UI を切り替える。本ガードは正常接続時の URL 同期に専念する。
@@ -442,11 +447,20 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       if (wsId) {
         const recentEntry = workspaceState.workspaces.find((w) => w.id === wsId);
         if (recentEntry) {
-          mcpBridge.request("workspace.open", { id: wsId }).catch((err) => {
-            console.error("[workspace] workspace.open recovery failed:", err);
-            const guard = checkRedirect("/workspace/select");
-            if (guard.allow) navigate("/workspace/select", { replace: true });
-          });
+          // 並行発行ガード: 同 wsId に対する未完了 workspace.open RPC があれば skip (#963)
+          if (recoveryPendingRef.current === wsId) {
+            return;
+          }
+          recoveryPendingRef.current = wsId;
+          mcpBridge.request("workspace.open", { id: wsId })
+            .catch((err) => {
+              console.error("[workspace] workspace.open recovery failed:", err);
+              const guard = checkRedirect("/workspace/select");
+              if (guard.allow) navigate("/workspace/select", { replace: true });
+            })
+            .finally(() => {
+              if (recoveryPendingRef.current === wsId) recoveryPendingRef.current = null;
+            });
           return; // workspace.open 完了後に workspace.changed broadcast で active が復元される
         }
       }
@@ -456,11 +470,20 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       // URL の :wsId が現在 active と異なる → workspace.open で同期
       const recentEntry = workspaceState.workspaces.find((w) => w.id === wsId);
       if (recentEntry) {
-        mcpBridge.request("workspace.open", { id: wsId }).catch((err) => {
-          console.error("[workspace] workspace.open from URL failed:", err);
-          const guard = checkRedirect("/workspace/select");
-          if (guard.allow) navigate("/workspace/select", { replace: true });
-        });
+        // 並行発行ガード (#963): URL 由来 sync 経路でも同 wsId 二重発行を抑止
+        if (recoveryPendingRef.current === wsId) {
+          return;
+        }
+        recoveryPendingRef.current = wsId;
+        mcpBridge.request("workspace.open", { id: wsId })
+          .catch((err) => {
+            console.error("[workspace] workspace.open from URL failed:", err);
+            const guard = checkRedirect("/workspace/select");
+            if (guard.allow) navigate("/workspace/select", { replace: true });
+          })
+          .finally(() => {
+            if (recoveryPendingRef.current === wsId) recoveryPendingRef.current = null;
+          });
       } else {
         // recent にない不正 wsId → /workspace/select
         const guard = checkRedirect("/workspace/select");
