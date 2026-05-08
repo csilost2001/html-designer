@@ -144,6 +144,7 @@ test.describe("テーブル一覧", () => {
     });
 
     test("保存後に削除マークが確定され、アイテム数が減る", async ({ page }) => {
+      await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
       await page.locator(".data-list-card").first().click();
       await page.keyboard.press("Delete");
       await page.getByTestId("list-save-btn").click();
