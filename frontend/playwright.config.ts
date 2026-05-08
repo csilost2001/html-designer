@@ -31,13 +31,16 @@ export default defineConfig({
       timeout: 30000,
     },
     {
-      command: "cd ../backend && npm run dev",
+      command: "cd ../backend && HARMONY_E2E_NO_AUTO_ACTIVATE=1 npm run dev",
       url: "http://localhost:5179",
       reuseExistingServer: true, // 既存 backend があれば再利用 (常駐 backend に接続)
       timeout: 30000,
       // backend 起動失敗は e2e test の skip (MCP 接続チェック) で吸収するため ignoreHTTPSErrors は不要
       // edit-session specs は backend 起動確認を edit-mode-start の表示でチェックし、
       // 未接続の場合は test.skip() で graceful skip される
+      // #959: HARMONY_E2E_NO_AUTO_ACTIVATE=1 で autoActivateOnStartup を skip し
+      //       recent.lastActiveId の暗黙引き継ぎを断つ (spec が明示的 workspace.open で制御)
+      env: { HARMONY_E2E_NO_AUTO_ACTIVATE: "1" },
     },
   ],
 });
