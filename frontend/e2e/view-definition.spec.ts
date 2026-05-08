@@ -93,8 +93,7 @@ test.describe("ビュー定義 E2E", () => {
     await expect(page.getByText("ビュー定義編集").first()).toBeVisible();
 
     // edit-session-draft (#683): エディタは readonly で開くため明示的に編集開始する。
-    // 「作成して編集」ボタンの命名に反する UX gap (#945 follow-up: navigate 時に
-    // 自動編集モード化する query param を渡す等の改善が望ましい)
+    // 「作成して編集」ボタンの命名に反する UX gap (#960 で改善予定)
     await page.getByTestId("edit-mode-start").click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
 

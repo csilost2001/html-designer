@@ -87,11 +87,11 @@ test.describe("Designer 破損データ耐性 (#131)", () => {
     await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 
-  // TODO(#945 follow-up): Designer の破損データ検知 → errorLog 記録 経路は
+  // TODO(#953): Designer の破損データ検知 → errorLog 記録 経路は
   // edit-session-draft (#683) の refactor 過程で失われた。実装側で `recordError`
-  // 呼び出しを復活させるか、本仕様自体の維持要否を別 ISSUE で議論する必要あり。
+  // 呼び出しを復活させる必要あり (#953 で対応)。
   // 現状は edit-mode-start が出ること (= Designer 起動成功) のみで担保。
-  test.skip("破損データ起動時に errorLog に痕跡が残る (実装側 #945 follow-up)", async ({ page }) => {
+  test.skip("破損データ起動時に errorLog に痕跡が残る (#953 follow-up)", async ({ page }) => {
     const key = `${WS_KEY_PREFIX}-errorlog`;
     wsKeys.push(key);
     await setupDesignerWithRawData(page, {}, key);

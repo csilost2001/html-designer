@@ -371,7 +371,7 @@ function FlowEditorInner() {
       openTab({ id: makeTabId("design", node.id), type: "design", resourceId: node.id, label: screenName });
     }
     navigate(wsPath(`/screen/design/${node.id}`));
-  }, [navigate]);
+  }, [navigate, wsPath]);
 
   const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
     event.preventDefault();

@@ -249,7 +249,7 @@ export function ProcessFlowListView() {
   const handleActivate = useCallback((g: ProcessFlowMeta) => {
     if (editor.isDeleted(g.id)) return;
     navigate(wsPath(`/process-flow/edit/${g.id}`));
-  }, [navigate, editor]);
+  }, [navigate, editor, wsPath]);
 
   const handleDelete = (items: ProcessFlowMeta[]) => {
     editor.markDeleted(items.map((g) => g.id));
