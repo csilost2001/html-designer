@@ -238,6 +238,8 @@ test.describe("処理フロー一覧のカード成熟度 + フィルタ (#187/#
 
   test("プロジェクト全体サマリが表示される (#233)", async ({ page }) => {
     await gotoList(page);
+    // groups load を待つ (groups.length > 0 で初めて 全体: が render される)
+    await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".process-flow-list-header").getByText("全体:")).toBeVisible();
   });
 });
