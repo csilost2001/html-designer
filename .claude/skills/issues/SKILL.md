@@ -117,15 +117,18 @@ Agent(subagent_type="general-purpose", model="sonnet", prompt="...")
 
 1. 委譲する直前に **`Read(.tmp/sonnet-briefing-template.md)`** で実体を取得 (memory に頼らず実ファイルを読む)
 2. ISSUE 専用 sessionId を決める (例: `964-beta`, `945-C-1`, `2026-05-08-1430`)
-3. テンプレ内の `<sessionId>` 全箇所を実 sessionId に置換した上で briefing 末尾に貼る
-4. **委譲前に `mkdir -p .tmp/agent-progress .tmp/agent-control && touch .tmp/agent-progress/<sessionId>.log`** で監視先を pre-create する
+3. **main repo の絶対パス**で `<progressLogPath>` / `<bailoutPath>` / `<summaryPath>` / `<signalPath>` を確定する
+   - 例: `/home/hidekatsu/projects/harmony/.tmp/agent-progress/<sessionId>.log` (worktree path は **禁止** — worktree 削除時にログ消失 + 監視 path ズレ事故、2026-05-09 #959 で実例)
+4. テンプレ内の `<sessionId>` / `<progressLogPath>` / `<bailoutPath>` / `<summaryPath>` / `<signalPath>` を **全件**実値に置換した上で briefing 末尾に貼る
+5. **委譲前に `mkdir -p <main-repo>/.tmp/agent-progress <main-repo>/.tmp/agent-control && touch <progressLogPath>`** (絶対パス) で監視先を pre-create する
 
 **省略禁止**: テンプレが無いと進捗が見えず、無限走行 / 詰まり検知不可 / 緊急中断手段なしになる。Codex 委譲時 (`codex:codex-rescue`) も同フッター推奨 (`/codex:status` だけでは fine-grained 進捗が見えない)。
 
 self-check (委譲直前):
 - [ ] briefing 末尾に "進捗ログ義務" / "時間予算" / "STOP signal" の 3 セクションが含まれている
 - [ ] `<sessionId>` placeholder が実値に置換されている (テンプレ生のままは NG)
-- [ ] `.tmp/agent-progress/<sessionId>.log` が pre-create されている
+- [ ] `<progressLogPath>` 等 path placeholder が **main repo の絶対パス** に置換されている (相対パス / worktree path は NG)
+- [ ] `<progressLogPath>` (絶対パス) が pre-create されている
 
 ## Step 4.5: マルチエディタ対応確認 (#806)
 
