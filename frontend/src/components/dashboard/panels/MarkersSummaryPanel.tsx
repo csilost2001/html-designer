@@ -41,7 +41,7 @@ async function fetchSummary(): Promise<Summary> {
   for (const meta of metas) {
     const g: ProcessFlow | null = await loadProcessFlow(meta.id);
     if (!g) continue;
-    const unresolved = (g.markers ?? []).filter((m) => !m.resolvedAt);
+    const unresolved = (g.authoring?.markers ?? []).filter((m) => !m.resolvedAt);
     if (unresolved.length === 0) continue;
     for (const m of unresolved) {
       s.byKind[m.kind] = (s.byKind[m.kind] ?? 0) + 1;
@@ -51,11 +51,11 @@ async function fetchSummary(): Promise<Summary> {
         kind: m.kind,
         body: m.body,
         createdAt: m.createdAt,
-        processFlowId: g.id,
-        processFlowName: g.name,
+        processFlowId: g.meta.id,
+        processFlowName: g.meta.name,
       });
     }
-    s.perGroup.push({ id: g.id, name: g.name, count: unresolved.length });
+    s.perGroup.push({ id: g.meta.id, name: g.meta.name, count: unresolved.length });
   }
   s.perGroup.sort((a, b) => b.count - a.count);
   // 新しい順 (desc)

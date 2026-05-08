@@ -93,19 +93,14 @@ async function setupEditor(page: Page) {
 }
 
 // realWorkspace 移植 (#926): 実 backend 経由の dummy fixture
-// NOTE(#966): top-level `markers` spread は v3 schema 違反だが、product 側の MarkersSummaryPanel.tsx
-// が `g.markers` (top-level) を読むため互換目的で維持。MarkersSummaryPanel 修正後 (#966) に
-// `authoring.markers` への集約を予定。
-const baseGroupBody = buildProcessFlow({
+const dummyGroupBody = buildProcessFlow({
   id: groupId,
   name: dummyGroup.name,
   kind: (dummyGroup.type ?? "screen") as Parameters<typeof buildProcessFlow>[0]["kind"],
   mode: "upstream",
   actions: dummyGroup.actions as ReturnType<typeof buildProcessFlow>["actions"],
+  ...(dummyGroup.markers !== undefined ? { authoring: { markers: dummyGroup.markers } } : {}),
 });
-const dummyGroupBody = dummyGroup.markers !== undefined
-  ? { ...baseGroupBody, markers: dummyGroup.markers }
-  : baseGroupBody;
 
 const WS_KEY = "issue-926-maturity-notes";
 let mcpAvailable = false;
