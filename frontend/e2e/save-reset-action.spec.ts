@@ -61,6 +61,19 @@ async function setupProcessFlowEditor(page: Page) {
       break;
     }
   }
+  // edit-mode-start または edit-mode-save のどちらかが表示されるまで待つ
+  await Promise.race([
+    page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 10000 }),
+    page.getByTestId("edit-mode-save").waitFor({ state: "visible", timeout: 10000 }),
+  ]).catch(() => undefined);
+  // 前回の edit session が残っていて editing mode のまま開いた場合: discard して readonly に戻す
+  if (await page.getByTestId("edit-mode-save").isVisible({ timeout: 100 }).catch(() => false)) {
+    await page.getByTestId("edit-mode-discard").click();
+    if (await page.getByTestId("discard-confirm").isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.getByTestId("discard-confirm").click();
+    }
+    await page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 8000 }).catch(() => undefined);
+  }
   await page.getByTestId("edit-mode-start").click();
   await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
@@ -114,18 +127,22 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
     await expect(page.locator(toolbarReset)).toBeEnabled();
   });
 
-  test("リセット確認を承認するとボタンが無効に戻る (DiscardConfirmDialog 経由)", async ({ page }) => {
+  test("リセット承認後も editing 継続、明示的に discard で readonly 復帰", async ({ page }) => {
+    // reset = state revert + editing 継続 (Word-like semantics / spec §159 と整合)
+    // discard = EditSession 終了 + readonly 復帰 (別操作)
     await setupProcessFlowEditor(page);
-    page.on("dialog", (d) => d.accept());
+    page.once("dialog", (dialog) => dialog.accept());
     await addAction(page, "登録ボタン");
     await page.locator(toolbarReset).click();
-    // window.confirm 承認後、DiscardConfirmDialog が出る場合はそれも accept (出ないこともある)
-    const discardConfirm = page.getByTestId("discard-confirm");
-    if (await discardConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await discardConfirm.click();
-    }
+    // reset 後も editing 継続: EditModeToolbar (save/discard ボタン) は表示されたまま
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("edit-mode-discard")).toBeVisible();
+    // 明示的に discard で readonly 復帰
+    await page.getByTestId("edit-mode-discard").click();
+    await expect(page.getByTestId("discard-confirm")).toBeVisible({ timeout: 3000 });
+    await page.getByTestId("discard-confirm").click();
     // 破棄完了 → readonly モードに戻り SaveResetButtons は非表示
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 8000 });
     await expect(page.locator(toolbarSave)).toHaveCount(0);
     await expect(page.locator(toolbarReset)).toHaveCount(0);
   });
