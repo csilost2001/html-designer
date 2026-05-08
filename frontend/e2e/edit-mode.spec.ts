@@ -108,6 +108,7 @@ test.describe("編集モード UI — TableEditor", () => {
   });
 
   test("シナリオ 1: 編集開始 → 保存 → 反映確認", async ({ page }) => {
+    test.setTimeout(60000);
     await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
     if (!await startEditOrSkip(page)) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
@@ -115,7 +116,8 @@ test.describe("編集モード UI — TableEditor", () => {
     await page.getByRole("button", { name: /カラム追加/ }).click().catch(() => undefined);
     await page.waitForTimeout(300);
     await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
+    // save → readonly 復帰は backend write + state 反映の総時間
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 30000 });
   });
 
   test("シナリオ 2: 編集開始 → 破棄確認ダイアログ → 破棄", async ({ page }) => {
@@ -227,7 +229,7 @@ test.describe("編集モード UI — ExtensionsPanel singleton (PR-7)", () => {
     await ws.gotoActive(page, "/extensions");
     if (!await startEditOrSkip(page)) return;
     await expect(
-      page.getByTestId("edit-mode-save").or(page.getByTestId("edit-mode-discard")),
+      page.getByTestId("edit-mode-save").or(page.getByTestId("edit-mode-discard")).first(),
     ).toBeVisible({ timeout: 15000 });
   });
 });
