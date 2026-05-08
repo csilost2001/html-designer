@@ -10,6 +10,7 @@
 
 import type {
   ActionDefinition,
+  Authoring,
   Context,
   Maturity,
   Mode,
@@ -32,6 +33,8 @@ export interface BuildProcessFlowOpts {
   mode?: Mode;
   actions?: ActionDefinition[];
   context?: Context;
+  /** 設計プロセス用情報。default: undefined — 必要な spec のみ指定する。 */
+  authoring?: Authoring;
 }
 
 export function buildProcessFlow(opts: BuildProcessFlowOpts = {}): ProcessFlow {
@@ -55,5 +58,6 @@ export function buildProcessFlow(opts: BuildProcessFlowOpts = {}): ProcessFlow {
     },
     context: opts.context,
     actions: opts.actions ?? [],
+    ...(opts.authoring ? { authoring: opts.authoring } : {}),
   };
 }

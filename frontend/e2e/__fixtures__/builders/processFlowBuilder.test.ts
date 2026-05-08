@@ -40,4 +40,21 @@ describe("buildProcessFlow", () => {
     expect(pf.meta.kind).toBe("screen");
     expect(pf.meta.mode).toBe("upstream");
   });
+
+  it("authoring が指定されたら反映される", () => {
+    const pf = buildProcessFlow({
+      authoring: {
+        markers: [
+          {
+            id: "m1",
+            kind: "todo",
+            body: "x",
+            author: "human",
+            createdAt: "2026-04-20T00:00:00Z",
+          },
+        ],
+      },
+    });
+    expect(pf.authoring?.markers).toHaveLength(1);
+  });
 });

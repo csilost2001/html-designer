@@ -51,7 +51,7 @@ const PATTERNS: Pattern[] = [
   },
 ];
 
-const SCAN_DIRS = ["", "edit-session", "helpers"];
+const SCAN_DIRS = ["", "edit-session", "helpers", "collab"];
 const SCAN_EXTENSIONS = [".spec.ts", ".ts"];
 const EXCLUDE_DIR_PREFIXES = ["__validation__", "__fixtures__"];
 

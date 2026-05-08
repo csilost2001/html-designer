@@ -14,8 +14,15 @@ import {
   normalizeId,
   type OpenedWorkspace,
 } from "./helpers/realWorkspace";
-import { buildProject, buildProcessFlow } from "./__fixtures__/builders";
-import type { ProjectEntities, Timestamp } from "../src/types/v3";
+import {
+  buildProject,
+  buildProcessFlow,
+  buildTable,
+  buildView,
+  buildViewDefinition,
+  buildSequence,
+} from "./__fixtures__/builders";
+import type { Column, ProjectEntities, Timestamp } from "../src/types/v3";
 
 const FIXED_TS = "2026-05-08T00:00:00.000Z" as unknown as Timestamp;
 const TABLE_ID = `tbl-e2e-edit-mode-${Date.now()}`;
@@ -32,12 +39,23 @@ const VIEW_DEF_NORM = normalizeId(VIEW_DEF_ID);
 const SEQ_NORM = normalizeId(SEQUENCE_ID);
 const SCREEN_NORM = normalizeId(SCREEN_ID);
 
-const dummyTable = {
-  id: TABLE_ID, physicalName: "edit_mode_test", name: "編集モードテスト", category: "マスタ",
-  maturity: "draft",
-  columns: [{ id: "col-001", physicalName: "id", name: "ID", dataType: "INTEGER", notNull: true, primaryKey: true, unique: false, autoIncrement: true }],
-  indexes: [], constraints: [],
-};
+const dummyTable = buildTable({
+  id: TABLE_ID,
+  physicalName: "edit_mode_test",
+  name: "編集モードテスト",
+  category: "マスタ",
+  columns: [
+    {
+      id: "col-001",
+      physicalName: "id",
+      name: "ID",
+      dataType: "INTEGER",
+      notNull: true,
+      primaryKey: true,
+      autoIncrement: true,
+    } as unknown as Column,
+  ],
+});
 
 const dummyProcessFlowBody = buildProcessFlow({
   id: PF_ID,
@@ -47,9 +65,9 @@ const dummyProcessFlowBody = buildProcessFlow({
   actions: [{ id: "act-001", name: "テストアクション", trigger: "click", maturity: "draft", steps: [] }] as ReturnType<typeof buildProcessFlow>["actions"],
 });
 
-const dummyView = { id: VIEW_ID, name: "E2E ビュー", maturity: "draft", tableId: "", columns: [] };
-const dummyViewDefinition = { id: VIEW_DEF_ID, name: "E2E ビュー定義", maturity: "draft", layout: { type: "form", fields: [] } };
-const dummySequence = { id: SEQUENCE_ID, name: "E2E シーケンス", maturity: "draft", steps: [] };
+const dummyView = buildView({ id: VIEW_ID, name: "E2E ビュー" });
+const dummyViewDefinition = buildViewDefinition({ id: VIEW_DEF_ID, name: "E2E ビュー定義" });
+const dummySequence = buildSequence({ id: SEQUENCE_ID, name: "E2E シーケンス" });
 
 const dummyProject = buildProject({
   name: "edit-mode-test",
