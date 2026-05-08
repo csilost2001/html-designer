@@ -108,6 +108,8 @@ test.describe("テーブル一覧", () => {
     });
 
     test("空領域クリックで選択解除", async ({ page }) => {
+      // backend 取得待ち
+      await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
       await page.locator(".data-list-card").first().click();
       const dataList = page.locator(".tables-data-list");
       const box = await dataList.boundingBox();
