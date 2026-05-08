@@ -268,14 +268,13 @@ class WsBridge extends EventEmitter {
     return this._codexConn;
   }
 
-  /** Broadcast a codex notification to all WS clients. */
+  /** Broadcast a codex notification to all WS clients (cross-workspace). */
   private _broadcastCodexNotification(method: string, params: unknown): void {
-    const msg = JSON.stringify({ type: "codex.notification", method, params });
-    for (const [, ws] of this.clients) {
-      if (ws.readyState === WebSocket.OPEN) {
-        try { ws.send(msg); } catch { /* ignore */ }
-      }
-    }
+    this.broadcast({
+      wsId: null,
+      event: "codex.notification",
+      data: { method, params },
+    });
   }
 
   /** Broadcast a codex server request to all WS clients; manage pending response map. */
@@ -302,17 +301,11 @@ class WsBridge extends EventEmitter {
 
       this._codexPendingServerRequests.set(requestId, { resolve, reject, timer });
 
-      const msg = JSON.stringify({
-        type: "codex.serverRequest",
-        id: requestId,
-        method: r.method,
-        params: r.params,
+      this.broadcast({
+        wsId: null,
+        event: "codex.serverRequest",
+        data: { id: requestId, method: r.method, params: r.params },
       });
-      for (const [, ws] of this.clients) {
-        if (ws.readyState === WebSocket.OPEN) {
-          try { ws.send(msg); } catch { /* ignore */ }
-        }
-      }
     });
   }
 
