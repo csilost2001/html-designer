@@ -11,10 +11,8 @@
  */
 
 /**
- * TODO(#926 follow-up): realWorkspace 移植が未完。本 spec は既存の addInitScript-based
- * localStorage seed パターンを使っているが、#924 で fallback 経路が削除されたため
- * data が backend に渡らず動作しない。realWorkspace.setupTestWorkspace + ws.gotoActive
- * への移植を follow-up ISSUE で対応する。
+ * #926: 本 spec は MCP HTTP tool を直接呼び出すだけで localStorage seed には
+ * 依存していないため、移植不要。bulk-skip で誤って describe.skip にしたものを un-skip する。
  */
 import { test, expect } from "@playwright/test";
 
@@ -75,7 +73,7 @@ async function isMcpReachable(): Promise<boolean> {
 // MCP が未起動なら全テストをスキップ
 test.describe.configure({ mode: "serial" });
 
-test.describe.skip("AI 独立動作 — D-7 シナリオ B", () => {
+test.describe("AI 独立動作 — D-7 シナリオ B", () => {
   const TABLE_ID = `tbl-ai-${Date.now()}`;
   const HUMAN_SESSION = `human-session-${Date.now()}`;
   const AI_SESSION = `ai-session-${Date.now()}`;

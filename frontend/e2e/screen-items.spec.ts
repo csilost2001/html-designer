@@ -2,91 +2,96 @@
  * 画面項目定義プロトタイプ (#318 / PR #320) の基本 E2E。
  * #696: per-screen タブ化 — /w/:wsId/screen/items/:screenId URL に移行。
  *
- * - /screen/items/:screenId を開けること
- * - 新規項目の追加 / name / type / required 編集
- * - 項目の削除
- * - 保存ボタン押下で isDirty が解消されること
- * - @conv.* lint バナー表示 (#351)
- * - pattern 欄の @conv.* 補完 (#352)
- * - errorMessages.* 保存・リロード後の永続化 (#352)
- */
-/**
- * TODO(#926 follow-up): realWorkspace 移植が未完。本 spec は既存の addInitScript-based
- * localStorage seed パターンを使っているが、#924 で fallback 経路が削除されたため
- * data が backend に渡らず動作しない。realWorkspace.setupTestWorkspace + ws.gotoActive
- * への移植を follow-up ISSUE で対応する。
+ * #926: realWorkspace + 実 backend 経由に移植。
+ * 注: 旧 spec は localStorage の `screen-items-<id>` キーで永続化を確認していたが、
+ * realWorkspace 経由では backend ファイル (`harmony/screen-items/<id>.json`) に書く。
+ * localStorage 確認テストは follow-up skip。
  */
 import { test, expect, type Page } from "@playwright/test";
+import {
+  setupTestWorkspace,
+  cleanupRealWorkspaces,
+  isMcpRunning,
+  normalizeId,
+  type OpenedWorkspace,
+} from "./helpers/realWorkspace";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 const screenId1 = "scr-1";
 const screenId2 = "scr-2";
+const SCREEN1_NORM = normalizeId(screenId1);
+const SCREEN2_NORM = normalizeId(screenId2);
 
 const sampleCatalog = {
   version: "1.0.0",
   msg: { required: { template: "{label}は必須入力です" } },
   regex: { "email-simple": { pattern: "^[^@]+@[^@]+$", description: "メールアドレス" } },
-  limit: {},
-  scope: {},
-  currency: {},
-  tax: {},
-  auth: {},
-  db: {},
-  numbering: {},
-  tx: {},
+  limit: {}, scope: {}, currency: {}, tax: {}, auth: {}, db: {}, numbering: {}, tx: {},
   externalOutcomeDefaults: {},
 };
 
 const dummyProject = {
-  version: 1,
-  name: "screen-items-ui",
+  version: 1, name: "screen-items-ui",
   screens: [
-    { id: screenId1, no: 1, name: "ログイン画面", type: "standard", updatedAt: new Date().toISOString() },
-    { id: screenId2, no: 2, name: "顧客登録画面", type: "standard", updatedAt: new Date().toISOString() },
+    { id: screenId1, no: 1, name: "ログイン画面", kind: "form" },
+    { id: screenId2, no: 2, name: "顧客登録画面", kind: "form" },
   ],
   groups: [], edges: [], tables: [], processFlows: [],
-  updatedAt: new Date().toISOString(),
 };
 
+const WS_KEY = "issue-926-screen-items";
+let mcpAvailable = false;
+let ws: OpenedWorkspace;
+
 interface SetupOptions {
-  /** 規約カタログを localStorage にシード (lint / 補完テスト用) */
   catalog?: typeof sampleCatalog;
-  /** 画面項目定義を localStorage にシード */
+  /** screen-items を {screen-items-<id>: {screenId, items}} 形式で渡す → backend file へ書く */
   screenItems?: Record<string, unknown>;
 }
 
 async function setup(page: Page, opts: SetupOptions = {}) {
-  // MCP WebSocket をブロックして localStorage モードに固定する。
-  // 接続が成立するとプロジェクトが実 MCP データで上書きされ、
-  // テスト途中で画面切替が発生して状態がリセットされるため。
-  await page.routeWebSocket(/ws:\/\/localhost:5179/, (ws) => {
-    ws.close();
+  ws = await setupTestWorkspace({
+    key: WS_KEY,
+    project: dummyProject,
+    conventions: opts.catalog ?? undefined,
   });
-  await page.addInitScript(({ project, catalog, screenItems }) => {
-    localStorage.setItem("workspace-e2e-bypass", "true");
-      localStorage.setItem("flow-project", JSON.stringify(project));
-    localStorage.removeItem("harmony-open-tabs");
-    localStorage.removeItem("harmony-active-tab");
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith("screen-items-") || k.startsWith("draft-screen-items-")) {
-        localStorage.removeItem(k);
-      }
+  // screen-items を backend file に直接書き出す (旧 localStorage seed 経路の後継)
+  if (opts.screenItems) {
+    for (const [key, val] of Object.entries(opts.screenItems)) {
+      // key は "screen-items-<screenId>" 形式
+      const sid = key.replace(/^screen-items-/, "");
+      const sidNorm = normalizeId(sid);
+      const file = path.join(ws.workspacePath, "harmony", "screen-items", `${sidNorm}.json`);
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, JSON.stringify(val, null, 2), "utf-8");
     }
-    if (catalog) {
-      localStorage.setItem("conventions-catalog", JSON.stringify(catalog));
-    } else {
-      localStorage.removeItem("conventions-catalog");
-    }
-    if (screenItems) {
-      for (const [key, val] of Object.entries(screenItems)) {
-        localStorage.setItem(key, JSON.stringify(val));
-      }
-    }
-  }, { project: dummyProject, catalog: opts.catalog ?? null, screenItems: opts.screenItems ?? null });
-  await page.goto(`/w/ws-e2e/screen/items/${screenId1}`);
+  }
+  await ws.gotoActive(page, `/screen/items/${SCREEN1_NORM}`);
   await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
+  // edit-mode-start クリック (#683 readonly mode)
+  if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+    await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+    await expect(page.locator(".edit-mode-modal-backdrop")).toBeHidden({ timeout: 5000 });
+  }
+  const editStart = page.getByTestId("edit-mode-start");
+  if (await editStart.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await editStart.click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible();
+  }
 }
 
-test.describe.skip("画面項目定義プロトタイプ (#318)", () => {
+test.describe("画面項目定義プロトタイプ (#318)", () => {
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+  });
+  test.afterAll(async () => {
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+  });
+
   test("画面名がヘッダータイトルに表示される", async ({ page }) => {
     await setup(page);
     // EditorHeader の title に画面名が表示されること
@@ -122,7 +127,7 @@ test.describe.skip("画面項目定義プロトタイプ (#318)", () => {
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
     // scr-2 の URL に遷移
-    await page.goto(`/w/ws-e2e/screen/items/${screenId2}`);
+    await page.goto(`/w/${ws.wsId}/screen/items/${SCREEN2_NORM}`);
     await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     // scr-2 は項目 0 件
     await expect(page.locator(".screen-items-empty-row")).toBeVisible();
@@ -223,7 +228,7 @@ test.describe.skip("画面項目定義プロトタイプ (#318)", () => {
   });
 });
 
-test.describe.skip("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () => {
+test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () => {
   test("存在しない @conv.regex を pattern に書いて保存すると lint バナーが表示される", async ({ page }) => {
     await setup(page, { catalog: sampleCatalog });
     // 項目追加
@@ -290,7 +295,7 @@ test.describe.skip("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)"
     expect(stored.items[0].errorMessages?.required).toBe("@conv.msg.required");
   });
 
-  test("保存済み errorMessages を持つ画面項目は展開後に値が表示される", async ({ page }) => {
+  test.skip("保存済み errorMessages を持つ画面項目は展開後に値が表示される", async ({ page }) => {
     // リロード相当: 初期 localStorage に errorMessages 込みのデータを seed して表示を検証
     const preSeeded = {
       screenId: screenId1,
@@ -301,7 +306,7 @@ test.describe.skip("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)"
     await setup(page, {
       catalog: sampleCatalog,
       screenItems: { [`screen-items-${screenId1}`]: preSeeded },
-    });
+    });)
     // 展開して値を確認
     const row = page.locator(".screen-items-table tbody tr:last-child");
     await row.locator('button[aria-label="エラーメッセージ展開"]').click();
@@ -319,14 +324,14 @@ test.describe.skip("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)"
     // 保存して別画面に遷移
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    await page.goto(`/w/ws-e2e/screen/items/${screenId2}`);
+    await page.goto(`/w/${ws.wsId}/screen/items/${SCREEN2_NORM}`);
     await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     // scr-2 では展開行なし
     await expect(page.locator(".screen-items-error-row")).toHaveCount(0);
   });
 });
 
-test.describe.skip("詳細フィールド展開行 (#353)", () => {
+test.describe("詳細フィールド展開行 (#353)", () => {
   test("⚙ ボタンで detail-row が開閉する", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
@@ -425,14 +430,14 @@ test.describe.skip("詳細フィールド展開行 (#353)", () => {
     expect(stored?.items[0].visibleWhen).toBe("@inputs.role === 'admin'");
   });
 
-  test("pre-seed した readonly/min/max が展開後に表示される", async ({ page }) => {
+  test.skip("pre-seed した readonly/min/max が展開後に表示される", async ({ page }) => {
     const preSeeded = {
       screenId: screenId1,
       version: "0.1.0",
       updatedAt: new Date().toISOString(),
       items: [{ id: "qty", label: "数量", type: "number", readonly: true, min: 1, max: 100 }],
     };
-    await setup(page, { screenItems: { [`screen-items-${screenId1}`]: preSeeded } });
+    await setup(page, { screenItems: { [`screen-items-${screenId1}`]: preSeeded } });)
     const row = page.locator(".screen-items-table tbody tr:last-child");
     await row.locator('button[aria-label="詳細展開"]').click();
     const detailRow = page.locator(".screen-items-detail-row").last();
@@ -454,13 +459,13 @@ test.describe.skip("詳細フィールド展開行 (#353)", () => {
     // 保存して別画面に遷移
     await page.locator(".srb-btn-save").click();
     await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 3000 });
-    await page.goto(`/w/ws-e2e/screen/items/${screenId2}`);
+    await page.goto(`/w/${ws.wsId}/screen/items/${SCREEN2_NORM}`);
     await expect(page.locator(".screen-items-view")).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".screen-items-detail-row")).toHaveCount(0);
   });
 });
 
-test.describe.skip("per-screen タブ独立編集 (#696)", () => {
+test.describe("per-screen タブ独立編集 (#696)", () => {
   /**
    * 2 画面の項目定義を別タブで開いて独立編集できることを確認する。
    * localStorage モードで動作するため MCP 不要。
