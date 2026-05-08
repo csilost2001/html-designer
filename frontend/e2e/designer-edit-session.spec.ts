@@ -56,7 +56,7 @@ test.describe("画面デザイナー edit-session — シナリオ 1: 編集開�
     });
   });
 
-  test("readonly オーバーレイが表示 → 編集開始 → 保存 → readonly に戻る", async ({ page }) => {
+  test("readonly オーバーレイが表示 → 編集開始 → 保存 → save 後も editing 継続 → discard で readonly", async ({ page }) => {
     await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
     await page.waitForLoadState("networkidle");
 
@@ -78,8 +78,17 @@ test.describe("画面デザイナー edit-session — シナリオ 1: 編集開�
 
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByTestId("edit-mode-save").click();
-    // 保存後 readonly に戻るまで時間がかかる場合あり (screen entity write + state 反映の async)
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 30000 });
+
+    // spec §159: save 後も Active 状態が継続、複数回 save 可能 (Q2 合意)。
+    // edit-mode-save / edit-mode-discard は表示され続け、edit-mode-start には戻らない。
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 8000 });
+    await expect(page.getByTestId("edit-mode-discard")).toBeVisible();
+
+    // 明示的に discard で editing 終了 → readonly 復帰
+    await page.getByTestId("edit-mode-discard").click();
+    await expect(page.getByTestId("discard-confirm")).toBeVisible({ timeout: 3000 });
+    await page.getByTestId("discard-confirm").click();
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId("canvas-readonly-overlay")).toBeVisible();
   });
 });
@@ -137,23 +146,26 @@ test.describe("画面デザイナー edit-session — シナリオ 3: 再オー�
   test("draft が残っている状態で再オープン → ResumeOrDiscardDialog 表示", async ({ page }) => {
     await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
     await page.waitForLoadState("networkidle");
+    // 前テスト残骸の draft が ResumeOrDiscardDialog として出る場合があるので dismiss
+    await page.waitForTimeout(500);
+    for (let _i = 0; _i < 3; _i++) {
+      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+      } else { break; }
+    }
     const editStartBtn = page.getByTestId("edit-mode-start");
     await expect(editStartBtn).toBeVisible({ timeout: 5000 });
     await editStartBtn.click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
-    await page.goto(ws.path("/screen/list"));
-    await page.waitForLoadState("networkidle");
-    await page.goto(ws.path(`/screen/design/${SCREEN_NORM}`));
-    await page.waitForLoadState("networkidle");
+    await ws.gotoActive(page, "/screen/list");
+    await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
     const continueBtn = page.getByTestId("resume-continue");
-    if (await continueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await continueBtn.click();
-      await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 8000 });
-      await page.getByTestId("edit-mode-discard").click();
-      await page.getByTestId("discard-confirm").click();
-    } else {
-      test.skip();
-    }
+    await expect(continueBtn).toBeVisible({ timeout: 10000 });
+    await continueBtn.click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 8000 });
+    await page.getByTestId("edit-mode-discard").click();
+    await page.getByTestId("discard-confirm").click();
   });
 });
 
