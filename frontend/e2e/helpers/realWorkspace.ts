@@ -21,7 +21,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as net from "net";
 import WebSocketImpl from "ws";
-import { test as playwrightTest } from "@playwright/test";
 import type {
   Conventions,
   CustomBlock,
@@ -58,6 +57,21 @@ export interface OpenedWorkspace {
    * 本 workspace を読み込むようにする。
    */
   gotoActive(page: PageLike, subPath: string): Promise<void>;
+  /**
+   * backend in-memory state (editSession + activePath) をリセットする。
+   * spec 内の test.afterEach から呼び出すことでテスト間 isolation を強化できる。
+   *
+   * setupTestWorkspace の resetEachTest: true を有効にするために、
+   * spec の describe ブロック内で以下のように呼び出す:
+   *
+   * ```ts
+   * test.afterEach(async () => { await ws.resetRuntimeState(); });
+   * ```
+   *
+   * Note: Playwright の制約上、test.afterEach は async 関数 (beforeAll 等) 内から
+   * 登録できないため、自動登録の代わりに このメソッドを expose している。
+   */
+  resetRuntimeState(page?: PageLike): Promise<void>;
 }
 
 /** Playwright `Page` から必要な機能のみ抜き出した interface (依存軽減) */
@@ -87,8 +101,9 @@ export interface SetupTestWorkspaceOptions {
   /** 一意キー (.tmp/e2e-workspaces/<key>/ になる) */
   key: string;
   /**
-   * true (デフォルト) の場合、test.afterEach で resetWorkspaceRuntimeState を呼ぶ。
-   * false にすると afterEach hook を登録しない (opt-out)。
+   * 予約フラグ (現在未使用)。
+   * 将来的に Playwright fixture 経由の afterEach 自動 hook に使う予定。
+   * 現在は `ws.resetRuntimeState()` を test.afterEach から手動で呼ぶことで同等効果が得られる。
    */
   resetEachTest?: boolean;
   /** v3 Project — harmony.json として書き出される */
@@ -528,14 +543,6 @@ export async function setupTestWorkspace(opts: SetupTestWorkspaceOptions): Promi
     return `/w/${wsId}${p === "/" ? "/" : p}`;
   };
 
-  // 変更 2: afterEach hook — resetEachTest のデフォルト on
-  const shouldResetEachTest = opts.resetEachTest !== false; // デフォルト true
-  if (shouldResetEachTest) {
-    playwrightTest.afterEach(async () => {
-      await resetWorkspaceRuntimeState(wsId).catch(() => undefined);
-    });
-  }
-
   return {
     key,
     workspacePath,
@@ -610,6 +617,9 @@ export async function setupTestWorkspace(opts: SetupTestWorkspaceOptions): Promi
       if (marker && page.locator) {
         await page.locator(marker).waitFor({ state: "visible", timeout: 15000 }).catch(() => undefined);
       }
+    },
+    async resetRuntimeState(page?: PageLike) {
+      await resetWorkspaceRuntimeState(wsId, page).catch(() => undefined);
     },
   };
 }
