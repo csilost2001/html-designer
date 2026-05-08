@@ -46,7 +46,8 @@ async function setupFlowEditor(page: Page) {
 }
 
 async function openAddScreenModal(page: Page) {
-  const addBtn = page.locator('.editor-header button.flow-btn-primary').filter({ hasText: "画面を追加" });
+  // 画面 0 件時は「最初の画面を追加」(empty state)、1 件以上では「画面を追加」(toolbar)
+  const addBtn = page.locator('button.flow-btn-primary').filter({ hasText: /画面を追加/ }).first();
   await expect(addBtn).toBeVisible();
   await addBtn.click();
   await expect(page.locator('.flow-modal')).toBeVisible();

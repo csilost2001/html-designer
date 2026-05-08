@@ -47,7 +47,9 @@ async function addScreenViaModal(
   name: string,
   options?: { editorKind?: "grapesjs" | "puck"; cssFramework?: "bootstrap" | "tailwind" },
 ) {
-  await page.locator('.editor-header button.flow-btn-primary').filter({ hasText: "画面を追加" }).click();
+  // 画面 0 件時は「最初の画面を追加」(empty state)、1件以上では「画面を追加」(toolbar)
+  const addBtn = page.locator('button.flow-btn-primary').filter({ hasText: /画面を追加/ }).first();
+  await addBtn.click();
   await page.locator("#screen-name").fill(name);
   if (options?.editorKind) {
     await page.locator(`input[name="screen-editor-kind"][value="${options.editorKind}"]`).click();
