@@ -44,19 +44,33 @@ const WS_KEY = "issue-926-screen-items";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-/** screen-items を backend file から読む (debounce save 後の persistence 確認) */
+/**
+ * screen-items を backend file から読む (debounce save 後の persistence 確認)
+ *
+ * Phase 4-β migration 後は screen entity (`harmony/screens/<id>.json`) の
+ * items フィールドに埋め込まれる。旧 `harmony/screen-items/<id>.json` は廃止。
+ */
 async function readScreenItemsFile(screenId: string): Promise<{ items: Array<Record<string, unknown>> } | null> {
   const sidNorm = normalizeId(screenId);
-  const file = path.join(ws.workspacePath, "harmony", "screen-items", `${sidNorm}.json`);
+  const file = path.join(ws.workspacePath, "harmony", "screens", `${sidNorm}.json`);
   for (let i = 0; i < 30; i++) {
     try {
       const raw = await fs.readFile(file, "utf-8");
-      return JSON.parse(raw);
-    } catch {
-      await new Promise((r) => setTimeout(r, 200));
-    }
+      const screen = JSON.parse(raw) as { items?: Array<Record<string, unknown>> };
+      if (Array.isArray(screen.items) && screen.items.length > 0) {
+        return { items: screen.items };
+      }
+    } catch { /* fallthrough */ }
+    await new Promise((r) => setTimeout(r, 200));
   }
-  return null;
+  // 最終的に file は存在するが items が空の場合は items: [] を返す (失敗時 null は呼び出し側で expect)
+  try {
+    const raw = await fs.readFile(file, "utf-8");
+    const screen = JSON.parse(raw) as { items?: Array<Record<string, unknown>> };
+    return { items: screen.items ?? [] };
+  } catch {
+    return null;
+  }
 }
 
 interface SetupOptions {

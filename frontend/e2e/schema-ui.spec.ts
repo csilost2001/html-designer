@@ -181,7 +181,7 @@ test.describe("アクション HTTP 契約編集 (#206)", () => {
     await setupEditor(page);
     // HTTP 契約パネルを開く
     await page.getByRole("button", { name: /HTTP 契約/ }).click();
-    const panel = page.locator(".process-flow-http-contract-panel");
+    const panel = page.locator(".action-http-contract-panel");
     await expect(panel).toBeVisible();
     // Method
     await panel.locator("select").first().selectOption("POST");
