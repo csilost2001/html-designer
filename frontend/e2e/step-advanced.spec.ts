@@ -116,10 +116,11 @@ test.describe("ステップ追加 (条件分岐 / ループ) (#248)", () => {
   test("ツールバーから 条件分岐 を追加", async ({ page }) => {
     await setupEditor(page);
     await expect(page.locator(".step-card")).toHaveCount(1);
-    await page.getByRole("button", { name: /条件分岐/ }).first().click();
+    // STEP_TYPE_LABELS.branch = "分岐"
+    await page.getByRole("button", { name: /^分岐$|分岐 / }).first().click();
     await expect(page.locator(".step-card")).toHaveCount(2);
     // 2 つ目のカードが branch 型
-    await expect(page.locator(".step-card").nth(1)).toContainText(/条件分岐|branch/);
+    await expect(page.locator(".step-card").nth(1)).toContainText(/分岐|branch/);
   });
 
   test("ツールバーから ループ を追加", async ({ page }) => {
@@ -142,8 +143,8 @@ test.describe("Subtype picker でサブステップ追加 (#248)", () => {
     const firstCard = page.locator(".step-card").first();
     await firstCard.locator(".step-card-menu-btn").last().click();
     await page.getByRole("button", { name: /サブステップ追加/ }).click();
-    // 種別ピッカーが出る
-    await page.getByRole("button", { name: /バリデーション/ }).first().click();
+    // 種別ピッカーが出る (STEP_TYPE_LABELS.validation = "入力チェック")
+    await page.getByRole("button", { name: /入力チェック/ }).first().click();
     // サブステップがカード内に追加される (sub element or nested)
     // 検証はサブステップカードの存在 — step-card のネストが増える
     await expect(page.locator(".step-card")).toHaveCount(2);
@@ -156,7 +157,7 @@ test.describe("テンプレートボタン (#248)", () => {
     const tplBtn = page.getByRole("button", { name: /テンプレート/ }).first();
     await tplBtn.click();
     // ダイアログ or drawer / 選択肢が出る
-    // action.ts の STEP_TEMPLATES から「バリデーション + エラー表示」などが表示される想定
-    await expect(page.getByText(/バリデーション.*エラー表示|DB検索.*結果表示|DB登録.*完了画面遷移|認証.*権限チェック/).first()).toBeVisible();
+    // action.ts の STEP_TEMPLATES から「入力チェック + エラー表示」などが表示される想定
+    await expect(page.getByText(/入力チェック.*エラー表示|DB検索.*結果表示|DB登録.*完了画面遷移|認証.*権限チェック/).first()).toBeVisible();
   });
 });

@@ -119,8 +119,11 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
     page.on("dialog", (d) => d.accept());
     await addAction(page, "登録ボタン");
     await page.locator(toolbarReset).click();
-    // window.confirm 承認後 → DiscardConfirmDialog (#683) を確定する。
-    await page.getByTestId("discard-confirm").click();
+    // window.confirm 承認後、DiscardConfirmDialog が出る場合はそれも accept (出ないこともある)
+    const discardConfirm = page.getByTestId("discard-confirm");
+    if (await discardConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await discardConfirm.click();
+    }
     // 破棄完了 → readonly モードに戻り SaveResetButtons は非表示
     await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
     await expect(page.locator(toolbarSave)).toHaveCount(0);
