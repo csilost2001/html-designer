@@ -177,6 +177,8 @@ test.describe("付箋 (#195/#199)", () => {
 test.describe("モード切替 + 下流警告 (#191/#197)", () => {
   test("モードを下流に切り替えると warning が表示される (draft あり)", async ({ page }) => {
     await setupEditor(page);
+    // 基本情報 タブを開く (下流ボタンは基本情報 expand 配下)
+    await page.locator(".action-meta-tab-bar button, .step-meta-tab").filter({ hasText: /基本情報/ }).first().click().catch(() => undefined);
     // 下流ボタンを押す
     await page.getByRole("button", { name: /下流/ }).click();
     // 警告バナー出現
@@ -185,24 +187,28 @@ test.describe("モード切替 + 下流警告 (#191/#197)", () => {
 });
 
 test.describe("処理フロー一覧のカード成熟度 + フィルタ (#187/#219/#233)", () => {
+  // setupList は元 spec で list view 用の setup だったが realWorkspace 移植時に
+  // setupEditor 統一しその関数が落ちた。一覧ページ navigate を直接行う。
+  async function gotoList(page: Page) {
+    await ws.gotoActive(page, "/process-flow/list");
+    await expect(page.locator(".process-flow-page")).toBeVisible({ timeout: 10000 });
+  }
+
   test("カードに maturity バッジが表示される", async ({ page }) => {
-    await setupList(page);
-    // 各カード内に .maturity-badge がある
+    await gotoList(page);
     const cards = page.locator(".data-list-card");
     await expect(cards.first().locator(".maturity-badge")).toBeVisible();
   });
 
   test("成熟度フィルタで絞り込める (committed のみ)", async ({ page }) => {
-    await setupList(page);
+    await gotoList(page);
     await page.locator("select").filter({ hasText: /すべて/ }).first().selectOption("committed");
-    // 1 件のみ表示される (ag-committed)
     await expect(page.locator(".data-list-card")).toHaveCount(1);
     await expect(page.locator(".data-list-card").first()).toContainText("確定フロー");
   });
 
   test("プロジェクト全体サマリが表示される (#233)", async ({ page }) => {
-    await setupList(page);
-    // ヘッダに "全体:" ラベル
+    await gotoList(page);
     await expect(page.locator(".process-flow-list-header").getByText("全体:")).toBeVisible();
   });
 });

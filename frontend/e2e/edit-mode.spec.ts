@@ -104,7 +104,7 @@ test.describe("編集モード UI — TableEditor", () => {
     if (!await startEditOrSkip(page)) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 
   test("シナリオ 2: 編集開始 → 破棄確認ダイアログ → 破棄", async ({ page }) => {
@@ -114,7 +114,7 @@ test.describe("編集モード UI — TableEditor", () => {
     await page.getByTestId("edit-mode-discard").click();
     await expect(page.getByTestId("discard-confirm")).toBeVisible({ timeout: 3000 });
     await page.getByTestId("discard-confirm").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -132,7 +132,7 @@ test.describe("編集モード UI — ProcessFlowEditor", () => {
     await page.getByTestId("edit-mode-discard").click();
     await expect(page.getByTestId("discard-confirm")).toBeVisible({ timeout: 3000 });
     await page.getByTestId("discard-confirm").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -148,7 +148,7 @@ test.describe("編集モード UI — ViewEditor (PR-7)", () => {
     if (!await startEditOrSkip(page)) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });
 });
 

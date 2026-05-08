@@ -64,25 +64,19 @@ test.describe("Puck エディタ基本動作", () => {
     await expect(page).not.toHaveURL(/error/);
   });
 
-  test("4. 保存後に reload すると Puck 画面が復元される (localStorage fallback)", async ({ page }) => {
-    // A-S-2: 既知制約 — 本テストは dev サーバー + MCP backend が起動している環境での実行を前提とする。
-    // MCP 非接続時 (workspace-e2e-bypass=true) では PuckBackend.load() が draftRead() の reject を
-    // catch ブロックで飲み込み、EMPTY_PUCK_DATA を返す。そのため setupPuckScreen() で
-    // localStorage.setItem("puck-data-${screenId}", ...) にセットした puck-data は PuckBackend を
-    // 経由せず読まれない。
-    // 結果: このテストは「Puck 画面が UI 崩壊なく再表示されるか」を確認するに留まり、
-    // commit → reload → restore のフル persist/restore ループ検証は MCP 接続環境専用
-    // (e2e/mcp/ ディレクトリのテストが担当)。
+  test("4. 保存後に reload すると Puck 画面が復元される (backend persist)", async ({ page }) => {
+    // realWorkspace 経由 (#926): backend persist を確認する。
+    // commit → reload → restore のフル persist/restore ループ検証は別途 e2e/mcp/ で担当。
     await setupPuckScreen(page, { puckData: PUCK_DATA_WITH_HEADING });
 
-    // Puck が初期化されるまで待機
     const puckEl = page.locator("[data-testid='puck-editor-container']");
     await expect(puckEl).toBeVisible({ timeout: 15000 });
 
-    // リロード後も同じ画面が表示される
+    // リロード後も同じ画面が表示される (URL は normalize 後の UUID)
+    const PUCK_SCREEN_ID_NORM = (await import("./helpers/realWorkspace")).normalizeId(PUCK_SCREEN_ID);
     await page.reload();
     await expect(puckEl).toBeVisible({ timeout: 15000 });
-    await expect(page).toHaveURL(new RegExp(`/screen/design/${PUCK_SCREEN_ID}`));
+    await expect(page).toHaveURL(new RegExp(`/screen/design/${PUCK_SCREEN_ID_NORM}`));
   });
 });
 

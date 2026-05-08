@@ -72,18 +72,21 @@ test.describe("dirty マーク + 再オープン — TableEditor", () => {
     });
   });
 
-  test("シナリオ 1: 編集開始 → タブ閉じる → 一覧で ● 表示", async ({ page }) => {
+  test("シナリオ 1: 編集開始 → 編集 → タブ閉じる → 一覧で ● 表示", async ({ page }) => {
     await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
     await page.waitForLoadState("networkidle");
     const editBtn = page.getByTestId("edit-mode-start");
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 編集して draft (editSession.update payload) が backend に書かれるよう変更を加える
+    await page.getByRole("button", { name: /カラム追加/ }).click();
+    await page.waitForTimeout(500); // editSession.update debounce
     // 保存せずに一覧へ戻る (SPA navigation で active workspace 維持)
     await page.goto(ws.path("/table/list"));
     await page.waitForLoadState("networkidle");
     const draftMark = page.locator(".list-item-draft-mark").first();
-    await expect(draftMark).toBeVisible({ timeout: 5000 });
+    await expect(draftMark).toBeVisible({ timeout: 8000 });
     await expect(draftMark).toHaveAttribute("title", "未保存の編集中 draft があります");
   });
 
@@ -94,17 +97,17 @@ test.describe("dirty マーク + 再オープン — TableEditor", () => {
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 編集して draft を作る
+    await page.getByRole("button", { name: /カラム追加/ }).click();
+    await page.waitForTimeout(500);
     await page.goto(ws.path("/table/list"));
     await page.waitForLoadState("networkidle");
     await page.goto(ws.path(`/table/edit/${TABLE_NORM}`));
     await page.waitForLoadState("networkidle");
     const continueBtn = page.getByTestId("resume-continue");
-    if (await continueBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await continueBtn.click();
-      await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
-    } else {
-      test.skip();
-    }
+    await expect(continueBtn).toBeVisible({ timeout: 8000 });
+    await continueBtn.click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -130,19 +133,22 @@ test.describe("dirty マーク + 再オープン — ProcessFlowEditor", () => {
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 編集して draft を作る (アクション追加)
+    await page.locator(".process-flow-tab-add").click();
+    await page.locator(".process-flow-modal input.form-control").first().fill("ドラフトアクション");
+    await page.locator(".process-flow-modal button.btn-primary").click();
+    await expect(page.locator(".process-flow-modal")).not.toBeVisible();
+    await page.waitForTimeout(500);
     await page.goto(ws.path("/process-flow/list"));
     await page.waitForLoadState("networkidle");
     const draftMark = page.locator(".list-item-draft-mark").first();
-    await expect(draftMark).toBeVisible({ timeout: 5000 });
+    await expect(draftMark).toBeVisible({ timeout: 8000 });
     await page.goto(ws.path(`/process-flow/edit/${PF_NORM}`));
     await page.waitForLoadState("networkidle");
     const discardBtn = page.getByTestId("resume-discard");
-    if (await discardBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await discardBtn.click();
-      await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
-    } else {
-      test.skip();
-    }
+    await expect(discardBtn).toBeVisible({ timeout: 8000 });
+    await discardBtn.click();
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -168,6 +174,9 @@ test.describe("broadcast 経由の即時反映", () => {
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 編集して draft を作る
+    await page.getByRole("button", { name: /カラム追加/ }).click();
+    await page.waitForTimeout(500);
     await page.goto(ws.path("/table/list"));
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".list-item-draft-mark").first()).toBeVisible({ timeout: 8000 });

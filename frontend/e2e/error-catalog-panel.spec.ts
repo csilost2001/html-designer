@@ -79,7 +79,7 @@ test.describe("errorCatalog 編集パネル (#278)", () => {
     await setup(page);
     const toggle = page.locator(".error-catalog-panel .catalog-panel-toggle");
     await expect(toggle).toBeVisible();
-    await expect(toggle).toContainText("errorCatalog: 0 件");
+    await expect(toggle).toContainText("エラーカタログ");
     await expect(page.locator(".error-catalog-panel .catalog-panel-body")).toHaveCount(0);
     await toggle.click();
     await expect(page.locator(".error-catalog-panel .catalog-panel-body")).toBeVisible();

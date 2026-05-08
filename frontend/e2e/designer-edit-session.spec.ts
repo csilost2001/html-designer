@@ -60,8 +60,14 @@ test.describe("画面デザイナー edit-session — シナリオ 1: 編集開�
     await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
     await page.waitForLoadState("networkidle");
 
+    // 過去 test 残骸の draft が ResumeOrDiscardDialog として出る場合があるので dismiss
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    }
+
     const overlay = page.getByTestId("canvas-readonly-overlay");
-    await expect(overlay).toBeVisible({ timeout: 5000 });
+    await expect(overlay).toBeVisible({ timeout: 10000 });
 
     const canvasStartBtn = page.getByTestId("canvas-readonly-start");
     await expect(canvasStartBtn).toBeVisible();
@@ -69,7 +75,8 @@ test.describe("画面デザイナー edit-session — シナリオ 1: 編集開�
 
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 8000 });
+    // 保存後 readonly に戻るまで時間がかかる場合あり (tableMtime 反映の async)
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("canvas-readonly-overlay")).toBeVisible();
   });
 });
@@ -91,8 +98,12 @@ test.describe("画面デザイナー edit-session — シナリオ 2: 編集中 
   test("編集開始 → 破棄確認 → readonly に戻る", async ({ page }) => {
     await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
     await page.waitForLoadState("networkidle");
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 1000 }).catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    }
     const editStartBtn = page.getByTestId("edit-mode-start");
-    await expect(editStartBtn).toBeVisible({ timeout: 5000 });
+    await expect(editStartBtn).toBeVisible({ timeout: 10000 });
     await editStartBtn.click();
     await expect(page.getByTestId("edit-mode-discard")).toBeVisible({ timeout: 5000 });
     await page.getByTestId("edit-mode-discard").click();

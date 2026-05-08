@@ -72,7 +72,17 @@ test.describe("カスタムステップカードパレット (#447)", () => {
     await ws.gotoActive(page, `/process-flow/edit/${normalizeId(groupId)}`);
     await expect(page.locator(".step-editor")).toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByText("カスタム")).toBeVisible();
+    // edit-mode-start で editing に入ると step-toolbar が出る
+    await page.waitForTimeout(500);
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible({ timeout: 500 }).catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    }
+    await page.getByTestId("edit-mode-start").click();
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible();
+
+    // カスタムセクションのラベル (.step-toolbar 内の小見出しを限定)
+    await expect(page.locator(".step-toolbar").getByText("カスタム", { exact: true })).toBeVisible();
     const card = page.getByRole("button", { name: /テストカスタム/ }).first();
     await expect(card).toBeDisabled();
   });
