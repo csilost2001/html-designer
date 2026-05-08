@@ -111,6 +111,9 @@ test.describe("編集モード UI — TableEditor", () => {
     await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
     if (!await startEditOrSkip(page)) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 編集して draft (isDirty) を作る (save が no-op にならないように)
+    await page.getByRole("button", { name: /カラム追加/ }).click().catch(() => undefined);
+    await page.waitForTimeout(300);
     await page.getByTestId("edit-mode-save").click();
     await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
   });

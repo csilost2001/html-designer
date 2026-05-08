@@ -83,9 +83,10 @@ test.describe("ビュー定義 E2E", () => {
 
     await page.getByRole("button", { name: /ビュー定義追加/ }).click();
     await expect(page.getByText("ビュー定義追加").first()).toBeVisible();
-    await page.getByLabel("表示名").fill(CREATED_NAME);
-    await page.getByLabel("viewer 種別").selectOption("list");
-    await page.getByLabel("ソーステーブル").selectOption(TABLE_NORM);
+    // モーダル内のフィールドは label 内に <span> が入る複合構造のため、placeholder + select で指定
+    await page.locator('.tbl-modal input[placeholder="顧客一覧"]').fill(CREATED_NAME);
+    await page.locator('.tbl-modal select').nth(0).selectOption("list");
+    await page.locator('.tbl-modal select').nth(1).selectOption(TABLE_NORM);
     await page.getByRole("button", { name: "作成して編集" }).click();
 
     await expect(page).toHaveURL(/\/w\/[^/]+\/view-definition\/edit\//);

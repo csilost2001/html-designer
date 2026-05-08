@@ -57,6 +57,9 @@ const dummyGroup = {
   updatedAt: new Date().toISOString(),
 };
 
+const committedGroupId = "ag-maturity-committed";
+const provisionalGroupId = "ag-maturity-provisional";
+
 const dummyProject = {
   version: 1,
   name: "maturity-test",
@@ -73,6 +76,14 @@ const dummyProject = {
       actionCount: 1,
       updatedAt: dummyGroup.updatedAt,
       maturity: dummyGroup.maturity,
+    },
+    {
+      id: committedGroupId, no: 2, name: "確定フロー", type: "screen",
+      actionCount: 0, maturity: "committed", updatedAt: new Date().toISOString(),
+    },
+    {
+      id: provisionalGroupId, no: 3, name: "暫定フロー", type: "screen",
+      actionCount: 0, maturity: "provisional", updatedAt: new Date().toISOString(),
     },
   ],
   updatedAt: new Date().toISOString(),
@@ -117,12 +128,30 @@ test.afterAll(async () => {
   if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
 });
 
+const baseTs = "2026-05-08T00:00:00.000Z";
+const committedGroupBody = {
+  id: committedGroupId,
+  $schema: "../../../schemas/v3/process-flow.v3.schema.json",
+  meta: { id: committedGroupId, name: "確定フロー", kind: "screen", mode: "upstream", maturity: "committed", version: "1.0.0", createdAt: baseTs, updatedAt: baseTs },
+  actions: [],
+};
+const provisionalGroupBody = {
+  id: provisionalGroupId,
+  $schema: "../../../schemas/v3/process-flow.v3.schema.json",
+  meta: { id: provisionalGroupId, name: "暫定フロー", kind: "screen", mode: "upstream", maturity: "provisional", version: "1.0.0", createdAt: baseTs, updatedAt: baseTs },
+  actions: [],
+};
+
 test.beforeEach(async () => {
   test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
   ws = await setupTestWorkspace({
     key: WS_KEY,
     project: dummyProject,
-    processFlows: [dummyGroupBody as unknown as { id: string }],
+    processFlows: [
+      dummyGroupBody as unknown as { id: string },
+      committedGroupBody,
+      provisionalGroupBody,
+    ],
   });
 });
 test.describe("成熟度バッジ (#185/#189)", () => {
