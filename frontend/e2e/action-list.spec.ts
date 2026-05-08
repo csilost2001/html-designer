@@ -68,6 +68,8 @@ test.describe("処理フロー一覧", () => {
 
   test("カード既定、表切替・種別フィルタ・ダブルクリック遷移", async ({ page }) => {
     await expect(page.locator(".data-list-layout-grid")).toHaveCount(1);
+    // backend からの projects 取得 + ProcessFlow body load を待つ
+    await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator(".data-list-card")).toHaveCount(3);
     await page.getByRole("button", { name: "表表示" }).click();
     await expect(page.locator(".data-list-row")).toHaveCount(3);
