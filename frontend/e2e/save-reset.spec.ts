@@ -10,6 +10,7 @@ import {
   cleanupRealWorkspaces,
   isMcpRunning,
   normalizeId,
+  seedTabsForWorkspace,
   type OpenedWorkspace,
 } from "./helpers/realWorkspace";
 import { buildProject } from "./__fixtures__/builders";
@@ -69,15 +70,7 @@ async function setupTableEditor(page: Page): Promise<void> {
     project: dummyProject,
     tables: [dummyTable],
   });
-  await page.addInitScript((tab) => {
-    localStorage.setItem("harmony-open-tabs", JSON.stringify([tab]));
-    localStorage.setItem("harmony-active-tab", tab.id);
-    // 前回のテストの draft を削除
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith("draft-table-")) localStorage.removeItem(k);
-    }
-  }, dummyTab);
+  await seedTabsForWorkspace(page, ws.wsId, [dummyTab], dummyTab.id);
   await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
   await expect(page.locator(".table-editor-page")).toBeVisible();
   // 過去 test 残骸の discarded EditSession が listAll に残るため (active + discarded

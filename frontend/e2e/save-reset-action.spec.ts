@@ -10,6 +10,7 @@ import {
   cleanupRealWorkspaces,
   isMcpRunning,
   normalizeId,
+  seedTabsForWorkspace,
   type OpenedWorkspace,
 } from "./helpers/realWorkspace";
 import { buildProject, buildProcessFlow } from "./__fixtures__/builders";
@@ -49,10 +50,7 @@ async function setupProcessFlowEditor(page: Page) {
     project: dummyProject,
     processFlows: [dummyProcessFlowBody],
   });
-  await page.addInitScript((tab) => {
-    localStorage.setItem("harmony-open-tabs", JSON.stringify([tab]));
-    localStorage.setItem("harmony-active-tab", tab.id);
-  }, dummyTab);
+  await seedTabsForWorkspace(page, ws.wsId, [dummyTab], dummyTab.id);
   await ws.gotoActive(page, `/process-flow/edit/${PF_NORM}`);
   await expect(page.locator(".process-flow-page")).toBeVisible();
   // ResumeOrDiscardDialog 遅延表示への retry-loop (#683 edit-session-draft 残骸対応)

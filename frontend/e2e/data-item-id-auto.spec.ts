@@ -9,6 +9,7 @@ import {
   cleanupRealWorkspaces,
   isMcpRunning,
   normalizeId,
+  seedTabsForWorkspace,
   type OpenedWorkspace,
 } from "./helpers/realWorkspace";
 import { buildProject } from "./__fixtures__/builders";
@@ -43,10 +44,7 @@ async function setupDesigner(page: Page) {
     project: dummyProject,
     screenDesigns: [{ id: SCREEN_ID, data: emptyScreen }],
   });
-  await page.addInitScript((tab) => {
-    localStorage.setItem("harmony-open-tabs", JSON.stringify([tab]));
-    localStorage.setItem("harmony-active-tab", tab.id);
-  }, dummyTab);
+  await seedTabsForWorkspace(page, ws.wsId, [dummyTab], dummyTab.id);
   await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
   await expect(page.locator(".gjs-frame")).toBeVisible({ timeout: 15000 });
   // edit-mode-start クリックして editing に入る (DomComponents.addComponent が可能になる)

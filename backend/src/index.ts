@@ -65,7 +65,9 @@ initWorkspaceState();
 // 2. recent.lastActiveId が指す workspace があれば再オープン
 // 3. 何もなければ active 未設定 (UI 側で /workspace/select に誘導)
 // #754: data/ legacy auto-activate は削除。data/ は data/extensions/ 専用。
-{
+// #959: HARMONY_E2E_NO_AUTO_ACTIVATE=1 のとき e2e テスト環境では skip (recent.lastActiveId
+//       の暗黙引き継ぎを断ち、spec が明示的な workspace.open で制御できるようにする)
+if (!process.env.HARMONY_E2E_NO_AUTO_ACTIVATE) {
   const r = await autoActivateOnStartup();
   switch (r.status) {
     case "lockdown":
@@ -78,6 +80,8 @@ initWorkspaceState();
       logInfo("workspace", "active 未選択 (UI 側で /workspace/select に誘導)");
       break;
   }
+} else {
+  logInfo("workspace", "HARMONY_E2E_NO_AUTO_ACTIVATE=1: autoActivateOnStartup をスキップ (e2e モード)");
 }
 
 // HTTP + WebSocket サーバ起動 (port 5179 に両方同居)
