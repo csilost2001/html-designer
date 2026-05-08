@@ -80,6 +80,8 @@ test.describe("ProcessFlowListView 操作 (#248)", () => {
   });
 
   test("Ctrl+A で全件選択、Delete で ghost 表示", async ({ page }) => {
+    // backend からの projects 取得を待つ
+    await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
     await page.locator(".data-list-card").first().click();
     await page.keyboard.press("Control+a");
     await page.keyboard.press("Delete");
