@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
   ViewDefinition,
   ViewDefinitionEntry,
@@ -69,6 +70,7 @@ function formatDate(iso: string): string {
 
 export function ViewDefinitionListView() {
   const navigate = useNavigate();
+  const { wsPath } = useWorkspacePath();
   const { hasDraft } = useDraftRegistry();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
@@ -193,8 +195,8 @@ export function ViewDefinitionListView() {
 
   const handleActivate = useCallback((v: ViewDefinitionEntry) => {
     if (editor.isDeleted(String(v.id))) return;
-    navigate(`/view-definition/edit/${encodeURIComponent(String(v.id))}`);
-  }, [navigate, editor]);
+    navigate(wsPath(`/view-definition/edit/${encodeURIComponent(String(v.id))}`));
+  }, [navigate, editor, wsPath]);
 
   const handleDelete = (items: ViewDefinitionEntry[]) => {
     editor.markDeleted(items.map((v) => String(v.id)));
@@ -334,7 +336,7 @@ export function ViewDefinitionListView() {
       resourceId: String(vd.id),
       label: vd.name,
     });
-    navigate(`/view-definition/edit/${encodeURIComponent(String(vd.id))}`);
+    navigate(wsPath(`/view-definition/edit/${encodeURIComponent(String(vd.id))}`));
   };
 
   const buildMenuItems = (target: ViewDefinitionEntry | null): ContextMenuItem[] => {
@@ -405,7 +407,7 @@ export function ViewDefinitionListView() {
         disabled: items.length !== 1,
         disabledReason: items.length !== 1 ? "1 件選択時のみ有効" : undefined,
         onClick: () => {
-          if (items.length === 1) navigate(`/view-definition/edit/${encodeURIComponent(String(items[0].id))}`);
+          if (items.length === 1) navigate(wsPath(`/view-definition/edit/${encodeURIComponent(String(items[0].id))}`));
         },
       },
       {
@@ -413,7 +415,7 @@ export function ViewDefinitionListView() {
         disabled: items.length !== 1,
         disabledReason: items.length !== 1 ? "1 件選択時のみ有効" : undefined,
         onClick: () => {
-          if (items.length === 1) navigate(`/view-definition/edit/${encodeURIComponent(String(items[0].id))}`);
+          if (items.length === 1) navigate(wsPath(`/view-definition/edit/${encodeURIComponent(String(items[0].id))}`));
         },
       },
       {
@@ -808,7 +810,7 @@ export function ViewDefinitionListView() {
             onClose={() => setHistoryModal(null)}
             onRestore={(editSessionId) => {
               setHistoryModal(null);
-              navigate(`/view-definition/edit/${encodeURIComponent(historyModal.resourceId)}?session=${encodeURIComponent(editSessionId)}`);
+              navigate(wsPath(`/view-definition/edit/${encodeURIComponent(historyModal.resourceId)}?session=${encodeURIComponent(editSessionId)}`));
             }}
           />
         )}

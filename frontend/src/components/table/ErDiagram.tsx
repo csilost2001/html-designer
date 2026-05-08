@@ -243,8 +243,8 @@ function ErDiagramInner() {
 
   // Double click to navigate to table editor
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, node) => {
-    navigate(`/table/edit/${node.id}`);
-  }, [navigate]);
+    navigate(wsPath(`/table/edit/${node.id}`));
+  }, [navigate, wsPath]);
 
   // Handle drag-to-connect: open logical relation modal pre-filled
   const onConnect = useCallback((connection: Connection) => {

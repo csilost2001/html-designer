@@ -192,6 +192,7 @@ export function DataList<T>({
     return (
       <div
         className={rootClass}
+        data-testid="data-list"
         onClick={handleRootClick}
         onContextMenu={onContextMenu ? handleRootContextMenu : undefined}
       >

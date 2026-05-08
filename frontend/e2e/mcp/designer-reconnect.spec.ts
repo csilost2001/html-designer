@@ -218,7 +218,11 @@ async function loadCallCount(page: Page): Promise<number> {
   });
 }
 
-test.describe("Designer MCP reconnect reload behavior (#578)", () => {
+// TODO(#948): FakeWebSocket 全置換 + localStorage seed が
+// #683 (real backend 必須) + #924 (localStorage fallback なし) と非互換。
+// realWorkspace + sendBrowserRequest 経路で全文書き直し必要 (調査済、
+// `.tmp/issue-bodies-945/945-C-investigation.md` 参照)。#948 で対応。
+test.describe.skip("Designer MCP reconnect reload behavior (#578) (#948 follow-up: realWorkspace 書き換え待ち)", () => {
   test("MCP reconnect does not call editor.load or change clean canvas HTML", async ({ page }) => {
     await setupDesigner(page);
 

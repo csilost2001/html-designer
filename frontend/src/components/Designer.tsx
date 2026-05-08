@@ -156,15 +156,30 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
     let cancelled = false;
     (async () => {
       // editorKind が puck なら puck-data draft を確認、それ以外 or 未解決なら screen draft も確認
-      const [screenSessions, puckSessions] = await Promise.all([
-        mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
-        mcpBridge.request("editSession.list", { resourceType: "puck-data", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
-      ]);
-      if (cancelled) return;
-      const screenHasDraft = screenSessions && screenSessions.sessions.length > 0;
-      const puckHasDraft = puckSessions && puckSessions.sessions.length > 0;
-      if (screenHasDraft || puckHasDraft) setShowResumeDialog(true);
-    })().catch(console.error);
+      // workspace context が未確立の場合 WorkspaceUnsetError が返ることがあるため最大 25 回 retry する (200ms × 25 = 5s)
+      for (let attempt = 0; attempt < 25 && !cancelled; attempt++) {
+        try {
+          const [screenSessions, puckSessions] = await Promise.all([
+            mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
+            mcpBridge.request("editSession.list", { resourceType: "puck-data", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
+          ]);
+          if (cancelled) return;
+          // state === "Active" のみを対象とする (discarded session は表示しない)
+          const screenHasDraft = (screenSessions?.sessions ?? []).some((s: unknown) => (s as { state?: string }).state === "Active");
+          const puckHasDraft = (puckSessions?.sessions ?? []).some((s: unknown) => (s as { state?: string }).state === "Active");
+          if (screenHasDraft || puckHasDraft) setShowResumeDialog(true);
+          return;
+        } catch (err) {
+          if (cancelled) return;
+          const msg = String((err as Error)?.message ?? err);
+          if (!msg.includes("WorkspaceUnset") && !msg.includes("workspace not")) {
+            console.error(err);
+            return;
+          }
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+    })();
     return () => { cancelled = true; };
   }, [screenId, sessionLoading, mode.kind]);
 

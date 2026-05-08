@@ -84,7 +84,13 @@ async function navigateFromHeader(page: Page, label: string, expectedUrl: RegExp
 }
 
 async function openFirstResource(page: Page, listPath: string, editorUrl: RegExp, editorSelector: string): Promise<void> {
-  await page.goto(listPath);
+  // page.goto は full reload で workspace state を失うため、SPA navigation で
+  // 既存 session を保持しつつ遷移する (#945)
+  await page.evaluate((path) => {
+    window.history.pushState({}, "", path);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, listPath);
+  await expect(page).toHaveURL(listPath);
   await expect(page.getByTestId("data-list")).toBeVisible();
   const item = page.locator("[data-row-id]").first();
   await expect(item).toBeVisible();

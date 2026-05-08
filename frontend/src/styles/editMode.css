@@ -38,7 +38,7 @@
   cursor: default;
 }
 
-.readonly-mode .btn:not(.edit-mode-toolbar .btn) {
+.readonly-mode .btn:not(.edit-mode-toolbar .btn):not(.edit-mode-modal .btn) {
   pointer-events: none;
   opacity: 0.6;
 }

@@ -435,7 +435,21 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     if (workspaceState.active === null) {
       // active なし → /workspace/select
       // /workspace/* パスは AppShell の上位 Route で処理済みのため、
-      // ここは /w/:wsId/* 配下の場合のみ
+      // ここは /w/:wsId/* 配下の場合のみ。
+      // ただし URL に有効な wsId があり recent に存在する場合は、WS 再接続直後に
+      // activePath が null にリセットされた可能性があるため、workspace.open で復元を試みる。
+      // (WS 切断→再接続で per-session activePath が消える問題 #947)
+      if (wsId) {
+        const recentEntry = workspaceState.workspaces.find((w) => w.id === wsId);
+        if (recentEntry) {
+          mcpBridge.request("workspace.open", { id: wsId }).catch((err) => {
+            console.error("[workspace] workspace.open recovery failed:", err);
+            const guard = checkRedirect("/workspace/select");
+            if (guard.allow) navigate("/workspace/select", { replace: true });
+          });
+          return; // workspace.open 完了後に workspace.changed broadcast で active が復元される
+        }
+      }
       const guard = checkRedirect("/workspace/select");
       if (guard.allow) navigate("/workspace/select", { replace: true });
     } else if (wsId && wsId !== workspaceState.active.id) {

@@ -90,6 +90,23 @@ test.describe("dirty マーク + 再オープン — TableEditor", () => {
 
   test("シナリオ 2: 一覧 ● → 再 open → ResumeOrDiscardDialog → 「続ける」", async ({ page }) => {
     await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
+    // 前テスト残骸の draft が ResumeOrDiscardDialog として出る場合があるので dismiss
+    await page.waitForTimeout(1000);
+    for (let _i = 0; _i < 5; _i++) {
+      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        const discardEl = page.getByTestId("resume-discard");
+        if (await discardEl.isVisible().catch(() => false)) {
+          await discardEl.click({ force: true });
+        } else {
+          await page.evaluate(() => {
+            const el = document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null;
+            if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          });
+        }
+        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+        await page.waitForTimeout(300);
+      } else { break; }
+    }
     const editBtn = page.getByTestId("edit-mode-start");
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();
@@ -123,6 +140,23 @@ test.describe("dirty マーク + 再オープン — ProcessFlowEditor", () => {
 
   test("シナリオ 3: 編集 → タブ閉じる → 一覧で ● → 再 open → 「破棄」→ 本体読み込み確認", async ({ page }) => {
     await ws.gotoActive(page, `/process-flow/edit/${PF_NORM}`);
+    // 前テスト残骸の draft が ResumeOrDiscardDialog として出る場合があるので dismiss
+    await page.waitForTimeout(1000);
+    for (let _i = 0; _i < 5; _i++) {
+      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        const discardEl = page.getByTestId("resume-discard");
+        if (await discardEl.isVisible().catch(() => false)) {
+          await discardEl.click({ force: true });
+        } else {
+          await page.evaluate(() => {
+            const el = document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null;
+            if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          });
+        }
+        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+        await page.waitForTimeout(300);
+      } else { break; }
+    }
     const editBtn = page.getByTestId("edit-mode-start");
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();
@@ -161,6 +195,23 @@ test.describe("broadcast 経由の即時反映", () => {
 
   test("シナリオ 4: draft 作成後に一覧へ遷移すると ● が表示される", async ({ page }) => {
     await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
+    // 前テスト残骸の draft が ResumeOrDiscardDialog として出る場合があるので dismiss
+    await page.waitForTimeout(1000);
+    for (let _i = 0; _i < 5; _i++) {
+      if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+        const discardEl = page.getByTestId("resume-discard");
+        if (await discardEl.isVisible().catch(() => false)) {
+          await discardEl.click({ force: true });
+        } else {
+          await page.evaluate(() => {
+            const el = document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null;
+            if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          });
+        }
+        await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+        await page.waitForTimeout(300);
+      } else { break; }
+    }
     const editBtn = page.getByTestId("edit-mode-start");
     await expect(editBtn).toBeVisible({ timeout: 5000 });
     await editBtn.click();

@@ -385,10 +385,26 @@ export function ProcessFlowEditor() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.request("editSession.list", { resourceType: "process-flow", resourceId: processFlowId }) as { sessions: unknown[] } | null;
-      if (cancelled) return;
-      if (res && res.sessions.length > 0) setShowResumeDialog(true);
-    })().catch(console.error);
+      // workspace context が未確立の場合 WorkspaceUnsetError が返ることがあるため最大 25 回 retry する (200ms × 25 = 5s)
+      for (let attempt = 0; attempt < 25 && !cancelled; attempt++) {
+        try {
+          const res = await mcpBridge.request("editSession.list", { resourceType: "process-flow", resourceId: processFlowId }) as { sessions: unknown[] } | null;
+          if (cancelled) return;
+          // state === "Active" のみを対象とする (discarded session は表示しない)
+          const hasActiveSession = (res?.sessions ?? []).some((s: unknown) => (s as { state?: string }).state === "Active");
+          if (hasActiveSession) setShowResumeDialog(true);
+          return;
+        } catch (err) {
+          if (cancelled) return;
+          const msg = String((err as Error)?.message ?? err);
+          if (!msg.includes("WorkspaceUnset") && !msg.includes("workspace not")) {
+            console.error(err);
+            return;
+          }
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+    })();
     return () => { cancelled = true; };
   }, [processFlowId, sessionLoading, mode.kind]);
 
@@ -1149,7 +1165,7 @@ export function ProcessFlowEditor() {
                             e.preventDefault();
                             setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
                           }}
-                          onNavigateCommon={(refId) => navigate(`/process-flow/edit/${refId}`)}
+                          onNavigateCommon={(refId) => navigate(wsPath(`/process-flow/edit/${refId}`))}
                           defaultExpanded={newStepIds.has(step.id)}
                           selected={selectedIds.has(step.id)}
                           onHeaderClick={(e) => handleStepClick(step.id, e)}
