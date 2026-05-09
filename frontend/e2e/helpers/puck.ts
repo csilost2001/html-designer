@@ -209,6 +209,34 @@ export async function dragPrimitiveTo(
   await page.waitForTimeout(300);
 }
 
+/**
+ * dnd-kit の KeyboardSensor 経路で primitive を palette から canvas に配置する。
+ * mouse-based の dragPrimitiveTo は MouseEvent しか発火せず PointerSensor を活性化できない。
+ * KeyboardSensor は dnd-kit のデフォルト sensor (accessibility 機能):
+ *   - paletteItem に focus
+ *   - Space で pickup
+ *   - 矢印キーで移動
+ *   - Space で drop
+ */
+export async function dragPrimitiveByKeyboard(
+  page: Page,
+  paletteLabel: string,
+  moveSteps: number = 5,
+): Promise<void> {
+  const paletteItem = getPaletteItem(page, paletteLabel);
+  await paletteItem.waitFor({ state: "visible", timeout: 10000 });
+  await paletteItem.focus();
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(150);
+  for (let i = 0; i < moveSteps; i += 1) {
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(80);
+  }
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(300);
+}
+
 export async function selectPlacedPrimitive(page: Page, name: string): Promise<void> {
   await getPlacedPrimitive(page, name).first().click();
   await page.waitForTimeout(300);
