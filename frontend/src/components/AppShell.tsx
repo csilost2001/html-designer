@@ -19,6 +19,7 @@ import { ViewDefinitionEditor } from "./view-definition/ViewDefinitionEditor";
 import { WorkspaceListView } from "./workspace/WorkspaceListView";
 import { WorkspaceSelectView } from "./workspace/WorkspaceSelectView";
 import { TechStackView } from "./project/TechStackView";
+import { CodexSettingsView } from "./codex/CodexSettingsView";
 import { Designer } from "./Designer";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
@@ -320,6 +321,7 @@ export function AppShell() {
       </Route>
       <Route path="/workspace/list" element={<WorkspaceListView />} />
       <Route path="/workspace/select" element={<WorkspaceSelectView />} />
+      <Route path="/ai-settings" element={<><CommonHeader /><CodexSettingsView /></>} />
       {/* 旧 URL (/, /screen/flow 等) にもスプラッシュで対応
           useEffect の redirect が動くまでの僅かな間のレンダー用 */}
       <Route path="*" element={
