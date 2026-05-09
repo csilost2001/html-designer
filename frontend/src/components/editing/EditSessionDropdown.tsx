@@ -29,6 +29,13 @@ export interface EditSessionDropdownProps {
   currentSessionId: string;
   /** viewer として attach 後の callback (URL 更新等) */
   onViewerAttached?: (editSessionId: string) => void;
+  /**
+   * #980-A fix: viewer attach の本体 action — useEditSession.attach(editSessionId) を呼ぶ。
+   * 省略時は内部で mcpBridge.request("editSession.attachAsView") を直接呼ぶ (非推奨 fallback、
+   * myRole が parent useEditSession に反映されないため take-over 経路で role 同期が崩れる)。
+   * myRole の即時反映には onAttachAsView の指定が必須。
+   */
+  onAttachAsView?: (editSessionId: string) => Promise<void>;
   /** 新規 draft 作成 (startEditing 相当) */
   onStartEditing?: () => void;
   /**
@@ -202,6 +209,7 @@ export function EditSessionDropdown({
   currentMode,
   currentSessionId,
   onViewerAttached,
+  onAttachAsView,
   onStartEditing,
   onTakeOver,
   onHistoryRestore,
@@ -267,16 +275,22 @@ export function EditSessionDropdown({
   const handleViewerAttach = useCallback(
     async (editSessionId: string) => {
       try {
-        await mcpBridge.request("editSession.attachAsView", {
-          editSessionId,
-        });
+        if (onAttachAsView) {
+          // #980-A: useEditSession.attach 経由で myRole / editSession state を即時反映する
+          // (これがないと parent の broadcast handler が editSession?.id null のため起動せず、
+          //  以降の roleChanged / detached 等を取り損なう)
+          await onAttachAsView(editSessionId);
+        } else {
+          // fallback: 直接 mcpBridge を叩く (parent の useEditSession に反映されない、非推奨)
+          await mcpBridge.request("editSession.attachAsView", { editSessionId });
+        }
         onViewerAttached?.(editSessionId);
         setOpen(false);
       } catch (e) {
         console.error("[EditSessionDropdown] attachAsView failed:", e);
       }
     },
-    [onViewerAttached],
+    [onAttachAsView, onViewerAttached],
   );
 
   // ── [↪ 引継] — take-over ──────────────────────────────────────────────────

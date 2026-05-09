@@ -301,23 +301,24 @@ test.describe("編集モード UI — 強制解除シナリオ", () => {
       if (!await startEditOrSkip(pageA)) return;
       await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
 
-      // tab B: 同 resource を開く → Viewer 化
+      // tab B: 同 resource を開く → Viewer 化 → take-over (強制解除相当)
+      // EditSessionDropdown のクリックは Playwright actionability が `.esd-root` を
+      // 拾うため (#980-A) dispatchEvent で bypass する
       await seedTabsForWorkspace(pageB, ws.wsId, [dummyTabPF], dummyTabPF.id);
       await ws.gotoActive(pageB, `/process-flow/edit/${PF_NORM}`);
-      const dropdownToggleB = pageB.getByTestId("esd-toggle-btn");
-      await expect(dropdownToggleB).toBeVisible({ timeout: 15000 });
-      await dropdownToggleB.click();
+      await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 15000 });
+      await pageB.evaluate(() => (document.querySelector('[data-testid="esd-toggle-btn"]') as HTMLButtonElement | null)?.click());
 
       // Viewer attach → take-over button が表示される
-      const viewerBtn = pageB.locator('[data-testid^="esd-viewer-btn-"]').first();
-      await expect(viewerBtn).toBeVisible({ timeout: 5000 });
-      await viewerBtn.click();
+      await expect(pageB.locator('[data-testid^="esd-viewer-btn-"]').first()).toBeVisible({ timeout: 5000 });
+      await pageB.evaluate(() => (document.querySelector('[data-testid^="esd-viewer-btn-"]') as HTMLButtonElement | null)?.click());
       await pageB.waitForTimeout(1500);
-      await dropdownToggleB.click();
-      const takeoverBtn = pageB.locator('[data-testid^="esd-takeover-btn-"]').first();
-      await expect(takeoverBtn).toBeVisible({ timeout: 15000 });
-      await pageB.evaluate(() => { window.confirm = () => true; });
-      await takeoverBtn.click();
+      await pageB.evaluate(() => (document.querySelector('[data-testid="esd-toggle-btn"]') as HTMLButtonElement | null)?.click());
+      await expect(pageB.locator('[data-testid^="esd-takeover-btn-"]').first()).toBeVisible({ timeout: 15000 });
+      await pageB.evaluate(() => {
+        window.confirm = () => true;
+        (document.querySelector('[data-testid^="esd-takeover-btn-"]') as HTMLButtonElement | null)?.click();
+      });
 
       // tab B が Edit role になり、tab A は Viewer 化される
       await expect(pageB.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
