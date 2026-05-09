@@ -319,6 +319,7 @@ export function MarkerPanel({ group, onChange, expanded: expandedProp, onExpande
               className="btn btn-sm btn-outline-primary"
               onClick={addMarker}
               disabled={!newBody.trim()}
+              data-testid="marker-add-btn"
             >
               <i className="bi bi-plus-lg" /> 追加
             </button>
