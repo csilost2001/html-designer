@@ -93,6 +93,5 @@ test.describe("ErrorDialog", () => {
   });
 });
 
-test.describe("TabErrorFallback ログ表示", () => {
-  test.skip("別途 Vitest で単体検証", () => {});
-});
+// TabErrorFallback / AppErrorFallback の単体検証は
+// frontend/src/components/common/ErrorFallback.test.tsx で実装済 (Vitest + RTL)。
