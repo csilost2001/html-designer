@@ -332,7 +332,7 @@ test.describe("編集モード UI — ResumeOrDiscardDialog filter (multi-tab) #
   // 共通ヘルパー: alice 編集開始 → bob open → Resume dialog 非表示。
   // hasDropdown=true の編集系は esd-toggle-btn 表示も検証 (Process / Table / VD / Sequence / ScreenItems / Designer)。
   // 注: View / Flow / Conventions / Extensions は EditSessionDropdown を render しない設計のため
-  //   esd-toggle 検証は省略する (別 UX 課題: dropdown 非搭載は #980-A scope 外、follow-up TODO)。
+  //   esd-toggle 検証は省略する (#994 で Dropdown 搭載追加予定。搭載完了時は対応エディタの hasDropdown=true に切替)。
   async function verifyFilter(browser: import("@playwright/test").Browser, route: string, tabType: string, resId: string, label: string, opts: { hasDropdown: boolean }) {
     const ctxA = await browser.newContext();
     const ctxB = await browser.newContext();
