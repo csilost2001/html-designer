@@ -16,8 +16,11 @@ import { buildProject, buildProcessFlow } from "./__fixtures__/builders";
 import type { ProjectEntities, Timestamp } from "../src/types/v3";
 
 
-const groupId = "ag-sql-conv-test";
-const tableId = "tbl-for-test";
+// buildProject.normalizeEntityIds が entities.tables[0].id を UUID 化するため、
+// fixture 側でも最初から同じ normalize を適用しないと、project meta (UUID) と file 名 (raw id) が
+// 不一致になり loadTable が null を返してしまう (#945 SQL 列検査 skip 事象)。
+const groupId = normalizeId("ag-sql-conv-test");
+const tableId = normalizeId("tbl-for-test");
 
 const tableDef = {
   id: tableId,
