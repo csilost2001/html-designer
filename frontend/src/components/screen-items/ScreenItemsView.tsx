@@ -440,7 +440,7 @@ export function ScreenItemsView() {
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
   // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, attach, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "screen-item",
     resourceId: screenId ?? "",
     sessionId,
@@ -996,6 +996,7 @@ export function ScreenItemsView() {
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
             onViewerAttached={syncSessionToUrl}
+            onAttachAsView={attach}
             onTakeOver={takeOver}
           />
         }

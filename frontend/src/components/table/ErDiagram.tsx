@@ -69,6 +69,7 @@ function ErDiagramInner() {
     editSession,
     mode,
     actions,
+    attach,
     takeOver,
     saveCheckConflict,
     saveCommit,
@@ -414,6 +415,7 @@ function ErDiagramInner() {
           currentSessionId={sessionId}
           onStartEditing={() => { void actions.startEditing(); }}
           onViewerAttached={syncSessionToUrl}
+          onAttachAsView={attach}
           onTakeOver={takeOver}
         />
       </div>

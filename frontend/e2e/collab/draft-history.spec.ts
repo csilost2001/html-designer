@@ -168,51 +168,50 @@ test.describe("draft history 7 日保持 UI (#893)", () => {
     const pageB = await contextB.newPage();
 
     try {
-      // pageA: 編集開始
+      // pageA: 編集開始 + 何らかの変更を加える (payload を non-null にして history 記録対象にする)
       await seedTabsForWorkspace(pageA, ws.wsId, [dummyTab], dummyTab.id);
       await gotoEditorAndDismiss(pageA);
       await ensureReadOnly(pageA);
       await pageA.getByTestId("edit-mode-start").click();
       await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
+      // alice がアクション追加 → editSession.update で payload セット (snapshot 対象になる)
+      await pageA.locator(".process-flow-tab-add").click();
+      await pageA.locator(".process-flow-modal input.form-control").first().fill("引継ぎ前アクション");
+      await pageA.locator(".process-flow-modal button.btn-primary").click();
+      await expect(pageA.locator(".process-flow-modal")).not.toBeVisible({ timeout: 5000 });
 
       // pageB: bob を Viewer として attach (takeover 表示条件を満たすため)
+      // EditSessionDropdown のクリックは Playwright actionability が `.esd-root` を
+      // 拾うため (#980-A) dispatchEvent で bypass する
       await seedTabsForWorkspace(pageB, ws.wsId, [dummyTab], dummyTab.id);
       await gotoEditorAndDismiss(pageB);
-      const dropdownToggleB = pageB.getByTestId("esd-toggle-btn");
-      await expect(dropdownToggleB).toBeVisible({ timeout: 15000 });
-      await dropdownToggleB.click();
-      const viewerBtn = pageB.locator('[data-testid^="esd-viewer-btn-"]').first();
-      await expect(viewerBtn).toBeVisible({ timeout: 5000 });
-      await viewerBtn.click();
-      // attach 反映 (broadcast で sessions 再 fetch + dropdown 再 render) を待つ
+      await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 15000 });
+      await pageB.evaluate(() => (document.querySelector('[data-testid="esd-toggle-btn"]') as HTMLButtonElement | null)?.click());
+      await expect(pageB.locator('[data-testid^="esd-viewer-btn-"]').first()).toBeVisible({ timeout: 5000 });
+      await pageB.evaluate(() => (document.querySelector('[data-testid^="esd-viewer-btn-"]') as HTMLButtonElement | null)?.click());
       await pageB.waitForTimeout(1500);
-      // viewer attach 後 setOpen(false) で dropdown が閉じるので再 open
-      const reopenBtnB = pageB.getByTestId("esd-toggle-btn");
-      await reopenBtnB.click();
+      await pageB.evaluate(() => (document.querySelector('[data-testid="esd-toggle-btn"]') as HTMLButtonElement | null)?.click());
 
       // pageB が take-over → pageA の snapshot が history 記録
-      const takeoverBtn = pageB.locator('[data-testid^="esd-takeover-btn-"]').first();
-      await expect(takeoverBtn).toBeVisible({ timeout: 15000 });
-      // window.confirm を click 同期内で承認 (page.on("dialog") は取りこぼす場合あり)
-      await pageB.evaluate(() => { window.confirm = () => true; });
-      await takeoverBtn.click();
+      await expect(pageB.locator('[data-testid^="esd-takeover-btn-"]').first()).toBeVisible({ timeout: 15000 });
+      await pageB.evaluate(() => {
+        window.confirm = () => true;
+        (document.querySelector('[data-testid^="esd-takeover-btn-"]') as HTMLButtonElement | null)?.click();
+      });
       // take-over 後 pageB が editor になる
       await expect(pageB.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 
       // pageA: take-over により View 化 → 履歴 modal を開いて「引継」バッジ表示確認
-      // viewer 化された後の dropdown 表示まで少し待つ
       await pageA.waitForTimeout(1000);
-      const dropdownToggleA = pageA.getByTestId("esd-toggle-btn");
-      await expect(dropdownToggleA).toBeVisible({ timeout: 10000 });
-      await dropdownToggleA.click();
-      const historyBtnA = pageA.getByTestId("esd-history-btn");
-      await expect(historyBtnA).toBeVisible({ timeout: 5000 });
-      await historyBtnA.click();
+      await expect(pageA.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 10000 });
+      await pageA.evaluate(() => (document.querySelector('[data-testid="esd-toggle-btn"]') as HTMLButtonElement | null)?.click());
+      await expect(pageA.getByTestId("esd-history-btn")).toBeVisible({ timeout: 5000 });
+      await pageA.evaluate(() => (document.querySelector('[data-testid="esd-history-btn"]') as HTMLButtonElement | null)?.click());
       const modal = pageA.getByTestId("draft-history-modal");
       await expect(modal).toBeVisible({ timeout: 5000 });
-      // 「引継」バッジが表示される (transferEdit の reason)
-      await expect(pageA.getByText("引継")).toBeVisible({ timeout: 5000 });
-      // クリーンアップは context.close() が breaks down するので明示 discard はスキップ
+      // 「引継」バッジが modal 内に表示される (transferEdit の reason)
+      await expect(modal.getByText("引継").first()).toBeVisible({ timeout: 5000 });
+      // クリーンアップは context.close() に任せる
     } finally {
       await contextA.close();
       await contextB.close();

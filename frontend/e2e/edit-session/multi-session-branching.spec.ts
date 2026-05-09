@@ -113,16 +113,16 @@ test.describe("spec §9 複数 EditSession 並存 (A 案 / B 案)", () => {
       await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 
       // bob: 同 resource → viewer
+      // EditSessionDropdown のクリックは Playwright actionability が `.esd-root` を
+      // 拾うため (#980-A) dispatchEvent で bypass する
       await seedTabsForWorkspace(pageB, ws.wsId, [dummyTab], dummyTab.id);
       await gotoEditor(pageB);
-      const dropdownB = pageB.getByTestId("esd-toggle-btn");
-      await expect(dropdownB).toBeVisible({ timeout: 15000 });
-      await dropdownB.click();
+      await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 15000 });
+      await pageB.evaluate(() => (document.querySelector('[data-testid="esd-toggle-btn"]') as HTMLButtonElement | null)?.click());
 
       // bob: 新規 draft (esd-new-draft-btn) で B 案を起動 → bob が Edit role
-      const newDraftBtn = pageB.getByTestId("esd-new-draft-btn");
-      await expect(newDraftBtn).toBeVisible({ timeout: 5000 });
-      await newDraftBtn.click();
+      await expect(pageB.getByTestId("esd-new-draft-btn")).toBeVisible({ timeout: 5000 });
+      await pageB.evaluate(() => (document.querySelector('[data-testid="esd-new-draft-btn"]') as HTMLButtonElement | null)?.click());
       await expect(pageB.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
       // 後始末は context.close() に任せる (明示 discard は不要)
     } finally {

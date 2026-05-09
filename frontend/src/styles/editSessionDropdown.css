@@ -20,6 +20,16 @@
   white-space: nowrap;
 }
 
+/*
+ * #980-A fix: 内部 span を pointer-events:none にする。これがないと Playwright の
+ * locator.click() が actionability check の elementFromPoint で span を返し、
+ * 「intercepts pointer events」とみなして待機 → タイムアウトする。
+ * (PR #986 の Bootstrap .btn inline-flex 化と同根の hit test 問題)
+ */
+.esd-toggle > * {
+  pointer-events: none;
+}
+
 .esd-badge-icon {
   font-size: 13px;
 }
