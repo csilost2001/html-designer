@@ -129,17 +129,20 @@ test.describe("編集モード UI — TableEditor", () => {
     ws = await makeWs();
   });
 
-  // TODO(#926 follow-up): TableEditor save → readonly 復帰が 30s 以内に完了しない既知不具合あり。
-  // useEditSession の actions.save → setMyRole(null) → mode kind transition の async が長時間
-  // かかる事象。test.skip で隔離し、follow-up ISSUE で原因調査する。
-  test.skip("シナリオ 1: 編集開始 → 保存 → 反映確認", async ({ page }) => {
+  // spec edit-session-protocol § 5.1 / § 8.3: save は session 終了ではなく、save 後も
+  // EditSession は Active 継続 (Edit role 維持)。「保存後 readonly 復帰」を期待していた
+  // 旧テスト (TODO(#926 follow-up) で skip 済) は仕様誤解だったため、spec に沿った形に修正。
+  test("シナリオ 1: 編集開始 → 保存 → 編集モード継続 (spec § 5.1)", async ({ page }) => {
     await ws.gotoActive(page, `/table/edit/${TABLE_NORM}`);
     if (!await startEditOrSkip(page)) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByRole("button", { name: /カラム追加/ }).click().catch(() => undefined);
     await page.waitForTimeout(300);
     await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 30000 });
+    // save 完了後: edit-mode-save は visible のまま (Active 継続) + header save ボタンは
+    // disabled に戻る (isDirty=false)。
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 10000 });
   });
 
   test("シナリオ 2: 編集開始 → 破棄確認ダイアログ → 破棄", async ({ page }) => {
@@ -178,12 +181,16 @@ test.describe("編集モード UI — ViewEditor (PR-7)", () => {
     ws = await makeWs();
   });
 
-  test("編集開始 → 保存", async ({ page }) => {
+  // spec edit-session-protocol § 5.1: save 後も Active 継続 (Edit role 維持)。
+  test("編集開始 → 保存 → 編集モード継続 (spec § 5.1)", async ({ page }) => {
     await ws.gotoActive(page, `/view/edit/${VIEW_NORM}`);
     if (!await startEditOrSkip(page)) return;
     await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
     await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 15000 });
+    // save 完了後: edit-mode-save は visible のまま (Active 継続) + header save ボタンは
+    // disabled に戻る (isDirty=false)。
+    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".srb-btn-save")).toBeDisabled({ timeout: 10000 });
   });
 });
 
