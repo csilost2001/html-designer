@@ -5,6 +5,7 @@ import {
   registerEditor as presenceRegisterEditor,
   registerViewer as presenceRegisterViewer,
   unregister as presenceUnregister,
+  unregisterAllForSession as presenceUnregisterAllForSession,
   heartbeat as presenceHeartbeat,
   list as presenceList,
   startCleanupInterval as presenceStartCleanupInterval,
@@ -905,6 +906,18 @@ class WsBridge extends EventEmitter {
           this.clients.delete(clientId);
           const idx = this.clientOrder.indexOf(clientId);
           if (idx >= 0) this.clientOrder.splice(idx, 1);
+          // #980-A: presence 切断時 cleanup — clientId に紐づく全エントリを削除して
+          // presence:update を broadcast する。これがないと cleanupAbandoned (idleThresholdSec
+          // 経過 + 定期実行) まで SessionBadge が残り続ける。
+          const removedPresence = presenceUnregisterAllForSession(clientId);
+          for (const { wsId: rWsId, resourceType: rType, resourceId: rId } of removedPresence) {
+            const entries = presenceList(rWsId, rType, rId);
+            this.broadcast({
+              wsId: rWsId,
+              event: "presence:update",
+              data: { resourceType: rType, resourceId: rId, entries },
+            });
+          }
           // per-session context を削除 (#700 R-2)
           workspaceContextManager.disconnect(clientId);
           console.error(`[WsBridge] Client disconnected: ${clientId.substring(0, 8)}... (remaining: ${this.clients.size})`);
