@@ -149,20 +149,12 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
     await expect(page.locator(toolbarReset)).toHaveCount(0);
   });
 
-  test("リセット後にタブの dirty インジケーターが消える", async ({ page }) => {
-    await setupProcessFlowEditor(page);
-    page.on("dialog", (d) => d.accept());
-    await addAction(page, "登録ボタン");
-    const tabLocator = page.locator(".tabbar-tab").filter({ hasText: "テスト処理フロー" });
-    await expect(tabLocator).toHaveClass(/\bdirty\b/);
-    // page.evaluate で document.querySelector + element.click() を直接呼ぶ
-    // (Playwright actionability/hit test を完全 bypass、React onClick も正常 fire)
-    await page.evaluate((sel) => (document.querySelector(sel) as HTMLButtonElement | null)?.click(), toolbarReset);
-    await page.evaluate(() => (document.querySelector('[data-testid="discard-confirm"]') as HTMLButtonElement | null)?.click());
-    // editSession.discard broadcast → useEditSession state 更新 → handleReset → editor 再 load
-    // → useEffect → setTabDirty(false) のチェーンで時間がかかる。20s 待ち。
-    await expect(tabLocator).not.toHaveClass(/\bdirty\b/, { timeout: 20000 });
-  });
+  // 旧テスト「リセット後にタブの dirty インジケーターが消える」は edit-session-protocol §4
+  // 状態遷移図と矛盾するため削除。新仕様では reset (revert) 後も EditSession が Active 継続
+  // (Edit role 維持) で `isDirtyForTab = myRole === "Edit"` のため tab dirty は維持される。
+  // reset の意味的検証は「リセット後に保存・リセットボタンが無効に戻る」が同 describe 上にあり
+  // (= isDirty が false へ戻る) その経路で達成済み。
+  // dirty 表示の意味論 (Active EditSession 中常時 vs 未保存差分のみ) は schemas/TODO に保留 (#980)。
 
   test("Ctrl+S で保存が実行されて保存ボタンが無効に戻る", async ({ page }) => {
     await setupProcessFlowEditor(page);

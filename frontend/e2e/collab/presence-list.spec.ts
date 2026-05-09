@@ -4,106 +4,127 @@
  * 一覧 SessionBadge 表示: editor が一覧画面に SessionBadge として表示される。
  * docs/spec/collab-presence.md § 5 一覧 badge 表示 に準拠。
  *
- * 前提: backend (port 5179) + frontend dev server が起動済み。
+ * #980-A: localStorage seed (#923 で fallback 廃止後 dead pattern) → realWorkspace 経由に書き換え。
  *
  * シナリオ:
- *   1. tab1 で /process-flow/edit/<id> 開いて editor (heartbeat 開始)
- *   2. tab2 で /process-flow/list (一覧) 開く
- *   3. 該当行に 🟢 SessionBadge 表示
- *   4. tab1 close → 数十秒待機 → tab2 でバッジ消滅 (cleanup or recovery)
- *
- * NOTE: heartbeat TTL (通常 90s) の関係で step 4 のバッジ消滅確認は
- *       CI タイムアウト内では困難。本スペックでは step 3 までを確認し、
- *       step 4 は TODO として skip する。
+ *   1. tab1 で editor (heartbeat / EditSession 開始)
+ *   2. tab2 で /process-flow/list → 該当行に EditSessionBadge
+ *   3. tab1 で discard → tab2 のバッジ消滅 (broadcast 経由)
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import {
+  setupTestWorkspace,
+  cleanupRealWorkspaces,
+  isMcpRunning,
+  normalizeId,
+  seedTabsForWorkspace,
+  type OpenedWorkspace,
+} from "../helpers/realWorkspace";
+import { buildProject, buildProcessFlow } from "../__fixtures__/builders";
+import type { ProjectEntities, Timestamp } from "../../src/types/v3";
 
+const FIXED_TS = "2026-05-08T00:00:00.000Z" as unknown as Timestamp;
 const PF_ID = `pf-collab-presence-list-${Date.now()}`;
+const PF_NORM = normalizeId(PF_ID);
 
-const dummyProcessFlow = {
+const dummyProcessFlowBody = buildProcessFlow({
   id: PF_ID,
   name: "一覧バッジテストフロー",
-  description: "",
-  maturity: "draft",
+  kind: "screen",
+  mode: "upstream",
   actions: [],
-  version: "1.0.0",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+});
 
-/**
- * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
- * MCP 接続不可時は test.skip() でスキップされる。
- */
+const dummyProject = buildProject({
+  name: "collab-presence-list-test",
+  entities: {
+    processFlows: [{ id: PF_ID, no: 1, name: "一覧バッジテストフロー", kind: "screen", actionCount: 0, maturity: "draft", updatedAt: FIXED_TS }],
+  } as ProjectEntities,
+});
+
+const dummyTab = { id: `process-flow:${PF_NORM}`, type: "process-flow", resourceId: PF_NORM, label: "一覧バッジテストフロー", isDirty: false, isPinned: false };
+
+const WS_KEY = "issue-980-collab-presence-list";
+let mcpAvailable = false;
+let ws: OpenedWorkspace;
+
+async function gotoEditorAndStart(page: Page) {
+  await ws.gotoActive(page, `/process-flow/edit/${PF_NORM}`);
+  await expect(page.locator(".process-flow-page")).toBeVisible();
+  await page.waitForTimeout(500);
+  for (let _i = 0; _i < 3; _i++) {
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    } else { break; }
+  }
+  await Promise.race([
+    page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 10000 }),
+    page.getByTestId("edit-mode-save").waitFor({ state: "visible", timeout: 10000 }),
+  ]).catch(() => undefined);
+  if (await page.getByTestId("edit-mode-save").isVisible({ timeout: 100 }).catch(() => false)) {
+    await page.getByTestId("edit-mode-discard").click();
+    if (await page.getByTestId("discard-confirm").isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.getByTestId("discard-confirm").click();
+    }
+    await page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 8000 }).catch(() => undefined);
+  }
+  await page.getByTestId("edit-mode-start").click();
+  await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
+}
+
 test.describe("協調編集 一覧 SessionBadge 表示", () => {
-  test("editor 中は一覧に SessionBadge が表示される", async ({ browser }) => {
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+  });
+
+  test.afterAll(async () => {
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await setupTestWorkspace({
+      key: WS_KEY,
+      project: dummyProject,
+      processFlows: [dummyProcessFlowBody],
+    });
+  });
+
+  test("editor 中は一覧に EditSessionBadge が表示され、discard で消える", async ({ browser }) => {
+    test.setTimeout(120000);
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
-
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
 
     try {
-      // データ準備
-      await pageA.goto("/process-flow/list");
-      await pageA.evaluate(
-        ({ id, data }) => {
-          localStorage.setItem(`gjs-process-flow-${id}`, JSON.stringify(data));
-        },
-        { id: PF_ID, data: dummyProcessFlow },
-      );
+      // tab1: 編集開始
+      await seedTabsForWorkspace(pageA, ws.wsId, [dummyTab], dummyTab.id);
+      await gotoEditorAndStart(pageA);
 
-      // ── tab1: 編集開始 (heartbeat 開始) ──
-      await pageA.goto(`/process-flow/edit/${PF_ID}`);
-      await pageA.waitForLoadState("networkidle");
+      // tab2: 一覧
+      await seedTabsForWorkspace(pageB, ws.wsId, [dummyTab], dummyTab.id);
+      await ws.gotoActive(pageB, "/process-flow/list");
+      await expect(pageB.getByText("一覧バッジテストフロー")).toBeVisible({ timeout: 10000 });
 
-      const editBtnA = pageA.getByTestId("edit-mode-start");
-      if (!await editBtnA.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // MCP 未接続 → skip
-        test.skip();
-        return;
-      }
-      await editBtnA.click();
-      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+      // EditSessionBadge が表示される (broadcast 受信後)
+      const badge = pageB.locator('[data-testid="edit-session-badge"]').first();
+      await expect(badge).toBeVisible({ timeout: 10000 });
 
-      // heartbeat の初回送信を待つ
-      await pageA.waitForTimeout(300);
-
-      // ── tab2: 一覧を開く ──
-      await pageB.goto("/process-flow/list");
-      await pageB.waitForLoadState("networkidle");
-
-      // 一覧に対象フローの SessionBadge が表示されることを確認
-      // SessionBadge は data-testid="session-badge" または .session-badge クラスで識別
-      // presence:update broadcast が届いた後に表示される
-      const sessionBadgeVisible = await pageB
-        .locator(`[data-resource-id="${PF_ID}"] .session-badge`)
-        .or(pageB.locator(`[data-testid="session-badge-${PF_ID}"]`))
-        .isVisible({ timeout: 3000 })
-        .catch(() => false);
-
-      // NOTE: 一覧ページが presence:update を受信するまで時間がかかる場合がある。
-      // presence:update は heartbeat 送信後に backend が broadcast するため、
-      // 厳密な時刻依存テストはここでは行わず、表示の有無のみ確認する。
-      // SessionBadge が見つからない場合も pre-existing 問題として許容する。
-      expect(typeof sessionBadgeVisible).toBe("boolean");
-
-      // ── クリーンアップ ──
+      // tab1: discard で session 終了
       await pageA.getByTestId("edit-mode-discard").click();
-      const discardConfirm = pageA.getByTestId("discard-confirm");
-      if (await discardConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await discardConfirm.click();
+      if (await pageA.getByTestId("discard-confirm").isVisible({ timeout: 2000 }).catch(() => false)) {
+        await pageA.getByTestId("discard-confirm").click();
       }
+      await expect(pageA.getByTestId("edit-mode-start")).toBeVisible({ timeout: 10000 });
+
+      // tab2: discard 反映で badge 消滅
+      await expect(badge).not.toBeVisible({ timeout: 10000 });
     } finally {
       await contextA.close();
       await contextB.close();
     }
-  });
-
-  // TODO: tab1 close → バッジ消滅確認 (heartbeat TTL 90s 以上待機が必要)
-  test.skip("TODO: tab1 close → バッジ消滅 (heartbeat TTL = 90s、CI タイムアウト超過)", async () => {
-    // この検証は手動 or 長時間 CI ジョブで行う。
-    // heartbeat TTL を短縮する env 設定後に有効化する。
   });
 });

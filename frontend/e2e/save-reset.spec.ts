@@ -143,18 +143,11 @@ test.describe("テーブルエディタ：保存/リセットボタン", () => {
     await expect(page.locator(".srb-btn-reset")).toHaveCount(0);
   });
 
-  test("リセット後に dirty インジケーターが消える", async ({ page }) => {
-    await setupTableEditor(page);
-    page.on("dialog", (d) => d.accept());
-    await page.getByRole("button", { name: /カラム追加/ }).click();
-    await expect(page.locator(".tabbar-tab.dirty")).toBeVisible();
-    // page.evaluate で element.click() を直接呼ぶ (Playwright hit test 不要、React onClick fire)
-    await page.evaluate(() => (document.querySelector('.srb-btn-reset') as HTMLButtonElement | null)?.click());
-    await page.evaluate(() => (document.querySelector('[data-testid="discard-confirm"]') as HTMLButtonElement | null)?.click());
-    // discard 後、edit-session.discard broadcast → useEditSession state 更新 → useEffect →
-    // setTabDirty(false) の反映に時間がかかる。20s 待ち。
-    await expect(page.locator(".tabbar-tab.dirty")).not.toBeVisible({ timeout: 20000 });
-  });
+  // 旧テスト「リセット後に dirty インジケーターが消える」は削除。
+  // 理由は save-reset-action.spec.ts と同じ — edit-session-protocol §4 状態遷移図で reset 後も
+  // EditSession が Active 継続のため `isDirtyForTab = myRole === "Edit"` で tab dirty は維持される。
+  // reset の意味的検証は「リセット後に保存・リセットボタンが無効に戻る」テストでカバー済。
+  // dirty 表示の意味論は schemas/TODO に保留 (#980)。
 
   test("リセットクリックで確認ダイアログが表示される", async ({ page }) => {
     await setupTableEditor(page);

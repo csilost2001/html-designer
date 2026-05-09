@@ -12,6 +12,7 @@ import {
   cleanupRealWorkspaces,
   isMcpRunning,
   normalizeId,
+  seedTabsForWorkspace,
   type OpenedWorkspace,
 } from "./helpers/realWorkspace";
 import {
@@ -276,7 +277,54 @@ test.describe("編集モード UI — FlowEditor singleton (PR-7)", () => {
   });
 });
 
-// 強制解除シナリオは 2 ブラウザコンテキスト + 排他制御が絡むため、本 PR では follow-up skip。
+// 強制解除シナリオ — 2 browser context + transferEdit 連携 (#980-A 対応)
 test.describe("編集モード UI — 強制解除シナリオ", () => {
-  test.skip("シナリオ 3: 2 タブ open → タブ A 編集中 → タブ B から強制解除", () => { /* skip */ });
+  test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await makeWs();
+  });
+
+  test("シナリオ 3: 2 タブ open → タブ A 編集中 → タブ B から take-over (強制解除相当)", async ({ browser }) => {
+    test.setTimeout(180000);
+    const contextA = await browser.newContext();
+    const contextB = await browser.newContext();
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+
+    const dummyTabPF = { id: `process-flow:${PF_NORM}`, type: "process-flow", resourceId: PF_NORM, label: "編集モードテストフロー", isDirty: false, isPinned: false };
+
+    try {
+      // tab A: 編集開始 → Edit role
+      await seedTabsForWorkspace(pageA, ws.wsId, [dummyTabPF], dummyTabPF.id);
+      await ws.gotoActive(pageA, `/process-flow/edit/${PF_NORM}`);
+      if (!await startEditOrSkip(pageA)) return;
+      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+
+      // tab B: 同 resource を開く → Viewer 化
+      await seedTabsForWorkspace(pageB, ws.wsId, [dummyTabPF], dummyTabPF.id);
+      await ws.gotoActive(pageB, `/process-flow/edit/${PF_NORM}`);
+      const dropdownToggleB = pageB.getByTestId("esd-toggle-btn");
+      await expect(dropdownToggleB).toBeVisible({ timeout: 15000 });
+      await dropdownToggleB.click();
+
+      // Viewer attach → take-over button が表示される
+      const viewerBtn = pageB.locator('[data-testid^="esd-viewer-btn-"]').first();
+      await expect(viewerBtn).toBeVisible({ timeout: 5000 });
+      await viewerBtn.click();
+      await pageB.waitForTimeout(1500);
+      await dropdownToggleB.click();
+      const takeoverBtn = pageB.locator('[data-testid^="esd-takeover-btn-"]').first();
+      await expect(takeoverBtn).toBeVisible({ timeout: 15000 });
+      await pageB.evaluate(() => { window.confirm = () => true; });
+      await takeoverBtn.click();
+
+      // tab B が Edit role になり、tab A は Viewer 化される
+      await expect(pageB.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
+      await expect(pageA.getByTestId("edit-mode-save")).not.toBeVisible({ timeout: 10000 });
+    } finally {
+      await contextA.close();
+      await contextB.close();
+    }
+  });
 });
