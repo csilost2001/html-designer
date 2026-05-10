@@ -56,6 +56,36 @@ function nowTs(): Timestamp {
 
 // ─── 公開 API ────────────────────────────────────────────────────────────
 
+/**
+ * Table 変更通知 (#1001)。`saveTable` / `deleteTable` / `commitTables` の成功後に emit される。
+ *
+ * mcpBridge の `tableChanged` broadcast は backend が `excludeClientId` で originating client
+ * を除外するため、**同一 client 内の SPA 遷移先** (例: TableEditor で保存 → ViewDefinitionEditor)
+ * では受け取れない。この local pubsub は同一 client 内の listener を即時に refresh させる。
+ *
+ * cross-client (他ブラウザ tab / 他ユーザー) の変更は引き続き mcpBridge.onBroadcast("tableChanged")
+ * 経由で受け取る。両方を listen する hook を書くこと (例: ViewDefinitionEditor.useTableOptions)。
+ */
+export interface TableChangeEvent {
+  tableId: TableId;
+  /** true なら deleteTable 起因 */
+  deleted?: boolean;
+}
+
+type TableChangeListener = (event: TableChangeEvent) => void;
+const _tableChangeListeners = new Set<TableChangeListener>();
+
+export function onTableChange(listener: TableChangeListener): () => void {
+  _tableChangeListeners.add(listener);
+  return () => { _tableChangeListeners.delete(listener); };
+}
+
+function _emitTableChange(event: TableChangeEvent): void {
+  _tableChangeListeners.forEach((l) => {
+    try { l(event); } catch (e) { console.error("[tableStore] listener error:", e); }
+  });
+}
+
 /** テーブル一覧を取得 (harmony.json の TableEntry[]) */
 export async function listTables(): Promise<TableEntry[]> {
   const project = await loadProject();
@@ -104,6 +134,8 @@ export async function saveTable(table: Table): Promise<void> {
   await requireBackend().saveTable(toSave.id, toSave);
 
   await syncTableMeta(toSave);
+
+  _emitTableChange({ tableId: toSave.id });
 }
 
 /** テーブルを新規作成 */
@@ -133,6 +165,7 @@ export async function createTable(
 /** テーブルを削除 (per-file 削除 + harmony.json メタ削除) */
 export async function deleteTable(tableId: string): Promise<void> {
   await requireBackend().deleteTable(tableId);
+  _emitTableChange({ tableId: tableId as TableId, deleted: true });
 }
 
 interface CommitTablesDeps {

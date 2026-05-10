@@ -31,7 +31,7 @@ import type {
 import type { Table, TableEntry, Maturity, Identifier, FieldType, FieldTypePrimitive } from "../../types/v3";
 import type { TableId, LocalId } from "../../types/v3/common";
 import { loadViewDefinition, saveViewDefinition } from "../../store/viewDefinitionStore";
-import { listTables, loadTable } from "../../store/tableStore";
+import { listTables, loadTable, onTableChange } from "../../store/tableStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
@@ -101,7 +101,7 @@ function useTablesForValidator(): TableDefinitionForView[] {
   const [tables, setTables] = useState<TableDefinitionForView[]>([]);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    async function refresh(): Promise<void> {
       const entries = await listTables();
       const all = await Promise.all(entries.map((e: TableEntry) => loadTable(e.id)));
       const valid = all.filter((t): t is Table => t !== null);
@@ -109,8 +109,16 @@ function useTablesForValidator(): TableDefinitionForView[] {
         // Table is shape-compatible with TableDefinitionForView (id / name / physicalName / columns)
         setTables(valid as unknown as TableDefinitionForView[]);
       }
-    })().catch(console.error);
-    return () => { cancelled = true; };
+    }
+    refresh().catch(console.error);
+    // #1001: 同一 client 内 SPA 遷移先での table 変更通知 + 他 client (mcpBridge broadcast) 両カバー
+    const unsubLocal = onTableChange(() => { refresh().catch(console.error); });
+    const unsubBroadcast = mcpBridge.onBroadcast("tableChanged", () => { refresh().catch(console.error); });
+    return () => {
+      cancelled = true;
+      unsubLocal();
+      unsubBroadcast();
+    };
   }, []);
   return tables;
 }
@@ -127,7 +135,7 @@ function useTableOptions(): TableOption[] {
   const [options, setOptions] = useState<TableOption[]>([]);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    async function refresh(): Promise<void> {
       const entries = await listTables();
       const tables = await Promise.all(entries.map((e: TableEntry) => loadTable(e.id)));
       if (!cancelled) {
@@ -145,8 +153,16 @@ function useTableOptions(): TableOption[] {
             })),
         );
       }
-    })().catch(console.error);
-    return () => { cancelled = true; };
+    }
+    refresh().catch(console.error);
+    // #1001: 同一 client 内 SPA 遷移先での table 変更通知 + 他 client (mcpBridge broadcast) 両カバー
+    const unsubLocal = onTableChange(() => { refresh().catch(console.error); });
+    const unsubBroadcast = mcpBridge.onBroadcast("tableChanged", () => { refresh().catch(console.error); });
+    return () => {
+      cancelled = true;
+      unsubLocal();
+      unsubBroadcast();
+    };
   }, []);
   return options;
 }
