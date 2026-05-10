@@ -156,13 +156,11 @@ const ordersViewDefinition: ViewDefinition = buildViewDefinition({
  * 編集開始ボタンを押す。失敗時は test.skip() を呼んで false を返す。
  */
 async function startEditing(page: import("@playwright/test").Page): Promise<boolean> {
-  // ResumeOrDiscardDialog が出ていれば discard して閉じる
+  // ResumeOrDiscardDialog が出ていれば discard して閉じる (S2: getByTestId を使用)
   for (let i = 0; i < 3; i++) {
     const backdrop = page.locator(".edit-mode-modal-backdrop");
     if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
-      await page.evaluate(
-        () => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click()
-      );
+      await page.getByTestId("resume-discard").click();
       await backdrop.waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
     } else {
       break;
@@ -178,6 +176,17 @@ async function startEditing(page: import("@playwright/test").Page): Promise<bool
   await editBtn.click();
   await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
   return true;
+}
+
+/**
+ * 保存ボタンをクリックし、saving=false (disabled 解除) になるまで待機する。
+ * EditModeToolbar.tsx:46 の disabled={saving} を根拠に判定。(M2)
+ */
+async function saveAndWait(page: import("@playwright/test").Page): Promise<void> {
+  const saveBtn = page.getByTestId("edit-mode-save");
+  await saveBtn.click();
+  // saving=false に戻るのを待機 (== 保存完了)
+  await expect(saveBtn).not.toBeDisabled({ timeout: 15000 });
 }
 
 // ── TestWorkspace セットアップ ─────────────────────────────────────────────
@@ -232,9 +241,8 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
       { timeout: 5000 }
     );
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロードして反映確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
@@ -262,9 +270,8 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     // 行が 1 件減る
     await expect(rows).toHaveCount(initialCount - 1, { timeout: 5000 });
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロードで確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
@@ -294,9 +301,8 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     const newFirstText = await rows.first().locator("code.col-name-code").textContent();
     expect(newFirstText).not.toBe(firstColText);
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロードして順序が維持されることを確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
@@ -328,9 +334,8 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     await typeSelect.selectOption("INTEGER");
     await expect(typeSelect).toHaveValue("INTEGER");
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロードして型変更が保持されていることを確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
@@ -355,33 +360,29 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     const statusRow = rows.filter({ hasText: "status" });
     await statusRow.dblclick();
 
-    // ColumnDetailEditor の PRIMARY KEY チェックボックスを確認
-    const pkCheckbox = page.locator(".column-detail-flags label").filter({ hasText: "PRIMARY KEY" }).locator("input[type='checkbox']");
+    // ColumnDetailEditor の PRIMARY KEY チェックボックスを確認 (S1: .column-flag-label を使用)
+    const pkCheckbox = page.locator(".column-flag-label")
+      .filter({ hasText: "PRIMARY KEY" })
+      .locator("input[type='checkbox']");
     await expect(pkCheckbox).toBeVisible({ timeout: 5000 });
-    const wasChecked = await pkCheckbox.isChecked();
 
-    // toggle
-    await pkCheckbox.click({ force: true });
-    await expect(pkCheckbox).toBeChecked({ checked: !wasChecked });
+    // fixture invariant: ordersTable.columns[status].primaryKey === undefined (= false)
+    // → 常に PK OFF の状態から ON にするパスで十分 (S4: wasChecked 分岐を撤廃)
+    await expect(pkCheckbox).not.toBeChecked();
+    await pkCheckbox.check();
+    await expect(pkCheckbox).toBeChecked();
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロード後に PK バッジが status 列に反映されていることを確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
     await expect(page.locator(".table-editor-page")).toBeVisible({ timeout: 10000 });
     await expect(rows.first()).toBeVisible({ timeout: 10000 });
 
-    if (!wasChecked) {
-      // PK を ON にした → status 行に PK アイコンが表示されるはず
-      const updatedStatusRow = rows.filter({ hasText: "status" });
-      await expect(updatedStatusRow.locator(".col-pk-icon")).toBeVisible({ timeout: 5000 });
-    } else {
-      // PK を OFF にした → PK アイコンが消えるはず
-      const updatedStatusRow = rows.filter({ hasText: "status" });
-      await expect(updatedStatusRow.locator(".col-pk-icon")).toHaveCount(0, { timeout: 5000 });
-    }
+    // PK を ON にした → status 行に PK アイコンが表示されるはず
+    const updatedStatusRow = rows.filter({ hasText: "status" });
+    await expect(updatedStatusRow.locator(".col-pk-icon")).toBeVisible({ timeout: 5000 });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -420,20 +421,17 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     // 一覧に追加されたことを確認
     await expect(page.locator(".index-row2")).toHaveCount(initialIndexCount + 1, { timeout: 5000 });
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロードして追加されていることを確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
     await expect(page.locator(".table-editor-page")).toBeVisible({ timeout: 10000 });
-    // ResumeOrDiscardDialog が出る場合は discard して閉じる
+    // ResumeOrDiscardDialog が出る場合は discard して閉じる (S2: getByTestId を使用)
     for (let i = 0; i < 3; i++) {
       const backdrop = page.locator(".edit-mode-modal-backdrop");
       if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
-        await page.evaluate(
-          () => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click()
-        );
+        await page.getByTestId("resume-discard").click();
         await backdrop.waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
       } else {
         break;
@@ -496,20 +494,17 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     // FK バッジを確認
     await expect(page.locator(".constraint-kind-badge--foreignKey")).toBeVisible({ timeout: 3000 });
 
-    // 保存
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+    // 保存 (M2: saveAndWait で saving 完了まで待機)
+    await saveAndWait(page);
 
     // リロードして FK が保持されていることを確認
     await ws.gotoActive(page, `/table/edit/${ORDERS_ID}`);
     await expect(page.locator(".table-editor-page")).toBeVisible({ timeout: 10000 });
-    // ResumeOrDiscardDialog が出る場合は discard して閉じる
+    // ResumeOrDiscardDialog が出る場合は discard して閉じる (S2: getByTestId を使用)
     for (let i = 0; i < 3; i++) {
       const backdrop = page.locator(".edit-mode-modal-backdrop");
       if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
-        await page.evaluate(
-          () => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click()
-        );
+        await page.getByTestId("resume-discard").click();
         await backdrop.waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
       } else {
         break;
@@ -544,8 +539,8 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     const rows = page.locator(".columns-data-list .data-list-row");
     await rows.last().dblclick();
 
-    // physicalName を "audit_marker" に設定
-    const physNameInput = page.locator(".column-detail input[placeholder*='physical'], .column-detail input[placeholder*='physic'], .column-detail input").first();
+    // physicalName を "audit_marker" に設定 (S3: column_name placeholder で確実に特定)
+    const physNameInput = page.locator(".column-detail input[placeholder*='column_name']");
     await expect(physNameInput).toBeVisible({ timeout: 5000 });
     await physNameInput.clear();
     await physNameInput.fill("audit_marker");
@@ -557,21 +552,20 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
       await nameInput.fill("監査マーカ");
     }
 
-    // ── 2) 保存 (edit-mode-save click + 完了待ち) ────────────────────────────
-    await page.getByTestId("edit-mode-save").click();
-    await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
+    // ── 2) 保存 (M2: saveAndWait で saving 完了まで待機) ────────────────────────
+    await saveAndWait(page);
 
     // ── 3) view-definition 「注文一覧」編集画面へ遷移 ───────────────────────
     await ws.gotoActive(page, `/view-definition/edit/${VIEW_DEFINITION_ID}`);
+    // M3: .table-editor-page だけだと TableEditor でも通過するため「注文一覧」表示も確認
     await expect(page.locator(".table-editor-page")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("注文一覧")).toBeVisible({ timeout: 10000 });
 
-    // ResumeOrDiscardDialog が出ていれば discard して閉じる
+    // ResumeOrDiscardDialog が出ていれば discard して閉じる (S2: getByTestId を使用)
     for (let i = 0; i < 3; i++) {
       const backdrop = page.locator(".edit-mode-modal-backdrop");
       if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
-        await page.evaluate(
-          () => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click()
-        );
+        await page.getByTestId("resume-discard").click();
         await backdrop.waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
       } else {
         break;
@@ -599,40 +593,26 @@ test.describe("テーブル編集 — column CRUD / 型変更 / PK / FK / index"
     await expect(lastTableSelect).toBeVisible({ timeout: 5000 });
 
     // orders テーブル (ORDERS_ID) を選択
+    // M1: orders が参照テーブル候補に出ない場合はテスト失敗にする (サイレント pass 禁止)
     const ordersOption = lastTableSelect.locator(`option[value="${ORDERS_ID}"]`);
     const hasOrdersOption = await ordersOption.count().then((c) => c > 0).catch(() => false);
+    expect(hasOrdersOption).toBe(true);
 
-    if (hasOrdersOption) {
-      await lastTableSelect.selectOption({ value: ORDERS_ID });
+    await lastTableSelect.selectOption({ value: ORDERS_ID });
 
-      // 参照テーブルを選択後、隣の「参照カラム」select に audit_marker が出現するか確認
-      // 「参照カラム」select は参照テーブルの直後の select (cascade step 2)
-      // .vd-col-select は [参照テーブル, 参照カラム] で各行 2 つある
-      const allColSelects = page.locator(".vd-editor-columns-table .vd-col-select");
-      const count = await allColSelects.count();
-      // 最後の行の 2 番目 select = 参照カラム select
-      const colSelect = allColSelects.nth(count - 1);
-      await expect(colSelect).toBeVisible({ timeout: 5000 });
+    // 参照テーブルを選択後、隣の「参照カラム」select に audit_marker が出現するか確認
+    // 「参照カラム」select は参照テーブルの直後の select (cascade step 2)
+    // .vd-col-select は [参照テーブル, 参照カラム] で各行 2 つある
+    const allColSelects = page.locator(".vd-editor-columns-table .vd-col-select");
+    const count = await allColSelects.count();
+    // 最後の行の 2 番目 select = 参照カラム select
+    const colSelect = allColSelects.nth(count - 1);
+    await expect(colSelect).toBeVisible({ timeout: 5000 });
 
-      // audit_marker (col の physicalName) が option として存在することを確認
-      // backend 保存後に参照カラム一覧が更新されている (tableStore からロード)
-      const auditMarkerOption = colSelect.locator("option").filter({ hasText: /audit_marker|監査マーカ/ });
-      await expect(auditMarkerOption).toHaveCount(1, { timeout: 10000 });
-    } else {
-      // Level 2 (Structured query) では alias 形式で表示される場合がある
-      // 参照カラム select が存在し、orders 由来の列が 1 件以上表示されれば OK
-      const colSelects = page.locator(".vd-editor-columns-table .vd-col-select");
-      const colSelectCount = await colSelects.count();
-      // 参照カラム select (最後) の option 数が 1 (空欄) 以上あれば列ロードは成功
-      if (colSelectCount > 0) {
-        const lastColSelect = colSelects.nth(colSelectCount - 1);
-        const optionCount = await lastColSelect.locator("option").count();
-        expect(optionCount).toBeGreaterThanOrEqual(1);
-      } else {
-        // カラム追加ボタンによる新行が見つからない場合 — 画面遷移成功だけを確認
-        await expect(page.locator(".table-editor-page")).toBeVisible({ timeout: 5000 });
-      }
-    }
+    // audit_marker (col の physicalName) が option として存在することを確認
+    // backend 保存後に参照カラム一覧が更新されている (tableStore からロード)
+    const auditMarkerOption = colSelect.locator("option").filter({ hasText: /audit_marker|監査マーカ/ });
+    await expect(auditMarkerOption).toHaveCount(1, { timeout: 10000 });
   });
 });
 
