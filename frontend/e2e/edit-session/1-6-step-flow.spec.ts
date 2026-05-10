@@ -81,7 +81,7 @@ async function ensureReadOnly(page: Page) {
   }
 }
 
-test.describe("spec §5 1-6 step 完全フロー (EditSession ライフサイクル)", () => {
+test.describe("spec §5 1-6 step 完全フロー (EditSession ライフサイクル)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

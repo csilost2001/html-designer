@@ -18,7 +18,7 @@ import { test, expect } from "@playwright/test";
 const WS_A_ID = "aaaaaaaa-0001-4000-8000-000000000001";
 const WS_B_ID = "bbbbbbbb-0002-4000-8000-000000000002";
 
-test.describe("並行ブラウザコンテキスト — workspace URL 独立性", () => {
+test.describe("並行ブラウザコンテキスト — workspace URL 独立性", { tag: ["@regression"] }, () => {
   test("2 ブラウザコンテキストの URL が互いに独立している", async ({ browser }) => {
     const ctxA = await browser.newContext();
     const ctxB = await browser.newContext();

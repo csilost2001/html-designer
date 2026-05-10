@@ -86,7 +86,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("警告 → Marker 起票 (#261)", () => {
+test.describe("警告 → Marker 起票 (#261)", { tag: ["@regression"] }, () => {
   test("警告パネル内の AI に依頼ボタンで marker 作成", async ({ page }) => {
     await setup(page);
     // 警告バッジが出ていること

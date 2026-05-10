@@ -55,7 +55,7 @@ async function setupWithLockdown(page: Page) {
 
 // ─── テスト ─────────────────────────────────────────────────────────────────
 
-test.describe("URL /w/:wsId/* 規約 - ルーティング基本", () => {
+test.describe("URL /w/:wsId/* 規約 - ルーティング基本", { tag: ["@regression"] }, () => {
   test("/workspace/select は workspace 選択画面が表示される", async ({ page }) => {
     await setupWithNoWorkspace(page);
     await page.goto("/workspace/select");
@@ -86,7 +86,7 @@ test.describe("URL /w/:wsId/* 規約 - ルーティング基本", () => {
   });
 });
 
-test.describe("URL /w/:wsId/* 規約 - パス検証", () => {
+test.describe("URL /w/:wsId/* 規約 - パス検証", { tag: ["@regression"] }, () => {
   test("/w/:wsId/ 形式の URL にアクセスしてもエラーにならない", async ({ page }) => {
     await setupWithNoWorkspace(page);
     const testWsId = "aaaaaaaa-0001-4000-8000-000000000001";

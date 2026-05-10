@@ -80,7 +80,7 @@ async function ensureReadOnly(page: Page) {
   }
 }
 
-test.describe("spec §9 複数 EditSession 並存 (A 案 / B 案)", () => {
+test.describe("spec §9 複数 EditSession 並存 (A 案 / B 案)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

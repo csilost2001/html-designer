@@ -56,7 +56,7 @@ async function setupWithTabs(page: Page, screenIds: string[], labels: Record<str
   );
 }
 
-test.describe("保存フロー (タブ復元)", () => {
+test.describe("保存フロー (タブ復元)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

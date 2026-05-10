@@ -34,7 +34,7 @@ const WS_KEY = "issue-926-dashboard";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("ダッシュボード", () => {
+test.describe("ダッシュボード", { tag: ["@smoke"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

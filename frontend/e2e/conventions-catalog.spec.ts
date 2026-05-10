@@ -18,7 +18,7 @@ const WS_KEY = "issue-926-conventions-catalog";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("規約カタログ編集ビュー (#317)", () => {
+test.describe("規約カタログ編集ビュー (#317)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

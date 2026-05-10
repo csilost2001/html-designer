@@ -152,7 +152,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("step runIf 入力 (#202)", () => {
+test.describe("step runIf 入力 (#202)", { tag: ["@regression"] }, () => {
   test("runIf 欄に入力すると反映される", async ({ page }) => {
     await setupEditor(page);
     const card = await expandStep(page, 2); // step-other
@@ -164,7 +164,7 @@ test.describe("step runIf 入力 (#202)", () => {
   });
 });
 
-test.describe("step outputBinding 入力 (#204)", () => {
+test.describe("step outputBinding 入力 (#204)", { tag: ["@regression"] }, () => {
   test("結果変数名 + 代入方式を設定できる", async ({ page }) => {
     await setupEditor(page);
     const card = await expandStep(page, 2);
@@ -182,7 +182,7 @@ test.describe("step outputBinding 入力 (#204)", () => {
   });
 });
 
-test.describe("アクション HTTP 契約編集 (#206)", () => {
+test.describe("アクション HTTP 契約編集 (#206)", { tag: ["@regression"] }, () => {
   test("httpRoute (method/path/auth) と responses[] を編集できる", async ({ page }) => {
     await setupEditor(page);
     // HTTP 契約パネルを開く
@@ -201,7 +201,7 @@ test.describe("アクション HTTP 契約編集 (#206)", () => {
   });
 });
 
-test.describe("dbAccess affectedRowsCheck (#210)", () => {
+test.describe("dbAccess affectedRowsCheck (#210)", { tag: ["@regression"] }, () => {
   test("UPDATE ステップで affectedRowsCheck を設定できる", async ({ page }) => {
     await setupEditor(page);
     const card = await expandStep(page, 1); // step-dbaccess (UPDATE)
@@ -218,7 +218,7 @@ test.describe("dbAccess affectedRowsCheck (#210)", () => {
   });
 });
 
-test.describe("ValidationRule[] 編集 (#212)", () => {
+test.describe("ValidationRule[] 編集 (#212)", { tag: ["@regression"] }, () => {
   test("構造化ルールを追加・削除できる", async ({ page }) => {
     await setupEditor(page);
     const card = await expandStep(page, 0); // step-validation
@@ -232,7 +232,7 @@ test.describe("ValidationRule[] 編集 (#212)", () => {
   });
 });
 
-test.describe("Branch.condition tryCatch variant (#224)", () => {
+test.describe("Branch.condition tryCatch variant (#224)", { tag: ["@regression"] }, () => {
   // #954: StepCard.tsx の branch.condition 判定を kind discriminator base に修正。
   // `br.condition?.kind === "tryCatch"` で判定し、expression / tryCatch / 他 kind を分岐。
   test("盾アイコンで tryCatch 変換、元に戻せる", async ({ page }) => {

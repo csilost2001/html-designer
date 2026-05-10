@@ -78,7 +78,7 @@ async function gotoEditorAndStart(page: Page) {
   await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 }
 
-test.describe("spec §10 AI participant smoke", () => {
+test.describe("spec §10 AI participant smoke", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

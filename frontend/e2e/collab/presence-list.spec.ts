@@ -74,7 +74,7 @@ async function gotoEditorAndStart(page: Page) {
   await expect(page.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 }
 
-test.describe("協調編集 一覧 SessionBadge 表示", () => {
+test.describe("協調編集 一覧 SessionBadge 表示", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

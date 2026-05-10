@@ -141,7 +141,7 @@ test.beforeEach(async () => {
     ],
   });
 });
-test.describe("成熟度バッジ (#185/#189)", () => {
+test.describe("成熟度バッジ (#185/#189)", { tag: ["@regression"] }, () => {
   test("ステップカードに maturity バッジが表示される", async ({ page }) => {
     await setupEditor(page);
     // アクションタブが開いており、ステップが表示されている
@@ -168,7 +168,7 @@ test.describe("成熟度バッジ (#185/#189)", () => {
   });
 });
 
-test.describe("付箋 (#195/#199)", () => {
+test.describe("付箋 (#195/#199)", { tag: ["@regression"] }, () => {
   test("ステップを展開して付箋を追加できる、件数バッジが出る", async ({ page }) => {
     await setupEditor(page);
     // 最初のステップカードのヘッダをクリックして展開
@@ -190,7 +190,7 @@ test.describe("付箋 (#195/#199)", () => {
   });
 });
 
-test.describe("モード切替 + 下流警告 (#191/#197)", () => {
+test.describe("モード切替 + 下流警告 (#191/#197)", { tag: ["@regression"] }, () => {
   test("モードを下流に切り替えると warning が表示される (draft あり)", async ({ page }) => {
     await setupEditor(page);
     // 基本情報 タブを開く (下流ボタンは基本情報 expand 配下)
@@ -202,7 +202,7 @@ test.describe("モード切替 + 下流警告 (#191/#197)", () => {
   });
 });
 
-test.describe("処理フロー一覧のカード成熟度 + フィルタ (#187/#219/#233)", () => {
+test.describe("処理フロー一覧のカード成熟度 + フィルタ (#187/#219/#233)", { tag: ["@regression"] }, () => {
   // setupList は元 spec で list view 用の setup だったが realWorkspace 移植時に
   // setupEditor 統一しその関数が落ちた。一覧ページ navigate を直接行う。
   async function gotoList(page: Page) {

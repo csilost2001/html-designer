@@ -119,7 +119,7 @@ async function setup(page: Page, opts: SetupOptions = {}) {
   }
 }
 
-test.describe("画面項目定義プロトタイプ (#318)", () => {
+test.describe("画面項目定義プロトタイプ (#318)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -266,7 +266,7 @@ test.describe("画面項目定義プロトタイプ (#318)", () => {
   });
 });
 
-test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () => {
+test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", { tag: ["@regression"] }, () => {
   test("存在しない @conv.regex を pattern に書いて保存すると lint バナーが表示される", async ({ page }) => {
     await setup(page, { catalog: sampleCatalog });
     // 項目追加
@@ -366,7 +366,7 @@ test.describe("@conv.* lint + 補完 + errorMessages 永続化 (#351 #352)", () 
   });
 });
 
-test.describe("詳細フィールド展開行 (#353)", () => {
+test.describe("詳細フィールド展開行 (#353)", { tag: ["@regression"] }, () => {
   test("⚙ ボタンで detail-row が開閉する", async ({ page }) => {
     await setup(page);
     await page.locator(".screen-items-view button:has-text('項目追加')").click();
@@ -488,7 +488,7 @@ test.describe("詳細フィールド展開行 (#353)", () => {
   });
 });
 
-test.describe("per-screen タブ独立編集 (#696)", () => {
+test.describe("per-screen タブ独立編集 (#696)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");

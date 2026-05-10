@@ -31,7 +31,7 @@ const WS_KEY = "issue-926-sort-readonly";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("#148 一覧 ソート中 Read-only + No 列", () => {
+test.describe("#148 一覧 ソート中 Read-only + No 列", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

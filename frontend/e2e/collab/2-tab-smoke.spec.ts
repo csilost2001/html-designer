@@ -63,7 +63,7 @@ async function gotoEditorAndDismissDialogs(page: Page) {
   }
 }
 
-test.describe("協調編集 2-tab smoke", () => {
+test.describe("協調編集 2-tab smoke", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

@@ -53,7 +53,7 @@ async function openAddScreenModal(page: Page) {
   await expect(page.locator('.flow-modal')).toBeVisible();
 }
 
-test.describe("画面作成ダイアログ — editorKind / cssFramework 選択 UI (#825)", () => {
+test.describe("画面作成ダイアログ — editorKind / cssFramework 選択 UI (#825)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

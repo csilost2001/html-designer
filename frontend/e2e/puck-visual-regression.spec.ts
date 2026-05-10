@@ -32,7 +32,7 @@ import {
   setupPuckScreen,
 } from "./helpers/puck";
 
-test.describe("Puck visual regression", () => {
+test.describe("Puck visual regression", { tag: ["@regression"] }, () => {
   test.use({ viewport: { width: 1280, height: 720 } });
 
   test("Bootstrap chrome (palette + sub-toolbar + right panel)", async ({ page }) => {

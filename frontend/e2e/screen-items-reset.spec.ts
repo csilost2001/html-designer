@@ -73,7 +73,7 @@ async function setup(page: Page, items: Array<{ id: string; label: string; type:
   await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
 
-test.describe("画面項目 ID リセット (#334)", () => {
+test.describe("画面項目 ID リセット (#334)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

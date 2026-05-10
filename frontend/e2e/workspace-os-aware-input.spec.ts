@@ -45,7 +45,7 @@ async function isWslHost(): Promise<boolean> {
   }
 }
 
-test.describe("AddWorkspaceDialog — WSL2 / OS-aware UX (#858)", () => {
+test.describe("AddWorkspaceDialog — WSL2 / OS-aware UX (#858)", { tag: ["@regression"] }, () => {
   test("WSL2 環境では Linux 形式の絶対パスと専用ヒントが表示される", async ({ page }) => {
     test.skip(!(await isWslHost()), "WSL2 ホスト前提の test (host /proc/version に Microsoft/WSL を含むときのみ実行)");
     await setupClean(page);

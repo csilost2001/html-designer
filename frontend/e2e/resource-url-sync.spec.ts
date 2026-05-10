@@ -31,7 +31,7 @@ const WS_KEY = "issue-926-resource-url-sync";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("resource-url-sync", () => {
+test.describe("resource-url-sync", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

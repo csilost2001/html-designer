@@ -141,7 +141,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("描画マーカー DOM anchor (#261)", () => {
+test.describe("描画マーカー DOM anchor (#261)", { tag: ["@regression"] }, () => {
   test("anchor 付き marker が対象 step の field bbox に位置合わせされる", async ({ page }) => {
     await setup(page);
 

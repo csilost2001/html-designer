@@ -98,7 +98,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("描画マーカー (#261)", () => {
+test.describe("描画マーカー (#261)", { tag: ["@regression"] }, () => {
   test("既存 shape marker が SVG overlay に描画される (path 要素)", async ({ page }) => {
     await setup(page);
     const overlay = page.locator(".drawing-overlay");

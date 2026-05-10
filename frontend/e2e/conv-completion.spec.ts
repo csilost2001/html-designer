@@ -77,7 +77,7 @@ async function openComputeStep(page: Page) {
   await expect(page.locator('[data-field-path="expression"]')).toBeVisible({ timeout: 5000 });
 }
 
-test.describe("@conv.* 補完ポップアップ (#349)", () => {
+test.describe("@conv.* 補完ポップアップ (#349)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

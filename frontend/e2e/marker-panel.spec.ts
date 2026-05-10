@@ -41,7 +41,7 @@ async function setup(page: Page) {
   await expect(page.locator(".marker-panel .catalog-panel-body")).toBeVisible();
 }
 
-test.describe("MarkerPanel (#261)", () => {
+test.describe("MarkerPanel (#261)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

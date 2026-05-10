@@ -22,7 +22,7 @@ async function setupWithNoWorkspace(page: Page) {
   });
 }
 
-test.describe("AddWorkspaceDialog — デフォルトパスのヒント (#755)", () => {
+test.describe("AddWorkspaceDialog — デフォルトパスのヒント (#755)", { tag: ["@regression"] }, () => {
   test("WorkspaceListView の「追加」ボタンでダイアログが開き workspaces/ ヒントが表示される", async ({ page }) => {
     await setupWithNoWorkspace(page);
     await page.goto("/workspace/list");
@@ -88,7 +88,7 @@ test.describe("AddWorkspaceDialog — デフォルトパスのヒント (#755)",
   });
 });
 
-test.describe("WorkspaceSelectView — 新規作成ボタン (#755)", () => {
+test.describe("WorkspaceSelectView — 新規作成ボタン (#755)", { tag: ["@regression"] }, () => {
   test("「新しくワークスペースを追加」ボタンで AddWorkspaceDialog が開く", async ({ page }) => {
     await setupWithNoWorkspace(page);
     await page.goto("/workspace/select");

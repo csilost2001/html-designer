@@ -26,7 +26,7 @@ const WS_KEY = "issue-958-mcp-tools";
 // #958: sendBrowserRequest を永続 WS + clientId 共有構造に書き直し、
 // beforeAll で test workspace を作成 + openBrowserSessionWorkspace で永続 WS の
 // activePath を立てる。
-test.describe("wsBridge ファイル操作 (#958)", () => {
+test.describe("wsBridge ファイル操作 (#958)", { tag: ["@regression"] }, () => {
   let mcpAvailable = false;
   let workspacePath: string | null = null;
 

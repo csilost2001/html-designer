@@ -61,7 +61,7 @@ async function setup(page: Page) {
   await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
 
-test.describe("errorCatalog 編集パネル (#278)", () => {
+test.describe("errorCatalog 編集パネル (#278)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
