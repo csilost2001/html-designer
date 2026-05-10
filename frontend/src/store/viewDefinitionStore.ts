@@ -47,12 +47,6 @@ function toViewDefinitionId(id: string): ViewDefinitionId {
   return id as unknown as ViewDefinitionId;
 }
 
-// TODO(#666): Remove ProjectWithViewDefinitions after all callers migrate to entities.viewDefinitions.
-// #1004: listViewDefinitions/syncViewDefinitionMeta now use loadRawProject() + entities.viewDefinitions.
-type ProjectWithViewDefinitions = Awaited<ReturnType<typeof loadProject>> & {
-  viewDefinitions?: ViewDefinitionEntry[];
-};
-
 export async function listViewDefinitions(): Promise<ViewDefinitionEntry[]> {
   // #1004: entities.viewDefinitions は normalizePersisted で保持される (#1004 Phase 1 修正)。
   // loadRawProject() → entities.viewDefinitions を参照。後方互換として旧 project.viewDefinitions も参照。

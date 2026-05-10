@@ -38,22 +38,10 @@ function viewDefinitionEntry(id: string, no: number): ViewDefinitionEntry {
     no,
     name: `vd ${id}`,
     kind: "list",
-    sourceTableId: "tbl-1" as any,
+    sourceTableId: "tbl-1" as unknown as TableId,
     columnCount: 0,
     updatedAt: TS,
   };
-}
-
-function projectWithViewDefinitions(viewDefinitions: ViewDefinitionEntry[]): FlowProject {
-  return {
-    version: 1,
-    name: "test",
-    screens: [],
-    groups: [],
-    edges: [],
-    viewDefinitions,
-    updatedAt: TS,
-  } as unknown as FlowProject;
 }
 
 // #1004: commitViewDefinitions が entities.viewDefinitions を使うようになったため
