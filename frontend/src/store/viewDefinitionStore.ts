@@ -48,10 +48,11 @@ function toViewDefinitionId(id: string): ViewDefinitionId {
 }
 
 export async function listViewDefinitions(): Promise<ViewDefinitionEntry[]> {
-  // #1004: entities.viewDefinitions は normalizePersisted で保持される (#1004 Phase 1 修正)。
-  // loadRawProject() → entities.viewDefinitions を参照。後方互換として旧 project.viewDefinitions も参照。
-  const raw = await loadRawProject();
-  return (raw.entities?.viewDefinitions ?? (raw as unknown as { viewDefinitions?: ViewDefinitionEntry[] }).viewDefinitions ?? []);
+  // #1004 Phase 1': loadProject() → project.viewDefinitions で確実に取得する。
+  // listViews() / listTables() と同じパターン: FlowProject.viewDefinitions = entities.viewDefinitions。
+  // entities.viewDefinitions は composeFlowProject で FlowProject に展開される。
+  const project = await loadProject();
+  return project.viewDefinitions ?? [];
 }
 
 export async function loadViewDefinition(

@@ -237,6 +237,7 @@ export function composeFlowProject(
     })),
     sequences: entities.sequences,
     views: entities.views,
+    viewDefinitions: entities.viewDefinitions,
     updatedAt: persisted.meta.updatedAt,
   };
 }
