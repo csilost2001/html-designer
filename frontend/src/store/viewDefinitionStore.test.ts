@@ -44,8 +44,7 @@ function viewDefinitionEntry(id: string, no: number): ViewDefinitionEntry {
   };
 }
 
-// #1004: commitViewDefinitions が entities.viewDefinitions を使うようになったため
-// rawProject 形式のヘルパーを追加
+// commitViewDefinitions が entities.viewDefinitions を使うため rawProject 形式のヘルパーを追加
 function rawProjectWithViewDefinitions(viewDefinitions: ViewDefinitionEntry[]): Project {
   const ts = TS as unknown as Project["meta"]["createdAt"];
   return {
@@ -126,7 +125,7 @@ describe("viewDefinitionStore", () => {
   });
 
   it("commitViewDefinitions saves harmony.json once regardless of deletedIds count", async () => {
-    // #1004: commitViewDefinitions が entities.viewDefinitions を使うようになったため
+    // commitViewDefinitions が entities.viewDefinitions を使うため
     // loadRawProject / saveRawProject を deps 経由で渡す
     const rawProject = rawProjectWithViewDefinitions([
       viewDefinitionEntry("a", 1),

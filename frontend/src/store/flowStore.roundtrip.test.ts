@@ -155,7 +155,7 @@ describe("decomposeFlowProject round-trip preservation (#835)", () => {
     expect(decomposed.techStack).toBeUndefined();
   });
 
-  it("existingRaw に entities.viewDefinitions があれば保持される (#1004)", () => {
+  it("existingRaw に entities.viewDefinitions があれば保持される", () => {
     const existing = mkRichProject();
     const vdEntry: ViewDefinitionEntry = {
       id: "aaaaaaaa-1111-4111-8111-111111111111" as unknown as ViewDefinitionId,

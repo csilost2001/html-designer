@@ -110,7 +110,7 @@ export async function loadPuckScreenValidationMap(): Promise<Map<ScreenId, PuckS
   const validationMap = new Map<ScreenId, PuckScreenValidationError[]>();
   const backend = requireBackend();
 
-  // #1004 Phase 2 修正: raw entity データを直接読み、loadScreenEntity の自動補完を回避する。
+  // raw entity データを直接読み、loadScreenEntity の自動補完を回避する。
   // loadScreenEntity は editorKind=puck 画面に puckDataRef を自動補完するため、
   // 「puckDataRef 欠落」エラーが validatePuckScreen で検出されなくなる。
   // raw data を Screen 型として扱い、補完なしで validatePuckScreen に渡す。

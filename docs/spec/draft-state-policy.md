@@ -167,7 +167,7 @@ AJV 導入方針は次の 3 案を比較した。
 - schema と手書き validator の実際の divergence が発生し、ユーザー影響のある誤判定が確認された
 - 業務要件として、UI 実行時に schema 準拠性そのものを表示・証跡化する必要が出た
 
-## 7.4 適用範囲の明確化 (Conventions / Extensions は対象外)
+### 7.4 適用範囲の明確化 (Conventions / Extensions は対象外)
 
 本ポリシーの適用対象は **業務リソース** (View / Table / ProcessFlow / ViewDefinition / Screen 等、設計者が業務を記述するリソース) に限定する。
 

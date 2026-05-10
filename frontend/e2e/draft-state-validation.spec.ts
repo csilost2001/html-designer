@@ -307,8 +307,7 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
     await expect(errorBadge.first().locator(".bi-x-circle-fill")).toBeVisible();
   });
 
-  // #1004 Phase 1 解除: normalizePersisted が entities.viewDefinitions を保持するよう修正済み。
-  // viewDefinitionStore が loadRawProject() + entities.viewDefinitions を参照するため、
+  // normalizePersisted が entities.viewDefinitions を保持するよう修正済みであり、
   // setupTestWorkspace 経由で書き出した viewDefinitions が一覧に反映される。
   test("(P2-ViewDefinition) ViewDefinition ListView で UNKNOWN_SOURCE_TABLE の error badge が表示される", async ({ page }) => {
     await ws.gotoActive(page, "/view-definition/list");
@@ -329,7 +328,7 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
     await expect(warningBadge.first().locator(".bi-exclamation-triangle-fill")).toBeVisible();
   });
 
-  // #1004 Phase 2 解除: loadPuckScreenValidationMap + ScreenListView ValidationBadge 統合済み。
+  // loadPuckScreenValidationMap + ScreenListView ValidationBadge 統合済みであり、
   // screenPuck fixture (editorKind=puck, puckDataRef 欠落) が error として検出される。
   test("(P2-Screen) Screen ListView で puck validation badge が表示される", async ({ page }) => {
     await ws.gotoActive(page, "/screen/list");
@@ -341,8 +340,7 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
   });
 
   // (Conventions / Extensions) draft-state policy 対象外のため恒久 skip
-  // #1004 Phase 3 で by design 確定: Conventions / Extensions はフレームワーク基盤側であり
-  // 業務リソースではないため draft-state policy の適用対象外。
+  // Conventions / Extensions はフレームワーク基盤側であり業務リソースではないため対象外。
   // 詳細: docs/spec/draft-state-policy.md § 7.4
   test.skip("(P2-Conventions) Conventions ListView ValidationBadge", async ({ page }) => {
     void page;
@@ -386,8 +384,7 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
   });
 
   // (P3-block) ListView commit 阻止は by design 未実装のため恒久 skip
-  // #1004 Phase 4 で by design 確定: ListView の MaturityBadge は view-only であり、
-  // commit 阻止 UI は Editor 側のみで実装する方針。ListView 側では実装しない。
+  // ListView の MaturityBadge は view-only であり、commit 阻止 UI は Editor 側のみで実装する方針。
   // 詳細: docs/spec/draft-state-policy.md § 2.5
   test.skip("(P3-block) Table committed 遷移時に error があれば阻止される", async ({ page }) => {
     void page;
@@ -436,7 +433,6 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
     await expect(errorBadge.first().locator(".bi-x-circle-fill")).toBeVisible();
   });
 
-  // #1004 Phase 1 解除: normalizePersisted が entities.viewDefinitions を保持するよう修正済み。
   test("(P4-error) ViewDefinition UNKNOWN_SOURCE_TABLE は error severity", async ({ page }) => {
     await ws.gotoActive(page, "/view-definition/list");
     await expect(page.locator(".table-list-page")).toBeVisible({ timeout: 10000 });
@@ -449,19 +445,20 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
   });
 
   // ──────────────────────────────────────────────
-  // SQL alias #1004 — DUPLICATE_QUERY_ALIAS (Phase 1 + validator 済み)
+  // SQL alias — DUPLICATE_QUERY_ALIAS (validator 済み)
   // ──────────────────────────────────────────────
 
-  // #1004 Phase 1 解除: normalizePersisted が entities.viewDefinitions を保持するよう修正済み。
   // viewDefinitionValidator.ts の DUPLICATE_QUERY_ALIAS 検査 (#745) が
   // ViewDefinitionListView の loadViewDefinitionValidationMap() パスで実行される。
-  // viewDefB fixture (from.alias === joins[0].alias = "t") が DUPLICATE_QUERY_ALIAS error を生成。
+  // viewDefA (UNKNOWN_SOURCE_TABLE) + viewDefB (DUPLICATE_QUERY_ALIAS) の両方で
+  // error badge が表示されることを count >= 2 で確認 (viewDefA の first() のみでは偽陽性になるため)。
   test("(SQL) DUPLICATE_QUERY_ALIAS で ViewDefinition ListView に error badge が表示される", async ({ page }) => {
     await ws.gotoActive(page, "/view-definition/list");
     await expect(page.locator(".table-list-page")).toBeVisible({ timeout: 10000 });
 
-    // viewDefB の DUPLICATE_QUERY_ALIAS → error badge
+    // viewDefA (UNKNOWN_SOURCE_TABLE) + viewDefB (DUPLICATE_QUERY_ALIAS) の両方が error → count >= 2
     await expect(page.locator(".validation-badge.error").first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".validation-badge.error")).toHaveCount(2);
     await expect(page.locator(".validation-badge.error").first().locator(".bi-x-circle-fill")).toBeVisible();
   });
 });

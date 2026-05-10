@@ -61,7 +61,6 @@ export function ScreenListView() {
   // project.techStack.designer の project default (画面作成ダイアログのデフォルト選択値)
   const [projectDefaultEditorKind, setProjectDefaultEditorKind] = useState<"grapesjs" | "puck">("grapesjs");
   const [projectDefaultCssFramework, setProjectDefaultCssFramework] = useState<"bootstrap" | "tailwind">("bootstrap");
-  // #1004 Phase 2: puck validation badge
   const [validationMap, setValidationMap] = useState<Map<string, ValidationSummary>>(new Map());
 
   const loadScreens = useCallback(async (): Promise<ScreenNode[]> => {
@@ -109,7 +108,7 @@ export function ScreenListView() {
 
   const screens = editor.items;
 
-  // #1004 Phase 2: puck validation map のロード (TableListView.tsx と同パターン)
+  // puck validation map のロード (TableListView.tsx と同パターン)
   useEffect(() => {
     if (screens.length === 0) {
       setValidationMap(new Map());
@@ -455,7 +454,6 @@ export function ScreenListView() {
       ),
     },
     {
-      // #1004 Phase 2: puck validation badge
       key: "validation",
       header: "検証",
       width: "80px",
@@ -528,8 +526,10 @@ export function ScreenListView() {
 
   const renderCard = (s: ScreenNode) => {
     const validation = validationMap.get(s.id);
+    const hasError = (validation?.errors ?? 0) > 0;
+    const hasWarning = (validation?.warnings ?? 0) > 0;
     return (
-    <div className="screen-card-content">
+    <div className={`screen-card-content${hasError ? " has-error" : hasWarning ? " has-warning" : ""}`}>
       <div className="screen-card-head">
         <i className={`bi ${SCREEN_KIND_ICONS[s.kind] ?? "bi-circle"} screen-card-icon`} />
         <span className="screen-card-name">{s.name}</span>
@@ -537,7 +537,6 @@ export function ScreenListView() {
         {hasDraft("screen", s.id) && (
           <span className="list-item-draft-mark" title="未保存の編集中 draft があります">●</span>
         )}
-        {/* #1004 Phase 2: puck validation badge */}
         {validation && validation.errors > 0 && <ValidationBadge severity="error" count={validation.errors} />}
         {validation && validation.errors === 0 && validation.warnings > 0 && <ValidationBadge severity="warning" count={validation.warnings} />}
       </div>

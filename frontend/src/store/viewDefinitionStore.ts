@@ -48,7 +48,6 @@ function toViewDefinitionId(id: string): ViewDefinitionId {
 }
 
 export async function listViewDefinitions(): Promise<ViewDefinitionEntry[]> {
-  // #1004 Phase 1': loadProject() → project.viewDefinitions で確実に取得する。
   // listViews() / listTables() と同じパターン: FlowProject.viewDefinitions = entities.viewDefinitions。
   // entities.viewDefinitions は composeFlowProject で FlowProject に展開される。
   const project = await loadProject();
@@ -143,7 +142,6 @@ export async function commitViewDefinitions(
   { itemsInOrder, deletedIds }: { itemsInOrder: ViewDefinitionEntry[]; deletedIds: string[] },
   deps: CommitViewDefinitionsDeps = { loadProject, saveProject, deleteViewDefinition, loadRawProject, saveRawProject },
 ): Promise<void> {
-  // #1004 Phase 1: entities.viewDefinitions を直接管理。
   const loadRaw = deps.loadRawProject ?? loadRawProject;
   const saveRaw = deps.saveRawProject ?? saveRawProject;
   const raw = await loadRaw();
@@ -165,7 +163,6 @@ export async function commitViewDefinitions(
 }
 
 async function syncViewDefinitionMeta(vd: ViewDefinition): Promise<void> {
-  // #1004 Phase 1: loadRawProject() + entities.viewDefinitions で直接管理。
   // flowStore.saveRawProject() で entities.viewDefinitions を harmony.json に確実に永続化する。
   const raw = await loadRawProject();
   if (!raw.entities) raw.entities = {};
