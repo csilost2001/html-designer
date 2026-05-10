@@ -73,7 +73,7 @@ async function addScreenViaModal(
   await page.locator('.flow-modal button[type="submit"]').click();
 }
 
-test.describe("フロー画面：保存/リセットボタン", () => {
+test.describe("フロー画面：保存/リセットボタン", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

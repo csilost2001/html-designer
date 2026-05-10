@@ -51,7 +51,7 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<un
   }
 }
 
-test.describe("onBehalfOfSession 後方互換性 smoke", () => {
+test.describe("onBehalfOfSession 後方互換性 smoke", { tag: ["@regression"] }, () => {
   test.beforeEach(async () => {
     const running = await isMcpRunning();
     if (!running) test.skip();

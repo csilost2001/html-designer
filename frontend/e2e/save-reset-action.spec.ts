@@ -87,7 +87,7 @@ async function addAction(page: Page, name: string) {
   await expect(page.locator(".process-flow-modal")).not.toBeVisible();
 }
 
-test.describe("処理フローエディタ：保存/リセットボタン", () => {
+test.describe("処理フローエディタ：保存/リセットボタン", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

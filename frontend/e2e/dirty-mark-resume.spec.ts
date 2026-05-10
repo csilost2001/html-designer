@@ -52,7 +52,7 @@ const WS_KEY = "issue-926-dirty-mark-resume";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("dirty マーク + 再オープン — TableEditor", () => {
+test.describe("dirty マーク + 再オープン — TableEditor", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -122,7 +122,7 @@ test.describe("dirty マーク + 再オープン — TableEditor", () => {
   });
 });
 
-test.describe("dirty マーク + 再オープン — ProcessFlowEditor", () => {
+test.describe("dirty マーク + 再オープン — ProcessFlowEditor", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -177,7 +177,7 @@ test.describe("dirty マーク + 再オープン — ProcessFlowEditor", () => {
   });
 });
 
-test.describe("broadcast 経由の即時反映", () => {
+test.describe("broadcast 経由の即時反映", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

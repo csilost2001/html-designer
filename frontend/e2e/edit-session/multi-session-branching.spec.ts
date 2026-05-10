@@ -37,7 +37,7 @@ const dummyProcessFlow = {
  * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
  * MCP 接続不可時は各シナリオが test.skip() でスキップされる。
  */
-test.describe("spec §9 複数 EditSession 並存 (A 案 / B 案)", () => {
+test.describe("spec §9 複数 EditSession 並存 (A 案 / B 案)", { tag: ["@regression"] }, () => {
   test("A 案 / B 案の並行 EditSession が共存できる", async ({ browser }) => {
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();

@@ -40,7 +40,7 @@ const WS_KEY = "issue-926-action-list";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("処理フロー一覧", () => {
+test.describe("処理フロー一覧", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

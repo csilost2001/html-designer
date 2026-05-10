@@ -36,7 +36,7 @@ const dummyProcessFlow = {
  * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
  * MCP 接続不可時は test.skip() でスキップされる。
  */
-test.describe("協調編集 一覧 SessionBadge 表示", () => {
+test.describe("協調編集 一覧 SessionBadge 表示", { tag: ["@regression"] }, () => {
   test("editor 中は一覧に SessionBadge が表示される", async ({ browser }) => {
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();

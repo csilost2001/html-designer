@@ -73,7 +73,7 @@ async function isMcpReachable(): Promise<boolean> {
 // MCP が未起動なら全テストをスキップ
 test.describe.configure({ mode: "serial" });
 
-test.describe("AI 独立動作 — D-7 シナリオ B", () => {
+test.describe("AI 独立動作 — D-7 シナリオ B", { tag: ["@regression"] }, () => {
   const TABLE_ID = `tbl-ai-${Date.now()}`;
   const HUMAN_SESSION = `human-session-${Date.now()}`;
   const AI_SESSION = `ai-session-${Date.now()}`;

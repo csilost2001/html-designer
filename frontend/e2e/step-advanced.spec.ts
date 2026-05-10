@@ -103,7 +103,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("ステップ追加 (条件分岐 / ループ) (#248)", () => {
+test.describe("ステップ追加 (条件分岐 / ループ) (#248)", { tag: ["@regression"] }, () => {
   test("ツールバーから 条件分岐 を追加", async ({ page }) => {
     await setupEditor(page);
     await expect(page.locator(".step-card")).toHaveCount(1);
@@ -128,7 +128,7 @@ test.describe("ステップ追加 (条件分岐 / ループ) (#248)", () => {
   });
 });
 
-test.describe("Subtype picker でサブステップ追加 (#248)", () => {
+test.describe("Subtype picker でサブステップ追加 (#248)", { tag: ["@regression"] }, () => {
   test("コンテキストメニュー → サブステップ追加 → 種別選択", async ({ page }) => {
     await setupEditor(page);
     const firstCard = page.locator(".step-card").first();
@@ -142,7 +142,7 @@ test.describe("Subtype picker でサブステップ追加 (#248)", () => {
   });
 });
 
-test.describe("テンプレートボタン (#248)", () => {
+test.describe("テンプレートボタン (#248)", { tag: ["@regression"] }, () => {
   // STEP_TEMPLATES は空配列に変更されたため (action.ts:330)、テンプレート候補は出ない。
   // テンプレートボタン自体の存在確認のみ smoke test として残す。
   test("テンプレートボタンが存在する (空 STEP_TEMPLATES でも button は表示)", async ({ page }) => {

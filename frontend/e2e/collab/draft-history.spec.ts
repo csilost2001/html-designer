@@ -32,7 +32,7 @@ const dummyProcessFlow = {
   updatedAt: new Date().toISOString(),
 };
 
-test.describe("draft history 7 日保持 UI (#893)", () => {
+test.describe("draft history 7 日保持 UI (#893)", { tag: ["@regression"] }, () => {
   test.describe("listHistory API 疎通確認 (backend 必須)", () => {
     test("editSession.listHistory が空配列を返す (履歴なし)", async ({ page }) => {
       await page.goto("/process-flow/list");

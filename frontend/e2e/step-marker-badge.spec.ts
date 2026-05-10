@@ -96,7 +96,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("step marker badge (#261)", () => {
+test.describe("step marker badge (#261)", { tag: ["@regression"] }, () => {
   test("step-card に未解決 marker の kind 別チップが出る (解決済みは除外)", async ({ page }) => {
     await setup(page);
 

@@ -39,7 +39,7 @@ const dummyProcessFlow = {
  * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
  * MCP 接続不可時は各シナリオが test.skip() でスキップされる。
  */
-test.describe("spec §10 AI participant (Alice@AI 表示 + parentHumanSessionId)", () => {
+test.describe("spec §10 AI participant (Alice@AI 表示 + parentHumanSessionId)", { tag: ["@regression"] }, () => {
   test("AI participant が EditSessionDropdown で Alice@AI 表示される", async ({ browser }) => {
     const contextA = await browser.newContext();
     const pageA = await contextA.newPage();

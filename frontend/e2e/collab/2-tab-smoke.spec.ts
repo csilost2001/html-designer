@@ -34,7 +34,7 @@ const dummyProcessFlow = {
  * CI では backend startup が webServer 設定に含まれていないため、
  * MCP 接続不可時は各シナリオが test.skip() でスキップされる。
  */
-test.describe("協調編集 2-tab smoke", () => {
+test.describe("協調編集 2-tab smoke", { tag: ["@regression"] }, () => {
   test("シナリオ: tab1 editor + tab2 viewer + 保存 + unlock", async ({ browser }) => {
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();

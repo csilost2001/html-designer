@@ -37,7 +37,7 @@ const dummyProcessFlow = {
  * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
  * MCP 接続不可時は test.skip() でスキップされる。
  */
-test.describe("協調編集 引継ぎ (take-over)", () => {
+test.describe("協調編集 引継ぎ (take-over)", { tag: ["@regression"] }, () => {
   // TODO: 完全な引継ぎフロー検証は EditSessionDropdown の take-over ボタンの
   //       data-testid と confirm dialog の testid が確定してから実装する。
   //       現状は MCP 接続有り環境での基本フロー確認のみ。

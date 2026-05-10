@@ -30,7 +30,7 @@ async function openAddDialog(page: Page) {
   await expect(page.locator(".tbl-modal")).toBeVisible();
 }
 
-test.describe("AddWorkspaceDialog — WSL2 / OS-aware UX (#858)", () => {
+test.describe("AddWorkspaceDialog — WSL2 / OS-aware UX (#858)", { tag: ["@regression"] }, () => {
   test("WSL2 環境では Linux 形式の絶対パスと専用ヒントが表示される", async ({ page }) => {
     await setupClean(page);
     await openAddDialog(page);

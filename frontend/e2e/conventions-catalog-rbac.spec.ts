@@ -18,7 +18,7 @@ const WS_KEY = "issue-926-conventions-catalog-rbac";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("役割・権限タブ (#555)", () => {
+test.describe("役割・権限タブ (#555)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

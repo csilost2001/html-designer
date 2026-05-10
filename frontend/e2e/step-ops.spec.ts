@@ -115,7 +115,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("ステップツールバーから追加 (#246)", () => {
+test.describe("ステップツールバーから追加 (#246)", { tag: ["@regression"] }, () => {
   test("ツールバーの DBアクセス をクリックで末尾に追加される", async ({ page }) => {
     await setupEditor(page);
     await expect(page.locator(".step-card")).toHaveCount(3);
@@ -132,7 +132,7 @@ test.describe("ステップツールバーから追加 (#246)", () => {
   });
 });
 
-test.describe("ステップコンテキストメニュー (#246)", () => {
+test.describe("ステップコンテキストメニュー (#246)", { tag: ["@regression"] }, () => {
   test("メニューから複製で 4 ステップに", async ({ page }) => {
     await setupEditor(page);
     // 1 つ目の card の ・・・ メニューを開く
@@ -154,7 +154,7 @@ test.describe("ステップコンテキストメニュー (#246)", () => {
   });
 });
 
-test.describe("ステップヘッダクリックで展開・閉じる (#246)", () => {
+test.describe("ステップヘッダクリックで展開・閉じる (#246)", { tag: ["@regression"] }, () => {
   test("type label クリックで body が表示される", async ({ page }) => {
     await setupEditor(page);
     const firstCard = page.locator(".step-card").first();
@@ -166,7 +166,7 @@ test.describe("ステップヘッダクリックで展開・閉じる (#246)", (
   });
 });
 
-test.describe("メタバッジクリックで展開 (#236)", () => {
+test.describe("メタバッジクリックで展開 (#236)", { tag: ["@regression"] }, () => {
   test("runIf を設定したステップのアイコンクリックで展開される", async ({ page }) => {
     // 事前に runIf 入りステップを seed (realWorkspace 経路で再 setup)
     const withRunIfBody = {

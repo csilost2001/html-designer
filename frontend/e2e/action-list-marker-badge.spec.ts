@@ -68,7 +68,7 @@ async function setup(page: Page) {
   await expect(page.locator(".process-flow-marker-badges").first()).toBeVisible({ timeout: 10000 });
 }
 
-test.describe("処理フロー一覧 マーカー件数バッジ (#261)", () => {
+test.describe("処理フロー一覧 マーカー件数バッジ (#261)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

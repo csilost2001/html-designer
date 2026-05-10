@@ -10,6 +10,7 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts$/,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
+  grepInvert: process.env.E2E_INCLUDE_ENDURANCE ? undefined : /@endurance/,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: "list",

@@ -117,7 +117,7 @@ async function startEditOrSkip(page: import("@playwright/test").Page) {
   return true;
 }
 
-test.describe("編集モード UI — TableEditor", () => {
+test.describe("編集モード UI — TableEditor", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -156,7 +156,7 @@ test.describe("編集モード UI — TableEditor", () => {
   });
 });
 
-test.describe("編集モード UI — ProcessFlowEditor", () => {
+test.describe("編集モード UI — ProcessFlowEditor", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -174,7 +174,7 @@ test.describe("編集モード UI — ProcessFlowEditor", () => {
   });
 });
 
-test.describe("編集モード UI — ViewEditor (PR-7)", () => {
+test.describe("編集モード UI — ViewEditor (PR-7)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -194,7 +194,7 @@ test.describe("編集モード UI — ViewEditor (PR-7)", () => {
   });
 });
 
-test.describe("編集モード UI — ViewDefinitionEditor (PR-7)", () => {
+test.describe("編集モード UI — ViewDefinitionEditor (PR-7)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -207,7 +207,7 @@ test.describe("編集モード UI — ViewDefinitionEditor (PR-7)", () => {
   });
 });
 
-test.describe("編集モード UI — SequenceEditor (PR-7)", () => {
+test.describe("編集モード UI — SequenceEditor (PR-7)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -220,7 +220,7 @@ test.describe("編集モード UI — SequenceEditor (PR-7)", () => {
   });
 });
 
-test.describe("編集モード UI — ScreenItemsView per-screen (#696)", () => {
+test.describe("編集モード UI — ScreenItemsView per-screen (#696)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -233,7 +233,7 @@ test.describe("編集モード UI — ScreenItemsView per-screen (#696)", () => 
   });
 });
 
-test.describe("編集モード UI — ConventionsCatalogView singleton (PR-7)", () => {
+test.describe("編集モード UI — ConventionsCatalogView singleton (PR-7)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -248,7 +248,7 @@ test.describe("編集モード UI — ConventionsCatalogView singleton (PR-7)", 
   });
 });
 
-test.describe("編集モード UI — ExtensionsPanel singleton (PR-7)", () => {
+test.describe("編集モード UI — ExtensionsPanel singleton (PR-7)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -263,7 +263,7 @@ test.describe("編集モード UI — ExtensionsPanel singleton (PR-7)", () => {
   });
 });
 
-test.describe("編集モード UI — FlowEditor singleton (PR-7)", () => {
+test.describe("編集モード UI — FlowEditor singleton (PR-7)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
   test.beforeEach(async () => {
     test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
@@ -277,6 +277,6 @@ test.describe("編集モード UI — FlowEditor singleton (PR-7)", () => {
 });
 
 // 強制解除シナリオは 2 ブラウザコンテキスト + 排他制御が絡むため、本 PR では follow-up skip。
-test.describe("編集モード UI — 強制解除シナリオ", () => {
+test.describe("編集モード UI — 強制解除シナリオ", { tag: ["@regression"] }, () => {
   test.skip("シナリオ 3: 2 タブ open → タブ A 編集中 → タブ B から強制解除", () => { /* skip */ });
 });

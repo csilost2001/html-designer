@@ -118,7 +118,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("警告パネル UI 配線 (#261 UI 統合)", () => {
+test.describe("警告パネル UI 配線 (#261 UI 統合)", { tag: ["@regression"] }, () => {
   test("警告バッジが表示される (UNKNOWN_IDENTIFIER + UNKNOWN_RESPONSE_REF)", async ({ page }) => {
     await setupEditor(page);
     const badge = page.locator(".validation-badge.warning");

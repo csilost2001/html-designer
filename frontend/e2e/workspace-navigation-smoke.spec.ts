@@ -100,7 +100,7 @@ async function openFirstResource(page: Page, listPath: string, editorUrl: RegExp
   await expect(page.locator(".tabbar-tab.active")).toBeVisible();
 }
 
-test.describe("workspace navigation smoke with backend backend", () => {
+test.describe("workspace navigation smoke with backend backend", { tag: ["@smoke"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

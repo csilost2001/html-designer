@@ -28,7 +28,7 @@ async function setupClipboardCapture(page: Page) {
   });
 }
 
-test.describe("ErrorDialog", () => {
+test.describe("ErrorDialog", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;
@@ -93,6 +93,6 @@ test.describe("ErrorDialog", () => {
   });
 });
 
-test.describe("TabErrorFallback ログ表示", () => {
+test.describe("TabErrorFallback ログ表示", { tag: ["@regression"] }, () => {
   test.skip("別途 Vitest で単体検証", () => {});
 });

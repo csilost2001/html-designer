@@ -35,7 +35,7 @@ const dummyProcessFlow = {
  * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
  * MCP 接続不可時は各シナリオが test.skip() でスキップされる。
  */
-test.describe("spec §11 URL ?session= 招待 (URL とブックマーク)", () => {
+test.describe("spec §11 URL ?session= 招待 (URL とブックマーク)", { tag: ["@regression"] }, () => {
   test("URL ?session= 招待: tab2 が URL 直接ロードで自動 attach される (spec §11.2)", async ({ browser }) => {
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();

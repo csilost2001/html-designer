@@ -70,7 +70,7 @@ async function setupDesigner(page: Page, opts: { emptyScreen?: boolean } = {}) {
   await ws.gotoActive(page, `/screen/design/${SCREEN_NORM}`);
 }
 
-test.describe("画面デザイナー：リセットボタン (smoke)", () => {
+test.describe("画面デザイナー：リセットボタン (smoke)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

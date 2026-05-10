@@ -79,7 +79,7 @@ async function gotoEditor(page: Page, subPath: string) {
   }
 }
 
-test.describe("more-ui (#244)", () => {
+test.describe("more-ui (#244)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

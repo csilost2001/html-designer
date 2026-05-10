@@ -10,7 +10,7 @@ import {
   setupPuckScreen,
 } from "./helpers/puck";
 
-test.describe("Puck 右プロパティパネル", () => {
+test.describe("Puck 右プロパティパネル", { tag: ["@regression"] }, () => {
   test("text field を変更すると canvas が即時更新される", async ({ page }) => {
     try {
       await setupPuckScreen(page, { puckData: PUCK_DATA_WITH_HEADING });

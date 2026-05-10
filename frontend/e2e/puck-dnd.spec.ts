@@ -8,7 +8,7 @@ import {
   setupPuckScreen,
 } from "./helpers/puck";
 
-test.describe("Puck DnD", () => {
+test.describe("Puck DnD", { tag: ["@regression"] }, () => {
   test("左パレットから見出し primitive を配置できる", async ({ page }) => {
     try {
       await setupPuckScreen(page, { puckData: EMPTY_PUCK_DATA });

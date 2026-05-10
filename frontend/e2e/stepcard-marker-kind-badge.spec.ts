@@ -97,7 +97,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("StepCard kind 別マーカーバッジ (#261)", () => {
+test.describe("StepCard kind 別マーカーバッジ (#261)", { tag: ["@regression"] }, () => {
   test("s1 に todo/question/attention 色分けチップが表示される", async ({ page }) => {
     await setup(page);
     // s1 の StepCard ヘッダ内に step-marker-chip 要素あり

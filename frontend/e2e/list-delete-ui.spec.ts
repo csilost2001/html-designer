@@ -32,7 +32,7 @@ const WS_KEY_EMPTY = "issue-926-list-delete-ui-empty";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("#147 一覧 削除 UI", () => {
+test.describe("#147 一覧 削除 UI", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -161,7 +161,7 @@ test.describe("#147 一覧 削除 UI", () => {
   });
 });
 
-test.describe("#147 空状態の右クリック", () => {
+test.describe("#147 空状態の右クリック", { tag: ["@regression"] }, () => {
   let emptyWs: OpenedWorkspace;
 
   test.beforeAll(async () => {

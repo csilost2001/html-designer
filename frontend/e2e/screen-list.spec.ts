@@ -31,7 +31,7 @@ const WS_KEY = "issue-926-screen-list";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("画面一覧", () => {
+test.describe("画面一覧", { tag: ["@smoke"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

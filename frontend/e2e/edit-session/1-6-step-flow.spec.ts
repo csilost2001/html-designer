@@ -43,7 +43,7 @@ const dummyProcessFlow = {
  * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
  * MCP 接続不可時は各シナリオが test.skip() でスキップされる。
  */
-test.describe("spec §5 1-6 step 完全フロー (EditSession ライフサイクル)", () => {
+test.describe("spec §5 1-6 step 完全フロー (EditSession ライフサイクル)", { tag: ["@regression"] }, () => {
   test("1-6 step: create → attach → take-over → release → save → discard", async ({ browser }) => {
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
