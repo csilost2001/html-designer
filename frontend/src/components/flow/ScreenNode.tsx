@@ -16,7 +16,7 @@ function ScreenNodeComponent({ data, selected }: ScreenNodeProps) {
     <>
       <Handle type="target" position={Position.Top} id="top" />
       <Handle type="target" position={Position.Left} id="left" />
-      <div className={`screen-node${selected ? " selected" : ""}`}>
+      <div className={`screen-node${selected ? " selected" : ""}`} data-screen-id={data.id}>
         <div className="screen-node-header">
           <i className={`bi ${icon} screen-node-icon`} />
           <span className="screen-node-name">{data.name}</span>

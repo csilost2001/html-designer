@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import {
@@ -24,9 +24,12 @@ import "@xyflow/react/dist/style.css";
 import ScreenNodeComponent from "./ScreenNode";
 import GroupNodeComponent from "./GroupNodeComponent";
 import { FlowSubToolbar } from "./FlowSubToolbar";
+import { FlowMarkerPanel } from "./FlowMarkerPanel";
 import { ScreenEditModal, type ScreenFormData } from "./ScreenEditModal";
 import { EdgeEditModal, type EdgeFormData, type HandlePosition } from "./EdgeEditModal";
 import type { FlowProject, ScreenNode, ScreenEdge, ScreenGroup } from "../../types/flow";
+import type { Screen } from "../../types/v3/screen";
+import type { Marker } from "../../types/v3/common";
 import { TRIGGER_LABELS } from "../../types/flow";
 import type { ScreenGroupId, ScreenKind, ScreenLayout, Timestamp } from "../../types/v3";
 import {
@@ -167,6 +170,10 @@ function FlowEditorInner() {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showForceReleaseDialog, setShowForceReleaseDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
+
+  // ── マーカーパネル ──
+  const [markerPanelOpen, setMarkerPanelOpen] = useState(false);
+  const [screenEntities, setScreenEntities] = useState<Map<string, Screen>>(new Map());
 
   const sessionId = mcpBridge.getSessionId();
 
@@ -558,6 +565,50 @@ function FlowEditorInner() {
     setContextMenu(null);
   }, [contextMenu, navigate, nodes]);
 
+  // ── Marker Panel Actions ──
+
+  /** panel を開く時だけ全 screen entity を lazy load */
+  const handleToggleMarkerPanel = useCallback(async () => {
+    const opening = !markerPanelOpen;
+    setMarkerPanelOpen(opening);
+    if (opening && projectRef.current) {
+      const map = new Map<string, Screen>();
+      await Promise.all(
+        projectRef.current.screens.map(async (s) => {
+          try {
+            const entity = await loadScreenEntity(s.id);
+            map.set(s.id, entity);
+          } catch {
+            // 読み込み失敗時はスキップ (ghost screen)
+          }
+        }),
+      );
+      setScreenEntities(map);
+    }
+  }, [markerPanelOpen]);
+
+  /** marker 追加/解決/削除時に screen entity を更新して保存 */
+  const handleMarkerChange = useCallback(
+    async (screenId: string, updatedMarkers: Marker[]) => {
+      const entity = screenEntities.get(screenId);
+      if (!entity) return;
+      const updated: Screen = {
+        ...entity,
+        authoring: {
+          ...(entity.authoring ?? {}),
+          markers: updatedMarkers.length > 0 ? updatedMarkers : undefined,
+        },
+      };
+      await saveScreenEntity(updated);
+      setScreenEntities((prev) => {
+        const next = new Map(prev);
+        next.set(screenId, updated);
+        return next;
+      });
+    },
+    [screenEntities],
+  );
+
   // ── Group Actions ──
 
   const handleAddGroup = useCallback(async () => {
@@ -877,6 +928,11 @@ function FlowEditorInner() {
 
   const isEmpty = !isLoading && nodes.filter((n) => n.type === "screenNode").length === 0;
   const screenCount = nodes.filter((n) => n.type === "screenNode").length;
+  const flowScreenNodes = useMemo(
+    () => (projectRef.current?.screens ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes],
+  );
   const lockedByOther = mode.kind === "locked-by-other" ? mode : null;
 
   return (
@@ -964,7 +1020,23 @@ function FlowEditorInner() {
         isSaving={isSaving}
         onSave={() => { handleSave().catch(console.error); }}
         onReset={() => { handleReset().catch(console.error); }}
+        onToggleMarkerPanel={() => { handleToggleMarkerPanel().catch(console.error); }}
+        markerPanelOpen={markerPanelOpen}
       />
+
+      {/* マーカーパネル (flow-canvas の右側にオーバーレイ表示) */}
+      {markerPanelOpen && (
+        <div className="flow-marker-panel-overlay">
+          <FlowMarkerPanel
+            screens={flowScreenNodes}
+            screenEntities={screenEntities}
+            onMarkerChange={(screenId, markers) =>
+              handleMarkerChange(screenId, markers)
+            }
+            onClose={() => setMarkerPanelOpen(false)}
+          />
+        </div>
+      )}
 
       <div className="flow-canvas">
         {isLoading ? (
