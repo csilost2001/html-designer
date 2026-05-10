@@ -77,7 +77,7 @@ async function ensureReadOnly(page: Page) {
   }
 }
 
-test.describe("協調編集 引継ぎ (take-over)", () => {
+test.describe("協調編集 引継ぎ (take-over)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

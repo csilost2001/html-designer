@@ -81,7 +81,7 @@ async function ensureReadOnly(page: Page) {
   }
 }
 
-test.describe("draft history 7 日保持 UI (#893)", () => {
+test.describe("draft history 7 日保持 UI (#893)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

@@ -6,7 +6,7 @@ import { buildProject } from "../__fixtures__/builders";
 const WS_KEY = "issue-958-mcp-bulk-load";
 
 // #958: 永続 WS + clientId 共有構造 + beforeAll workspace.open で activePath を立てる
-test.describe("wsBridge bulk load (#587) (#958)", () => {
+test.describe("wsBridge bulk load (#587) (#958)", { tag: ["@regression"] }, () => {
   let mcpAvailable = false;
 
   test.beforeAll(async () => {

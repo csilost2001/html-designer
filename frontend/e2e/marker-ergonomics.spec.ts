@@ -86,7 +86,7 @@ async function setupDashboard(page: Page, fixture: OpenedWorkspace) {
   await expect(page.locator(".markers-summary-panel").first()).toBeVisible({ timeout: 10000 });
 }
 
-test.describe("marker-ergonomics (#261)", () => {
+test.describe("marker-ergonomics (#261)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

@@ -48,7 +48,7 @@ const WS_KEY = "issue-926-view-definition";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("ビュー定義 E2E", () => {
+test.describe("ビュー定義 E2E", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

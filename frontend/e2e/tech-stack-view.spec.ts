@@ -33,7 +33,7 @@ async function setup(page: Page) {
   await ws.gotoActive(page, "/project/tech-stack");
 }
 
-test.describe("技術スタック選定画面 (#826)", () => {
+test.describe("技術スタック選定画面 (#826)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

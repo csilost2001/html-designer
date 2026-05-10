@@ -118,7 +118,7 @@ async function loadCallCount(page: Page): Promise<number> {
   });
 }
 
-test.describe("Designer MCP reconnect reload behavior (#578) (#948)", () => {
+test.describe("Designer MCP reconnect reload behavior (#578) (#948)", { tag: ["@regression"] }, () => {
   let mcpAvailable = false;
   let ws: OpenedWorkspace;
 

@@ -64,7 +64,7 @@ async function setupWithScreens(page: Page, screenIds: string[]) {
   await expect(page.locator(".tabbar-tab")).toHaveCount(screenIds.length);
 }
 
-test.describe("タブ管理", () => {
+test.describe("タブ管理", { tag: ["@smoke"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

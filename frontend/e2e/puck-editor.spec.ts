@@ -20,7 +20,7 @@ import {
 } from "./helpers/puck";
 import { setupTestWorkspace, normalizeId } from "./helpers/realWorkspace";
 
-test.describe("Puck エディタ基本動作", () => {
+test.describe("Puck エディタ基本動作", { tag: ["@regression"] }, () => {
   test("1. editorKind=puck の画面を開くと Puck デザイナが表示される", async ({ page }) => {
     await setupPuckScreen(page);
 
@@ -80,7 +80,7 @@ test.describe("Puck エディタ基本動作", () => {
   });
 });
 
-test.describe("GrapesJS と Puck の混在", () => {
+test.describe("GrapesJS と Puck の混在", { tag: ["@regression"] }, () => {
   test("5. 同一プロジェクトで grapesjs 画面と puck 画面が独立して存在できる", async ({ page }) => {
     // realWorkspace 経由 (#926): puck + grapesjs 両 entity を 1 workspace に seed
     const PUCK_NORM = normalizeId(PUCK_SCREEN_ID);
@@ -114,7 +114,7 @@ test.describe("GrapesJS と Puck の混在", () => {
   });
 });
 
-test.describe("cssFramework 切替", () => {
+test.describe("cssFramework 切替", { tag: ["@regression"] }, () => {
   test("6a. cssFramework=bootstrap の Puck 画面が表示される", async ({ page }) => {
     // console listener は setupPuckScreen 前に登録 (Puck 初期化中エラーも捕捉するため #839)
     const errors: string[] = [];
@@ -164,7 +164,7 @@ test.describe("cssFramework 切替", () => {
   });
 });
 
-test.describe("動的コンポーネント登録", () => {
+test.describe("動的コンポーネント登録", { tag: ["@regression"] }, () => {
   test("7. 動的コンポーネント登録ダイアログが存在する", async ({ page }) => {
     await setupPuckScreen(page);
 
@@ -192,7 +192,7 @@ test.describe("動的コンポーネント登録", () => {
   });
 });
 
-test.describe("スクリーンショット撮影 (視覚回帰検証用)", () => {
+test.describe("スクリーンショット撮影 (視覚回帰検証用)", { tag: ["@regression"] }, () => {
   test("screenshot: Puck × bootstrap 画面", async ({ page }) => {
     await setupPuckScreen(page, { puckData: PUCK_DATA_WITH_HEADING });
 

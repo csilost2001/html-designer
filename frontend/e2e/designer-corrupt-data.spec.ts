@@ -53,7 +53,7 @@ async function setupDesignerWithRawData(page: Page, rawData: unknown, key: strin
   return ws;
 }
 
-test.describe("Designer 破損データ耐性 (#131)", () => {
+test.describe("Designer 破損データ耐性 (#131)", { tag: ["@regression"] }, () => {
   const wsKeys: string[] = [];
 
   test.beforeAll(async () => {

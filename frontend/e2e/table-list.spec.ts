@@ -37,7 +37,7 @@ const WS_KEY = "issue-926-table-list";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("テーブル一覧", () => {
+test.describe("テーブル一覧", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

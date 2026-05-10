@@ -12,7 +12,7 @@ const dummyProject = buildProject({ name: "ext-panel" });
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("拡張管理 UI (#447)", () => {
+test.describe("拡張管理 UI (#447)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

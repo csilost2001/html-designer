@@ -135,7 +135,7 @@ test.beforeEach(async () => {
     processFlows: [dummyGroupBody],
   });
 });
-test.describe("SQL 列検査 + 規約参照 の UI 統合 (#261)", () => {
+test.describe("SQL 列検査 + 規約参照 の UI 統合 (#261)", { tag: ["@regression"] }, () => {
   test("UNKNOWN_COLUMN 警告がパネルに表示される", async ({ page }) => {
     await setupEditor(page);
     // テーブル定義と規約カタログが load されるまで待つ

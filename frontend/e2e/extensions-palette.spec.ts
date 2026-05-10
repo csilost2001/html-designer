@@ -49,7 +49,7 @@ const WS_KEY = "issue-926-extensions-palette";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("カスタムステップカードパレット (#447)", () => {
+test.describe("カスタムステップカードパレット (#447)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

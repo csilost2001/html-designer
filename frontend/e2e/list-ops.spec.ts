@@ -41,7 +41,7 @@ const WS_KEY = "issue-926-list-ops";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("ProcessFlowListView 操作 (#248)", () => {
+test.describe("ProcessFlowListView 操作 (#248)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

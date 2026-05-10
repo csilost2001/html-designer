@@ -31,7 +31,7 @@ const WS_KEY = "issue-980-puck-multitab";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("Designer (Puck) multi-tab ResumeOrDiscardDialog filter (#980-A)", () => {
+test.describe("Designer (Puck) multi-tab ResumeOrDiscardDialog filter (#980-A)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

@@ -96,7 +96,7 @@ async function setupTableEditor(page: Page): Promise<void> {
   await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
 
-test.describe("テーブルエディタ：保存/リセットボタン", () => {
+test.describe("テーブルエディタ：保存/リセットボタン", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

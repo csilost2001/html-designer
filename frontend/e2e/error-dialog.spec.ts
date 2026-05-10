@@ -28,7 +28,7 @@ async function setupClipboardCapture(page: Page) {
   });
 }
 
-test.describe("ErrorDialog", () => {
+test.describe("ErrorDialog", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
     if (!mcpAvailable) return;

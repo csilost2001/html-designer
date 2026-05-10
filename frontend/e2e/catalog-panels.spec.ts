@@ -53,7 +53,7 @@ async function setup(page: Page) {
   await expect(page.getByTestId("edit-mode-save")).toBeVisible();
 }
 
-test.describe("ProcessFlow カタログ編集パネル (#278)", () => {
+test.describe("ProcessFlow カタログ編集パネル (#278)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

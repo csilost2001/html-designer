@@ -43,7 +43,7 @@ const WS_KEY = "issue-926-designer-edit-session";
 let mcpAvailable = false;
 let ws: OpenedWorkspace;
 
-test.describe("画面デザイナー edit-session — シナリオ 1: 編集開始 → 保存", () => {
+test.describe("画面デザイナー edit-session — シナリオ 1: 編集開始 → 保存", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -97,7 +97,7 @@ test.describe("画面デザイナー edit-session — シナリオ 1: 編集開�
   });
 });
 
-test.describe("画面デザイナー edit-session — シナリオ 2: 編集中 → 破棄", () => {
+test.describe("画面デザイナー edit-session — シナリオ 2: 編集中 → 破棄", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -132,7 +132,7 @@ test.describe("画面デザイナー edit-session — シナリオ 2: 編集中 
   });
 });
 
-test.describe("画面デザイナー edit-session — シナリオ 3: 再オープン → ResumeOrDiscardDialog", () => {
+test.describe("画面デザイナー edit-session — シナリオ 3: 再オープン → ResumeOrDiscardDialog", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
@@ -185,7 +185,7 @@ test.describe("画面デザイナー edit-session — シナリオ 3: 再オー�
 // #980-A: ResumeOrDiscardDialog filter (participants[mySessionId] のみ) が
 // Designer (GrapesJS resourceType: "screen" / Puck resourceType: "puck-data") でも
 // 正しく動作することを multi-tab で検証する。
-test.describe("画面デザイナー edit-session — multi-tab ResumeOrDiscardDialog filter (#980-A)", () => {
+test.describe("画面デザイナー edit-session — multi-tab ResumeOrDiscardDialog filter (#980-A)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

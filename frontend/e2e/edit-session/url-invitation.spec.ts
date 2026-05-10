@@ -78,7 +78,7 @@ async function ensureReadOnly(page: Page) {
   }
 }
 
-test.describe("spec §11 URL ?session= 招待", () => {
+test.describe("spec §11 URL ?session= 招待", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });

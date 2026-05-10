@@ -73,7 +73,7 @@ type GEditor = {
   };
 };
 
-test.describe("部品配置時 name / id / data-item-id 自動入力 (#328, #331)", () => {
+test.describe("部品配置時 name / id / data-item-id 自動入力 (#328, #331)", { tag: ["@regression"] }, () => {
   test.beforeAll(async () => {
     mcpAvailable = await isMcpRunning();
   });
