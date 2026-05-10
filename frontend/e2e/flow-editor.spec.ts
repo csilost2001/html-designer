@@ -189,7 +189,6 @@ test.describe("画面フロー — node D&D / edge / marker / 削除動線", { t
     const transformAfterDrag = await getNodeTransform();
 
     // reload 後も position が復元されることを確認
-    await page.reload();
     await ws.gotoActive(page, "/screen/flow");
     await expect(page.locator(".flow-root")).toBeVisible();
     await expect(page.locator(".react-flow__node-screenNode")).toBeVisible({ timeout: 10000 });
@@ -229,22 +228,10 @@ test.describe("画面フロー — node D&D / edge / marker / 削除動線", { t
     // 登録前は getHandle() が null を返し接続が開始されない
     await page.waitForTimeout(1000);
 
-    // mousedown の前に console を監視して handle onMouseDown が fire するかを確認
-    const consoleMessages: string[] = [];
-    page.on("console", (msg) => { consoleMessages.push(msg.text()); });
-
     // handle drag でエッジを作成 (slow drag ヘルパー使用)
-    const sBox3 = await sourceHandle.boundingBox();
-    const tBox3 = await targetHandle.boundingBox();
-    if (!sBox3 || !tBox3) throw new Error("handle の boundingBox が取得できません (3rd)");
-    console.log(`[test] source handle at: ${JSON.stringify(sBox3)}`);
-    console.log(`[test] target handle at: ${JSON.stringify(tBox3)}`);
-    // elementFromPoint でどの要素が handle 座標にあるか確認
-    const elemAtSrc = await page.evaluate(({ x, y }: {x:number, y:number}) => {
-      const el = document.elementFromPoint(x, y) as HTMLElement | null;
-      return el ? { tag: el.tagName, cls: el.className.slice(0, 60), hdlId: el.dataset.handleid, ndId: el.dataset.nodeid } : null;
-    }, { x: sBox3.x + sBox3.width/2, y: sBox3.y + sBox3.height/2 });
-    console.log(`[test] elementAtSource: ${JSON.stringify(elemAtSrc)}`);
+    const sBox = await sourceHandle.boundingBox();
+    const tBox = await targetHandle.boundingBox();
+    if (!sBox || !tBox) throw new Error("handle の boundingBox が取得できません");
     await dragHandleToHandle(page, sourceHandle, targetHandle);
 
     // edge が 1 本増えたことを確認
@@ -257,7 +244,6 @@ test.describe("画面フロー — node D&D / edge / marker / 削除動線", { t
     await page.locator(toolbarSave).click();
     await expect(page.locator(toolbarSave)).toBeDisabled({ timeout: 15000 });
 
-    await page.reload();
     await ws.gotoActive(page, "/screen/flow");
     await expect(page.locator(".flow-root")).toBeVisible();
     await expect(page.locator(".react-flow__edge")).toHaveCount(initialEdgeCount + 1, {
@@ -366,9 +352,7 @@ test.describe("画面フロー — node D&D / edge / marker / 削除動線", { t
      * ProcessFlowEditor 専用であり、FlowEditor では参照されていない。
      * DrawingOverlay の anchor も process-flow 側の実装。
      *
-     * ISSUE 候補: 画面フロー上の node anchor マーカー機能が必要な場合は
-     * 別途機能追加 ISSUE を起票すること。
-     * 本 test は実装が確認できないため test.skip とする (#933 タスク範囲外)。
+     * 機能追加は #1003 で計画中。本 test は #1003 完了時に skip 解除し strict assert に戻す。
      */
   });
 

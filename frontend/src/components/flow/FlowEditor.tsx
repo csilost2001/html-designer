@@ -363,8 +363,6 @@ function FlowEditorInner() {
         labelBgBorderRadius: 4,
       }, eds));
     }).catch(console.error);
-  // isReadonly は useCallback の外側のスコープ変数なので deps に明示が必要
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setEdges, isReadonly]);
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, node) => {
