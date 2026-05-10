@@ -453,6 +453,10 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
           }
           recoveryPendingRef.current = wsId;
           mcpBridge.request("workspace.open", { id: wsId })
+            // backend の workspace.changed broadcast は requester を除外する (wsBridge.ts excludeClientId)。
+            // 自セッション側は broadcast を受けないため、明示的に loadWorkspaces で state.active を更新する。
+            // (#956 / puck-editor:67 reload 復元 race の真因対応)
+            .then(() => loadWorkspaces())
             .catch((err) => {
               console.error("[workspace] workspace.open recovery failed:", err);
               const guard = checkRedirect("/workspace/select");
@@ -461,7 +465,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
             .finally(() => {
               if (recoveryPendingRef.current === wsId) recoveryPendingRef.current = null;
             });
-          return; // workspace.open 完了後に workspace.changed broadcast で active が復元される
+          return; // workspace.open + 自 loadWorkspaces で active が復元される
         }
       }
       const guard = checkRedirect("/workspace/select");
@@ -476,6 +480,9 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
         }
         recoveryPendingRef.current = wsId;
         mcpBridge.request("workspace.open", { id: wsId })
+          // backend broadcast は requester を除外するため、自セッション側で loadWorkspaces を明示呼び出し
+          // (#956 / puck-editor:67 reload 復元 race の真因対応、active=null 経路と同根)
+          .then(() => loadWorkspaces())
           .catch((err) => {
             console.error("[workspace] workspace.open from URL failed:", err);
             const guard = checkRedirect("/workspace/select");
