@@ -663,7 +663,7 @@ test.describe("ER 図 smoke (/table/er)", { tag: ["@regression"] }, () => {
     if (erMcpAvailable) await cleanupRealWorkspaces([ER_WS_KEY]);
   });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     test.skip(!erMcpAvailable, "backend (port 5179) が起動していません");
   });
 
