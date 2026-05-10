@@ -3,6 +3,7 @@ import {
   registerEditor,
   registerViewer,
   unregister,
+  unregisterAllForSession,
   heartbeat,
   list,
   cleanupStale,
@@ -99,6 +100,36 @@ describe("unregister", () => {
     const remaining = list("ws-1", "table", "tbl-1");
     expect(remaining).toHaveLength(1);
     expect(remaining[0].sessionId).toBe("sess-B");
+  });
+});
+
+// ── unregisterAllForSession (#980-A: WS 切断時 cleanup) ─────────────────────
+
+describe("unregisterAllForSession", () => {
+  it("指定 sessionId の全 (wsId, resource) エントリを削除する", () => {
+    registerEditor("ws-1", "sess-A", "table", "tbl-1");
+    registerViewer("ws-1", "sess-A", "process-flow", "pf-1");
+    registerEditor("ws-2", "sess-A", "screen", "scr-1");
+    // 別 session は影響を受けない
+    registerEditor("ws-1", "sess-B", "table", "tbl-1");
+
+    const removed = unregisterAllForSession("sess-A");
+
+    expect(removed).toHaveLength(3);
+    expect(removed).toEqual(expect.arrayContaining([
+      { wsId: "ws-1", resourceType: "table", resourceId: "tbl-1" },
+      { wsId: "ws-1", resourceType: "process-flow", resourceId: "pf-1" },
+      { wsId: "ws-2", resourceType: "screen", resourceId: "scr-1" },
+    ]));
+    expect(list("ws-1", "table", "tbl-1")).toEqual([
+      expect.objectContaining({ sessionId: "sess-B" }),
+    ]);
+    expect(list("ws-1", "process-flow", "pf-1")).toHaveLength(0);
+    expect(list("ws-2", "screen", "scr-1")).toHaveLength(0);
+  });
+
+  it("該当 entry が無い session の削除は空配列を返す", () => {
+    expect(unregisterAllForSession("sess-NONE")).toEqual([]);
   });
 });
 

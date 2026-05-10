@@ -133,7 +133,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
   // P2 fix (#908 round-5): editorKind 未解決中は session attach をスキップ (race 回避)。
   // 初回 render で resourceType: "screen" のまま attach すると、後で "puck-data" に変わっても
   // hook 内部 state は不整合のまま残る。resolved 後に正しい resourceType で attach する。
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, takeOver: editTakeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions: editActions, attach: editAttach, takeOver: editTakeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: resolvedEditSessionResourceType,
     resourceId: screenId,
     sessionId,
@@ -161,13 +161,23 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       for (let attempt = 0; attempt < 25 && !cancelled; attempt++) {
         try {
           const [screenSessions, puckSessions] = await Promise.all([
-            mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
-            mcpBridge.request("editSession.list", { resourceType: "puck-data", resourceId: screenId }) as Promise<{ sessions: unknown[] } | null>,
+            mcpBridge.request("editSession.list", { resourceType: "screen", resourceId: screenId }) as Promise<{ sessions: Array<{ state?: string; participants?: Record<string, unknown> }> } | null>,
+            mcpBridge.request("editSession.list", { resourceType: "puck-data", resourceId: screenId }) as Promise<{ sessions: Array<{ state?: string; participants?: Record<string, unknown> }> } | null>,
           ]);
           if (cancelled) return;
-          // state === "Active" のみを対象とする (discarded session は表示しない)
-          const screenHasDraft = (screenSessions?.sessions ?? []).some((s: unknown) => (s as { state?: string }).state === "Active");
-          const puckHasDraft = (puckSessions?.sessions ?? []).some((s: unknown) => (s as { state?: string }).state === "Active");
+          // #980-A: 自分が participant として参加していた Active session のみ対象。
+          // 他人の Active session で自分が unparticipated の場合は ResumeOrDiscardDialog を出さない。
+          // GrapesJS / Puck 両経路 (resourceType: "screen" / "puck-data") で同 filter を適用。
+          // 注: clientId 変化を伴う navigation flow で「自分の draft」 が resume できない問題は
+          //   別途検出 (legacy localStorage rescue 経路や session restore で別途対処)、本 dialog の
+          //   主旨「自分の未保存編集を復元」は participant filter で正しい意味を保つ。
+          const mySessionId = mcpBridge.getSessionId();
+          const screenHasDraft = (screenSessions?.sessions ?? []).some((s) =>
+            s.state === "Active" && !!s.participants?.[mySessionId],
+          );
+          const puckHasDraft = (puckSessions?.sessions ?? []).some((s) =>
+            s.state === "Active" && !!s.participants?.[mySessionId],
+          );
           if (screenHasDraft || puckHasDraft) setShowResumeDialog(true);
           return;
         } catch (err) {
@@ -754,6 +764,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         sessionId={sessionId}
         onStartEditing={handleStartEditing}
         onViewerAttached={syncSessionToUrl}
+        onAttachAsView={editAttach}
         onTakeOver={editTakeOver}
       />
     );
@@ -810,6 +821,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
       sessionId={sessionId}
       onStartEditing={handleStartEditing}
       onViewerAttached={syncSessionToUrl}
+      onAttachAsView={editAttach}
       onTakeOver={editTakeOver}
     />
   );

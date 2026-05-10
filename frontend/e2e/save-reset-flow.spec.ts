@@ -136,10 +136,7 @@ test.describe("フロー画面：保存/リセットボタン", () => {
     await expect(page.locator(toolbarSave)).toBeDisabled();
   });
 
-  // TODO(#926 follow-up): backend draft seed (.edit-sessions/) 経由でのプリロードが必要
-  test.skip("ドラフトが事前に存在するとリロード後も isDirty 状態で復元される", async ({ page }) => {
-    await setupFlowEditor(page);
-    await expect(page.locator(toolbarSave)).toBeEnabled();
-    await expect(page.locator(toolbarReset)).toBeEnabled();
-  });
+  // 元 spec の「reload しても isDirty が復元される」は旧 localStorage seed 仕様前提。
+  // edit-session-draft (#683) は明示保存式で reload 前に明示 save しなければ消える設計。
+  // 同意図 (attach で payload 取得) は edit-session/url-invitation で別途検証。
 });

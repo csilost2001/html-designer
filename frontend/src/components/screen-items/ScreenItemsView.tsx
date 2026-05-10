@@ -440,7 +440,7 @@ export function ScreenItemsView() {
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
   // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, attach, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "screen-item",
     resourceId: screenId ?? "",
     sessionId,
@@ -554,9 +554,14 @@ export function ScreenItemsView() {
     if (!screenId) return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.request("editSession.list", { resourceType: "screen-item", resourceId: screenId }) as { sessions: unknown[] } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "screen-item", resourceId: screenId }) as { sessions: Array<{ state?: string; participants?: Record<string, unknown> }> } | null;
       if (cancelled) return;
-      if (res && res.sessions.length > 0) setShowResumeDialog(true);
+      // #980-A: 自分が participant として参加していた Active session のみ対象。
+      const mySessionId = mcpBridge.getSessionId();
+      const hasMyActiveSession = (res?.sessions ?? []).some((s) =>
+        s.state === "Active" && !!s.participants?.[mySessionId],
+      );
+      if (hasMyActiveSession) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind, screenId]);
@@ -996,6 +1001,7 @@ export function ScreenItemsView() {
             currentSessionId={sessionId}
             onStartEditing={() => { void actions.startEditing(); }}
             onViewerAttached={syncSessionToUrl}
+            onAttachAsView={attach}
             onTakeOver={takeOver}
           />
         }

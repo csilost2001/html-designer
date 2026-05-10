@@ -218,6 +218,32 @@ export function unregister(
 }
 
 /**
+ * 指定 sessionId の全 presence エントリを全 wsId にわたって削除する。
+ *
+ * WS 切断 (`ws.on("close")`) 時に呼び出すことで、tab close → SessionBadge 即時消滅を実現する
+ * (旧来は cleanupAbandoned が `idleThresholdSec` 経過まで待つため即時消滅できなかった)。
+ *
+ * 戻り値: 削除された (wsId, resourceType, resourceId) の組を返す。
+ * 呼び出し側で各組について `presence:update` broadcast を発火することで連携クライアントに反映する。
+ */
+export function unregisterAllForSession(sessionId: string): Array<{
+  wsId: string;
+  resourceType: DraftResourceType;
+  resourceId: string;
+}> {
+  const removed: Array<{ wsId: string; resourceType: DraftResourceType; resourceId: string }> = [];
+  for (const [wsId, wsMap] of store.entries()) {
+    for (const [key, entry] of wsMap) {
+      if (entry.sessionId === sessionId) {
+        wsMap.delete(key);
+        removed.push({ wsId, resourceType: entry.resourceType, resourceId: entry.resourceId });
+      }
+    }
+  }
+  return removed;
+}
+
+/**
  * heartbeat を受信して presence entry を更新する。
  *
  * - kind="activity": lastActivityAt = now, focusAt = now

@@ -3,138 +3,144 @@
  *
  * spec §11 (URL とブックマーク) の E2E 検証。
  *
- * spec §18.1 受け入れ基準の検証:
- *  - § 11 URL `?session=<editSessionId>` 経由の attach
- *  - § 13 attach 時の initial fetch (memory store から最新 payload 取得)
+ * docs/spec/edit-session-protocol.md §11:
+ *  - URL `?session=<editSessionId>` 経由の attach
+ *  - §13.3 attach 時の initial fetch (memory store から最新 payload 取得)
  *
- * 前提: frontend dev server (port 5173) + backend (port 5179) 起動済み。
- * backend 未接続の場合は MCP 接続チェックで skip される。
+ * #980-A: localStorage seed (#923 で fallback 廃止後 dead pattern) → realWorkspace 経由に書き換え。
  *
- * シナリオ (spec §11):
- * 1. tab1 で EditSession 開始 → URL `?session=<editSessionId>` 取得
- * 2. tab2 (別コンテキスト) で URL 直接ロード → 自動 attach + 最新 payload 表示
- * 3. リロード → 同 EditSession に再 attach (spec §11.3 ブックマーク可能)
+ * シナリオ:
+ *   1. tab1 で EditSession 開始 → URL `?session=<editSessionId>` 取得
+ *   2. tab2 (別コンテキスト) で URL 直接ロード → 自動 attach + 最新 payload 表示
+ *   3. リロード → 同 EditSession に再 attach (spec §11.3 ブックマーク可能)
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import {
+  setupTestWorkspace,
+  cleanupRealWorkspaces,
+  isMcpRunning,
+  normalizeId,
+  seedTabsForWorkspace,
+  type OpenedWorkspace,
+} from "../helpers/realWorkspace";
+import { buildProject, buildProcessFlow } from "../__fixtures__/builders";
+import type { ProjectEntities, Timestamp } from "../../src/types/v3";
 
+const FIXED_TS = "2026-05-08T00:00:00.000Z" as unknown as Timestamp;
 const PF_ID = `pf-url-invitation-${Date.now()}`;
+const PF_NORM = normalizeId(PF_ID);
 
-const dummyProcessFlow = {
+const dummyProcessFlowBody = buildProcessFlow({
   id: PF_ID,
   name: "URL 招待テスト",
-  description: "spec §11 URL ?session= 招待フローを検証する",
-  maturity: "draft",
+  kind: "screen",
+  mode: "upstream",
   actions: [],
-  version: "1.0.0",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+});
 
-/**
- * NOTE: このスペックは backend (port 5179) が起動している環境でのみ完走する。
- * MCP 接続不可時は各シナリオが test.skip() でスキップされる。
- */
-test.describe("spec §11 URL ?session= 招待 (URL とブックマーク)", () => {
+const dummyProject = buildProject({
+  name: "edit-session-url-invitation-test",
+  entities: {
+    processFlows: [{ id: PF_ID, no: 1, name: "URL 招待テスト", kind: "screen", actionCount: 0, maturity: "draft", updatedAt: FIXED_TS }],
+  } as ProjectEntities,
+});
+
+const dummyTab = { id: `process-flow:${PF_NORM}`, type: "process-flow", resourceId: PF_NORM, label: "URL 招待テスト", isDirty: false, isPinned: false };
+
+const WS_KEY = "issue-980-edit-session-url-invitation";
+let mcpAvailable = false;
+let ws: OpenedWorkspace;
+
+async function gotoEditor(page: Page) {
+  await ws.gotoActive(page, `/process-flow/edit/${PF_NORM}`);
+  await expect(page.locator(".process-flow-page")).toBeVisible();
+  await page.waitForTimeout(500);
+  for (let _i = 0; _i < 3; _i++) {
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    } else { break; }
+  }
+}
+
+async function ensureReadOnly(page: Page) {
+  await Promise.race([
+    page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 10000 }),
+    page.getByTestId("edit-mode-save").waitFor({ state: "visible", timeout: 10000 }),
+  ]).catch(() => undefined);
+  if (await page.getByTestId("edit-mode-save").isVisible({ timeout: 100 }).catch(() => false)) {
+    await page.getByTestId("edit-mode-discard").click();
+    if (await page.getByTestId("discard-confirm").isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.getByTestId("discard-confirm").click();
+    }
+    await page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 8000 }).catch(() => undefined);
+  }
+}
+
+test.describe("spec §11 URL ?session= 招待", () => {
+  test.beforeAll(async () => {
+    mcpAvailable = await isMcpRunning();
+  });
+
+  test.afterAll(async () => {
+    if (mcpAvailable) await cleanupRealWorkspaces([WS_KEY]);
+  });
+
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await setupTestWorkspace({
+      key: WS_KEY,
+      project: dummyProject,
+      processFlows: [dummyProcessFlowBody],
+    });
+  });
+
   test("URL ?session= 招待: tab2 が URL 直接ロードで自動 attach される (spec §11.2)", async ({ browser }) => {
+    test.setTimeout(120000);
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
 
     try {
-      // ── データ準備 ──
-      await pageA.goto("/process-flow/list");
-      await pageA.evaluate(
-        ({ id, data }) => {
-          localStorage.setItem(`gjs-process-flow-${id}`, JSON.stringify(data));
-        },
-        { id: PF_ID, data: dummyProcessFlow },
-      );
+      // step 1: tab1 で EditSession 開始
+      await seedTabsForWorkspace(pageA, ws.wsId, [dummyTab], dummyTab.id);
+      await gotoEditor(pageA);
+      await ensureReadOnly(pageA);
+      await pageA.getByTestId("edit-mode-start").click();
+      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 
-      // ── step 1: tab1 で EditSession 開始 → URL ?session= 取得 ──
-      await pageA.goto(`/process-flow/edit/${PF_ID}`);
-      await pageA.waitForLoadState("networkidle");
-
-      const editBtnA = pageA.getByTestId("edit-mode-start");
-      if (!await editBtnA.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // MCP 未接続 → skip
-        test.skip();
-        return;
-      }
-
-      await editBtnA.click();
-      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
-
-      // URL の ?session= パラメータを取得 (spec §11.1)
+      await pageA.waitForTimeout(500); // URL sync 待ち
       const urlAfterStart = pageA.url();
       const sessionParam = new URL(urlAfterStart).searchParams.get("session");
 
       if (!sessionParam) {
-        // ?session= がない場合は spec §11 未実装 → テスト内容を変更
-        // 基本 URL で tab2 が開けることだけ確認
-        await pageB.goto(`/process-flow/edit/${PF_ID}`);
+        // §11.1 未実装 — 基本 URL で tab2 が attach できることだけ確認
+        await seedTabsForWorkspace(pageB, ws.wsId, [dummyTab], dummyTab.id);
+        await gotoEditor(pageB);
+        await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 15000 });
+      } else {
+        // §11.1 実装確認
+        expect(sessionParam).toMatch(/^es-/);
+        // step 2: tab2 で 招待 URL を直接ロード → 自動 attach
+        await pageB.goto(urlAfterStart);
         await pageB.waitForLoadState("networkidle");
-
-        // tab2 が何らかの協調モードで表示される
-        const anyMode = await Promise.race([
-          pageB.getByTestId("esd-toggle-btn").waitFor({ state: "visible", timeout: 5000 }).then(() => "esd"),
-          pageB.getByTestId("edit-mode-force-release").waitFor({ state: "visible", timeout: 5000 }).then(() => "force"),
-          pageB.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 5000 }).then(() => "start"),
-        ]).catch(() => "none");
-
-        expect(["esd", "force", "start", "none"]).toContain(anyMode);
-
-        // クリーンアップ
-        await pageA.getByTestId("edit-mode-discard").click();
-        const discardConfirm = pageA.getByTestId("discard-confirm");
-        if (await discardConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await discardConfirm.click();
-        }
-        return;
-      }
-
-      // ?session= あり → spec §11 実装確認
-      expect(sessionParam).toMatch(/^es-/);
-
-      // ── step 2: tab2 で URL 直接ロード → 自動 attach ──
-      await pageB.goto(urlAfterStart); // 招待 URL で開く
-      await pageB.waitForLoadState("networkidle");
-
-      // tab2 は View role で自動 attach される (spec §11.2 step 3)
-      const tab2State = await Promise.race([
-        pageB.getByTestId("esd-toggle-btn").waitFor({ state: "visible", timeout: 5000 }).then(() => "esd"),
-        pageB.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 5000 }).then(() => "start"),
-      ]).catch(() => "none");
-
-      // esd-toggle-btn が見えれば View として attach されている (spec §11.2)
-      if (tab2State === "esd") {
-        // URL に同じ ?session= が含まれる (= 同 EditSession に attach 済み)
-        const tab2Url = pageB.url();
-        const tab2SessionParam = new URL(tab2Url).searchParams.get("session");
+        await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 15000 });
+        const tab2SessionParam = new URL(pageB.url()).searchParams.get("session");
         expect(tab2SessionParam).toBe(sessionParam);
-      }
 
-      // ── step 3: リロード → 同 EditSession に再 attach (spec §11.3 ブックマーク可能) ──
-      if (tab2State === "esd") {
+        // step 3: tab2 リロード → 同 session を保持 (spec §11.3 ブックマーク)
         await pageB.reload();
         await pageB.waitForLoadState("networkidle");
-
-        // リロード後も同 EditSession に attach されている
-        const reloadUrl = pageB.url();
-        const reloadSessionParam = new URL(reloadUrl).searchParams.get("session");
-
-        // ?session= が維持されていれば spec §11.3 実装確認
-        if (reloadSessionParam) {
-          expect(reloadSessionParam).toBe(sessionParam);
-        }
+        const reloadSessionParam = new URL(pageB.url()).searchParams.get("session");
+        if (reloadSessionParam) expect(reloadSessionParam).toBe(sessionParam);
       }
 
       // クリーンアップ
       await pageA.getByTestId("edit-mode-discard").click();
-      const discardConfirm = pageA.getByTestId("discard-confirm");
-      if (await discardConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await discardConfirm.click();
+      if (await pageA.getByTestId("discard-confirm").isVisible({ timeout: 2000 }).catch(() => false)) {
+        await pageA.getByTestId("discard-confirm").click();
       }
     } finally {
       await contextA.close();
@@ -142,86 +148,40 @@ test.describe("spec §11 URL ?session= 招待 (URL とブックマーク)", () =
     }
   });
 
-  test("URL のベースパス (/process-flow/edit/<id>) では EditSession が存在しない場合に新規作成 (spec §11.1)", async ({ page }) => {
-    // spec §11.1: /process-flow/edit/<id> で最新 active EditSession を開く
-    // 無ければ新規作成になる (または edit-mode-start ボタンが表示される)
-
-    // データ準備
-    await page.goto("/process-flow/list");
-    await page.evaluate(
-      ({ id, data }) => {
-        localStorage.setItem(`gjs-process-flow-${id}`, JSON.stringify(data));
-      },
-      { id: PF_ID, data: dummyProcessFlow },
-    );
-
-    await page.goto(`/process-flow/edit/${PF_ID}`);
-    await page.waitForLoadState("networkidle");
-
-    // 何らかの状態で表示される (edit-mode-start か esd-toggle)
-    const state = await Promise.race([
-      page.getByTestId("edit-mode-start").waitFor({ state: "visible", timeout: 5000 }).then(() => "start"),
-      page.getByTestId("esd-toggle-btn").waitFor({ state: "visible", timeout: 5000 }).then(() => "esd"),
-    ]).catch(() => "none");
-
-    // ページが正常にロードされた
-    expect(["start", "esd", "none"]).toContain(state);
+  test("ベース URL (/process-flow/edit/<id>) で active session が無ければ readonly で開く (spec §11.1)", async ({ page }) => {
+    await seedTabsForWorkspace(page, ws.wsId, [dummyTab], dummyTab.id);
+    await gotoEditor(page);
+    // active session が無い場合は edit-mode-start が表示される
+    await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 10000 });
   });
 
-  test("spec §13.3 initial fetch: attach 直後に最新 payload が broadcast 待ちなしで取得できる", async ({ browser }) => {
-    /**
-     * spec §13.3: attach 時の initial fetch — memory store から最新 payload を即座に取得。
-     * これは spec §1.1 根本欠陥 (後から接続した viewer が古い state を見る問題) の解消確認。
-     *
-     * vitest (editSessionStore.test.ts describe "fetchCurrentPayload") で内部ロジックは検証済み。
-     * ここでは E2E の smoke として: alice が編集後に bob が attach した際に
-     * 表示が正常 (空白でない) ことを確認する。
-     */
+  test("spec §13.3 initial fetch: alice 編集中に bob が attach すると即座にエディタ表示できる", async ({ browser }) => {
+    test.setTimeout(120000);
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
 
     try {
-      // データ準備
-      await pageA.goto("/process-flow/list");
-      await pageA.evaluate(
-        ({ id, data }) => {
-          localStorage.setItem(`gjs-process-flow-${id}`, JSON.stringify(data));
-        },
-        { id: PF_ID, data: dummyProcessFlow },
-      );
+      // alice 編集開始
+      await seedTabsForWorkspace(pageA, ws.wsId, [dummyTab], dummyTab.id);
+      await gotoEditor(pageA);
+      await ensureReadOnly(pageA);
+      await pageA.getByTestId("edit-mode-start").click();
+      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
 
-      // alice が編集開始
-      await pageA.goto(`/process-flow/edit/${PF_ID}`);
-      await pageA.waitForLoadState("networkidle");
-
-      const editBtnA = pageA.getByTestId("edit-mode-start");
-      if (!await editBtnA.isVisible({ timeout: 5000 }).catch(() => false)) {
-        test.skip();
-        return;
-      }
-      await editBtnA.click();
-      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
-
-      // alice が編集 (payload を変更)
-      // ProcessFlowEditor での名前変更等の実際の編集は UI 操作が複雑なため
-      // ここでは「alice が編集中状態」の確認に留める
-
-      // bob が後から attach → §1.1 根本欠陥解消確認
-      await pageB.goto(`/process-flow/edit/${PF_ID}`);
-      await pageB.waitForLoadState("networkidle");
-
-      // bob が表示を取得できている (空白画面でない)
-      const pageTitle = await pageB.title();
-      expect(typeof pageTitle).toBe("string");
-      expect(pageTitle.length).toBeGreaterThan(0);
+      // bob attach — initial fetch で空白でなく editor view が出ること
+      await seedTabsForWorkspace(pageB, ws.wsId, [dummyTab], dummyTab.id);
+      await gotoEditor(pageB);
+      // bob には esd-toggle-btn が見える (= attach 成功) → editor surface も生きている
+      await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 15000 });
+      // process-flow editor 領域が空白ではなく描画されている
+      await expect(pageB.locator(".process-flow-page")).toBeVisible();
 
       // クリーンアップ
       await pageA.getByTestId("edit-mode-discard").click();
-      const discardConfirm = pageA.getByTestId("discard-confirm");
-      if (await discardConfirm.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await discardConfirm.click();
+      if (await pageA.getByTestId("discard-confirm").isVisible({ timeout: 2000 }).catch(() => false)) {
+        await pageA.getByTestId("discard-confirm").click();
       }
     } finally {
       await contextA.close();

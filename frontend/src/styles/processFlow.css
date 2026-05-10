@@ -1553,6 +1553,13 @@
   gap: 8px;
   align-items: center;
 }
+/* Global `.btn` を inline-flex 化済 (frontend/src/index.css)。ここでは button group の
+   icon / text 間隔のみ指定する (display/align/justify は global で適用済、redundant 削除)。 */
+.catalog-row-add > button,
+.marker-row button,
+.marker-resolve-form button {
+  gap: 4px;
+}
 .catalog-new-key {
   flex: 1;
 }

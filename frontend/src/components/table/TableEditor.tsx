@@ -69,7 +69,7 @@ export function TableEditor() {
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
   // #891 fix: useResourceEditor より前に呼び出し、viewerMode / viewerEditSessionId を渡せるようにする
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, attach, takeOver, saveConflict, onSaveConflictOverwrite, onSaveConflictCancel } = useEditSession({
     resourceType: "table",
     resourceId: tableId ?? "",
     sessionId,
@@ -188,11 +188,15 @@ export function TableEditor() {
       // workspace context が未確立の場合 WorkspaceUnsetError が返ることがあるため最大 25 回 retry する (200ms × 25 = 5s)
       for (let attempt = 0; attempt < 25 && !cancelled; attempt++) {
         try {
-          const res = await mcpBridge.request("editSession.list", { resourceType: "table", resourceId: tableId }) as { sessions: unknown[] } | null;
+          const res = await mcpBridge.request("editSession.list", { resourceType: "table", resourceId: tableId }) as { sessions: Array<{ state?: string; participants?: Record<string, unknown> }> } | null;
           if (cancelled) return;
-          // state === "Active" のみを対象とする (discarded session は表示しない)
-          const hasActiveSession = (res?.sessions ?? []).some((s: unknown) => (s as { state?: string }).state === "Active");
-          if (hasActiveSession) setShowResumeDialog(true);
+          // #980-A: 自分が participant として参加していた Active session のみ対象。
+          // 他人の Active session で自分が unparticipated の場合は ResumeOrDiscardDialog を出さない。
+          const mySessionId = mcpBridge.getSessionId();
+          const hasMyActiveSession = (res?.sessions ?? []).some((s) =>
+            s.state === "Active" && !!s.participants?.[mySessionId],
+          );
+          if (hasMyActiveSession) setShowResumeDialog(true);
           return;
         } catch (err) {
           if (cancelled) return;
@@ -334,6 +338,7 @@ export function TableEditor() {
               currentSessionId={sessionId}
               onStartEditing={() => { void actions.startEditing(); }}
               onViewerAttached={syncSessionToUrl}
+              onAttachAsView={attach}
               onTakeOver={takeOver}
             />
             <button

@@ -59,6 +59,7 @@ import { useFlowProjectSync } from "../../hooks/useFlowProjectSync";
 import { useEditSession } from "../../hooks/useEditSession";
 import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
+import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import {
   DiscardConfirmDialog,
   ForceReleaseConfirmDialog,
@@ -170,13 +171,13 @@ function FlowEditorInner() {
   const sessionId = mcpBridge.getSessionId();
 
   // URL ?session= 同期 (spec §11.2) — initialEditSessionId を useEditSession に渡すため先に呼ぶ
-  const { initialEditSessionId: initialFlowSessionId } = useSessionUrlSync({
+  const { initialEditSessionId: initialFlowSessionId, syncSessionToUrl } = useSessionUrlSync({
     resourceType: "flow",
     resourceId: "singleton",
   });
 
   // P2-2 fix (#907): URL ?session= から復元した initialEditSessionId を渡す (URL 招待 attach 復活)
-  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, saveCheckConflict, saveCommit, saveConflict, onSaveConflictCancel } = useEditSession({
+  const { editSession, mode, loading: sessionLoading, isDirtyForTab, actions, attach, takeOver, saveCheckConflict, saveCommit, saveConflict, onSaveConflictCancel } = useEditSession({
     resourceType: "flow",
     resourceId: "singleton",
     sessionId,
@@ -273,9 +274,14 @@ function FlowEditorInner() {
     if (mode.kind !== "readonly") return;
     let cancelled = false;
     (async () => {
-      const res = await mcpBridge.request("editSession.list", { resourceType: "flow", resourceId: "singleton" }) as { sessions: unknown[] } | null;
+      const res = await mcpBridge.request("editSession.list", { resourceType: "flow", resourceId: "singleton" }) as { sessions: Array<{ state?: string; participants?: Record<string, unknown> }> } | null;
       if (cancelled) return;
-      if (res && res.sessions.length > 0) setShowResumeDialog(true);
+      // #980-A: 自分が participant として参加していた Active session のみ対象。
+      const mySessionId = mcpBridge.getSessionId();
+      const hasMyActiveSession = (res?.sessions ?? []).some((s) =>
+        s.state === "Active" && !!s.participants?.[mySessionId],
+      );
+      if (hasMyActiveSession) setShowResumeDialog(true);
     })().catch(console.error);
     return () => { cancelled = true; };
   }, [sessionLoading, mode.kind]);
@@ -915,6 +921,19 @@ function FlowEditorInner() {
         saving={isSaving}
         ownerLabel={lockedByOther?.ownerSessionId}
       />
+      {/* #994: collab UX 整合 — Viewer attach / take-over / 新規 draft / 履歴 */}
+      <div className="d-flex justify-content-end" style={{ padding: "4px 8px" }}>
+        <EditSessionDropdown
+          resourceType="flow"
+          resourceId="singleton"
+          currentMode={mode}
+          currentSessionId={sessionId}
+          onStartEditing={() => { void actions.startEditing(); }}
+          onViewerAttached={syncSessionToUrl}
+          onAttachAsView={attach}
+          onTakeOver={takeOver}
+        />
+      </div>
       {serverChanged && (
         <ServerChangeBanner
           onReload={handleReset}

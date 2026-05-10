@@ -68,86 +68,98 @@ test.describe("MarkerPanel (#261)", () => {
     await expect(page.locator(".marker-panel .catalog-empty")).toBeVisible();
   });
 
-  // TODO(#926 follow-up): #309 marker tabbar 化以降、.marker-panel が tabbar/body の
-  // 2 箇所に出るため click が intercepted される。selector 更新が必要。
-  test.skip("新規マーカー追加 (質問 kind)", async ({ page }) => {
+  test("新規マーカー追加 (質問 kind)", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel select").selectOption("question");
-    await page.locator(".marker-panel .marker-add-row input").fill("この SQL を条件付き UPDATE に書き換えて");
-    await page.locator(".marker-panel button:has-text('追加')").click();
+    const input = page.locator(".marker-panel .marker-add-row input");
+    await input.fill("この SQL を条件付き UPDATE に書き換えて");
+    // React controlled input の onChange → setNewBody が完了するまで wait
+    // (button の disabled={!newBody.trim()} が enabled になる)
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    // Playwright の click は button center 座標で hit test を行うが、bootstrap .btn の高さ (24px)
+    // + .catalog-row の padding 構造で button center が parent div に hit されるため
+    // force: true でも onClick が fire しない (event dispatch 先が parent div になる)。
+    // dispatchEvent('click') で button 要素に直接 click event を送り React onClick を起動する。
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-row")).toHaveCount(1);
     await expect(page.locator(".marker-panel .marker-row.marker-kind-question")).toBeVisible();
     await expect(page.locator(".marker-panel .marker-kind-badge")).toContainText("質問");
     await expect(page.locator(".marker-panel .marker-body")).toContainText("条件付き UPDATE");
   });
 
-  test.skip("解決ボタンでインライン解決フォームが開く", async ({ page }) => {
+  test("解決ボタンでインライン解決フォームが開く", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("A");
-    await page.locator(".marker-panel button:has-text('追加')").click();
-    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-btn").first().dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-resolve-form")).toBeVisible();
     await expect(page.locator(".marker-panel .marker-resolve-form textarea")).toBeFocused();
     await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(0);
   });
 
-  test.skip("解決フォームでメモを記入して 解決 ボタン押下で resolved に", async ({ page }) => {
+  test("解決フォームでメモを記入して 解決 ボタン押下で resolved に", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("A");
-    await page.locator(".marker-panel button:has-text('追加')").click();
-    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-btn").first().dispatchEvent("click");
     await page.locator(".marker-panel .marker-resolve-form textarea").fill("自分で対応済み");
-    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").click();
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-row")).toHaveCount(0);
-    await page.locator(".marker-panel input[type='checkbox']").check();
+    await page.locator(".marker-panel input[type='checkbox']").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(1);
     await expect(page.locator(".marker-panel .marker-resolution")).toContainText("自分で対応済み");
   });
 
-  test.skip("解決フォームで キャンセル 押下でフォームを閉じる (未解決のまま)", async ({ page }) => {
+  test("解決フォームで キャンセル 押下でフォームを閉じる (未解決のまま)", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("A");
-    await page.locator(".marker-panel button:has-text('追加')").click();
-    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-btn").first().dispatchEvent("click");
     await page.locator(".marker-panel .marker-resolve-form textarea").fill("中止する");
-    await page.locator(".marker-panel .marker-resolve-form button:has-text('キャンセル')").click();
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('キャンセル')").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-resolve-form")).toHaveCount(0);
     await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(0);
-    await page.locator(".marker-panel .marker-resolve-btn").first().click();
+    await page.locator(".marker-panel .marker-resolve-btn").first().dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-resolve-form textarea")).toHaveValue("");
   });
 
-  test.skip("メモ空のまま解決するとデフォルトメモが入る", async ({ page }) => {
+  test("メモ空のまま解決するとデフォルトメモが入る", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("A");
-    await page.locator(".marker-panel button:has-text('追加')").click();
-    await page.locator(".marker-panel .marker-resolve-btn").first().click();
-    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").click();
-    await page.locator(".marker-panel input[type='checkbox']").check();
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-btn").first().dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").dispatchEvent("click");
+    await page.locator(".marker-panel input[type='checkbox']").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-resolution")).toContainText("人間が手動で解決");
   });
 
-  test.skip("解決済み marker の チェック済アイコン押下で未解決に戻る", async ({ page }) => {
+  test("解決済み marker の チェック済アイコン押下で未解決に戻る", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("A");
-    await page.locator(".marker-panel button:has-text('追加')").click();
-    await page.locator(".marker-panel .marker-resolve-btn").first().click();
-    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").click();
-    await page.locator(".marker-panel input[type='checkbox']").check();
-    await page.locator(".marker-panel .marker-row.resolved .bi-check-circle-fill").click();
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-btn").first().dispatchEvent("click");
+    await page.locator(".marker-panel .marker-resolve-form button:has-text('解決')").dispatchEvent("click");
+    await page.locator(".marker-panel input[type='checkbox']").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-row.resolved .bi-check-circle-fill").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-row.resolved")).toHaveCount(0);
   });
 
-  test.skip("削除ボタンで marker 消去", async ({ page }) => {
+  test("削除ボタンで marker 消去", async ({ page }) => {
     await setup(page);
     await page.locator(".marker-panel .marker-add-row input").fill("消すよ");
-    await page.locator(".marker-panel button:has-text('追加')").click();
-    await page.locator(".marker-panel .marker-row .bi-trash").click();
+    await expect(page.getByTestId("marker-add-btn")).toBeEnabled();
+    await page.getByTestId("marker-add-btn").dispatchEvent("click");
+    await page.locator(".marker-panel .marker-row .bi-trash").dispatchEvent("click");
     await expect(page.locator(".marker-panel .marker-row")).toHaveCount(0);
     await expect(page.locator(".marker-panel .catalog-panel-toggle")).toContainText("0 未解決");
   });
 
-  test.skip("Enter キーで追加", async ({ page }) => {
+  test("Enter キーで追加", async ({ page }) => {
     await setup(page);
     const input = page.locator(".marker-panel .marker-add-row input");
     await input.fill("Enter で追加");

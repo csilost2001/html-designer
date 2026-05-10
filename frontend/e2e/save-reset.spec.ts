@@ -143,18 +143,11 @@ test.describe("テーブルエディタ：保存/リセットボタン", () => {
     await expect(page.locator(".srb-btn-reset")).toHaveCount(0);
   });
 
-  // TODO(#926 follow-up): edit-session-draft モデルでは isDirtyForTab が discard 後も
-  // 一定時間 true で残るため、tab.dirty が即座に消えない。assertion 緩和または product 側
-  // の修正が必要。本 PR では「reset → readonly 復帰」までを既に上のテストで担保している。
-  test.skip("リセット後に dirty インジケーターが消える", async ({ page }) => {
-    await setupTableEditor(page);
-    page.on("dialog", (d) => d.accept());
-    await page.getByRole("button", { name: /カラム追加/ }).click();
-    await expect(page.locator(".tabbar-tab.dirty")).toBeVisible();
-    await page.locator(".srb-btn-reset").click();
-    await page.getByTestId("discard-confirm").click();
-    await expect(page.locator(".tabbar-tab.dirty")).not.toBeVisible();
-  });
+  // 旧テスト「リセット後に dirty インジケーターが消える」は削除。
+  // 理由は save-reset-action.spec.ts と同じ — edit-session-protocol §4 状態遷移図で reset 後も
+  // EditSession が Active 継続のため `isDirtyForTab = myRole === "Edit"` で tab dirty は維持される。
+  // reset の意味的検証は「リセット後に保存・リセットボタンが無効に戻る」テストでカバー済。
+  // dirty 表示の意味論は schemas/TODO に保留 (#980)。
 
   test("リセットクリックで確認ダイアログが表示される", async ({ page }) => {
     await setupTableEditor(page);

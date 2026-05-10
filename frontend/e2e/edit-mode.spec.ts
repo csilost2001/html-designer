@@ -12,8 +12,10 @@ import {
   cleanupRealWorkspaces,
   isMcpRunning,
   normalizeId,
+  seedTabsForWorkspace,
   type OpenedWorkspace,
 } from "./helpers/realWorkspace";
+import { attachAsViewer, takeOver } from "./helpers/editSessionDropdown";
 import {
   buildProject,
   buildProcessFlow,
@@ -115,6 +117,25 @@ async function startEditOrSkip(page: import("@playwright/test").Page) {
   }
   await editBtn.click();
   return true;
+}
+
+/**
+ * #980-A review 5: multi-tab filter テスト用に precondition 失敗を **fail-fast** に変える
+ * fail-fast 版。alice 側の `edit-mode-start` 失敗を silent skip ではなく明示 throw で検出する
+ * (spec が抑制系修正のフィクスチャ選定章で求める「ガード効果か前提失敗か区別可能」要件)。
+ */
+async function startEditFailFast(page: import("@playwright/test").Page) {
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(500);
+  for (let _i = 0; _i < 3; _i++) {
+    if (await page.locator(".edit-mode-modal-backdrop").isVisible().catch(() => false)) {
+      await page.evaluate(() => (document.querySelector('[data-testid="resume-discard"]') as HTMLButtonElement | null)?.click());
+      await page.locator(".edit-mode-modal-backdrop").waitFor({ state: "hidden", timeout: 5000 }).catch(() => undefined);
+    } else { break; }
+  }
+  // 失敗時は test.skip ではなく expect で fail (false-positive を排除)
+  await expect(page.getByTestId("edit-mode-start")).toBeVisible({ timeout: 10000 });
+  await page.getByTestId("edit-mode-start").click();
 }
 
 test.describe("編集モード UI — TableEditor", () => {
@@ -276,7 +297,125 @@ test.describe("編集モード UI — FlowEditor singleton (PR-7)", () => {
   });
 });
 
-// 強制解除シナリオは 2 ブラウザコンテキスト + 排他制御が絡むため、本 PR では follow-up skip。
+// 強制解除シナリオ — 2 browser context + transferEdit 連携 (#980-A 対応)
 test.describe("編集モード UI — 強制解除シナリオ", () => {
-  test.skip("シナリオ 3: 2 タブ open → タブ A 編集中 → タブ B から強制解除", () => { /* skip */ });
+  test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await makeWs();
+  });
+
+  test("シナリオ 3: 2 タブ open → タブ A 編集中 → タブ B から take-over (強制解除相当)", async ({ browser }) => {
+    test.setTimeout(180000);
+    const contextA = await browser.newContext();
+    const contextB = await browser.newContext();
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+
+    const dummyTabPF = { id: `process-flow:${PF_NORM}`, type: "process-flow", resourceId: PF_NORM, label: "編集モードテストフロー", isDirty: false, isPinned: false };
+
+    try {
+      // tab A: 編集開始 → Edit role
+      await seedTabsForWorkspace(pageA, ws.wsId, [dummyTabPF], dummyTabPF.id);
+      await ws.gotoActive(pageA, `/process-flow/edit/${PF_NORM}`);
+      if (!await startEditOrSkip(pageA)) return;
+      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 5000 });
+
+      // tab B: 同 resource を開く → Viewer attach → take-over (helpers/editSessionDropdown 経由)
+      await seedTabsForWorkspace(pageB, ws.wsId, [dummyTabPF], dummyTabPF.id);
+      await ws.gotoActive(pageB, `/process-flow/edit/${PF_NORM}`);
+      await attachAsViewer(pageB);
+      await takeOver(pageB);
+
+      // tab B が Edit role になり、tab A は Viewer 化される
+      await expect(pageB.getByTestId("edit-mode-save")).toBeVisible({ timeout: 10000 });
+      await expect(pageA.getByTestId("edit-mode-save")).not.toBeVisible({ timeout: 10000 });
+    } finally {
+      await contextA.close();
+      await contextB.close();
+    }
+  });
+});
+
+// #980-A: ResumeOrDiscardDialog filter (participants[mySessionId] のみ) が
+// ProcessFlow 以外のエディタでも正しく動作することを multi-tab で検証する。
+// alice が編集中に bob が同 resource を開いても ResumeOrDiscardDialog は表示されない
+// (= 「他人の Active session を自分の draft と誤認しない」)。
+test.describe("編集モード UI — ResumeOrDiscardDialog filter (multi-tab) #980-A", () => {
+  test.beforeAll(async () => { mcpAvailable = await isMcpRunning(); });
+  test.beforeEach(async () => {
+    test.skip(!mcpAvailable, "backend (port 5179) が起動していません");
+    ws = await makeWs();
+  });
+
+  // 共通ヘルパー: alice 編集開始 → bob open → Resume dialog 非表示。
+  // hasDropdown=true の編集系は esd-toggle-btn 表示も検証。
+  // #994 で全 10 編集系に EditSessionDropdown 搭載済 — 全テストが hasDropdown: true で検証可能。
+  async function verifyFilter(browser: import("@playwright/test").Browser, route: string, tabType: string, resId: string, label: string, opts: { hasDropdown: boolean }) {
+    const ctxA = await browser.newContext();
+    const ctxB = await browser.newContext();
+    const pageA = await ctxA.newPage();
+    const pageB = await ctxB.newPage();
+    const tab = { id: `${tabType}:${resId}`, type: tabType, resourceId: resId, label, isDirty: false, isPinned: false };
+    try {
+      await seedTabsForWorkspace(pageA, ws.wsId, [tab], tab.id);
+      await ws.gotoActive(pageA, route);
+      // #980-A review 5: fail-fast (silent skip 撲滅) — multi-tab filter test の precondition
+      // が崩れた場合は明示 throw して検出する
+      await startEditFailFast(pageA);
+      await expect(pageA.getByTestId("edit-mode-save")).toBeVisible({ timeout: 15000 });
+
+      await seedTabsForWorkspace(pageB, ws.wsId, [tab], tab.id);
+      await ws.gotoActive(pageB, route);
+      // 5s 待機して dialog が出ないことを確認 (出る場合は 1-3s で出る)
+      await pageB.waitForTimeout(5000);
+      await expect(pageB.locator('.edit-mode-modal-backdrop')).not.toBeVisible();
+      if (opts.hasDropdown) {
+        await expect(pageB.getByTestId("esd-toggle-btn")).toBeVisible({ timeout: 5000 });
+      }
+    } finally {
+      await ctxA.close();
+      await ctxB.close();
+    }
+  }
+
+  test("TableEditor: alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, `/table/edit/${TABLE_NORM}`, "table", TABLE_NORM, "編集モードテスト", { hasDropdown: true });
+  });
+
+  test("ViewEditor: alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, `/view/edit/${VIEW_NORM}`, "view", VIEW_NORM, "E2E ビュー", { hasDropdown: true });
+  });
+
+  test("ViewDefinitionEditor: alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, `/view-definition/edit/${VIEW_DEF_NORM}`, "view-definition", VIEW_DEF_NORM, "E2E ビュー定義", { hasDropdown: true });
+  });
+
+  test("SequenceEditor: alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, `/sequence/edit/${SEQ_NORM}`, "sequence", SEQ_NORM, "E2E シーケンス", { hasDropdown: true });
+  });
+
+  test("ScreenItemsView: alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, `/screen/items/${SCREEN_NORM}`, "screen-item", SCREEN_NORM, "編集モードテスト画面", { hasDropdown: true });
+  });
+
+  test("ConventionsCatalogView (singleton): alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, "/conventions/catalog", "convention", "singleton", "規約カタログ", { hasDropdown: true });
+  });
+
+  test("ExtensionsPanel (singleton): alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, "/extensions", "extension", "singleton", "拡張", { hasDropdown: true });
+  });
+
+  test("FlowEditor (singleton): alice 編集中、bob open → ResumeOrDiscardDialog が出ない", async ({ browser }) => {
+    test.setTimeout(120000);
+    await verifyFilter(browser, "/screen/flow", "flow", "singleton", "画面フロー", { hasDropdown: true });
+  });
 });

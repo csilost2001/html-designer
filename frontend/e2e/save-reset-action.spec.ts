@@ -149,17 +149,12 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
     await expect(page.locator(toolbarReset)).toHaveCount(0);
   });
 
-  // TODO(#926 follow-up): isDirtyForTab が discard 後も一定時間 true で残る
-  test.skip("リセット後にタブの dirty インジケーターが消える", async ({ page }) => {
-    await setupProcessFlowEditor(page);
-    page.on("dialog", (d) => d.accept());
-    await addAction(page, "登録ボタン");
-    const tabLocator = page.locator(".tabbar-tab").filter({ hasText: "テスト処理フロー" });
-    await expect(tabLocator).toHaveClass(/\bdirty\b/);
-    await page.locator(toolbarReset).click();
-    await page.getByTestId("discard-confirm").click();
-    await expect(tabLocator).not.toHaveClass(/\bdirty\b/);
-  });
+  // 旧テスト「リセット後にタブの dirty インジケーターが消える」は edit-session-protocol §4
+  // 状態遷移図と矛盾するため削除。新仕様では reset (revert) 後も EditSession が Active 継続
+  // (Edit role 維持) で `isDirtyForTab = myRole === "Edit"` のため tab dirty は維持される。
+  // reset の意味的検証は「リセット後に保存・リセットボタンが無効に戻る」が同 describe 上にあり
+  // (= isDirty が false へ戻る) その経路で達成済み。
+  // dirty 表示の意味論 (Active EditSession 中常時 vs 未保存差分のみ) は schemas/TODO に保留 (#980)。
 
   test("Ctrl+S で保存が実行されて保存ボタンが無効に戻る", async ({ page }) => {
     await setupProcessFlowEditor(page);
@@ -169,12 +164,8 @@ test.describe("処理フローエディタ：保存/リセットボタン", () =
     await expect(page.locator(toolbarSave)).toBeDisabled();
   });
 
-  // TODO(#926 follow-up): localStorage の draft-action-<id> を pre-seed する仕組みが
-  // edit-session-draft モデルでは backend (.edit-sessions/) に置き換わっており、
-  // 直接 seed する経路の再現が必要。
-  test.skip("ドラフトが事前に存在するとリロード後も isDirty 状態で復元される", async ({ page }) => {
-    await setupProcessFlowEditor(page);
-    await expect(page.locator(toolbarSave)).toBeEnabled();
-    await expect(page.locator(toolbarReset)).toBeEnabled();
-  });
+  // 元 spec の「reload しても isDirty が復元される」は旧 localStorage seed 仕様前提。
+  // edit-session-draft (#683) は明示保存式で、reload 前に明示 save しなければ in-memory
+  // 編集が消える設計。draft 復元の検証は edit-session/url-invitation:171
+  // 「§13.3 attach 直後に最新 payload が broadcast 待ちなしで取得できる」でカバー済。
 });
