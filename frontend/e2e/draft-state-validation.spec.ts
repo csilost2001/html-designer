@@ -252,28 +252,29 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
     await ws.gotoActive(page, "/table/list");
     await expect(page.locator(".table-list-page")).toBeVisible({ timeout: 10000 });
 
-    // ValidationBadge (warning) 待ち
-    await expect(page.locator(".validation-badge").first()).toBeVisible({ timeout: 15000 });
-
-    // warning badge が存在することを確認
+    // .validation-badge.warning を直接待つ (.validation-badge.error が先に visible になる race を避ける)
     const warningBadge = page.locator(".validation-badge.warning");
-    await expect(warningBadge.first()).toBeVisible();
+    await expect(warningBadge.first()).toBeVisible({ timeout: 15000 });
+    // warning は exclamation-triangle-fill アイコンを伴う
+    await expect(warningBadge.first().locator(".bi-exclamation-triangle-fill")).toBeVisible();
   });
 
   test("(P2-View) View ListView で physicalName 重複の error badge が表示される", async ({ page }) => {
     await ws.gotoActive(page, "/view/list");
     await expect(page.locator(".table-list-page")).toBeVisible({ timeout: 10000 });
 
-    // ValidationBadge (error) 待ち
-    await expect(page.locator(".validation-badge.error").first()).toBeVisible({ timeout: 15000 });
+    // ValidationBadge (error) 待ち + icon 一致 assert
+    const errorBadge = page.locator(".validation-badge.error");
+    await expect(errorBadge.first()).toBeVisible({ timeout: 15000 });
+    await expect(errorBadge.first().locator(".bi-x-circle-fill")).toBeVisible();
   });
 
   // ViewDefinition ListView は project manifest の entities.viewDefinitions から一覧を構築するが、
   // normalizePersisted (flowStore) が entities.viewDefinitions を保持しないため、
   // setupTestWorkspace で viewDefinitions ファイルを書き出しても一覧は 0 件になる。
   // ViewDefinition は UI 経由 (saveViewDefinition → syncViewDefinitionMeta) でのみ正しく登録できる。
-  // 別 ISSUE でフォローする (normalizePersisted への viewDefinitions 追加 or 代替パス)。
-  test.skip("(P2-ViewDefinition) ViewDefinition ListView で UNKNOWN_SOURCE_TABLE の error badge が表示される — normalizePersisted が entities.viewDefinitions を保持しないため setupTestWorkspace 経由では 0 件", async ({ page }) => {
+  // → #1004 提案 A で normalizePersisted への viewDefinitions 追加 or 代替 load パスを整備後、本 skip を解除して strict assert に戻す。
+  test.skip("(P2-ViewDefinition) ViewDefinition ListView で UNKNOWN_SOURCE_TABLE の error badge が表示される — #1004: normalizePersisted が entities.viewDefinitions を保持しないため setupTestWorkspace 経由では 0 件", async ({ page }) => {
     await ws.gotoActive(page, "/view-definition/list");
     await expect(page.locator(".table-list-page")).toBeVisible({ timeout: 10000 });
 
@@ -285,23 +286,24 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
     await ws.gotoActive(page, "/process-flow/list");
     await expect(page.locator(".process-flow-page")).toBeVisible({ timeout: 10000 });
 
-    // ProcessFlowListView はバックグラウンドで aggregateValidation を実行
-    // ValidationBadge が表示されるまで待つ
-    await expect(page.locator(".validation-badge").first()).toBeVisible({ timeout: 20000 });
+    // ProcessFlowListView はバックグラウンドで aggregateValidation を実行。
+    // UNKNOWN_IDENTIFIER / UNKNOWN_RESPONSE_REF は warning severity 想定なので .warning を直接待つ。
+    const warningBadge = page.locator(".validation-badge.warning");
+    await expect(warningBadge.first()).toBeVisible({ timeout: 20000 });
+    await expect(warningBadge.first().locator(".bi-exclamation-triangle-fill")).toBeVisible();
   });
 
   // (P2-Screen) Screen ListView は puck validation の ValidationBadge 未実装のためスキップ
-  // 実装が入ったタイミングで test.skip を解除すること
-  test.skip("(P2-Screen) Screen ListView で puck validation badge が表示される — screen-list ValidationBadge 未実装", async ({ page }) => {
+  // → #1004 提案 B で screenStore.loadValidationMap() + ScreenListView ValidationBadge 適用後、本 skip を解除する。
+  test.skip("(P2-Screen) Screen ListView で puck validation badge が表示される — #1004: screenStore.loadValidationMap 未実装 + ScreenListView ValidationBadge 未統合", async ({ page }) => {
     // puck validation は ProcessFlowEditor 内で表示されるが、Screen ListView (screen/list) での
     // ValidationBadge 表示は未実装 (screenStore.loadValidationMap 未実装)。
-    // 別 ISSUE 起票で対応予定。
     void page;
   });
 
   // (Conventions / Extensions) ValidationBadge 未適用のためスキップ
-  // 実装が入ったタイミングで test.skip を解除すること
-  test.skip("(P2-Conventions) Conventions ListView ValidationBadge — 未実装", async ({ page }) => {
+  // → #1004 提案 C で仕様確認 (適用するか、by design として policy.md に明記するか)。決定後 skip 解除 or 恒久 skip 化。
+  test.skip("(P2-Conventions) Conventions ListView ValidationBadge — #1004: 仕様確認待ち (適用要否未決)", async ({ page }) => {
     void page;
   });
 
@@ -326,29 +328,30 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
     await expect(badges.first()).toHaveAttribute("aria-label", /成熟度/);
   });
 
-  test("(P3-cycle) ProcessFlow ListView の MaturityBadge クリックで maturity が切り替わる", async ({ page }) => {
+  test("(P3-cycle) ProcessFlow ListView の MaturityBadge は view-only で aria-label に成熟度を持つ", async ({ page }) => {
     await ws.gotoActive(page, "/process-flow/list");
     await expect(page.locator(".process-flow-page")).toBeVisible({ timeout: 10000 });
 
     // カード表示まで待つ
     await expect(page.locator(".data-list-card").first()).toBeVisible({ timeout: 10000 });
 
-    // ProcessFlowListView の MaturityBadge は onChange が無いため editable でない (表示のみ)
-    // aria-label で成熟度が表示されることを確認
+    // ProcessFlowListView の MaturityBadge は onChange が無いため view-only (表示のみ、循環編集不可)
+    // editable でないので role="button" や `editable` class は付与されない。aria-label で成熟度が表示される。
     const badge = page.locator(".data-list-card .maturity-badge").first();
     await expect(badge).toBeVisible({ timeout: 5000 });
     await expect(badge).toHaveAttribute("aria-label", /成熟度/);
+    // view-only であることを class からも確認
+    await expect(badge).not.toHaveClass(/editable/);
   });
 
   // (P3-block) maturity commit 阻止: UI 実装が確認できないためスキップ
   // docs/spec/draft-state-policy.md 原則 3 の「committed への遷移を条件付きで阻止する」機能は
   // 現時点で ListView の MaturityBadge クリックでは実装されていない。
-  // ProcessFlowEditor 内では editSession の save 時に検証される想定だが、
-  // ListView 経由での阻止 UI は未実装。別 ISSUE 起票予定。
-  test.skip("(P3-block) Table committed 遷移時に error があれば阻止される — ListView での commit 阻止 UI 未実装", async ({ page }) => {
+  // 仕様上 ListView は view-only の可能性もあり、policy 確定 + 必要なら Editor 側で実装する方針。
+  // → #1004 提案 D で仕様確定 + 実装後、本 skip を解除する。
+  test.skip("(P3-block) Table committed 遷移時に error があれば阻止される — #1004: ListView での commit 阻止 UI 未実装、仕様確定待ち", async ({ page }) => {
     // Table の maturity を committed に変えようとしたときにエラーがあれば
     // 確認ダイアログか toastify で警告する UI が必要だが未実装。
-    // 別 ISSUE で対応予定。
     void page;
   });
 
@@ -396,8 +399,8 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
   });
 
   // (P4-error ViewDefinition) P2-ViewDefinition と同じ理由でスキップ
-  // normalizePersisted が entities.viewDefinitions を保持しないため 0 件になる。
-  test.skip("(P4-error) ViewDefinition UNKNOWN_SOURCE_TABLE は error severity — normalizePersisted の entities.viewDefinitions 欠落によりスキップ", async ({ page }) => {
+  // → #1004 提案 A 解決後、本 skip を解除する。
+  test.skip("(P4-error) ViewDefinition UNKNOWN_SOURCE_TABLE は error severity — #1004: normalizePersisted の entities.viewDefinitions 欠落により setupTestWorkspace 経由では 0 件", async ({ page }) => {
     await ws.gotoActive(page, "/view-definition/list");
     await expect(page.locator(".table-list-page")).toBeVisible({ timeout: 10000 });
 
@@ -412,11 +415,10 @@ test.describe("draft-state validation 表示 — 領域 11 網羅", { tag: ["@re
   // SQL alias #775 — UI runtime validator 未実装
   // ──────────────────────────────────────────────
 
-  // SQL alias 未定義を error として検出する UI runtime validator (#775) は未実装。
+  // SQL alias 未定義を error として検出する UI runtime validator は #775 で trace 済み。
   // sqlColumnValidator.ts は列存在検査 (UNKNOWN_COLUMN) のみ実装。
-  // 本テストは UI 実装後に test.skip を解除すること。
-  // Opus への依頼: #775 SQL alias UI runtime validator 追加 ISSUE を起票すること。
-  test.skip("(SQL) SQL alias missing で error 表示 — UI runtime validator 未実装 (別 ISSUE 起票予定: #775 派生)", async ({ page }) => {
+  // → #775 完了後、本 skip を解除する。
+  test.skip("(SQL) SQL alias missing で error 表示 — #775: SQL alias UI runtime validator 未実装", async ({ page }) => {
     void page;
     // 期待動作:
     // ViewDefinition の Level 2 query で alias が重複または未定義の場合、
