@@ -172,7 +172,6 @@ test.describe("step outputBinding 入力 (#204)", { tag: ["@regression"] }, () =
     await expect(nameInput).toBeVisible();
     await nameInput.fill("myResult");
     // 代入方式を accumulate に
-    const opSelect = card.locator("label", { hasText: "代入方式" }).locator("+ select, ~ select").first();
     // fallback: select after label containing 代入方式
     const opSelectAlt = card.locator("select").filter({ hasText: "accumulate" });
     if (await opSelectAlt.count() > 0) {

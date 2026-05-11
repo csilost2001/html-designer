@@ -3,7 +3,6 @@ import type {
   ActionDefinition,
   Branch,
   BranchCondition,
-  BranchStep,
   ProcessFlow,
   Step,
 } from "../types/action";

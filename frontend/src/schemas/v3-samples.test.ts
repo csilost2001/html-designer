@@ -18,9 +18,6 @@ let validateScreen: ValidateFunction;
 let validateTable: ValidateFunction;
 let validateProcessFlow: ValidateFunction;
 let validateExtension: ValidateFunction;
-let validateSequence: ValidateFunction;
-let validateScreenLayout: ValidateFunction;
-let validateErLayout: ValidateFunction;
 let validateViewDefinition: ValidateFunction;
 
 beforeAll(() => {
@@ -33,9 +30,9 @@ beforeAll(() => {
   validateTable = ajv.compile(loadJson(join(v3Dir, "table.v3.schema.json")) as object);
   validateProcessFlow = ajv.compile(loadJson(join(v3Dir, "process-flow.v3.schema.json")) as object);
   validateExtension = ajv.compile(loadJson(join(v3Dir, "extensions.v3.schema.json")) as object);
-  validateSequence = ajv.compile(loadJson(join(v3Dir, "sequence.v3.schema.json")) as object);
-  validateScreenLayout = ajv.compile(loadJson(join(v3Dir, "screen-layout.v3.schema.json")) as object);
-  validateErLayout = ajv.compile(loadJson(join(v3Dir, "er-layout.v3.schema.json")) as object);
+  ajv.compile(loadJson(join(v3Dir, "sequence.v3.schema.json")) as object);
+  ajv.compile(loadJson(join(v3Dir, "screen-layout.v3.schema.json")) as object);
+  ajv.compile(loadJson(join(v3Dir, "er-layout.v3.schema.json")) as object);
   validateViewDefinition = ajv.compile(loadJson(join(v3Dir, "view-definition.v3.schema.json")) as object);
 });
 

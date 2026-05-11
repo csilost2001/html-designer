@@ -146,6 +146,7 @@ test.describe("成熟度バッジ (#185/#189)", { tag: ["@regression"] }, () => 
     await setupEditor(page);
     // アクションタブが開いており、ステップが表示されている
     const firstStepCard = page.locator("[data-testid='data-list-row'], .step-card").first();
+    await expect(firstStepCard).toBeVisible();
     // MaturityBadge は role=button または span (onChange 渡しているので role=button)
     const badges = page.locator(".maturity-badge");
     await expect(badges.first()).toBeVisible();
@@ -174,6 +175,7 @@ test.describe("付箋 (#195/#199)", { tag: ["@regression"] }, () => {
     // 最初のステップカードのヘッダをクリックして展開
     const firstCard = page.locator(".step-card").first();
     const header = firstCard.locator(".step-card-header, .step-card-body").first();
+    await expect(header).toBeVisible();
     // step-card の上部 (type-label 付近) をクリックで展開
     await firstCard.locator(".step-card-type-label").first().click();
     // 付箋を追加ボタンが見える

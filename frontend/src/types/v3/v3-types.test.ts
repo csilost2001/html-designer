@@ -27,7 +27,6 @@ import type { ScreenItem, ValueSource } from "./screen-item";
 import type {
   Uuid,
   TableId,
-  ProcessFlowId,
   Identifier,
   IdentifierPath,
   FieldType,
