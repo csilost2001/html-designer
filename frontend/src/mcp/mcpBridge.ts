@@ -80,6 +80,10 @@ import {
   setViewDefinitionStorageBackend,
   type ViewDefinitionStorageBackend,
 } from "../store/viewDefinitionStore";
+import {
+  setPageLayoutStorageBackend,
+  type PageLayoutStorageBackend,
+} from "../store/pageLayoutStore";
 import type { RawExtensionsBundle } from "../schemas/loadExtensions";
 
 export type McpStatus = "disconnected" | "connecting" | "connected" | "failed";
@@ -449,6 +453,14 @@ class McpBridgeImpl {
       deleteViewDefinition: (viewDefinitionId) => this.request("deleteViewDefinition", { viewDefinitionId }).then(() => undefined),
     };
     setViewDefinitionStorageBackend(viewDefinitionBackend);
+
+    const pageLayoutBackend: PageLayoutStorageBackend = {
+      loadPageLayout: (pageLayoutId) => this.request("loadPageLayout", { pageLayoutId }),
+      listAllPageLayouts: () => this.request("listAllPageLayouts", {}) as Promise<unknown[]>,
+      savePageLayout: (pageLayoutId, data) => this.request("savePageLayout", { pageLayoutId, data }).then(() => undefined),
+      deletePageLayout: (pageLayoutId) => this.request("deletePageLayout", { pageLayoutId }).then(() => undefined),
+    };
+    setPageLayoutStorageBackend(pageLayoutBackend);
   }
 
   // ── メッセージ受信 ─────────────────────────────────────────────────────
