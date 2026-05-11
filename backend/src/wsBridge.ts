@@ -20,6 +20,7 @@ import {
   isLockdown as isWorkspaceLockdown,
   getLockdownPath as getWorkspaceLockdownPath,
   LockdownError as WorkspaceLockdownError,
+  LOCKDOWN_WORKSPACE_ID,
   workspaceContextManager,
 } from "./workspaceState.js";
 import {
@@ -1347,16 +1348,19 @@ class WsBridge extends EventEmitter {
 
         // ── ワークスペース管理 (#671/#672/#673) ─────────────────────────
         case "workspace.list": {
-          const { workspaces, lastActiveId } = await listWorkspacesEntries();
+          const lockdown = isWorkspaceLockdown();
+          const { workspaces, lastActiveId } = lockdown
+            ? { workspaces: [], lastActiveId: null }
+            : await listWorkspacesEntries();
           const activePath = workspaceContextManager.getActivePath(clientId);
           const activeEntry = activePath ? await findWorkspaceByPath(activePath) : null;
           respond({
             workspaces,
             lastActiveId,
             active: activePath
-              ? { id: activeEntry?.id ?? null, path: activePath, name: activeEntry?.name ?? null }
+              ? { id: lockdown ? LOCKDOWN_WORKSPACE_ID : activeEntry?.id ?? null, path: activePath, name: activeEntry?.name ?? null }
               : null,
-            lockdown: isWorkspaceLockdown(),
+            lockdown,
             lockdownPath: getWorkspaceLockdownPath(),
           });
           break;
@@ -1840,4 +1844,3 @@ function _serializeEditSession(session: import("./editSessionStore.js").EditSess
     participants: Object.fromEntries(session.participants.entries()),
   };
 }
-

@@ -27,6 +27,7 @@ const {
   findByPath,
   listWorkspaces,
 } = await import("./recentStore.js");
+const { LOCKDOWN_WORKSPACE_ID } = await import("./workspaceState.js");
 
 beforeAll(async () => {
   await fs.mkdir(TMP_DIR, { recursive: true });
@@ -135,5 +136,19 @@ describe("workspace.list active.id 解決 (#956)", () => {
       ? { id: activeEntry?.id ?? null, path: activePath, name: activeEntry?.name ?? null }
       : null;
     expect(activePayload?.id).toBeNull();
+  });
+
+  it("lockdown 時は recent エントリがなくても固定 active.id を返す", async () => {
+    const activePath = "/tmp/ws-lockdown-not-registered";
+    const activeEntry = await findByPath(activePath);
+    const lockdown = true;
+
+    expect(activeEntry).toBeNull();
+
+    const activePayload = activePath
+      ? { id: lockdown ? LOCKDOWN_WORKSPACE_ID : activeEntry?.id ?? null, path: activePath, name: activeEntry?.name ?? null }
+      : null;
+
+    expect(activePayload?.id).toBe("lockdown");
   });
 });

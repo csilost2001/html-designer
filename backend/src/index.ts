@@ -18,7 +18,7 @@ import { handleAuthCheck, handlePropose } from "./aiRename.js";
 import { htmlToReact, toPascalCase } from "./reactExporter.js";
 import { readProject, readCustomBlocks, readTable, writeTable, deleteTable as deleteTableFile, writeProject, readErLayout, readProcessFlow, writeProcessFlow, deleteProcessFlow as deleteProcessFlowFile, listProcessFlows as listProcessFlowFiles, readPuckComponents, writePuckComponents } from "./projectStorage.js";
 import { mcpTableToSpecEntry } from "./specExport.js";
-import { initWorkspaceState, getActivePath, setActivePath, clearActive, connect as wsConnect, disconnect as wsDisconnect, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError, workspaceContextManager } from "./workspaceState.js";
+import { initWorkspaceState, getActivePath, setActivePath, clearActive, connect as wsConnect, disconnect as wsDisconnect, isLockdown, getLockdownPath, LockdownError, WorkspaceUnsetError, workspaceContextManager, LOCKDOWN_WORKSPACE_ID } from "./workspaceState.js";
 import { listWorkspaces, upsertWorkspace, removeWorkspace, findById, findByPath, setLastActive } from "./recentStore.js";
 import { autoActivateOnStartup, inspectWorkspacePath, initializeWorkspace } from "./workspaceInit.js";
 import { initServerLog, shutdownServerLog, logInfo, logError, ingestClientLog } from "./serverLog.js";
@@ -1111,16 +1111,18 @@ function createMcpServer(sessionId: string): Server {
 
       // ── ワークスペース管理 (#671) ─────────────────────────────────
       case "designer__workspace_list": {
-        const { workspaces, lastActiveId } = await listWorkspaces();
+        const lockdown = isLockdown();
+        const { workspaces, lastActiveId } = lockdown
+          ? { workspaces: [], lastActiveId: null }
+          : await listWorkspaces();
         const activePath = getActivePath(sessionId);
         const activeEntry = activePath ? await findByPath(activePath) : null;
-        const lockdown = isLockdown();
         const lockdownPath = getLockdownPath();
         const payload = {
           workspaces,
           lastActiveId,
           active: activePath
-            ? { id: activeEntry?.id ?? null, path: activePath, name: activeEntry?.name ?? null }
+            ? { id: lockdown ? LOCKDOWN_WORKSPACE_ID : activeEntry?.id ?? null, path: activePath, name: activeEntry?.name ?? null }
             : null,
           lockdown,
           lockdownPath,

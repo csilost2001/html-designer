@@ -33,10 +33,11 @@ const { mcpBridge } = await import("../mcp/mcpBridge");
 
 // ストアモジュールは vi.mock が確定した後にインポートする必要があるため動的 import
 const storeModule = await import("./workspaceStore");
-const { loadWorkspaces, getState, __resetLoadChainForTest } = storeModule;
+const { loadWorkspaces, getState, __resetLoadChainForTest, __resetStateForTest } = storeModule;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetStateForTest();
   // Nit: テスト間で _loadChain が持続しないようリセット
   __resetLoadChainForTest();
 });
@@ -131,5 +132,26 @@ describe("loadWorkspaces 直列化 (A)", () => {
     expect(st.error).toBeNull();
     expect(st.workspaces.length).toBe(1);
     expect(st.workspaces[0].id).toBe("ws-ok");
+  });
+
+  it("lockdown 時は recent エントリがなく active.id が null でも固定 id を補完する", async () => {
+    const mockReq = mcpBridge.request as ReturnType<typeof vi.fn>;
+    mockReq.mockResolvedValueOnce({
+      workspaces: [],
+      lastActiveId: null,
+      active: { id: null, path: "/tmp/lockdown-ws", name: null },
+      lockdown: true,
+      lockdownPath: "/tmp/lockdown-ws",
+    });
+
+    await loadWorkspaces();
+
+    const st = getState();
+    expect(st.lockdown).toBe(true);
+    expect(st.active).toEqual({
+      id: "lockdown",
+      path: "/tmp/lockdown-ws",
+      name: null,
+    });
   });
 });

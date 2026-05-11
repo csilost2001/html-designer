@@ -14,7 +14,8 @@ import { upsertCustomBlock } from "../../store/customBlockStore";
 import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import type { EditMode } from "../../hooks/useEditSession";
 
-const MCP_HTTP_BASE = `http://${window.location.hostname}:5179`;
+const MCP_HTTP_PORT = import.meta.env.VITE_DESIGNER_MCP_PORT ?? "5179";
+const MCP_HTTP_BASE = `http://${window.location.hostname}:${MCP_HTTP_PORT}`;
 
 type AiRenameStage = "auth-check" | "analyzing" | "inferring" | "proposed" | "applying" | "done" | "error";
 
