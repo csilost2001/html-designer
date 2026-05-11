@@ -25,16 +25,31 @@ export interface ScreenEntry {
 }
 
 /**
+ * RFC #1021 pl-6 (Codex A-3): GrapesJS design data から HTML 本体を抽出する。
+ * 既存サンプルは `pages[0].frames[0].component.components` に HTML string で格納される
+ * (例: examples/retail/.../*.design.json)。components が string でない場合は null を返す。
+ */
+export function extractGrapesHtml(design: unknown): string | null {
+  if (!design || typeof design !== "object") return null;
+  const d = design as { pages?: Array<{ frames?: Array<{ component?: { components?: unknown } }> }> };
+  const components = d?.pages?.[0]?.frames?.[0]?.component?.components;
+  return typeof components === "string" ? components : null;
+}
+
+/**
  * GrapesJS canvas 内の region 要素に gadget preview を inject する。
  *
  * @param editor - GrapesJS Editor インスタンス
  * @param assignments - PageLayout.assignments (regionName → gadget screenId)
  * @param screens - 全 Screen の entry 一覧 (gadget name 解決に使う)
+ * @param gadgetHtmlMap - gadget screenId → 取得済 HTML 本体 (省略時は placeholder のみ inject)
+ *                       RFC #1021 pl-6 (Codex A-3): gadget の design HTML を read-only preview として注入
  */
 export function injectGadgetPreviews(
   editor: GEditor,
   assignments: RegionAssignments,
   screens: ScreenEntry[],
+  gadgetHtmlMap?: Map<string, string>,
 ): void {
   try {
     const canvasDoc = editor.Canvas.getDocument();
@@ -75,6 +90,18 @@ export function injectGadgetPreviews(
       }
 
       const gadgetName = screenMap.get(gadgetScreenId) ?? gadgetScreenId;
+      const gadgetHtml = gadgetHtmlMap?.get(gadgetScreenId);
+
+      // RFC #1021 pl-6 (Codex A-3): gadget の design HTML を inject する read-only preview
+      if (gadgetHtml) {
+        _appendPreviewHtml(regionEl, {
+          gadgetName,
+          screenId: gadgetScreenId,
+          html: gadgetHtml,
+        });
+        return;
+      }
+
       _appendPlaceholder(regionEl, {
         text: `gadget: ${gadgetName}`,
         color: "#6366f1",
@@ -137,6 +164,53 @@ function _appendPlaceholder(
   } else {
     wrapper.appendChild(badge);
   }
+
+  regionEl.appendChild(wrapper);
+}
+
+/**
+ * RFC #1021 pl-6 (Codex A-3): gadget の design HTML を region 内に read-only preview として inject する。
+ * placeholder badge より上に gadget の実描画を出して composition の見た目を確認可能にする。
+ */
+function _appendPreviewHtml(
+  regionEl: HTMLElement,
+  opts: { gadgetName: string; screenId: string; html: string },
+): void {
+  const wrapper = regionEl.ownerDocument.createElement("div");
+  wrapper.setAttribute("data-pl5-injection", "true");
+  wrapper.setAttribute("data-pl5-gadget-id", opts.screenId);
+  wrapper.style.cssText = [
+    "position:relative",
+    "border:1px dashed rgba(99,102,241,0.4)",
+    "border-radius:4px",
+    "padding:8px",
+    "margin-top:8px",
+    "background:rgba(99,102,241,0.04)",
+    "pointer-events:none",
+    "user-select:none",
+  ].join(";");
+
+  const tag = regionEl.ownerDocument.createElement("div");
+  tag.style.cssText = [
+    "position:absolute",
+    "top:-10px",
+    "left:8px",
+    "padding:2px 8px",
+    "border-radius:10px",
+    "background:#6366f1",
+    "color:#fff",
+    "font-size:10px",
+    "font-family:system-ui,sans-serif",
+    "font-weight:600",
+  ].join(";");
+  tag.textContent = `gadget: ${opts.gadgetName} (read-only preview)`;
+  wrapper.appendChild(tag);
+
+  // gadget HTML を inject (innerHTML)。pointer-events:none で編集不可、scope は wrapper 内に閉じる
+  const body = regionEl.ownerDocument.createElement("div");
+  body.style.cssText = "min-height:24px;";
+  body.innerHTML = opts.html;
+  wrapper.appendChild(body);
 
   regionEl.appendChild(wrapper);
 }

@@ -74,22 +74,22 @@ Codex で PR #1031 全体を fresh context で adversarial レビュー。Must-f
 | F-3 Nit | UI 文言「PageLayout」→「ページレイアウト」 | 6e19051: PageLayoutWireframeBanner 文言修正 |
 | C-5 Nit | pageLayoutChanged broadcast 購読なし | このコミット: GadgetListView で broadcast subscribe |
 
-## 4. 既知の制限 (follow-up)
+## 4. 既知の制限 (follow-up — Codex review 後の残課題)
 
-### A. PageLayout wireframe banner (Screen Designer 上)
-- `purpose=page` + `pageLayoutId` 設定の Screen を Designer で開いた時、上部に「PageLayout を使用中: <name>」banner が表示されるはず
-- 実装はある (Designer.tsx, ScreenDesigner.tsx) が、ScreenDesigner の `loadPageLayout()` が WS reconnect 競合で null を返すケースで banner 非表示
-- **影響**: 機能的な問題なし (Designer 編集は通常通り可能)、視覚的なヒントのみ欠落
-- **follow-up**: ScreenDesigner の useEffect に `mcpBridge.onStatusChange("connected")` retry を組み込んで pageLayout を再 load する
+### A. Page Screen Designer での PageLayout 外枠+gadget の完全描画
+- 現状: PageLayout 適用 page Screen を Designer で開くと banner + 通常 Screen editor (外枠 read-only render なし)
+- C-1 Must-fix で banner 表示の retry / warn ログは入れたが、フル composition (外枠の HTML を canvas に inject + main slot に Screen 本文) は別 follow-up
+- **影響**: 視覚的に「どの外枠で動くか」が不完全だが Designer 編集自体は支障なし
 
-### B. Gadget 一覧の「使用先 PL 数」表示
-- 現在は常に 0 表示 (`pl-4` 実装時の TODO コメント)
-- **follow-up**: 全 PageLayout を走査して assignments から逆参照を計算してキャッシュ
+### B. GrapesJS region 内 gadget の **本物の design HTML** 描画 (Codex A-3)
+- 現状: gadget name の placeholder badge を inject (識別は可能)
+- 本物の design HTML inject は GrapesJS データツリーから HTML 抽出 + iframe 内 DOM 操作が必要
+- **follow-up**: `pageLayoutCompositionPreview.ts` の inject 対象を `loadScreen(gadgetId)` 経由の HTML 本体に変更
 
-### C. Puck composition preview の nested render
+### C. Puck composition preview の nested render (Codex H-2)
 - Region primitive (RegionHeader/Sidebar/Footer/Main) は実装済、Puck Config に登録済
 - ただし完全な nested render は `@measured/puck` の Render と buildConfig の循環依存で実装困難
-- 現状は「assignments / gadget data ロード状況の表示」レベル (パリティ「Puck Editor 内で region 構造が視覚確認できる」は達成)
+- **scope 確定** (本 PR では概要表示で完了): Puck Editor 内で region 構造 + 割り当て gadget 名 + load 状況が視覚確認できる、まで
 - **follow-up**: Render を別モジュールに分離して循環解消、または React Context で Config を注入する設計
 
 ## 4. 修正された bugs (dogfood で発見)

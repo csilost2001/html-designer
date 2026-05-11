@@ -15,7 +15,7 @@ import { mcpBridge } from "../../mcp/mcpBridge";
 import { loadProject } from "../../store/flowStore";
 import { Designer } from "../Designer";
 import type { Editor as GEditor } from "grapesjs";
-import { injectGadgetPreviews, clearGadgetPreviews } from "../../utils/pageLayoutCompositionPreview";
+import { injectGadgetPreviews, clearGadgetPreviews, extractGrapesHtml } from "../../utils/pageLayoutCompositionPreview";
 import { RegionProvider } from "../../puck/primitives/RegionContext";
 import type { RegionContextValue } from "../../puck/primitives/RegionContext";
 
@@ -193,7 +193,18 @@ async function _injectWithEditor(editor: GEditor, pl: PageLayout): Promise<void>
   try {
     const project = await loadProject();
     const screens = project.screens.map((s) => ({ id: s.id, name: s.name }));
-    injectGadgetPreviews(editor, pl.assignments ?? {}, screens);
+    // RFC #1021 pl-6 (Codex A-3): assignments で参照される gadget の design HTML を抽出して inject
+    const assignments = pl.assignments ?? {};
+    const gadgetIds = [...new Set(Object.values(assignments).filter(Boolean))];
+    const htmlMap = new Map<string, string>();
+    await Promise.all(gadgetIds.map(async (id) => {
+      try {
+        const design = await mcpBridge.request("loadScreen", { screenId: id });
+        const html = extractGrapesHtml(design);
+        if (html) htmlMap.set(id, html);
+      } catch { /* gadget design 不在は無視、placeholder fallback */ }
+    }));
+    injectGadgetPreviews(editor, assignments, screens, htmlMap);
   } catch (e) {
     console.warn("[PageLayoutDesigner] gadget inject failed:", e);
   }
