@@ -1044,6 +1044,21 @@ class WsBridge extends EventEmitter {
           respond(data);
           break;
         }
+        // RFC #1021 pl-6 (Codex A-2 補強): synthetic id 経路に依存しない dedicated handler
+        // (composition preview / 外部呼び出しで明示的に使う)
+        case "loadPageLayoutDesign": {
+          const { pageLayoutId } = (params ?? {}) as { pageLayoutId: string };
+          const data = await readPageLayoutDesign(pageLayoutId, root());
+          respond(data);
+          break;
+        }
+        case "savePageLayoutDesign": {
+          const { pageLayoutId, data } = (params ?? {}) as { pageLayoutId: string; data: unknown };
+          await writePageLayoutDesign(pageLayoutId, data, root());
+          respond({ success: true });
+          this.broadcast({ wsId: wsId(), event: "pageLayoutChanged", data: { pageLayoutId }, excludeClientId: clientId });
+          break;
+        }
         case "saveScreen": {
           const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
           // RFC #1021 pl-6 (Codex A-2): PageLayout design は専用 storage へ

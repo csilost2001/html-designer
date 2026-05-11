@@ -23,7 +23,7 @@ import { GadgetListView } from "./gadget/GadgetListView";
 import { WorkspaceListView } from "./workspace/WorkspaceListView";
 import { WorkspaceSelectView } from "./workspace/WorkspaceSelectView";
 import { TechStackView } from "./project/TechStackView";
-import { Designer } from "./Designer";
+import { DesignerTabHost } from "./DesignerTabHost";
 import { DashboardView } from "./dashboard/DashboardView";
 import { TabBar } from "./TabBar";
 import { CommonHeader } from "./CommonHeader";
@@ -888,7 +888,9 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
               />
             )}
           >
-            <Designer
+            {/* RFC #1021 pl-6 (Codex C-1): DesignerTabHost で pageLayout + gadget の design HTML を
+                pre-load して composition preview modal を有効化 */}
+            <DesignerTabHost
               screenId={tab.resourceId}
               screenName={tab.label}
               isActive={activeTabId === tab.id}
