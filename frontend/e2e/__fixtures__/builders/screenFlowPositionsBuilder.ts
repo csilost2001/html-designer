@@ -1,5 +1,5 @@
 /**
- * v3 ScreenLayout builder — e2e テスト用 fixture 生成。
+ * v3 ScreenFlowPositions builder — e2e テスト用 fixture 生成。
  *
  * defaults:
  * - positions: {} (空マップ、schema required だが値は空 object OK)
@@ -7,7 +7,7 @@
  */
 
 import type {
-  ScreenLayout,
+  ScreenFlowPositions,
   Timestamp,
   TransitionLayout,
   Position,
@@ -15,16 +15,17 @@ import type {
 
 const FIXED_TS = "2026-05-08T00:00:00.000Z" as unknown as Timestamp;
 
-export interface BuildScreenLayoutOpts {
+export interface BuildScreenFlowPositionsOpts {
   positions?: Record<string, Position>;
   transitions?: Record<string, TransitionLayout>;
 }
 
-export function buildScreenLayout(opts: BuildScreenLayoutOpts = {}): ScreenLayout {
+export function buildScreenFlowPositions(opts: BuildScreenFlowPositionsOpts = {}): ScreenFlowPositions {
   return {
-    $schema: "../../schemas/v3/screen-layout.v3.schema.json",
+    $schema: "../../schemas/v3/screen-flow-positions.v3.schema.json",
     positions: opts.positions ?? {},
     transitions: opts.transitions,
     updatedAt: FIXED_TS,
   };
 }
+
