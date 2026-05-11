@@ -39,7 +39,19 @@ export interface ScreenEntry extends EntryBase {
   id: ScreenId;
   /** ScreenKind 文字列 (login/dashboard/list/detail/form 等)。 */
   kind?: string;
+  /**
+   * Screen 用途種別 (RFC #1021)。
+   * 'page' (デフォルト) = 画面遷移図の対象 / URL ルートを持つ。
+   * 'gadget' = PageLayout の region に割り当てられる自律部品。
+   * 一覧 UI のフィルタ用にキャッシュ。
+   */
+  purpose?: "page" | "gadget";
   path?: string;
+  /**
+   * 本 Screen が使用する PageLayout の ID (purpose='page' のみ)。
+   * 逆参照表示用にキャッシュ。
+   */
+  pageLayoutId?: Uuid;
   groupId?: ScreenGroupId;
   hasDesign?: boolean;
 }
