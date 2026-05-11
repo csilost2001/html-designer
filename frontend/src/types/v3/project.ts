@@ -76,6 +76,17 @@ export interface ViewDefinitionEntry extends EntryBase {
   columnCount?: number;
 }
 
+/** PageLayout entity entry (harmony.json 内のメタ情報)。schemas/v3/page-layout.v3.schema.json と対応 (#1021)。 */
+export interface PageLayoutEntry extends EntryBase {
+  id: Uuid;
+  /** region 数 (一覧 UI 表示用)。 */
+  regionCount?: number;
+  /** assignments 件数 (一覧 UI 表示用)。 */
+  assignmentCount?: number;
+  /** processFlowId の有無 (一覧 UI 表示用)。 */
+  hasProcessFlow?: boolean;
+}
+
 export interface SequenceEntry extends EntryBase {
   id: SequenceId;
   physicalName?: PhysicalName;
@@ -115,6 +126,7 @@ export interface ProjectEntities {
   sequences?: SequenceEntry[];
   screenGroups?: ScreenGroupEntry[];
   screenTransitions?: ScreenTransitionEntry[];
+  pageLayouts?: PageLayoutEntry[];
 }
 
 /** プロジェクト identity と運用設定。 */
