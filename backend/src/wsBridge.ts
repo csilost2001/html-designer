@@ -89,6 +89,10 @@ import {
   writeViewDefinition,
   deleteViewDefinition as deleteViewDefinitionFile,
   listAllViewDefinitions,
+  readPageLayout,
+  writePageLayout,
+  deletePageLayoutFile,
+  listAllPageLayouts,
   getFileMtime,
   readExtensionsBundle,
   writeExtensionsFile,
@@ -502,6 +506,9 @@ class WsBridge extends EventEmitter {
             break;
           case "view-definition":
             await writeViewDefinition(resId, payload, root);
+            break;
+          case "page-layout":
+            await writePageLayout(resId, payload, root);
             break;
           case "screen-item": {
             const siPayload = payload as { screenId?: string } | null;
@@ -1292,6 +1299,31 @@ class WsBridge extends EventEmitter {
           await deleteViewDefinitionFile(viewDefinitionId, root());
           respond({ success: true });
           this.broadcast({ wsId: wsId(), event: "viewDefinitionChanged", data: { viewDefinitionId, deleted: true }, excludeClientId: clientId });
+          break;
+        }
+        case "loadPageLayout": {
+          const { pageLayoutId } = (params ?? {}) as { pageLayoutId: string };
+          const data = await readPageLayout(pageLayoutId, root());
+          respond(data);
+          break;
+        }
+        case "savePageLayout": {
+          const { pageLayoutId, data } = (params ?? {}) as { pageLayoutId: string; data: unknown };
+          await writePageLayout(pageLayoutId, data, root());
+          respond({ success: true });
+          this.broadcast({ wsId: wsId(), event: "pageLayoutChanged", data: { pageLayoutId }, excludeClientId: clientId });
+          break;
+        }
+        case "deletePageLayout": {
+          const { pageLayoutId } = (params ?? {}) as { pageLayoutId: string };
+          await deletePageLayoutFile(pageLayoutId, root());
+          respond({ success: true });
+          this.broadcast({ wsId: wsId(), event: "pageLayoutChanged", data: { pageLayoutId, deleted: true }, excludeClientId: clientId });
+          break;
+        }
+        case "listAllPageLayouts": {
+          const data = await listAllPageLayouts(root());
+          respond(data);
           break;
         }
         case "getFileMtime": {

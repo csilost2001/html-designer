@@ -94,6 +94,7 @@ const screenItemsDir   = (dataRoot: string) => path.join(dataRoot, "screen-items
 const sequencesDir     = (dataRoot: string) => path.join(dataRoot, "sequences");
 const viewsDir         = (dataRoot: string) => path.join(dataRoot, "views");
 const viewDefsDir      = (dataRoot: string) => path.join(dataRoot, "view-definitions");
+const pageLayoutsDir   = (dataRoot: string) => path.join(dataRoot, "page-layouts");
 export const extensionsDir      = (dataRoot: string) => path.join(dataRoot, "extensions");
 export const customBlocksFile   = (dataRoot: string) => path.join(dataRoot, "custom-blocks.json");
 export const puckComponentsFile = (dataRoot: string) => path.join(dataRoot, "puck-components.json");
@@ -276,6 +277,7 @@ export async function ensureDataDir(root: string, dataDirVal: string): Promise<v
   await fs.mkdir(sequencesDir(dataRoot), { recursive: true });
   await fs.mkdir(viewsDir(dataRoot), { recursive: true });
   await fs.mkdir(viewDefsDir(dataRoot), { recursive: true });
+  await fs.mkdir(pageLayoutsDir(dataRoot), { recursive: true });
   await fs.mkdir(extensionsDir(dataRoot), { recursive: true });
 }
 
@@ -367,6 +369,7 @@ function resolveDataFile(kind: string, dataRoot: string, id?: string): string | 
     case "sequence": return id ? path.join(sequencesDir(dataRoot), `${id}.json`) : null;
     case "view": return id ? path.join(viewsDir(dataRoot), `${id}.json`) : null;
     case "viewDefinition": return id ? path.join(viewDefsDir(dataRoot), `${id}.json`) : null;
+    case "pageLayout": return id ? path.join(pageLayoutsDir(dataRoot), `${id}.json`) : null;
     default: return null;
   }
 }
@@ -902,6 +905,46 @@ export async function deleteViewDefinition(viewDefinitionId: string, root: strin
   const dataRoot = await resolveDataRoot(r);
   try {
     await fs.unlink(path.join(viewDefsDir(dataRoot), `${viewDefinitionId}.json`));
+  } catch { /* file not found is OK */ }
+}
+
+// ── PageLayout CRUD ──────────────────────────────────────────────────────────
+
+export async function listAllPageLayouts(root: string): Promise<unknown[]> {
+  try {
+    const r = root;
+    const dataRoot = await ensureDataDirFromRoot(r);
+    const plDir = pageLayoutsDir(dataRoot);
+    const files = await fs.readdir(plDir);
+    const results: unknown[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const data = await readJSON<unknown>(path.join(plDir, file));
+      if (data) results.push(data);
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+export async function readPageLayout(pageLayoutId: string, root: string): Promise<unknown | null> {
+  const r = root;
+  const dataRoot = await resolveDataRoot(r);
+  return readJSON<unknown>(path.join(pageLayoutsDir(dataRoot), `${pageLayoutId}.json`));
+}
+
+export async function writePageLayout(pageLayoutId: string, data: unknown, root: string): Promise<void> {
+  const r = root;
+  const dataRoot = await ensureDataDirFromRoot(r);
+  await writeJSON(path.join(pageLayoutsDir(dataRoot), `${pageLayoutId}.json`), data);
+}
+
+export async function deletePageLayoutFile(pageLayoutId: string, root: string): Promise<void> {
+  const r = root;
+  const dataRoot = await resolveDataRoot(r);
+  try {
+    await fs.unlink(path.join(pageLayoutsDir(dataRoot), `${pageLayoutId}.json`));
   } catch { /* file not found is OK */ }
 }
 
