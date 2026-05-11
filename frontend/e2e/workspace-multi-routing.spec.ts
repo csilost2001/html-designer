@@ -41,18 +41,6 @@ async function setupWithNoWorkspace(page: Page) {
   });
 }
 
-async function setupWithLockdown(page: Page) {
-  // lockdown モード: DESIGNER_DATA_DIR が設定されている状態をシミュレート
-  // workspaceStore は MCP の workspace.list レスポンスで lockdown を判定するため
-  // 直接 localStorage で制御できない。
-  // 代わりに flow-project + tabs を設定して最低限のコンテンツが表示できる状態にする
-  await page.addInitScript(() => {
-    localStorage.clear();
-    window.alert = () => {};
-    window.confirm = () => false;
-  });
-}
-
 // ─── テスト ─────────────────────────────────────────────────────────────────
 
 test.describe("URL /w/:wsId/* 規約 - ルーティング基本", { tag: ["@regression"] }, () => {

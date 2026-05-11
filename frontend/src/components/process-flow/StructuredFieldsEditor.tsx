@@ -83,7 +83,7 @@ export function StructuredFieldsEditor({ label, fields, onChange, onCommit, plac
     if (!isStructured) return;
     const next = fields.map((f, i) => {
       if (i !== idx) return f;
-      const { screenItemRef, ...rest } = f;
+      const { screenItemRef: _screenItemRef, ...rest } = f;
       return rest as StructuredField;
     });
     onChange(next);

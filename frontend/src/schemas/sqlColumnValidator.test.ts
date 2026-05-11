@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateSql, checkSqlColumns } from "./sqlColumnValidator";
-import type { TableDefinition } from "./sqlColumnValidator";
-import type { ProcessFlow } from "../types/action";
+import { validateSql } from "./sqlColumnValidator";
 
 function makeSpec(name: string, cols: string[]): Map<string, { name: string; columns: Set<string> }> {
   return new Map([[name.toLowerCase(), { name: name.toLowerCase(), columns: new Set(cols.map((c) => c.toLowerCase())) }]]);
@@ -73,4 +71,3 @@ describe("validateSql — 単体 SQL 検査", () => {
     expect(issues.filter((i) => i.code === "UNKNOWN_COLUMN")).toHaveLength(0);
   });
 });
-
