@@ -8,7 +8,7 @@
 
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadPageLayout } from "../../store/pageLayoutStore";
 import type { PageLayout } from "../../store/pageLayoutStore";
 import { mcpBridge } from "../../mcp/mcpBridge";
@@ -17,6 +17,7 @@ import { Designer } from "../Designer";
 import type { Editor as GEditor } from "grapesjs";
 import { injectGadgetPreviews, clearGadgetPreviews, extractGrapesHtml } from "../../utils/pageLayoutCompositionPreview";
 import { RegionProvider } from "../../puck/primitives/RegionContext";
+import { buildPuckConfig } from "../../puck/buildConfig";
 import type { RegionContextValue } from "../../puck/primitives/RegionContext";
 
 export function PageLayoutDesigner() {
@@ -33,10 +34,23 @@ export function PageLayoutDesigner() {
   const componentAddCleanupRef = useRef<(() => void) | null>(null);
 
   // Puck composition preview 用: RegionContext の value (pl-5 follow-up)
+  // RFC #1021 pl-6 (Codex H-2): puckConfig も Context に注入し、Region primitive が
+  // nested Render できるようにする (循環依存回避: buildPuckConfig は PageLayoutDesigner
+  // から import するが、Region primitive は Context 経由でしか参照しない)
+  const puckConfig = useMemo(() => {
+    try {
+      return buildPuckConfig();
+    } catch { return null; }
+  }, []);
   const [regionContextValue, setRegionContextValue] = useState<RegionContextValue>({
     assignments: {},
     gadgetData: {},
+    puckConfig: null,
   });
+  // puckConfig が確定したら Context value にも注入
+  useEffect(() => {
+    setRegionContextValue((prev) => ({ ...prev, puckConfig }));
+  }, [puckConfig]);
 
   useEffect(() => {
     if (!pageLayoutId) {

@@ -9,11 +9,12 @@
  * pl-5 follow-up (#1026): Puck composition preview (feature parity)
  */
 
-import type { ComponentConfig } from "@measured/puck";
+import type { ComponentConfig, Data } from "@measured/puck";
+import { Render } from "@measured/puck";
 import { useCssFramework } from "../CssFrameworkContext";
 import { resolveLayoutPropsMapper } from "../layoutPropsMapping";
 import type { LayoutProps } from "../layoutPropsMapping/types";
-import { usePageLayoutAssignments, useGadgetPuckData } from "./RegionContext";
+import { usePageLayoutAssignments, useGadgetPuckData, usePuckConfig } from "./RegionContext";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface RegionFooterProps extends LayoutProps {}
@@ -29,6 +30,8 @@ export const RegionFooterConfig: ComponentConfig<RegionFooterProps> = {
     const assignments = usePageLayoutAssignments();
     const gadgetScreenId = assignments["footer"];
     const gadgetData = useGadgetPuckData(gadgetScreenId);
+    const puckConfig = usePuckConfig();
+    const canNestedRender = !!(gadgetData && puckConfig);
 
     return (
       <div
@@ -55,19 +58,26 @@ export const RegionFooterConfig: ComponentConfig<RegionFooterProps> = {
           region: footer
         </div>
         {gadgetScreenId ? (
-          <div style={{ fontSize: 12, color: "#9a3412" }}>
-            {gadgetData ? (
-              <span>
-                <i className="bi bi-check-circle-fill" style={{ color: "#ea580c", marginRight: 4 }} />
-                gadget: <code style={{ fontSize: 11, background: "#fed7aa", padding: "1px 4px", borderRadius: 3 }}>{gadgetScreenId}</code>
-              </span>
-            ) : (
-              <span style={{ color: "#f97316" }}>
-                gadget: <code style={{ fontSize: 11 }}>{gadgetScreenId}</code>
-                <span style={{ color: "#94a3b8", marginLeft: 4 }}>(未ロード)</span>
-              </span>
-            )}
-          </div>
+          canNestedRender ? (
+            <div style={{ pointerEvents: "none", userSelect: "none" }} data-pl-gadget-render="true">
+              <Render config={puckConfig!} data={gadgetData as Data} />
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#9a3412" }}>
+              {gadgetData ? (
+                <span>
+                  <i className="bi bi-check-circle-fill" style={{ color: "#ea580c", marginRight: 4 }} />
+                  gadget: <code style={{ fontSize: 11, background: "#fed7aa", padding: "1px 4px", borderRadius: 3 }}>{gadgetScreenId}</code>
+                  <span style={{ color: "#94a3b8", marginLeft: 4 }}>(Config 未注入)</span>
+                </span>
+              ) : (
+                <span style={{ color: "#f97316" }}>
+                  gadget: <code style={{ fontSize: 11 }}>{gadgetScreenId}</code>
+                  <span style={{ color: "#94a3b8", marginLeft: 4 }}>(未ロード)</span>
+                </span>
+              )}
+            </div>
+          )
         ) : (
           <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>
             未割り当て — ページレイアウト設定から footer に gadget を割り当ててください
