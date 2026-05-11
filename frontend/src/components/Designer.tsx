@@ -7,6 +7,7 @@ import { ServerChangeBanner } from "./common/ServerChangeBanner";
 import { useErrorDialog } from "./common/ErrorDialogProvider";
 import { mcpBridge, type McpStatus } from "../mcp/mcpBridge";
 import { loadProject, loadRawProject, updateScreenThumbnail } from "../store/flowStore";
+import { composePreviewHtml } from "../utils/pageLayoutCompositionPreview";
 import { loadScreenEntity } from "../store/screenStore";
 import { makeTabId, setDirty } from "../store/tabStore";
 import type { CssFramework } from "../types/v3/project";
@@ -62,6 +63,13 @@ export interface DesignerProps {
   pageLayoutCssFramework?: string;
   /** PageLayout の name (バナー表示用、pl-5, #1026) */
   pageLayoutName?: string;
+  // RFC #1021 pl-6 (Codex C-1): composition preview modal 用
+  /** PageLayout 自身の design HTML (PageLayout.design.designFileRef 経由で取得済) */
+  pageLayoutHtml?: string;
+  /** PageLayout.assignments (region → gadget screenId) */
+  pageLayoutAssignments?: Record<string, string>;
+  /** gadget screenId → design HTML (event load 済の map) */
+  gadgetHtmlMap?: Map<string, string>;
 }
 
 export function Designer({
@@ -74,8 +82,16 @@ export function Designer({
   pageLayoutEditorKind,
   pageLayoutCssFramework,
   pageLayoutName,
+  pageLayoutHtml,
+  pageLayoutAssignments,
+  gadgetHtmlMap,
 }: DesignerProps) {
   const [isDirty, setIsDirtyState] = useState(false);
+  // RFC #1021 pl-6 (Codex C-1): composition preview modal の表示状態
+  const [showCompositionPreview, setShowCompositionPreview] = useState(false);
+  // RFC #1021 pl-6 (Codex C-1): GrapesJS editor の生インスタンスを ref で保持
+  // (composition preview modal で現在の Screen content HTML を取得するため)
+  const grapesEditorInstanceRef = useRef<import("grapesjs").Editor | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [serverChanged, setServerChanged] = useState(false);
   const isDirtyRef = useRef(false);
@@ -889,7 +905,10 @@ export function Designer({
     onExternalThemeChange: handleThemeChange,
     reloadPayload: grapesReloadPayload,
     // pl-5 #1026: raw GrapesJS editor を PageLayoutDesigner に expose
-    onGrapesEditorInstance: onGrapesEditorReady,
+    onGrapesEditorInstance: (editor: import("grapesjs").Editor) => {
+      grapesEditorInstanceRef.current = editor;
+      onGrapesEditorReady?.(editor);
+    },
   };
   return (
     <>
@@ -899,9 +918,28 @@ export function Designer({
       )}
       {/* pl-5 #1026: page Screen の pageLayout 外枠表示バナー */}
       {pageLayoutId && pageLayoutName && (
-        <PageLayoutWireframeBanner pageLayoutName={pageLayoutName} pageLayoutId={pageLayoutId} />
+        <PageLayoutWireframeBanner
+          pageLayoutName={pageLayoutName}
+          pageLayoutId={pageLayoutId}
+          onPreviewClick={pageLayoutHtml ? () => setShowCompositionPreview(true) : undefined}
+        />
       )}
       {grapesBackendRef.current.renderEditor(grapesProps)}
+      {/* RFC #1021 pl-6 (Codex C-1): composition preview modal */}
+      {showCompositionPreview && pageLayoutHtml && (
+        <CompositionPreviewModal
+          pageLayoutName={pageLayoutName ?? ""}
+          pageLayoutHtml={pageLayoutHtml}
+          assignments={pageLayoutAssignments ?? {}}
+          gadgetHtmlMap={gadgetHtmlMap ?? new Map()}
+          getScreenContent={() => {
+            try {
+              return grapesEditorInstanceRef.current?.getHtml() ?? "";
+            } catch { return ""; }
+          }}
+          onClose={() => setShowCompositionPreview(false)}
+        />
+      )}
     </>
   );
 }
@@ -955,9 +993,11 @@ function EditorKindMismatchBanner({ warnings }: EditorKindMismatchBannerProps) {
 interface PageLayoutWireframeBannerProps {
   pageLayoutName: string;
   pageLayoutId: string;
+  // RFC #1021 pl-6 (Codex C-1): composition preview を開くコールバック
+  onPreviewClick?: () => void;
 }
 
-function PageLayoutWireframeBanner({ pageLayoutName, pageLayoutId }: PageLayoutWireframeBannerProps) {
+function PageLayoutWireframeBanner({ pageLayoutName, pageLayoutId, onPreviewClick }: PageLayoutWireframeBannerProps) {
   return (
     <div
       data-testid="page-layout-wireframe-banner"
@@ -984,6 +1024,135 @@ function PageLayoutWireframeBanner({ pageLayoutName, pageLayoutId }: PageLayoutW
       <span style={{ color: "#8b5cf6", fontSize: 11, marginLeft: 4 }}>
         — 外枠はページレイアウト側で編集してください
       </span>
+      {onPreviewClick && (
+        <button
+          type="button"
+          onClick={onPreviewClick}
+          data-testid="page-layout-composition-preview-btn"
+          style={{
+            marginLeft: "auto",
+            padding: "2px 12px",
+            border: "1px solid #7c3aed",
+            borderRadius: 4,
+            background: "#fff",
+            color: "#7c3aed",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          <i className="bi bi-eye" style={{ marginRight: 4 }} />
+          composition プレビューを開く
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RFC #1021 pl-6 (Codex C-1): composition preview modal — Page Screen + PageLayout 外枠 + gadget の
+// 完全な合成 HTML を read-only で表示する modal
+// ---------------------------------------------------------------------------
+
+interface CompositionPreviewModalProps {
+  pageLayoutName: string;
+  pageLayoutHtml: string;
+  assignments: Record<string, string>;
+  gadgetHtmlMap: Map<string, string>;
+  getScreenContent: () => string;
+  onClose: () => void;
+}
+
+function CompositionPreviewModal({
+  pageLayoutName,
+  pageLayoutHtml,
+  assignments,
+  gadgetHtmlMap,
+  getScreenContent,
+  onClose,
+}: CompositionPreviewModalProps) {
+  const [composedSrcDoc, setComposedSrcDoc] = useState<string>("");
+
+  useEffect(() => {
+    const screenContent = getScreenContent();
+    const composed = composePreviewHtml(pageLayoutHtml, assignments, gadgetHtmlMap, screenContent);
+    // Bootstrap CDN を埋め込んで preview が retail サンプル相当に見えるようにする
+    const srcDoc = `<!DOCTYPE html><html><head>
+<meta charset="utf-8" />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>body{margin:0;font-family:system-ui,sans-serif}</style>
+</head><body>${composed}</body></html>`;
+    setComposedSrcDoc(srcDoc);
+  }, [pageLayoutHtml, assignments, gadgetHtmlMap, getScreenContent]);
+
+  return (
+    <div
+      data-testid="composition-preview-modal"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.6)",
+        display: "flex",
+        alignItems: "stretch",
+        justifyContent: "center",
+        padding: 24,
+        zIndex: 9999,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 8,
+          width: "100%",
+          maxWidth: 1280,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            borderBottom: "1px solid #e2e8f0",
+            background: "#f8fafc",
+          }}
+        >
+          <span style={{ fontSize: 14, color: "#0f172a", fontWeight: 600 }}>
+            <i className="bi bi-eye" style={{ marginRight: 6, color: "#7c3aed" }} />
+            composition プレビュー: <span style={{ color: "#5b21b6" }}>{pageLayoutName}</span>
+            <span style={{ color: "#64748b", fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
+              (PageLayout 外枠 + 各 region の gadget + main slot に Screen 本文)
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: 4,
+              background: "#fff",
+              padding: "4px 10px",
+              cursor: "pointer",
+              fontSize: 12,
+            }}
+          >
+            <i className="bi bi-x-lg" style={{ marginRight: 4 }} />
+            閉じる
+          </button>
+        </div>
+        <iframe
+          title="composition-preview"
+          srcDoc={composedSrcDoc}
+          sandbox="allow-same-origin"
+          style={{ flex: 1, border: "none", background: "#fff" }}
+        />
+      </div>
     </div>
   );
 }

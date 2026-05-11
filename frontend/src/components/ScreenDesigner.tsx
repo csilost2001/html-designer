@@ -6,6 +6,7 @@ import { loadProject, screenExists } from "../store/flowStore";
 import { loadPageLayout } from "../store/pageLayoutStore";
 import type { PageLayout } from "../store/pageLayoutStore";
 import { mcpBridge } from "../mcp/mcpBridge";
+import { extractGrapesHtml } from "../utils/pageLayoutCompositionPreview";
 import type { ScreenNode } from "../types/flow";
 
 export function ScreenDesigner() {
@@ -16,6 +17,10 @@ export function ScreenDesigner() {
   const [screen, setScreen] = useState<ScreenNode | null | undefined>(undefined); // undefined = loading
   // pl-5 #1026: page Screen の場合に PageLayout メタを読み込む
   const [pageLayout, setPageLayout] = useState<PageLayout | null>(null);
+  // RFC #1021 pl-6 (Codex C-1): composition preview 用に PageLayout 自身の design HTML +
+  // assignments で参照される gadget の design HTML を pre-load して Designer に渡す
+  const [pageLayoutHtml, setPageLayoutHtml] = useState<string | null>(null);
+  const [gadgetHtmlMap, setGadgetHtmlMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (!screenId) {
@@ -45,11 +50,34 @@ export function ScreenDesigner() {
             if (!pl) {
               console.warn(`[ScreenDesigner] PageLayout ${node.pageLayoutId} の load が null を返しました (ファイル不在 / workspace 未確定)。再試行は onStatusChange/connected で実行されます。`);
             }
+            // RFC #1021 pl-6 (Codex C-1): composition preview 用に PageLayout 自身の design HTML 取得
+            if (pl) {
+              try {
+                const plDesign = await mcpBridge.request("loadScreen", { screenId: `page-layout:${pl.id}` });
+                const plHtml = extractGrapesHtml(plDesign);
+                if (mounted && plHtml) setPageLayoutHtml(plHtml);
+              } catch { /* design file 不在は無視、banner のみで OK */ }
+              // 各 gadget の design HTML も並列ロードして map に
+              const gadgetIds = Object.values(pl.assignments ?? {}).filter((id): id is string => typeof id === "string");
+              const nextMap = new Map<string, string>();
+              await Promise.all(gadgetIds.map(async (gid) => {
+                try {
+                  const gd = await mcpBridge.request("loadScreen", { screenId: gid });
+                  const h = extractGrapesHtml(gd);
+                  if (h) nextMap.set(gid, h);
+                } catch { /* skip */ }
+              }));
+              if (mounted) setGadgetHtmlMap(nextMap);
+            }
           } catch (e) {
             console.warn(`[ScreenDesigner] loadPageLayout 失敗 (再試行は onStatusChange/connected で実行):`, e);
           }
         } else {
-          if (mounted) setPageLayout(null);
+          if (mounted) {
+            setPageLayout(null);
+            setPageLayoutHtml(null);
+            setGadgetHtmlMap(new Map());
+          }
         }
       }).catch(() => { if (mounted) setScreen(null); });
     };
@@ -117,6 +145,10 @@ export function ScreenDesigner() {
       pageLayoutName={pageLayout?.name}
       pageLayoutEditorKind={pageLayout?.design?.editorKind}
       pageLayoutCssFramework={pageLayout?.design?.cssFramework}
+      // RFC #1021 pl-6 (Codex C-1): composition preview 用 HTML を pre-load
+      pageLayoutHtml={pageLayoutHtml ?? undefined}
+      pageLayoutAssignments={pageLayout?.assignments}
+      gadgetHtmlMap={gadgetHtmlMap.size > 0 ? gadgetHtmlMap : undefined}
     />
   );
 }

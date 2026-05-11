@@ -37,6 +37,51 @@ export function extractGrapesHtml(design: unknown): string | null {
 }
 
 /**
+ * RFC #1021 pl-6 (Codex C-1): Page Screen の composition preview HTML を組み立てる。
+ *
+ * pageLayoutHtml の中の `data-region-name="<region>"` 要素を以下のルールで差し替える:
+ *   - region="main": screenContentHtml に置換 (page Screen 本文)
+ *   - その他 (header/sidebar/footer 等): assignments[region] の gadget HTML に置換
+ *
+ * `DOMParser` を使うため browser context (Designer 内) でのみ動作。SSR 不可。
+ */
+export function composePreviewHtml(
+  pageLayoutHtml: string,
+  assignments: Record<string, string>,
+  gadgetHtmlByScreenId: Map<string, string>,
+  screenContentHtml: string,
+): string {
+  if (typeof DOMParser === "undefined") return pageLayoutHtml; // SSR fallback
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="__pl_root__">${pageLayoutHtml}</div>`, "text/html");
+    const root = doc.getElementById("__pl_root__");
+    if (!root) return pageLayoutHtml;
+
+    root.querySelectorAll<HTMLElement>("[data-region-name]").forEach((el) => {
+      const name = el.getAttribute("data-region-name") ?? "";
+      el.removeAttribute("data-region-name");
+      el.setAttribute("data-pl-region-rendered", name);
+      if (name === "main") {
+        el.innerHTML = screenContentHtml;
+        el.setAttribute("data-pl-content-slot", "true");
+        return;
+      }
+      const gadgetId = assignments[name];
+      const gadgetHtml = gadgetId ? gadgetHtmlByScreenId.get(gadgetId) : null;
+      if (gadgetHtml) {
+        el.innerHTML = gadgetHtml;
+      } else {
+        el.innerHTML = `<span style="font-size:11px;color:#94a3b8;font-style:italic">(region: ${name} — 未割り当て or 未ロード)</span>`;
+      }
+    });
+    return root.innerHTML;
+  } catch {
+    return pageLayoutHtml;
+  }
+}
+
+/**
  * GrapesJS canvas 内の region 要素に gadget preview を inject する。
  *
  * @param editor - GrapesJS Editor インスタンス
