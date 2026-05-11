@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- StepCard still spans legacy/v3 process-flow unions; tracked by #1016.
 import { useState, useRef, useEffect } from "react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import type {

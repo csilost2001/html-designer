@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+﻿// @ts-nocheck -- legacy process-flow store migration remains open; tracked by #1016.
 import type {
   ActionDefinition,
   ActionTrigger,

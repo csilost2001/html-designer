@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- Provider and hook share one context module. */
 /**
  * アプリ内どこからでも `useErrorDialog().showError(...)` でエラーモーダルを出せるようにする
  * Context Provider。alert() の代わりに使う。
@@ -89,7 +90,6 @@ export function useErrorDialog(): ErrorDialogContextValue {
       const message =
         opts.message ??
         (err instanceof Error ? err.message : err != null ? String(err) : "不明なエラー");
-      // eslint-disable-next-line no-console
       console.error(`[useErrorDialog outside provider] ${opts.title}: ${message}`, err);
     },
   };

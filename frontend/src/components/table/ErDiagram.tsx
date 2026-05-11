@@ -120,7 +120,7 @@ function ErDiagramInner() {
     persistLayoutChange(prev);
     setCanUndo(undoStackRef.current.length > 0);
     setCanRedo(true);
-  }, []);
+  }, [persistLayoutChange]);
 
   const handleRedo = useCallback(() => {
     if (redoStackRef.current.length === 0) return;
@@ -134,7 +134,7 @@ function ErDiagramInner() {
     persistLayoutChange(next);
     setCanUndo(true);
     setCanRedo(redoStackRef.current.length > 0);
-  }, []);
+  }, [persistLayoutChange]);
 
   useUndoKeyboard(handleUndo, handleRedo);
 
@@ -222,6 +222,7 @@ function ErDiagramInner() {
     if (mode.kind !== "viewer" || !editSession?.payload) return;
     const next = editSession.payload as ErLayout;
     layoutRef.current = next;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- viewer mode mirrors an externally supplied edit-session payload.
     setLayout({ ...next });
   }, [mode.kind, editSession?.payload]);
 
@@ -235,8 +236,14 @@ function ErDiagramInner() {
 
   const onNodeDragStop = useCallback((_: unknown, node: RFNode) => {
     dragStartedRef.current = false;
-    const ly = layoutRef.current ?? { positions: {} as Record<string, { x: number; y: number }>, logicalRelations: [] as LogicalRelation[], updatedAt: new Date().toISOString() as never };
-    ly.positions[node.id] = { x: Math.round(node.position.x), y: Math.round(node.position.y) };
+    const current = layoutRef.current ?? { positions: {} as Record<string, { x: number; y: number }>, logicalRelations: [] as LogicalRelation[], updatedAt: new Date().toISOString() as never };
+    const ly = {
+      ...current,
+      positions: {
+        ...current.positions,
+        [node.id]: { x: Math.round(node.position.x), y: Math.round(node.position.y) },
+      },
+    };
     layoutRef.current = ly;
     setLayout({ ...ly });
     persistLayoutChange(ly);
@@ -264,8 +271,8 @@ function ErDiagramInner() {
     pushLayoutUndo();
     const relations = getAllRelations(tables, layout);
     const autoPos = autoLayout(tables, relations);
-    const ly = layoutRef.current ?? { positions: {} as Record<string, { x: number; y: number }>, logicalRelations: [] as LogicalRelation[], updatedAt: new Date().toISOString() as never };
-    ly.positions = autoPos;
+    const current = layoutRef.current ?? { positions: {} as Record<string, { x: number; y: number }>, logicalRelations: [] as LogicalRelation[], updatedAt: new Date().toISOString() as never };
+    const ly = { ...current, positions: autoPos };
     layoutRef.current = ly;
     setLayout({ ...ly });
     persistLayoutChange(ly);
@@ -275,17 +282,22 @@ function ErDiagramInner() {
       position: autoPos[n.id] ?? n.position,
     })));
     setTimeout(() => fitView({ padding: 0.3, maxZoom: 1, duration: 300 }), 50);
-  }, [tables, layout, setNodes, fitView, persistLayoutChange]);
+  }, [tables, layout, setNodes, fitView, persistLayoutChange, pushLayoutUndo]);
 
   // Add logical relation
   const handleAddLogicalRelation = useCallback((rel: Omit<LogicalRelation, "id">) => {
     if (isReadonly) return;
     pushLayoutUndo();
-    const ly = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: new Date().toISOString() as never };
-    if (!ly.logicalRelations) ly.logicalRelations = [];
     // LocalId pattern: 開始は英数字、内部は - / _ 可。"lr-<short>" 形式で採番。
     const short = generateUUID().split("-")[0];
-    ly.logicalRelations.push({ ...rel, id: `lr-${short}` as LocalId });
+    const current = layoutRef.current ?? { positions: {}, logicalRelations: [], updatedAt: new Date().toISOString() as never };
+    const ly = {
+      ...current,
+      logicalRelations: [
+        ...(current.logicalRelations ?? []),
+        { ...rel, id: `lr-${short}` as LocalId },
+      ],
+    };
     layoutRef.current = ly;
     setLayout({ ...ly });
     persistLayoutChange(ly);

@@ -90,7 +90,6 @@ export function registerRemoteStorage(editor: GEditor, screenId: string): void {
     },
 
     // autosave: false のため通常は呼ばれない。念のため no-op。
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async store(_data: Record<string, unknown>): Promise<void> {
       // no-op: 保存は editActions.save() → commitDraft 経由で行う
     },
@@ -104,19 +103,16 @@ export function registerRemoteStorage(editor: GEditor, screenId: string): void {
 // stub を残す。Designer.tsx は新 API (editActions / mcpBridge) を直接使う。
 
 /** @deprecated 新モデルでは mcpBridge.request("editSession.list", ...) を使用する */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function hasScreenDraft(_screenId: string): boolean {
   return false;
 }
 
 /** @deprecated 新モデルでは不要 */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function clearScreenDraft(_screenId: string): void {
   // no-op
 }
 
 /** @deprecated 新モデルでは editActions.save() → commitDraft を使用する */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function saveScreenToFile(_screenId: string): Promise<void> {
   throw new Error("saveScreenToFile は廃止されました。editActions.save() を使用してください。");
 }

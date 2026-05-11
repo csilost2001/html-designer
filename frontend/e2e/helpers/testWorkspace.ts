@@ -31,7 +31,7 @@ export async function disableMcpConnection(page: Page): Promise<void> {
   await page.addInitScript(() => {
     // WebSocket を override して port 5179 への接続を即失敗させる
     const OriginalWebSocket = window.WebSocket;
-    // @ts-ignore
+    // @ts-ignore -- Playwright initScript intentionally monkey-patches browser WebSocket.
     window.WebSocket = function(url: string, protocols?: string | string[]) {
       if (typeof url === "string" && url.includes(":5179")) {
         // MCP ポートへの接続: 即座に close するダミー WS を返す
@@ -56,18 +56,18 @@ export async function disableMcpConnection(page: Page): Promise<void> {
         }, 0);
         return dummy;
       }
-      // @ts-ignore
+      // @ts-ignore -- preserve native constructor signature for non-MCP connections.
       return new OriginalWebSocket(url, protocols);
     };
-    // @ts-ignore
+    // @ts-ignore -- copy static constants onto the monkey-patched constructor.
     window.WebSocket.CONNECTING = 0;
-    // @ts-ignore
+    // @ts-ignore -- copy static constants onto the monkey-patched constructor.
     window.WebSocket.OPEN = 1;
-    // @ts-ignore
+    // @ts-ignore -- copy static constants onto the monkey-patched constructor.
     window.WebSocket.CLOSING = 2;
-    // @ts-ignore
+    // @ts-ignore -- copy static constants onto the monkey-patched constructor.
     window.WebSocket.CLOSED = 3;
-    // @ts-ignore
+    // @ts-ignore -- preserve instanceof behavior for code under test.
     window.WebSocket.prototype = OriginalWebSocket.prototype;
   });
 }

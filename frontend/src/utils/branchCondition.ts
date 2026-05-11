@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- legacy branch condition migration remains open; tracked by #1016.
 /**
  * branchCondition.ts
  * Branch.condition の union (string | BranchConditionVariant) を扱うヘルパー。

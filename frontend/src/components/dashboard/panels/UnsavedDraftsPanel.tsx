@@ -50,6 +50,7 @@ export function UnsavedDraftsPanel() {
   }, [wsPath]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial draft list is loaded from localStorage on mount.
     reload();
     // localStorage は他タブやエディタでの編集でも変わるため storage イベントで追随
     window.addEventListener("storage", reload);

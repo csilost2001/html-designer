@@ -15,6 +15,7 @@ export function ScreenDesigner() {
 
   useEffect(() => {
     if (!screenId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route param absence immediately resolves the loading sentinel.
       setScreen(null);
       return;
     }

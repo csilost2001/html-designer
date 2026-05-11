@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 interface UndoableOptions<T> {
   /** Undo/Redo後に呼ばれる保存関数（デバウンスなし・即時） */
@@ -40,7 +40,9 @@ export function useUndoableState<T>(
 ): UndoableReturn<T> {
   const maxHistory = opts?.maxHistory ?? 50;
   const onSaveRef = useRef(opts?.onSave);
-  onSaveRef.current = opts?.onSave;
+  useEffect(() => {
+    onSaveRef.current = opts?.onSave;
+  }, [opts?.onSave]);
 
   const [present, setPresent] = useState<T>(initial);
 

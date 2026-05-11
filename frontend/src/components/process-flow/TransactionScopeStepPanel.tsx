@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- legacy process-flow action panel types are being migrated; tracked by #1016.
 import { useState } from "react";
 import type {
   Step,

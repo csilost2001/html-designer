@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+﻿// @ts-nocheck -- legacy action migration spans old/new process-flow shapes; tracked by #1016.
 import type {
   ActionDefinition,
   Branch,

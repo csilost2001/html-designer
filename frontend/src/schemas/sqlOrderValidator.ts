@@ -775,12 +775,11 @@ function checkAction(
     if (step.kind === "dbAccess" && step.operation === "SELECT" && step.sql) {
       const substitutedSel = substituteAtVars(step.sql);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- node-sql-parser exposes dialect-specific AST shapes without stable TS types.
         let astSel: any = parser.astify(substitutedSel, { database: DIALECT });
         astSel = Array.isArray(astSel) ? astSel[0] : astSel;
         if (astSel && astSel.type === "select") {
           // SELECT 対象テーブル名を抽出 (FROM 句)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const fromTables: string[] = [];
           if (Array.isArray(astSel.from)) {
             for (const fromItem of astSel.from) {

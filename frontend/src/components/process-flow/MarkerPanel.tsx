@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- legacy marker panel types still span old/new process-flow shapes; tracked by #1016.
 /**
  * ProcessFlow.markers 編集パネル (#261)
  *

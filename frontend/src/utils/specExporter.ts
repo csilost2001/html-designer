@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- legacy spec exporter migration remains open; tracked by #1016.
 /**
  * specExporter.ts (v3, #556)
  * AI エージェント向け統合 JSON 仕様書の生成。

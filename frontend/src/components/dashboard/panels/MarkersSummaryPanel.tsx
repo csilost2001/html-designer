@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- legacy marker aggregation uses mixed v2/v3 shapes; tracked by #1016.
 /**
  * 未解決マーカー集計パネル (#261)
  *
