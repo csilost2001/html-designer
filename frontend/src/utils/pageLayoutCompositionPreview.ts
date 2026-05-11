@@ -252,6 +252,12 @@ function _appendPreviewHtml(
   wrapper.appendChild(tag);
 
   // gadget HTML を inject (innerHTML)。pointer-events:none で編集不可、scope は wrapper 内に閉じる
+  //
+  // Security note (Sonnet Should-fix): innerHTML 経由のため、gadget design.json に
+  // 悪意ある <script> が含まれれば実行されうる "self-XSS" 経路となる。
+  // 本ツールは AI / 信頼された設計者が自分で書いた design data を表示する性質のため、
+  // sanitize は採用せず gadget の design HTML をそのまま表示する。
+  // 第三者 input を design に流す経路が将来できた場合は DOMPurify 等の導入を検討。
   const body = regionEl.ownerDocument.createElement("div");
   body.style.cssText = "min-height:24px;";
   body.innerHTML = opts.html;

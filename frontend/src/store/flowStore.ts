@@ -792,7 +792,14 @@ export async function updateScreen(
 ): Promise<ScreenNode | null> {
   const screen = project.screens.find((s) => s.id === screenId);
   if (!screen) return null;
-  Object.assign(screen, patch, { updatedAt: nowTs() });
+  // RFC #1021 pl-6 (Sonnet review Should-fix): undefined を patch に持つ keys は
+  // Object.assign で「明示的に undefined を書く」動作になり、既存値 (例: purpose='gadget') を消す。
+  // undefined を除外した clean patch を作って Object.assign する。
+  const cleanedPatch: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (v !== undefined) cleanedPatch[k] = v;
+  }
+  Object.assign(screen, cleanedPatch, { updatedAt: nowTs() });
   await saveProject(project);
   return screen;
 }

@@ -97,6 +97,8 @@ export interface PageLayoutEntry extends EntryBase {
   assignmentCount?: number;
   /** processFlowId の有無 (一覧 UI 表示用)。 */
   hasProcessFlow?: boolean;
+  /** design payload (designFileRef または puckDataRef) の有無 (一覧 UI 表示用、Sonnet Should-fix 反映) */
+  hasDesign?: boolean;
 }
 
 export interface SequenceEntry extends EntryBase {

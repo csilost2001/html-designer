@@ -171,6 +171,9 @@ async function syncPageLayoutMeta(pl: PageLayout): Promise<void> {
   const entries = raw.entities.pageLayouts ?? [];
 
   const idx = entries.findIndex((entry) => String(entry.id) === String(pl.id));
+  // RFC #1021 pl-6 (Sonnet Should-fix): hasDesign は designFileRef/puckDataRef の実体有無で判定し、
+  // backend handler (index.ts) と同じロジックに揃える
+  const design = pl.design ?? {};
   const meta: PageLayoutEntry = {
     id: pl.id as Uuid,
     no: idx >= 0 ? entries[idx].no : nextNo(entries),
@@ -180,6 +183,7 @@ async function syncPageLayoutMeta(pl: PageLayout): Promise<void> {
     regionCount: pl.regions?.length ?? 0,
     assignmentCount: Object.keys(pl.assignments ?? {}).length,
     hasProcessFlow: !!pl.processFlowId,
+    hasDesign: !!(design.designFileRef ?? design.puckDataRef),
   };
 
   if (idx >= 0) {
