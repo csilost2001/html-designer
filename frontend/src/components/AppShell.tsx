@@ -19,6 +19,7 @@ import { ViewDefinitionEditor } from "./view-definition/ViewDefinitionEditor";
 import { PageLayoutListView } from "./page-layout/PageLayoutListView";
 import { PageLayoutEditor } from "./page-layout/PageLayoutEditor";
 import { PageLayoutDesigner } from "./page-layout/PageLayoutDesigner";
+import { GadgetListView } from "./gadget/GadgetListView";
 import { WorkspaceListView } from "./workspace/WorkspaceListView";
 import { WorkspaceSelectView } from "./workspace/WorkspaceSelectView";
 import { TechStackView } from "./project/TechStackView";
@@ -323,6 +324,7 @@ export function AppShell() {
         <Route path="page-layout/list" element={<PageLayoutListView />} />
         <Route path="page-layout/edit/:pageLayoutId" element={<PageLayoutEditor />} />
         <Route path="page-layout/design/:pageLayoutId" element={<PageLayoutDesigner />} />
+        <Route path="gadget/list" element={<GadgetListView />} />
         <Route path="project/tech-stack" element={<TechStackView />} />
       </Route>
       <Route path="/workspace/list" element={<WorkspaceListView />} />
@@ -741,6 +743,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       { path: `${wsPrefix}/view/list`,          type: "view-list",           label: "ビュー一覧" },
       { path: `${wsPrefix}/view-definition/list`, type: "view-definition-list", label: "ビュー定義一覧" },
       { path: `${wsPrefix}/page-layout/list`,    type: "page-layout-list",    label: "ページレイアウト一覧" },
+      { path: `${wsPrefix}/gadget/list`,          type: "gadget-list",          label: "ガジェット一覧" },
       { path: "/workspace/list",                       type: "workspace-list", label: "ワークスペース" },
       { path: `${wsPrefix}/project/tech-stack`,         type: "tech-stack",     label: "技術スタック" },
     ];
@@ -806,6 +809,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
       : activeTab.type === "view-list"              ? `${wp}/view/list`
       : activeTab.type === "view-definition-list"   ? `${wp}/view-definition/list`
       : activeTab.type === "page-layout-list"       ? `${wp}/page-layout/list`
+      : activeTab.type === "gadget-list"            ? `${wp}/gadget/list`
       : activeTab.type === "workspace-list"         ? "/workspace/list"
       : activeTab.type === "tech-stack"             ? `${wp}/project/tech-stack`
       : activeTab.type === "dashboard"              ? `${wp}/`
