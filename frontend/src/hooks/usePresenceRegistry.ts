@@ -148,8 +148,11 @@ export function usePresenceFor(
   );
   const resourceTypeRef = useRef(resourceType);
   const resourceIdRef = useRef(resourceId);
-  resourceTypeRef.current = resourceType;
-  resourceIdRef.current = resourceId;
+
+  useEffect(() => {
+    resourceTypeRef.current = resourceType;
+    resourceIdRef.current = resourceId;
+  }, [resourceType, resourceId]);
 
   useEffect(() => {
     const unsub = store.addListener((map) => {
@@ -157,10 +160,9 @@ export function usePresenceFor(
       setEntries(map.get(key) ?? []);
     });
     // 初期値を最新に同期
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial presence snapshot is read from the external store.
     setEntries(store.getFor(resourceType, resourceId));
     return unsub;
-    // resourceType / resourceId が変わった場合は再サブスクライブ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store, resourceType, resourceId]);
 
   return entries;
@@ -178,6 +180,7 @@ export function usePresenceAll(): Map<ResourceKey, PresenceEntry[]> {
     const unsub = store.addListener((next) => {
       setMap(new Map(next));
     });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial presence map is read from the external store.
     setMap(store.getAll());
     return unsub;
   }, [store]);

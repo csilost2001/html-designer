@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- large legacy editor migration remains open; tracked by #1016.
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";

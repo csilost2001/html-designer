@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck -- list view still consumes mixed process-flow shapes; tracked by #1016.
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
@@ -529,7 +529,7 @@ export function ProcessFlowListView() {
     selection.clearSelection();
   };
 
-  const renderMarkerBadges = (g: ProcessFlowMeta) => {
+  const renderMarkerBadges = useCallback((g: ProcessFlowMeta) => {
     const m = markerMap.get(g.id);
     if (!m || m.total === 0) return null;
     const tooltip = MARKER_BADGE_META
@@ -550,7 +550,7 @@ export function ProcessFlowListView() {
         })}
       </span>
     );
-  };
+  }, [markerMap]);
 
   const columns = useMemo<DataListColumn<ProcessFlowMeta>[]>(() => [
     {
@@ -652,7 +652,7 @@ export function ProcessFlowListView() {
         return <i className="bi bi-check-lg process-flow-validation-ok" title="問題なし" />;
       },
     },
-  ], [validationMap, getErrorPriority, markerMap, hasDraft]);
+  ], [validationMap, getErrorPriority, markerMap, hasDraft, renderMarkerBadges]);
 
   const renderCard = (g: ProcessFlowMeta) => {
     const v = validationMap.get(g.id);

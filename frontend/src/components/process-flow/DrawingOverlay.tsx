@@ -167,6 +167,7 @@ export function DrawingOverlay({ markers, drawing, onCommitStrokes, onEraseMarke
   useEffect(() => {
     if (!drawing) {
       isDrawingRef.current = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- leaving drawing mode must synchronously clear transient strokes.
       setStrokes([]);
       setCurrentStroke("");
       setTool("pen");

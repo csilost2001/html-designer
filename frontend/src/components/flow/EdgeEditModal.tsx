@@ -63,6 +63,7 @@ export function EdgeEditModal({ open, initial, onSave, onDelete, onClose }: Prop
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- dialog open resets form from the selected edge.
       setForm({ ...defaultData, ...initial });
     }
   }, [open, initial]);

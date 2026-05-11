@@ -4,6 +4,7 @@ import type * as V3Common from "./v3/common";
 export type V3ProcessFlowTypes = typeof V3ProcessFlow;
 export type V3CommonTypes = typeof V3Common;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy process-flow compatibility relies on permissive dictionary values.
 type AnyRecord = Record<string, any>;
 
 export type Maturity = V3Common.Maturity;

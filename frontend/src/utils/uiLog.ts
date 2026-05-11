@@ -78,7 +78,6 @@ function detectFlooding(category: UiLogCategory, msg: string): boolean {
   ).length;
   // 同 (category, msg) が 5 回超: 多分ループ
   if (sameCount >= 5 && sameCount % 5 === 0) {
-    // eslint-disable-next-line no-console
     console.warn(
       `[${ts()}][ui-log][flood] ${category}/${msg.slice(0, 60)} が 1 秒に ${sameCount} 回発生しています。loop 疑い。`,
     );
@@ -99,7 +98,6 @@ export function uiLog(
   _enqueueForFlush(category, msg, level, ctx);
   if (!shouldLog(level)) return;
   const prefix = `[${ts()}][${category}]`;
-  // eslint-disable-next-line no-console
   const out =
     level === "error" ? console.error
     : level === "warn" ? console.warn
@@ -189,7 +187,6 @@ export function setupServerLogFlush(
       const now = Date.now();
       if (now - _lastFlushFailLogTs > FLUSH_FAIL_LOG_INTERVAL_MS) {
         _lastFlushFailLogTs = now;
-        // eslint-disable-next-line no-console
         console.warn(`[uiLog] server flush failed; ${_flushQueue.length} entries queued for retry`);
       }
     }

@@ -376,7 +376,7 @@ export function Designer({ screenId, screenName, onBack, isActive }: DesignerPro
         mcpBridge.request("editSession.update", { editSessionId: editSession.id, payload: data }).catch(console.error);
       }
     }, 300);
-  }, [screenId, editSession]);
+  }, [editSession]);
 
   // タブがアクティブになったときにキャンバスをリフレッシュ（display:none から復帰）
   useEffect(() => {

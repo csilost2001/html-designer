@@ -50,6 +50,7 @@ export function ScreenItemPickerModal({ open, onClose, onPick }: Props) {
   }, [open]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing the selected screen immediately clears dependent items.
     if (!selectedScreenId) { setItemsFile(null); return; }
     loadScreenItems(selectedScreenId).then(setItemsFile).catch(console.error);
   }, [selectedScreenId]);

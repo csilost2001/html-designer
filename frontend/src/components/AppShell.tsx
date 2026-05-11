@@ -263,7 +263,7 @@ export function AppShell() {
       const guard = checkRedirect(target);
       if (guard.allow) navigate(target, { replace: true });
     }
-  }, [workspaceState.loading, workspaceState.active?.id, workspaceState.lockdown, location.pathname]);
+  }, [workspaceState.loading, workspaceState.active?.id, workspaceState.lockdown, location.pathname, navigate]);
 
   // loading 中はスプラッシュ表示 (WorkspaceScopedShell に合わせて一貫性確保)
   // ただし接続失敗 timeout 超過時はエラー UI に切替 (#795-C)
@@ -497,7 +497,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
         if (guard.allow) navigate("/workspace/select", { replace: true });
       }
     }
-  }, [workspaceState.active, workspaceState.active?.id, workspaceState.loading, workspaceState.lockdown, workspaceState.error, workspaceState.workspaces, wsId, location.pathname]);
+  }, [workspaceState.active, workspaceState.active?.id, workspaceState.loading, workspaceState.lockdown, workspaceState.error, workspaceState.workspaces, wsId, location.pathname, navigate]);
 
   // CSS variables でヘッダー・タブバーの高さを各コンポーネントに伝える
   useEffect(() => {
@@ -512,7 +512,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   // リソース詳細 URL で対象が見つからなかったときにダッシュボードへ戻す共通処理。
   // ブラウザが握っている URL を「存在しないリソース」のまま放置すると次回リロードで
   // また袋小路に入るため、URL 自体も / に書き換える。
-  const fallbackToDashboard = (kind: string, id: string) => {
+  const fallbackToDashboard = useCallback((kind: string, id: string) => {
     const msg = `URL が指すリソース (${kind}: ${id}) が見つかりません。ダッシュボードへフォールバック。`;
     uiWarn("urlsync", "resource not found → fallback", { kind, id, pathname: location.pathname });
     recordError({
@@ -529,7 +529,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
     const dashPath = wsId ? `/w/${wsId}/` : "/";
     const guard = checkRedirect(dashPath);
     if (guard.allow) navigate(dashPath, { replace: true });
-  };
+  }, [location.pathname, navigate, showError, wsId]);
 
   // URL → タブ同期（ブラウザの直接ナビゲーション / mcpBridge.navigateScreen）
   // /w/:wsId/* 配下で使用するため、全 matchPath を /w/:wsId/... 規約に更新
@@ -721,7 +721,7 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
         return;
       }
     }
-  }, [location.pathname]);
+  }, [location.pathname, fallbackToDashboard, wsId]);
 
   // アクティブタブ → URL 同期
   // workspace が完全未選択 (active=null + wsId 無し) や /workspace/select 表示中は同期を停止する。

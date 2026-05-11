@@ -15,6 +15,7 @@ export function CodeEditorModal({ open, initialHtml, componentName, onApply, onC
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- modal open resets editor draft from latest props.
       setHtml(initialHtml);
       setError(null);
     }

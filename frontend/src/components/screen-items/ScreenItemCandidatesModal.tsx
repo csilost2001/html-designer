@@ -27,6 +27,7 @@ export function ScreenItemCandidatesModal({ open, screenId, screenName, existing
 
   useEffect(() => {
     if (!open || !screenId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal open starts a fresh async candidate load.
     setLoading(true);
     setError(null);
     setCandidates([]);

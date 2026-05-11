@@ -20,6 +20,7 @@ export function SharedBlockSyncModal({ open, blockId, blockLabel, content, onClo
 
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal open starts a fresh async sync run.
     setPhase("loading");
     setResults([]);
     setErrorMsg("");

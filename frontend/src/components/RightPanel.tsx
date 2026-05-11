@@ -56,6 +56,7 @@ export function RightPanel({ screenId }: RightPanelProps) {
       const comps = editor.getComponents?.();
       const styles = editor.getStyle?.();
       if ((comps && comps.length > 0) || (styles && styles.length > 0)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- initial editor readiness is derived from GrapesJS state.
         setLoaded(true);
       }
     } catch {

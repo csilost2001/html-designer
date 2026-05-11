@@ -467,7 +467,7 @@ function FlowEditorInner() {
       }]);
     }
     setScreenModal({ open: false });
-  }, [screenModal.editId, projectDefaultEditorKind, projectDefaultCssFramework, setNodes]);
+  }, [screenModal.editId, projectDefaultEditorKind, projectDefaultCssFramework, setNodes, pushUndoSnapshot]);
 
   // ── Edge Modal Actions ──
 
@@ -490,7 +490,7 @@ function FlowEditorInner() {
       };
     }));
     setEdgeModal({ open: false });
-  }, [edgeModal.editId, setEdges]);
+  }, [edgeModal.editId, setEdges, pushUndoSnapshot]);
 
   const handleEdgeDeleteFromModal = useCallback(async () => {
     if (!edgeModal.editId || !projectRef.current) return;
@@ -549,7 +549,7 @@ function FlowEditorInner() {
       }]);
     }
     setContextMenu(null);
-  }, [contextMenu, setNodes]);
+  }, [contextMenu, setNodes, pushUndoSnapshot]);
 
   const handleDeleteNode = useCallback(async () => {
     if (!contextMenu || !projectRef.current) return;
@@ -563,7 +563,7 @@ function FlowEditorInner() {
       ));
     }
     setContextMenu(null);
-  }, [contextMenu, setNodes, setEdges]);
+  }, [contextMenu, setNodes, setEdges, pushUndoSnapshot]);
 
   const handleDesignNode = useCallback(() => {
     if (!contextMenu) return;
@@ -574,7 +574,7 @@ function FlowEditorInner() {
     openTab({ id: makeTabId("design", screenId), type: "design", resourceId: screenId, label: screenName });
     navigate(wsPath(`/screen/design/${screenId}`));
     setContextMenu(null);
-  }, [contextMenu, navigate, nodes]);
+  }, [contextMenu, navigate, nodes, wsPath]);
 
   // ── Marker Panel Actions ──
 
@@ -748,7 +748,7 @@ function FlowEditorInner() {
     await storeRemoveEdge(projectRef.current, contextMenu.targetId);
     setEdges((eds) => eds.filter((e) => e.id !== contextMenu.targetId));
     setContextMenu(null);
-  }, [contextMenu, setEdges]);
+  }, [contextMenu, setEdges, pushUndoSnapshot]);
 
   // ドラッグによるエッジ端点の付け替え
   const onReconnect = useCallback((oldEdge: RFEdge, newConnection: Connection) => {

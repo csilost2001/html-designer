@@ -67,6 +67,7 @@ export function EditSessionBadge({ resourceType, resourceId }: EditSessionBadgeP
 
   // mount 時に初回 fetch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial session snapshot is fetched on mount.
     void fetchSessions();
   }, [fetchSessions]);
 

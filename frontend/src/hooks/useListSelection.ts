@@ -31,6 +31,7 @@ export function useListSelection<T>(
   // これにより、フィルタクリア時に「再表示された項目の選択が復活しない」挙動が成立する。
   useEffect(() => {
     const visible = new Set(itemIds);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- selection must be pruned when the visible item set changes.
     setSelectedIdsState((prev) => {
       if (prev.size === 0) return prev;
       let changed = false;
