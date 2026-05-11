@@ -1,5 +1,7 @@
 import { mcpBridge } from "../mcp/mcpBridge";
 
+const LOCKDOWN_WORKSPACE_ID = "lockdown";
+
 // ─── 型定義 ─────────────────────────────────────────────────────────────────
 
 export interface WorkspaceEntry {
@@ -140,7 +142,7 @@ async function _doLoadWorkspaces(): Promise<void> {
       workspaces: result.workspaces ?? [],
       active: result.active
         ? {
-            id: result.active.id ?? undefined,
+            id: result.active.id ?? (result.lockdown ? LOCKDOWN_WORKSPACE_ID : undefined),
             path: result.active.path,
             name: result.active.name,
           }

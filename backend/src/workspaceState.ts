@@ -41,6 +41,9 @@ let _initialized = false;
  */
 let _globalDefaultPath: string | null = null;
 
+/** lockdown モード時に URL / protocol 上で使う固定 workspace id */
+export const LOCKDOWN_WORKSPACE_ID = "lockdown";
+
 /** autoActivateOnStartup が設定するデフォルトの active path (#700 R-2) */
 export function setGlobalDefaultPath(absPath: string | null): void {
   _globalDefaultPath = absPath ? path.resolve(absPath) : null;

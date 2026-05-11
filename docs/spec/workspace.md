@@ -281,7 +281,7 @@ backend offline 時 (port 5179 未接続) は `connectionFailed` が立ち、App
 
 | method | params | レスポンス |
 |--------|--------|-----------|
-| `workspace.list` | (なし) | `{ workspaces: WorkspaceEntry[], lastActiveId, active: { path, name } \| null, lockdown, lockdownPath }` |
+| `workspace.list` | (なし) | `{ workspaces: WorkspaceEntry[], lastActiveId, active: { id, path, name } \| null, lockdown, lockdownPath }` |
 | `workspace.status` | (なし) | `{ active: { path, name } \| null, lockdown, lockdownPath }` |
 | `workspace.inspect` | `{ path: string }` | `{ status: "ready" \| "needsInit" \| "notFound", path, name? }` |
 | `workspace.open` | `{ path?: string, id?: string, init?: boolean }` | `{ active: { id, path, name } }` または error |
@@ -298,6 +298,8 @@ backend offline 時 (port 5179 未接続) は `connectionFailed` が立ち、App
 
 `workspace.open` 成功時と `workspace.close` 成功時に broadcast される。
 UI 側は `workspaceStore.subscribeWorkspaceChanges()` で subscribe し、自動的に `loadWorkspaces()` を再実行する。
+
+lockdown 時の `workspace.list.active.id` は recent に依存せず固定値 `"lockdown"` を返す。これにより `/w/:wsId/*` の URL 正規化は recent エントリが存在しない環境でも `/w/lockdown/` として成立する。
 
 **実装**: `backend/src/wsBridge.ts:772-777, 789-791` (broadcast) / `frontend/src/store/workspaceStore.ts:163-190` (subscribe)
 

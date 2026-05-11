@@ -99,7 +99,8 @@ type ProcessFlowHandler = {
   mutate: (type: string, params: unknown) => void;
 };
 
-const WS_URL = `ws://${window.location.hostname}:5179`;
+const MCP_PORT = import.meta.env.VITE_DESIGNER_MCP_PORT ?? "5179";
+const WS_URL = `ws://${window.location.hostname}:${MCP_PORT}`;
 const RETRY_DELAY_MS = 5000;
 const REQUEST_TIMEOUT_MS = 15000;
 
