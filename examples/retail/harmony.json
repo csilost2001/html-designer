@@ -570,7 +570,7 @@
         "regionCount": 4,
         "assignmentCount": 3,
         "hasProcessFlow": false,
-        "hasDesign": false
+        "hasDesign": true
       }
     ]
   }

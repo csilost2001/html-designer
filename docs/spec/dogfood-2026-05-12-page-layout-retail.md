@@ -35,22 +35,46 @@
 - ✅ All errors resolved (0 warnings)
 - ✅ AJV cross-entity validator (assignments → gadget existence + pageLayoutId → PageLayout existence) 動作確認
 
-### AI 実機 dogfood (Playwright + chromium headless)
-| Step | 結果 |
-|------|------|
-| PageLayout 一覧 (`/page-layout/list`) | ✅ Main Layout カード表示 (4 region / 3 assignment) |
-| PageLayout エディタ (`/page-layout/edit/:id`) | ✅ regions 4 件 + assignments 3 件 + design (grapesjs/bootstrap) + maturity 表示 |
-| PageLayout Designer (`/page-layout/design/:id`) | ✅ GrapesJS canvas + Layout Regions ブロックカテゴリ表示 |
-| Gadget 一覧 (`/gadget/list`) | ✅ 3 gadget (Header/Sidebar/Footer) カード表示 |
-| Header Gadget Designer | ✅ Bootstrap navy ヘッダ (店舗 A / 山田 太郎 / ログアウト) 実 HTML レンダリング |
-| Screen 一覧 (`/screen/list`) | ✅ purpose=page のみ 11 件表示 (gadget 除外) |
-| 画面遷移図 (`/screen/flow`) | ✅ 11 page Screen のみ表示、gadget は描画されない |
-| ProcessFlow 一覧 + Header gadget ProcessFlow 詳細 | ✅ ヘッダーガジェット処理 + act-logout (HTTP POST /api/retail/auth/logout) 表示 |
-| Dashboard Screen Designer (pageLayoutId 設定) | ✅ Screen 自身の design 描画 (banner は load 競合で表示されないケースあり、§3 既知の制限参照) |
+### AI 実機 dogfood (Playwright + chromium headless、12 ステップ全件)
+| Step | 内容 | 結果 | スクリーンショット |
+|------|------|------|---------------------|
+| 1 | workspace root (`/w/<wsId>/`) → ダッシュボード表示 | ✅ 「リテール総合 (EC + 店舗 POS + 在庫管理)」読込 | `v2-01-workspace-root-dashboard.png` |
+| 2 | HeaderMenu hamburger open | ✅ メニュー表示 | `v2-02-header-menu-open.png` |
+| 3 | `/page-layout/list` 遷移 | ✅ Main Layout カード表示 (4 region / 3 assignment) | `v2-03-page-layout-list.png` |
+| 4 | Main Layout カード click → エディタ起動 | ✅ regions 4 + assignments 3 + design (grapesjs/bootstrap) + maturity 表示 | `v2-04-page-layout-editor.png` |
+| 5 | Designer (`/page-layout/design/:id`) | ✅ GrapesJS canvas + Layout Regions カテゴリ | `v2-05-page-layout-designer.png` |
+| 6 | `/gadget/list` (`GadgetListView`) | ✅ 3 gadget (Header/Sidebar/Footer) カード | `v2-06-gadget-list.png` |
+| 7 | Header Gadget Designer (`/screen/design/68709449-...`) | ✅ Bootstrap navy ヘッダ (店舗 A / 山田 太郎 / ログアウト) 実 HTML レンダリング | `v2-07-header-gadget-designer.png` |
+| 8 | `/screen/list` (purpose=page のみ) | ✅ 11 件 (gadget 除外) | `v2-08-screen-list-page-only.png` |
+| 9 | 画面遷移図 (`/screen/flow`) | ✅ 11 page Screen のみ、gadget 描画なし | `v2-09-screen-flow.png` |
+| 10 | `/process-flow/list` (新 ProcessFlow 含む) | ✅ 7 ProcessFlow + 「ヘッダーガジェット処理」表示 | `v2-10-process-flow-list.png` |
+| 11 | Header gadget ProcessFlow 詳細 | ✅ act-logout + HTTP POST /api/retail/auth/logout 表示 | `v2-11-header-process-flow-detail.png` |
+| 12 | 注文完了 Screen Designer (purpose=page) | ✅ Screen 自身の design 描画 (PageLayout banner は load 競合のため §3 既知の制限) | `v2-12-dashboard-screen-with-pageLayout.png` |
 
-スクリーンショット: `.tmp/screenshots/v2-{01..12}-*.png`
+console errors: 0 件 (SPA 内 navigation で workspace state 一貫保持)
+スクリーンショット格納先: `.tmp/screenshots/v2-*.png`
 
-## 3. 既知の制限 (follow-up)
+## 3. Codex 独立 adversarial レビュー反映 (2026-05-12、PR #1031)
+
+Codex で PR #1031 全体を fresh context で adversarial レビュー。Must-fix 4 件 + 主要 Should-fix を本コミット系列で解消。
+
+| ID | 問題 | 解消 commit |
+|----|------|-------------|
+| A-2 Must-fix | PageLayout design が `screens/page-layout:<id>.design.json` に保存 (Windows 不正名 + 永続化境界違反) | 6e19051: `page-layouts/<id>.design.json` 専用 storage に分離 + wsBridge ルーティング |
+| B-1 Must-fix | URL → タブ同期で wsId !== active.id race | 6e19051: workspace mismatch guard 追加 |
+| B-2 Must-fix | designer__update_screen MCP に purpose / pageLayoutId なし | 6e19051: input schema + handler 拡張 |
+| C-1 Must-fix | Page Screen Designer で PageLayout 外枠+gadget が描画されない (banner のみ) | 6e19051: banner load retry 強化 (フル composition は follow-up issue) |
+| B-3 Should-fix | assignments key が未宣言 region に存在しても通る | 6e19051: PAGE_LAYOUT_ASSIGNMENT_UNKNOWN_REGION エラー追加 |
+| B-4 Should-fix | pageLayouts 0 件で Screen.pageLayoutId 参照崩れを検出しない | 6e19051: silent skip 廃止 |
+| B-5 Should-fix | GrapesJS component:add listener cleanup なし | 6e19051: componentAddCleanupRef + unmount effect |
+| C-3 / H-4 Should-fix | Gadget「使用先 PL 数」常に 0 (誤情報) | このコミット: full PageLayout load で逆参照 map 構築 + pageLayoutChanged broadcast subscribe |
+| D-2 Should-fix | MCP tools 6 種要求のうち get/save が欠落 | 6e19051: designer__get_page_layout / save_page_layout 追加 |
+| D-6 Should-fix | list_screens に purpose filter なし | 6e19051: purpose? input schema + filter handler |
+| E-2 Should-fix | PageLayout design payload sample なし | このコミット: `examples/retail/.../17595b62-...design.json` 追加 + designFileRef 紐付け |
+| F-3 Nit | UI 文言「PageLayout」→「ページレイアウト」 | 6e19051: PageLayoutWireframeBanner 文言修正 |
+| C-5 Nit | pageLayoutChanged broadcast 購読なし | このコミット: GadgetListView で broadcast subscribe |
+
+## 4. 既知の制限 (follow-up)
 
 ### A. PageLayout wireframe banner (Screen Designer 上)
 - `purpose=page` + `pageLayoutId` 設定の Screen を Designer で開いた時、上部に「PageLayout を使用中: <name>」banner が表示されるはず

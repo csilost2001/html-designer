@@ -19,6 +19,7 @@
   },
   "design": {
     "editorKind": "grapesjs",
-    "cssFramework": "bootstrap"
+    "cssFramework": "bootstrap",
+    "designFileRef": "17595b62-fef1-4b22-9c25-16736c772567.design.json"
   }
 }

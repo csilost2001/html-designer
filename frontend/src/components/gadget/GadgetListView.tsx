@@ -20,8 +20,7 @@ import { resolveEditorKind } from "../../utils/resolveEditorKind";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId } from "../../store/tabStore";
 import { renumber } from "../../utils/listOrder";
-import { listPageLayouts } from "../../store/pageLayoutStore";
-import type { PageLayoutEntry } from "../../types/v3/project";
+import { listPageLayouts, loadPageLayout } from "../../store/pageLayoutStore";
 import { DataList, type DataListColumn } from "../common/DataList";
 import { FilterBar } from "../common/FilterBar";
 import { SortBar } from "../common/SortBar";
@@ -58,7 +57,9 @@ export function GadgetListView() {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
-  const [pageLayouts, setPageLayouts] = useState<PageLayoutEntry[]>([]);
+  // RFC #1021 pl-6 (Codex C-3 / H-4): gadget Screen → 使用先 PageLayout 数の逆参照 map
+  // assignments は PageLayoutEntry に含まれていないため各 PageLayout を full load して計算
+  const [usageMap, setUsageMap] = useState<Map<string, number>>(new Map());
   const [projectDefaultEditorKind, setProjectDefaultEditorKind] = useState<"grapesjs" | "puck">("grapesjs");
   const [projectDefaultCssFramework, setProjectDefaultCssFramework] = useState<"bootstrap" | "tailwind">("bootstrap");
 
@@ -102,8 +103,32 @@ export function GadgetListView() {
   });
 
   // PageLayout 一覧をロード (逆参照カウント用)
+  // RFC #1021 pl-6 (Codex C-3 / H-4 + C-5): pageLayoutChanged broadcast にも対応し、
+  // 別タブで PageLayout が増減した場合 / assignments が変わった場合に再計算する
   useEffect(() => {
-    listPageLayouts().then(setPageLayouts).catch(console.error);
+    let mounted = true;
+    const loadAll = async () => {
+      try {
+        const entries = await listPageLayouts();
+        if (!mounted) return;
+        // 各 PageLayout を full load して assignments → gadget の逆参照 map を構築
+        const next = new Map<string, number>();
+        const fullLoads = await Promise.all(
+          entries.map((e) => loadPageLayout(e.id).catch(() => null)),
+        );
+        for (const pl of fullLoads) {
+          if (!pl?.assignments) continue;
+          for (const screenId of Object.values(pl.assignments)) {
+            if (typeof screenId !== "string") continue;
+            next.set(screenId, (next.get(screenId) ?? 0) + 1);
+          }
+        }
+        if (mounted) setUsageMap(next);
+      } catch (e) { console.error("[GadgetListView] PageLayout usage 再計算失敗:", e); }
+    };
+    loadAll();
+    const unsubBroadcast = mcpBridge.onBroadcast("pageLayoutChanged", () => loadAll());
+    return () => { mounted = false; unsubBroadcast(); };
   }, []);
 
   useEffect(() => {
@@ -120,17 +145,9 @@ export function GadgetListView() {
 
   const gadgets = editor.items;
 
-  // 各ガジェットを参照している PageLayout 数
-  const pageLayoutUsageMap = useMemo<Map<string, number>>(() => {
-    const map = new Map<string, number>();
-    for (const pl of pageLayouts) {
-      // PageLayoutEntry には assignments がないため、逆参照は pagLayouts の meta から取れない
-      // ここでは assignment の screenId が各 pl に含まれていると仮定して 0 初期化
-      // 実際の逆参照はフルロードが必要 → 将来拡張。現状は「使用先 PL 数」を 0 表示
-      void pl;
-    }
-    return map;
-  }, [pageLayouts]);
+  // 各ガジェットを参照している PageLayout 数 (RFC #1021 pl-6 Codex C-3/H-4 解消版)
+  // 計算は useEffect 側で行い setUsageMap に格納。ここでは alias 公開のみ。
+  const pageLayoutUsageMap = usageMap;
 
   const filter = useListFilter(gadgets);
 

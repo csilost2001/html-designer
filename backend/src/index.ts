@@ -805,7 +805,19 @@ function createMcpServer(sessionId: string): Server {
         const project = (await readProject(mcpRoot()) ?? {}) as Record<string, unknown>;
         const entities = ((project.entities ?? {}) as Record<string, unknown>);
         const pageLayouts = ((entities.pageLayouts ?? []) as Array<Record<string, unknown>>);
-        pageLayouts.push({ id, name: a.name, maturity: "draft", createdAt: now, updatedAt: now, regionCount: 4, assignmentCount: 0, hasProcessFlow: false, hasDesign: false });
+        // RFC #1021 pl-6 (Codex D-4): EntryBase は createdAt を required にしないため省略
+        // (PageLayoutEntry shape を schema 通りに統一)
+        pageLayouts.push({
+          id,
+          no: pageLayouts.length + 1,
+          name: a.name,
+          maturity: "draft",
+          updatedAt: now,
+          regionCount: 4,
+          assignmentCount: 0,
+          hasProcessFlow: false,
+          hasDesign: false,
+        });
         entities.pageLayouts = pageLayouts;
         project.entities = entities;
         project.updatedAt = now;
@@ -832,15 +844,19 @@ function createMcpServer(sessionId: string): Server {
         const idx = pageLayouts.findIndex((p) => p.id === a.pageLayoutId);
         const regions = (def.regions ?? []) as unknown[];
         const assignments = (def.assignments ?? {}) as Record<string, unknown>;
+        const design = (def.design ?? {}) as Record<string, unknown>;
+        // RFC #1021 pl-6 (Codex D-4): EntryBase の `no` を既存値から維持、hasDesign は designFileRef/puckDataRef 実体の有無で判定
+        const existingNo = idx >= 0 ? pageLayouts[idx].no : pageLayouts.length + 1;
         const meta = {
           id: a.pageLayoutId,
+          no: existingNo,
           name: def.name,
           maturity: def.maturity ?? "draft",
           updatedAt: def.updatedAt as string,
           regionCount: regions.length,
           assignmentCount: Object.keys(assignments).length,
           hasProcessFlow: Boolean(def.processFlowId),
-          hasDesign: Boolean(def.design),
+          hasDesign: Boolean(design.designFileRef ?? design.puckDataRef),
         };
         if (idx >= 0) pageLayouts[idx] = meta; else pageLayouts.push(meta);
         entities.pageLayouts = pageLayouts;
