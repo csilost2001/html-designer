@@ -26,7 +26,7 @@ examples/retail/
     ├── views/                # SQL VIEW 定義
     ├── view-definitions/     # 一覧 UI viewer 定義
     ├── sequences/            # 採番シーケンス
-    ├── screen-layout.json    # 画面フロー配置情報 (任意)
+    ├── screen-flow-positions.json # 画面フロー配置情報 (任意)
     ├── extensions/retail.v3.json # retail namespace 拡張定義 (v3 canonical combined format)
     └── conventions/          # 業務規約カタログ (retail 拡張含む)
 ```

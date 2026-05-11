@@ -23,7 +23,7 @@ v1 (機械変換前) / v2 (機械変換版) を base にせず、業務概念か
 |---|---|
 | `harmony.v3.schema.json` | ワークスペース marker ファイル (`harmony.json`)。schemaVersion / meta / **dataDir** (必須、設計データ格納先の相対パス) / extensionsApplied (ExtensionApplied[]) / entities / authoring |
 | `screen.v3.schema.json` | Screen entity。EntityMeta + 業務情報のみ (kind / path / items / auth / permissions / design 参照)、UI 座標は分離。hasDesign は harmony.v3 の ScreenEntry 側で一覧表示用に保持 (Screen 本体には不在) |
-| `screen-layout.v3.schema.json` | 画面フロー UI 座標 (Designer 専用、業務実装には不要)。data/screen-layout.json |
+| `screen-flow-positions.v3.schema.json` | 画面フロー UI 座標 (Designer 専用、業務実装には不要)。data/screen-flow-positions.json |
 | `screen-item.v3.schema.json` | ScreenItem (画面項目)。id は Identifier (camelCase 強制)、ValueSource discriminated union (組み込み 4 種 + 拡張) |
 | `table.v3.schema.json` | Table (DB テーブル)。EntityMeta + physicalName + columns + indexes + constraints (discriminated union: unique/check/foreignKey、FK は ConstraintDefinition に集約) + defaults + triggers |
 | `er-layout.v3.schema.json` | ER 図 UI 座標 + 論理リレーション。data/er-layout.json |
@@ -151,7 +151,7 @@ Step.kind / FieldType.kind / Constraint.kind / BranchCondition.kind / ValueSourc
 | `EventPublishStep.eventRef + topic` 二重持ち | topic のみ (二重持ち anti-pattern 解消) |
 | ProcessFlow root 30+ 並列プロパティ | meta / context / actions / authoring の 4 並列 |
 | 10 個の extensions schema | extensions.v3.schema.json 1 ファイル統合 |
-| ScreenNode の position / size / thumbnail (UI 座標) | screen-layout.v3.schema.json に分離 |
+| ScreenNode の position / size / thumbnail (UI 座標) | screen-flow-positions.v3.schema.json に分離 |
 | `FkAction` の `NO ACTION` (スペース含み) | `noAction` (lowerCamelCase) |
 | `ValidationRuleKind` (`Error` / `Msg` 等 PascalCase) | `ValidationRule.severity` (`error` / `msg` 等 lowerCamelCase、`kind` 多義性回避のためフィールド名も rename) |
 | `WorkflowQuorum.type` の `n-of-m` | `nOfM` |
@@ -238,7 +238,7 @@ v3 EventTopic regex は `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$` (lowercase + und
 | v1 | v3 |
 |---|---|
 | `screenItems[].name: "user_id"` (混在) | `screenItem.id: "userId"` (Identifier / camelCase 強制) + `screenItem.label: "ユーザーID"` |
-| Screen に `position` / `size` / `thumbnail` (UI 座標) | `screen-layout.v3.schema.json` に分離 (`data/screen-layout.json`) |
+| Screen に `position` / `size` / `thumbnail` (UI 座標) | `screen-flow-positions.v3.schema.json` に分離 (`data/screen-flow-positions.json`) |
 | `valueFrom: "@var"` (string) | `valueFrom: { kind: "flowVariable", variableName: "var" }` (構造化) |
 
 ### TestScenario 構造変更
@@ -304,7 +304,7 @@ const validate = ajv.compile(processFlowV3);
 }
 ```
 
-対応 entity: project / table / screen / screen-layout / process-flow / sequence / view / er-layout / extensions / conventions。**custom-block は array root のため対象外**、common は $defs ライブラリのため不要。
+対応 entity: project / table / screen / screen-flow-positions / process-flow / sequence / view / er-layout / extensions / conventions。**custom-block は array root のため対象外**、common は $defs ライブラリのため不要。
 
 ## ガバナンス
 
