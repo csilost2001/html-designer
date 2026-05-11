@@ -57,10 +57,11 @@ function setup(
   options: { navigate?: (path: string) => void } = {},
 ) {
   const reload = vi.fn(async () => undefined);
+  const setIsDirty = vi.fn((dirty: boolean) => { isDirtyRef.current = dirty; });
   const hook = renderHook(() =>
-    useFlowProjectSync({ reload, isDirtyRef, navigate: options.navigate }),
+    useFlowProjectSync({ reload, isDirtyRef, setIsDirty, navigate: options.navigate }),
   );
-  return { hook, reload, isDirtyRef };
+  return { hook, reload, isDirtyRef, setIsDirty };
 }
 
 async function waitForInitialLoad(reload: ReturnType<typeof vi.fn>) {
