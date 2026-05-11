@@ -264,29 +264,54 @@ function createMcpServer(sessionId: string): Server {
       // ── フロー図操作 ──
 
       case "designer__list_screens": {
-        // ファイルから直接読み込み（ブラウザ不要）。ファイルがない場合はブラウザ経由
-        const fileProject = await readProject(mcpRoot()) as { screens?: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }> } | null;
-        let screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
-        if (fileProject?.screens) {
-          screens = fileProject.screens;
-        } else {
+        // RFC #1021 pl-6 (Codex D-6): purpose filter 対応 + v3 entities.screens を優先読み込み
+        const a = (args ?? {}) as Record<string, unknown>;
+        const purposeFilter = a.purpose === "page" || a.purpose === "gadget" ? a.purpose as "page" | "gadget" : undefined;
+
+        // v3 project の entities.screens から読み込み (purpose / pageLayoutId 含む)
+        const fileProject = await readProject(mcpRoot()) as { entities?: { screens?: Array<{ id: string; name: string; kind?: string; purpose?: string; path?: string; pageLayoutId?: string; hasDesign?: boolean }> } } | null;
+        // v3 形式 (entities.screens)
+        let v3Screens = fileProject?.entities?.screens;
+        if (!v3Screens) {
+          // 旧形式の fallback (test fixture 等)
+          const legacy = fileProject as { screens?: Array<{ id: string; name: string; type?: string; kind?: string; purpose?: string; path?: string; pageLayoutId?: string; hasDesign?: boolean }> } | null;
+          v3Screens = legacy?.screens;
+        }
+        if (!v3Screens) {
+          // ブラウザ経由 fallback (purpose 情報なし)
           const result = (await wsBridge.sendCommand("listScreens")) as {
             screens: Array<{ id: string; name: string; type: string; path: string; hasDesign: boolean }>;
           };
-          screens = result.screens;
+          v3Screens = result.screens.map((s) => ({
+            id: s.id,
+            name: s.name,
+            kind: s.type,
+            path: s.path,
+            hasDesign: s.hasDesign,
+          }));
         }
-        const lines = screens.map(
-          (s) => `- ${s.id}  ${s.name} (${s.type})${s.path ? ` [${s.path}]` : ""}${s.hasDesign ? " ✓デザイン済み" : ""}`
-        );
+        const filtered = purposeFilter
+          ? (v3Screens ?? []).filter((s) => {
+              const p = (s.purpose ?? "page");
+              return p === purposeFilter;
+            })
+          : (v3Screens ?? []);
+        const lines = filtered.map((s) => {
+          const purposeBadge = s.purpose === "gadget" ? " [gadget]" : "";
+          const plBadge = s.pageLayoutId ? ` [layout:${s.pageLayoutId.slice(0, 8)}]` : "";
+          const designBadge = s.hasDesign ? " ✓デザイン済み" : "";
+          const kindOrType = s.kind ?? (s as { type?: string }).type ?? "other";
+          const pathPart = s.path ? ` [${s.path}]` : "";
+          return `- ${s.id}  ${s.name} (${kindOrType})${pathPart}${purposeBadge}${plBadge}${designBadge}`;
+        });
+        const header = purposeFilter
+          ? `画面一覧 (purpose=${purposeFilter} のみ、${filtered.length}件):`
+          : `画面一覧 (${filtered.length}件):`;
         return {
-          content: [
-            {
-              type: "text",
-              text: lines.length > 0
-                ? `画面一覧 (${screens.length}件):\n${lines.join("\n")}`
-                : "画面はまだ登録されていません。",
-            },
-          ],
+          content: [{
+            type: "text",
+            text: lines.length > 0 ? `${header}\n${lines.join("\n")}` : "画面はまだ登録されていません。",
+          }],
         };
       }
 
@@ -319,12 +344,16 @@ function createMcpServer(sessionId: string): Server {
         if (typeof a.screenId !== "string") {
           throw new McpError(ErrorCode.InvalidParams, "screenId は必須です");
         }
+        // RFC #1021 pl-6 (Codex B-2): purpose / pageLayoutId も update 可能に
         await wsBridge.sendCommand("updateScreenMeta", {
           screenId: a.screenId,
           name: a.name,
           type: a.type,
           description: a.description,
           path: a.path,
+          purpose: a.purpose,
+          // pageLayoutId は空文字または null で解除可能
+          pageLayoutId: a.pageLayoutId === "" || a.pageLayoutId === null ? null : a.pageLayoutId,
         });
         return {
           content: [
@@ -835,6 +864,28 @@ function createMcpServer(sessionId: string): Server {
         project.updatedAt = new Date().toISOString();
         await writeProject(project, mcpRoot());
         return { content: [{ type: "text", text: `PageLayout ${a.pageLayoutId} を削除しました。` }] };
+      }
+
+      // RFC #1021 pl-6 (Codex D-2): get / save MCP tools (ISSUE #1023 受け入れ基準 6 種完備)
+      case "designer__get_page_layout": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.pageLayoutId !== "string") {
+          throw new McpError(ErrorCode.InvalidParams, "pageLayoutId は必須です");
+        }
+        const data = await readPageLayout(a.pageLayoutId, mcpRoot());
+        if (!data) {
+          return { content: [{ type: "text", text: `PageLayout ${a.pageLayoutId} が見つかりません。` }] };
+        }
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      }
+
+      case "designer__save_page_layout": {
+        const a = (args ?? {}) as Record<string, unknown>;
+        if (typeof a.pageLayoutId !== "string" || !a.data) {
+          throw new McpError(ErrorCode.InvalidParams, "pageLayoutId と data は必須です");
+        }
+        await writePageLayout(a.pageLayoutId, a.data, mcpRoot());
+        return { content: [{ type: "text", text: `PageLayout ${a.pageLayoutId} を保存しました。` }] };
       }
 
       case "designer__generate_ddl": {

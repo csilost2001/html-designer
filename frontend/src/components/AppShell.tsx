@@ -543,14 +543,17 @@ function AppShellInner({ wsId }: { wsId: string | undefined }) {
   // URL → タブ同期（ブラウザの直接ナビゲーション / mcpBridge.navigateScreen）
   // /w/:wsId/* 配下で使用するため、全 matchPath を /w/:wsId/... 規約に更新
   useEffect(() => {
-    // RFC #1021 pl-5 follow-up: workspace.open がまだ完了していない時点で URL → タブ同期が
-    // 走ると、loadXxx() がすべて「ワークスペースが選択されていません」で reject し、
-    // 各リソース URL が fallbackToDashboard でダッシュボードに飛ばされてしまう
-    // (deep-link / page reload の race)。
-    // workspace state が確定 (active が解決済 or lockdown) するまでこの effect を待機させる。
+    // RFC #1021 pl-6 (Codex B-1): URL → タブ同期で発生する 2 段階の race condition を防ぐ:
+    //   (a) workspace.open 未完了で active=null → loadXxx() 全 reject (resource not found ループ)
+    //   (b) wsId が URL と active で異なる (workspace 切替直後) → 旧 active workspace に対して load が走る
+    // 上記いずれの場合も effect を待機させる。workspace state が「URL と一致」するまで no-op。
     if (workspaceState.loading) return;
     if (workspaceState.error === "e2e bypass") return;
-    if (!workspaceState.lockdown && workspaceState.active === null) return;
+    if (!workspaceState.lockdown) {
+      if (workspaceState.active === null) return;
+      // wsId が解決された URL を期待: /w/:wsId/... のとき active.id と一致するまで待つ
+      if (wsId && workspaceState.active.id !== wsId) return;
+    }
 
     uiInfo("urlsync", "pathname change", { pathname: location.pathname });
     const designMatch = matchPath("/w/:wsId/screen/design/:screenId", location.pathname);

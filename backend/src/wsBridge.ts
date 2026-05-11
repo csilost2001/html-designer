@@ -93,6 +93,8 @@ import {
   writePageLayout,
   deletePageLayoutFile,
   listAllPageLayouts,
+  readPageLayoutDesign,
+  writePageLayoutDesign,
   getFileMtime,
   readExtensionsBundle,
   writeExtensionsFile,
@@ -1030,12 +1032,28 @@ class WsBridge extends EventEmitter {
         }
         case "loadScreen": {
           const { screenId } = (params ?? {}) as { screenId: string };
+          // RFC #1021 pl-6 (Codex A-2): PageLayout Designer は synthetic id `page-layout:<id>` で来るので
+          // PageLayout design storage に routing (Windows 不正ファイル名 + 永続化境界違反の解消)
+          if (screenId.startsWith("page-layout:")) {
+            const plId = screenId.slice("page-layout:".length);
+            const data = await readPageLayoutDesign(plId, root());
+            respond(data);
+            break;
+          }
           const data = await readScreen(screenId, root());
           respond(data);
           break;
         }
         case "saveScreen": {
           const { screenId, data } = (params ?? {}) as { screenId: string; data: unknown };
+          // RFC #1021 pl-6 (Codex A-2): PageLayout design は専用 storage へ
+          if (screenId.startsWith("page-layout:")) {
+            const plId = screenId.slice("page-layout:".length);
+            await writePageLayoutDesign(plId, data, root());
+            respond({ success: true });
+            this.broadcast({ wsId: wsId(), event: "pageLayoutChanged", data: { pageLayoutId: plId }, excludeClientId: clientId });
+            break;
+          }
           await writeScreen(screenId, data, root());
           // 初回デザイン保存時に project の hasDesign フラグを更新
           try {

@@ -976,7 +976,7 @@ function PageLayoutWireframeBanner({ pageLayoutName, pageLayoutId }: PageLayoutW
     >
       <i className="bi bi-layout-wtf" style={{ color: "#7c3aed" }} />
       <span>
-        PageLayout を使用中: <strong>{pageLayoutName}</strong>
+        ページレイアウトを使用中: <strong>{pageLayoutName}</strong>
         <span style={{ color: "#7c3aed", fontFamily: "monospace", fontSize: 11, marginLeft: 6 }}>
           ({pageLayoutId})
         </span>

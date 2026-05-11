@@ -36,13 +36,17 @@ export function ScreenDesigner() {
         const node = project.screens.find((s) => s.id === screenId) ?? null;
         setScreen(node);
 
-        // pl-5 #1026: purpose='page' かつ pageLayoutId がある場合は PageLayout を取得
+        // pl-5 #1026 / pl-6 (Codex C-2): purpose='page' かつ pageLayoutId がある場合は PageLayout を取得
+        // load 競合で失敗するケース (ワークスペース未確定 等) は status change で retry される (useEffect 上部の onStatusChange)
         if (node?.purpose === "page" && node?.pageLayoutId) {
           try {
             const pl = await loadPageLayout(node.pageLayoutId);
             if (mounted) setPageLayout(pl);
-          } catch {
-            // PageLayout 取得失敗は無視 (バナー非表示になるだけ)
+            if (!pl) {
+              console.warn(`[ScreenDesigner] PageLayout ${node.pageLayoutId} の load が null を返しました (ファイル不在 / workspace 未確定)。再試行は onStatusChange/connected で実行されます。`);
+            }
+          } catch (e) {
+            console.warn(`[ScreenDesigner] loadPageLayout 失敗 (再試行は onStatusChange/connected で実行):`, e);
           }
         } else {
           if (mounted) setPageLayout(null);

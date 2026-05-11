@@ -766,6 +766,9 @@ class McpBridgeImpl {
             description?: string;
             path?: string;
             thumbnail?: string;
+            // RFC #1021 pl-6 (Codex B-2): MCP update_screen で purpose / pageLayoutId 更新を許可
+            purpose?: "page" | "gadget";
+            pageLayoutId?: string | null;
           };
           if (!screenId) {
             respondError("screenId は必須です");
@@ -776,7 +779,11 @@ class McpBridgeImpl {
             await updateScreenThumbnail(project, screenId, thumbnail);
           }
           if (Object.keys(patch).length > 0) {
-            const updated = await updateScreen(project, screenId, patch);
+            // RFC #1021 pl-6 (Codex B-2): pageLayoutId が null/空文字なら削除扱い
+            const cleanedPatch = patch.pageLayoutId === null || patch.pageLayoutId === ""
+              ? { ...patch, pageLayoutId: undefined }
+              : (patch as Parameters<typeof updateScreen>[2]);
+            const updated = await updateScreen(project, screenId, cleanedPatch);
             if (!updated) {
               respondError(`画面が見つかりません: ${screenId}`);
               break;

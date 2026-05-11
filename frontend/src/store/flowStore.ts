@@ -788,7 +788,7 @@ export async function addScreen(
 export async function updateScreen(
   project: FlowProject,
   screenId: string,
-  patch: Partial<Pick<ScreenNode, "name" | "kind" | "description" | "path" | "position" | "size" | "pageLayoutId">>,
+  patch: Partial<Pick<ScreenNode, "name" | "kind" | "description" | "path" | "position" | "size" | "pageLayoutId" | "purpose">>,
 ): Promise<ScreenNode | null> {
   const screen = project.screens.find((s) => s.id === screenId);
   if (!screen) return null;

@@ -506,9 +506,30 @@ export function checkPageLayoutAssignments(project: ProjectResources): Validatio
   for (const layout of project.pageLayouts) {
     const layoutId = layout.id ?? "unknown";
     const assignments = layout.assignments ?? {};
+    // RFC #1021 pl-6 (Codex B-3): assignments key が宣言された region に存在することも検証
+    const declaredRegions = new Set<string>();
+    const regions = (layout as Record<string, unknown>).regions;
+    if (Array.isArray(regions)) {
+      for (const r of regions) {
+        if (r && typeof r === "object" && typeof (r as Record<string, unknown>).name === "string") {
+          declaredRegions.add((r as Record<string, unknown>).name as string);
+        }
+      }
+    }
 
     for (const [regionName, screenId] of Object.entries(assignments)) {
       if (!screenId) continue;
+
+      if (declaredRegions.size > 0 && !declaredRegions.has(regionName)) {
+        issues.push({
+          validator: "pageLayoutValidator",
+          severity: "error",
+          code: "PAGE_LAYOUT_ASSIGNMENT_UNKNOWN_REGION",
+          path: `page-layouts/${layoutId}.json`,
+          message: `assignments のキー "${regionName}" が regions[] で宣言されていません (typo の可能性)。宣言済 region: ${[...declaredRegions].join(", ")}`,
+        });
+        continue;
+      }
 
       const screen = screenById.get(screenId);
       if (!screen) {
@@ -548,7 +569,8 @@ export function checkPageLayoutAssignments(project: ProjectResources): Validatio
 export function checkPageLayoutIds(project: ProjectResources): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  if (project.pageLayouts.length === 0) return issues;
+  // RFC #1021 pl-6 (Codex B-4): pageLayouts が 0 件でも Screen.pageLayoutId が指定されていれば error
+  // (project に PageLayout 不在のままなのに Screen が参照している → 参照崩れ)
 
   // PageLayout を ID で引くセット
   const pageLayoutIds = new Set<string>();

@@ -29,6 +29,8 @@ export function PageLayoutDesigner() {
   // GrapesJS editor ref (region injection 用、pl-5)
   const grapesEditorRef = useRef<GEditor | null>(null);
   const plRef = useRef<PageLayout | null>(null);
+  // RFC #1021 pl-6 (Codex B-5): component:add listener cleanup ref
+  const componentAddCleanupRef = useRef<(() => void) | null>(null);
 
   // Puck composition preview 用: RegionContext の value (pl-5 follow-up)
   const [regionContextValue, setRegionContextValue] = useState<RegionContextValue>({
@@ -105,7 +107,17 @@ export function PageLayoutDesigner() {
       }, 50);
     };
     editor.on("component:add", onComponentAdd);
-    // cleanup は Designer の unmount 時に editor も unmount されるので editor.off は不要だが念のため
+    // RFC #1021 pl-6 (Codex B-5): unmount/re-init 時の duplicate listener 防止
+    if (componentAddCleanupRef.current) componentAddCleanupRef.current();
+    componentAddCleanupRef.current = () => editor.off("component:add", onComponentAdd);
+  }, []);
+
+  // RFC #1021 pl-6 (Codex B-5): unmount 時に listener を解除
+  useEffect(() => {
+    return () => {
+      componentAddCleanupRef.current?.();
+      componentAddCleanupRef.current = null;
+    };
   }, []);
 
   if (pl === undefined) {

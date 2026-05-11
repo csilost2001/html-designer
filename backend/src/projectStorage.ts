@@ -370,6 +370,7 @@ function resolveDataFile(kind: string, dataRoot: string, id?: string): string | 
     case "view": return id ? path.join(viewsDir(dataRoot), `${id}.json`) : null;
     case "viewDefinition": return id ? path.join(viewDefsDir(dataRoot), `${id}.json`) : null;
     case "pageLayout": return id ? path.join(pageLayoutsDir(dataRoot), `${id}.json`) : null;
+    case "pageLayoutDesign": return id ? path.join(pageLayoutsDir(dataRoot), `${id}.design.json`) : null;
     default: return null;
   }
 }
@@ -938,6 +939,23 @@ export async function writePageLayout(pageLayoutId: string, data: unknown, root:
   const r = root;
   const dataRoot = await ensureDataDirFromRoot(r);
   await writeJSON(path.join(pageLayoutsDir(dataRoot), `${pageLayoutId}.json`), data);
+}
+
+/**
+ * RFC #1021 pl-6 (Codex A-2): PageLayout の design payload (GrapesJS / Puck data) を
+ * `<dataDir>/page-layouts/<id>.design.json` に保存する。
+ * 旧実装は Screen の synthetic id `page-layout:<id>` で `screens/page-layout:<id>.design.json` に
+ * 保存していたが、これは Windows で無効なファイル名 + first-class artifact の永続化境界違反。
+ */
+export async function readPageLayoutDesign(pageLayoutId: string, root: string): Promise<unknown | null> {
+  const dataRoot = await resolveDataRoot(root);
+  return readJSON<unknown>(path.join(pageLayoutsDir(dataRoot), `${pageLayoutId}.design.json`));
+}
+
+export async function writePageLayoutDesign(pageLayoutId: string, data: unknown, root: string): Promise<void> {
+  const dataRoot = await ensureDataDirFromRoot(root);
+  await fs.mkdir(pageLayoutsDir(dataRoot), { recursive: true });
+  await writeJSON(path.join(pageLayoutsDir(dataRoot), `${pageLayoutId}.design.json`), data);
 }
 
 export async function deletePageLayoutFile(pageLayoutId: string, root: string): Promise<void> {
