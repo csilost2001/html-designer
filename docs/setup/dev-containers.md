@@ -178,24 +178,63 @@ npm install -g @anthropic-ai/claude-code @openai/codex
 
 container build 完了時点で `claude` / `codex` コマンドが使える状態になる。
 
-### auth + memory の永続化 (mounts)
+### auth の永続化 (Named volume)
 
-host の `~/.claude/` / `~/.codex/` を container に bind mount:
+`~/.claude/` / `~/.codex/` を **Docker named volume** に保存する:
 
 ```jsonc
 "mounts": [
-  "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
-  "source=${localEnv:HOME}/.codex,target=/home/node/.codex,type=bind,consistency=cached"
+  "source=harmony-claude,target=/home/node/.claude,type=volume",
+  "source=harmony-codex,target=/home/node/.codex,type=volume"
 ]
 ```
 
 これにより:
 
-- container を再 build しても **auth トークン / 設定が消えない** (host の WSL2 native session と auth 共有)
-- Claude Code memory (`~/.claude/projects/<encoded-path>/memory/`) も host と container で共有 → 別セッション扱いにならない
-- `~/.codex/config.toml` も host のものをそのまま使う
+- **rebuild しても auth トークン / 設定 / memory が残る** (Docker が volume を別管理、container 破棄しても残存)
+- **host の `~/.claude/` は参照しない** — host に CLI を install していない人 / 他のディレクトリレイアウトの人にも影響なし
+- **他プロジェクトの container と完全 isolation** — `harmony-claude` / `harmony-codex` は Harmony 専用、他プロジェクト containers は別の volume 名で完全分離
+- 各 volume は Docker が `/var/lib/docker/volumes/harmony-claude/_data/` のような専用領域に保存
 
-container 内で初めて `claude auth login` する必要はない (host で既にログイン済みなら継承)。
+### 初回 setup (rebuild 後 1 回だけ必要)
+
+Named volume は初回 build 時は **空** なので、container 内で:
+
+```bash
+# Claude Code 認証
+claude --help   # 初回は auth login への誘導が出る、指示に従う
+# または明示的に:
+# claude auth login
+
+# Codex 認証
+codex login
+```
+
+ブラウザが立ち上がって OAuth フロー (Anthropic / OpenAI のサブスクアカウントでログイン)。所要 2-3 分。
+
+完了後、`harmony-claude` / `harmony-codex` volume にトークンが書き込まれ、**以降は rebuild しても再 auth 不要**。
+
+### 初回 setup (任意): host の memory を container に取り込む
+
+Named volume なので container 内の memory は host とは独立 (空からスタート)。host で本会話の文脈や過去 memory を蓄積している場合、初回のみ移植したい場合:
+
+#### WSL2 host 側で 1 行
+
+```bash
+# host (WSL2) で実行、container が起動中であること
+docker cp ~/.claude/projects/-home-${USER}-projects-harmony/memory \
+  $(docker ps --filter "label=devcontainer.local_folder=$HOME/projects/harmony" --format '{{.ID}}'):/home/node/.claude/projects/-workspaces-harmony/
+```
+
+実行後、container 内で:
+
+```bash
+ls ~/.claude/projects/-workspaces-harmony/memory/   # host の memory ファイル群が見える
+```
+
+これで host で蓄積した本会話 / 過去 memory が container 内 Claude Code でも recall される状態になる。
+
+**注意**: 以降は host と container で memory が**別々に育つ** (volume も path encoding も別)。両方で同じ memory を保ちたいなら、定期的に同期する手間が要る。普段は片方 (container 内) だけで動かすのが楽。
 
 ### バージョン更新
 
