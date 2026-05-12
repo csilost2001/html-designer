@@ -3,24 +3,27 @@ services:
     build: .
     ports: ["${APP_PORT:-3000}:3000"]
     environment:
-      DATABASE_URL: postgres://app:app@db:5432/app
-    depends_on:
-      db:
-        condition: service_healthy
-
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: app
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
     volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d app"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - prisma-data:/app/prisma
+
+  # 本番で Postgres に切り替える場合は以下を有効化し、DATABASE_URL を
+  # postgres://app:app@db:5432/app に書き換える。Prisma schema の provider も
+  # "postgresql" に変更すること。
+  # db:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_DB: app
+  #     POSTGRES_USER: app
+  #     POSTGRES_PASSWORD: app
+  #   volumes:
+  #     - db-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U app -d app"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
 
 volumes:
-  db-data:
+  prisma-data:
+  # db-data:

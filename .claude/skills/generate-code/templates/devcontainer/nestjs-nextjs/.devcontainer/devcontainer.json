@@ -6,14 +6,13 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
-  "forwardPorts": [3000, 3001, 5432],
+  "forwardPorts": [3000, 3001],
   "portsAttributes": {
-    "3000": { "label": "Backend (NestJS)", "onAutoForward": "notify" },
-    "3001": { "label": "Frontend (Next.js)", "onAutoForward": "notify" },
-    "5432": { "label": "Postgres", "onAutoForward": "silent" }
+    "3000": { "label": "Frontend (Next.js)", "onAutoForward": "notify" },
+    "3001": { "label": "Backend (NestJS)", "onAutoForward": "notify" }
   },
 
-  "postCreateCommand": "(cd backend && npm install) && (cd frontend && npm install)",
+  "postCreateCommand": "npm install && (npx prisma generate 2>/dev/null || true)",
 
   "customizations": {
     "vscode": {

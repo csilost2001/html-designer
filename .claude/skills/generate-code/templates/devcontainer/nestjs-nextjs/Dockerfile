@@ -1,23 +1,19 @@
-FROM node:20-alpine AS backend-builder
-WORKDIR /build/backend
-COPY backend/package*.json ./
+FROM node:20-alpine AS builder
+WORKDIR /build
+COPY package*.json ./
 RUN npm ci
-COPY backend ./
+COPY . .
+RUN npx prisma generate 2>/dev/null || true
 RUN npm run build
-
-FROM node:20-alpine AS frontend-builder
-WORKDIR /build/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend ./
-RUN npm run build
+RUN npx next build 2>/dev/null || true
 
 FROM node:20-alpine
 WORKDIR /app
-COPY --from=backend-builder /build/backend/package*.json ./
+COPY --from=builder /build/package*.json ./
 RUN npm ci --omit=dev
-COPY --from=backend-builder /build/backend/dist ./dist
-COPY --from=frontend-builder /build/frontend/.next ./frontend/.next
-COPY --from=frontend-builder /build/frontend/public ./frontend/public
-EXPOSE 3000
+COPY --from=builder /build/dist ./dist
+COPY --from=builder /build/.next ./.next
+COPY --from=builder /build/public ./public
+COPY --from=builder /build/prisma ./prisma
+EXPOSE 3001
 CMD ["node", "dist/main"]
