@@ -517,7 +517,7 @@ NestJS 系は `@nestjs/passport` + `passport-local` + `express-session` で sess
 ```json
 {
   "dependencies": {
-    "@nestjs/passport": "^10.0.3",
+    "@nestjs/passport": "^11.0.5",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "express-session": "^1.18.0"
@@ -532,14 +532,23 @@ NestJS 系は `@nestjs/passport` + `passport-local` + `express-session` で sess
 ##### 2. main.ts での express-session middleware 設定
 
 ```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
 import * as session from 'express-session';
 import * as passport from 'passport';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    console.warn(
+      '[auth] SESSION_SECRET env var not set — using insecure dev default. ' +
+      'Set SESSION_SECRET in production!'
+    );
+  }
   app.use(
     session({
-      secret: process.env.SESSION_SECRET ?? 'dev-secret-change-in-production',
+      secret: sessionSecret ?? 'dev-secret-change-in-production',
       resave: false,
       saveUninitialized: false,
       cookie: { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 8 },
@@ -646,7 +655,7 @@ export class AuthenticatedGuard implements CanActivate {
 
 ```typescript
 // src/auth/auth.controller.ts
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 
@@ -680,16 +689,17 @@ export class AuthController {
 type Search = { error?: string; logout?: string };
 
 // cssFramework=bootstrap の場合
-export default function LoginPage({ searchParams }: { searchParams: Search }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const { error, logout } = await searchParams;
   return (
     <div className="container py-5" style={{ maxWidth: '400px' }}>
       <h1 className="h4 mb-3">ログイン</h1>
-      {searchParams.error && (
+      {error && (
         <div className="alert alert-danger" role="alert">
           ユーザー名またはパスワードが正しくありません。
         </div>
       )}
-      {searchParams.logout && (
+      {logout && (
         <div className="alert alert-info" role="status">
           ログアウトしました。
         </div>
