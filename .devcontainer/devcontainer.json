@@ -1,0 +1,42 @@
+{
+  "name": "Harmony Dev",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "forwardPorts": [5173, 5179],
+  "portsAttributes": {
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "notify" },
+    "5179": { "label": "Backend (MCP + WS)", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && npx --yes playwright@1.59.1 install --with-deps chromium",
+
+  "remoteEnv": {
+    "VITE_HOST": "0.0.0.0"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-playwright.playwright"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": false,
+        "files.eol": "\n"
+      }
+    }
+  },
+
+  "remoteUser": "node",
+
+  "containerEnv": {
+    "PLAYWRIGHT_BROWSERS_PATH": "/home/node/.cache/ms-playwright"
+  }
+}
