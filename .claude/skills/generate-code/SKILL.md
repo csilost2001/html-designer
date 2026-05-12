@@ -528,6 +528,19 @@ public class ProductSearchController {
   components/<domain>/<ScreenName>.tsx     (サブコンポーネント)
 ```
 
+### Next.js バージョン指針 (security 自動追従)
+
+生成 `package.json` の `dependencies` は **caret prefix (`^`) を必須** とする。固定 version で hardcode すると security patch が自動追従されず `npm audit` で警告が残り続ける (PR #1034 の Phase D dogfood で発覚)。
+
+| dependency | 推奨レンジ | 備考 |
+|---|---|---|
+| `next` | `^14.2.x` (LTS 系最新 patch) | Next.js 14.x は LTS。 14 系列の最新 patch を caret prefix で記載 (例: `^14.2.35`) |
+| `react` / `react-dom` | `^18.3.x` | React 18 stable 系最新 (React 19 は Next.js 15 移行時に検討) |
+| `typescript` | `^5.x` | TypeScript 5 系最新 patch |
+| `tailwindcss` | `^3.4.x` | Tailwind 3 系最新 patch |
+
+**注**: Next.js 14 LTS の patch を最新まで上げても、`npm audit` で moderate / high severity の警告が複数残存する (e.g. `<15.0.8` / `<15.5.10` range の advisories)。完全解消には **Next.js 15.x への migration** が必要だが App Router の async APIs (cookies/headers/params/searchParams が Promise 化) 等の breaking change を伴うため、本 skill では 14 LTS 系最新 patch までを default 推奨とし、15 系 migration は future enhancement とする。
+
 ### Layout Decorate モード (pageLayoutId あり)
 
 Step 2.4 で PageLayout を解決した場合、生成 HTML/TSX を以下のように PageLayout でラップする。
