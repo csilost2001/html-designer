@@ -12,7 +12,12 @@
     "5179": { "label": "Backend (MCP + WS)", "onAutoForward": "silent" }
   },
 
-  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && (cd frontend && npx playwright install --with-deps chromium)",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.codex,target=/home/node/.codex,type=bind,consistency=cached"
+  ],
+
+  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && (cd frontend && npx playwright install --with-deps chromium) && npm install -g @anthropic-ai/claude-code @openai/codex",
 
   "customizations": {
     "vscode": {

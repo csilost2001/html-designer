@@ -164,6 +164,50 @@ WSL2 native 開発に即戻る。`.devcontainer/` は repo に残っているが
 
 `/workspaces/harmony` (container 内 path) と `~/projects/harmony` (WSL2 path) は **同じ実体** (bind mount) なので、片方で編集したファイルはもう片方からも見える。同時起動はポート競合するので避ける。
 
+## AI CLI (Claude Code / Codex) の扱い
+
+VSCode 拡張 (`anthropic.claude-code`) は `customizations.vscode.extensions` で自動 install されるが、**CLI 本体** (`claude` / `codex` コマンド) は別途必要。
+
+### 自動インストール (postCreateCommand)
+
+`postCreateCommand` で global npm install:
+
+```
+npm install -g @anthropic-ai/claude-code @openai/codex
+```
+
+container build 完了時点で `claude` / `codex` コマンドが使える状態になる。
+
+### auth + memory の永続化 (mounts)
+
+host の `~/.claude/` / `~/.codex/` を container に bind mount:
+
+```jsonc
+"mounts": [
+  "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+  "source=${localEnv:HOME}/.codex,target=/home/node/.codex,type=bind,consistency=cached"
+]
+```
+
+これにより:
+
+- container を再 build しても **auth トークン / 設定が消えない** (host の WSL2 native session と auth 共有)
+- Claude Code memory (`~/.claude/projects/<encoded-path>/memory/`) も host と container で共有 → 別セッション扱いにならない
+- `~/.codex/config.toml` も host のものをそのまま使う
+
+container 内で初めて `claude auth login` する必要はない (host で既にログイン済みなら継承)。
+
+### バージョン更新
+
+container 内の CLI を最新化したい時:
+
+```bash
+# container 内ターミナルで
+npm install -g @anthropic-ai/claude-code @openai/codex
+```
+
+host 側の `claude` / `codex` とは独立して更新可能。
+
 ## 仕組み解説: devcontainer.json の三層構造
 
 | 要素 | 役割 | Harmony での設定 |
