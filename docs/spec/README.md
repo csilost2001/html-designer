@@ -36,6 +36,7 @@
 | **[schema-design-principles.md](schema-design-principles.md)** | **schema を どう書くか の規範** — 命名 / 構造 / フォーマット / コード補完 / 拡張判断 / 後方互換 / テスト規約 / 既知課題 | #517 |
 | **[workspace.md](workspace.md)** | ワークスペース (project) のライフサイクル / lockdown / プロトコル / 並行制御 — 複数ワークスペース管理機能 v1 の正規仕様 | #27 / #671-#676 / #678 |
 | **[workspace-multi.md](workspace-multi.md)** | マルチワークスペース対応 (v2) — per-session active state / URL `/w/:wsId/` / VSCode モデル | #679 |
+| **[path-conventions.md](path-conventions.md)** | 永続化データの配置規約 (Harmony state / 成果物 / built-in リソース 3 カテゴリ) + container 配布時の mount 戦略 + `HARMONY_HOME` 環境変数 | #1055 |
 | **[edit-session-draft.md](edit-session-draft.md)** | **サーバ側 draft 管理モデル** — 全エディタ明示保存 + ロック排他 + AI 連携 (D-1〜D-12 / 状態遷移図 / owner-actor 分離 / リスクマトリクス) | #683 / #684 |
 | **[edit-session-protocol.md](edit-session-protocol.md)** | **協調編集の正規プロトコル** — EditSession 一級概念 / 1-6 step ライフサイクル / role と take-over atomic / 複数 EditSession 並存 / TTL / AI 識別 (`Alice@AI`) — `collab-presence.md` の発展的後継 | #876 派生 / #855 |
 | [collab-presence.md](collab-presence.md) | 協調編集 (Direction B) overture — 採用根拠 / Forward-Compat 4 原則 / Activity taxonomy (正規プロトコルは `edit-session-protocol.md` 参照) | #876 / #855 |
