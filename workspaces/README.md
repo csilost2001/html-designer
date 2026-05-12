@@ -34,14 +34,15 @@ designer__workspace_open(path="workspaces/my-project", init=true)
 
 ```
 workspaces/<wsId>/
-  project.json          # 必須 — schemas/v3/project.v3.schema.json 準拠
-  screens/
-  tables/
-  actions/
-  conventions/
-  sequences/
-  views/
-  view-definitions/
+  harmony.json          # 必須 — schemas/v3/harmony.v3.schema.json 準拠
+  <dataDir>/            # harmony.json の dataDir フィールドで指定
+    screens/
+    tables/
+    actions/
+    conventions/
+    sequences/
+    views/
+    view-definitions/
   extensions/
 ```
 

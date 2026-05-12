@@ -21,7 +21,7 @@ npm run build      # Compile to dist/
 
 - **MCP (HTTP Streamable, port 5179):** AI エージェントは MCP 設定 (Claude Code は `.mcp.json`、Codex は `.codex/config.toml`) で HTTP URL エントリ経由接続。常駐サーバなので複数エージェントセッション同時接続可、orphan 問題も解消
 - **WebSocket (port 5179):** Browser reads/writes screen data — MCP と同一 port に同居
-- **Shared storage:** `data/` directory (project.json + screens/*.json)
+- **Shared storage:** `workspaces/<wsId>/harmony.json` + `<wsId>/<dataDir>/screens/*.json` (active workspace)
 
 **自動 spawn はしない** (URL mode): エージェント起動時に既存サーバが無いと MCP 不接続状態になるため、backend が上がっているか先に確認すること。
 

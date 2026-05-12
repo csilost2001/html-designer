@@ -49,7 +49,7 @@ schemas/v4/
 
 ### バージョン選択
 
-`project.json` に `schemaVersion` プロパティを記述することで、その案件が使う schema バージョンを宣言できる:
+`harmony.json` に `schemaVersion` プロパティを記述することで、その案件が使う schema バージョンを宣言できる:
 
 ```json
 {
