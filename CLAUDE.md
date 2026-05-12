@@ -22,7 +22,7 @@ WSL2 native と並行で **Dev Containers モード**も使える (`.devcontaine
 
 - Claude Code (CLI 版) は **container 内でも** `.mcp.json` の `http://localhost:5179/mcp` で backend に繋がる (`localhost` = container 自身)
 - 起動前提は同じ: container 内ターミナルで `cd backend && npm run dev` 常駐
-- WSL2 native 開発に戻りたい場合は `Dev Containers: Reopen Folder in WSL` で即戻れる
+- WSL2 native 開発に戻りたい場合は `Dev Containers: Reopen Folder Locally` で即戻れる
 - 詳細: [`docs/setup/dev-containers.md`](docs/setup/dev-containers.md)
 
 ### Slash Commands / Skills

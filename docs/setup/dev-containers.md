@@ -144,7 +144,7 @@ rm -rf ~/.npm ~/.cache/playwright
 
 ```bash
 # VSCode で
-Ctrl+Shift+P → "Dev Containers: Reopen Folder in WSL"
+Ctrl+Shift+P → "Dev Containers: Reopen Folder Locally"
 ```
 
 WSL2 native 開発に即戻る。`.devcontainer/` は repo に残っているが、Reopen in Container しない限り影響なし。
@@ -201,7 +201,7 @@ Dev Containers の image を CI でも使うと、ローカル / CI 完全一致
 - [`AGENTS.md`](../../AGENTS.md) — プロジェクト全般のガイダンス
 - [`CLAUDE.md`](../../CLAUDE.md) — Claude Code 固有
 - [`wsl2-docker-migration.md`](./wsl2-docker-migration.md) — WSL2 native 移行手順 (Phase 1) + 配布用 Dockerfile (Phase 2)
-- ISSUE [#847](https://github.com/csilost/harmony/issues/847) — Dev Containers 移行 roadmap
+- ISSUE [#847](https://github.com/csilost2001/harmony/issues/847) — Dev Containers 移行 roadmap
 
 ## 改訂履歴
 

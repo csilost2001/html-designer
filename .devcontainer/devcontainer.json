@@ -12,11 +12,7 @@
     "5179": { "label": "Backend (MCP + WS)", "onAutoForward": "silent" }
   },
 
-  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && npx --yes playwright@1.59.1 install --with-deps chromium",
-
-  "remoteEnv": {
-    "VITE_HOST": "0.0.0.0"
-  },
+  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && (cd frontend && npx playwright install --with-deps chromium)",
 
   "customizations": {
     "vscode": {
