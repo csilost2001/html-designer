@@ -19,6 +19,9 @@ public class CommonModelAdvice {
     @Value("${app.session.storeName:店舗未選択}")
     private String storeName;
 
+    // 注: techStack.auth.method=session かつ Spring Security 統合後は
+    // SecurityContextHolder.getContext().getAuthentication().getName() を返す形に置換するのが本筋
+    // (本デモは hardcode で「ゲスト」default、#1035 D で Security 配線完了、userName 連携は follow-up)
     @Value("${app.session.userName:ゲスト}")
     private String userName;
 
