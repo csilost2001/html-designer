@@ -1,7 +1,7 @@
 /**
  * PageLayoutDesigner — ページレイアウト ビジュアルデザイン画面 (pl-3, #1024)
  *
- * ScreenDesigner.tsx を base に editorKind で GrapesJS / Puck を分岐。
+ * DesignerTabHost.tsx と同等の wrap で editorKind ごとに GrapesJS / Puck を分岐。
  * pl-5 (#1026): GrapesJS 経路に region gadget injection (composition プレビュー) を追加。
  * pl-5 follow-up (#1026): Puck 経路に composition preview (RegionContext + Puck Editor) を追加。
  */
@@ -17,8 +17,14 @@ import { Designer } from "../Designer";
 import type { Editor as GEditor } from "grapesjs";
 import { injectGadgetPreviews, clearGadgetPreviews, extractGrapesHtml } from "../../utils/pageLayoutCompositionPreview";
 import { RegionProvider } from "../../puck/primitives/RegionContext";
-import { buildPuckConfig } from "../../puck/buildConfig";
+import { buildConfigWithCustomComponents } from "../../puck/buildConfig";
+import { loadCustomPuckComponents } from "../../store/puckComponentsStore";
 import type { RegionContextValue } from "../../puck/primitives/RegionContext";
+
+const GADGET_DATA_LOAD_CONCURRENCY = 4;
+
+type ScreenNameIndex = Array<{ id: string; name: string }>;
+type ScreenNameIndexLoader = () => Promise<ScreenNameIndex>;
 
 export function PageLayoutDesigner() {
   const { pageLayoutId } = useParams<{ pageLayoutId: string }>();
@@ -30,8 +36,21 @@ export function PageLayoutDesigner() {
   // GrapesJS editor ref (region injection 用、pl-5)
   const grapesEditorRef = useRef<GEditor | null>(null);
   const plRef = useRef<PageLayout | null>(null);
+  const screenNameIndexPromiseRef = useRef<Promise<ScreenNameIndex> | null>(null);
   // RFC #1021 pl-6 (Codex B-5): component:add listener cleanup ref
   const componentAddCleanupRef = useRef<(() => void) | null>(null);
+
+  const getScreenNameIndex = useCallback(() => {
+    if (!screenNameIndexPromiseRef.current) {
+      screenNameIndexPromiseRef.current = loadProject()
+        .then((project) => project.screens.map((s) => ({ id: s.id, name: s.name })))
+        .catch((e) => {
+          screenNameIndexPromiseRef.current = null;
+          throw e;
+        });
+    }
+    return screenNameIndexPromiseRef.current;
+  }, []);
 
   // Puck composition preview 用: RegionContext の value (pl-5 follow-up)
   // RFC #1021 pl-6 (Codex H-2): puckConfig も Context に注入し、Region primitive が
@@ -39,18 +58,33 @@ export function PageLayoutDesigner() {
   // から import するが、Region primitive は Context 経由でしか参照しない)
   const puckConfig = useMemo(() => {
     try {
-      return buildPuckConfig();
+      return buildConfigWithCustomComponents([]);
     } catch { return null; }
   }, []);
   const [regionContextValue, setRegionContextValue] = useState<RegionContextValue>({
     assignments: {},
     gadgetData: {},
-    puckConfig: null,
+    puckConfig,
   });
-  // puckConfig が確定したら Context value にも注入
+
+  const reloadPuckConfig = useCallback(async () => {
+    try {
+      const customComponents = await loadCustomPuckComponents();
+      const nextPuckConfig = buildConfigWithCustomComponents(customComponents);
+      setRegionContextValue((prev) => ({ ...prev, puckConfig: nextPuckConfig }));
+    } catch (e) {
+      console.warn("[PageLayoutDesigner] custom puck components load failed:", e);
+    }
+  }, []);
+
   useEffect(() => {
-    setRegionContextValue((prev) => ({ ...prev, puckConfig }));
-  }, [puckConfig]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- server-side custom Puck components are external state.
+    void reloadPuckConfig();
+    const unsubPuckComponentsChanged = mcpBridge.onBroadcast("puckComponentsChanged", () => {
+      void reloadPuckConfig();
+    });
+    return () => unsubPuckComponentsChanged();
+  }, [reloadPuckConfig]);
 
   useEffect(() => {
     if (!pageLayoutId) {
@@ -68,7 +102,7 @@ export function PageLayoutDesigner() {
         plRef.current = data ?? null;
         // assignments が変わったら再 inject (GrapesJS)
         if (grapesEditorRef.current && data) {
-          _injectWithEditor(grapesEditorRef.current, data);
+          _injectWithEditor(grapesEditorRef.current, data, getScreenNameIndex);
         }
         // Puck composition preview: assignments が変わったら gadget data を再ロード
         // RFC #1021 pl-6 (Codex 2nd review Should-fix): setRegionContextValue で
@@ -98,7 +132,17 @@ export function PageLayoutDesigner() {
       mounted = false;
       unsubStatus();
     };
-  }, [pageLayoutId]);
+  }, [getScreenNameIndex, pageLayoutId]);
+
+  useEffect(() => {
+    const unsubProjectChanged = mcpBridge.onBroadcast("projectChanged", () => {
+      screenNameIndexPromiseRef.current = null;
+      if (grapesEditorRef.current && plRef.current) {
+        _injectWithEditor(grapesEditorRef.current, plRef.current, getScreenNameIndex);
+      }
+    });
+    return () => unsubProjectChanged();
+  }, [getScreenNameIndex]);
 
   /**
    * GrapesJS editor ready 後に region injection を実行する。
@@ -110,7 +154,7 @@ export function PageLayoutDesigner() {
       // canvas 初期 load 完了を待ってから inject (component 描画が settleするまで少し待つ)
       setTimeout(() => {
         if (plRef.current && grapesEditorRef.current) {
-          _injectWithEditor(grapesEditorRef.current, plRef.current);
+          _injectWithEditor(grapesEditorRef.current, plRef.current, getScreenNameIndex);
         }
       }, 300);
     }
@@ -120,7 +164,7 @@ export function PageLayoutDesigner() {
       setTimeout(() => {
         if (plRef.current && grapesEditorRef.current) {
           clearGadgetPreviews(grapesEditorRef.current);
-          _injectWithEditor(grapesEditorRef.current, plRef.current);
+          _injectWithEditor(grapesEditorRef.current, plRef.current, getScreenNameIndex);
         }
       }, 50);
     };
@@ -128,7 +172,7 @@ export function PageLayoutDesigner() {
     // RFC #1021 pl-6 (Codex B-5): unmount/re-init 時の duplicate listener 防止
     if (componentAddCleanupRef.current) componentAddCleanupRef.current();
     componentAddCleanupRef.current = () => editor.off("component:add", onComponentAdd);
-  }, []);
+  }, [getScreenNameIndex]);
 
   // RFC #1021 pl-6 (Codex B-5): unmount 時に listener を解除
   useEffect(() => {
@@ -207,21 +251,24 @@ export function PageLayoutDesigner() {
 // Internal: GrapesJS editor に gadget preview を inject する
 // ---------------------------------------------------------------------------
 
-async function _injectWithEditor(editor: GEditor, pl: PageLayout): Promise<void> {
+async function _injectWithEditor(
+  editor: GEditor,
+  pl: PageLayout,
+  loadScreenNameIndex: ScreenNameIndexLoader,
+): Promise<void> {
   try {
-    const project = await loadProject();
-    const screens = project.screens.map((s) => ({ id: s.id, name: s.name }));
+    const screens = await loadScreenNameIndex();
     // RFC #1021 pl-6 (Codex A-3): assignments で参照される gadget の design HTML を抽出して inject
     const assignments = pl.assignments ?? {};
     const gadgetIds = [...new Set(Object.values(assignments).filter(Boolean))];
     const htmlMap = new Map<string, string>();
-    await Promise.all(gadgetIds.map(async (id) => {
+    await mapWithConcurrency(gadgetIds, GADGET_DATA_LOAD_CONCURRENCY, async (id) => {
       try {
         const design = await mcpBridge.request("loadScreen", { screenId: id });
         const html = extractGrapesHtml(design);
         if (html) htmlMap.set(id, html);
       } catch { /* gadget design 不在は無視、placeholder fallback */ }
-    }));
+    });
     injectGadgetPreviews(editor, assignments, screens, htmlMap);
   } catch (e) {
     console.warn("[PageLayoutDesigner] gadget inject failed:", e);
@@ -242,14 +289,12 @@ async function _loadGadgetData(
   const gadgetScreenIds = Object.values(assignments).filter(Boolean);
   if (gadgetScreenIds.length === 0) return {};
 
-  // 重複を排除して並列ロード
+  // 重複を排除しつつ、backend / WebSocket に一斉 I/O を投げないよう同時実行数を制限する。
   const uniqueIds = [...new Set(gadgetScreenIds)];
-  const results = await Promise.allSettled(
-    uniqueIds.map(async (screenId) => {
-      const data = await mcpBridge.loadPuckData(screenId);
-      return { screenId, data };
-    }),
-  );
+  const results = await mapWithConcurrency(uniqueIds, GADGET_DATA_LOAD_CONCURRENCY, async (screenId) => {
+    const data = await mcpBridge.loadPuckData(screenId);
+    return { screenId, data };
+  });
 
   const gadgetData: Record<string, unknown> = {};
   for (const result of results) {
@@ -258,4 +303,28 @@ async function _loadGadgetData(
     }
   }
   return gadgetData;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<Array<PromiseSettledResult<R>>> {
+  const results: Array<PromiseSettledResult<R>> = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(limit, items.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: "fulfilled", value: await mapper(items[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }));
+
+  return results;
 }
