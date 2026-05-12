@@ -806,6 +806,19 @@ region 規約 (Bootstrap):
 - `main` region → `<main class="col">` (Page の `body-content` fragment を inject)
 - `footer` region → `<footer class="text-center bg-light py-3">`
 
+**任意追加 region の動的展開規約** (header/sidebar/main/footer 以外、page-layout.v3.schema.json の region 命名 `^[a-z][a-zA-Z0-9_-]*$` を許容):
+
+| 任意 region 名 | Bootstrap タグ + class | 配置位置 (推奨) |
+|---|---|---|
+| `breadcrumb` | `<nav class="breadcrumb-nav mb-2" aria-label="breadcrumb">` | header の直下 (main の上) |
+| `notification` / `toast` | `<div class="position-fixed top-0 end-0 p-3" style="z-index: 1080">` | body 直下 (絶対配置で全画面に被せる) |
+| `subHeader` / `secondaryNav` | `<nav class="navbar bg-light">` | header の直下 (main の上) |
+| `toolbar` / `actionBar` | `<div class="bg-white border-bottom p-2 d-flex gap-2">` | main の直上 |
+| `aside` / `rightPanel` | `<aside class="col-md-3 bg-light">` | main の右 (sidebar が左の場合) |
+| **未知 region** (フォールバック) | `<div role="region" aria-label="<regionName>" class="region-<regionName>">` | header と main の間に挿入。コメントで「TODO: <regionName> の class を必要に応じて調整してください」と注記 |
+
+**展開順序**: `PageLayout.regions[].order` 昇順で出力する。既知 region (header/sidebar/main/footer) は固定スロット、任意 region は order の指示する位置 (header < x < main < footer の範囲) に挿入。順序が曖昧な場合は header 直下にフォールバック配置。
+
 ```html
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
@@ -865,6 +878,19 @@ region 規約 (Tailwind):
 - `sidebar` region → `<aside className="w-64 bg-gray-100 min-h-screen p-4">`
 - `main` region → `<main className="flex-1 p-6">` (children を配置)
 - `footer` region → `<footer className="text-center bg-gray-50 py-4 border-t">`
+
+**任意追加 region の動的展開規約** (header/sidebar/main/footer 以外、page-layout.v3.schema.json の region 命名 `^[a-z][a-zA-Z0-9_-]*$` を許容):
+
+| 任意 region 名 | Tailwind タグ + className | 配置位置 (推奨) |
+|---|---|---|
+| `breadcrumb` | `<nav className="text-sm text-gray-600 px-4 py-2" aria-label="breadcrumb">` | header の直下 (main の上) |
+| `notification` / `toast` | `<div className="fixed top-4 right-4 z-50 space-y-2">` | flex container 外 (絶対配置で全画面に被せる) |
+| `subHeader` / `secondaryNav` | `<nav className="bg-gray-50 border-b px-4 py-2">` | header の直下 (main の上) |
+| `toolbar` / `actionBar` | `<div className="bg-white border-b px-4 py-2 flex gap-2">` | main の直上 |
+| `aside` / `rightPanel` | `<aside className="w-64 bg-gray-50 p-4">` | main の右 (sidebar が左の場合) |
+| **未知 region** (フォールバック) | `<div role="region" aria-label="<regionName>" className="region-<regionName>">` | header と main の間に挿入。コメントで「TODO: <regionName> の className を必要に応じて調整してください」と注記 |
+
+**展開順序**: `PageLayout.regions[].order` 昇順で出力する。既知 region (header/sidebar/main/footer) は固定スロット、任意 region は order の指示する位置 (header < x < main < footer の範囲) に挿入。順序が曖昧な場合は header 直下にフォールバック配置。
 
 ```tsx
 // PageLayout: <pageLayoutId> (<pageLayout.name>)
