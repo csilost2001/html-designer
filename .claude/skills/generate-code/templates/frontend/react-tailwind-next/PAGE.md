@@ -2,6 +2,7 @@
 
 Screen JSON の `kind` と `items[]` から Next.js App Router (Server Components 優先) のページコンポーネントを生成する。
 `techStack.designer.editorKind = "puck"` + `cssFramework = "tailwind"` の前提。
+`screen.pageLayoutId` 指定時は下記「Layout Wrap モード」に自動切替し、生成ページを `<AppLayout>` でラップする。
 
 ## フィールドマッピング
 
@@ -253,3 +254,83 @@ export default function CartConfirmPage() {
 | `table table-striped` | `w-full table-auto border-collapse` + `odd:bg-gray-50` |
 | `alert alert-success` | `bg-green-50 border border-green-400 text-green-800 rounded-md p-4` |
 | `badge bg-warning` | `bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded` |
+
+---
+
+## Layout Wrap モード (pageLayoutId 指定時)
+
+`screen.purpose === "page"` かつ Screen JSON に `pageLayoutId` が指定されている場合、上記 kind 別パターンの JSX 本文を `<AppLayout>` コンポーネントでラップする。
+既存の kind 別パターン (search / form / confirm / complete / dashboard 等) は変更なし。本モードは**追加**であって置換ではない。
+
+### 適用条件
+
+```
+if (screen.purpose === "page" || screen.purpose === undefined)
+  AND screen.pageLayoutId !== undefined:
+  → Layout Wrap モード を適用する (kind 別テンプレートの return 文を <AppLayout> でラップ)
+else:
+  → 従来の kind 別パターン (Layout なし)
+```
+
+### 出力差分 (Layout なしモードとの比較)
+
+| 箇所 | Layout なし | Layout Wrap モード |
+|---|---|---|
+| import 追加 | なし | `import AppLayout from '@/app/components/layouts/<pageLayoutId>';` を追加 |
+| return 文 | `return (<Body />)` | `return (<AppLayout><Body /></AppLayout>)` にラップ |
+| ファイル名 | `app/<path>/page.tsx` | 同じ (変更なし) |
+| Body JSX 本文 | kind 別パターン通り | 同じ (変更なし) |
+
+### 完成例 (kind=dashboard + Main Layout の Layout Wrap モード)
+
+**対象**: kind=dashboard の page Screen で `pageLayoutId: "17595b62-fef1-4b22-9c25-16736c772567"` (Main Layout) を指定
+
+```tsx
+// app/dashboard/page.tsx (Server Component)
+// Screen: <dashboardScreenId>
+// kind: dashboard
+// pageLayoutId: 17595b62-fef1-4b22-9c25-16736c772567 (Main Layout)
+// → Layout Wrap モード: <AppLayout> でラップ
+
+import AppLayout from '@/app/components/layouts/17595b62-fef1-4b22-9c25-16736c772567';
+import { Suspense } from 'react';
+
+/**
+ * ダッシュボードページ。
+ * Main Layout (PageLayout: 17595b62-fef1-4b22-9c25-16736c772567) に wrapped。
+ * ヘッダ・サイドバー・フッタは AppLayout が担当し、このページは main region のコンテンツのみ記述する。
+ */
+export default async function DashboardPage() {
+  return (
+    <AppLayout>
+      {/* 以下は kind=dashboard の Body JSX (種別別パターン通り) */}
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-800">ダッシュボード</h1>
+
+        {/* items[].direction=output から展開したサマリーカード群 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Suspense fallback={<div className="bg-white rounded-lg shadow p-6 animate-pulse h-24" />}>
+            {/* 各 Metric コンポーネントは items[] から展開 */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <p className="text-sm text-gray-500">本日の売上</p>
+              <p className="text-3xl font-bold text-blue-600 mt-2">¥0</p>
+            </div>
+          </Suspense>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+```
+
+### AppLayout import パスの解決
+
+```
+import AppLayout from '@/app/components/layouts/<pageLayoutId>';
+```
+
+`<pageLayoutId>` は SKILL.md の Step 2.4 で解決した PageLayout の `id` フィールドの値をそのまま使う。
+AppLayout コンポーネント自体の生成は LAYOUT.md テンプレートに委ねる (Step 3-D)。
+
+pageLayoutId が見つからない場合 (SKILL.md Step 2.4 の警告ケース):
+→ Layout Wrap モードをスキップし、Layout なしモードで page を生成する。
