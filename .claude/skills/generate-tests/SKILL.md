@@ -1493,6 +1493,8 @@ class <ScreenName>PageLayoutTest {
     @Test
     void ページリクエストでPageLayoutの外枠が描画される() throws Exception {
         // Screen <screenId> (<screen.name>)
+        // ※ screen.auth="required" の場合は認証設定が必要:
+        //   @WithMockUser アノテーション、または mockMvc.perform(...with(user("testUser"))) を追加すること
         mockMvc.perform(get("<screen.path>"))
             .andExpect(status().isOk())
             // PageLayout 外枠の region が含まれることを確認
@@ -1522,7 +1524,68 @@ class <ScreenName>PageLayoutTest {
 }
 ```
 
-**PLACEHOLDER 解決ガイド**: `<headerGadgetMarker>` は Gadget の items[] の label や output テキストから選択してください。
+**PLACEHOLDER 解決ガイド**:
+- `<headerGadgetMarker>` は Gadget の items[] の label や output テキストから選択してください。
+  例: items[direction=output] の label が "ログアウト" であれば `containsString("ログアウト")` に置き換える。
+  セッション依存の動的テキスト (storeName / userName 等) は label 文字列で代替してください。
+- `<screen.path>` は Screen JSON の `path` フィールド値で置き換えてください (例: `"/"`, `"/dashboard"`)。
+
+#### Spring Security 認証済みセッションでの MockMvc テストヘルパ
+
+`screen.auth="required"` または PageLayout で参照される Gadget の `httpRoute.auth="required"` がある場合、認証済みセッションで MockMvc を呼び出さないと 302 (login へリダイレクト) になる。以下の 3 パターンから選択する:
+
+##### パターン 1: `@WithMockUser` (最も簡潔、ユーザー名/権限を annotation で指定)
+
+```java
+import org.springframework.security.test.context.support.WithMockUser;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class <ScreenName>PageLayoutTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    @WithMockUser(username = "demo", roles = {"USER"})
+    void ページリクエストでPageLayoutの外枠が描画される() throws Exception {
+        mockMvc.perform(get("<screen.path>"))
+            .andExpect(status().isOk());
+        // ...
+    }
+}
+```
+
+##### パターン 2: `SecurityMockMvcRequestPostProcessors.user(...)` (test ごとにユーザー切替)
+
+```java
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+
+@Test
+void ページリクエストでPageLayoutの外枠が描画される() throws Exception {
+    mockMvc.perform(get("<screen.path>").with(user("demo").roles("USER")))
+        .andExpect(status().isOk());
+}
+```
+
+##### パターン 3: `@WithMockUser` をクラスレベル (全 test を認証済み扱い)
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+@WithMockUser(username = "demo", roles = {"USER"})  // 全 test に適用
+class <ScreenName>PageLayoutTest { /* ... */ }
+```
+
+**pom.xml 依存**: 上記ヘルパは `spring-boot-starter-test` 経由で標準提供される `spring-security-test` で利用可能 (`@WithMockUser` / `SecurityMockMvcRequestPostProcessors`):
+
+```xml
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-test</artifactId>
+    <scope>test</scope>
+</dependency>
+```
 
 ### NestJS/Next.js 系: Playwright layout mount test
 
@@ -1637,15 +1700,31 @@ class <GadgetName>GadgetFragmentTest {
     // processFlowId あり (例: act-logout) の場合のみ生成
     /**
      * Spec: Screen <gadgetId> event:<eventId> → ProcessFlow <processFlowId> act-<actionId>
+     *   httpRoute: <action.httpRoute.method> <action.httpRoute.path>
+     *   auth: <action.httpRoute.auth>
      */
     @Test
     void Gadgetアクションが正常に処理される() throws Exception {
+        // ※ httpRoute.auth="required" の場合はセッション認証済みの状態で実行すること
         mockMvc.perform(post("<action.httpRoute.path>")
                 .param("_csrf", "test-csrf-token")
                 // inputs[] → form params
                 .param("<inputName>", "<testValue>"))
             .andExpect(status().is3xxRedirection())  // screenTransition / redirectTo
             .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("<redirectPath>")));
+    }
+
+    // httpRoute.auth="required" の場合のみ生成
+    /**
+     * Spec: Screen <gadgetId> event:<eventId> httpRoute.auth="required"
+     *   未認証でアクセスした場合の認証エラー確認
+     */
+    @Test
+    void 未認証でのGadgetアクションは認証エラーになる() throws Exception {
+        // セッションなしで POST → Spring Security: 401 または 302 (ログインページへリダイレクト)
+        mockMvc.perform(post("<action.httpRoute.path>")
+                .param("_csrf", "test-csrf-token"))
+            .andExpect(status().is(org.hamcrest.Matchers.oneOf(401, 302, 403)));
     }
 }
 ```
