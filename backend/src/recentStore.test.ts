@@ -131,13 +131,73 @@ describe("recentStore", () => {
 
   it("env 未設定時のデフォルトは ~/.harmony/recent-workspaces.json", () => {
     const original = process.env.DESIGNER_RECENT_FILE;
+    const originalHome = process.env.HARMONY_HOME;
     delete process.env.DESIGNER_RECENT_FILE;
+    delete process.env.HARMONY_HOME;
     try {
       expect(_internals.recentFile()).toBe(
         path.join(os.homedir(), ".harmony", "recent-workspaces.json"),
       );
     } finally {
       if (original !== undefined) process.env.DESIGNER_RECENT_FILE = original;
+      if (originalHome !== undefined) process.env.HARMONY_HOME = originalHome;
+    }
+  });
+
+  it("env HARMONY_HOME 指定時は <HARMONY_HOME>/recent-workspaces.json (#1055)", () => {
+    const original = process.env.DESIGNER_RECENT_FILE;
+    const originalHome = process.env.HARMONY_HOME;
+    delete process.env.DESIGNER_RECENT_FILE;
+    process.env.HARMONY_HOME = "/tmp/harmony-state-xyz";
+    try {
+      expect(_internals.recentFile()).toBe("/tmp/harmony-state-xyz/recent-workspaces.json");
+    } finally {
+      if (original !== undefined) process.env.DESIGNER_RECENT_FILE = original;
+      if (originalHome !== undefined) {
+        process.env.HARMONY_HOME = originalHome;
+      } else {
+        delete process.env.HARMONY_HOME;
+      }
+    }
+  });
+
+  it("DESIGNER_RECENT_FILE は HARMONY_HOME より優先される (#1055)", () => {
+    const original = process.env.DESIGNER_RECENT_FILE;
+    const originalHome = process.env.HARMONY_HOME;
+    process.env.DESIGNER_RECENT_FILE = "/tmp/override-file.json";
+    process.env.HARMONY_HOME = "/tmp/should-be-ignored";
+    try {
+      expect(_internals.recentFile()).toBe(path.resolve("/tmp/override-file.json"));
+    } finally {
+      if (original !== undefined) {
+        process.env.DESIGNER_RECENT_FILE = original;
+      } else {
+        delete process.env.DESIGNER_RECENT_FILE;
+      }
+      if (originalHome !== undefined) {
+        process.env.HARMONY_HOME = originalHome;
+      } else {
+        delete process.env.HARMONY_HOME;
+      }
+    }
+  });
+
+  it("HARMONY_HOME が空文字 / 空白のみの場合はデフォルトに fallback (#1055)", () => {
+    const original = process.env.DESIGNER_RECENT_FILE;
+    const originalHome = process.env.HARMONY_HOME;
+    delete process.env.DESIGNER_RECENT_FILE;
+    process.env.HARMONY_HOME = "   ";
+    try {
+      expect(_internals.recentFile()).toBe(
+        path.join(os.homedir(), ".harmony", "recent-workspaces.json"),
+      );
+    } finally {
+      if (original !== undefined) process.env.DESIGNER_RECENT_FILE = original;
+      if (originalHome !== undefined) {
+        process.env.HARMONY_HOME = originalHome;
+      } else {
+        delete process.env.HARMONY_HOME;
+      }
     }
   });
 });

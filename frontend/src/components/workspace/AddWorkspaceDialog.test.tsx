@@ -43,7 +43,19 @@ vi.mock("react-router-dom", () => ({
 vi.mock("../../mcp/mcpBridge", () => ({
   mcpBridge: {
     onStatusChange: vi.fn(() => () => {}),
+    request: vi.fn(),
   },
+}));
+
+// BackendFolderPicker は内部で browseFs (mcpBridge.request 経由) を呼ぶ。
+// AddWorkspaceDialog のテストでは picker 内部までは検証しないので、軽量モックに差し替える。
+vi.mock("./BackendFolderPicker", () => ({
+  BackendFolderPicker: ({ onSelect, onClose }: { onSelect: (p: string) => void; onClose: () => void }) => (
+    <div data-testid="picker-mock">
+      <button data-testid="picker-mock-select" onClick={() => onSelect("/picked/path")}>select</button>
+      <button data-testid="picker-mock-close" onClick={onClose}>close</button>
+    </div>
+  ),
 }));
 
 vi.mock("../../store/workspaceStore", async () => {
@@ -92,18 +104,22 @@ describe("AddWorkspaceDialog (#858)", () => {
     expect(placeholder).toContain("workspaces/my-app");
   });
 
-  it("WSL 環境では Linux 形式の絶対パスと WSL 専用ヒントを表示する", async () => {
+  it("WSL 環境では Linux 形式の絶対パスを placeholder に出す (#1056 で WSL 専用ヒント文は削除)", async () => {
+    // 旧 showDirectoryPicker 経路を BackendFolderPicker (#1056) に置換した結果、
+    // WSL2 専用ヒント文 (「Windows ブラウザの『フォルダ参照』では Linux パスに到達不可」)
+    // は不要になったので削除した。host info に基づく placeholder 切替は維持。
     getHostInfoMock.mockResolvedValue(makeHost({ platform: "linux", isWSL: true, homeDir: "/home/wsluser" }));
     inspectWorkspaceMock.mockResolvedValue({ status: "notFound", path: "" } satisfies WorkspaceInspectResult);
 
     render(<AddWorkspaceDialog onClose={() => {}} onAdded={() => {}} />);
 
+    const input = await screen.findByTestId("workspace-path-input");
     await waitFor(() => {
-      expect(screen.getByText(/WSL2 環境を検出しました/)).toBeTruthy();
+      const placeholder = input.getAttribute("placeholder") ?? "";
+      expect(placeholder).toContain("/home/wsluser/projects/my-app");
     });
-    const input = screen.getByTestId("workspace-path-input");
-    const placeholder = input.getAttribute("placeholder") ?? "";
-    expect(placeholder).toContain("/home/wsluser/projects/my-app");
+    // 旧ヒント文が消えていることを negative assert で固定 (#1056 regression 防止)
+    expect(screen.queryByText(/WSL2 環境を検出しました/)).toBeNull();
   });
 
   it("Windows ホストではバックスラッシュ形式の例を出す", async () => {
@@ -221,6 +237,31 @@ describe("AddWorkspaceDialog (#858)", () => {
     await waitFor(() => {
       expect(screen.queryByRole("listbox", { name: "最近使ったワークスペース" })).toBeNull();
     });
+  });
+
+  it("「参照」ボタンで BackendFolderPicker を開き、選択結果が入力欄に反映される (#1056)", async () => {
+    getHostInfoMock.mockResolvedValue(makeHost());
+    inspectWorkspaceMock.mockResolvedValue({ status: "ready", path: "/picked/path", name: "Picked" } satisfies WorkspaceInspectResult);
+
+    render(<AddWorkspaceDialog onClose={() => {}} onAdded={() => {}} />);
+
+    // 初期状態では picker は閉じている
+    expect(screen.queryByTestId("picker-mock")).toBeNull();
+
+    // 「参照」ボタンクリックで picker を開く
+    const browseBtn = await screen.findByTestId("open-folder-picker");
+    fireEvent.click(browseBtn);
+
+    expect(screen.getByTestId("picker-mock")).toBeTruthy();
+
+    // picker 内 select クリックで入力欄が埋まり picker は閉じる
+    fireEvent.click(screen.getByTestId("picker-mock-select"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("picker-mock")).toBeNull();
+    });
+    const input = screen.getByTestId("workspace-path-input") as HTMLInputElement;
+    expect(input.value).toBe("/picked/path");
   });
 
   it("入力を空に戻すと進行中 inspect の遅延結果で UI が上書きされない (MF-1 race fix)", async () => {

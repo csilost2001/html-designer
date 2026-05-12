@@ -1,11 +1,11 @@
 /**
  * workspace-os-aware-input.spec.ts (#858)
  *
- * AddWorkspaceDialog の WSL2 環境向け UX 改善を E2E で検証。
+ * AddWorkspaceDialog の host-aware UX を E2E で検証。
  *
  * カバー範囲:
  *  - host info (workspace.hostInfo) で OS-aware placeholder が出る
- *  - WSL2 環境 (本検証 host) では「WSL2 環境を検出しました」の専用ヒントが出る
+ *  - WSL2 環境の placeholder は Linux 形式の絶対パス (#1056 で旧 WSL 専用ヒント文は削除済)
  *  - debounced auto-inspect: パス入力 400ms 後に status badge が描画される
  *  - 「確認」ボタン (secondary) で即時検証も可能 (auto-inspect 待ち回避)
  *  - recent dropdown: input フォーカス / 入力時に最近のワークスペースが表示される
@@ -46,7 +46,7 @@ async function isWslHost(): Promise<boolean> {
 }
 
 test.describe("AddWorkspaceDialog — WSL2 / OS-aware UX (#858)", { tag: ["@regression"] }, () => {
-  test("WSL2 環境では Linux 形式の絶対パスと専用ヒントが表示される", async ({ page }) => {
+  test("WSL2 環境では Linux 形式の絶対パスが placeholder に出る (#1056: 専用ヒント文は削除済)", async ({ page }) => {
     test.skip(!(await isWslHost()), "WSL2 ホスト前提の test (host /proc/version に Microsoft/WSL を含むときのみ実行)");
     await setupClean(page);
     await openAddDialog(page);
@@ -60,8 +60,9 @@ test.describe("AddWorkspaceDialog — WSL2 / OS-aware UX (#858)", { tag: ["@regr
     // 既存 #755 e2e と同様 workspaces/ 形式も placeholder に含まれること
     expect(placeholder).toContain("workspaces/my-app");
 
-    // WSL 検出ヒント (本ホストは WSL2 想定)
-    await expect(page.locator(".tbl-modal").getByText(/WSL2 環境を検出しました/)).toBeVisible();
+    // 旧 WSL 検出ヒント文 (#858 / #919) は #1056 で削除 — negative assert
+    // (新 BackendFolderPicker は WSL でも普通に動くので専用ヒントが不要になった)
+    await expect(page.locator(".tbl-modal").getByText(/WSL2 環境を検出しました/)).toHaveCount(0);
   });
 
   test("パス入力 → debounce 後に status badge が自動描画される", async ({ page }) => {

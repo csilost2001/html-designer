@@ -38,14 +38,22 @@ type RecentFile = {
 const SCHEMA_TAG = "harmony-recent-workspaces-v1";
 
 /**
- * 永続化先の解決。env DESIGNER_RECENT_FILE で上書き可能 (テスト / VS Code 拡張等の
- * sandbox 用途)。未指定なら ~/.harmony/recent-workspaces.json。
+ * 永続化先の解決。優先順位 (高い順):
+ *   1. env `DESIGNER_RECENT_FILE` — 完全な file path (テスト / VS Code 拡張等の sandbox 用)
+ *   2. env `HARMONY_HOME`         — Harmony state 用のディレクトリ。recent-workspaces.json は
+ *                                   この配下に作られる (#1055: container 配布の path 規約)
+ *   3. default                    — ~/.harmony/recent-workspaces.json
+ *
  * 関数化することで、テスト中の vi.stubEnv / 直接代入が即座に反映される。
+ *
+ * 規約詳細: docs/spec/path-conventions.md
  */
 function recentFile(): string {
   const override = process.env.DESIGNER_RECENT_FILE;
   if (override && override.trim().length > 0) return path.resolve(override);
-  return path.join(os.homedir(), ".harmony", "recent-workspaces.json");
+  const home = process.env.HARMONY_HOME?.trim();
+  const dir = home && home.length > 0 ? path.resolve(home) : path.join(os.homedir(), ".harmony");
+  return path.join(dir, "recent-workspaces.json");
 }
 
 function recentDir(): string {

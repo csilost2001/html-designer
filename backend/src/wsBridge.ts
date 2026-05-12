@@ -44,6 +44,7 @@ import {
   initializeWorkspace as initializeWorkspaceFolder,
 } from "./workspaceInit.js";
 import { getHostInfo } from "./hostInfo.js";
+import { browseFs, BrowseFsError } from "./fsBrowse.js";
 import {
   EditSessionStore,
   EditSessionNotFoundError,
@@ -1576,6 +1577,20 @@ class WsBridge extends EventEmitter {
         case "workspace.hostInfo": {
           const info = await getHostInfo();
           respond(info);
+          break;
+        }
+        case "workspace.browseFs": {
+          const { path: targetPath } = (params ?? {}) as { path?: string };
+          try {
+            const result = await browseFs(typeof targetPath === "string" ? targetPath : undefined);
+            respond(result);
+          } catch (e) {
+            if (e instanceof BrowseFsError) {
+              respondError(e.message);
+            } else {
+              throw e;
+            }
+          }
           break;
         }
         case "workspace.open": {
