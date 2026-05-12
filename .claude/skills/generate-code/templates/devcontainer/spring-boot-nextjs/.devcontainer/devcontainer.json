@@ -1,0 +1,36 @@
+{
+  "name": "App Dev (Spring Boot + Next.js)",
+  "image": "mcr.microsoft.com/devcontainers/java:1-17-bookworm",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "forwardPorts": [8080, 3000, 5432],
+  "portsAttributes": {
+    "8080": { "label": "Backend (Spring Boot)", "onAutoForward": "notify" },
+    "3000": { "label": "Frontend (Next.js)", "onAutoForward": "notify" },
+    "5432": { "label": "Postgres", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "./mvnw -B dependency:resolve || true && (cd frontend && npm install) || true",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vmware.vscode-boot-dev-pack",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.eol": "\n"
+      }
+    }
+  },
+
+  "remoteUser": "vscode"
+}
