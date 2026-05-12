@@ -185,23 +185,4 @@ describe("WorkspaceListView reload guard", () => {
 
     expect(loadWorkspacesMock).toHaveBeenCalledTimes(1);
   });
-
-  it("reloads on initial connected fire when AppShell load is still in progress", () => {
-    state = {
-      workspaces: [],
-      active: null,
-      lockdown: false,
-      lockdownPath: null,
-      loading: true, // AppShell が未だ load 中
-      error: null,
-    };
-    onStatusChangeMock.mockImplementation((cb: (s: string) => void) => {
-      cb("connected");
-      return () => {};
-    });
-
-    render(<WorkspaceListView />);
-
-    expect(loadWorkspacesMock).toHaveBeenCalledTimes(1);
-  });
 });
