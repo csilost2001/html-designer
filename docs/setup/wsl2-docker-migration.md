@@ -5,9 +5,10 @@
 ## 移行の目的
 
 - **Phase 1 (必須)**: ソースを WSL2 native に移し、I/O / file watcher / AI エージェントを native 速度で動かす。
-- **Phase 2 (推奨)**: 配布形態として Dockerfile + compose を追加 (利用者向け、メンテナ自身の dev は引き続き WSL2 native)。
+- **Phase 1.5 (任意 / #847)**: Dev Containers モードに切替 (複数プロジェクト共存 / JDK 等のプロジェクト別固定が必要になったタイミングで)。
+- **Phase 2 (推奨)**: 配布形態として Dockerfile + compose を追加 (利用者向け、メンテナ自身の dev は引き続き WSL2 native or Dev Container)。
 
-dev 自体を Docker に入れない方針: `npm run dev` の hot reload とデバッガが速いため、メンテナの開発サイクルでは Docker 化は不要。Docker は **配布物** として価値が高い。
+dev 自体を Docker に入れない方針はあくまでデフォルト: `npm run dev` の hot reload とデバッガが速いため、メンテナの開発サイクルでは Docker 化は不要。**ただし複数プロジェクト並行 / JDK バージョン違い / 顧客への dev 環境配布が必要な場面では Phase 1.5 (Dev Containers) を採用**。Docker は配布物としてだけでなく dev 統一としても価値が出る。
 
 ---
 
@@ -374,6 +375,27 @@ ls ~/.claude/projects/-home-csilo-projects-harmony/memory/
 **退役判断**: 1〜2 週間運用して安定したら、Windows 側を archive 化または削除。
 - archive 化: `Move-Item C:\projects\harmony C:\projects\_archived\harmony-windows-2026-XX-XX`
 - 完全削除: 慎重に。git push 漏れがないことを WSL2 側と diff チェックしてから
+
+---
+
+## Phase 1.5: Dev Containers モードへの切替 (任意 / #847)
+
+Phase 1 で WSL2 native 開発が安定運用に入った後、**複数プロジェクト共存** / **JDK のプロジェクト別固定** / **新規開発者の onboarding 短縮** が必要になったタイミングで Dev Containers モードに切り替える選択肢。
+
+WSL2 native と**並行運用可**で、後戻りも `Dev Containers: Reopen Folder in WSL` で即可能。
+
+詳細手順 (Step M-1〜M-8) は **[`dev-containers.md`](./dev-containers.md)** に集約。本ドキュメントには再掲しない (二重メンテ回避)。
+
+### 切替の判断目安
+
+以下のいずれかに該当する時は切替検討:
+
+- 複数プロジェクトを WSL2 上で開発し、Node / JDK / Python のバージョン衝突が発生
+- 採用プロジェクトの B チーム (5-20 名) に dev 環境を配布する必要が出てきた
+- 新規開発者 / OSS contributor の onboarding を短縮したい
+- WSL2 distro の汚れ (~/.npm / ~/.cache / 各種 SDK) を整理したい
+
+該当しないなら Phase 1 (WSL2 native) のままで問題なし。
 
 ---
 

@@ -139,6 +139,23 @@ Both servers must run simultaneously for file-based persistence. Without backend
 
 `backend` は常駐サーバ (#302): `cd backend && npm run dev` で 1 回起動すれば、ブラウザ・複数の AI エージェントセッション双方が接続できる。エージェント終了でも停止しないので、次回以降も使い回し可能。
 
+### Dev Containers モード (任意 / #847)
+
+`.devcontainer/devcontainer.json` 同梱により、VSCode の **Dev Containers 拡張**で開発できる。WSL2 native (上記 Commands) と**並行運用可**で、移行は段階的に進められる。
+
+主な利点:
+
+- 複数プロジェクトの環境差を完全に isolation (Node / JDK / Python が混在しても OK)
+- 新規開発者は `git clone && Reopen in Container` だけで dev 環境完成 (5-10 分の初回 build のみ)
+- WSL2 distro を汚さない (Node / npm / playwright は container 内に閉じる)
+
+利用条件:
+
+- Windows + WSL2 + Docker Desktop (or WSL2 内 Docker Engine)
+- VSCode + Dev Containers 拡張 (`ms-vscode-remote.remote-containers`)
+
+詳細手順 / 移行マニュアル / トラブルシューティングは [`docs/setup/dev-containers.md`](docs/setup/dev-containers.md) を参照。WSL2 native ユーザーの移行は同 doc Step M-1〜M-8 にまとめてある。
+
 ### ドッグフード deploy 先
 
 AI ドッグフード時のサンプル展開先は **`workspaces/dogfood-<目的-YYYYMMDD>/`** を使用する。`data/` への deploy は禁止 (`data/` はデザイナー本体組み込み拡張定義 `data/extensions/` 専用、#753 で責務縮退済み)。`examples/<project-id>/` を作業領域にコピーする際も `workspaces/<project-id>/` を使う。
