@@ -168,9 +168,9 @@ cd frontend && npx vitest run src/test/dogfood/dogfood-1038-structure.test.ts
 | AI-3: format violation | skip | responseFormat=text → parse なし |
 | AI-4: provider 失敗 | `#AI-4: provider 失敗 → 502` | mockRejectedValue → LLM_CALL_FAILED |
 
-**実機 run (mock mode)**: NestJS app scaffold が必要、本 dogfood では structure 検証のみ
-**実機 run (live API)**: `RUN_AI_INTEGRATION=1 ANTHROPIC_API_KEY=<key> npx jest test/96118ae1-ai-mock.e2e-spec.ts --runInBand`
-**推奨コマンド**: NestJS app scaffold → `npm run test:p5`
+**実機 run (mock mode)**: `npm run test:p5` → **10 passed / 4 skipped (14 total)** (Phase B `1c94dc3` + 後続修正、本 PR §4 参照)
+**実機 run (live API)**: `RUN_AI_INTEGRATION=1 ANTHROPIC_API_KEY=<key> npm run test:p5:live` (ISSUE scope 外、default skip 仕様)
+**推奨コマンド**: `npm run db:reset && npm run test:p5`
 
 **特記事項**:
 - AiMessageSpread (@turnContext) の fixture を `turnContextFixture = JSON.stringify([...])` としてファイル先頭で定義。

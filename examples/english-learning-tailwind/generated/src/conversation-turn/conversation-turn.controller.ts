@@ -5,12 +5,17 @@ import {
   Body,
   ParseIntPipe,
   UseGuards,
-  Request,
+  Req,
   HttpCode,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ConversationTurnService } from './conversation-turn.service';
 import { CreateTurnDto } from './dto/create-turn.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+interface AuthenticatedRequest extends Request {
+  user: { userId: number; email: string };
+}
 
 @Controller('api/el/sessions')
 @UseGuards(JwtAuthGuard)
@@ -22,7 +27,7 @@ export class ConversationTurnController {
   async createTurn(
     @Param('sessionId', ParseIntPipe) sessionId: number,
     @Body() dto: CreateTurnDto,
-    @Request() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.conversationTurnService.processTurn(req.user.userId, sessionId, dto);
   }
