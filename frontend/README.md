@@ -36,7 +36,7 @@ npm run dev
 node docs/sample-project/seed.mjs
 ```
 
-- 生成先: `data/project.json` + `data/screens/*.json`
+- 生成先: `workspaces/<id>/harmony.json` + `<id>/<dataDir>/screens/*.json`
 - テンプレート: `docs/sample-project/screens/*.json`
 - 何度実行しても同じ結果になる（冪等）
 - `data/` は `.gitignore` 対象のため、各開発者が個別に実行する
@@ -80,13 +80,16 @@ harmony/
 │   └── src/
 │       ├── server.ts         # MCP ツール定義
 │       └── wsBridge.ts       # WebSocket ブリッジサーバー
-├── data/                     # ランタイムデータ（.gitignore 対象）
-│   ├── project.json          # フロープロジェクト定義
-│   └── screens/              # 各画面の GrapesJS データ
+├── workspaces/               # ユーザー作業領域（.gitignore 対象）
+│   └── <id>/
+│       ├── harmony.json      # プロジェクト定義（schemas/v3/harmony.v3.schema.json）
+│       └── <dataDir>/        # harmony.json の dataDir フィールドで指定
+│           └── screens/      # 各画面の GrapesJS データ
+├── data/
+│   └── extensions/           # デザイナー本体組み込み拡張定義（git tracked）
 ├── docs/
 │   └── sample-project/
 │       ├── seed.mjs          # サンプルデータ生成スクリプト
-│       ├── project.json      # サンプルプロジェクト定義
 │       └── screens/          # サンプル画面テンプレート（10画面）
 └── .gitignore
 ```
