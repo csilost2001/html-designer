@@ -280,15 +280,23 @@ host 側の `claude` / `codex` とは独立して更新可能。
 
 Dev Containers の image を CI でも使うと、ローカル / CI 完全一致が達成できる。本リポジトリは現状 CI 未導入だが、将来的に検討する場合は [`@devcontainers/cli`](https://github.com/devcontainers/cli) を CI で使い、image build + 内部コマンド実行をスクリプト化できる。
 
+## `/generate-code` 出力アプリへの同梱 (#1048)
+
+本 doc は **Harmony 本体** (Harnize Harmony 自身の開発環境) の Dev Containers 設定について解説する。
+
+`/generate-code` skill が出力する**業務アプリ**には、同じ思想 (Phase 1 = pre-build しない、MS 公式 base image + features 構成) で `.devcontainer/devcontainer.json` + `Dockerfile` + `docker-compose.yml` を同梱する (#1048)。techStack 4 組合せ (spring-boot × thymeleaf / nextjs、nestjs × thymeleaf / nextjs) のテンプレが `.claude/skills/generate-code/templates/devcontainer/` 配下に配置されており、`/generate-code` 実行時に techStack を判定して該当テンプレをコピー出力する。詳細は [`SKILL.md` Step 5.5](../../.claude/skills/generate-code/SKILL.md) を参照。
+
 ## 関連ドキュメント
 
 - [`AGENTS.md`](../../AGENTS.md) — プロジェクト全般のガイダンス
 - [`CLAUDE.md`](../../CLAUDE.md) — Claude Code 固有
 - [`wsl2-docker-migration.md`](./wsl2-docker-migration.md) — WSL2 native 移行手順 (Phase 1) + 配布用 Dockerfile (Phase 2)
 - ISSUE [#847](https://github.com/csilost2001/harmony/issues/847) — Dev Containers 移行 roadmap
+- ISSUE [#1048](https://github.com/csilost2001/harmony/issues/1048) — `/generate-code` 出力アプリへの Dev Containers 同梱 (#847 B セクション)
 
 ## 改訂履歴
 
 | 日付 | 改訂内容 |
 |---|---|
 | 2026-05-12 | 初版 (#847 A セクション着手) |
+| 2026-05-12 | `/generate-code` 出力アプリへの同梱方針セクション追記 (#1048) |
