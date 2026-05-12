@@ -141,7 +141,29 @@ PageLayout と Screen の editorKind / cssFramework が異なる場合、Designe
 - Puck composition の nested render は React Context 経由で `<Render>` を呼ぶ実装 (循環依存回避)。@measured/puck の Render に制約がある場合 fallback で概要表示
 - GrapesJS composition preview は gadget design HTML を read-only inject するが、CSS scope は wrapper 内に閉じるため Bootstrap class が必要なケースで visual が崩れる可能性あり (preview modal は iframe 内で CDN を読み込んで補正)
 
-## 13. AGENTS.md Routing 表への反映
+## 13. Code Generation (Phase 2、pl-7 #1028 完了)
+
+PageLayout + Gadget の code generation 対応を pl-7 (#1028) で実装。`/generate-code` skill が以下を生成する。
+
+| 入力 entity | Thymeleaf 系 出力 | Next.js 系 出力 |
+|---|---|---|
+| PageLayout (passive layout) | `templates/layouts/<id>.html` (`layout:fragment="layout-content"` + region slot) | `app/components/layouts/<id>.tsx` (Custom AppLayout、Server Component、4 region slot) |
+| Gadget (`Screen.purpose=gadget`) | `templates/fragments/<id>.html` (`th:fragment="gadget"`) + `<id>GadgetController.java` (events ありなら `@PostMapping` action 配線) | `app/components/gadgets/<id>.tsx` (events ありなら `'use client'`、なしは Server Component) + `app/api/gadgets/<id>/<actionId>/route.ts` (Route Handler) |
+| Page Screen (`Screen.purpose=page` + `pageLayoutId`) | `templates/pages/<path>.html` (Layout Decorate モード = `layout:decorate` + `<th:block layout:fragment="layout-content">`) | `app/<path>/page.tsx` (Layout Wrap モード = `<AppLayout>{children}</AppLayout>`) |
+
+検証 (examples/retail を題材に Docker 経由で実機):
+- Thymeleaf 系: maven build pass + Spring Boot 起動 1.4 秒 + curl / HTTP 200 + 4 region + 日本語表示 + Layout Decorate slot 注入 全 OK
+- Next.js 系: npm install + next build pass (4 routes) + npm start + curl /dashboard HTTP 200 + 4 region + 日本語表示 + 307 redirect from / 全 OK
+
+詳細テンプレ規約: `.claude/skills/generate-code/templates/frontend/<framework>/{LAYOUT,FRAGMENT,COMPONENT,PAGE}.md`。
+region → CSS class マッピング: [`css-framework-switching.md § 8`](css-framework-switching.md)。
+生成物例: `examples/retail/generated/{thymeleaf,nextjs}/`。
+
+未実装 (将来):
+- inter-gadget event (検索フィルタガジェット ↔ リストガジェット pub/sub) — pl-Y 候補、dogfood で需要が明確化してから着手
+- 全画面の code generation 自動回し (現在は 1 entity ずつ skill 起動) — 別 ISSUE 候補
+
+## 14. AGENTS.md Routing 表への反映
 
 `AGENTS.md` § Routing の URL 規約表に追加 (`feat/page-layout-series` で更新):
 
