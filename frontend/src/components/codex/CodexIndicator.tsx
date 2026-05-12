@@ -23,7 +23,7 @@ export function CodexIndicator() {
   return (
     <button
       className={`codex-indicator codex-indicator-${color}`}
-      onClick={() => navigate("/codex/settings")}
+      onClick={() => navigate("/ai-settings")}
       title={`AI 接続状態: ${label}`}
       aria-label={`AI 接続状態: ${label}`}
     >
