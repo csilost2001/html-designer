@@ -154,23 +154,33 @@ public class GlobalHeaderGadgetController {
         return "fragments/68709449-c9e1-47db-a351-ac9c12a19046";
     }
 
-    /**
-     * act-logout: ログアウト処理
-     * ProcessFlow action ID: act-logout
-     * httpRoute: POST /api/retail/auth/logout (auth: required)
-     *
-     * セッションを無効化し、ログイン画面へリダイレクトする。
-     * Spring Security を使用する場合は /logout エンドポイントに委譲可能。
-     */
-    @PostMapping("/api/retail/auth/logout")
-    public String logout(HttpSession session,
-                         RedirectAttributes redirectAttributes) {
-        // セッション破棄 (Spring Security を使用しない場合)
-        session.invalidate();
+    // ----------------------------------------------------------------------
+    // 注: act-logout (POST /api/retail/auth/logout) の生成は
+    //     techStack.auth.method の値に応じて分岐する (#1039 M-1 解消):
+    //
+    //  - techStack.auth.method = "session" (Spring Security 利用):
+    //      → 本 GadgetController には logout メソッドを生成しない。
+    //        AuthController.java (Step 3-A / 認証生成ルール参照) が
+    //        /api/retail/auth/logout を担当し、SecurityContextLogoutHandler で
+    //        正しくセッション破棄 + redirect する。
+    //
+    //  - techStack.auth.method = "none" or 未設定 (Spring Security 不在):
+    //      → 下記コメントアウトされた logout メソッドを GadgetController 側で
+    //        有効化し、HttpSession.invalidate() で素朴に redirect する。
+    //
+    // 両方を同時に生成すると Spring の RequestMappingHandlerMapping が
+    // 同一 path の二重定義で起動失敗するため、必ずどちらか一方のみ。
+    // ----------------------------------------------------------------------
 
-        // ProcessFlow step-02: return { redirectTo: '/login' }
-        return "redirect:/login";
-    }
+    /*
+     * // auth.method=none 時のみ有効化:
+     * @PostMapping("/api/retail/auth/logout")
+     * public String logout(HttpSession session,
+     *                      RedirectAttributes redirectAttributes) {
+     *     session.invalidate();
+     *     return "redirect:/login";
+     * }
+     */
 
 }
 ```
@@ -264,8 +274,10 @@ Controller は生成しない (processFlowId なし)。
     </p>
 
     <!-- version (direction=output) -->
+    <!-- 注: CommonModelAdvice は @ModelAttribute("version") で登録するため model 属性名は "version"。
+         過去テンプレで `${appVersion}` を参照していたが #1039 M-2 で修正済。 -->
     <p class="mb-0 text-muted small"
-       th:text="${appVersion} != null ? ${appVersion} : 'v1.0.0'">
+       th:text="${version} != null ? ${version} : 'v1.0.0'">
       v1.0.0
     </p>
 

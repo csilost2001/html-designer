@@ -111,7 +111,7 @@
 **生成ファイル**:
 - `.tmp/dogfood-1035-A/process-flow/efa7ac6e/InventorySearchE2ETest.java`
 - 行数: 264行
-- テスト数: 9件
+- テスト数: 10件
 
 **テスト一覧**:
 
