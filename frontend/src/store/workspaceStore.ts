@@ -166,6 +166,35 @@ export async function inspectWorkspace(path: string): Promise<WorkspaceInspectRe
   return result;
 }
 
+// ─── backend filesystem browser (#1056) ─────────────────────────────────────
+
+export interface FsEntry {
+  name: string;
+  isDir: boolean;
+  isWorkspace: boolean;
+  mtime: string | null;
+}
+
+export interface BrowseFsResult {
+  path: string;
+  parent: string | null;
+  entries: FsEntry[];
+}
+
+/**
+ * backend の filesystem をブラウズ (#1056)。
+ * container / remote 開発で「ブラウザ側 file picker が使えない」状況に対し、
+ * backend が自身の fs をリストして frontend に渡す。
+ *
+ * @param path - 絶対 or 相対 path。省略時は backend 側の HARMONY_WORKSPACES_DIR →
+ *               HARMONY_HOME の親 → os.homedir() の順で fallback
+ */
+export async function browseFs(path?: string): Promise<BrowseFsResult> {
+  const params = path !== undefined ? { path } : {};
+  const result = (await mcpBridge.request("workspace.browseFs", params)) as BrowseFsResult;
+  return result;
+}
+
 let _hostInfoCache: HostInfo | null = null;
 let _hostInfoInflight: Promise<HostInfo> | null = null;
 

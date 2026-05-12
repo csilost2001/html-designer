@@ -23,6 +23,7 @@ import { useListKeyboard } from "../../hooks/useListKeyboard";
 import { useListFilter } from "../../hooks/useListFilter";
 import { useListSort } from "../../hooks/useListSort";
 import { usePersistentState } from "../../hooks/usePersistentState";
+import { BackendFolderPicker } from "./BackendFolderPicker";
 import "../../styles/table.css";
 
 const STORAGE_KEY = "list-view-mode:workspace-list";
@@ -82,9 +83,9 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
   const [inspectName, setInspectName] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [pickedFolderHint, setPickedFolderHint] = useState<string | null>(null);
   const [host, setHost] = useState<HostInfo | null>(null);
   const [showRecent, setShowRecent] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const debounceRef = useRef<number | null>(null);
   const inflightSeqRef = useRef(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -189,27 +190,17 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
     }
   };
 
-  const handlePickFolder = async () => {
-    if (!("showDirectoryPicker" in window)) return;
-    try {
-      const handle = await (window as Window & { showDirectoryPicker: () => Promise<{ name: string }> }).showDirectoryPicker();
-      // showDirectoryPicker は絶対パスを返さない (フォルダ名 .name のみ)。
-      // 入力欄に書き込むと相対パスとして MCP server cwd 配下と誤解釈されるため、
-      // 入力欄には触れず、フォルダ名だけを「選択ヒント」として表示する。
-      setPickedFolderHint(handle.name);
-      setErrorMsg(null);
-    } catch (e) {
-      if ((e as { name?: string }).name !== "AbortError") {
-        setErrorMsg("フォルダ選択に失敗しました");
-      }
-    }
+  // 旧 `showDirectoryPicker` 経路 (#858 / #919) は #1056 で廃止。Browser File System Access API
+  // は handle のみ返却で絶対パスを取れず、WSL2 / container / リモート開発のいずれでも実用にならない。
+  // 代わりに backend filesystem を browseFs MCP tool 経由でブラウズする BackendFolderPicker
+  // を採用 (`docs/spec/path-conventions.md §8`)。
+  const handlePickedFolder = (absolutePath: string) => {
+    setPath(absolutePath);
+    setShowFolderPicker(false);
+    setErrorMsg(null);
+    // 入力欄に値が入った瞬間に既存の debounced auto-inspect が走るので明示再 inspect は不要
   };
 
-  // WSL2 + Windows ブラウザ環境では showDirectoryPicker が Linux パスに到達できず実質使えないので、
-  // ヒント文と整合させてフォルダ参照ボタンを非表示にする (#858 / #919 Opus review nit)
-  const hasPickerSupport = typeof window !== "undefined"
-    && "showDirectoryPicker" in window
-    && !host?.isWSL;
   const placeholder = buildPlaceholder(host);
   const exampleAbs = buildOsAwareExamplePath(host);
 
@@ -279,17 +270,15 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
               style={{ flex: 1, fontFamily: "monospace" }}
               data-testid="workspace-path-input"
             />
-            {hasPickerSupport && (
-              <button
-                type="button"
-                className="tbl-btn tbl-btn-ghost"
-                onClick={handlePickFolder}
-                title="フォルダ名を確認 (絶対パスは別途入力)"
-                tabIndex={-1}
-              >
-                <i className="bi bi-folder2-open" />
-              </button>
-            )}
+            <button
+              type="button"
+              className="tbl-btn tbl-btn-ghost"
+              onClick={() => setShowFolderPicker(true)}
+              title="backend のフォルダをブラウズして選択 (#1056)"
+              data-testid="open-folder-picker"
+            >
+              <i className="bi bi-folder2-open" /> 参照
+            </button>
             {showRecent && filteredRecents.length > 0 && (
               <ul
                 id={dropdownId}
@@ -299,7 +288,7 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
                   position: "absolute",
                   top: "100%",
                   left: 0,
-                  right: hasPickerSupport ? "44px" : 0,
+                  right: "80px",
                   marginTop: "2px",
                   padding: 0,
                   listStyle: "none",
@@ -345,23 +334,17 @@ export function AddWorkspaceDialog({ onClose, onAdded }: AddWorkspaceDialogProps
           リポジトリ直下の <code>workspaces/my-app</code> 形式の相対パスも使用できます。
         </p>
 
-        {host?.isWSL && (
-          <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 6px" }}>
-            <i className="bi bi-info-circle" /> WSL2 環境を検出しました。Windows ブラウザの「フォルダ参照」では Linux パス
-            (<code>/home/...</code>) に到達できないため、上の入力欄に手動で絶対パスを入力してください。
-          </p>
-        )}
+        <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
+          ※「参照」は backend (Harmony サーバ) 側のファイルシステムをブラウズします。
+          ブラウザ実行マシンの fs ではない点に注意してください。
+        </p>
 
-        {hasPickerSupport && (
-          <p style={{ fontSize: "0.78rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
-            ※「フォルダ選択」ボタンはフォルダ名の確認のみ可能です (ブラウザ仕様で絶対パス取得不可)。
-          </p>
-        )}
-
-        {pickedFolderHint && (
-          <p style={{ fontSize: "0.82rem", color: "var(--muted-text, #888)", margin: "0 0 8px" }}>
-            選択したフォルダ名: <strong>{pickedFolderHint}</strong> — このフォルダの<em>絶対パス</em>を上の入力欄に入力してください。
-          </p>
+        {showFolderPicker && (
+          <BackendFolderPicker
+            initialPath={path.trim() || undefined}
+            onSelect={handlePickedFolder}
+            onClose={() => setShowFolderPicker(false)}
+          />
         )}
 
         {/* インライン状態表示 (debounced auto-inspect の結果) */}
