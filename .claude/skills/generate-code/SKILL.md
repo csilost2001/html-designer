@@ -1801,8 +1801,9 @@ VSCode + Dev Containers 拡張があれば、`git clone` 後に `Reopen in Conta
 2. `code .` → 右下のポップアップで「Reopen in Container」をクリック
 3. 初回は 5-10 分 (features install + 依存解決)
 4. ターミナルで起動:
-   - spring-boot 系: `./mvnw spring-boot:run`
-   - nestjs 系: `npm run start:dev`
+   - spring-boot 系: `./mvnw spring-boot:run 2>/dev/null || mvn spring-boot:run` (Maven Wrapper 同梱 or feature 同梱 mvn いずれでも起動)
+   - nestjs 系 (単一 package.json、english-learning-tailwind パターン): `npm run start:backend` + 別ターミナル `npm run start:frontend`
+   - nestjs 系 (NestJS 単独 thymeleaf): `npm run start:dev`
 5. ブラウザで http://localhost:<port> (port は `.devcontainer/devcontainer.json` の forwardPorts 参照)
 
 詳細: [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json)

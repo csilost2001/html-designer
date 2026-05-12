@@ -3,6 +3,7 @@ WORKDIR /build
 COPY package*.json ./
 RUN npm ci
 COPY . .
+RUN mkdir -p public .next prisma
 RUN npx prisma generate 2>/dev/null || true
 RUN npm run build
 RUN npx next build 2>/dev/null || true
