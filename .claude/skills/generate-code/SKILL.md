@@ -585,8 +585,11 @@ NestJS 系は `@nestjs/passport` + `passport-local` + `express-session` で sess
 ```typescript
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as session from 'express-session';
-import * as passport from 'passport';
+// express-session / passport は `export = X` (CommonJS) 形式のため、TypeScript 5.x の
+// strict + esModuleInterop 下では `import * as X` だと TS2349 ("not callable") になる。
+// `export =` モジュールは `import X = require(...)` で受けるのが正規パターン。
+import session = require('express-session');
+import passport = require('passport');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
