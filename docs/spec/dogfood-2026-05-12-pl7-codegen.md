@@ -29,7 +29,8 @@ src/main/java/com/harmony/retail/
   web/
     CommonModelAdvice.java          (@ControllerAdvice、storeName/userName/copyright/version 共通 ModelAttribute)
     DashboardController.java        (GET / → pages/dashboard、stub data)
-    GlobalHeaderGadgetController.java  (POST /fragments/global-header/act-logout → redirect:/)
+    GlobalHeaderGadgetController.java  (GET /fragments/global-header → fragment preview のみ)
+    AuthController.java                (POST /api/retail/auth/logout → redirect:/、ProcessFlow.httpRoute.path 準拠)
 src/main/resources/
   application.properties           (UTF-8 強制設定)
   templates/
@@ -116,7 +117,7 @@ HTML assertion:
 2. **全 page の自動生成**: 現状 `/generate-code` は 1 entity ずつ skill 起動。examples/retail の 11 page Screen + 4 PageLayout/Gadget をワンショットで生成するバルクモードは未実装。別 ISSUE 候補。
 3. **Properties UTF-8 問題のテンプレ反映**: Thymeleaf 系 application.properties の ISO-8859-1 制約は LAYOUT.md / PAGE.md に注記が無い。テンプレートに「日本語値は @Value default で hardcode 推奨、または application.yml 採用」と注記する follow-up 候補。
 4. **inter-gadget event (pl-Y)**: 検索フィルタガジェット ↔ リストガジェット pub/sub は pl-Y で。本 PR スコープ外。
-5. **Spring Boot security 連携**: GlobalHeaderGadgetController の logout は stub (TODO コメント済)。Spring Security 統合は別 ISSUE。
+5. **Spring Boot security 連携**: AuthController の `POST /api/retail/auth/logout` (= ProcessFlow `60e08c25` act-logout の httpRoute.path) は stub (`return "redirect:/"` のみ、TODO コメント済)。Spring Security 統合は別 ISSUE。
 6. **Next.js 14.2.18 security vulnerability warning**: npm install 時に next@14.2.18 の security 警告。生成テンプレ側で最新版へバージョン更新する follow-up 候補。
 
 ## 6. 結論

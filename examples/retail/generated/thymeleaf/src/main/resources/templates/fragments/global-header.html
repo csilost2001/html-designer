@@ -17,7 +17,7 @@
   <div class="d-flex align-items-center gap-3">
     <span class="text-white"
           th:text="${userName != null} ? (${userName} + ' さん') : 'ゲスト さん'">ゲスト さん</span>
-    <form th:action="@{/fragments/global-header/act-logout}" method="post" class="m-0">
+    <form th:action="@{/api/retail/auth/logout}" method="post" class="m-0">
       <button type="submit" class="btn btn-outline-light btn-sm">ログアウト</button>
     </form>
   </div>

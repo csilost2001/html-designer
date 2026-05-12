@@ -237,11 +237,11 @@ Thymeleaf URL 式 `@{...}` の内側に `<<...>>` が現れる場合、AI は必
 既存の kind 別パターン (search / form / complete / list 等) は**変更なし**。
 pageLayoutId がある場合のみ、以下のラップ構造を適用する。
 
-### 仕組み
+### 仕組み (Layout Dialect 標準形式)
 
-- Page 側 HTML のルートを `th:replace="~{layouts/<pageLayoutId> :: layout-content(content=~{::body-content})}"` に置換
-- `<body>` 内に `<th:block th:fragment="body-content">` でコンテンツをラップ
-- Layout 側の `th:fragment="layout-content(content)"` slot がコンテンツを受け取る
+- Page 側 `<html>` ルートに `layout:decorate="~{layouts/<pageLayoutId>}"` 宣言 + Layout Dialect 名前空間 (`xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"`) を追加
+- `<body>` 内に `<th:block layout:fragment="layout-content">` でコンテンツをラップ
+- Layout 側の `layout:fragment="layout-content"` slot が同名の content を自動 inject
 - `<head>` には `<title>` の上書きのみ定義 (body / layout 構造は layout 側が提供)
 
 Layout Dialect の依存・仕組みは `LAYOUT.md` を参照。
@@ -251,13 +251,14 @@ Layout Dialect の依存・仕組みは `LAYOUT.md` を参照。
 ```html
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      lang="ja"
-      th:replace="~{layouts/<<pageLayoutId>> :: layout-content(content=~{::body-content})}">
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/<<pageLayoutId>>}"
+      lang="ja">
 <head>
   <title><<screen.name>> | システム</title>
 </head>
 <body>
-  <th:block th:fragment="body-content">
+  <th:block layout:fragment="layout-content">
     <!--
       Screen 本文 (通常の kind 別 Page 生成内容をここに配置)
       Layout: <<pageLayoutId>> (<<pageLayoutName>>)
@@ -268,7 +269,7 @@ Layout Dialect の依存・仕組みは `LAYOUT.md` を参照。
     <h1 class="mb-4"><<screen.name>></h1>
 
     <!-- items[] → kind 別テンプレートパターン (search/form/list/complete/dashboard 等) をここに展開 -->
-    <!-- 既存の kind 別テンプレートパターンと同内容を <th:block th:fragment="body-content"> 内に配置 -->
+    <!-- 既存の kind 別テンプレートパターンと同内容を <th:block layout:fragment="layout-content"> 内に配置 -->
 
   </th:block>
 </body>
@@ -284,14 +285,15 @@ Layout Dialect の依存・仕組みは `LAYOUT.md` を参照。
 ```html
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      lang="ja"
-      th:replace="~{layouts/17595b62-fef1-4b22-9c25-16736c772567 :: layout-content(content=~{::body-content})}">
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/17595b62-fef1-4b22-9c25-16736c772567}"
+      lang="ja">
 <head>
   <!-- title のみ上書き (Bootstrap/共通 CSS は layout 側が提供) -->
   <title th:text="#{screen.title} + ' | Harmony Retail'">ダッシュボード | Harmony Retail</title>
 </head>
 <body>
-  <th:block th:fragment="body-content">
+  <th:block layout:fragment="layout-content">
     <!--
       Screen 本文: ダッシュボード (kind=dashboard)
       Layout: 17595b62-fef1-4b22-9c25-16736c772567 (Main Layout)
