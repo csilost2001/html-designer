@@ -420,7 +420,23 @@ MVP では tailwind framework は standard variant のみ実装、card / compact
 | Dashboard 等で複数画面のリアルタイム iframe を並べる場合 | あり | per-iframe で個別 cssFramework theme をロード |
 | 最終実装 (生成された Thymeleaf / React アプリ) | あり (SPA で画面遷移時の CSS 衝突) | **本仕様の射程外**: Thymeleaf 案件 (画面 = ページ単位) なら自然解決、SPA React 案件は CSS chunk 分割 / scoped CSS / shadow DOM 等で隔離する責務を出力側に委ねる |
 
-## 8. 関連 memory / 仕様書
+## 8. PageLayout region 規約 (code generation 時、pl-7 #1028)
+
+PageLayout の region (`header` / `sidebar` / `footer` / `main`) を code generation で出力する際の CSS class 規約を cssFramework 別に定める。詳細テンプレは `.claude/skills/generate-code/templates/frontend/<framework>/LAYOUT.md` 参照。
+
+| region | Bootstrap (Thymeleaf 系) | Tailwind (Next.js 系) |
+|---|---|---|
+| root | `d-flex flex-column min-vh-100` | `flex flex-col min-h-screen` |
+| header | `navbar navbar-expand bg-primary navbar-dark px-3` | `flex items-center justify-between bg-blue-900 text-white px-4 py-3 shadow` |
+| sidebar | `col-md-3 col-lg-2 bg-light p-3 border-end` | `w-64 bg-gray-100 p-4 border-r` |
+| main | `col p-4` | `flex-1 p-6` |
+| footer | `text-center bg-light py-3 border-top mt-auto` | `text-center bg-gray-50 py-4 border-t mt-auto` |
+
+未割り当て region は対応 HTML タグをプレースホルダコメントに置換 (slot 構造は維持しない)。main region は assignments に関わらず常に slot として出力 (page content の inject 先)。
+
+PageLayout / 各 gadget / 各 page の cssFramework が混在している場合は `/generate-code` が警告を出す (生成は続行)。
+
+## 9. 関連 memory / 仕様書
 
 - `feedback_schema_governance_strict.md` (#511) — schema 変更は設計者承認必須、本仕様で承認済
 - `feedback_consolidate_related_proposals_into_one_issue.md` — 子間の派生提案は同 ISSUE 統合

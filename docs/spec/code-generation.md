@@ -5,6 +5,10 @@
 実装状況: `project.techStack` スキーマは #826 で導入済み。
 `/generate-code <flowId|screenId>` スキル本体は #832 で実装済 (`.claude/skills/generate-code/`)。
 
+PageLayout + Gadget の code generation 対応 (RFC #1021 pl-7、Phase 2) は #1028 で完了。
+両 techStack (Spring Boot/Thymeleaf + NestJS/Next.js) で examples/retail 実機ビルド + 起動 pass 達成
+(`examples/retail/generated/` 参照)。
+
 ---
 
 ## 1. 概要
@@ -183,8 +187,12 @@
 Step 0: 引数解析 — UUID 判定、出力先デフォルト (.tmp/generated-code/<UUID8桁>/)
 Step 1: 入力読込
   1-1. active workspace の harmony.json から techStack 取得
-  1-2. UUID を processFlows / screens で照合して入力種別判定
-  1-3. 入力 JSON (ProcessFlow / Screen) を Read で取得
+  1-2. UUID を processFlows / screens / pageLayouts で照合して入力種別判定
+  1-3. 入力 JSON を Read で取得
+  1-4. PageLayout 入力なら Step 3-D へ (#1028 pl-7)
+  1-5. Screen 入力なら purpose を判定:
+       - purpose=gadget → Step 3-C へ
+       - purpose=page (default) → Step 3-B へ
 Step 2: techStack 制約検証 (validateTechStackConstraints 相当)
   - editorKind=puck → react 必須
   - backend lang × framework matrix
@@ -192,10 +200,17 @@ Step 2: techStack 制約検証 (validateTechStackConstraints 相当)
   - vue → {nuxt, vite, none}
   - react → {next, vite, none}
   - 違反あれば中止
+  2-4. PageLayout 解決 (pl-7): Screen.pageLayoutId 指定時は page-layouts/<id>.json を load + assignments の gadget を解決
+  2-5. cssFramework ミスマッチ検出 (pl-7): PageLayout / 各 gadget / 各 page の cssFramework 混在を警告
 Step 3: 入力種別別 dispatch
   3-A ProcessFlow → backend code 生成 (step kind ごとのマッピング)
-  3-B Screen → frontend code 生成 (screen.kind ごとのテンプレート分岐)
+  3-B Screen (purpose=page) → frontend code 生成 (screen.kind ごとのテンプレート分岐)
+       pageLayoutId 指定時は Layout Decorate / Wrap モードで生成
+  3-C Screen (purpose=gadget) → fragment + Controller / client component + Route Handler 生成 (pl-7)
+  3-D PageLayout → Thymeleaf passive layout / Next.js AppLayout component 生成 (pl-7)
 Step 4: テンプレート参照 (.claude/skills/generate-code/templates/)
+  - thymeleaf-bootstrap/: PAGE.md + LAYOUT.md (pl-7) + FRAGMENT.md (pl-7)
+  - react-tailwind-next/: PAGE.md + LAYOUT.md (pl-7) + COMPONENT.md (pl-7)
 Step 5: コード生成 + 出力先への書き出し
 Step 6: smoke 検証 (Java 構文目視 / Thymeleaf XML パース / tsc dry)
 最終レポート出力

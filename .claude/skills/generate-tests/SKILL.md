@@ -165,7 +165,7 @@ if entities.processFlows[].id にマッチ:
   → ProcessFlow → backend test 生成へ (Step 2: techStack 検証 → Step 3)
 
 elif entities.screens[].id にマッチ:
-  → Screen → frontend component test 生成へ (Step P3-1: techStack 検証 → Step P3)
+  → Screen → Step 1.5 (purpose 別分岐) へ
 
 else:
   「ID が見つかりません: harmony.json の entities.processFlows / entities.screens を確認してください」
@@ -174,6 +174,29 @@ else:
 
 **重要**: 同じ UUID が ProcessFlow と Screen 両方に存在する可能性は実際にはないが、
 processFlows を先にチェックし、マッチしない場合のみ screens をチェックする。
+
+## Step 1.5: Screen purpose 別分岐 (pl-7 対応)
+
+Step 1-2 で Screen ID にルーティングされた場合、Screen JSON を Read して `purpose` フィールドを確認し、以下に分岐する。
+
+```
+Screen JSON の purpose (解決順序):
+  1. Screen JSON の purpose フィールド
+  2. フィールドが存在しない → 旧 schema 互換で "page" とみなす
+
+分岐:
+  purpose === "gadget"
+    → Step 3-Y (gadget 単独 component test 生成) へ
+
+  purpose === "page" (または purpose 未設定) かつ pageLayoutId あり
+    → Step 3-X (layout 込み page rendering test 生成) へ
+
+  purpose === "page" (または purpose 未設定) かつ pageLayoutId なし
+    → 既存の Step P3-1 (Screen component test 生成) へ (従来パス)
+```
+
+**注意**: `purpose === "gadget"` の Screen は画面フロー上に現れない独立コンポーネントです。
+P4 (E2E multi-screen シナリオ) の遷移チェーンには含めません。
 
 ### 1-3. ProcessFlow JSON を Read で取得
 
@@ -1416,6 +1439,294 @@ cd apps/web && npx vitest run --reporter=verbose <generated-filename>
 smoke 検証: スキップ (vitest 未設定 / npm install 未実施)
 推奨コマンド: cd apps/web && npx vitest <filename>.component.test
 ```
+
+---
+
+## Step 3-X: layout 込み page rendering test (pl-7 対応)
+
+Step 1.5 で `purpose === "page"` かつ `pageLayoutId` ありにルーティングされた場合、以下の手順でテストを生成する。
+
+### 前提情報の収集
+
+```
+1. Screen JSON から取得:
+   - id, name, kind, path, purpose, pageLayoutId
+
+2. page-layouts/<pageLayoutId>.json を Read して取得:
+   - id, name
+   - regions[]: { id, name }
+   - assignments: { [regionId]: gadgetScreenId }
+   - design.cssFramework
+
+3. assignments の各 gadgetScreenId について screens/<gadgetScreenId>.json を Read:
+   - name, path (gadget fragment の識別用)
+```
+
+### Thymeleaf 系: Spring MockMvc rendering test
+
+techStack.backend.framework = "spring-boot" の場合に生成する。
+
+```java
+// <出力先>/<screenName>PageLayoutTest.java
+// Spec anchor: Screen <screenId> layout=<pageLayoutId>
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class <ScreenName>PageLayoutTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    /**
+     * Spec: Screen <screenId> layout integration
+     *   pageLayoutId=<pageLayoutId>
+     *   regions: <region-ids.join(', ')>
+     */
+    @Test
+    void ページリクエストでPageLayoutの外枠が描画される() throws Exception {
+        // Screen <screenId> (<screen.name>)
+        mockMvc.perform(get("<screen.path>"))
+            .andExpect(status().isOk())
+            // PageLayout 外枠の region が含まれることを確認
+            // region: header — Gadget fragment <headerGadgetId>
+            .andExpect(xpath("//nav[contains(@class,'navbar')]").exists())
+            // region: sidebar — Gadget fragment <sidebarGadgetId>
+            .andExpect(xpath("//aside").exists())
+            // region: main — Page 本文 (body-content fragment)
+            .andExpect(xpath("//main").exists())
+            // region: footer — Gadget fragment <footerGadgetId>
+            .andExpect(xpath("//footer").exists());
+    }
+
+    /**
+     * Spec: Screen <screenId> gadget assignments
+     *   pageLayoutId=<pageLayoutId>
+     */
+    @Test
+    void 各regionにGadgetのfragmentが含まれる() throws Exception {
+        // region: header → <headerGadgetId> が th:replace で include される
+        mockMvc.perform(get("<screen.path>"))
+            .andExpect(status().isOk())
+            // header gadget の代表要素 (items[] から生成)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("<headerGadgetMarker>")));
+            // ↑ PLACEHOLDER: 実際の Gadget items[] の label / text から選ぶこと
+    }
+}
+```
+
+**PLACEHOLDER 解決ガイド**: `<headerGadgetMarker>` は Gadget の items[] の label や output テキストから選択してください。
+
+### NestJS/Next.js 系: Playwright layout mount test
+
+techStack.frontend.framework = "next" の場合に生成する。
+
+```typescript
+// <出力先>/<screenName>-layout.e2e.spec.ts
+// Spec anchor: Screen <screenId> layout=<pageLayoutId>
+
+import { test, expect } from '@playwright/test';
+
+test.describe('<screen.name> — layout 込み描画 (<pageLayoutId>)', () => {
+
+  /**
+   * Spec: Screen <screenId> layout integration
+   *   pageLayoutId=<pageLayoutId>
+   *   regions: <region-ids.join(', ')>
+   */
+  test('AppLayout が描画され、全 region に Gadget が表示される', async ({ page }) => {
+    // Screen <screenId> (<screen.name>) に直接アクセス
+    await page.goto('<screen.path>');
+
+    // PageLayout 外枠 region の存在確認
+    // region: header — <headerGadgetId>
+    await expect(page.locator('header')).toBeVisible();
+    // region: sidebar — <sidebarGadgetId>
+    await expect(page.locator('aside')).toBeVisible();
+    // region: main — Page 本文 (children)
+    await expect(page.locator('main')).toBeVisible();
+    // region: footer — <footerGadgetId>
+    await expect(page.locator('footer')).toBeVisible();
+  });
+
+  /**
+   * Spec: Screen <screenId> gadget content in regions
+   */
+  test('header region に Gadget の代表要素が含まれる', async ({ page }) => {
+    await page.goto('<screen.path>');
+    // header gadget の代表要素 (items[] から選択)
+    // PLACEHOLDER: 実際の Gadget items[] の label / text に置き換える
+    await expect(page.locator('header').getByText('<headerGadgetLabel>')).toBeVisible();
+  });
+});
+```
+
+### 生成ファイル
+
+```
+techStack.backend.framework = "spring-boot":
+  <出力先>/<ScreenName>PageLayoutTest.java
+
+techStack.frontend.framework = "next":
+  <出力先>/<screenName>-layout.e2e.spec.ts
+```
+
+両 techStack が設定されている場合は両方を生成する。
+
+---
+
+## Step 3-Y: gadget 単独 component test (pl-7 対応)
+
+Step 1.5 で `purpose === "gadget"` にルーティングされた場合、以下の手順で Gadget 単独テストを生成する。
+
+### 前提情報の収集
+
+```
+1. Gadget Screen JSON から取得:
+   - id, name, items[], events[], processFlowId
+
+2. processFlowId がある場合、process-flows/<processFlowId>.json を Read:
+   - actions[].httpRoute (POST path の解決用)
+```
+
+### Thymeleaf 系: Thymeleaf template engine test
+
+techStack.backend.framework = "spring-boot" の場合に生成する。
+
+```java
+// <出力先>/<GadgetName>GadgetFragmentTest.java
+// Spec anchor: Screen <gadgetId> (purpose=gadget)
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class <GadgetName>GadgetFragmentTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    /**
+     * Spec: Screen <gadgetId> (purpose=gadget) items render
+     */
+    @Test
+    void Gadgetのitems要素が描画される() throws Exception {
+        // Gadget は fragment 単体では URL なし — layout 経由で描画される
+        // layout 込みの Page (<any page with pageLayoutId>) 経由で確認
+        // PLACEHOLDER: pageLayoutId を持つ任意の Page の path に置き換える
+        mockMvc.perform(get("<pageWithThisLayoutPath>"))
+            .andExpect(status().isOk())
+            // items[direction=output] の label/text が含まれることを確認
+            // Spec: Screen <gadgetId> item:<item.id>
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("<itemLabel>")));
+    }
+
+    // processFlowId あり (例: act-logout) の場合のみ生成
+    /**
+     * Spec: Screen <gadgetId> event:<eventId> → ProcessFlow <processFlowId> act-<actionId>
+     */
+    @Test
+    void Gadgetアクションが正常に処理される() throws Exception {
+        mockMvc.perform(post("<action.httpRoute.path>")
+                .param("_csrf", "test-csrf-token")
+                // inputs[] → form params
+                .param("<inputName>", "<testValue>"))
+            .andExpect(status().is3xxRedirection())  // screenTransition / redirectTo
+            .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("<redirectPath>")));
+    }
+}
+```
+
+ProcessFlow が存在しない Gadget (design-only): アクションテストを生成しない。
+
+### NestJS/Next.js 系: vitest + React Testing Library
+
+techStack.frontend.framework = "next" の場合に生成する。
+
+```typescript
+// <出力先>/<gadgetId>.component.test.tsx
+// Spec anchor: Screen <gadgetId> (purpose=gadget)
+
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { <GadgetName>Gadget } from '@/app/components/gadgets/<gadgetId>';
+
+// processFlowId あり: server action を mock
+vi.mock('@/app/components/gadgets/<gadgetId>/actions', () => ({
+  <gadgetActionName>Action: vi.fn().mockResolvedValue(undefined),
+}));
+
+describe('<GadgetName>Gadget (purpose=gadget)', () => {
+
+  /**
+   * Spec: Screen <gadgetId> item:<item.id>
+   *   direction=output, type=<type>
+   */
+  it('output items が表示される', () => {
+    // Spec: Screen <gadgetId> items render
+    render(<GadgetName>Gadget />);
+
+    // items[direction=output] → getByText / getByRole
+    expect(screen.getByText('<outputItemLabel>')).toBeInTheDocument();
+    // ↑ PLACEHOLDER: 実際の output item の label に置き換える
+  });
+
+  // items[direction=input] がある場合のみ生成
+  /**
+   * Spec: Screen <gadgetId> item:<inputItem.id>
+   *   direction=input, type=<type>
+   */
+  it('input items が入力可能', () => {
+    render(<GadgetName>Gadget />);
+    const input = screen.getByRole('textbox', { name: '<inputItemLabel>' });
+    // ↑ PLACEHOLDER: 実際の input item の label に置き換える
+    expect(input).toBeInTheDocument();
+  });
+
+  // processFlowId あり かつ events[] に handlerFlowId がある場合のみ生成
+  /**
+   * Spec: Screen <gadgetId> event:<eventId>
+   *   handlerFlowId=<processFlowId>, handlerActionId=<actionId>
+   */
+  it('submit イベントで server action が発火する', async () => {
+    const { <gadgetActionName>Action } = await import(
+      '@/app/components/gadgets/<gadgetId>/actions'
+    );
+    render(<GadgetName>Gadget />);
+
+    const button = screen.getByRole('button', { name: '<submitButtonLabel>' });
+    // ↑ PLACEHOLDER: 実際の submit ボタンの label に置き換える
+    fireEvent.click(button);
+
+    expect(<gadgetActionName>Action).toHaveBeenCalledOnce();
+  });
+});
+```
+
+### 生成ファイル
+
+```
+techStack.backend.framework = "spring-boot":
+  <出力先>/<GadgetName>GadgetFragmentTest.java
+
+techStack.frontend.framework = "next":
+  <出力先>/<gadgetId>.component.test.tsx
+```
+
+両 techStack が設定されている場合は両方を生成する。
 
 ---
 
