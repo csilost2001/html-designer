@@ -11,7 +11,7 @@
 - WSL Linux (6.6.114.1-microsoft-standard-WSL2): Java/Maven なし (`mvn` / `java` / `javac` 未インストール)
 - frontend: vitest / playwright あり (retail は Thymeleaf 系のため frontend test は scope outside)
 - docker 28.3.0 あり (本 dogfood では未使用)
-- **実機 maven test run は本 dogfood scope outside** (環境準備込みで別 ISSUE 起票で trace — **ISSUE #1037 (docker maven image smoke build)** で完遂予定)
+- **実機 maven test run は本 dogfood scope outside** (環境準備込みで別 ISSUE 起票で trace — **ISSUE #1037 (docker maven image smoke build)** で完遂済、PR #1041、結果は §4 参照)
 - **dogfood 方法**: SKILL.md Step 手順を AI が手動で辿り test ファイルを生成 → structure 検証 (placeholder/anchor/import/xpath/gadget marker/日本語テスト名) により「skill 手順の AI 実行可能性検証」を実施
 
 ## 2. 生成 test 一覧
@@ -183,23 +183,91 @@ NestJS/Next.js 系の Step 3-Y テンプレートで `<gadgetActionName>` が pr
 
 ## 4. 実機 maven test 実行 (smoke 検証)
 
-**結果**: 本 dogfood では未実行 (WSL 環境に Java 21 / Maven 未インストール、docker setup 別工程)
+**実行日時**: 2026-05-12 (ISSUE #1037)
+**docker image**: `maven:3.9-eclipse-temurin-21` (Maven 3.9.9 + Java 21.0.11)
 
-**trace**: **ISSUE #1037 (docker maven image で smoke build + Spring Security 実機検証)** で完遂予定
+### Step A: mvn clean compile
 
-**推奨コマンド** (#1037 内で実行):
+**結果**: BUILD SUCCESS (所要時間: 初回 download 込み約 10s)
+
+修正点: `GET /login` を処理する `LoginController.java` を追加
+(Spring Security 6 は `loginPage("/login")` を自動 serve しない仕様)
+
+### Step B: mvn test
+
+**結果**: BUILD SUCCESS (所要時間: 5s)
+出力: `No tests to run.` — `src/test/` が空のため正常
+
+### Step C: spring-boot:run + curl smoke (6 観点)
+
+アプリ起動: `Started RetailApplication` まで **2s** (Maven 依存 cache 済み状態)
+
+**修正点**: Spring Security 6 で `/css/**` / `/js/**` の `requestMatchers()` が DispatcherServlet
+経由リクエストのみマッチする問題 → `PathRequest.toStaticResources().atCommonLocations()` を追加 (SecurityConfig.java)。
+静的リソース placeholder (`static/css/main.css`, `static/js/main.js`) も追加。
+
+| 観点 | 期待 | 結果 | HTTP Status |
+|---|---|---|---|
+| (a) GET / 未認証 → 302 /login | redirect | ✓ | 302 Location: /login |
+| (b) POST /login demo/demo+CSRF → 302 / | 認証成功 | ✓ | 302 Location: / |
+| (c) POST /api/retail/auth/logout → 302 /login?logout | ログアウト | ✓ | 302 Location: /login?logout, JSESSIONID 削除 |
+| (d) GET /css/main.css anonymous → 200 | 認証不要 | ✓ | 200 (PathRequest fix 適用後) |
+| (e) login.html UTF-8 (ユーザー名/パスワード/ログイン) | 文字化け無し | ✓ | 正常表示 |
+| (f) userName=demo (CommonModelAdvice) | SecurityContext連携 | ✓ | `demo さん` がヘッダに表示 |
+
+**全 6 観点 ✓** 達成。
+
+**curl 再現コマンド** (CSRF token を 2 段階で取得 — Spring Security 6 デフォルトで CSRF protection 有効):
+
 ```bash
-cd examples/retail/generated/thymeleaf
-docker run --rm -v "$(pwd)":/app -w /app maven:3.9-eclipse-temurin-21 mvn -B clean compile
-docker run --rm -v "$(pwd)":/app -w /app maven:3.9-eclipse-temurin-21 mvn -B test
+# (1) GET /login で CSRF token 取得 + Cookie 保存
+CSRF_TOKEN=$(curl -sS -c /tmp/cookies.txt http://localhost:18080/login \
+  | grep -oP 'name="_csrf" value="\K[^"]+')
+
+# (a) GET / 未認証
+curl -sS -i http://localhost:18080/  # → 302 Location: http://localhost:18080/login
+
+# (e) GET /login (UTF-8 確認)
+curl -sS http://localhost:18080/login | grep -E "ユーザー名|パスワード|ログイン"
+
+# (b) POST /login (CSRF token + Cookie 必須)
+curl -sS -i -b /tmp/cookies.txt -c /tmp/cookies.txt \
+  -X POST -d "username=demo&password=demo&_csrf=$CSRF_TOKEN" \
+  http://localhost:18080/login  # → 302 Location: /
+
+# (f) GET / 認証済 (userName=demo がヘッダに出る)
+curl -sS -b /tmp/cookies.txt http://localhost:18080/ | grep -E "demo さん"
+
+# (d) GET /css/main.css anonymous (Cookie 無しで 200)
+curl -sS -i http://localhost:18080/css/main.css  # → 200
+
+# (c) POST /api/retail/auth/logout (CSRF token + Cookie 必須)
+curl -sS -i -b /tmp/cookies.txt \
+  -X POST -d "_csrf=$CSRF_TOKEN" \
+  http://localhost:18080/api/retail/auth/logout  # → 302 Location: /login?logout
 ```
+
+### 検出した不具合 & 修正一覧
+
+1. **`LoginController.java` 追加** (GET /login handler 不在)
+   - Spring Security 6 は `.loginPage("/login")` の GET を自動 serve しない
+   - `src/main/java/com/harmony/retail/web/LoginController.java` を新規作成
+   - 将来 #1036 系列で `/generate-code` skill template にも反映候補
+
+2. **`SecurityConfig.java` 修正** (Spring Security 6 静的リソース許可の不備)
+   - `PathRequest.toStaticResources().atCommonLocations()` を `permitAll()` の先頭に追加
+   - 将来 #1036 系列で `/generate-code` skill template にも反映候補
+
+3. **静的リソース placeholder 追加**
+   - `src/main/resources/static/css/main.css`
+   - `src/main/resources/static/js/main.js`
 
 ## 5. 関連 ISSUE で trace される分
 
-| 領域 | ISSUE | スコープ |
-|---|---|---|
-| 実機 maven test + Spring Security 動作検証 | **#1037** | docker maven image で `examples/retail/generated/thymeleaf/` smoke build + login/logout 動作確認 |
-| NestJS 系 session 認証テンプレ | **#1036** | SKILL.md に passport + express-session ベースの NestJS 認証テンプレ追加 |
-| NestJS/Next.js 系での `/generate-tests` 実機 dogfood | **#1038** | examples/english-learning-tailwind 等で vitest/Playwright 実機 run + skill 修正 |
+| 領域 | ISSUE | 状態 | スコープ |
+|---|---|---|---|
+| 実機 maven test + Spring Security 動作検証 | **#1037** | ✅ 完遂 (PR #1041、§4 参照) | docker maven image で `examples/retail/generated/thymeleaf/` smoke build + login/logout 動作確認 |
+| NestJS 系 session 認証テンプレ | **#1036** | 🟢 open | SKILL.md に passport + express-session ベースの NestJS 認証テンプレ追加 |
+| NestJS/Next.js 系での `/generate-tests` 実機 dogfood | **#1038** | 🟢 open | examples/english-learning-tailwind 等で vitest/Playwright 実機 run + skill 修正 |
 
 「将来対応」「future enhancement」「follow-up」表現は本 PR で全消去済。trace されない放置項目は無い。
