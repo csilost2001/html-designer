@@ -156,20 +156,28 @@ public class GlobalHeaderGadgetController {
 
     // ----------------------------------------------------------------------
     // 注: act-logout (POST /api/retail/auth/logout) の生成は
-    //     techStack.auth.method の値に応じて分岐する (#1039 M-1 解消):
+    //     techStack.auth.method の値に応じて分岐する
+    //     (#1039 M-1 解消、#1035 S-3 で方針更新):
     //
     //  - techStack.auth.method = "session" (Spring Security 利用):
     //      → 本 GadgetController には logout メソッドを生成しない。
-    //        AuthController.java (Step 3-A / 認証生成ルール参照) が
-    //        /api/retail/auth/logout を担当し、SecurityContextLogoutHandler で
-    //        正しくセッション破棄 + redirect する。
+    //        さらに AuthController.java も生成しない (`/generate-code`
+    //        SKILL.md Step 3-A §3「AuthController.java は生成しない、
+    //        LogoutFilter 一本化」参照)。
+    //        POST /api/retail/auth/logout は SecurityConfig の
+    //        `.logoutRequestMatcher(...)` で登録された Spring Security の
+    //        `LogoutFilter` が DispatcherServlet より先回りで処理し、
+    //        `SecurityContextHolder.clearContext()` + `HttpSession.invalidate()` +
+    //        JSESSIONID 削除 + `logoutSuccessUrl` (`/login?logout`) redirect を
+    //        実行する (Controller 不要)。
     //
     //  - techStack.auth.method = "none" or 未設定 (Spring Security 不在):
     //      → 下記コメントアウトされた logout メソッドを GadgetController 側で
     //        有効化し、HttpSession.invalidate() で素朴に redirect する。
     //
-    // 両方を同時に生成すると Spring の RequestMappingHandlerMapping が
-    // 同一 path の二重定義で起動失敗するため、必ずどちらか一方のみ。
+    // session 時に GadgetController 側にも logout を生成すると Spring の
+    // `RequestMappingHandlerMapping` が同 path の二重定義で起動失敗するため、
+    // 必ず LogoutFilter 経路のみとする (Controller 二重定義禁止)。
     // ----------------------------------------------------------------------
 
     /*
