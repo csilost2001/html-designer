@@ -498,17 +498,21 @@ export function WorkspaceListView() {
     // load と 2 重になり loading=true → AppShell スプラッシュ → アンマウント → 再マウント
     // → 再び即時発火 という無限ループを引き起こす (WorkspaceSelectView と同パターン、PR #813 ホットフィックス)。
     //
-    // 対策: 初回即時発火 (prevStatus=null) で AppShell の load 完了済 (workspaces 取得済) の場合は skip。
+    // 対策: 初回即時発火 (prevStatus=null) で AppShell の load 完了済 (loading=false) なら skip。
     // 再接続 (disconnected → connected) は常に reload。
+    //
+    // 注: 以前は `loading=false && workspaces.length > 0` で skip 判定していたが、
+    // recent-workspaces.json が存在しない初回起動など workspaces が空の正常完了状態でも
+    // skip が外れて loadWorkspaces → loading=true → splash → unmount/remount → 即時発火 …
+    // の無限ループに陥る regression があった (#1490aec の取り残し)。loading だけで判定する。
     let prevStatus: string | null = null;
     const unsubStatus = mcpBridge.onStatusChange((s) => {
       const isReconnect = prevStatus !== null && prevStatus !== "connected" && s === "connected";
       prevStatus = s;
       if (s !== "connected") return;
       if (!isReconnect) {
-        const { loading, workspaces } = getState();
-        // AppShell が load 完了済 (loading=false かつ workspaces 取得済) なら skip して 2 重 load を防ぐ
-        if (!loading && workspaces.length > 0) return;
+        const { loading } = getState();
+        if (!loading) return;
       }
       loadWorkspaces().catch(console.error);
     });
