@@ -32,13 +32,8 @@ import DashboardPage from '@/app/page';
 // ===HARMONY_GENERATED_SECTION_START screenId=496e43f8-d243-48a1-b680-32d34d98cc2d===
 
 /**
- * MSW ハンドラー
- *
- * ダッシュボードの全 output items は valueFrom.kind が未定義 (コンポーネント内部 state 想定)。
- * 実際の API エンドポイントが判明した場合は以下に追加する。
- *
- * PLACEHOLDER: ダッシュボードデータ取得 API エンドポイントを確認してください。
- * 例: GET /api/el/dashboard → { streakDays, cefrLevel, todayGoal, todayDone, recentStoryList }
+ * MSW ハンドラー — GET /api/el/dashboard
+ * 本 dogfood の NestJS DashboardController が返すレスポンス構造に一致。
  */
 const handlers = [
   http.get('/api/el/dashboard', () => {

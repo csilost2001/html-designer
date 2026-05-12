@@ -1,10 +1,8 @@
 /**
  * auth helper — loginAs() / loginViaUI()
  *
- * techStack.auth.method = "jwt" → loginAs (API 経由) を使用
- *
- * PLACEHOLDER: /api/auth/login エンドポイントのレスポンス形式を確認して
- *   accessToken フィールド名を調整すること。
+ * techStack.auth.method = "jwt" → loginAs (API 経由) を使用。
+ * POST /api/auth/login は { accessToken } を返す (本 dogfood の NestJS AuthController 実装)。
  */
 
 import type { Page } from '@playwright/test';
@@ -17,8 +15,7 @@ interface LoginOptions {
 /**
  * JWT 認証: API エンドポイント経由でトークンを取得し、localStorage に設定する。
  * techStack.auth.method = "jwt" の場合に使用する。
- *
- * PLACEHOLDER: トークン保存先 (localStorage.accessToken / cookie 等) を確認すること。
+ * 本 dogfood は accessToken を localStorage に保存し Authorization: Bearer で送信する。
  */
 export async function loginAs(page: Page, options: LoginOptions): Promise<void> {
   const { username, password } = options;
@@ -56,12 +53,11 @@ export async function loginAs(page: Page, options: LoginOptions): Promise<void> 
 export async function loginViaUI(page: Page, options: LoginOptions): Promise<void> {
   const { username, password } = options;
 
-  // PLACEHOLDER: ログイン画面の path を確認すること
+  // 本 dogfood の loginViaUI は補助用 (jwt 方式のため未使用)。
+  // 採用プロジェクトで session 方式時のサンプル経路として保持する。
   await page.goto('/login');
   await page.fill('[data-testid="email"]', username);
   await page.fill('[data-testid="password"]', password);
   await page.click('[data-testid="loginSubmit"]');
-
-  // PLACEHOLDER: ログイン成功後のリダイレクト先を確認すること
   await page.waitForURL('/');
 }
