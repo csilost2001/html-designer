@@ -142,6 +142,16 @@ L2 (将来): frontend 同梱、backend が静的配信、healthcheck 追加、se
 
 L3 (将来): 公開配布。multi-arch (amd64/arm64) build、image tag 戦略、SBOM、脆弱性スキャン、リリースノート連携。
 
+### L1 image の同梱範囲 (現状)
+
+§1 の表で (c) built-in リソース (`data/extensions/`) を「image 内に焼き込み」と分類しているが、**L1 Dockerfile では `backend/` のみ COPY** しており、`data/extensions/` は同梱されていない。理由:
+
+- L1 は path 規約確定が目的で、配布前提ではない
+- `backend/` 起動時は `data/extensions/` が無くても起動可能 (拡張定義が空の状態で動作)
+- L2 で frontend + extensions を同梱するタイミングで一括対応する
+
+**L1 image を実機で動かす場合の workaround**: ホストの `data/extensions/` を bind mount するか、`backend/` 内に default extensions を埋め込む shim を別途用意する。L2 完了までは Dev Container での開発用途に留めるのが妥当。
+
 ## 8. 既知の課題 / 設計判断
 
 ### `workspace.browseFs` のセキュリティ (#1056)

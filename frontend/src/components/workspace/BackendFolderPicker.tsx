@@ -231,12 +231,13 @@ export function BackendFolderPicker({ initialPath, onSelect, onClose }: BackendF
  */
 function joinPath(base: string, name: string): string {
   const sep = base.includes("\\") && !base.includes("/") ? "\\" : "/";
+  // 末尾の区切り文字を 1 個だけ残す形に正規化してから連結:
+  //   - "/"         → "" + "/" + name = "/<name>"
+  //   - "/foo/"     → "/foo" + "/" + name = "/foo/<name>"
+  //   - "C:\\"      → "C:" + "\\" + name = "C:\\<name>"
+  //   - "C:\\foo\\" → "C:\\foo" + "\\" + name = "C:\\foo\\<name>"
+  // root の場合と通常 path の場合で結果式が同じになるため if 分岐は不要。
   const trimmed = base.replace(/[/\\]+$/, "");
-  // base が root だけ (Linux "/" or "C:\\") の場合、trimmed が空 or "C:" になるが、
-  // どちらも単に区切り文字を 1 つだけ前に挟めばよい
-  if (trimmed === "" || /^[A-Za-z]:$/.test(trimmed)) {
-    return `${trimmed}${sep}${name}`;
-  }
   return `${trimmed}${sep}${name}`;
 }
 

@@ -1,11 +1,11 @@
 /**
  * workspace-os-aware-input.spec.ts (#858)
  *
- * AddWorkspaceDialog の WSL2 環境向け UX 改善を E2E で検証。
+ * AddWorkspaceDialog の host-aware UX を E2E で検証。
  *
  * カバー範囲:
  *  - host info (workspace.hostInfo) で OS-aware placeholder が出る
- *  - WSL2 環境 (本検証 host) では「WSL2 環境を検出しました」の専用ヒントが出る
+ *  - WSL2 環境の placeholder は Linux 形式の絶対パス (#1056 で旧 WSL 専用ヒント文は削除済)
  *  - debounced auto-inspect: パス入力 400ms 後に status badge が描画される
  *  - 「確認」ボタン (secondary) で即時検証も可能 (auto-inspect 待ち回避)
  *  - recent dropdown: input フォーカス / 入力時に最近のワークスペースが表示される

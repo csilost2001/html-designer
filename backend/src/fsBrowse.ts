@@ -64,6 +64,12 @@ export function resolveDefaultBrowsePath(): string {
 /**
  * 指定パスのディレクトリ内容をリストする。
  *
+ * symlink の扱い:
+ *   - **target (引数 `targetPath`)** は `fs.stat` で follow する。ユーザーが明示的に
+ *     navigation した path のため、たとえ symlink 経由でも実体ディレクトリを開く。
+ *   - **子エントリ** は `fs.lstat` で follow しない。symlink loop / 意図しない外部
+ *     path への誘導を避けるため、子は symlink ファイル (isDir=false) として表示する。
+ *
  * @param targetPath - 絶対 or 相対パス。省略時は default 開始位置 (`resolveDefaultBrowsePath`)
  * @throws BrowseFsError - notFound / notDir / permission / io
  */
@@ -71,6 +77,7 @@ export async function browseFs(targetPath?: string): Promise<BrowseResult> {
   const raw = (targetPath ?? "").trim();
   const abs = raw.length > 0 ? path.resolve(raw) : resolveDefaultBrowsePath();
 
+  // target は fs.stat で symlink を follow (上記 docstring 参照)
   let stat: import("node:fs").Stats;
   try {
     stat = await fs.stat(abs);

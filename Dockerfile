@@ -40,13 +40,16 @@ COPY --from=build /app/backend/package.json ./backend/package.json
 COPY --from=build /app/backend/package-lock.json* ./backend/
 RUN cd backend && npm ci --omit=dev && npm cache clean --force
 
-# 規約: アプリ state (recent-workspaces.json 等) の置き場
-ENV HARMONY_HOME=/home/node/.harmony
-VOLUME ["/home/node/.harmony"]
+# 規約: アプリ state (recent-workspaces.json 等) の置き場 + workspaces 親ディレクトリ
+# Docker は named volume を初期化する際 image 内の対応ディレクトリの所有者・モードを
+# volume にコピーする。VOLUME 宣言**前**にディレクトリを mkdir + chown して
+# `node` 所有にしておかないと、named volume が root:root で初期化されて `USER node`
+# 起動後の app が EACCES で書き込めない (Sonnet review Must-fix #1057)。
+RUN mkdir -p /home/node/.harmony /data/workspaces \
+    && chown -R node:node /home/node/.harmony /data/workspaces
 
-# 規約: workspaces 親ディレクトリ。ユーザーは bind mount で host のフォルダを
-#       マッピングするか、named volume を使う。中身は配布時には空。
-VOLUME ["/data/workspaces"]
+ENV HARMONY_HOME=/home/node/.harmony
+VOLUME ["/home/node/.harmony", "/data/workspaces"]
 
 EXPOSE 5179
 

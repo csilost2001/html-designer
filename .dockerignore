@@ -44,7 +44,9 @@ docs
 
 # 開発時 workspaces / data (利用者が volume mount する)
 workspaces
-data/.drafts
+# data/ は built-in 拡張定義を含むが L1 image では同梱しない (docs/spec/path-conventions.md §7 参照)。
+# L2 で frontend + extensions を一括同梱する際にこの除外を解除する。
+data
 
 # Claude / Codex 設定 (image には不要)
 .claude
