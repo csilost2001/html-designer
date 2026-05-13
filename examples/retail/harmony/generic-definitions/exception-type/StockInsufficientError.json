@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
+  "kind": "exception-type",
+  "name": "StockInsufficientError",
+  "purpose": "在庫引当時に在庫不足を検出した場合の業務例外",
+  "responsibilities": [
+    "在庫不足を呼び出し側に伝える",
+    "不足商品コードと不足数量を保持して UI でメッセージ表示可能にする",
+    "ProcessFlow の補償処理 (引当解除) のトリガとなる"
+  ],
+  "targets": ["backend", "shared"],
+  "fields": [
+    {
+      "name": "productCode",
+      "type": "string",
+      "constraints": ["必須"],
+      "description": "在庫不足が発生した商品コード。"
+    },
+    {
+      "name": "requestedQuantity",
+      "type": "integer",
+      "constraints": ["1 以上"],
+      "description": "要求された数量。"
+    },
+    {
+      "name": "availableQuantity",
+      "type": "integer",
+      "constraints": ["0 以上"],
+      "description": "実際の在庫数量。"
+    }
+  ],
+  "relations": [
+    {
+      "kind": "appliesTo",
+      "ref": "generic-definitions/component-definition/OrderValidator",
+      "description": "OrderValidator から throw される。"
+    }
+  ],
+  "constraints": [
+    "recoverable: false (在庫補充までは同条件で再試行不能)",
+    "ProcessFlow runtime: 補償 step で引当解除を必ず実行すること"
+  ]
+}

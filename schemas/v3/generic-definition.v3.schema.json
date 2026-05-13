@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/generic-definition.v3.schema.json",
+  "title": "Generic Definition (v3 汎用設計定義 親 schema)",
+  "description": "Layer 2 Generic Definition Catalog の 8 kind 共通メタモデル。<project>/<dataDir>/generic-definitions/<kind>/<Name>.json に対応。仕様: docs/spec/generic-definition-layer.md §4.1。本 schema は kind / name / purpose / responsibilities / targets を必須とする共通親で、kind 別の固有 schema (#1064 以降) は allOf で本定義を継承する想定。catalog 記録のため EntityMeta (uuid id / timestamps) は採用せず、`name` field が catalog identifier を兼ねる (ファイル名と一致させる運用)。",
+  "type": "object",
+  "$ref": "#/$defs/GenericDefinition",
+  "$defs": {
+    "GenericDefinition": {
+      "type": "object",
+      "required": ["kind", "name", "purpose", "responsibilities", "targets"],
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "instance JSON が参照する schema 文書への URL/相対パス。IDE の schema 関連付け用 (内容は loader が無視)。"
+        },
+        "kind": {
+          "$ref": "#/$defs/GenericDefinitionKind"
+        },
+        "name": {
+          "$ref": "#/$defs/GenericDefinitionName"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "本定義の責務を 1-2 行で示す。「何を表すか」「どこで使うか」を端的に。"
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "description": "本定義が担う責務の列挙。コード生成時の AI が読み取る semantic 情報源。"
+        },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GenericDefinitionTarget" },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "適用領域。backend / frontend / shared / runtime。例: data-contract の DTO は backend + frontend の shared、runtime-policy は runtime のみ。"
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GenericField" },
+          "description": "本定義が保持する field / property 一覧 (data-contract / domain-type / exception-type 等で利用)。"
+        },
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GenericOperation" },
+          "description": "本定義が提供する operation / method (component-definition / ui-behavior 等で利用)。"
+        },
+        "relations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GenericRelation" },
+          "description": "他 catalog 記録 / entity への関係 (継承 / 実装 / 利用 / 変換元先 / 適用対象)。"
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "不変条件・事前/事後条件の自然言語記述。AI コード生成のヒント。"
+        },
+        "mappingHints": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "特定 techStack (backend.spring / backend.nestjs / frontend.next 等) への codegen 時のヒント。完全 optional / advisory (Q6 確定、spec §4.1)。本体は言語非依存で完結すること。free-form object (中身は AI が解釈)。"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "GenericDefinitionKind": {
+      "type": "string",
+      "enum": [
+        "data-contract",
+        "domain-type",
+        "exception-type",
+        "application-rule",
+        "ui-behavior",
+        "runtime-policy",
+        "component-definition",
+        "ui-fragment"
+      ],
+      "description": "Generic Definition Catalog の 8 kind (spec §4.2)。data-contract = DTO/Form/Result/ViewModel 等の層間契約。domain-type = Entity/Model などドメイン型。exception-type = 例外種別・階層・semantic kind。application-rule = 認証認可/ログ/監査などの横断ルール。ui-behavior = 画面横断振る舞い。runtime-policy = retry/timeout/circuit breaker/cache 等の横断適用ポリシー。component-definition = service/mapper/validator/formatter 等の責務。ui-fragment = 再利用 UI 断片。"
+    },
+
+    "GenericDefinitionName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "catalog 記録の identifier。ファイル名 (拡張子除く) と一致させる運用。慣例的に PascalCase (OrderForm / UserNotFoundException 等) を推奨するが、camelCase / snake-ish も許容。Identifier (lowerCamelCase 強制) は採用しない (例外クラス名等で PascalCase が業界標準のため)。"
+    },
+
+    "GenericDefinitionTarget": {
+      "type": "string",
+      "enum": ["backend", "frontend", "shared", "runtime"],
+      "description": "適用領域。backend / frontend / shared (両方) / runtime (実行時横断ポリシー)。"
+    },
+
+    "GenericField": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "field 識別子。catalog 内での命名 (camelCase 推奨だが strict 強制はしない、業務概念名の都合があるため)。"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "field の型。Harmony FieldType (string / integer / decimal / boolean / date / dateTime / 等) または catalog 内他 record への参照 (例: 'OrderItem[]')。kind 別 schema (#1064 以降) で更に厳格化される予定。"
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "field 単位の制約 (必須 / 桁数 / 値域等の自然言語記述)。"
+        },
+        "description": {
+          "type": "string",
+          "description": "field の意味・用途の説明。"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "GenericOperation": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "operation 名 (method 名相当)。"
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GenericField" },
+          "description": "入力パラメータ列。"
+        },
+        "outputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GenericField" },
+          "description": "出力 (戻り値) 列。複数戻り値 / tuple を表現可能。"
+        },
+        "description": {
+          "type": "string",
+          "description": "operation の意味・用途の説明。"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "GenericRelation": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["extends", "implements", "uses", "transformsFrom", "transformsTo", "appliesTo"],
+          "description": "関係種別 (spec §4.1)。extends = 継承、implements = 契約実装、uses = 利用、transformsFrom/To = 変換源/先、appliesTo = 適用対象 (横断ポリシー → 適用先 component 等)。"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "参照先。catalog 記録への参照は 'generic-definitions/<kind>/<Name>' 形式、Harmony entity への参照はその entity 慣行に従う (screen-id / process-flow-id 等)。詳細 $ref schema は kind 別 schema で厳格化。"
+        },
+        "description": {
+          "type": "string",
+          "description": "関係の補足説明。"
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}
