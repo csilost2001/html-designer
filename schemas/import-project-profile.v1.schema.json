@@ -322,12 +322,12 @@
             "enum": [
               "screen",
               "processFlow",
-              "screenTransition",
               "table",
               "viewDefinition",
               "conventions",
               "genericDefinition"
-            ]
+            ],
+            "description": "生成対象 entity の標準集合。screenTransition は screen.json 内に inline で持つため独立 entity として扱わない (v3 廃止)。"
           }
         },
         "warningThresholds": {

@@ -175,7 +175,6 @@
     "generateEntities": [
       "screen",
       "processFlow",
-      "screenTransition",
       "table",
       "genericDefinition"
     ],

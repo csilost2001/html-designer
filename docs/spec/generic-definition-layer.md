@@ -46,7 +46,7 @@
 │ Layer 2: Generic Definition Catalog (新規)                       │
 │   既存 entity に自然に属さないものを汎用メタモデルで受ける       │
 │   8 kind: data-contract / domain-type / exception-type / ...    │
-│   配置: examples/<project>/generic-definitions/<kind>/*.json    │
+│   配置: examples/<project>/<dataDir>/generic-definitions/<kind>/*.json    │
 ├─────────────────────────────────────────────────────────────────┤
 │ Layer 3: AI 向け変換マニュアル + 生成 importer (新規)             │
 │   Harmony 側 = AI 向けマニュアル (entity 構造 / 落とし方 / audit /│
@@ -59,7 +59,7 @@
 
 ### 配置決定 (Q1-Q3 確定)
 
-- **Generic Definition Catalog**: 独立ディレクトリ `examples/<project>/generic-definitions/<kind>/*.json` を切る (Q1)。`extensions/` 機構には載せない (extensions = opt-in 拡張 / generic-definitions = project 全体の再利用資産、性格が異なる)
+- **Generic Definition Catalog**: 独立ディレクトリ `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` を切る (Q1)。`extensions/` 機構には載せない (extensions = opt-in 拡張 / generic-definitions = project 全体の再利用資産、性格が異なる)
 - **`ui-fragment` と PageLayout (#1021)**: page-level vs component-level で切る (Q2)。PageLayout = ページ全体の骨格 (header / sidebar / content slot / footer)、`ui-fragment` = ページ内 or 複数画面で使い回す部品 (メッセージ領域 / アップロード行 / ダイアログ本体)
 - **`process-flow-extensions.md` と Generic Definition Catalog**: 両者独立、ProcessFlow から `$ref` で generic-definitions を参照 (Q3)。process-flow-extensions = ProcessFlow 内側の step 拡張型、generic-definitions = project 全体の再利用資産
 
@@ -200,6 +200,12 @@ PageLayout "admin-layout"  ←  ページ全体の枠
   "targets": ["backend" | "frontend" | "shared" | "runtime"]
 }
 ```
+
+**設計指針: 言語非依存の本体 vs `mappingHints` の位置付け**:
+
+- **言語非依存の本体** (必須): `kind` / `name` / `purpose` / `responsibilities` / `fields` / `relations` / `constraints` / `targets`。設計書として保持すべき意味・責務・契約・制約を表現する
+- **`mappingHints` は完全 optional / advisory** (任意): 特定 techStack (Spring / Nest / Next 等) への codegen 時のヒント。設計書の本質ではなく **AI 生成側のチューニング材料**。本 spec の Spring/Nest/Next 例はあくまでサンプルで、Django / Rails / Vue 等への展開も自由
+- `mappingHints` が無くても **言語非依存の本体だけで設計意図は完結する** こと。逆に `mappingHints` だけで設計意図を表現するのは禁止 (本体に migrate する)
 
 ### 4.2 8 種類の kind
 
@@ -353,11 +359,11 @@ P0 内部の切り出し順序は **下層が上層に依存しない依存順**
 
 ## 10. 受け入れ条件 (本 ISSUE §受け入れ条件)
 
-- ☐ 既存の `screen` / `processFlow` / `table` / `viewDefinition` で表現しづらい設計情報を分類できること
-- ☐ 画面 binding / UI behavior / reusable contract / exception semantics の少なくとも 4 領域で、現行の欠落点と拡張方針を定義できること (§3 / §4)
-- ☐ 例外定義 / 汎用クラス定義 / アプリケーション設定 / UI 振る舞いの少なくとも 4 類型を Generic Definition Catalog 上で表現できること (§4.2)
-- ☐ 実装言語固有の構文に閉じないこと (§6 設計指針 §1, §6)
-- ☐ 「必須設計情報」と「AI 補完可の実装詳細」の境界をガイドとして定義すること (§6 設計指針 §5)
+- ☑ 既存の `screen` / `processFlow` / `table` / `viewDefinition` で表現しづらい設計情報を分類できること
+- ☑ 画面 binding / UI behavior / reusable contract / exception semantics の少なくとも 4 領域で、現行の欠落点と拡張方針を定義できること (§3 / §4)
+- ☑ 例外定義 / 汎用クラス定義 / アプリケーション設定 / UI 振る舞いの少なくとも 4 類型を Generic Definition Catalog 上で表現できること (§4.2)
+- ☑ 実装言語固有の構文に閉じないこと (§6 設計指針 §1, §6)
+- ☑ 「必須設計情報」と「AI 補完可の実装詳細」の境界をガイドとして定義すること (§6 設計指針 §5)
 
 ---
 
@@ -365,7 +371,7 @@ P0 内部の切り出し順序は **下層が上層に依存しない依存順**
 
 | # | 論点 | 決定 |
 |---|---|---|
-| Q1 | catalog 配置 | 独立ディレクトリ `examples/<project>/generic-definitions/<kind>/*.json` を切る |
+| Q1 | catalog 配置 | 独立ディレクトリ `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` を切る |
 | Q2 | PageLayout vs ui-fragment 境界 | Page-level vs Component-level で切る (PageLayout = 骨格、ui-fragment = 部品) |
 | Q3 | process-flow-extensions との統合 | 両者独立、ProcessFlow から `$ref` で generic-definitions を参照 |
 | Q4 | P0 schema 切り出し順序 | 親 schema → data-contract/domain-type → ScreenItem binding → Event UI effects |
