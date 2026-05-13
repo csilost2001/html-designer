@@ -2,7 +2,8 @@
  * #1081: #1076 AI 依頼 UX の smoke。
  *
  * 実 Codex 応答は環境依存のためここでは叩かない。UI smoke では
- * step / action / flow の context chip 経路と Codex 未接続時の graceful degrade を確認する。
+ * step / action / flow の context chip 経路を確認する。Codex 未接続時の
+ * graceful degrade は実 auth state に依存するため、認証済み環境では明示 skip する。
  * AI 応答後の diff preview / 部分採用は AiDiffPreviewDialog.test.tsx で stub 検証する。
  */
 import { test, expect, type Page } from "@playwright/test";
@@ -107,12 +108,11 @@ async function openEditor(page: Page) {
 }
 
 test.describe("ProcessFlow AI 依頼 UX (#1081)", { tag: ["@smoke"] }, () => {
-  test("step / action / flow の context chip と未接続時 degrade を確認する", async ({ page }) => {
+  test("step / action / flow の context chip を確認する", async ({ page }) => {
     await openEditor(page);
 
     const aiPanel = page.locator(".process-flow-ai-panel");
     await expect(aiPanel).toBeVisible();
-    await expect(aiPanel).toContainText("未接続", { timeout: 10000 });
 
     await page.locator(".step-card").first().locator(".step-card-ai-btn").click();
     await expect(aiPanel.locator(".process-flow-ai-chip").filter({ hasText: "S1: 親ステップ" })).toBeVisible();
@@ -122,6 +122,16 @@ test.describe("ProcessFlow AI 依頼 UX (#1081)", { tag: ["@smoke"] }, () => {
 
     await aiPanel.getByRole("button", { name: "フロー全体" }).click();
     await expect(aiPanel.locator(".process-flow-ai-chip").filter({ hasText: "AI UX Smoke" })).toBeVisible();
+  });
+
+  test("Codex 未接続時の graceful degrade を確認する", async ({ page }) => {
+    await openEditor(page);
+
+    const aiPanel = page.locator(".process-flow-ai-panel");
+    await expect(aiPanel).toBeVisible();
+    const statusText = (await aiPanel.locator(".process-flow-ai-panel-status").innerText()).trim();
+    test.skip(statusText === "接続済", "Codex 認証済み環境では未接続 degrade smoke をスキップ");
+    await expect(aiPanel).toContainText("未接続", { timeout: 10000 });
 
     const prompt = aiPanel.getByLabel("AI 依頼内容");
     await prompt.fill("このフローの不足項目を補完してください。");

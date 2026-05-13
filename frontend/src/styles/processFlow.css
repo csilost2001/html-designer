@@ -2501,11 +2501,6 @@
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 
-.process-flow-ai-panel--highlight {
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-  border-color: #3b82f6;
-}
-
 .process-flow-ai-panel-header {
   display: flex;
   align-items: center;
