@@ -183,7 +183,12 @@
         "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
         "defaultMessage": { "type": "string" },
         "responseId": { "$ref": "common.v3.schema.json#/$defs/LocalId", "description": "Action.responses[].id 参照。" },
-        "description": { "$ref": "common.v3.schema.json#/$defs/Description" }
+        "description": { "$ref": "common.v3.schema.json#/$defs/Description" },
+        "exceptionTypeRef": {
+          "type": "string",
+          "pattern": "^generic-definitions/exception-type/[A-Za-z][A-Za-z0-9_]*$",
+          "description": "Generic Definition Catalog の exception-type 参照 (#1066)。形式: 'generic-definitions/exception-type/<Name>'。errorCode が業務例外として上位レイヤへ伝達される際の意味論 (recoverable / non-recoverable, handling 方針) を catalog 側に保持する。"
+        }
       }
     },
 
@@ -527,12 +532,13 @@
     },
 
     "Step": {
-      "description": "Step union。kind プロパティで variant を識別。組み込み 23 variant + ExtensionStep の計 24 variant。ExtensionStep は kind にパターン (namespace:StepName) を取るため AJV `discriminator: true` の strict const 要件を満たさず、本 oneOf には discriminator keyword を付けない (#525 F-4 limitation)。Step.kind ミスマッチ時のエラー読みやすさは AJV `allErrors: true` + 上位 UI 側でフィルタ推奨。",
+      "description": "Step union。kind プロパティで variant を識別。組み込み 24 variant + ExtensionStep の計 25 variant。ExtensionStep は kind にパターン (namespace:StepName) を取るため AJV `discriminator: true` の strict const 要件を満たさず、本 oneOf には discriminator keyword を付けない (#525 F-4 limitation)。Step.kind ミスマッチ時のエラー読みやすさは AJV `allErrors: true` + 上位 UI 側でフィルタ推奨。",
       "oneOf": [
         { "$ref": "#/$defs/ValidationStep" },
         { "$ref": "#/$defs/DbAccessStep" },
         { "$ref": "#/$defs/ExternalSystemStep" },
         { "$ref": "#/$defs/CommonProcessStep" },
+        { "$ref": "#/$defs/ComponentCallStep" },
         { "$ref": "#/$defs/ScreenTransitionStep" },
         { "$ref": "#/$defs/DisplayUpdateStep" },
         { "$ref": "#/$defs/BranchStep" },
@@ -563,6 +569,7 @@
         { "$ref": "#/$defs/DbAccessStep" },
         { "$ref": "#/$defs/ExternalSystemStep" },
         { "$ref": "#/$defs/CommonProcessStep" },
+        { "$ref": "#/$defs/ComponentCallStep" },
         { "$ref": "#/$defs/ScreenTransitionStep" },
         { "$ref": "#/$defs/DisplayUpdateStep" },
         { "$ref": "#/$defs/BranchStep" },
@@ -628,7 +635,12 @@
         "lengthRef": { "type": "string", "description": "@conv.limit.<key> 参照 (length の代替)。loader が integer 値に展開する。" },
         "values": { "type": "array", "items": { "type": "string" } },
         "condition": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
-        "message": { "type": "string", "description": "違反メッセージ (@conv.msg.<key> 推奨)。" }
+        "message": { "type": "string", "description": "違反メッセージ (@conv.msg.<key> 推奨)。" },
+        "exceptionTypeRef": {
+          "type": "string",
+          "pattern": "^generic-definitions/exception-type/[A-Za-z][A-Za-z0-9_]*$",
+          "description": "Generic Definition Catalog の exception-type 参照 (#1066)。形式: 'generic-definitions/exception-type/<Name>'。severity='error' 時に違反を業務例外として throw する際の意味論を catalog から引く。"
+        }
       }
     },
 
@@ -1164,6 +1176,41 @@
           "properties": {
             "kind": { "const": "commonProcess" },
             "refId": { "$ref": "common.v3.schema.json#/$defs/Uuid", "description": "呼び出し先 ProcessFlow の Uuid (kind='common' の他フロー)。" },
+            "argumentMapping": {
+              "type": "object",
+              "additionalProperties": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },
+              "description": "呼び先 inputs 名 → 引数式の対応。"
+            },
+            "returnMapping": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "呼び先 outputs 名 → 説明 / バインド先の対応。"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "ComponentCallStep": {
+      "allOf": [
+        { "$ref": "#/$defs/StepBaseProps" },
+        {
+          "type": "object",
+          "required": ["id", "kind", "description", "componentRef"],
+          "properties": {
+            "kind": { "const": "componentCall" },
+            "componentRef": {
+              "type": "string",
+              "pattern": "^generic-definitions/component-definition/[A-Za-z][A-Za-z0-9_]*$",
+              "description": "Generic Definition Catalog の component-definition への参照 (#1066)。形式: 'generic-definitions/component-definition/<Name>'。"
+            },
+            "operation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "呼び出す operation 名 (component-definition の operations[].name と一致)。"
+            },
             "argumentMapping": {
               "type": "object",
               "additionalProperties": { "$ref": "common.v3.schema.json#/$defs/ExpressionString" },

@@ -102,6 +102,8 @@ export interface ErrorCatalogEntry {
   /** Action.responses[].id 参照。 */
   responseId?: LocalId;
   description?: Description;
+  /** Generic Definition Catalog の exception-type 参照 (#1066)。形式: 'generic-definitions/exception-type/<Name>'。 */
+  exceptionTypeRef?: string;
 }
 
 /** 外部システム認証定義 (旧 ENV: / SECRET: 形式は v3 廃止、@secret.<key> 推奨)。 */
@@ -182,6 +184,8 @@ export interface ValidationRule {
   condition?: ExpressionString;
   /** 違反メッセージ (`@conv.msg.<key>` 推奨)。 */
   message?: string;
+  /** Generic Definition Catalog の exception-type 参照 (#1066)。形式: 'generic-definitions/exception-type/<Name>'。severity='error' 時に違反を業務例外として throw する際の意味論を catalog から引く。 */
+  exceptionTypeRef?: string;
 }
 
 /** ドメイン型 catalog エントリ。 */
@@ -577,6 +581,20 @@ export interface CommonProcessStep extends StepBaseProps {
   returnMapping?: Record<string, string>;
 }
 
+/** ProcessFlow 内で Generic Definition Catalog の component-definition を呼び出す step (#1066)。 */
+export interface ComponentCallStep extends StepBaseProps {
+  kind: "componentCall";
+  description: Description;
+  /** Generic Definition Catalog の component-definition への参照 (例: "generic-definitions/component-definition/OrderValidator")。 */
+  componentRef: string;
+  /** 呼び出す operation 名 (component-definition の operations[].name と一致)。 */
+  operation?: string;
+  /** 呼び先 inputs 名 → 引数式の対応。 */
+  argumentMapping?: Record<string, ExpressionString>;
+  /** 呼び先 outputs 名 → 説明 / バインド先の対応。 */
+  returnMapping?: Record<string, string>;
+}
+
 export interface ScreenTransitionStep extends StepBaseProps {
   kind: "screenTransition";
   description: Description;
@@ -865,6 +883,7 @@ export type Step =
   | DbAccessStep
   | ExternalSystemStep
   | CommonProcessStep
+  | ComponentCallStep
   | ScreenTransitionStep
   | DisplayUpdateStep
   | BranchStep
