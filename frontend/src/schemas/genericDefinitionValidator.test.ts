@@ -204,4 +204,35 @@ describe("validateGenericDefinition", () => {
       expect(errors.length).toBeGreaterThan(0);
     });
   });
+
+  describe("path 整形 (S-2 regression)", () => {
+    it("トップレベル必須フィールド欠落の path は missingProperty を返す (instancePath が空のため)", () => {
+      // purpose を完全に削除 (空文字ではなく key 自体を削る) すると AJV は
+      // instancePath="" + params.missingProperty="purpose" で報告する
+      const { purpose: _purpose, ...rest } = validDataContract;
+      void _purpose;
+      const def = rest as unknown as GenericDefinition;
+      const issues = validateGenericDefinition(def);
+      const requiredError = issues.find((i) => i.message.includes("purpose"));
+      expect(requiredError).toBeDefined();
+      // path が "(root)" ではなく "purpose" になっていることを確認 (Editor の section
+      // 振り分けで「基本情報」セクションに正しく分類されるため)
+      expect(requiredError?.path).toBe("purpose");
+    });
+
+    it("配列要素の必須フィールド欠落の path は要素 path + missingProperty", () => {
+      // fields[0] から name を削るパターン
+      const def: GenericDefinition = {
+        ...validDataContract,
+        fields: [{ type: "string" } as unknown as { name: string; type: string }],
+      };
+      const issues = validateGenericDefinition(def);
+      const requiredError = issues.find(
+        (i) => i.path.startsWith("fields") && i.message.includes("name"),
+      );
+      expect(requiredError).toBeDefined();
+      // "fields[0].name" 形式が期待
+      expect(requiredError?.path).toBe("fields[0].name");
+    });
+  });
 });

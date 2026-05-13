@@ -88,6 +88,12 @@ export function GenericDefinitionListView() {
     loadItems();
   }, [loadItems]);
 
+  // S-1 fix: kind 切替時に旧 kind の validationMap を破棄 (タブ切替で同 name の別 kind 定義に
+  // 旧バッジが残るのを防ぐ)
+  useEffect(() => {
+    setValidationMap(new Map());
+  }, [kind]);
+
   useEffect(() => {
     if (!kind) return;
     return mcpBridge.onBroadcast("genericDefinitionChanged", (data) => {

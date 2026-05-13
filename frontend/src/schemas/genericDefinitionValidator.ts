@@ -75,14 +75,36 @@ function getValidators(): ValidatorMap {
 /**
  * AJV の instancePath を人間が読みやすい path 文字列に変換する。
  * "/fields/0/name" → "fields[0].name"
+ *
+ * S-2 fix: AJV の `required` keyword は instancePath="" + params.missingProperty で
+ * 親オブジェクト上の欠落を報告するため、Editor の section 単位 issue 表示で
+ * prefix 一致しない問題があった。`required` の場合は missingProperty を path として返し、
+ * 該当 section にひも付くようにする。
  */
-function instancePathToReadable(instancePath: string): string {
-  if (!instancePath || instancePath === "/") return "(root)";
-  return instancePath
+function instancePathToReadable(
+  instancePath: string,
+  keyword?: string,
+  params?: Record<string, unknown>,
+): string {
+  if (!instancePath || instancePath === "/") {
+    if (keyword === "required") {
+      const missingProp = params?.["missingProperty"] as string | undefined;
+      if (missingProp) return missingProp;
+    }
+    return "(root)";
+  }
+  const readable = instancePath
     .replace(/^\//, "")
     .replace(/\/(\d+)\//g, "[$1].")
     .replace(/\/(\d+)$/, "[$1]")
     .replace(/\//g, ".");
+  // 配列要素以下で発生した required は section 振り分けのため要素 path も維持しつつ
+  // missingProperty を付与する (例: "fields[0].name" は instancePath="/fields/0" + missing="name")
+  if (keyword === "required") {
+    const missingProp = params?.["missingProperty"] as string | undefined;
+    if (missingProp) return `${readable}.${missingProp}`;
+  }
+  return readable;
 }
 
 /**
@@ -156,7 +178,11 @@ export function validateGenericDefinition(def: GenericDefinition): GenericDefini
   if (!valid) {
     const errors = validateFn.errors ?? [];
     for (const err of errors) {
-      const path = instancePathToReadable(err.instancePath ?? "");
+      const path = instancePathToReadable(
+        err.instancePath ?? "",
+        err.keyword,
+        (err.params ?? {}) as Record<string, unknown>,
+      );
       const message = buildMessage(
         err.keyword ?? "",
         (err.params ?? {}) as Record<string, unknown>,
