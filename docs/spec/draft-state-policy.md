@@ -135,6 +135,19 @@ ProcessFlow は既存の `aggregateValidation` を直接利用する。ProcessFl
 - [ ] schema と手書き validation の severity 不一致がある場合は、意図的な差分として PR に説明する
 - [ ] AJV は実行時 UI ではなく test layer の schema 検証として使う
 
+### 6.1 適用状況
+
+新しいリソース種別が本ポリシーをどこまで実装済みかを示す。
+
+| リソース | validator | ListView Badge | Editor 警告 | MaturityBadge | 完了 PR |
+|---|---|---|---|---|---|
+| View | ✓ | ✓ | ✓ | ✓ | #585 |
+| Table | ✓ | ✓ | ✓ | ✓ | #586 |
+| ProcessFlow | ✓ | ✓ | ✓ | ✓ | (#1073 含む各 PR) |
+| Generic Definition (8 kind) | ✓ | ✓ | ✓ | N/A* | #1079 |
+
+\* Generic Definition の親 schema (`schemas/v3/generic-definition.v3.schema.json`) に `maturity` field が存在しないため、MaturityBadge は適用不可。schema governance (#511) の対象であり、追加が必要な場合は別 ISSUE を起票して設計者承認を得ること。
+
 ## 7. AJV adoption decision
 
 ### 7.1 選択肢
