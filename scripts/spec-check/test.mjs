@@ -58,7 +58,7 @@ console.log("\n## extract-step-required.mjs (full snapshot)");
   if (error) console.log(`  (spawn error: ${error.message})`);
   if (signal) console.log(`  (signal: ${signal})`);
   assert("exits 0", status === 0);
-  assert("Total: 24 step kinds output", /Total: 24 step kinds/.test(stdout));
+  assert("Total: 25 step kinds output", /Total: 25 step kinds/.test(stdout));
   assert("no `?` placeholder", !/^- `\?`/m.test(stdout), "kind 未解決の variant が残存");
 
   // schema から動的に 24 step variant の (kind, required - [id,kind,description]) を抽出
@@ -465,7 +465,7 @@ console.log("\n## generic-definition.v3.schema.json (AJV strict)");
 //     各 kind-specific schema は親 schema を allOf 継承し kind を const に固定。
 //     retail walk を kind 別 dispatch に改修して silent pass を防ぐ。
 // =============================================================================
-console.log("\n## kind-specific schema AJV strict gate (data-contract / domain-type, #1064)");
+console.log("\n## kind-specific schema AJV strict gate (data-contract / domain-type / exception-type, #1064 / #1066)");
 {
   const { default: Ajv2020 } = await import("ajv/dist/2020.js");
   const { default: addFormats } = await import("ajv-formats");
@@ -481,9 +481,11 @@ console.log("\n## kind-specific schema AJV strict gate (data-contract / domain-t
 
   const dcSchema = JSON.parse(readFileSync(join(ROOT, "schemas/v3/generic-definitions/data-contract.v3.schema.json"), "utf8"));
   const dtSchema = JSON.parse(readFileSync(join(ROOT, "schemas/v3/generic-definitions/domain-type.v3.schema.json"), "utf8"));
+  const etSchema = JSON.parse(readFileSync(join(ROOT, "schemas/v3/generic-definitions/exception-type.v3.schema.json"), "utf8"));
 
   const validateDataContract = ajv.compile(dcSchema);
   const validateDomainType = ajv.compile(dtSchema);
+  const validateExceptionType = ajv.compile(etSchema);
 
   // --- data-contract cases ---
   const dcCases = [
@@ -603,6 +605,92 @@ console.log("\n## kind-specific schema AJV strict gate (data-contract / domain-t
     }
   }
 
+  // --- exception-type cases ---
+  const etCases = [
+    {
+      name: "exception-type: minimum valid",
+      valid: true,
+      data: {
+        kind: "exception-type",
+        name: "StockInsufficientError",
+        purpose: "在庫不足エラー",
+        responsibilities: ["在庫不足を呼び出し側に伝える"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "exception-type: kind 不一致 (data-contract) rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "OrderForm",
+        purpose: "注文フォーム DTO",
+        responsibilities: ["入力保持"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "exception-type: purpose 欠落 rejected",
+      valid: false,
+      data: {
+        kind: "exception-type",
+        name: "NoPurpose",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "exception-type: name pattern violation (starts with digit) rejected",
+      valid: false,
+      data: {
+        kind: "exception-type",
+        name: "1Invalid",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+  ];
+
+  for (const c of etCases) {
+    const ok = validateExceptionType(c.data);
+    if (c.valid) {
+      const detail = ok
+        ? ""
+        : (validateExceptionType.errors || []).slice(0, 3).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ");
+      assert(`✓ et valid: ${c.name}`, ok, detail);
+    } else {
+      assert(`✗ et invalid rejected: ${c.name}`, !ok);
+    }
+  }
+
+  // --- bidirectional sabotage: parent schema から exception-type を削除した copy で validate → fail ---
+  // [[feedback_drift_gate_bidirectional_sabotage]]: parent schema から exception-type を消した
+  // copy で kind-specific schema 側だけ validate → fail を確認 (片方向 only では sabotage 検出不可)
+  {
+    const gdSchemaCopy = JSON.parse(JSON.stringify(gdSchema));
+    // GenericDefinitionKind.enum から exception-type を除去
+    const kindEnum = gdSchemaCopy.$defs?.GenericDefinitionKind?.enum;
+    if (kindEnum && Array.isArray(kindEnum)) {
+      gdSchemaCopy.$defs.GenericDefinitionKind.enum = kindEnum.filter((k) => k !== "exception-type");
+    }
+    const ajv2 = new Ajv2020({ strict: false, allErrors: true });
+    addFormats(ajv2);
+    ajv2.addSchema(commonSchema);
+    ajv2.addSchema(gdSchemaCopy, "../generic-definition.v3.schema.json");
+    const etSchemaCopy = JSON.parse(JSON.stringify(etSchema));
+    const validateEt2 = ajv2.compile(etSchemaCopy);
+    const validData = {
+      kind: "exception-type",
+      name: "StockInsufficientError",
+      purpose: "在庫不足エラー",
+      responsibilities: ["在庫不足を呼び出し側に伝える"],
+      targets: ["backend"],
+    };
+    const sabotageOk = validateEt2(validData);
+    assert("bidirectional sabotage: exception-type removed from parent → kind-specific schema rejects", !sabotageOk);
+  }
+
   // --- retail walk: kind 別 dispatch ---
   // ファイル path から kind を抽出して kind 別 schema で validate する。
   // 未知の kind は silent pass を防ぐため fail させる。
@@ -619,10 +707,11 @@ console.log("\n## kind-specific schema AJV strict gate (data-contract / domain-t
       return out;
     }
 
-    // kind → validator map (本 PR 対象の 2 kind)
+    // kind → validator map (data-contract / domain-type #1064、exception-type #1066)
     const kindValidators = {
       "data-contract": validateDataContract,
       "domain-type": validateDomainType,
+      "exception-type": validateExceptionType,
     };
 
     const sampleFiles2 = walk2(retailGdRoot2);
@@ -1000,6 +1089,166 @@ console.log("\n## migrate-binding-v1-to-structured.mjs fixture test (#1065)");
 }
 
 // =============================================================================
+// 3f. process-flow.v3.schema.json componentCall / exceptionTypeRef AJV gate (#1066)
+//     ComponentCallStep (positive / negative 4 種) +
+//     ErrorCatalogEntry.exceptionTypeRef (positive / negative) +
+//     ValidationRule.exceptionTypeRef (positive / negative)
+// =============================================================================
+console.log("\n## process-flow.v3.schema.json componentCall / exceptionTypeRef strict gate (#1066)");
+{
+  const { default: Ajv2020 } = await import("ajv/dist/2020.js");
+  const { default: addFormats } = await import("ajv-formats");
+  const ajv3f = new Ajv2020({ strict: false, allErrors: true });
+  addFormats(ajv3f);
+  const commonSchema3f = JSON.parse(readFileSync(join(ROOT, "schemas/v3/common.v3.schema.json"), "utf8"));
+  const pfSchema = JSON.parse(readFileSync(join(ROOT, "schemas/v3/process-flow.v3.schema.json"), "utf8"));
+  ajv3f.addSchema(commonSchema3f);
+  const validatePf = ajv3f.compile(pfSchema);
+
+  // ── ComponentCallStep cases ───────────────────────────────────────────
+  // 共通の最小 ProcessFlow wrapper (actions[].steps[] に step を埋め込む)
+  function wrapStep(step) {
+    return {
+      $schema: "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/process-flow.v3.schema.json",
+      meta: {
+        id: "ffffffff-0001-4000-8000-000000000001",
+        name: "テストフロー",
+        kind: "screen",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      actions: [
+        {
+          id: "act-001",
+          name: "テストアクション",
+          trigger: "submit",
+          steps: [step],
+        },
+      ],
+    };
+  }
+
+  function assertPf(name, data, expectValid) {
+    const ok = validatePf(data);
+    if (expectValid) {
+      const detail = ok
+        ? ""
+        : (validatePf.errors || []).slice(0, 3).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ");
+      assert(`✓ pf valid: ${name}`, ok, detail);
+    } else {
+      assert(`✗ pf invalid rejected: ${name}`, !ok);
+    }
+  }
+
+  // positive: 必須 4 field 揃った componentCall
+  assertPf("componentCall positive (minimal)", wrapStep({
+    id: "step-01",
+    kind: "componentCall",
+    description: "OrderValidator コンポーネント呼び出し",
+    componentRef: "generic-definitions/component-definition/OrderValidator",
+  }), true);
+
+  // positive: all fields
+  assertPf("componentCall positive (all fields)", wrapStep({
+    id: "step-01",
+    kind: "componentCall",
+    description: "OrderValidator コンポーネント呼び出し",
+    componentRef: "generic-definitions/component-definition/OrderValidator",
+    operation: "validate",
+    argumentMapping: { "order": "@inputs.order" },
+    returnMapping: { "errors": "validationErrors" },
+  }), true);
+
+  // negative: componentRef pattern violation (must start with generic-definitions/component-definition/)
+  assertPf("componentCall negative (componentRef pattern violation)", wrapStep({
+    id: "step-01",
+    kind: "componentCall",
+    description: "不正 ref",
+    componentRef: "validators/customer-input-validator",
+  }), false);
+
+  // negative: operation 過大長 (> 64 chars)
+  assertPf("componentCall negative (operation over maxLength)", wrapStep({
+    id: "step-01",
+    kind: "componentCall",
+    description: "operation 超過",
+    componentRef: "generic-definitions/component-definition/OrderValidator",
+    operation: "a".repeat(65),
+  }), false);
+
+  // negative: unevaluatedProperties violation (extra field)
+  assertPf("componentCall negative (unevaluatedProperties extra field)", wrapStep({
+    id: "step-01",
+    kind: "componentCall",
+    description: "extra field",
+    componentRef: "generic-definitions/component-definition/OrderValidator",
+    extraField: "should-be-rejected",
+  }), false);
+
+  // negative: componentRef 欠落 (required violation)
+  assertPf("componentCall negative (componentRef missing)", wrapStep({
+    id: "step-01",
+    kind: "componentCall",
+    description: "componentRef 欠落",
+  }), false);
+
+  // ── ErrorCatalogEntry.exceptionTypeRef cases ──────────────────────────
+  function wrapErrorCatalog(exceptionTypeRef) {
+    return {
+      $schema: "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/process-flow.v3.schema.json",
+      meta: {
+        id: "ffffffff-0001-4000-8000-000000000002",
+        name: "エラーカタログテスト",
+        kind: "screen",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      context: {
+        catalogs: {
+          errors: {
+            STOCK_INSUFFICIENT: {
+              httpStatus: 409,
+              defaultMessage: "在庫不足",
+              exceptionTypeRef,
+            },
+          },
+        },
+      },
+      actions: [],
+    };
+  }
+
+  // positive: valid exceptionTypeRef
+  assertPf("ErrorCatalogEntry.exceptionTypeRef positive", wrapErrorCatalog("generic-definitions/exception-type/StockInsufficientError"), true);
+
+  // negative: pattern violation (invalid prefix)
+  assertPf("ErrorCatalogEntry.exceptionTypeRef negative (pattern violation)", wrapErrorCatalog("exception-types/StockInsufficientError"), false);
+
+  // ── ValidationRule.exceptionTypeRef cases ────────────────────────────
+  function wrapValidationRule(exceptionTypeRef) {
+    return wrapStep({
+      id: "step-01",
+      kind: "validation",
+      description: "入力検証",
+      rules: [
+        {
+          field: "quantity",
+          type: "range",
+          min: 1,
+          exceptionTypeRef,
+        },
+      ],
+    });
+  }
+
+  // positive: valid exceptionTypeRef in ValidationRule
+  assertPf("ValidationRule.exceptionTypeRef positive", wrapValidationRule("generic-definitions/exception-type/ValidationException"), true);
+
+  // negative: pattern violation in ValidationRule
+  assertPf("ValidationRule.exceptionTypeRef negative (pattern violation)", wrapValidationRule("exception-type/ValidationException"), false);
+}
+
+// =============================================================================
 // 4. spec doc 本体を input にした gate (Round 11 review M-1/M-2/M-3 対応)
 //    Round 11 で指摘された「test.mjs が spec doc を一切読まない → cheatsheet /
 //    jsonc fence / ✅ JSON 例の drift が CI gate を素通り」を解消する。
@@ -1094,7 +1343,7 @@ console.log("\n## ✅ 例 AJV validation against schemas/v3/");
 console.log("\n## §3.3 cheatsheet rows vs schema required (drift gate)");
 {
   const cheatsheet = parseStepCheatsheet(specDoc);
-  assert("cheatsheet has 24 step kind rows", cheatsheet.size === 24, `actual=${cheatsheet.size}`);
+  assert("cheatsheet has 25 step kind rows", cheatsheet.size === 25, `actual=${cheatsheet.size}`);
 
   const BASE = new Set(["id", "kind", "description"]);
   const stepUnion = $defs.Step.oneOf.map((r) => r.$ref.replace("#/$defs/", ""));
