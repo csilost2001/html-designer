@@ -11,6 +11,12 @@ interface AiRequestPanelProps {
   isConnected?: boolean;
   /** ref を通じて外部からフォーカス/ハイライトできるようにする */
   panelRef?: React.RefObject<HTMLDivElement | null>;
+  /** アクション単位のコンテキスト追加 (#1076 受け入れ条件) */
+  onAddActionContext?: () => void;
+  /** フロー全体のコンテキスト追加 (#1076 受け入れ条件) */
+  onAddFlowContext?: () => void;
+  /** アクション追加ボタンのラベル (現アクション名) */
+  actionLabel?: string;
 }
 
 const PROMPT_TEMPLATES = [
@@ -31,6 +37,9 @@ export function AiRequestPanel({
   error,
   isConnected = false,
   panelRef,
+  onAddActionContext,
+  onAddFlowContext,
+  actionLabel,
 }: AiRequestPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [highlighted, setHighlighted] = useState(false);
@@ -109,6 +118,36 @@ export function AiRequestPanel({
           >
             すべてクリア
           </button>
+        </div>
+      )}
+
+      {/* コンテキスト追加導線 (アクション / フロー全体) */}
+      {(onAddActionContext || onAddFlowContext) && (
+        <div className="process-flow-ai-context-actions">
+          {onAddActionContext && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={onAddActionContext}
+              disabled={busy}
+              title={actionLabel ? `アクション「${actionLabel}」全体をコンテキストに追加` : "アクション全体をコンテキストに追加"}
+            >
+              <i className="bi bi-play-circle" />
+              アクション全体
+            </button>
+          )}
+          {onAddFlowContext && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={onAddFlowContext}
+              disabled={busy}
+              title="フロー全体をコンテキストに追加"
+            >
+              <i className="bi bi-diagram-3" />
+              フロー全体
+            </button>
+          )}
         </div>
       )}
 

@@ -1441,6 +1441,15 @@ export function ProcessFlowEditor() {
                     error={aiRequestError}
                     isConnected={isCodexConnected}
                     panelRef={aiPanelRef}
+                    actionLabel={activeAction?.name}
+                    onAddActionContext={activeAction ? () => {
+                      aiChips.addActionChip(String(activeAction.id), activeAction.name, activeAction);
+                    } : undefined}
+                    onAddFlowContext={group ? () => {
+                      const flowName = group.meta?.name ?? "処理フロー";
+                      const flowId = processFlowId ?? "flow";
+                      aiChips.addFlowChip(flowId, flowName, group);
+                    } : undefined}
                   />
                 </div>
                 <ActionMetaTabBar
@@ -1577,7 +1586,6 @@ export function ProcessFlowEditor() {
               >
                 <i className="bi bi-diagram-2" /> サブステップ追加 ▶
               </button>
-              <div className="step-context-menu-sep" />
               <div className="step-context-menu-sep" />
               <button
                 className="step-context-menu-item"

@@ -2614,6 +2614,20 @@
   flex-shrink: 0;
 }
 
+/* Context add buttons (action / flow) */
+
+.process-flow-ai-context-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.process-flow-ai-context-actions .btn {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+}
+
 /* Templates / Textarea / Footer */
 
 .process-flow-ai-templates select {
