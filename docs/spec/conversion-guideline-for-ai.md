@@ -1051,6 +1051,27 @@ MD が継続更新される / ファイルが多い場合は、project 固有 `s
 
 ### 7.2 TS scaffold テンプレート
 
+本節の scaffold は **project 側** (例: `<project>/scripts/import/`) にコピーして使う想定。Harmony 本リポの devDependency ではなく、project の `package.json` 側で次に挙げる依存を install する必要がある。
+
+**必須 dependency** (`<project>/package.json` 側に追加):
+
+```bash
+cd <project>
+npm install --save glob markdown-it
+npm install --save-dev typescript @types/node @types/markdown-it
+```
+
+| package | 用途 | 該当 fence |
+|---|---|---|
+| `glob` | `step1-inventory.ts` の MD 列挙 | L1175 周辺 |
+| `markdown-it` | `step1-inventory.ts` の heading パース | L1178 周辺 |
+| `@types/markdown-it` | strict TS で `Token` 型 / reduce callback の implicit any 解消 | 同上 |
+| `typescript` / `@types/node` | `readFileSync` / `statSync` / `join` の型解決 + tsc | L1078 / L1175 周辺 |
+
+これらが project の `package.json` に入っていないと、scaffold は **syntax gate (本リポ `npm run test:spec-check`) は通過するが、`<project>` で `tsc` / `node` 実行時に `Cannot find module 'glob'` / `Cannot find module 'markdown-it'` で落ちる**。**Harmony 本リポの `package.json` には追加しない** こと (本リポは scaffold を syntax-only で検証するだけで、scaffold 自体を実行しないため)。
+
+scaffold をコピーしたら `<project>` 直下で上記 `npm install` を 1 度実行する。
+
 **ディレクトリ構造** (10 ステップ全部に対応するファイルを 1 対 1 で持つ):
 ```
 scripts/import/
@@ -1176,6 +1197,7 @@ import { glob } from "glob";
 import { readFileSync, statSync } from "fs";
 import { join } from "path";
 import MarkdownIt from "markdown-it";
+import type Token from "markdown-it/lib/token";
 
 const md = new MarkdownIt();
 
@@ -1202,7 +1224,8 @@ export async function runInventory(profile: any): Promise<InventoryEntry[]> {
       // 本文は entry に保持せず、heading だけ抽出して残す (多数 MD ファイル時のメモリ対策)
       const content = readFileSync(absolutePath, "utf8");
       const tokens = md.parse(content, {});
-      const headings = tokens.reduce<string[]>((acc, t, i) => {
+      // 型注釈を明示 (strict TS で implicit any 回避、@types/markdown-it 必須)
+      const headings = tokens.reduce<string[]>((acc: string[], t: Token, i: number) => {
         if (t.type === "heading_open") {
           const inline = tokens[i + 1]?.content;
           if (inline) acc.push(inline);
