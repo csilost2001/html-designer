@@ -141,7 +141,11 @@ export async function requestProcessFlowPartial({
     screenId: current.meta.screenId ?? proposed.meta.screenId,
     kind: proposed.meta.kind ?? current.meta.kind,
   };
-  proposed.authoring = proposed.authoring ?? current.authoring;
+  // markers はユーザ/システム生成リソースで AI 提案では消さない (S-1 fix、独立レビュー指摘)
+  proposed.authoring = {
+    ...(proposed.authoring ?? {}),
+    markers: current.authoring?.markers ?? proposed.authoring?.markers ?? [],
+  };
 
   return { proposed };
 }

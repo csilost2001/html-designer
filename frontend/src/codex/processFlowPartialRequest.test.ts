@@ -227,4 +227,26 @@ describe("requestProcessFlowPartial", () => {
     });
     expect(result.proposed.meta.name).toBe("フロー");
   });
+
+  it("preserves existing authoring.markers even when AI returns empty markers (S-1 regression)", async () => {
+    // 独立レビュー指摘 S-1: AI が `authoring: { markers: [] }` を返してきた場合でも
+    // 既存のユーザ/システム生成マーカーを silently 失わないことを保証する
+    const generated = {
+      meta: { id: "flow-1", name: "フロー", kind: "screen", maturity: "draft" },
+      actions: [],
+      authoring: { markers: [] },
+    };
+    const { client } = authenticatedClientWithText(JSON.stringify(generated));
+
+    const result = await requestProcessFlowPartial({
+      client,
+      current: baseFlow(),
+      contextString: "",
+      prompt: "marker 保存テスト",
+    });
+
+    expect(result.proposed.authoring?.markers).toHaveLength(1);
+    expect(result.proposed.authoring?.markers?.[0]?.id).toBe("marker-1");
+    expect(result.proposed.authoring?.markers?.[0]?.body).toBe("既存マーカー");
+  });
 });
