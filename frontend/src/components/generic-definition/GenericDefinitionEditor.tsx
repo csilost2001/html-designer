@@ -19,6 +19,11 @@ import {
   saveGenericDefinition,
   deleteGenericDefinition,
 } from "../../store/genericDefinitionStore";
+import {
+  validateGenericDefinition,
+  type GenericDefinitionIssue,
+} from "../../schemas/genericDefinitionValidator";
+import { ValidationBadge } from "../common/ValidationBadge";
 import { makeTabId, openTab } from "../../store/tabStore";
 
 function isValidKind(k: string): k is GenericDefinitionKind {
@@ -53,6 +58,7 @@ export function GenericDefinitionEditor() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [issues, setIssues] = useState<GenericDefinitionIssue[]>([]);
 
   useEffect(() => {
     if (!kind || !decodedName) return;
@@ -85,6 +91,15 @@ export function GenericDefinitionEditor() {
       })
       .finally(() => setLoading(false));
   }, [kind, decodedName]);
+
+  // def 変更時に AJV バリデーションを実行
+  useEffect(() => {
+    if (!def) {
+      setIssues([]);
+      return;
+    }
+    setIssues(validateGenericDefinition(def));
+  }, [def]);
 
   const updateDef = useCallback((updater: (prev: GenericDefinition) => GenericDefinition) => {
     setDef((prev) => prev ? updater(prev) : prev);
@@ -142,6 +157,46 @@ export function GenericDefinitionEditor() {
   const relations = def.relations ?? [];
   const constraints = def.constraints ?? [];
 
+  /**
+   * section に紐付く issues を path prefix でフィルタして表示するヘルパー
+   */
+  function renderSectionIssues(pathPrefixes: string[]) {
+    const sectionIssues = issues.filter((iss) =>
+      pathPrefixes.some((prefix) => iss.path === prefix || iss.path.startsWith(prefix + "[") || iss.path.startsWith(prefix + ".")),
+    );
+    if (sectionIssues.length === 0) return null;
+    return (
+      <div style={{ marginBottom: "8px" }}>
+        {sectionIssues.map((iss, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "6px",
+              fontSize: "0.82rem",
+              color: iss.severity === "error" ? "#dc2626" : "#d97706",
+              background: iss.severity === "error" ? "#fef2f2" : "#fffbeb",
+              border: `1px solid ${iss.severity === "error" ? "#fecaca" : "#fde68a"}`,
+              borderRadius: "4px",
+              padding: "4px 8px",
+              marginBottom: "4px",
+            }}
+          >
+            <i
+              className={`bi ${iss.severity === "error" ? "bi-x-circle-fill" : "bi-exclamation-triangle-fill"}`}
+              style={{ flexShrink: 0, marginTop: "1px" }}
+            />
+            <span>
+              <span style={{ fontFamily: "monospace", marginRight: "4px" }}>[{iss.path}]</span>
+              {iss.message}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "12px 24px", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: "12px" }}>
@@ -149,7 +204,13 @@ export function GenericDefinitionEditor() {
           {GENERIC_DEFINITION_KIND_LABELS[kind]}編集
         </h2>
         <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#0d6efd" }}>{def.name}</span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
+          {issues.length > 0 && (
+            <span style={{ display: "inline-flex", gap: "4px", marginRight: "4px" }}>
+              <ValidationBadge severity="error" count={issues.filter((i) => i.severity === "error").length} />
+              <ValidationBadge severity="warning" count={issues.filter((i) => i.severity === "warning").length} />
+            </span>
+          )}
           <button
             className="btn btn-outline-danger btn-sm"
             onClick={() => setShowDeleteConfirm(true)}
@@ -186,7 +247,8 @@ export function GenericDefinitionEditor() {
 
       <div style={{ flex: 1, overflow: "auto", padding: "16px 24px" }}>
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>基本情報</h3>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>基本情報</h3>
+          {renderSectionIssues(["purpose", "name", "kind"])}
           <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "10px 16px", alignItems: "start", maxWidth: "700px" }}>
             <label style={labelStyle}>名前</label>
             <input
@@ -224,11 +286,12 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>
             責務
             <span style={{ color: "#c00" }}> *</span>
             <span style={{ fontSize: "0.8rem", color: "#888", fontWeight: "normal", marginLeft: "8px" }}>最低 1 件</span>
           </h3>
+          {renderSectionIssues(["responsibilities"])}
           {def.responsibilities.map((r, i) => (
             <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
               <textarea
@@ -260,10 +323,11 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>
             適用領域
             <span style={{ color: "#c00" }}> *</span>
           </h3>
+          {renderSectionIssues(["targets"])}
           <div style={{ display: "flex", gap: "16px" }}>
             {GENERIC_DEFINITION_TARGETS.map((t) => (
               <label key={t} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.88rem", cursor: "pointer" }}>
@@ -284,7 +348,8 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>フィールド</h3>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>フィールド</h3>
+          {renderSectionIssues(["fields"])}
           {fields.length > 0 && (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", marginBottom: "8px" }}>
               <thead>
@@ -370,7 +435,8 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>オペレーション</h3>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>オペレーション</h3>
+          {renderSectionIssues(["operations"])}
           {operations.length > 0 && (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", marginBottom: "8px" }}>
               <thead>
@@ -430,7 +496,8 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>リレーション</h3>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>リレーション</h3>
+          {renderSectionIssues(["relations"])}
           {relations.length > 0 && (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", marginBottom: "8px" }}>
               <thead>
@@ -505,7 +572,8 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>制約</h3>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>制約</h3>
+          {renderSectionIssues(["constraints"])}
           {constraints.map((c, i) => (
             <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
               <textarea
@@ -536,12 +604,13 @@ export function GenericDefinitionEditor() {
         </section>
 
         <section style={{ marginBottom: "24px" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "8px" }}>
+          <h3 style={{ fontSize: "1rem", marginBottom: "4px" }}>
             マッピングヒント (mappingHints)
             <span style={{ fontSize: "0.8rem", color: "#888", fontWeight: "normal", marginLeft: "8px" }}>
               JSON 形式。コード生成 AI 向けのヒント情報
             </span>
           </h3>
+          {renderSectionIssues(["mappingHints"])}
           <textarea
             value={def.mappingHints ? JSON.stringify(def.mappingHints, null, 2) : ""}
             onChange={(e) => {
