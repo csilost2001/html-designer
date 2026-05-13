@@ -38,6 +38,7 @@ WSL2 native と並行で **Dev Containers モード**も使える (`.devcontaine
 - **`/rename-screen-ids`** — AI 推論による画面項目 ID 再命名 (`.claude/skills/rename-screen-ids/SKILL.md`)
 - **`/generate-code <flowId|screenId> [出力先]`** — project.techStack に基づき ProcessFlow → backend code / Screen → frontend code を生成。Spring Boot/Thymeleaf 系と NestJS/Next.js 系の 2 種類の techStack 組合せをカバー (`.claude/skills/generate-code/SKILL.md`)
 - **`/generate-tests <flowId|screenId> [出力先]`** — ProcessFlow → backend e2e test (jest+supertest) / Screen → component test (vitest+testing-library) / multi-screen → playwright E2E / AI flow → mock+実 API 切替テストを spec から機械導出。`/generate-code` の対 (`.claude/skills/generate-tests/SKILL.md`)
+- **`/import-md <project ディレクトリ>`** — Project の Markdown 設計書を Harmony JSON (screen / processFlow / table / generic-definitions/*) に変換。少数 MD は 1 回限り変換、継続更新ある場合は `<project>/scripts/import/*.ts` を生成。実体は [`docs/spec/conversion-guideline-for-ai.md`](docs/spec/conversion-guideline-for-ai.md) (#1060) (`.claude/skills/import-md/SKILL.md`)
 
 Codex CLI 利用時はこれらのスキルは直接呼び出せません。等価機能は Codex plugin の `/codex:review` 等で代替するか、Opus が briefing で代替指示を出します。
 

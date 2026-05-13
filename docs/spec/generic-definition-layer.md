@@ -1,9 +1,11 @@
 # 汎用設計定義レイヤー (Generic Definition Layer)
 
-**Status**: 🟡 **draft v0.1 (RFC)** — schema 即時固定化を伴わない整理段階
+**Status**: 🟡 **draft v0.2 (RFC)** — schema 即時固定化を伴わない整理段階 / Q1-Q11 決定反映 (2026-05-13)
 **起票 ISSUE**: #1060
 **関連 memory**: `project_framework_research_2026_04_25.md` (拡張仕様 19 項目との突合)
 **起票日**: 2026-05-13
+**変換ガイドライン**: [`conversion-guideline-for-ai.md`](conversion-guideline-for-ai.md) — Markdown → Harmony JSON 変換の AI 向けマニュアル
+**スキル起点**: [`.claude/skills/import-md/SKILL.md`](../../.claude/skills/import-md/SKILL.md)
 
 ---
 
@@ -44,12 +46,22 @@
 │ Layer 2: Generic Definition Catalog (新規)                       │
 │   既存 entity に自然に属さないものを汎用メタモデルで受ける       │
 │   8 kind: data-contract / domain-type / exception-type / ...    │
+│   配置: examples/<project>/generic-definitions/<kind>/*.json    │
 ├─────────────────────────────────────────────────────────────────┤
-│ Layer 3: Importer 手順書 + Project Profile (新規)                │
-│   Markdown → Harmony JSON 変換の責務分担を機械可読化              │
-│   Harmony 側 = 共通手順書 / Project 側 = profile / AI = 初回解釈 │
+│ Layer 3: AI 向け変換マニュアル + 生成 importer (新規)             │
+│   Harmony 側 = AI 向けマニュアル (entity 構造 / 落とし方 / audit /│
+│                 TS scaffold / 既知落とし穴) → conversion-        │
+│                 guideline-for-ai.md                              │
+│   Project 側  = MD (構造は project 自由) + (option) profile     │
+│   AI         = マニュアル参照しつつ 1 回限り変換 or importer 生成│
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### 配置決定 (Q1-Q3 確定)
+
+- **Generic Definition Catalog**: 独立ディレクトリ `examples/<project>/generic-definitions/<kind>/*.json` を切る (Q1)。`extensions/` 機構には載せない (extensions = opt-in 拡張 / generic-definitions = project 全体の再利用資産、性格が異なる)
+- **`ui-fragment` と PageLayout (#1021)**: page-level vs component-level で切る (Q2)。PageLayout = ページ全体の骨格 (header / sidebar / content slot / footer)、`ui-fragment` = ページ内 or 複数画面で使い回す部品 (メッセージ領域 / アップロード行 / ダイアログ本体)
+- **`process-flow-extensions.md` と Generic Definition Catalog**: 両者独立、ProcessFlow から `$ref` で generic-definitions を参照 (Q3)。process-flow-extensions = ProcessFlow 内側の step 拡張型、generic-definitions = project 全体の再利用資産
 
 ---
 
@@ -145,7 +157,19 @@
 
 **追加候補**: Generic Definition Catalog の `ui-fragment` を導入し、`screen.fragments[].fragmentRef` で参照する。
 
-**判断**: PageLayout (#1021 シリーズ、進行中) との関係整理が必要。PageLayout = ページ単位の全体構造、UI fragment = ページ内/画面横断の再利用部品、と切り分ける。
+**判断 (Q2 確定)**: PageLayout (#1021) と `ui-fragment` は **page-level vs component-level で切る**:
+- **PageLayout**: ページ全体の骨格 (header slot / sidebar slot / content slot / footer slot)。1 page = 1 PageLayout 適用
+- **`ui-fragment`**: ページ内 or 複数画面で使い回す部品 (メッセージ領域 / アップロード行 / ダイアログ本体 / 共通ヘッダー部品)。PageLayout の slot を埋める要素にもなり得る
+
+具体例:
+```
+PageLayout "admin-layout"  ←  ページ全体の枠
+  ├─ header slot   ←  ui-fragment "common-header" を埋める
+  ├─ sidebar slot  ←  ui-fragment "admin-nav" を埋める
+  ├─ content slot  ←  screen が入る
+  │                   screen は内部に ui-fragment "message-area" / "upload-row" 等を持つ
+  └─ footer slot   ←  ui-fragment "common-footer" を埋める
+```
 
 ---
 
@@ -206,64 +230,54 @@
 
 ---
 
-## 5. Layer 3 — Importer 手順書 + Project Profile
+## 5. Layer 3 — AI 向け変換マニュアル + 生成 importer
 
-Markdown → Harmony JSON 変換の責務分担を機械可読化する。
+**方針 (Q7-Q11 決定)**: Harmony 側に固定 importer ツールは持たない。MD は project 構造がバラバラなので、**AI 向けマニュアル** を一次成果物として整備し、AI がそれを読みつつ (a) 1 回限り変換 or (b) project 専用 importer 生成 のいずれかで対応する。
 
 ### 5.1 責務分担
 
 | 担当 | 持ち物 |
 |---|---|
-| **Harmony 側** | 共通 importer 手順書 / 共通 audit ルール / 共通 schema / generic definition 方針 |
-| **Project 側** | `import-project-profile.json` (project ごとに 1 つ) |
-| **AI** | 初回の未知パターン解釈 + その結果の profile への還元 |
+| **Harmony 側** | AI 向け変換マニュアル ([`conversion-guideline-for-ai.md`](conversion-guideline-for-ai.md)) / catalog 8 kind の共通メタモデル / audit / warning 規範 / TS scaffold テンプレ / 既知落とし穴集約 / (option) project profile JSON 推奨フォーマット |
+| **Project 側** | 自由形式の Markdown 設計書 + (optional) `import-project-profile.json` |
+| **AI** | マニュアル参照しつつ 1 回限り変換 or `scripts/import/*.ts` 生成 |
 
-### 5.2 共通 importer 標準フロー (10 ステップ)
+### 5.2 提供形態 (Q10 決定)
 
-1. **文書 inventory** — Markdown 全件列挙 / file name, archetype 候補, code, mtime を中間成果物に保存 / 原文不変
-2. **archetype 分類** — controller / service / architecture / reference / configuration / common-js / exception / class-definition / catalog
-3. **heading / table 正規化** — 別名・表ヘッダの揺れ・番号付き見出しを統一 (profile の `headingAliases` で上書き可)
-4. **entity mapping** — 自然に落ちるものを既存 entity に変換 (screen / processFlow / table / viewDefinition / screenTransition / conventions)
-5. **generic definition 退避** — 既存 entity に属さないものを Layer 2 に変換
-6. **warning / audit 出力** — file / section / reason / suggested target entity を human + machine readable に
-7. **deterministic 再実行** — 同じ MD + 同じ profile なら同じ JSON
-8. **schema validation** — AJV + audit summary (未変換 archetype / warning 数 / coverage)
-9. **human review gate** — warning しきい値超過時は変換完了扱いにしない
-10. **profile feedback loop** — AI の初回解釈を profile に還元、次回以降は静的ルール化
+`docs/spec/` + `.claude/skills/` の両方:
 
-### 5.3 Project Profile schema (v0.1 雛形)
+- **[`docs/spec/conversion-guideline-for-ai.md`](conversion-guideline-for-ai.md)** — 一次ソース。人間と AI 両方が読む詳細マニュアル
+- **[`.claude/skills/import-md/SKILL.md`](../../.claude/skills/import-md/SKILL.md)** — 起動点 (`/import-md <project>` で発火 or auto-trigger キーワード "Markdown 設計書" "Harmony JSON 変換")。中身は spec への誘導
 
-ISSUE #1060 Comment 2 で提示された canonical JSON 雛形 (省略形):
+### 5.3 マニュアルに含める要素 (Q9 = 全部入り)
 
-```jsonc
-{
-  "$schema": "./schemas/import-project-profile.v1.schema.json",
-  "profileVersion": "v1",
-  "name": "<project>",
-  "sourceInventory": { "rootDirs": [...], "includeGlobs": [...], "excludeGlobs": [...], "priorityDocuments": [...] },
-  "fileNaming": { "codeExtractionPatterns": [...], "archetypeHints": [...] },
-  "headingAliases": { "controlMapping": [...], "formProperties": [...], "processOverview": [...], "transitionTargets": [...] },
-  "tableHeaderAliases": { "controlMapping": [...], "methodTable": [...], "basicInfo": [...] },
-  "archetypeRules": [...],
-  "businessVocabulary": { "terms": {...}, "synonyms": {...} },
-  "catalogRules": { "prioritySources": {...}, "optionResolution": {...} },
-  "bindingRules": { "attributeKinds": {...}, "hiddenMarkers": [...], "loopBindingMarkers": [...], "outputBindingMarkers": [...] },
-  "uiBehaviorPatterns": { "knownPatterns": [...], "sharedScriptFiles": [...] },
-  "processFlowRules": { "sharedCallMarkers": [...], "dbMarkers": [...], "throwMarkers": [...], "messageSettingMarkers": [...] },
-  "reusableContracts": { "promoteKinds": [...], "dataContractKinds": {...} },
-  "exceptionSemantics": { "classificationRules": [...], "defaultHandling": {...} },
-  "outputPolicy": { "generateEntities": [...], "warningThresholds": {...}, "allowDraftWithWarnings": true },
-  "reviewPolicy": { "mustReviewWarnings": [...], "minimumCoverage": {...} }
-}
-```
+[`conversion-guideline-for-ai.md`](conversion-guideline-for-ai.md) に集約:
 
-(完全な雛形は #1060 Comment 2 を参照。本仕様確定時に正規 schema へ変換)
+1. **§1 出力先 Harmony JSON の全体構造** — 既存 entity 一覧 + Generic Definition Catalog 8 kind の配置
+2. **§2 入力 MD の archetype 10 種類** — 判定アルゴリズム (file name → 見出し → 表ヘッダ)
+3. **§3 archetype 別 落とし方ガイド** — before/after pair を 7 archetype 分掲載
+4. **§4 Generic Definition Catalog の共通メタモデル**
+5. **§5 audit / warning 規範** — 11 種の warning kind + audit summary 形式
+6. **§6 パターン (A) 1 回限り変換 の進め方** — 10 step フロー
+7. **§7 パターン (B) Importer 生成 の進め方** — TS scaffold + Step 別 純TS/AI 補完区分
+8. **§8 既知落とし穴 (memory 集約)** — ProcessFlow / ScreenItem / SQL / silent pass 等
+9. **§9 Decision flowchart** — (A) vs (B) 判定
+10. **§10 変換完了判定基準**
+11. **§11 関連 spec / memory リンク**
 
-### 5.4 配置先
+### 5.4 Project Profile schema (optional)
 
-- 共通 importer 手順書 → `docs/spec/import-procedure.md` (本ドラフトとは別 spec、後続)
-- Project profile schema → `schemas/import-project-profile.v1.schema.json` (新規)
-- 各 project の profile → `examples/<project-id>/import-project-profile.json` or `workspaces/<wsId>/import-project-profile.json`
+profile は **optional** (project が継続変換するなら使う、1 回限りなら不要)。
+
+- 推奨 schema: [`schemas/import-project-profile.v1.schema.json`](../../schemas/import-project-profile.v1.schema.json)
+- サンプル: [`examples/retail/import-project-profile.json`](../../examples/retail/import-project-profile.json)
+- 14 セクション構造の詳細は [`conversion-guideline-for-ai.md` §7.3](conversion-guideline-for-ai.md)
+
+profile を使うと §7.1 の各 step に project 固有ルールを注入できる。profile を使わない場合、AI が毎回マニュアルを参照しつつ判断する。
+
+### 5.5 importer 生成の物理配置
+
+AI が生成する project 専用 importer は `<project>/scripts/import/*.ts` に配置。詳細スキャフォールドは [`conversion-guideline-for-ai.md` §7.2](conversion-guideline-for-ai.md)。
 
 ---
 
@@ -300,26 +314,30 @@ ISSUE #1060 Comment 2 で提示された canonical JSON 雛形 (省略形):
 
 ---
 
-## 8. 実装優先度 (本 ISSUE 原文に準拠)
+## 8. 実装優先度 (Q4 確定: 親 schema 優先 / 依存順)
 
-### P0 (最優先)
+P0 内部の切り出し順序は **下層が上層に依存しない依存順** (Q4 決定):
 
-- ScreenItem binding metadata 構造化 (Layer 1, §3.1)
-- ScreenItemEvent UI effects formal 化 (Layer 1, §3.2)
-- `data-contract` / `domain-type` catalog (Layer 2)
-- Generic Definition Layer の親 schema (Layer 2 §4.1 共通メタモデル)
+### P0 (最優先、依存順)
+
+1. **Generic Definition 親 schema** (Layer 2 §4.1) — kind / name / fields / relations / mappingHints の共通メタモデル
+2. **`data-contract` / `domain-type` catalog** (Layer 2) — 親 schema を継承
+3. **ScreenItem binding 拡張** (Layer 1 §3.1) — `data-contract` への `$ref` を使う
+4. **ScreenItemEvent UI effects** (Layer 1 §3.2) — UI ローカル効果の formal 化
+
+各ステップは下位の schema が確定してから上位を切り出すことで、後戻りを防ぐ。
 
 ### P1
 
-- ProcessFlow `componentCall` step + `component-definition` (Layer 1 §3.3 + Layer 2)
-- `exception-type` catalog + ProcessFlow error semantics 拡張 (Layer 1 §3.4 + Layer 2)
-- `ui-fragment` catalog + screen.fragments 参照 (Layer 1 §3.6 + Layer 2)
+5. ProcessFlow `componentCall` step + `component-definition` (Layer 1 §3.3 + Layer 2)
+6. `exception-type` catalog + ProcessFlow error semantics 拡張 (Layer 1 §3.4 + Layer 2)
+7. `ui-fragment` catalog + `screen.fragments` 参照 (Layer 1 §3.6 + Layer 2)
 
 ### P2
 
-- `application-rule` / `runtime-policy` / `ui-behavior` catalog 完全実装 (Layer 2)
-- techStack 別 codegen profile (mappingHints の実装側展開)
-- Importer 手順書 + Project profile (Layer 3)
+8. `application-rule` / `runtime-policy` / `ui-behavior` catalog 完全実装 (Layer 2)
+9. `mappingHints` (free-form object, Q6 確定) と各 techStack codegen 連携 (`/generate-code` skill 拡張)
+10. AI 向け変換マニュアル ([`conversion-guideline-for-ai.md`](conversion-guideline-for-ai.md)) の継続更新 (新 archetype / 新 warning / 新落とし穴の追加)
 
 ---
 
@@ -343,26 +361,38 @@ ISSUE #1060 Comment 2 で提示された canonical JSON 雛形 (省略形):
 
 ---
 
-## 11. Open Questions (未確定事項)
+## 11. 解消済 Open Questions (Q1-Q11 ISSUE #1060 discussion 2026-05-13)
 
-1. **`extensions/` との関係** — 本 layer の catalog を既存 `extensions/<namespace>/*.json` 機構に載せるか、新規 `generic-definitions/` ディレクトリを切るか
-2. **PageLayout (#1021) と `ui-fragment` の境界** — Page-level vs Fragment-level の正確な切り分け基準
-3. **既存 `process-flow-extensions.md` との統合** — extensions namespace を catalog 種別格納先として共用可能か
-4. **schema 切り出しの順序** — どの catalog kind から AJV / TypeScript 型に落とすか
-5. **Importer 手順書を独立 spec にするか本 spec 内に残すか** — Layer 3 は別 ISSUE で分離する可能性
-6. **`mappingHints` の標準形** — techStack 別の codegen ヒントをどう正規化するか (`/generate-code` skill との連携)
+| # | 論点 | 決定 |
+|---|---|---|
+| Q1 | catalog 配置 | 独立ディレクトリ `examples/<project>/generic-definitions/<kind>/*.json` を切る |
+| Q2 | PageLayout vs ui-fragment 境界 | Page-level vs Component-level で切る (PageLayout = 骨格、ui-fragment = 部品) |
+| Q3 | process-flow-extensions との統合 | 両者独立、ProcessFlow から `$ref` で generic-definitions を参照 |
+| Q4 | P0 schema 切り出し順序 | 親 schema → data-contract/domain-type → ScreenItem binding → Event UI effects |
+| Q5 | import-procedure.md 独立性 | conversion-guideline-for-ai.md (AI 向けマニュアル) に統合、独立 spec 廃止 |
+| Q6 | mappingHints 標準形 | free-form object (techStack 別キー、中身は AI 解釈) |
+| Q7-Q8 | Importer 必要性 / Layer 3 形態 | AI 向けマニュアル型に転換。Harmony 側に固定 importer 持たず、AI がマニュアル参照しつつ 1 回限り変換 or project 専用 importer 生成 |
+| Q9 | マニュアルに含める要素 | 全部入り (entity 構造 / archetype ガイド / audit / TS scaffold / profile テンプレ / 既知落とし穴 / decision flowchart) |
+| Q10 | マニュアル配置 | `docs/spec/conversion-guideline-for-ai.md` + `.claude/skills/import-md/SKILL.md` 両方 |
+| Q11 | 既生成物 (import-procedure / RFC schema / sample profile) | マニュアルの中に再利用、profile schema と sample は optional フォーマットとして保持 |
 
 ---
 
 ## 12. 後続作業
 
-本ドラフト承認後に着手する子作業 (まだ ISSUE 化しない、本ドラフトの議論で確定後に分割起票):
+本ドラフト承認後に着手する子作業 (個別 ISSUE 起票で段階実施):
 
-1. Open Questions の解消 (本 ISSUE のコメントで議論)
-2. P0 ごとの schema 切り出し設計 (`schemas/v3/screen-item.schema.json` 拡張、`schemas/generic-definitions/*.schema.json` 新設)
-3. Importer 手順書の独立 spec 化 (`docs/spec/import-procedure.md`)
-4. Project profile schema 設計 (`schemas/import-project-profile.v1.schema.json`)
-5. validator / AJV 統合 (`process-flow-maturity.md` の draft-state policy 準拠)
-6. UI 側の表示・編集対応 (新規 catalog 種別ごとの ListView / Editor 検討)
+| 順 | 作業 | 対応箇所 |
+|---|---|---|
+| 1 | Generic Definition 親 schema 切り出し | `schemas/v3/generic-definition.v3.schema.json` (新設) |
+| 2 | data-contract / domain-type catalog | `schemas/v3/generic-definitions/data-contract.v3.schema.json` 等 |
+| 3 | ScreenItem `binding` 構造化拡張 | `schemas/v3/screen-item.v3.schema.json` 変更 |
+| 4 | ScreenItemEvent `effects[]` 拡張 | `schemas/v3/screen-item.v3.schema.json` 変更 |
+| 5 | ProcessFlow `componentCall` step kind + component-definition | `schemas/v3/process-flow.v3.schema.json` 変更 |
+| 6 | exception-type catalog + ProcessFlow error semantics 拡張 | 同上 + catalog 新設 |
+| 7 | ui-fragment catalog + `screen.fragments[]` | `schemas/v3/screen.v3.schema.json` 変更 + catalog 新設 |
+| 8 | application-rule / runtime-policy / ui-behavior catalog 完全実装 | catalog 各 schema 新設 |
+| 9 | UI 側の表示・編集対応 (新規 catalog 種別ごとの ListView / Editor) | frontend |
+| 10 | conversion-guideline-for-ai.md 継続更新 (新 archetype / 新 warning / 新落とし穴) | docs |
 
-各作業は schema governance に基づき、本ドラフト確定 → 設計者承認 → 個別 ISSUE 起票 の順で進める。
+各作業は schema governance に基づき、本ドラフト確定 → 設計者承認 → 個別 ISSUE 起票 の順で進める。子 ISSUE は #1060 を親メタとして管理する。
