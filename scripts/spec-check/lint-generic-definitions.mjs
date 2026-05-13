@@ -16,7 +16,7 @@
 // Exit code: 0 = OK, 1 = error, 2 = nothing to lint
 
 import { readFileSync, statSync, readdirSync, existsSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, relative, sep } from "node:path";
 
 const VALID_KINDS = new Set([
   "data-contract",
@@ -91,8 +91,10 @@ let errors = 0;
 let warnings = 0;
 
 for (const file of files) {
-  const relPath = file.slice(gdRoot.length + 1); // <kind>/<name>.json
-  const expectedKind = relPath.split("/")[0];
+  // Windows では walkDir() が `\` 区切りを返すため、必ず path.relative() + path.sep で
+  // OS native の separator を経由して kind 名を取り出す (`/` hard-code は Windows 破綻)
+  const relPath = relative(gdRoot, file); // <kind><sep><name>.json
+  const expectedKind = relPath.split(sep)[0];
   let json;
   try {
     json = JSON.parse(readFileSync(file, "utf8"));
