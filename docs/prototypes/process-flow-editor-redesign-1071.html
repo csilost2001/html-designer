@@ -324,14 +324,24 @@
     }
 
     .drop-line {
-      height: 26px;
-      border: 1px dashed #b7c4d6;
-      border-radius: 7px;
-      background: rgba(255, 255, 255, 0.74);
+      height: 12px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
       display: grid;
       place-items: center;
-      color: var(--muted);
+      color: transparent;
       font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.15s, height 0.15s;
+    }
+
+    .flow-column.drag-preview .drop-line,
+    .drop-line:hover {
+      height: 28px;
+      opacity: 1;
+      color: var(--muted);
+      background: linear-gradient(90deg, transparent 0 8%, #9db4d6 8% 92%, transparent 92% 100%);
     }
 
     .step {
@@ -775,7 +785,7 @@
         </div>
         <div class="flow-stage">
           <div class="flow-column">
-            <div class="drop-line">ここにブロックをドロップ</div>
+            <div class="drop-line">ドラッグ中のみ表示</div>
             <article class="step">
               <div class="step-head">
                 <span class="step-index">1</span>
@@ -787,7 +797,7 @@
                 <div class="mini-field"><label>失敗時</label><p>エラー表示して停止</p></div>
               </div>
             </article>
-            <div class="drop-line">ステップ間に挿入</div>
+            <div class="drop-line">ドラッグ中のみ表示</div>
             <article class="step selected">
               <div class="step-head">
                 <span class="step-index">2</span>
@@ -799,7 +809,7 @@
                 <div class="mini-field"><label>response</label><p>token, user, expiresAt</p></div>
               </div>
             </article>
-            <div class="drop-line">ステップ間に挿入</div>
+            <div class="drop-line">ドラッグ中のみ表示</div>
             <article class="step">
               <div class="step-head">
                 <span class="step-index">3</span>

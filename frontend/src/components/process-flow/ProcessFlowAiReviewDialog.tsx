@@ -33,7 +33,7 @@ export function ProcessFlowAiReviewDialog({ current, onClose }: Props) {
 
   return (
     <div className="edit-mode-modal-backdrop" role="presentation" onClick={(e) => { if (e.target === e.currentTarget && !reviewing) onClose(); }}>
-      <div className="edit-mode-modal process-flow-ai-generate-dialog" role="dialog" aria-modal="true" aria-labelledby="process-flow-ai-review-title">
+      <div className="edit-mode-modal process-flow-ai-review-dialog" role="dialog" aria-modal="true" aria-labelledby="process-flow-ai-review-title">
         <div className="edit-mode-modal-header">
           <h3 id="process-flow-ai-review-title" className="edit-mode-modal-title">
             <i className="bi bi-clipboard-check" /> AI レビュー
@@ -44,7 +44,7 @@ export function ProcessFlowAiReviewDialog({ current, onClose }: Props) {
           <label className="form-label">重点観点</label>
           <textarea
             className="form-control"
-            rows={4}
+            rows={10}
             value={focus}
             onChange={(e) => setFocus(e.target.value)}
             placeholder="例: 例外系、DB 更新のトランザクション境界、入力検証の不足を重点的に確認"
