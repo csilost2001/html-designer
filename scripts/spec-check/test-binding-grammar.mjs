@@ -5,12 +5,20 @@
 // Usage: node scripts/spec-check/test-binding-grammar.mjs
 // Exit code: 0 = all pass, 1 = any fail
 
-const SENTINEL = "[binding.v1] ";
+// canonical sentinel (spec §3.1 / §8.2 — 13 chars incl. trailing space)。
+// 互換目的で trailing space が GitHub renderer / コピペで脱落する fragility
+// (Round 11 review S-3) を緩和するため、parser は `[binding.v1]` の直後を
+// `\s+` または `$` で受け付ける。canonical 出力時は SENTINEL を使う。
+export const SENTINEL = "[binding.v1] ";
+const SENTINEL_PREFIX = "[binding.v1]";
+const SENTINEL_RE = /^\[binding\.v1\](?:\s+|$)/;
 
 export function parseBindingDescription(d) {
   if (typeof d !== "string") return null;
-  if (!d.startsWith(SENTINEL)) return null;
-  const body = d.slice(SENTINEL.length).trim();
+  if (!SENTINEL_RE.test(d)) return null;
+  // sentinel prefix を削った後ろを trim — 末尾空白脱落 ("[binding.v1]" 単体) も
+  // "[binding.v1] " と同じく空 body 扱い。
+  const body = d.slice(SENTINEL_PREFIX.length).trim();
   if (body === "") return {};
   const out = {};
   for (const pair of body.split(/;\s+/)) {
@@ -48,6 +56,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     { name: "non-string input (number)", input: 42, expect: null },
     { name: "non-string input (object)", input: {}, expect: null },
     { name: "non-string input (array)", input: [], expect: null },
+    // S-3 (Round 11 review) — GitHub renderer / コピペで trailing space が脱落しても parse 続行
+    { name: "sentinel without trailing space (paste corruption)", input: "[binding.v1]", expect: {} },
+    { name: "sentinel + newline (markdown wrap)", input: "[binding.v1]\nbinding.attr=th:field", expect: { "binding.attr": "th:field" } },
+    { name: "sentinel + multiple spaces (markdown auto-collapse変動)", input: "[binding.v1]   binding.attr=th:field", expect: { "binding.attr": "th:field" } },
+    { name: "sentinel followed by non-space (must be rejected)", input: "[binding.v1]extra=stuff", expect: null },
   ];
 
   let pass = 0;

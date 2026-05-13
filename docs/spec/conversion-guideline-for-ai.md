@@ -1301,7 +1301,7 @@ export async function applyAIFeedback(profile: any, aiDecisions: AIDecision[]) {
 
 ### 8.2 ScreenItem 系
 
-- ✅ 現行 schema では binding 情報を `description` 内に **binding grammar v1** で退避する (§3.1 / §0.5 参照)。grammar 仕様 (parser 実装 + 14 ケース pass 確認済、edge case 含む):
+- ✅ 現行 schema では binding 情報を `description` 内に **binding grammar v1** で退避する (§3.1 / §0.5 参照)。grammar 仕様 (parser 実装 + 18 ケース pass 確認済、edge case 含む):
   - **sentinel** `[binding.v1] ` (末尾 1 半角スペース込) を **必ず先頭に持つ**
   - 続けて `<key>=<value>; <key>=<value>; ...` の **セミコロン + 半角スペース区切り** (`/;\s+/`)
   - **標準 key** (全 optional): `binding.attr` (HTML 属性名、`:` 許容) / `binding.path` (bind 先パス) / `binding.role` (input / output / display) / `binding.formatHint` / `source` (出典) / `note` (補足)
@@ -1309,15 +1309,20 @@ export async function applyAIFeedback(profile: any, aiDecisions: AIDecision[]) {
   - 区切り `; ` (セミコロン+空白) を含まない `;` は value 内リテラル扱い
   - 空 key は parse error、空 value は許容
   - 例: `"description": "[binding.v1] binding.attr=th:field; binding.path=form.productCode; source=spec_SC000001.md"`
-  - 参考 parser 実装 ([`scripts/spec-check/test-binding-grammar.mjs`](../../scripts/spec-check/test-binding-grammar.mjs) で 14/14 pass 確認済、edge case 含む):
+  - 参考 parser 実装 ([`scripts/spec-check/test-binding-grammar.mjs`](../../scripts/spec-check/test-binding-grammar.mjs) で 18/18 pass 確認済、edge case 含む):
     ```ts
-    const SENTINEL = "[binding.v1] ";
+    // canonical 出力は SENTINEL を使う。互換: trailing space は GitHub renderer /
+    // コピペで脱落することがあるため、parser は `[binding.v1]` 直後を \s+ または
+    // 行末で受け付ける tolerant 形にする (Round 11 review S-3)。
+    export const SENTINEL = "[binding.v1] "; // 13 chars incl. trailing space
+    const SENTINEL_PREFIX = "[binding.v1]";
+    const SENTINEL_RE = /^\[binding\.v1\](?:\s+|$)/;
     function parseBindingDescription(d: unknown): Record<string, string> | null {
       // 型 guard: 非文字列 (null/undefined/number/object/array) はすべて null 返却
       // (.startsWith は文字列専用、type unsafe な入力でも throw しないこと)
       if (typeof d !== "string") return null;
-      if (!d.startsWith(SENTINEL)) return null;
-      const body = d.slice(SENTINEL.length).trim();
+      if (!SENTINEL_RE.test(d)) return null;
+      const body = d.slice(SENTINEL_PREFIX.length).trim();
       if (body === "") return {};
       const out: Record<string, string> = {};
       for (const pair of body.split(/;\s+/)) {

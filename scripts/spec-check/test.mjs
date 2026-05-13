@@ -9,6 +9,7 @@ import { execSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
+import { readSpecDoc, extractFences, stripJsoncComments, parseStepCheatsheet, SPEC_DOC_PATH } from "./lib/spec-doc.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
@@ -231,6 +232,159 @@ try {
   }
 } finally {
   rmSync(FIXTURE_ROOT, { recursive: true, force: true });
+}
+
+// =============================================================================
+// 4. spec doc 本体を input にした gate (Round 11 review M-1/M-2/M-3 対応)
+//    Round 11 で指摘された「test.mjs が spec doc を一切読まない → cheatsheet /
+//    jsonc fence / ✅ JSON 例の drift が CI gate を素通り」を解消する。
+// =============================================================================
+const specDoc = readSpecDoc();
+const jsoncFences = extractFences(specDoc, "jsonc");
+
+// -----------------------------------------------------------------------------
+// 4-A. jsonc fence parseability (Round 11 M-2)
+//      §0.5 で AI に「// 行を全削除してから AJV / JSON.parse / loader に渡す」と
+//      契約しているため、各 fence は stripJsoncComments 後に必ず JSON.parse 可能。
+// -----------------------------------------------------------------------------
+console.log("\n## jsonc fence parseability (spec doc §0.5 contract)");
+{
+  assert("jsonc fence count >= 14", jsoncFences.length >= 14, `actual=${jsoncFences.length}`);
+  for (const f of jsoncFences) {
+    const stripped = stripJsoncComments(f.body);
+    let ok = true;
+    let err = "";
+    try {
+      JSON.parse(stripped);
+    } catch (e) {
+      ok = false;
+      err = e.message;
+    }
+    assert(`L${f.line}: parse OK after stripping \`//\` lines`, ok, err);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 4-B. ✅ 現行 schema 例 AJV gate (Round 11 M-3)
+//      `$schema` field を持つ jsonc fence は現行 schema 適合の ✅ 例。
+//      schemas/v3/ に対する AJV validate を gate に組み込む。
+//      ✨ RFC 将来案 (`$schema` なし) は対象外 (§10 B の soft gate)。
+// -----------------------------------------------------------------------------
+console.log("\n## ✅ 例 AJV validation against schemas/v3/");
+{
+  // ajv の dynamic import (root devDep にしてある)
+  const { default: Ajv2020 } = await import("ajv/dist/2020.js");
+  const { default: addFormats } = await import("ajv-formats");
+  const ajv = new Ajv2020({ strict: false, allErrors: true });
+  addFormats(ajv);
+
+  const schemaFiles = [
+    "schemas/v3/common.v3.schema.json",
+    "schemas/v3/screen-item.v3.schema.json",
+    "schemas/v3/screen.v3.schema.json",
+    "schemas/v3/process-flow.v3.schema.json",
+  ];
+  for (const f of schemaFiles) {
+    const s = JSON.parse(readFileSync(join(ROOT, f), "utf8"));
+    ajv.addSchema(s);
+  }
+
+  let validated = 0;
+  for (const f of jsoncFences) {
+    let parsed;
+    try {
+      parsed = JSON.parse(stripJsoncComments(f.body));
+    } catch {
+      continue; // M-2 で既に detect 済
+    }
+    const schemaRef = parsed?.$schema;
+    if (typeof schemaRef !== "string") continue;
+    const filename = schemaRef.split("/").pop();
+    if (!/^[a-z-]+\.v3\.schema\.json$/.test(filename)) continue;
+    const $id = `https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/${filename}`;
+    const validate = ajv.getSchema($id);
+    if (!validate) {
+      assert(`L${f.line}: schema registered (${filename})`, false, `$id not found: ${$id}`);
+      continue;
+    }
+    const valid = validate(parsed);
+    const detail = valid
+      ? ""
+      : (validate.errors || []).slice(0, 3).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ");
+    assert(`L${f.line}: AJV valid against ${filename}`, valid, detail);
+    validated++;
+  }
+  // Round 11 で reviewer が確認した 4 例 (L171/L293/L340/L468) は必ず検出される
+  assert("✅ examples validated against schemas/v3/ (>= 4)", validated >= 4, `validated=${validated}`);
+}
+
+// -----------------------------------------------------------------------------
+// 4-C. cheatsheet drift gate (Round 11 M-1)
+//      §3.3 Step kind cheatsheet の各行が
+//      `schemas/v3/process-flow.v3.schema.json` の required と整合するか検証。
+//      行ごとの required field が cell に backtick で出現することを assert。
+//      ExtensionStep だけは `kind` が pattern (const なし) のため特殊扱い。
+// -----------------------------------------------------------------------------
+console.log("\n## §3.3 cheatsheet rows vs schema required (drift gate)");
+{
+  const cheatsheet = parseStepCheatsheet(specDoc);
+  assert("cheatsheet has 24 step kind rows", cheatsheet.size === 24, `actual=${cheatsheet.size}`);
+
+  const BASE = new Set(["id", "kind", "description"]);
+  const stepUnion = $defs.Step.oneOf.map((r) => r.$ref.replace("#/$defs/", ""));
+  for (const stepName of stepUnion) {
+    const def = $defs[stepName];
+    if (!def?.allOf || def.allOf.length < 2) continue;
+    const variant = def.allOf[1];
+    const required = (variant.required || []).filter((r) => !BASE.has(r));
+    const kindConst = variant.properties?.kind?.const
+      ?? (stepName === "ExtensionStep" ? "extension" : null);
+    if (!kindConst) continue;
+    const cell = cheatsheet.get(kindConst);
+    assert(`cheatsheet row exists: \`${kindConst}\``, cell !== undefined);
+    if (cell === undefined) continue;
+
+    if (stepName === "ExtensionStep") {
+      // ExtensionStep は `kind` が pattern (namespace:name)、required は base のみ。
+      // cell が `kind` パターン or "namespace:name" / "variant" / "pattern" に
+      // 言及していることを drift 検出として要求する。
+      const ok = /pattern|namespace:name|variant/i.test(cell);
+      assert(`extension row mentions pattern/variant`, ok, `cell=${cell.slice(0, 100)}`);
+      continue;
+    }
+
+    if (required.length === 0) {
+      // 表現の揺れを許容するため、`(なし` を含むか確認
+      assert(`\`${kindConst}\` row has "(なし" marker`, /\(なし/.test(cell), `cell=${cell.slice(0, 100)}`);
+    } else {
+      for (const f of required) {
+        assert(
+          `\`${kindConst}\` row contains \`${f}\``,
+          cell.includes(`\`${f}\``),
+          `cell=${cell.slice(0, 120)}`
+        );
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 4-D. import-project-profile schema 14 セクションが spec §7.3 に列挙されているか
+//      (Round 11 S-1 — TS scaffold tsc gate の代替に近い軽量 drift gate)
+//      schema の top-level property を spec §7.3 enumeration と突合し、抜けが
+//      無いか確認。schema 側に section が増えても spec が追従していなければ fail。
+// -----------------------------------------------------------------------------
+console.log("\n## profile schema sections vs spec §7.3 enumeration");
+{
+  const profileSchema = JSON.parse(readFileSync(join(ROOT, "schemas/import-project-profile.v1.schema.json"), "utf8"));
+  const skipKeys = new Set(["$schema", "profileVersion", "name", "description"]);
+  const sections = Object.keys(profileSchema.properties || {}).filter((k) => !skipKeys.has(k));
+  assert("profile schema declares >= 14 sections", sections.length >= 14, `actual=${sections.length}`);
+  for (const s of sections) {
+    // §7.3 の enumeration 行 (`N. \`<name>\` — ...`) に該当 section が出現すること
+    const regex = new RegExp(`^\\d+\\.\\s+\`${s}\`\\s+—`, "m");
+    assert(`profile section \`${s}\` enumerated in spec §7.3`, regex.test(specDoc));
+  }
 }
 
 // =============================================================================
