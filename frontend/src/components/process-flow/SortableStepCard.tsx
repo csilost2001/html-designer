@@ -34,6 +34,10 @@ interface SortableStepCardProps {
   markerKinds?: { todo: number; question: number; attention: number; chat: number };
   conventions?: ConventionsCatalog | null;
   group?: ProcessFlow | null;
+  /** #1076 編集レベル (rough / detail / implementation) */
+  editLevel?: "rough" | "detail" | "implementation";
+  /** #1076 AI 依頼ボタン押下時のコールバック */
+  onAskAi?: () => void;
 }
 
 export function SortableStepCard({ step, ...props }: SortableStepCardProps) {

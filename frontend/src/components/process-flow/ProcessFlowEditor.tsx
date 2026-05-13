@@ -67,6 +67,13 @@ import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredF
 import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
 import { ProcessFlowAiGenerateDialog } from "./ProcessFlowAiGenerateDialog";
 import { ProcessFlowAiReviewDialog } from "./ProcessFlowAiReviewDialog";
+import { EditLevelToggle } from "./EditLevelToggle";
+import { AiRequestPanel } from "./AiRequestPanel";
+import { AiDiffPreviewDialog } from "./AiDiffPreviewDialog";
+import { useEditLevel } from "../../hooks/useEditLevel";
+import { useAiContextChips } from "../../hooks/useAiContextChips";
+import { useCodexStatus } from "../../codex/useCodexStatus";
+import { requestProcessFlowPartial, AiUnavailableError } from "../../codex/processFlowPartialRequest";
 import { EditorHeader } from "../common/EditorHeader";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
 import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
@@ -221,6 +228,17 @@ export function ProcessFlowEditor() {
   const [showAiGenerateDialog, setShowAiGenerateDialog] = useState(false);
   const [showAiReviewDialog, setShowAiReviewDialog] = useState(false);
 
+  // #1076 AI 依頼 UX
+  const { editLevel, setEditLevel } = useEditLevel(processFlowId);
+  const aiChips = useAiContextChips();
+  const { status: codexStatus } = useCodexStatus();
+  const isCodexConnected = codexStatus.kind === "authenticated";
+  const [aiRequestBusy, setAiRequestBusy] = useState(false);
+  const [aiRequestError, setAiRequestError] = useState<string | null>(null);
+  const [aiDiffProposed, setAiDiffProposed] = useState<ProcessFlow | null>(null);
+  const [aiPromptSummary, setAiPromptSummary] = useState<string>("");
+  const aiPanelRef = useRef<HTMLDivElement | null>(null);
+
   const handleNotFound = useCallback(() => navigate(wsPath("/process-flow/list"), { replace: true }), [navigate, wsPath]);
 
   const handleLoaded = useCallback((g: ProcessFlow) => {
@@ -366,6 +384,31 @@ export function ProcessFlowEditor() {
     await editActions.discard();
     await handleReset();
   }, [editActions, handleReset]);
+
+  // #1076 AI 依頼送信ハンドラ
+  const handleAiSubmit = useCallback(async (prompt: string) => {
+    if (!group || isReadonly) return;
+    setAiRequestBusy(true);
+    setAiRequestError(null);
+    setAiPromptSummary(prompt.slice(0, 80));
+    try {
+      const contextString = aiChips.buildContextString();
+      const result = await requestProcessFlowPartial({
+        current: group,
+        contextString,
+        prompt,
+      });
+      setAiDiffProposed(result.proposed);
+    } catch (err) {
+      if (err instanceof AiUnavailableError) {
+        setAiRequestError("Codex が接続されていません。右上の Codex メニューからログインしてください。");
+      } else {
+        setAiRequestError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      setAiRequestBusy(false);
+    }
+  }, [group, isReadonly, aiChips]);
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
@@ -1166,6 +1209,11 @@ export function ProcessFlowEditor() {
             <span><kbd>Ctrl</kbd>+<kbd>V</kbd> 貼付</span>
             <span><kbd>右クリック</kbd> 操作</span>
           </div>
+          <EditLevelToggle
+            value={editLevel}
+            onChange={setEditLevel}
+            disabled={isReadonly}
+          />
         </div>
 
         <DndContext
@@ -1344,6 +1392,12 @@ export function ProcessFlowEditor() {
                           markerKinds={markerKinds}
                           conventions={conventions}
                           group={group}
+                          editLevel={editLevel}
+                          onAskAi={() => {
+                            const label = `S${index + 1}: ${step.description ?? step.kind ?? step.id}`;
+                            aiChips.addStepChip(String(step.id), label, step);
+                            aiPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                          }}
                         />
                       </div>
                       );
@@ -1376,6 +1430,28 @@ export function ProcessFlowEditor() {
                 </div>
               </div>
               <div className="process-flow-inspector-scroll">
+                {/* #1076 AI 依頼パネル */}
+                <div className="process-flow-inspector-section">
+                  <AiRequestPanel
+                    chips={aiChips.chips}
+                    onRemoveChip={aiChips.removeChip}
+                    onClearChips={aiChips.clearChips}
+                    onSubmit={handleAiSubmit}
+                    busy={aiRequestBusy}
+                    error={aiRequestError}
+                    isConnected={isCodexConnected}
+                    panelRef={aiPanelRef}
+                    actionLabel={activeAction?.name}
+                    onAddActionContext={activeAction ? () => {
+                      aiChips.addActionChip(String(activeAction.id), activeAction.name, activeAction);
+                    } : undefined}
+                    onAddFlowContext={group ? () => {
+                      const flowName = group.meta?.name ?? "処理フロー";
+                      const flowId = processFlowId ?? "flow";
+                      aiChips.addFlowChip(flowId, flowName, group);
+                    } : undefined}
+                  />
+                </div>
                 <ActionMetaTabBar
                   group={group}
                   updateGroup={updateGroup}
@@ -1512,6 +1588,22 @@ export function ProcessFlowEditor() {
               </button>
               <div className="step-context-menu-sep" />
               <button
+                className="step-context-menu-item"
+                onClick={() => {
+                  const step = group?.actions?.flatMap((a) => a.steps ?? []).find((s) => s.id === contextMenu.stepId);
+                  if (step) {
+                    const action = group?.actions?.find((a) => (a.steps ?? []).some((s) => s.id === contextMenu.stepId));
+                    const stepIndex = (action?.steps ?? []).findIndex((s) => s.id === contextMenu.stepId);
+                    const label = `S${stepIndex + 1}: ${step.description ?? step.kind ?? step.id}`;
+                    aiChips.addStepChip(String(contextMenu.stepId), label, step);
+                  }
+                  aiPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                  setContextMenu(null);
+                }}
+              >
+                <i className="bi bi-robot" /> このステップを AI に依頼
+              </button>
+              <button
                 className="step-context-menu-item danger"
                 onClick={() => handleDeleteStep(contextMenu.stepId)}
               >
@@ -1594,6 +1686,36 @@ export function ProcessFlowEditor() {
         onClose={handlePickerClose}
         onPick={handlePickerPick}
       />
+      {/* #1076 AI 差分プレビューダイアログ */}
+      {aiDiffProposed && group && (
+        <AiDiffPreviewDialog
+          current={group}
+          proposed={aiDiffProposed}
+          promptSummary={aiPromptSummary}
+          onApply={() => {
+            if (!aiDiffProposed) return;
+            const proposed = aiDiffProposed;
+            updateGroupWithDraft((g) => {
+              Object.assign(g, proposed);
+            });
+            setAiDiffProposed(null);
+          }}
+          onDiscard={() => setAiDiffProposed(null)}
+          onAddMarker={(body) => {
+            updateGroupWithDraft((g) => {
+              const m = {
+                id: generateUUID(),
+                kind: "chat" as const,
+                body,
+                author: "human" as const,
+                createdAt: new Date().toISOString(),
+              };
+              g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), m] };
+            });
+            setAiDiffProposed(null);
+          }}
+        />
+      )}
     </div>
   );
 }
