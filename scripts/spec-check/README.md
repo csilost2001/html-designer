@@ -14,7 +14,8 @@ node scripts/spec-check/extract-step-required.mjs
 # 個別 — Nested object required 抽出 (cheatsheet 下段 + Step base 共通 field)
 node scripts/spec-check/extract-nested-required.mjs
 
-# 個別 — Generic Definition Catalog (RFC 将来案) の soft lint
+# 個別 — Generic Definition Catalog の soft lint (path ↔ kind 物理配置、CLI 実行可)
+# strict 検証 (AJV) は test.mjs § 3b 経由で `npm run test:spec-check` 内で走る
 node scripts/spec-check/lint-generic-definitions.mjs <project-dir>
 ```
 
@@ -24,7 +25,7 @@ node scripts/spec-check/lint-generic-definitions.mjs <project-dir>
 |---|---|---|---|
 | `extract-step-required.mjs` | `schemas/v3/process-flow.v3.schema.json` | step kind ごとの required 表 (stdout) | conversion-guideline-for-ai.md §3.3 cheatsheet 上段の機械生成 |
 | `extract-nested-required.mjs` | 同上 | nested $defs (Branch / WorkflowApprover / AiMessage / CdcDestination / OutputBinding / TxBoundary 等) の required 表 | cheatsheet 下段 |
-| `lint-generic-definitions.mjs` | `<project>/<dataDir>/generic-definitions/<kind>/*.json` | 各 file の必須 field 不足 warning | RFC 将来案 entity の soft validation (AJV 対象外、本 PR で導入の保険) |
+| `lint-generic-definitions.mjs` | `<project>/<dataDir>/generic-definitions/<kind>/*.json` | 各 file の必須 field 不足 / path-kind 不一致 warning | 親 schema (#1063) と併用、物理配置 (path ↔ kind 一致) を担当する CLI gate。AJV strict 検証は `test.mjs` § 3b |
 | `lib/spec-doc.mjs` | `docs/spec/conversion-guideline-for-ai.md` | jsonc/ts fence + cheatsheet 行抽出 helper | `test.mjs` 内で spec doc 本体を gate input にするための共有 module |
 | `test.mjs` | 上記すべて + spec doc + schemas/v3/ | assertion 結果 (stdout) | `npm run test:spec-check` の本体。schema → extract → spec doc の drift を gate |
 | `test-binding-grammar.mjs` | binding grammar v1 parser | assertion 結果 | parser の reference 実装 + 14 ケース pass 確認 |

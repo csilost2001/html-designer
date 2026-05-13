@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 // Soft lint for `<project>/<dataDir>/generic-definitions/<kind>/*.json` 配下の
-// RFC 将来 schema entity を、AJV gate 前段の最小限チェックする。
+// generic-definition entity を、AJV strict gate と併用する最小限の前段 check。
 //
-// 本 PR (#1060) では generic-definition の正式 schema を切り出さない方針だが、
-// AJV 対象外のまま production silent failure を起こさないため、共通メタモデルの
-// 最低 5 field (kind / name / purpose / responsibilities / targets) と
-// path-kind 一致を verify する。
+// 役割分担 (#1063 で AJV strict gate 導入後):
+//   - 本 script (soft lint): physical path ↔ JSON kind field 一致 / 最低 5 field 存在 /
+//     最低限の enum / type check。fixture-free で project ディレクトリ全体を walk する。
+//     CLI から `npm run lint:samples` 等で個別 project に対して即時実行できる軽量 gate。
+//   - AJV strict gate (scripts/spec-check/test.mjs §3b): name pattern /
+//     responsibilities minItems / relations[].kind enum / unevaluatedProperties: false
+//     等の strict 検証。schema (schemas/v3/generic-definition.v3.schema.json) が正。
 //
-// 正式 schema が後続 ISSUE で導入されたら本 script は AJV gate に置換される。
+// 物理配置 (path ↔ kind 一致) は AJV 単体では検出できないため、本 soft lint を
+// 維持する。両者を併用して silent failure を防ぐ。
 //
 // Usage:
 //   node scripts/spec-check/lint-generic-definitions.mjs <project-dir>

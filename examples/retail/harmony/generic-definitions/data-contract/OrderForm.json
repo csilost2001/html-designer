@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
+  "kind": "data-contract",
+  "name": "OrderForm",
+  "purpose": "EC 注文入力フォームの層間契約 (画面入力 → ProcessFlow 注文確定への受け渡し DTO)",
+  "responsibilities": [
+    "顧客が注文画面で入力する項目を保持する",
+    "ProcessFlow 注文確定処理の入力契約として機能する",
+    "在庫引当・与信・配送指示の各 step に必要な最小情報を持つ"
+  ],
+  "targets": ["backend", "frontend"],
+  "fields": [
+    {
+      "name": "customerId",
+      "type": "string",
+      "constraints": ["必須", "UUID 形式"],
+      "description": "注文者の顧客 ID。session から自動補完される想定。"
+    },
+    {
+      "name": "items",
+      "type": "OrderLineItem[]",
+      "constraints": ["最低 1 件", "最大 50 件"],
+      "description": "注文明細。商品コード / 数量 / 単価を含む。"
+    },
+    {
+      "name": "shippingAddressId",
+      "type": "string",
+      "constraints": ["必須"],
+      "description": "配送先住所 ID。customer.addresses から選択。"
+    },
+    {
+      "name": "paymentMethod",
+      "type": "string",
+      "constraints": ["enum: credit / bank-transfer / cod"],
+      "description": "決済手段。"
+    }
+  ],
+  "constraints": [
+    "shippingAddressId は customerId の所有する住所 ID であること",
+    "items の合計金額が顧客の与信枠を超えないこと (検証は OrderValidator が担当)"
+  ]
+}

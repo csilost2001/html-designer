@@ -44,7 +44,7 @@
 - `screenItemEvent.{trigger,target,effects[]}` — 現行 ScreenItemEvent は `id` / `handlerFlowId` / `argumentMapping` のみ
 - ProcessFlow step `kind: "componentCall"`, `kind: "dbQuery"|"dbInsert"|"dbUpdate"` — 現行は `commonProcess` / `dbAccess` (operation: SELECT/INSERT/UPDATE/DELETE)
 - `validation[].throw.exceptionTypeRef` (step 内 inline) — 現行は `errorCode` catalog 参照
-- `generic-definitions/<kind>/*.json` 全般 — 現行 `schemas/v3/` に該当 schema なし
+- `generic-definitions/<kind>/*.json` の **kind 固有 field** — 親 schema (`schemas/v3/generic-definition.v3.schema.json`、#1063 で導入済) は確定し、共通メタモデル (kind / name / purpose / responsibilities / targets / fields / operations / relations / constraints / mappingHints) は AJV 検証対象。**kind 別の固有 field schema** (data-contract / domain-type 等の細目) は #1064 以降の子 ISSUE で順次切り出し中
 - `step.outputBinding: "stock"` の string 短縮形 — v3 で廃止、`{ name: "stock" }` のみ
 
 ### AI が今すべきこと
@@ -694,14 +694,14 @@ spec 編集者の記憶に頼って書き換えない。不確実な場合は必
 
 ### ✨ §3.4 〜 §3.7 についての注記 (必読)
 
-以下 §3.4 (exception-model) / §3.5 (class-definition) / §3.6 (frontend-script) / §3.7 (configuration-class) はすべて **`generic-definitions/<kind>/*.json` 配下への出力** で、現行 `schemas/v3/` に対応 schema が存在しない。AJV 検証対象外。
+以下 §3.4 (exception-model) / §3.5 (class-definition) / §3.6 (frontend-script) / §3.7 (configuration-class) はすべて **`generic-definitions/<kind>/*.json` 配下への出力**。親 schema (`schemas/v3/generic-definition.v3.schema.json`、#1063 で導入) で AJV 検証対象、kind 別の固有 schema は #1064 以降の子 ISSUE で順次導入中。
 
 **現状の扱い**:
-- `examples/<project>/<dataDir>/generic-definitions/<kind>/<name>.json` ファイルに書き出す (想定パス例: `examples/retail/harmony/generic-definitions/data-contract/OrderForm.json` — 現時点では子 ISSUE #1060-2 以降で schema 確定後にサンプル追加予定、本 PR 時点で実体は未配置)
-- 現行 loader は読まない (将来 schema 確定時に取り込まれる)
-- AJV 検証ゲートからは除外
-- audit に **warning `rfc_future_field_skipped`** を kind 別件数で残す
-- 設計者が将来 schema 確定後に migration 可能な形式で構造化保存
+- `examples/<project>/<dataDir>/generic-definitions/<kind>/<name>.json` ファイルに書き出す (実例: `examples/retail/harmony/generic-definitions/data-contract/OrderForm.json` 等、#1063 で 3 件配置済)
+- 現行 loader はまだ読まない (UI 統合は #1069 で順次対応、それまでは設計資産として保存のみ)
+- **AJV 検証**: 親 schema の共通メタモデルは検証対象 (`scripts/spec-check/test.mjs` § 3b)、kind 別固有 field は #1064 以降の子 ISSUE 完了後に追加
+- 物理配置 (path ↔ kind 一致) は `scripts/spec-check/lint-generic-definitions.mjs` で soft lint
+- 親 schema にマッチしない kind 固有 field を生成しようとした場合は audit に **warning `rfc_future_field_skipped`** を kind 別件数で残す
 
 JSON 構造は [`generic-definition-layer.md` §4.1 共通メタモデル](generic-definition-layer.md) に準拠する。
 
@@ -995,7 +995,7 @@ MD が少数 (~数十ファイル) で更新もまれな場合の手順。
 5. **screen / processFlow / table** — §3.1-§3.3 の **✅ 現行 schema 適合形** で変換 (§0.5 参照)
 6. **generic-definitions** — §3.4-§3.7 (✨ RFC 将来案) で `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` に書き出し、各件数を `rfc_future_field_skipped` warning として記録
 7. **ProcessFlow `commonProcess` の link** — `refId` (呼び先 ProcessFlow Uuid) を解決、未解決は **error** `commonprocess_ref_unresolved` を audit に出す (§10 (A) hard gate 対象、warning ではないので review gate で必ず止まる)。RFC 将来案の `componentCall` ref は generic-definitions/ 側のみで保持 (現行 hard gate 対象外)
-8. **AJV 検証 (現行 schema 範囲)** — `schemas/v3/*.json` 配下で生成した JSON のみ AJV で検証。generic-definitions/ 配下は検証対象外 (§10 (A)/(B) 参照)
+8. **AJV 検証 (現行 schema 範囲)** — `schemas/v3/*.json` 配下で生成した JSON を AJV で検証。`generic-definitions/<kind>/*.json` は親 schema (`generic-definition.v3.schema.json`) で共通メタモデル検証、kind 固有 field は #1064 以降の子 ISSUE 完了後に追加 (§10 (A)/(B) 参照)
 9. **audit summary** — §5.3 形式で出力、PR description に貼る (`rfc_future_field_skipped` の kind 別件数を含む)
 10. **完了判定** — §10 (A) hard gate を全件パス、§10 (B) soft gate は warning として残す
 
@@ -1478,15 +1478,16 @@ MD が ~30 ファイル以下 ?
 
 ### (B) RFC 将来 schema 範囲 — Soft gate (warning として記録、保存許容)
 
-以下は **AJV ゲートから除外** し、draft-state policy ([`draft-state-policy.md`](draft-state-policy.md)) に従って保存。ただし **最小 RFC メタモデル lint は通過必須** (production 経路に壊れた JSON を混入させないため):
+以下は **AJV gate 部分通過 + 残部分は warning として記録**、draft-state policy ([`draft-state-policy.md`](draft-state-policy.md)) に従って保存:
 
-- `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` 配下の出力 (data-contract / domain-type / exception-type / application-rule / ui-behavior / runtime-policy / component-definition / ui-fragment) — 現行 loader は読まないが、将来 schema 確定時の取り込み用に保存
+- `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` 配下の出力 — **親 schema 共通メタモデル部分は AJV gate 対象** (`generic-definition.v3.schema.json`、#1063)、kind 固有 field は #1064 以降の子 ISSUE 完了後に追加。loader 取り込み (UI) は #1069 で対応
 - `description` 内に埋め込んだ ✨ RFC binding metadata / UI effects / componentCall ref / exceptionTypeRef
-- audit warning `rfc_future_field_skipped` で kind 別件数を記録
+- audit warning `rfc_future_field_skipped` で kind 固有 field の件数を記録 (親 schema 部分は通過想定)
 
-**最小 RFC メタモデル lint** ([`scripts/spec-check/lint-generic-definitions.mjs`](../../scripts/spec-check/lint-generic-definitions.mjs)):
+**AJV gate (親 schema) + soft lint の併用** ([`scripts/spec-check/lint-generic-definitions.mjs`](../../scripts/spec-check/lint-generic-definitions.mjs) + `scripts/spec-check/test.mjs` § 3b):
 
 ```bash
+# soft lint (CLI 実行可、project ディレクトリ全体を walk)
 node scripts/spec-check/lint-generic-definitions.mjs <project-dir>
 # 検証項目:
 #  - JSON parse OK
@@ -1494,11 +1495,15 @@ node scripts/spec-check/lint-generic-definitions.mjs <project-dir>
 #  - kind enum 一致 (8 種、generic-definition-layer.md §4.2)
 #  - path/kind 一致 (例: data-contract/Foo.json の中身は kind: "data-contract")
 #  - targets enum 一致 (backend / frontend / shared / runtime)
+
+# AJV strict gate (test.mjs § 3b 経由) — name pattern / responsibilities minItems /
+# relations[].kind enum / unevaluatedProperties: false 等の strict 検証
+node scripts/spec-check/test.mjs
 ```
 
-正式 schema が後続 ISSUE (`schemas/v3/generic-definition.v3.schema.json`) で確定したら、本 lint は AJV gate に昇格する。それまでは soft gate として運用。
+役割分担: 物理配置 (path ↔ kind 一致) は soft lint が、schema 構造検証は AJV gate が担当。両者併用で silent failure を防ぐ。
 
-(B) の件数が増えすぎる場合、設計者が将来 schema 確定タイミングを判断するためのシグナルになる。
+(B) の件数が増えすぎる場合、設計者が kind 別 schema 切り出し (子 2-6) の優先度を判断するシグナルになる。
 
 ### 補足
 

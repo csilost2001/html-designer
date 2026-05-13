@@ -235,6 +235,191 @@ try {
 }
 
 // =============================================================================
+// 3b. generic-definition.v3.schema.json AJV strict gate (#1063)
+//     section 3 の soft lint (5 field 存在 + kind enum + path-kind) を超える
+//     strict 検証: name pattern / responsibilities minItems / relations[].kind enum /
+//     unevaluatedProperties: false 等。soft lint は path-kind 物理配置と AJV gate
+//     起動前の最低限 sanity check として保持し、本 strict gate が正となる。
+// =============================================================================
+console.log("\n## generic-definition.v3.schema.json (AJV strict)");
+{
+  const { default: Ajv2020 } = await import("ajv/dist/2020.js");
+  const { default: addFormats } = await import("ajv-formats");
+  const ajv = new Ajv2020({ strict: false, allErrors: true });
+  addFormats(ajv);
+  const commonSchema = JSON.parse(readFileSync(join(ROOT, "schemas/v3/common.v3.schema.json"), "utf8"));
+  const gdSchema = JSON.parse(readFileSync(join(ROOT, "schemas/v3/generic-definition.v3.schema.json"), "utf8"));
+  ajv.addSchema(commonSchema);
+  const validate = ajv.compile(gdSchema);
+
+  const cases = [
+    {
+      name: "minimum required fields",
+      valid: true,
+      data: {
+        kind: "data-contract",
+        name: "OrderForm",
+        purpose: "注文入力フォーム",
+        responsibilities: ["注文入力値保持"],
+        targets: ["backend", "frontend"],
+      },
+    },
+    {
+      name: "full fields with operations / relations / mappingHints",
+      valid: true,
+      data: {
+        kind: "component-definition",
+        name: "OrderValidator",
+        purpose: "注文入力の業務バリデーション",
+        responsibilities: ["在庫確認", "与信チェック"],
+        targets: ["backend"],
+        fields: [{ name: "rules", type: "ValidationRule[]" }],
+        operations: [
+          {
+            name: "validate",
+            inputs: [{ name: "order", type: "OrderForm" }],
+            outputs: [{ name: "result", type: "ValidationResult" }],
+          },
+        ],
+        relations: [
+          { kind: "uses", ref: "generic-definitions/data-contract/OrderForm" },
+        ],
+        constraints: ["validate は副作用を持たないこと"],
+        mappingHints: {
+          "backend.spring": { layer: "service" },
+        },
+      },
+    },
+    {
+      name: "kind enum violation rejected",
+      valid: false,
+      data: {
+        kind: "unknown-kind",
+        name: "Bad",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "name pattern violation (starts with digit) rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "1Bad",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "name pattern violation (hyphen) rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "Bad-Name",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "responsibilities empty array rejected (minItems: 1)",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "Empty",
+        purpose: "x",
+        responsibilities: [],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "targets invalid enum rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "BadTarget",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["mobile"],
+      },
+    },
+    {
+      name: "unknown top-level property rejected (unevaluatedProperties: false)",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "Extra",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+        unknownProp: "stale",
+      },
+    },
+    {
+      name: "relations[].kind invalid enum rejected",
+      valid: false,
+      data: {
+        kind: "component-definition",
+        name: "BadRelation",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+        relations: [{ kind: "weird-relation", ref: "x" }],
+      },
+    },
+    {
+      name: "purpose missing rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "NoPurpose",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+  ];
+
+  for (const c of cases) {
+    const ok = validate(c.data);
+    if (c.valid) {
+      const detail = ok
+        ? ""
+        : (validate.errors || []).slice(0, 3).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ");
+      assert(`✓ valid: ${c.name}`, ok, detail);
+    } else {
+      assert(`✗ invalid rejected: ${c.name}`, !ok);
+    }
+  }
+
+  // examples/retail の sample 1 件以上が AJV pass することを確認 (回帰検出)
+  const retailGdRoot = join(ROOT, "examples/retail/harmony/generic-definitions");
+  if (existsSync(retailGdRoot)) {
+    const { readdirSync } = await import("node:fs");
+    function walk(dir) {
+      const out = [];
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...walk(full));
+        else if (entry.isFile() && full.endsWith(".json")) out.push(full);
+      }
+      return out;
+    }
+    const sampleFiles = walk(retailGdRoot);
+    assert("examples/retail に generic-definition sample 1 件以上", sampleFiles.length >= 1, `actual=${sampleFiles.length}`);
+    for (const f of sampleFiles) {
+      const data = JSON.parse(readFileSync(f, "utf8"));
+      const ok = validate(data);
+      const detail = ok
+        ? ""
+        : (validate.errors || []).slice(0, 3).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ");
+      assert(`examples sample AJV pass: ${f.split("generic-definitions/")[1]}`, ok, detail);
+    }
+  }
+}
+
+// =============================================================================
 // 4. spec doc 本体を input にした gate (Round 11 review M-1/M-2/M-3 対応)
 //    Round 11 で指摘された「test.mjs が spec doc を一切読まない → cheatsheet /
 //    jsonc fence / ✅ JSON 例の drift が CI gate を素通り」を解消する。
@@ -283,6 +468,7 @@ console.log("\n## ✅ 例 AJV validation against schemas/v3/");
     "schemas/v3/screen-item.v3.schema.json",
     "schemas/v3/screen.v3.schema.json",
     "schemas/v3/process-flow.v3.schema.json",
+    "schemas/v3/generic-definition.v3.schema.json",
   ];
   for (const f of schemaFiles) {
     const s = JSON.parse(readFileSync(join(ROOT, f), "utf8"));

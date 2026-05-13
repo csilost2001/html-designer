@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
+  "kind": "component-definition",
+  "name": "OrderValidator",
+  "purpose": "注文確定前の業務バリデーションを集約する component (在庫・与信・配送可否)",
+  "responsibilities": [
+    "OrderForm を受け取り validation を実施する",
+    "在庫不足 / 与信不足 / 配送先不可 を個別の exception-type で報告する",
+    "副作用を持たない (在庫引当等の状態変更は別 component の責務)"
+  ],
+  "targets": ["backend"],
+  "operations": [
+    {
+      "name": "validate",
+      "inputs": [
+        { "name": "order", "type": "OrderForm" }
+      ],
+      "outputs": [
+        { "name": "result", "type": "ValidationResult" }
+      ],
+      "description": "OrderForm 全体を検証する。違反時は対応する exception-type を throw する。"
+    }
+  ],
+  "relations": [
+    {
+      "kind": "uses",
+      "ref": "generic-definitions/data-contract/OrderForm",
+      "description": "validate 入力契約。"
+    }
+  ],
+  "constraints": [
+    "validate は idempotent かつ副作用なし",
+    "throws: StockInsufficientError / CreditLimitExceededError / ShippingUnavailableError のいずれか"
+  ],
+  "mappingHints": {
+    "backend.spring": {
+      "layer": "service",
+      "annotation": "@Service",
+      "package": "com.example.retail.order.validation"
+    },
+    "backend.nestjs": {
+      "layer": "service",
+      "decorator": "@Injectable()"
+    }
+  }
+}
