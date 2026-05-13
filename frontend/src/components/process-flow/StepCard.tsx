@@ -233,6 +233,10 @@ interface StepCardProps {
   markerTooltip?: string;
   /** kind 別未解決件数 (#261 色分け badge 表示用、省略時は markerCount のみ表示) */
   markerKinds?: { todo: number; question: number; attention: number; chat: number };
+  /** #1076 編集レベル (rough / detail / implementation)。デフォルトは implementation (全項目) */
+  editLevel?: "rough" | "detail" | "implementation";
+  /** #1076 AI 依頼ボタン押下時のコールバック */
+  onAskAi?: () => void;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -274,6 +278,8 @@ export function StepCard({
   markerCount = 0,
   markerTooltip,
   markerKinds,
+  editLevel = "implementation",
+  onAskAi,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -431,6 +437,7 @@ export function StepCard({
       <div
         className={cardClass}
         data-step-id={step.id}
+        data-edit-level={editLevel}
         style={{ borderLeftColor: color }}
         onContextMenu={onContextMenu}
       >
@@ -614,6 +621,16 @@ export function StepCard({
               <i className="bi bi-box-arrow-up-right" />
             </button>
           )}
+          {onAskAi && (
+            <button
+              type="button"
+              className="step-card-ai-btn"
+              title="AI に依頼 (AI 依頼パネルに追加)"
+              onClick={(e) => { e.stopPropagation(); onAskAi(); }}
+            >
+              <i className="bi bi-robot" />
+            </button>
+          )}
           <div className="d-flex gap-1 ms-auto" style={{ flexShrink: 0 }}>
             {onOutdent && (
               <button className="step-card-menu-btn" onClick={(e) => { e.stopPropagation(); onOutdent(); }} title="上位レベルに移動（アウトデント）">
@@ -719,7 +736,7 @@ export function StepCard({
                 />
               </div>
             </div>
-            <div className="row g-2 mb-2" data-field-path="runIf">
+            <div className="row g-2 mb-2 step-card-section" data-field-path="runIf" data-level-min="detail">
               <div className="col-12">
                 <label className="form-label small">
                   <i className="bi bi-funnel me-1" />
@@ -788,16 +805,20 @@ export function StepCard({
                 </select>
               </div>
             </div>
-            <StepAdvancedMetadataPanel
-              step={step}
-              onChange={onChange}
-              onCommit={onCommit}
-            />
+            <div className="step-card-section" data-level-min="implementation">
+              <StepAdvancedMetadataPanel
+                step={step}
+                onChange={onChange}
+                onCommit={onCommit}
+              />
+            </div>
             <NotesPanel
               notes={step.notes}
               onChange={(notes) => onChange({ notes } as Partial<Step>)}
             />
 
+            {/* ── ステップ種別別詳細 (detail 以上で表示) ─────── */}
+            <div className="step-card-section" data-level-min="detail">
             {/* ── バリデーション ───────────────────────────────── */}
             {step.kind === "validation" && (
               <>
@@ -1775,6 +1796,8 @@ export function StepCard({
               />
             )}
 
+            </div>{/* end step-card-section data-level-min="detail" */}
+
             <div className="row g-2">
               <div className="col-12">
                 <label className="form-label">メモ</label>
@@ -1845,6 +1868,8 @@ export function StepCard({
                 validationErrors={validationErrors}
                 conventions={conventions}
                 group={group}
+                editLevel={editLevel}
+                onAskAi={onAskAi}
               />
             </div>
           ))}

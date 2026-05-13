@@ -55,9 +55,7 @@ function useEditLevelMemory(): UseEditLevelResult {
  * ただし、flowId が途中で変わる可能性がある場合は `useEditLevelPersisted` を直接使うこと。
  */
 export function useEditLevel(flowId?: string): UseEditLevelResult {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const persisted = useEditLevelPersisted(flowId ?? "__noop__");
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const memory = useEditLevelMemory();
 
   // flowId がある場合は永続化、ない場合はメモリのみ
