@@ -18,6 +18,8 @@ import {
   deleteGenericDefinition,
   createGenericDefinitionTemplate,
 } from "../../store/genericDefinitionStore";
+import { validateGenericDefinition } from "../../schemas/genericDefinitionValidator";
+import { ValidationBadge } from "../common/ValidationBadge";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { makeTabId, openTab } from "../../store/tabStore";
 import { DataList, type DataListColumn } from "../common/DataList";
@@ -56,6 +58,7 @@ export function GenericDefinitionListView() {
   const [items, setItems] = useState<GenericDefinitionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(storageKey(kindParam), "table");
+  const [validationMap, setValidationMap] = useState<Map<string, { errors: number; warnings: number }>>(new Map());
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
   const [addPurpose, setAddPurpose] = useState("");
@@ -89,9 +92,35 @@ export function GenericDefinitionListView() {
     if (!kind) return;
     return mcpBridge.onBroadcast("genericDefinitionChanged", (data) => {
       const d = data as { kind?: string };
-      if (d.kind === kind) loadItems();
+      if (d.kind === kind) {
+        setValidationMap(new Map());
+        loadItems();
+      }
     });
   }, [kind, loadItems]);
+
+  // バックグラウンドで validation map を構築 (ProcessFlowListView のパターンに倣う)
+  useEffect(() => {
+    if (items.length === 0 || !kind) return;
+    let cancelled = false;
+    (async () => {
+      for (const item of items) {
+        if (cancelled) break;
+        const full = await loadGenericDefinition(kind, item.name);
+        if (!full || cancelled) continue;
+        const issues = validateGenericDefinition(full);
+        setValidationMap((prev) => {
+          const next = new Map(prev);
+          next.set(item.name, {
+            errors: issues.filter((i) => i.severity === "error").length,
+            warnings: issues.filter((i) => i.severity === "warning").length,
+          });
+          return next;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [items, kind]);
 
   const [filterQuery, setFilterQuery] = useState("");
   const filter = useListFilter(items);
@@ -251,28 +280,61 @@ export function GenericDefinitionListView() {
       sortAccessor: (item) => item.fieldCount,
       render: (item) => <span>{item.fieldCount}</span>,
     },
-  ], [handleActivate]);
-
-  const renderCard = useCallback((item: GenericDefinitionSummary) => (
-    <div style={{ padding: "12px" }}>
-      <div style={{ fontWeight: 600, fontFamily: "monospace", color: "#0d6efd", marginBottom: "4px", fontSize: "0.95rem" }}
-        onClick={() => handleActivate(item)}>
-        {item.name}
-      </div>
-      <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "8px" }}>{item.purpose}</div>
-      <div>
-        {item.targets.map((t) => (
-          <span key={t} style={{
-            background: "#e8f4fd", color: "#0d6efd",
-            padding: "2px 6px", borderRadius: "4px",
-            fontSize: "0.75rem", marginRight: "4px",
-          }}>
-            {GENERIC_DEFINITION_TARGET_LABELS[t] ?? t}
+    {
+      key: "validation",
+      header: "検証",
+      render: (item) => {
+        const v = validationMap.get(item.name);
+        if (!v) return <span style={{ color: "#ccc", fontSize: "0.8rem" }}>...</span>;
+        if (v.errors === 0 && v.warnings === 0) {
+          return <i className="bi bi-check-lg" style={{ color: "#28a745" }} title="問題なし" />;
+        }
+        return (
+          <span style={{ display: "inline-flex", gap: "4px" }}>
+            <ValidationBadge severity="error" count={v.errors} />
+            <ValidationBadge severity="warning" count={v.warnings} />
           </span>
-        ))}
+        );
+      },
+    },
+  ], [handleActivate, validationMap]);
+
+  const renderCard = useCallback((item: GenericDefinitionSummary) => {
+    const v = validationMap.get(item.name);
+    const hasError = v && v.errors > 0;
+    const hasWarning = v && !hasError && v.warnings > 0;
+    return (
+      <div
+        className={hasError ? "has-error" : hasWarning ? "has-warning" : ""}
+        style={{ padding: "12px" }}
+      >
+        <div style={{ fontWeight: 600, fontFamily: "monospace", color: "#0d6efd", marginBottom: "4px", fontSize: "0.95rem" }}
+          onClick={() => handleActivate(item)}>
+          {item.name}
+        </div>
+        <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "8px" }}>{item.purpose}</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            {item.targets.map((t) => (
+              <span key={t} style={{
+                background: "#e8f4fd", color: "#0d6efd",
+                padding: "2px 6px", borderRadius: "4px",
+                fontSize: "0.75rem", marginRight: "4px",
+              }}>
+                {GENERIC_DEFINITION_TARGET_LABELS[t] ?? t}
+              </span>
+            ))}
+          </div>
+          {v && (v.errors > 0 || v.warnings > 0) && (
+            <span style={{ display: "inline-flex", gap: "4px" }}>
+              <ValidationBadge severity="error" count={v.errors} />
+              <ValidationBadge severity="warning" count={v.warnings} />
+            </span>
+          )}
+        </div>
       </div>
-    </div>
-  ), [handleActivate]);
+    );
+  }, [handleActivate, validationMap]);
 
   if (!kind) {
     return <div style={{ padding: "24px", color: "#c00" }}>不正な kind です</div>;
