@@ -7,14 +7,13 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f8f9fa;
+  background: #eef2f6;
 }
 
 .process-flow-content {
   flex: 1;
   overflow-y: auto;
-  /* #309 フォローアップ: 情報密度優先。4K で余白過多にならないよう縦 8px / 横 14px */
-  padding: 8px 14px;
+  padding: 18px 20px 28px;
 }
 
 /* ─── 処理フロー一覧 ─────────────────────────────────────────────── */
@@ -178,25 +177,42 @@
 
 .process-flow-tabs {
   display: flex;
-  gap: 0;
-  border-bottom: 2px solid #e2e8f0;
-  padding: 0 20px;
-  background: #fff;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  padding: 3px;
+  background: #f8fafc;
   overflow-x: auto;
 }
 
+.process-flow-tab-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.process-flow-tab-wrap.active {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
 .process-flow-tab {
-  padding: 10px 16px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: #64748b;
   border: none;
-  background: none;
+  background: transparent;
   cursor: pointer;
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: color 0.15s, border-color 0.15s;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
 .process-flow-tab:hover {
@@ -204,23 +220,451 @@
 }
 
 .process-flow-tab.active {
-  color: #6366f1;
-  border-bottom-color: #6366f1;
-  font-weight: 600;
+  color: #17202c;
+  background: transparent;
+  box-shadow: none;
+}
+
+.process-flow-tab-remove {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.process-flow-tab-remove:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.process-flow-tab-empty {
+  padding: 0 8px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .process-flow-tab-add {
-  padding: 10px 12px;
-  font-size: 0.85rem;
+  padding: 6px 9px;
+  font-size: 0.8rem;
   color: #94a3b8;
   border: none;
-  background: none;
+  background: transparent;
+  border-radius: 6px;
   cursor: pointer;
-  margin-bottom: -2px;
 }
 
 .process-flow-tab-add:hover {
-  color: #6366f1;
+  color: #2563eb;
+  background: #eaf1ff;
+}
+
+/* ─── ProcessFlow editor workbench (#1071) ───────────────────────── */
+
+.process-flow-workbench {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #eef2f6;
+}
+
+.process-flow-command-bar {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(180px, 260px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #d8dee7;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+}
+
+.process-flow-command-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.process-flow-command-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #17202c;
+  font-size: 0.9rem;
+}
+
+.process-flow-command-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.process-flow-command-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #17202c;
+  font-size: 0.8rem;
+}
+
+.process-flow-command-eyebrow,
+.process-flow-pane-kicker {
+  color: #7a8798;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.process-flow-command-hints {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.process-flow-command-hints kbd {
+  padding: 1px 5px;
+  border: 1px solid #cbd5e1;
+  border-bottom-color: #94a3b8;
+  border-radius: 4px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.68rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.process-flow-workbench-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px minmax(420px, 1fr) 380px;
+  overflow: hidden;
+}
+
+.process-flow-palette-pane,
+.process-flow-canvas-pane,
+.process-flow-inspector-pane {
+  min-height: 0;
+  min-width: 0;
+  background: #fff;
+}
+
+.process-flow-palette-pane {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #d8dee7;
+}
+
+.process-flow-canvas-pane {
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(#e4e9f0 1px, transparent 1px),
+    linear-gradient(90deg, #e4e9f0 1px, transparent 1px),
+    #f8fafc;
+  background-size: 28px 28px;
+}
+
+.process-flow-inspector-pane {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #d8dee7;
+}
+
+.process-flow-pane-header,
+.process-flow-canvas-header {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #d8dee7;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.process-flow-pane-header h6,
+.process-flow-canvas-header h6 {
+  margin: 1px 0 0;
+  color: #17202c;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.process-flow-pane-badge,
+.process-flow-canvas-metrics span {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid #d8dee7;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.process-flow-canvas-metrics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.process-flow-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 12px 0;
+  padding: 0 9px;
+  height: 32px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.process-flow-palette-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #17202c;
+  font-size: 0.8rem;
+}
+
+.process-flow-palette-section {
+  width: 100%;
+  color: #7a8798;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin: 4px 0 2px;
+}
+
+.process-flow-palette-empty {
+  padding: 14px 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.process-flow-template-anchor {
+  position: relative;
+  width: 100%;
+}
+
+.process-flow-inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.process-flow-inspector-section {
+  margin-bottom: 10px;
+}
+
+/* #1071: ProcessFlow editor 内のフォーム部品は Bootstrap 未適用/素の input でも
+   ブラウザ標準の inset border に戻らないよう、画面スコープで基礎スタイルを固定する。 */
+.process-flow-workbench :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.process-flow-modal :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.process-flow-ai-review-dialog :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.screen-item-picker :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  min-height: 30px;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background-color: #fff;
+  color: #17202c;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  padding: 5px 8px;
+  transition: border-color 0.14s, box-shadow 0.14s, background-color 0.14s;
+}
+
+.process-flow-workbench :where(textarea),
+.process-flow-modal :where(textarea),
+.process-flow-ai-review-dialog :where(textarea),
+.screen-item-picker :where(textarea) {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.process-flow-workbench :where(select),
+.process-flow-modal :where(select),
+.process-flow-ai-review-dialog :where(select),
+.screen-item-picker :where(select) {
+  appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #64748b 50%),
+    linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.process-flow-workbench :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover,
+.process-flow-modal :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover,
+.process-flow-ai-review-dialog :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover,
+.screen-item-picker :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover {
+  border-color: #94a3b8;
+}
+
+.process-flow-workbench :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus,
+.process-flow-modal :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus,
+.process-flow-ai-review-dialog :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus,
+.screen-item-picker :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  outline: none;
+  border-color: #2563eb;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.process-flow-workbench :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):disabled,
+.process-flow-modal :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):disabled,
+.process-flow-ai-review-dialog :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):disabled,
+.screen-item-picker :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.process-flow-workbench :where(.btn, button:not(.step-toolbar-btn):not(.step-insert-btn):not(.step-paste-btn):not(.process-flow-tab):not(.process-flow-tab-add)) {
+  border-radius: 7px;
+}
+
+.process-flow-page .editor-header,
+.process-flow-page .edit-mode-toolbar {
+  border-bottom-color: #d8dee7;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.process-flow-page .editor-header .btn,
+.process-flow-page .edit-mode-toolbar .btn,
+.process-flow-page .save-reset-buttons .btn,
+.process-flow-page .edit-session-dropdown-toggle {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.2;
+  padding: 5px 10px;
+  transition: border-color 0.14s, background-color 0.14s, color 0.14s, box-shadow 0.14s;
+}
+
+.process-flow-page .editor-header .btn:hover,
+.process-flow-page .edit-mode-toolbar .btn:hover,
+.process-flow-page .save-reset-buttons .btn:hover,
+.process-flow-page .edit-session-dropdown-toggle:hover {
+  border-color: #2563eb;
+  background: #eaf1ff;
+  color: #1d4ed8;
+}
+
+.process-flow-page .editor-header .btn-primary,
+.process-flow-page .edit-mode-toolbar .btn-primary,
+.process-flow-page .save-reset-buttons .btn-primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.process-flow-page .edit-mode-toolbar .btn-success,
+.process-flow-page .save-reset-buttons .btn-success {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #fff;
+}
+
+.process-flow-page .editor-header .btn-primary:hover,
+.process-flow-page .edit-mode-toolbar .btn-primary:hover,
+.process-flow-page .save-reset-buttons .btn-primary:hover,
+.process-flow-page .edit-mode-toolbar .btn-success:hover,
+.process-flow-page .save-reset-buttons .btn-success:hover {
+  filter: brightness(0.96);
+  color: #fff;
+}
+
+.process-flow-page .edit-mode-toolbar--editing::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.process-flow-inspector-pane :where(button:not(.catalog-panel-toggle):not(.step-context-menu-item)),
+.step-card-body :where(button:not(.step-card-menu-btn):not(.inline-type-btn)),
+.process-flow-io-panel :where(button) {
+  min-height: 26px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  font-size: 0.74rem;
+  line-height: 1.2;
+  padding: 4px 8px;
+  transition: border-color 0.14s, background-color 0.14s, color 0.14s, box-shadow 0.14s;
+}
+
+.process-flow-inspector-pane :where(button:not(.catalog-panel-toggle):not(.step-context-menu-item)):hover,
+.step-card-body :where(button:not(.step-card-menu-btn):not(.inline-type-btn)):hover,
+.process-flow-io-panel :where(button):hover {
+  border-color: #2563eb;
+  background: #eaf1ff;
+  color: #1d4ed8;
+}
+
+.process-flow-inspector-pane :where(button:not(.catalog-panel-toggle):not(.step-context-menu-item)):focus-visible,
+.step-card-body :where(button:not(.step-card-menu-btn):not(.inline-type-btn)):focus-visible,
+.process-flow-io-panel :where(button):focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
 /* ─── I/O パネル ─────────────────────────────────────────────────── */
@@ -232,11 +676,11 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  margin-bottom: 16px;
-  padding: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  margin-bottom: 10px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
 }
 /* 1600px 以上 (4K 半分や 1920 以上の横広) では入出力を左右並びに戻す。
    table-layout: fixed + col-*: 11em+9em+7em+... の合計 ≒ 400px 以上あれば折り返し
@@ -356,32 +800,35 @@
 
 .step-toolbar {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-  padding: 12px 0;
-  flex-wrap: wrap;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 16px;
+  padding: 12px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
 }
 
 .step-toolbar-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
   background: #fff;
   font-size: 0.78rem;
-  color: #475569;
+  color: #334155;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
   white-space: nowrap;
 }
 
 .step-toolbar-btn:hover {
-  border-color: #6366f1;
-  background: #f5f3ff;
-  color: #4338ca;
+  border-color: #2563eb;
+  background: #eaf1ff;
+  color: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
 }
 
 .step-toolbar-btn i {
@@ -389,18 +836,21 @@
 }
 
 .step-toolbar-sep {
-  width: 1px;
+  width: 100%;
+  height: 1px;
   background: #e2e8f0;
-  margin: 0 4px;
+  margin: 6px 0;
 }
 
 .step-template-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
   border: 1px dashed #cbd5e1;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #f8fafc;
   font-size: 0.78rem;
   color: #64748b;
@@ -419,36 +869,62 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  max-width: 920px;
+  margin: 0 auto;
 }
 
 .step-insert-point {
+  position: relative;
   display: flex;
   justify-content: center;
-  padding: 4px 0;
+  align-items: center;
+  min-height: 12px;
+  padding: 2px 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, min-height 0.15s, padding 0.15s;
 }
 
-.step-list:hover .step-insert-point,
+.step-insert-point::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  height: 2px;
+  border-radius: 999px;
+  background: #9db4d6;
+  transform: translateY(-50%);
+}
+
+.step-insert-point:hover,
+.step-insert-point.drag-visible,
 .step-insert-point:focus-within {
   opacity: 1;
+  min-height: 28px;
+  padding: 4px 0;
 }
 
 .step-insert-point.drop-active {
   opacity: 1;
-  padding: 12px 0;
-  background: rgba(99, 102, 241, 0.08);
-  border-radius: 6px;
-  border: 2px dashed #6366f1;
+  min-height: 38px;
+  padding: 8px 0;
+}
+
+.step-insert-point.drop-active::before {
+  height: 3px;
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
 .step-insert-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px dashed #cbd5e1;
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
   background: #fff;
-  color: #94a3b8;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -458,22 +934,26 @@
 }
 
 .step-insert-btn:hover {
-  border-color: #6366f1;
-  color: #6366f1;
-  background: #f5f3ff;
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eaf1ff;
 }
 
 .step-insert-point.has-paste {
   opacity: 1;
+  min-height: 24px;
 }
 
 .step-paste-btn {
+  position: relative;
+  z-index: 1;
+  margin-left: 6px;
   font-size: 0.72rem;
   padding: 2px 8px;
-  border: 1px dashed #6366f1;
-  border-radius: 4px;
-  background: #f5f3ff;
-  color: #6366f1;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -483,15 +963,17 @@
 }
 
 .step-card {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d8dee7;
   border-radius: 8px;
   background: #fff;
-  border-left: 4px solid #e2e8f0;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  border-left: 4px solid #cbd5e1;
+  box-shadow: 0 8px 20px rgba(23, 32, 44, 0.06);
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
 }
 
 .step-card:hover {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 28px rgba(23, 32, 44, 0.1);
+  transform: translateY(-1px);
 }
 
 .step-card.dragging {
@@ -509,8 +991,9 @@
 
 /* 選択状態 */
 .step-card.selected {
-  outline: 2px solid #6366f1;
-  background-color: rgba(99, 102, 241, 0.05);
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  background-color: #f8fbff;
 }
 
 .step-card-drag-handle {
@@ -681,6 +1164,35 @@
   padding: 40px 20px;
   color: #94a3b8;
   font-size: 0.9rem;
+}
+
+.process-flow-empty-drop {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 320px;
+  margin: 0 auto;
+  max-width: 560px;
+  border: 1px dashed #b8c4d4;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #64748b;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.process-flow-empty-drop.drop-active {
+  border-color: #2563eb;
+  background: rgba(239, 246, 255, 0.88);
+  box-shadow: inset 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.process-flow-empty-drop strong {
+  color: #334155;
+  font-size: 1rem;
+}
+
+.process-flow-empty-drop span {
+  font-size: 0.82rem;
 }
 
 .step-empty i {
@@ -889,9 +1401,9 @@
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 34px rgba(23, 32, 44, 0.18);
   z-index: 200;
-  min-width: 160px;
+  min-width: 180px;
   padding: 4px 0;
 }
 
@@ -925,6 +1437,52 @@
   height: 1px;
   background: #e2e8f0;
   margin: 4px 0;
+}
+
+@media (max-width: 1280px) {
+  .process-flow-workbench-grid {
+    grid-template-columns: 220px minmax(360px, 1fr) 340px;
+  }
+
+  .process-flow-command-hints {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .process-flow-command-bar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .process-flow-workbench-grid {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .process-flow-palette-pane,
+  .process-flow-inspector-pane {
+    min-height: 220px;
+    border-right: 0;
+    border-left: 0;
+    border-bottom: 1px solid #d8dee7;
+  }
+
+  .step-toolbar {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    max-height: 260px;
+  }
+
+  .process-flow-palette-section,
+  .step-toolbar-sep,
+  .process-flow-template-anchor {
+    grid-column: 1 / -1;
+  }
+
+  .process-flow-canvas-pane {
+    min-height: 60vh;
+  }
 }
 
 /* ─── 分岐セクション (Phase 3) ───────────────────────────────────── */
@@ -1413,54 +1971,66 @@
 /* ─── メタタブバー (#309) ─────────────────────────────────────────
    ProcessFlowEditor 上部の基本情報 + 6 カタログを 1 行のタブバーに集約し、
    排他的に 1 つだけ body を全幅で展開する。 */
-.process-flow-meta-tabbar {
+.process-flow-meta-tabbar,
+.action-meta-tabbar {
   padding: 3px 14px;
   background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  border: 1px solid #d8dee7;
+  border-radius: 8px;
+  margin-bottom: 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.process-flow-meta-tabs {
+.process-flow-meta-tabs,
+.action-meta-tabs {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 3px;
   row-gap: 3px;
 }
-.process-flow-meta-tabs .catalog-panel {
+.process-flow-meta-tabs .catalog-panel,
+.action-meta-tabs .catalog-panel {
   margin: 0;
   flex: 0 0 auto;
 }
-.process-flow-meta-tabs .catalog-panel-toggle {
+.process-flow-meta-tabs .catalog-panel-toggle,
+.action-meta-tabs .catalog-panel-toggle {
   width: auto;
   padding: 2px 8px;
   font-size: 0.76rem;
 }
 /* アクティブ (展開中) のパネルを強調: chevron-down アイコンの存在で判定 (:has) */
-.process-flow-meta-tabs .catalog-panel:has(.bi-chevron-down) {
+.process-flow-meta-tabs .catalog-panel:has(.bi-chevron-down),
+.action-meta-tabs .catalog-panel:has(.bi-chevron-down) {
   background: #dbeafe;
   border-color: #60a5fa;
 }
-.process-flow-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle {
+.process-flow-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle,
+.action-meta-tabs .catalog-panel:has(.bi-chevron-down) .catalog-panel-toggle {
   color: #1e40af;
 }
-.process-flow-meta-tabbar-spacer {
+.process-flow-meta-tabbar-spacer,
+.action-meta-tabbar-spacer {
   flex: 1 1 auto;
 }
-.process-flow-meta-tabbar-inline {
+.process-flow-meta-tabbar-inline,
+.action-meta-tabbar-inline {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.78rem;
   padding: 0 4px;
 }
-.process-flow-meta-maturity-label {
+.process-flow-meta-maturity-label,
+.action-meta-maturity-label {
   font-weight: 600;
   color: #475569;
   font-size: 0.75rem;
 }
-.process-flow-meta-progress {
+.process-flow-meta-progress,
+.action-meta-progress {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1469,25 +2039,29 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
 }
-.process-flow-meta-body {
+.process-flow-meta-body,
+.action-meta-body {
   padding: 6px 10px;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
-  max-height: 50vh;
+  max-height: 42vh;
   overflow-y: auto;
 }
-.process-flow-meta-body.process-flow-meta-info-body {
+.process-flow-meta-body.process-flow-meta-info-body,
+.action-meta-body.action-meta-info-body {
   padding: 8px 10px;
 }
 /* メタタブバー配下の body は外枠はタブバーが提供するので、
    各 Panel の border は解除して内側 padding のみにする */
-.process-flow-meta-body > .catalog-panel {
+.process-flow-meta-body > .catalog-panel,
+.action-meta-body > .catalog-panel {
   margin: 0;
   border: none;
   background: transparent;
 }
-.process-flow-meta-body > .catalog-panel > .catalog-panel-body {
+.process-flow-meta-body > .catalog-panel > .catalog-panel-body,
+.action-meta-body > .catalog-panel > .catalog-panel-body {
   max-height: none;
   padding: 0;
   border-top: none;
@@ -1772,12 +2346,71 @@
   line-height: 1;
 }
 
-.process-flow-ai-generate-dialog {
-  width: min(720px, calc(100vw - 32px));
+.process-flow-ai-generate-dialog,
+.process-flow-ai-review-dialog {
+  width: min(920px, calc(100vw - 48px));
+  max-width: 920px;
+  min-height: min(640px, calc(100vh - 72px));
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
 }
 
-.process-flow-ai-generate-dialog textarea {
+.process-flow-ai-generate-dialog .process-flow-modal-header,
+.process-flow-ai-review-dialog .edit-mode-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #d8dee7;
+  background: #fff;
+}
+
+.process-flow-ai-generate-dialog .form-group,
+.process-flow-ai-review-dialog .edit-mode-modal-body {
+  flex: 1;
+}
+
+.process-flow-ai-generate-dialog {
+  padding: 20px;
+}
+
+.process-flow-ai-generate-dialog textarea,
+.process-flow-ai-review-dialog textarea {
+  width: 100%;
+  min-height: 260px;
   resize: vertical;
+}
+
+.process-flow-ai-review-dialog .edit-mode-modal-body {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+}
+
+.process-flow-ai-review-dialog .edit-mode-modal-footer {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.process-flow-ai-review-dialog .btn,
+.process-flow-ai-generate-dialog .btn,
+.process-flow-ai-generate-dialog button,
+.process-flow-ai-review-dialog button:not(.btn-close) {
+  min-height: 30px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 5px 10px;
+}
+
+.process-flow-ai-review-dialog .btn-primary,
+.process-flow-ai-generate-dialog .btn-primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
 }
 
 .process-flow-ai-preview {

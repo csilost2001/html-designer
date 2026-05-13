@@ -1,5 +1,5 @@
 // @ts-nocheck -- large legacy editor migration remains open; tracked by #1016.
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
@@ -101,13 +101,26 @@ function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => v
 }
 
 /** ステップ間のドロップゾーン */
-function StepInsertZone({ index, onClick, onPaste }: { index: number; onClick: () => void; onPaste?: () => void }) {
+function StepInsertZone({
+  index,
+  onClick,
+  onPaste,
+  dragVisible,
+}: {
+  index: number;
+  onClick: () => void;
+  onPaste?: () => void;
+  dragVisible?: boolean;
+}) {
   const { setNodeRef, isOver } = useDroppable({
     id: `insert-${index}`,
     data: { kind: "insert-zone", insertIndex: index },
   });
   return (
-    <div ref={setNodeRef} className={`step-insert-point${isOver ? " drop-active" : ""}${onPaste ? " has-paste" : ""}`}>
+    <div
+      ref={setNodeRef}
+      className={`step-insert-point${isOver ? " drop-active" : ""}${onPaste ? " has-paste" : ""}${dragVisible ? " drag-visible" : ""}`}
+    >
       <button className="step-insert-btn" onClick={onClick} title="ステップを挿入">
         <i className="bi bi-plus" />
       </button>
@@ -116,6 +129,18 @@ function StepInsertZone({ index, onClick, onPaste }: { index: number; onClick: (
           <i className="bi bi-clipboard-plus me-1" />貼り付け
         </button>
       )}
+    </div>
+  );
+}
+
+function EmptyFlowDropZone({ children }: { children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: "empty-flow-drop",
+    data: { kind: "insert-zone", insertIndex: 0 },
+  });
+  return (
+    <div ref={setNodeRef} className={`step-empty process-flow-empty-drop${isOver ? " drop-active" : ""}`}>
+      {children}
     </div>
   );
 }
@@ -173,6 +198,9 @@ export function ProcessFlowEditor() {
   const [drawingMode, setDrawingMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; stepId: string } | null>(null);
   const [contextMenuSubTypePicker, setContextMenuSubTypePicker] = useState(false);
+  const [isDraggingToolbarStep, setIsDraggingToolbarStep] = useState(false);
+  const [stepFilter, setStepFilter] = useState("");
+  const [commandQuery, setCommandQuery] = useState("");
   // SQL 列検査 / 規約参照検査のため (#261)
   const [tableDefs, setTableDefs] = useState<ValidatorTableDef[]>([]);
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
@@ -431,8 +459,22 @@ export function ProcessFlowEditor() {
   }, []);
 
   const customStepCards = Object.entries(extensions?.steps ?? {});
+  const normalizedStepFilter = stepFilter.trim().toLowerCase();
+  const filteredStepTypes = normalizedStepFilter
+    ? ALL_STEP_TYPES.filter((type) => {
+      const label = STEP_TYPE_LABELS[type] ?? type;
+      return type.toLowerCase().includes(normalizedStepFilter) || label.toLowerCase().includes(normalizedStepFilter);
+    })
+    : ALL_STEP_TYPES;
 
   const activeAction = group?.actions.find((a) => a.id === activeActionId) ?? null;
+  const normalizedCommandQuery = commandQuery.trim().toLowerCase();
+  const visibleActions = group?.actions.filter((act) => {
+    if (!normalizedCommandQuery) return true;
+    return act.name.toLowerCase().includes(normalizedCommandQuery)
+      || ACTION_TRIGGER_LABELS[act.trigger].toLowerCase().includes(normalizedCommandQuery)
+      || act.trigger.toLowerCase().includes(normalizedCommandQuery);
+  }) ?? [];
 
   const handleAddAction = () => {
     const name = newActionName.trim();
@@ -532,7 +574,16 @@ export function ProcessFlowEditor() {
     });
   };
 
+  const handleDragStart = (event: { active: { data: { current?: Record<string, unknown> } } }) => {
+    setIsDraggingToolbarStep(event.active.data.current?.kind === "toolbar-step");
+  };
+
+  const handleDragCancel = () => {
+    setIsDraggingToolbarStep(false);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setIsDraggingToolbarStep(false);
     const { active, over } = event;
     if (!over || !activeAction) return;
 
@@ -541,8 +592,12 @@ export function ProcessFlowEditor() {
     if (dragKind === "toolbar-step") {
       // #46: ツールバーからドロップ → 新規ステップを挿入
       const stepType = active.data.current?.stepType as StepType;
-      const insertIndex = over.data.current?.insertIndex as number | undefined;
-      handleAddStep(stepType, insertIndex ?? activeAction.steps.length);
+      let insertIndex = over.data.current?.insertIndex as number | undefined;
+      if (insertIndex === undefined) {
+        const overStepIndex = activeAction.steps.findIndex((s) => s.id === over.id);
+        insertIndex = overStepIndex >= 0 ? overStepIndex : activeAction.steps.length;
+      }
+      handleAddStep(stepType, insertIndex);
     } else {
       // #47: ステップカードの並べ替え
       if (active.id === over.id) return;
@@ -619,25 +674,27 @@ export function ProcessFlowEditor() {
   };
 
   // ── クリップボード操作 ────────────────────────────────────────
-  const handleCut = () => {
-    if (selectedIds.size === 0 || !activeAction) return;
-    const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
+  const handleCut = (ids = selectedIds) => {
+    if (ids.size === 0 || !activeAction) return;
+    const steps = activeAction.steps.filter((s) => ids.has(s.id));
     setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "cut" });
     updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
-      for (const id of selectedIds) {
+      for (const id of ids) {
         clearJumpReferences(act.steps, id);
         removeStep(act, id);
       }
     });
     setSelectedIds(new Set());
+    closeContextMenu();
   };
 
-  const handleCopy = () => {
-    if (selectedIds.size === 0 || !activeAction) return;
-    const steps = activeAction.steps.filter((s) => selectedIds.has(s.id));
+  const handleCopy = (ids = selectedIds) => {
+    if (ids.size === 0 || !activeAction) return;
+    const steps = activeAction.steps.filter((s) => ids.has(s.id));
     setClipboard({ steps: JSON.parse(JSON.stringify(steps)), mode: "copy" });
+    closeContextMenu();
   };
 
   const handlePaste = (insertIndex?: number) => {
@@ -666,16 +723,55 @@ export function ProcessFlowEditor() {
     });
     if (clipboard.mode === "cut") setClipboard(null);
     setSelectedIds(new Set());
+    closeContextMenu();
+  };
+
+  const getContextStepIndex = () => {
+    if (!contextMenu || !activeAction) return -1;
+    return activeAction.steps.findIndex((s) => s.id === contextMenu.stepId);
+  };
+
+  const handleContextInsert = (offset: 0 | 1) => {
+    const idx = getContextStepIndex();
+    if (idx < 0) return;
+    handleAddStep("other", idx + offset);
+    closeContextMenu();
+  };
+
+  const handleContextPaste = (offset: 0 | 1) => {
+    const idx = getContextStepIndex();
+    if (idx < 0) return;
+    handlePaste(idx + offset);
   };
 
   const handleEscapeSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
 
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    for (const id of Array.from(selectedIds)) {
+      handleDeleteStep(id);
+    }
+    setSelectedIds(new Set());
+  }, [selectedIds, handleDeleteStep]);
+
+  const handleMoveSelectedByKeyboard = useCallback((direction: -1 | 1) => {
+    if (!activeAction || selectedIds.size !== 1) return;
+    const id = Array.from(selectedIds)[0];
+    const fromIndex = activeAction.steps.findIndex((s) => s.id === id);
+    const toIndex = fromIndex + direction;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= activeAction.steps.length) return;
+    handleMoveStep(fromIndex, toIndex);
+  }, [activeAction, selectedIds]);
+
   useSelectionKeyboard({
     onCut: handleCut,
     onCopy: handleCopy,
     onPaste: () => handlePaste(),
+    onDelete: handleDeleteSelected,
+    onMoveUp: () => handleMoveSelectedByKeyboard(-1),
+    onMoveDown: () => handleMoveSelectedByKeyboard(1),
     onEscape: handleEscapeSelection,
     enabled: selectedIds.size > 0 || clipboard !== null,
   });
@@ -1010,122 +1106,105 @@ export function ProcessFlowEditor() {
         </div>
       )}
 
-      {/* グループ情報 + カタログ群 (#309 タブバー化) */}
-      <ActionMetaTabBar
-        group={group}
-        updateGroup={updateGroup}
-        updateGroupSilent={updateGroupSilent}
-      />
-
-      {/* アクションタブ */}
-      <div className="process-flow-tabs">
-        {group.actions.map((act) => (
-          <div key={act.id} className="d-flex align-items-center">
+      <div className="process-flow-workbench">
+        <div className="process-flow-command-bar">
+          <div className="process-flow-command-title">
+            <span className="process-flow-command-eyebrow">Action</span>
+            <strong>{activeAction?.name ?? "アクション未選択"}</strong>
+            {activeAction && <span className="text-muted small">{ACTION_TRIGGER_LABELS[activeAction.trigger]}</span>}
+          </div>
+          <div className="process-flow-command-search">
+            <i className="bi bi-search" />
+            <input
+              value={commandQuery}
+              onChange={(e) => setCommandQuery(e.target.value)}
+              placeholder="アクションを検索"
+              aria-label="アクションを検索"
+            />
+          </div>
+          <div className="process-flow-tabs">
+            {visibleActions.map((act) => (
+              <div key={act.id} className={`process-flow-tab-wrap${activeActionId === act.id ? " active" : ""}`}>
+                <button
+                  className={`process-flow-tab ${activeActionId === act.id ? "active" : ""}`}
+                  onClick={() => setActiveActionId(act.id)}
+                >
+                  <MaturityBadge
+                    maturity={act.maturity}
+                    onChange={(next) => {
+                      updateGroupSilent((g) => {
+                        const a = g.actions.find((a2) => a2.id === act.id);
+                        if (a) a.maturity = next;
+                      });
+                    }}
+                  />
+                  {act.name}
+                  <span className="ms-1 text-muted small">({ACTION_TRIGGER_LABELS[act.trigger]})</span>
+                </button>
+                <button
+                  className="process-flow-tab-remove"
+                  onClick={() => handleDeleteAction(act.id)}
+                  title="アクション削除"
+                >
+                  <i className="bi bi-x" />
+                </button>
+              </div>
+            ))}
+            {visibleActions.length === 0 && (
+              <span className="process-flow-tab-empty">一致するアクションがありません</span>
+            )}
             <button
-              className={`process-flow-tab ${activeActionId === act.id ? "active" : ""}`}
-              onClick={() => setActiveActionId(act.id)}
+              className="process-flow-tab-add"
+              onClick={() => setShowAddAction(true)}
+              title="アクション追加"
             >
-              <MaturityBadge
-                maturity={act.maturity}
-                onChange={(next) => {
-                  updateGroupSilent((g) => {
-                    const a = g.actions.find((a2) => a2.id === act.id);
-                    if (a) a.maturity = next;
-                  });
-                }}
-              />
-              {act.name}
-              <span className="ms-1 text-muted small">({ACTION_TRIGGER_LABELS[act.trigger]})</span>
-            </button>
-            <button
-              className="btn btn-link btn-sm text-muted p-0 ms-1"
-              onClick={() => handleDeleteAction(act.id)}
-              title="アクション削除"
-              style={{ fontSize: "0.7rem" }}
-            >
-              <i className="bi bi-x" />
+              <i className="bi bi-plus-lg" />
             </button>
           </div>
-        ))}
-        <button
-          className="process-flow-tab-add"
-          onClick={() => setShowAddAction(true)}
-          title="アクション追加"
+          <div className="process-flow-command-hints">
+            <span><kbd>Ctrl</kbd>+<kbd>C</kbd> コピー</span>
+            <span><kbd>Ctrl</kbd>+<kbd>V</kbd> 貼付</span>
+            <span><kbd>右クリック</kbd> 操作</span>
+          </div>
+        </div>
+
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragCancel={handleDragCancel}
+          onDragEnd={handleDragEnd}
+          collisionDetection={collisionDetection}
         >
-          <i className="bi bi-plus-lg" />
-        </button>
-      </div>
-
-      {/* ステップエディタ */}
-      <div className="process-flow-content">
-        {activeAction ? (
-          <div className="step-editor">
-            {/* HTTP 契約 */}
-            <ActionHttpContractPanel
-              action={activeAction}
-              onChange={(patch) => {
-                updateGroupSilent((g) => {
-                  const act = g.actions.find((a) => a.id === activeActionId);
-                  if (act) Object.assign(act, patch);
-                });
-                commitGroup();
-              }}
-            />
-            <SlaPanel
-              label="アクション SLA / Timeout"
-              sla={activeAction.sla}
-              onChange={(sla) => {
-                updateGroupSilent((g) => {
-                  const act = g.actions.find((a) => a.id === activeActionId);
-                  if (act) act.sla = sla;
-                });
-                commitGroup();
-              }}
-            />
-            {/* I/O パネル */}
-            <div className="process-flow-io-panel">
-              <div className="process-flow-io-field">
-                <StructuredFieldsEditor
-                  label="入力データ"
-                  fields={activeAction.inputs}
-                  onChange={(val) => {
-                    updateGroupSilent((g) => {
-                      const act = g.actions.find((a) => a.id === activeActionId);
-                      if (act) act.inputs = val;
-                    });
-                  }}
-                  onCommit={commitGroup}
-                  placeholder="例: ユーザID、パスワード（改行で複数項目）"
-                  onPickScreenItem={handlePickScreenItem}
+          <div className="process-flow-workbench-grid">
+            <aside className="process-flow-palette-pane">
+              <div className="process-flow-pane-header">
+                <div>
+                  <span className="process-flow-pane-kicker">Blocks</span>
+                  <h6>ブロック</h6>
+                </div>
+                <span className="process-flow-pane-badge">D&D</span>
+              </div>
+              <div className="process-flow-palette-search">
+                <i className="bi bi-search" />
+                <input
+                  value={stepFilter}
+                  onChange={(e) => setStepFilter(e.target.value)}
+                  placeholder="ブロックを検索"
+                  aria-label="ブロックを検索"
                 />
               </div>
-              <div className="process-flow-io-field">
-                <StructuredFieldsEditor
-                  label="出力データ"
-                  fields={activeAction.outputs}
-                  onChange={(val) => {
-                    updateGroupSilent((g) => {
-                      const act = g.actions.find((a) => a.id === activeActionId);
-                      if (act) act.outputs = val;
-                    });
-                  }}
-                  onCommit={commitGroup}
-                  placeholder="例: セッションID、認証トークン（改行で複数項目）"
-                  onPickScreenItem={handlePickScreenItem}
-                />
-              </div>
-            </div>
-
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={collisionDetection}>
-              {/* ツールバー */}
               <div className="step-toolbar">
-                {ALL_STEP_TYPES.map((type) => (
+                <div className="process-flow-palette-section">基本ステップ</div>
+                {filteredStepTypes.map((type) => (
                   <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} />
                 ))}
+                {filteredStepTypes.length === 0 && (
+                  <div className="process-flow-palette-empty">該当するブロックがありません</div>
+                )}
                 {customStepCards.length > 0 && (
                   <>
                     <div className="step-toolbar-sep" />
-                    <div className="small text-muted d-flex align-items-center px-1">カスタム</div>
+                    <div className="process-flow-palette-section">カスタム</div>
                     {customStepCards.map(([id, step]) => (
                       <CustomStepButton
                         key={id}
@@ -1138,7 +1217,7 @@ export function ProcessFlowEditor() {
                   </>
                 )}
                 <div className="step-toolbar-sep" />
-                <div style={{ position: "relative" }}>
+                <div className="process-flow-template-anchor">
                   <button
                     className="step-template-btn"
                     onClick={() => setShowTemplates(!showTemplates)}
@@ -1162,17 +1241,41 @@ export function ProcessFlowEditor() {
                   )}
                 </div>
               </div>
+            </aside>
 
-              {/* ステップリスト */}
-              {activeAction.steps.length === 0 ? (
-                <div className="step-empty">
-                  <i className="bi bi-plus-circle" />
-                  ステップがありません。上のボタンから追加するか、テンプレートを使用してください。
+            <main className="process-flow-canvas-pane">
+              <div className="process-flow-canvas-header">
+                <div>
+                  <span className="process-flow-pane-kicker">Flow</span>
+                  <h6>{activeAction ? `${activeAction.name} の処理` : "処理フロー"}</h6>
                 </div>
-              ) : (
-                <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                  <div className="step-list" ref={stepListRef}>
-                    {activeAction.steps.map((step, index) => {
+                {activeAction && (
+                  <div className="process-flow-canvas-metrics">
+                    <span>{activeAction.steps.length} steps</span>
+                    <span>{activeAction.inputs?.length ?? 0} inputs</span>
+                    <span>{activeAction.outputs?.length ?? 0} outputs</span>
+                  </div>
+                )}
+              </div>
+              <div className="process-flow-content">
+                {activeAction ? (
+                  <div className="step-editor">
+                    {activeAction.steps.length === 0 ? (
+                      <EmptyFlowDropZone>
+                        <i className="bi bi-plus-circle" />
+                        <strong>ステップがありません</strong>
+                        <span>左のブロックをドラッグするか、ブロックをクリックして追加してください。</span>
+                        <StepInsertZone
+                          index={0}
+                          onClick={() => handleAddStep("other")}
+                          onPaste={clipboard ? () => handlePaste(0) : undefined}
+                          dragVisible={isDraggingToolbarStep}
+                        />
+                      </EmptyFlowDropZone>
+                    ) : (
+                      <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                        <div className={`step-list${isDraggingToolbarStep ? " drag-inserting" : ""}`} ref={stepListRef}>
+                          {activeAction.steps.map((step, index) => {
                       // この step に紐付いた未解決 marker 件数
                       const stepMarkers = (group.authoring?.markers ?? []).filter(
                         (m) => !m.resolvedAt && m.stepId === step.id,
@@ -1193,6 +1296,7 @@ export function ProcessFlowEditor() {
                           index={index}
                           onClick={() => handleAddStep("other", index)}
                           onPaste={clipboard ? () => handlePaste(index) : undefined}
+                          dragVisible={isDraggingToolbarStep}
                         />
                         <SortableStepCard
                           step={step}
@@ -1211,6 +1315,8 @@ export function ProcessFlowEditor() {
                           onAddSubStep={(type) => handleAddSubStep(step.id, type)}
                           onContextMenu={(e) => {
                             e.preventDefault();
+                            setSelectedIds(new Set([step.id]));
+                            lastSelectedIdRef.current = step.id;
                             setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
                           }}
                           onNavigateCommon={(refId) => navigate(wsPath(`/process-flow/edit/${refId}`))}
@@ -1241,24 +1347,105 @@ export function ProcessFlowEditor() {
                         />
                       </div>
                       );
-                    })}
-                    {/* 末尾の挿入ポイント */}
-                    <StepInsertZone
-                      index={activeAction.steps.length}
-                      onClick={() => handleAddStep("other")}
-                      onPaste={clipboard ? () => handlePaste(activeAction.steps.length) : undefined}
-                    />
+                          })}
+                          <StepInsertZone
+                            index={activeAction.steps.length}
+                            onClick={() => handleAddStep("other")}
+                            onPaste={clipboard ? () => handlePaste(activeAction.steps.length) : undefined}
+                            dragVisible={isDraggingToolbarStep}
+                          />
+                        </div>
+                      </SortableContext>
+                    )}
                   </div>
-                </SortableContext>
-              )}
-            </DndContext>
+                ) : (
+                  <div className="step-empty process-flow-empty-drop">
+                    <i className="bi bi-lightning" />
+                    <strong>アクションがありません</strong>
+                    <span>上部の + ボタンからアクションを追加してください。</span>
+                  </div>
+                )}
+              </div>
+            </main>
+
+            <aside className="process-flow-inspector-pane">
+              <div className="process-flow-pane-header">
+                <div>
+                  <span className="process-flow-pane-kicker">Inspector</span>
+                  <h6>詳細</h6>
+                </div>
+              </div>
+              <div className="process-flow-inspector-scroll">
+                <ActionMetaTabBar
+                  group={group}
+                  updateGroup={updateGroup}
+                  updateGroupSilent={updateGroupSilent}
+                />
+                {activeAction && (
+                  <>
+                    <div className="process-flow-inspector-section">
+                      <ActionHttpContractPanel
+                        action={activeAction}
+                        onChange={(patch) => {
+                          updateGroupSilent((g) => {
+                            const act = g.actions.find((a) => a.id === activeActionId);
+                            if (act) Object.assign(act, patch);
+                          });
+                          commitGroup();
+                        }}
+                      />
+                    </div>
+                    <div className="process-flow-inspector-section">
+                      <SlaPanel
+                        label="アクション SLA / Timeout"
+                        sla={activeAction.sla}
+                        onChange={(sla) => {
+                          updateGroupSilent((g) => {
+                            const act = g.actions.find((a) => a.id === activeActionId);
+                            if (act) act.sla = sla;
+                          });
+                          commitGroup();
+                        }}
+                      />
+                    </div>
+                    <div className="process-flow-io-panel">
+                      <div className="process-flow-io-field">
+                        <StructuredFieldsEditor
+                          label="入力データ"
+                          fields={activeAction.inputs}
+                          onChange={(val) => {
+                            updateGroupSilent((g) => {
+                              const act = g.actions.find((a) => a.id === activeActionId);
+                              if (act) act.inputs = val;
+                            });
+                          }}
+                          onCommit={commitGroup}
+                          placeholder="例: ユーザID、パスワード（改行で複数項目）"
+                          onPickScreenItem={handlePickScreenItem}
+                        />
+                      </div>
+                      <div className="process-flow-io-field">
+                        <StructuredFieldsEditor
+                          label="出力データ"
+                          fields={activeAction.outputs}
+                          onChange={(val) => {
+                            updateGroupSilent((g) => {
+                              const act = g.actions.find((a) => a.id === activeActionId);
+                              if (act) act.outputs = val;
+                            });
+                          }}
+                          onCommit={commitGroup}
+                          placeholder="例: セッションID、認証トークン（改行で複数項目）"
+                          onPickScreenItem={handlePickScreenItem}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </aside>
           </div>
-        ) : (
-          <div className="step-empty">
-            <i className="bi bi-lightning" />
-            アクションがありません。「+」ボタンからアクションを追加してください。
-          </div>
-        )}
+        </DndContext>
       </div>
 
       {/* コンテキストメニュー */}
@@ -1270,6 +1457,47 @@ export function ProcessFlowEditor() {
         >
           {!contextMenuSubTypePicker ? (
             <>
+              <button
+                className="step-context-menu-item"
+                onClick={() => handleContextInsert(0)}
+              >
+                <i className="bi bi-plus-circle" /> 前に挿入
+              </button>
+              <button
+                className="step-context-menu-item"
+                onClick={() => handleContextInsert(1)}
+              >
+                <i className="bi bi-plus-square" /> 後に挿入
+              </button>
+              {clipboard && (
+                <>
+                  <button
+                    className="step-context-menu-item"
+                    onClick={() => handleContextPaste(0)}
+                  >
+                    <i className="bi bi-clipboard-plus" /> 前に貼り付け
+                  </button>
+                  <button
+                    className="step-context-menu-item"
+                    onClick={() => handleContextPaste(1)}
+                  >
+                    <i className="bi bi-clipboard-plus" /> 後に貼り付け
+                  </button>
+                </>
+              )}
+              <div className="step-context-menu-sep" />
+              <button
+                className="step-context-menu-item"
+                onClick={() => handleCopy(new Set([contextMenu.stepId]))}
+              >
+                <i className="bi bi-files" /> コピー
+              </button>
+              <button
+                className="step-context-menu-item"
+                onClick={() => handleCut(new Set([contextMenu.stepId]))}
+              >
+                <i className="bi bi-scissors" /> カット
+              </button>
               <button
                 className="step-context-menu-item"
                 onClick={() => handleDuplicateStep(contextMenu.stepId)}

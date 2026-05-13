@@ -4,17 +4,23 @@ interface SelectionKeyboardOpts {
   onCut: () => void;
   onCopy: () => void;
   onPaste: () => void;
+  onDelete?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onEscape: () => void;
   enabled?: boolean;
 }
 
 /**
- * Ctrl+X / Ctrl+C / Ctrl+V / Esc キーバインドフック
+ * Ctrl+X / Ctrl+C / Ctrl+V / Delete / Alt+Arrow / Esc キーバインドフック
  */
 export function useSelectionKeyboard({
   onCut,
   onCopy,
   onPaste,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
   onEscape,
   enabled = true,
 }: SelectionKeyboardOpts): void {
@@ -34,6 +40,24 @@ export function useSelectionKeyboard({
         return;
       }
 
+      if ((e.key === "Delete" || e.key === "Backspace") && onDelete) {
+        e.preventDefault();
+        onDelete();
+        return;
+      }
+
+      if (e.altKey && e.key === "ArrowUp" && onMoveUp) {
+        e.preventDefault();
+        onMoveUp();
+        return;
+      }
+
+      if (e.altKey && e.key === "ArrowDown" && onMoveDown) {
+        e.preventDefault();
+        onMoveDown();
+        return;
+      }
+
       if (!ctrl) return;
 
       if (e.key === "x") {
@@ -50,5 +74,5 @@ export function useSelectionKeyboard({
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onCut, onCopy, onPaste, onEscape, enabled]);
+  }, [onCut, onCopy, onPaste, onDelete, onMoveUp, onMoveDown, onEscape, enabled]);
 }
