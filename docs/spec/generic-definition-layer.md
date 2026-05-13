@@ -403,9 +403,20 @@ P0 内部の切り出し順序は **下層が上層に依存しない依存順**
 
 **統合後の子 ISSUE 数**: 7 件 (子 1-7) + 親メタ #1060 で運用継続項目 (#10) を管理。
 
-**起票運用**:
-- 本 PR merge 確認後 **24 時間以内** に親 ISSUE #1060 のコメントとして子 1-7 を起票し、各 ISSUE 番号を本表に back-fill する
-- 「設計者承認待ち」「将来検討」のままで放置しない (鉄則 0)
-- 個別 ISSUE 番号確定後、本 spec §12 を編集して `子 1 → #YYYY` のように記録
+**起票運用** (AGENTS 鉄則 0 を放置不能にする gate):
+
+- 本 PR の **PR description に「Pre-merge checklist」を明記** し、その checklist には以下が含まれる:
+  - [ ] 子 ISSUE 1-7 の draft body を本 PR description 末尾に貼った
+  - [ ] merge 実施者は merge 直前 (同一作業セッション内) に `gh issue create` で全 7 件を起票
+  - [ ] 各起票 ISSUE 番号を本 spec §12 表に追記 (`子 N → #YYYY` 形式)
+  - [ ] 子 1-7 のいずれかが起票不能なら **merge しない** (放置を物理的に発生させない)
+- 後追い起票 (merge 後に「後でやる」) は鉄則 0 違反として禁止
+- 個別 ISSUE 番号確定後、本 spec §12 を編集して `子 1 → #YYYY` のように back-fill する
 
 各作業の schema 変更は schema governance に従い、起票時点で設計者承認を取る。
+
+### 子 ISSUE 1-7 の draft body
+
+本 PR description 末尾に同内容を貼り、merge 時にそのまま `gh issue create --body-file` できる状態にする。
+
+(本 spec ではテンプレ参照: 各子は `## 背景` / `## 受け入れ条件` / `## 親メタ #1060 とのリンク` を最低含む。具体 body は merge 時に PR description から起票するもので、spec 内には冗長に複製しない。)
