@@ -379,6 +379,46 @@ console.log("\n## generic-definition.v3.schema.json (AJV strict)");
         targets: ["backend"],
       },
     },
+    {
+      name: "kind missing rejected",
+      valid: false,
+      data: {
+        name: "NoKind",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "name missing rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        purpose: "x",
+        responsibilities: ["y"],
+        targets: ["backend"],
+      },
+    },
+    {
+      name: "targets missing rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "NoTargets",
+        purpose: "x",
+        responsibilities: ["y"],
+      },
+    },
+    {
+      name: "responsibilities missing rejected",
+      valid: false,
+      data: {
+        kind: "data-contract",
+        name: "NoResp",
+        purpose: "x",
+        targets: ["backend"],
+      },
+    },
   ];
 
   for (const c of cases) {

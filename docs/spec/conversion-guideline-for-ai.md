@@ -35,8 +35,8 @@
 
 | 印 | 種別 | 実体 | AJV 検証 |
 |---|---|---|---|
-| ✅ | **現行 schema 適合形** | `schemas/v3/*.json` に既存。今すぐ使える | **必須通過** (§10 完了判定の対象) |
-| ✨ | **RFC 将来 schema 案** | ISSUE #1060 で提案中。**まだ `schemas/v3/` に存在しない** | **検証対象外** (生成すると AJV 失敗) |
+| ✅ | **現行 schema 適合形** | `schemas/v3/*.json` に既存 (`generic-definition.v3.schema.json` 含む、#1063)。今すぐ使える | **必須通過** (§10 完了判定の対象) |
+| ✨ | **RFC 将来 schema 案** | ISSUE #1060 系の **kind 別固有 schema** (#1064 以降の子 ISSUE)、および既存 entity 拡張 (binding / events.effects / componentCall 等)。**まだ schema が無い** | **検証対象外** (生成すると親 schema `unevaluatedProperties: false` で AJV 失敗、`description` 退避 + audit warning) |
 
 ### 何が ✨ RFC 将来案か
 
@@ -696,6 +696,13 @@ spec 編集者の記憶に頼って書き換えない。不確実な場合は必
 
 以下 §3.4 (exception-model) / §3.5 (class-definition) / §3.6 (frontend-script) / §3.7 (configuration-class) はすべて **`generic-definitions/<kind>/*.json` 配下への出力**。親 schema (`schemas/v3/generic-definition.v3.schema.json`、#1063 で導入) で AJV 検証対象、kind 別の固有 schema は #1064 以降の子 ISSUE で順次導入中。
 
+**例の読み方 — 2 fence split 契約**:
+
+各 §3.4-§3.7 は **2 種類の fence** を提示する:
+
+1. **✅ 現状 (#1063 適合形)** — 親 schema (`kind` / `name` / `purpose` / `responsibilities` / `targets` + 任意の `relations` / `fields` / `operations` / `constraints` / `mappingHints`) のみで構成。親 schema は `unevaluatedProperties: false` のため **kind 固有 field を含めると AJV reject される**。AI は本形式で **そのまま `generic-definitions/<kind>/<Name>.json` に保存** する。
+2. **✨ #1064 以降の追加 field** — `semanticKind` / `recoverable` / `trigger` / `effects` / `rules` 等の kind 固有 field のシグナル。AI は元 MD から抽出した情報を **`description` 内に構造化文字列として退避** (§0.5 (a))、audit に warning `rfc_future_field_skipped` を kind 別件数で記録する。#1064 以降で対応する kind 別 schema が確定したら、これら field が AJV validation 対象に追加される。
+
 **現状の扱い**:
 - `examples/<project>/<dataDir>/generic-definitions/<kind>/<name>.json` ファイルに書き出す (実例: `examples/retail/harmony/generic-definitions/data-contract/OrderForm.json` 等、#1063 で 3 件配置済)
 - 現行 loader はまだ読まない (UI 統合は #1069 で順次対応、それまでは設計資産として保存のみ)
@@ -728,19 +735,19 @@ JSON 構造は [`generic-definition-layer.md` §4.1 共通メタモデル](gener
 - 既定処理: ユーザーへメッセージ表示 → トップ画面へ
 ```
 
-**After** (2 ファイルに分けて書き出す):
+**✅ 現状 (#1063) 適合形** (2 ファイルに分けて書き出す):
 
 `generic-definitions/exception-type/ValidationException.json`:
 ```jsonc
 // generic-definitions/exception-type/ValidationException.json
 {
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
   "kind": "exception-type",
   "name": "ValidationException",
   "purpose": "入力検証失敗",
-  "relations": [{ "kind": "extends", "ref": "generic-definitions/exception-type/BusinessException" }],
-  "semanticKind": "validation-error",
-  "recoverable": true,
-  "defaultHandling": "attach-field-errors"
+  "responsibilities": ["入力検証失敗を呼び出し側に伝える", "field 単位エラーを保持して UI で再表示可能にする"],
+  "targets": ["backend", "shared"],
+  "relations": [{ "kind": "extends", "ref": "generic-definitions/exception-type/BusinessException" }]
 }
 ```
 
@@ -748,21 +755,27 @@ JSON 構造は [`generic-definition-layer.md` §4.1 共通メタモデル](gener
 ```jsonc
 // generic-definitions/exception-type/BusinessAbortException.json
 {
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
   "kind": "exception-type",
   "name": "BusinessAbortException",
   "purpose": "業務的に処理続行不能",
-  "relations": [{ "kind": "extends", "ref": "generic-definitions/exception-type/BusinessException" }],
-  "semanticKind": "business-abort",
-  "recoverable": false,
-  "defaultHandling": "return-user-message"
+  "responsibilities": ["業務継続不能の旨を呼び出し側に伝える", "再試行不能の判断を持たせる"],
+  "targets": ["backend", "shared"],
+  "relations": [{ "kind": "extends", "ref": "generic-definitions/exception-type/BusinessException" }]
 }
 ```
 
+**✨ #1064 以降の追加 field** (現状は AJV reject、`description` 退避 + audit warning `rfc_future_field_skipped`):
+
+| MD 記述 | 退避先 field (#1064 以降で AJV 対象化予定) | 値の例 |
+|---|---|---|
+| 「種別: 業務エラー / 業務中断 / 検証エラー / 認証エラー / 認可エラー / 競合 / システムエラー」 | `semanticKind` | `"validation-error"` / `"business-abort"` / `"auth-error"` 等 |
+| 「回復可能: yes/no」 | `recoverable` | `true` / `false` |
+| 「既定処理: ユーザーへメッセージ表示 → トップ画面へ」 | `defaultHandling` | `"return-user-message"` / `"attach-field-errors"` 等 |
+
 **落とし方 hints**:
-- 「種別: 業務エラー / 業務中断 / 検証エラー / 認証エラー / 認可エラー / 競合 / システムエラー」→ `semanticKind`
-- 「親: X」→ `relations[].kind = "extends"`
-- 「回復可能」→ `recoverable: true|false`
-- 「既定処理: X」→ `defaultHandling`
+- 「親: X」→ `relations[].kind = "extends"` (親 schema 対応済、現状適合形に含める)
+- 「種別」/「回復可能」/「既定処理」→ ✨ kind 固有 field (#1064 で AJV 対象化、それまで `description` 退避)
 
 ### 3.5 `class-definition` → data-contract or domain-type (✨ RFC 将来案)
 
@@ -777,19 +790,21 @@ JSON 構造は [`generic-definition-layer.md` §4.1 共通メタモデル](gener
 | customerNote | string | no | 備考 (max 200) |
 ```
 
-**After**:
+**✅ 現状 (#1063) 適合形** (`fields` は親 schema field のため全項目が AJV 対象):
 ```jsonc
 // generic-definitions/data-contract/OrderForm.json
 {
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
   "kind": "data-contract",
   "name": "OrderForm",
   "purpose": "注文画面の入力フォーム",
+  "responsibilities": ["注文画面の入力値を保持する", "ProcessFlow 注文確定処理への入力契約として機能する"],
+  "targets": ["backend", "frontend"],
   "fields": [
     { "name": "productCode", "type": "string", "constraints": ["required"] },
     { "name": "quantity", "type": "integer", "constraints": ["required", "min:1"] },
     { "name": "customerNote", "type": "string", "constraints": ["maxLength:200"] }
-  ],
-  "targets": ["backend", "frontend"]
+  ]
 }
 ```
 
@@ -808,18 +823,25 @@ JSON 構造は [`generic-definition-layer.md` §4.1 共通メタモデル](gener
 画面入力に変更がある場合、戻る前に確認ダイアログを表示。
 ```
 
-**After**:
+**✅ 現状 (#1063) 適合形**:
 ```jsonc
 // generic-definitions/ui-behavior/dirtyCheck.json
 {
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
   "kind": "ui-behavior",
   "name": "dirtyCheck",
   "purpose": "画面入力に変更がある場合、画面遷移前に確認ダイアログを表示",
-  "trigger": "navigate",
-  "effects": ["confirm", "branch"],
+  "responsibilities": ["未保存入力変更を検出する", "遷移前に確認ダイアログで意思確認する", "確認結果に応じて遷移続行 or キャンセルする"],
   "targets": ["frontend"]
 }
 ```
+
+**✨ #1064 以降の追加 field** (現状は AJV reject、`description` 退避 + audit warning):
+
+| MD 記述 | 退避先 field (#1064 で AJV 対象化予定) | 値の例 |
+|---|---|---|
+| 「変更を検知して」「入力変更が発生した時」 | `trigger` | `"navigate"` / `"submit"` / `"change"` |
+| 「ダイアログを表示」「画面を切替」 | `effects[]` | `["confirm", "branch"]` |
 
 ### 3.7 `configuration-class` → generic-definitions/application-rule (✨ RFC 将来案)
 
@@ -837,23 +859,24 @@ JSON 構造は [`generic-definition-layer.md` §4.1 共通メタモデル](gener
 - 機密項目 (password, token) はマスク
 ```
 
-**After**:
+**✅ 現状 (#1063) 適合形**:
 ```jsonc
 // generic-definitions/application-rule/SecurityConfig.json
 {
+  "$schema": "../../../../../schemas/v3/generic-definition.v3.schema.json",
   "kind": "application-rule",
   "name": "SecurityConfig",
   "purpose": "認証認可とログ出力ポリシー",
-  "rules": [
-    { "category": "auth", "pathPattern": "/admin/*", "require": "role:ADMIN" },
-    { "category": "auth", "pathPattern": "/api/*", "require": "authenticated" },
-    { "category": "auth", "pathPattern": "/public/*", "require": "none" },
-    { "category": "log", "match": "POST|PUT|DELETE", "include": "request-line", "exclude": "request-body" },
-    { "category": "log", "mask": ["password", "token"] }
-  ],
+  "responsibilities": ["URL pattern 別の認証認可ポリシーを規定する", "ログ出力対象とマスク項目を規定する"],
   "targets": ["backend"]
 }
 ```
+
+**✨ #1064 以降の追加 field** (現状は AJV reject、`description` 退避 + audit warning):
+
+| MD 記述 | 退避先 field (#1064 で AJV 対象化予定) | 値の例 |
+|---|---|---|
+| 認証認可 / ログ / 監査の個別ルール列挙 | `rules[]` (kind 別 schema で固有形式定義) | `[{category, pathPattern, require}, ...]` 等 |
 
 ### 3.8 `reference-catalog` → conventions
 
@@ -993,7 +1016,7 @@ MD が少数 (~数十ファイル) で更新もまれな場合の手順。
 3. **archetype 分類** — §2 アルゴリズムで各ファイルを分類、`unknown` は warning ログ
 4. **catalog 系から処理** — `pulldown-catalog` / `reference-catalog` を先に変換し、conventions を確立 (他 archetype の binding 解決に必要)
 5. **screen / processFlow / table** — §3.1-§3.3 の **✅ 現行 schema 適合形** で変換 (§0.5 参照)
-6. **generic-definitions** — §3.4-§3.7 (✨ RFC 将来案) で `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` に書き出し、各件数を `rfc_future_field_skipped` warning として記録
+6. **generic-definitions** — §3.4-§3.7 の **✅ 現状 (#1063) 適合形** で `examples/<project>/<dataDir>/generic-definitions/<kind>/*.json` に書き出し、親 schema (`generic-definition.v3.schema.json`) で AJV 検証必須。kind 固有 field (✨ #1064 以降) は `description` 退避 + audit warning `rfc_future_field_skipped` で kind 別件数記録
 7. **ProcessFlow `commonProcess` の link** — `refId` (呼び先 ProcessFlow Uuid) を解決、未解決は **error** `commonprocess_ref_unresolved` を audit に出す (§10 (A) hard gate 対象、warning ではないので review gate で必ず止まる)。RFC 将来案の `componentCall` ref は generic-definitions/ 側のみで保持 (現行 hard gate 対象外)
 8. **AJV 検証 (現行 schema 範囲)** — `schemas/v3/*.json` 配下で生成した JSON を AJV で検証。`generic-definitions/<kind>/*.json` は親 schema (`generic-definition.v3.schema.json`) で共通メタモデル検証、kind 固有 field は #1064 以降の子 ISSUE 完了後に追加 (§10 (A)/(B) 参照)
 9. **audit summary** — §5.3 形式で出力、PR description に貼る (`rfc_future_field_skipped` の kind 別件数を含む)
