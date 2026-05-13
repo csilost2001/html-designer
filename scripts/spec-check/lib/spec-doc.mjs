@@ -58,13 +58,13 @@ export function extractFences(doc, lang, opts = {}) {
 }
 
 /**
- * jsonc fence の本文から `// ...` 行と inline `// ...` コメントを取り除く。
- * spec §0.5 で AI に「// 行を全削除してから JSON.parse」と約束した契約と一致。
+ * jsonc fence の本文から **行頭が `//` の行** を取り除く。
+ * spec §0.5「行頭が `//` の行を全削除 (前後 whitespace は許容、行末 inline は対象外)」
+ * と一致。値の途中に含まれる `"https://..."` 等は削除されない。
+ * 行末 inline `// ...` 対応が必要になった場合は helper 拡張 + sabotage test 追加が必須。
  */
 export function stripJsoncComments(body) {
-  // 1) `//` で始まる行 (頭が空白でも OK) を行ごと除去
   const lines = body.split("\n").filter((l) => !/^\s*\/\//.test(l));
-  // 2) 各行末尾の ` // ...` inline コメントは扱わない (spec contract は行頭のみ)
   return lines.join("\n");
 }
 

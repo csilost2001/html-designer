@@ -64,10 +64,12 @@
 
 **AI が例を実 JSON file として保存する際の手順**:
 1. ```jsonc fence の中身を抽出
-2. **`//` から始まる行を全削除** (path 注釈と inline コメント両方)
+2. **行頭が `//` の行を全削除** (path 注釈などの行コメント。前後 whitespace は許容、行末 inline `// ...` は対象外)
 3. それから AJV / `JSON.parse` / loader に渡す
 
 AJV / loader / `JSON.parse` は **標準 JSON のみ** 受け付ける。jsonc のままだと AJV gate (§10 A) で必ず失敗する。
+
+**現状の制限**: 本ガイドラインの jsonc fence は **行頭コメントのみ** を採用する契約 (`scripts/spec-check/lib/spec-doc.mjs:stripJsoncComments` の実装と一致)。値の途中に `"https://..."` のような `//` を含めても誤削除は起きないが、**行末 inline `// ...` は spec 例として書かない** こと。将来 inline 対応が必要になった場合は helper 拡張 + sabotage test の追加を行う。
 
 ---
 
@@ -1074,6 +1076,8 @@ scripts/import/
 
 ```ts
 // lib/profile-loader.ts (defaults)
+import { readFileSync } from "fs";
+
 const DEFAULT_PROFILE = {
   profileVersion: "v1",
   name: "<auto>",
