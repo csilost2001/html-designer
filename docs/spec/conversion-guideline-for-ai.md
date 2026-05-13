@@ -228,7 +228,7 @@ Screen v3 schema (`schemas/v3/screen.v3.schema.json`) の root は EntityMeta (`
 - `purpose: "page"` 既定 (gadget 部品は `"gadget"`)
 - ScreenItem の `type` は **データ型のみ** (FieldType: `string` / `number` / `integer` / `boolean` / `date` / `datetime` / `json` / `{kind: "array"/object/domain/file/extension}`)。**`select` / `button` / `submit` / `text` は無効** — select は `string` + `options[]`、ボタンは `{ "kind": "extension", "extensionRef": "<namespace>:button" }` で project ごとに extension
 - **binding grammar v1** (description 埋め込みの厳密形式):
-  - 先頭に sentinel `[binding.v1]` を必ず付ける (将来別形式と区別するため)
+  - 先頭に sentinel `[binding.v1] ` (末尾半角スペース込み、計 13 文字) を必ず付ける (将来別形式と区別するため)
   - その後ろは `<key>=<value>; <key>=<value>; ...` の **セミコロン+空白区切り**
   - 標準 key は `binding.attr` (HTML 属性、コロン許容) / `binding.path` (bind 先) / `binding.role` (input/output/display) / `binding.formatHint` / `source` (出典)
   - `value` 内に `=` / `;` を含めない (含む場合は別フィールドに分割)
@@ -1309,7 +1309,7 @@ export async function applyAIFeedback(profile: any, aiDecisions: AIDecision[]) {
   - 区切り `; ` (セミコロン+空白) を含まない `;` は value 内リテラル扱い
   - 空 key は parse error、空 value は許容
   - 例: `"description": "[binding.v1] binding.attr=th:field; binding.path=form.productCode; source=spec_SC000001.md"`
-  - 参考 parser 実装 (`.tmp/test-binding-grammar.mjs` で 9/9 pass 確認済):
+  - 参考 parser 実装 ([`scripts/spec-check/test-binding-grammar.mjs`](../../scripts/spec-check/test-binding-grammar.mjs) で 14/14 pass 確認済、edge case 含む):
     ```ts
     const SENTINEL = "[binding.v1] ";
     function parseBindingDescription(d: unknown): Record<string, string> | null {

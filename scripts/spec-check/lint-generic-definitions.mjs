@@ -51,15 +51,24 @@ if (!projectDir) {
 }
 
 // Resolve dataDir from <project>/harmony.json
+// harmony.json 不在は error (silent fallback 禁止、壊れた project を "nothing to lint"
+// と誤認しないため。skill 側 Step 0 と整合)
 const harmonyJsonPath = resolve(projectDir, "harmony.json");
-let dataDir = "harmony"; // fallback default per schema
-if (existsSync(harmonyJsonPath)) {
-  try {
-    const harmonyJson = JSON.parse(readFileSync(harmonyJsonPath, "utf8"));
-    if (typeof harmonyJson.dataDir === "string") dataDir = harmonyJson.dataDir;
-  } catch (e) {
-    console.warn(`Warning: failed to read ${harmonyJsonPath}: ${e.message}`);
+if (!existsSync(harmonyJsonPath)) {
+  console.error(`Error: ${harmonyJsonPath} not found. lint requires a valid Harmony project (harmony.json must exist).`);
+  process.exit(1);
+}
+let dataDir;
+try {
+  const harmonyJson = JSON.parse(readFileSync(harmonyJsonPath, "utf8"));
+  if (typeof harmonyJson.dataDir !== "string" || harmonyJson.dataDir.length === 0) {
+    console.error(`Error: ${harmonyJsonPath} has no valid \`dataDir\` field.`);
+    process.exit(1);
   }
+  dataDir = harmonyJson.dataDir;
+} catch (e) {
+  console.error(`Error: failed to parse ${harmonyJsonPath}: ${e.message}`);
+  process.exit(1);
 }
 
 const gdRoot = resolve(projectDir, dataDir, "generic-definitions");

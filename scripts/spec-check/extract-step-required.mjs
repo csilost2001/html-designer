@@ -16,6 +16,13 @@ const $defs = schema.$defs;
 
 const stepUnion = $defs.Step.oneOf.map((r) => r.$ref.replace("#/$defs/", ""));
 
+// $defs 名 → cheatsheet 表示 kind (kind.const が無い variant 用)
+function inferKindFromDefName(stepName) {
+  if (stepName === "ExtensionStep") return "extension"; // pattern namespace:name
+  // 他にも kind.const を持たない variant があれば追記
+  return null;
+}
+
 const results = [];
 for (const stepName of stepUnion) {
   const def = $defs[stepName];
@@ -25,7 +32,10 @@ for (const stepName of stepUnion) {
   }
   const variant = def.allOf[1];
   const required = variant.required || [];
-  const kindConst = variant.properties?.kind?.const || "?";
+  // kind.const がない場合 (ExtensionStep の pattern 等) は $defs 名から推測
+  const kindConst = variant.properties?.kind?.const
+    ?? inferKindFromDefName(stepName)
+    ?? "?";
   const extraRequired = required.filter((r) => !["id", "kind", "description"].includes(r));
   results.push({ stepName, kind: kindConst, required: extraRequired, allRequired: required });
 }
