@@ -111,37 +111,35 @@
 
 **判断**: `event` 配下に `effects[]` を追加。既存 `handlerFlowId` は維持し、effect の一種扱いにはしない (UI ローカル効果と処理起動は概念分離)。
 
-### 3.3 ProcessFlow の internal reusable call 抽象
+### 3.3 ProcessFlow の internal reusable call 抽象 (#1066 で AJV gate 対象化済)
 
-**現状の不足**: DB / external / AI / TX などの step kind はあるが、「内部共通処理」「共有コンポーネント」「ドメインサービス呼び出し」を first-class に参照する抽象が弱い。
+**追加済**: `#1066` で ProcessFlow に `componentCall` step kind を追加。Generic Definition Catalog の `component-definition` を参照する。
 
-**追加候補**: step kind に `componentCall` を追加し、Generic Definition Catalog の `component-definition` を参照する。
-
-```json
+```jsonc
+// generic-definitions/component-definition/<Name>.json を componentRef で参照
 {
+  "id": "step-01",
   "kind": "componentCall",
-  "componentRef": "validators/customer-input-validator",
-  "inputs": { ... },
-  "outputs": { ... }
+  "description": "OrderValidator コンポーネントで入力検証",
+  "componentRef": "generic-definitions/component-definition/OrderValidator",
+  "operation": "validate",
+  "argumentMapping": { "order": "@inputs.order" },
+  "returnMapping": { "errors": "validationErrors" }
 }
 ```
 
-**判断**: schema 追加が必要。既存の `compute` step + 説明文への退避をやめ、共有ロジックの責務分割を formal にする。
+**判断確定**: schema に追加済 (#1066)。既存の `compute` step + 説明文への退避をやめ、共有ロジックの責務分割を formal にした。`componentRef` pattern は `^generic-definitions/component-definition/[A-Za-z][A-Za-z0-9_]*$` で AJV gate 対象化済。
 
-### 3.4 ProcessFlow の error semantics 拡張
+### 3.4 ProcessFlow の error semantics 拡張 (#1066 で AJV gate 対象化済)
 
-**現状の不足**: `errorCode` catalog や response はあるが、設計書では以下も必要:
+**追加済**: `#1066` で `exception-type` kind 別 schema を新設し、ProcessFlow の `ErrorCatalogEntry` / `ValidationRule` に `exceptionTypeRef` フィールドを追加。
 
-- 失敗種別 (business-abort / validation-error / authentication-error / system-error)
-- recoverable / non-recoverable
-- 中断 / 継続 / 再試行可否
-- 上位へ返す意味
-- 既定ハンドリングポリシー
-- UI message 変換方針
+- `ErrorCatalogEntry.exceptionTypeRef` — errorCode が業務例外として上位レイヤへ伝達される際の意味論を catalog 側に保持
+- `ValidationRule.exceptionTypeRef` — severity='error' 時に違反を業務例外として throw する際の意味論を catalog から引く
 
-**追加候補**: Generic Definition Catalog の `exception-type` を導入し、`errorCode` 側から `exceptionTypeRef` で参照する。
+`exceptionTypeRef` pattern は `^generic-definitions/exception-type/[A-Za-z][A-Za-z0-9_]*$` で AJV gate 対象化済。
 
-**判断**: 階層 (parent / children) と semantic kind は Catalog 側に置き、ProcessFlow からは ref のみ。
+**判断確定**: 階層 (parent / children) と semantic kind は Catalog 側 (`exception-type`) に置き、ProcessFlow からは ref のみ。失敗種別 (business-abort / validation-error 等) / recoverable / defaultHandling 等の kind 固有 field は将来 ISSUE で kind 別 schema に追加予定。
 
 ### 3.5 再利用 named contract の参照導線
 
@@ -335,8 +333,8 @@ P0 内部の切り出し順序は **下層が上層に依存しない依存順**
 
 ### P1
 
-5. ProcessFlow `componentCall` step + `component-definition` (Layer 1 §3.3 + Layer 2)
-6. `exception-type` catalog + ProcessFlow error semantics 拡張 (Layer 1 §3.4 + Layer 2)
+5. ✅ ProcessFlow `componentCall` step + `component-definition` (Layer 1 §3.3 + Layer 2) — **#1066 で AJV gate 対象化済**
+6. ✅ `exception-type` catalog + ProcessFlow error semantics 拡張 (Layer 1 §3.4 + Layer 2) — **#1066 で AJV gate 対象化済**
 7. `ui-fragment` catalog + `screen.fragments` 参照 (Layer 1 §3.6 + Layer 2)
 
 ### P2
@@ -394,8 +392,8 @@ P0 内部の切り出し順序は **下層が上層に依存しない依存順**
 | 2 | data-contract / domain-type catalog schema | `schemas/v3/generic-definitions/data-contract.v3.schema.json` 等 | 単独 ISSUE (子 2)、子 1 完了後着手 | 子 2 → #1064 |
 | 3 | ScreenItem `binding` 構造化拡張 | `schemas/v3/screen-item.v3.schema.json` 変更 | 単独 ISSUE (子 3)、子 2 完了後着手 | 子 3 → #1065 |
 | 4 | ScreenItemEvent `effects[]` 拡張 | 同 schema 変更 | 子 3 と統合 (同 schema / 同画面項目領域、鉄則 3 同根統合) | (子 3 に統合) |
-| 5 | ProcessFlow `componentCall` step kind + component-definition + DB step `dbQuery/Insert/Update` 細分化検討 | `schemas/v3/process-flow.v3.schema.json` 変更 | 単独 ISSUE (子 4)、子 2 完了後着手 | 子 4 → #1066 |
-| 6 | exception-type catalog + ProcessFlow error semantics 拡張 | 同上 + catalog 新設 | 子 4 と統合 (同 schema / error 領域、鉄則 3) | (子 4 に統合) |
+| 5 | ProcessFlow `componentCall` step kind + component-definition + DB step `dbQuery/Insert/Update` 細分化検討 (→ 細分化は採用しないと決定) | `schemas/v3/process-flow.v3.schema.json` 変更 | 単独 ISSUE (子 4)、子 2 完了後着手 | 子 4 → #1066 **完了済 (本 PR でマージ)** |
+| 6 | exception-type catalog + ProcessFlow error semantics 拡張 | 同上 + catalog 新設 | 子 4 と統合 (同 schema / error 領域、鉄則 3) | (子 4 に統合) **完了済 (#1066)** |
 | 7 | ui-fragment catalog + `screen.fragments[]` | `schemas/v3/screen.v3.schema.json` 変更 + catalog 新設 | 単独 ISSUE (子 5)、子 2 完了後着手 | 子 5 → #1067 |
 | 8 | application-rule / runtime-policy / ui-behavior catalog | catalog 各 schema 新設 | 単独 ISSUE (子 6)、子 2 完了後着手 | 子 6 → #1068 |
 | 9 | UI 側の表示・編集対応 (新規 catalog 種別ごとの ListView / Editor) | frontend | 単独 ISSUE (子 7)、子 2-6 完了後着手 | 子 7 → #1069 |
