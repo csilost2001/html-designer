@@ -388,18 +388,18 @@ P0 内部の切り出し順序は **下層が上層に依存しない依存順**
 
 本ドラフト確定後、`#1060` を親メタ ISSUE として扱い、以下を **本 PR merge と同タイミングで一括起票** する。AGENTS.md 鉄則 0 (放置禁止) + 鉄則 1 (本 PR 吸収優先) を遵守するため、本 PR 内では「将来化」を許容しない:
 
-| 順 | 作業 | 対応箇所 | 起票方針 |
-|---|---|---|---|
-| 1 | Generic Definition 親 schema 切り出し | `schemas/v3/generic-definition.v3.schema.json` (新設) | 単独 ISSUE (子 1)、本 PR merge と同時起票 |
-| 2 | data-contract / domain-type catalog schema | `schemas/v3/generic-definitions/data-contract.v3.schema.json` 等 | 単独 ISSUE (子 2)、子 1 完了後着手 |
-| 3 | ScreenItem `binding` 構造化拡張 | `schemas/v3/screen-item.v3.schema.json` 変更 | 単独 ISSUE (子 3)、子 2 完了後着手 |
-| 4 | ScreenItemEvent `effects[]` 拡張 | 同 schema 変更 | 子 3 と統合 (同 schema / 同画面項目領域、鉄則 3 同根統合) |
-| 5 | ProcessFlow `componentCall` step kind + component-definition + DB step `dbQuery/Insert/Update` 細分化検討 | `schemas/v3/process-flow.v3.schema.json` 変更 | 単独 ISSUE (子 4)、子 2 完了後着手 |
-| 6 | exception-type catalog + ProcessFlow error semantics 拡張 | 同上 + catalog 新設 | 子 4 と統合 (同 schema / error 領域、鉄則 3) |
-| 7 | ui-fragment catalog + `screen.fragments[]` | `schemas/v3/screen.v3.schema.json` 変更 + catalog 新設 | 単独 ISSUE (子 5)、子 2 完了後着手 |
-| 8 | application-rule / runtime-policy / ui-behavior catalog | catalog 各 schema 新設 | 単独 ISSUE (子 6)、子 2 完了後着手 |
-| 9 | UI 側の表示・編集対応 (新規 catalog 種別ごとの ListView / Editor) | frontend | 単独 ISSUE (子 7)、子 2-6 完了後着手 |
-| 10 | conversion-guideline-for-ai.md 継続更新 (新 archetype / 新 warning / 新落とし穴) | docs | 本 PR では起票せず、運用継続タスクとして親 ISSUE #1060 にチェックリスト化 |
+| 順 | 作業 | 対応箇所 | 起票方針 | 起票済 ISSUE |
+|---|---|---|---|---|
+| 1 | Generic Definition 親 schema 切り出し | `schemas/v3/generic-definition.v3.schema.json` (新設) | 単独 ISSUE (子 1)、本 PR merge と同時起票 | 子 1 → #1063 |
+| 2 | data-contract / domain-type catalog schema | `schemas/v3/generic-definitions/data-contract.v3.schema.json` 等 | 単独 ISSUE (子 2)、子 1 完了後着手 | 子 2 → #1064 |
+| 3 | ScreenItem `binding` 構造化拡張 | `schemas/v3/screen-item.v3.schema.json` 変更 | 単独 ISSUE (子 3)、子 2 完了後着手 | 子 3 → #1065 |
+| 4 | ScreenItemEvent `effects[]` 拡張 | 同 schema 変更 | 子 3 と統合 (同 schema / 同画面項目領域、鉄則 3 同根統合) | (子 3 に統合) |
+| 5 | ProcessFlow `componentCall` step kind + component-definition + DB step `dbQuery/Insert/Update` 細分化検討 | `schemas/v3/process-flow.v3.schema.json` 変更 | 単独 ISSUE (子 4)、子 2 完了後着手 | 子 4 → #1066 |
+| 6 | exception-type catalog + ProcessFlow error semantics 拡張 | 同上 + catalog 新設 | 子 4 と統合 (同 schema / error 領域、鉄則 3) | (子 4 に統合) |
+| 7 | ui-fragment catalog + `screen.fragments[]` | `schemas/v3/screen.v3.schema.json` 変更 + catalog 新設 | 単独 ISSUE (子 5)、子 2 完了後着手 | 子 5 → #1067 |
+| 8 | application-rule / runtime-policy / ui-behavior catalog | catalog 各 schema 新設 | 単独 ISSUE (子 6)、子 2 完了後着手 | 子 6 → #1068 |
+| 9 | UI 側の表示・編集対応 (新規 catalog 種別ごとの ListView / Editor) | frontend | 単独 ISSUE (子 7)、子 2-6 完了後着手 | 子 7 → #1069 |
+| 10 | conversion-guideline-for-ai.md 継続更新 (新 archetype / 新 warning / 新落とし穴) | docs | 本 PR では起票せず、運用継続タスクとして親 ISSUE #1060 にチェックリスト化 | (親 #1060 で管理) |
 
 **統合後の子 ISSUE 数**: 7 件 (子 1-7) + 親メタ #1060 で運用継続項目 (#10) を管理。
 
