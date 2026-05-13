@@ -374,16 +374,31 @@ console.log("\n## §3.3 cheatsheet rows vs schema required (drift gate)");
 //      schema の top-level property を spec §7.3 enumeration と突合し、抜けが
 //      無いか確認。schema 側に section が増えても spec が追従していなければ fail。
 // -----------------------------------------------------------------------------
-console.log("\n## profile schema sections vs spec §7.3 enumeration");
+console.log("\n## profile schema sections vs spec §7.3 enumeration (bidirectional)");
 {
   const profileSchema = JSON.parse(readFileSync(join(ROOT, "schemas/import-project-profile.v1.schema.json"), "utf8"));
   const skipKeys = new Set(["$schema", "profileVersion", "name", "description"]);
-  const sections = Object.keys(profileSchema.properties || {}).filter((k) => !skipKeys.has(k));
-  assert("profile schema declares >= 14 sections", sections.length >= 14, `actual=${sections.length}`);
-  for (const s of sections) {
-    // §7.3 の enumeration 行 (`N. \`<name>\` — ...`) に該当 section が出現すること
-    const regex = new RegExp(`^\\d+\\.\\s+\`${s}\`\\s+—`, "m");
-    assert(`profile section \`${s}\` enumerated in spec §7.3`, regex.test(specDoc));
+  const schemaSections = new Set(
+    Object.keys(profileSchema.properties || {}).filter((k) => !skipKeys.has(k))
+  );
+  // spec §7.3 から enumerated section 名を抽出 (`N. \`<name>\` — ...` 行)
+  const specSections = new Set(
+    [...specDoc.matchAll(/^\d+\.\s+`([a-zA-Z][a-zA-Z0-9]*)`\s+—/gm)]
+      .map((m) => m[1])
+      .filter((name) => !skipKeys.has(name))
+  );
+  assert(
+    "profile schema declares >= 14 sections",
+    schemaSections.size >= 14,
+    `actual=${schemaSections.size}`,
+  );
+  // schema → spec 方向: 新 section が spec に未反映でないこと
+  for (const s of schemaSections) {
+    assert(`schema section \`${s}\` enumerated in spec §7.3`, specSections.has(s));
+  }
+  // spec → schema 方向: spec の row が stale (schema に存在しない) でないこと
+  for (const s of specSections) {
+    assert(`spec §7.3 entry \`${s}\` exists in schema`, schemaSections.has(s));
   }
 }
 
