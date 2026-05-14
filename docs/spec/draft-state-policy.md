@@ -148,7 +148,7 @@ ListView / Editor 内で `validate<Resource>(item, allItems)` を直接呼び、
 - [ ] Editor の該当セクションに `ValidationBadge` または同等の警告表示を配置する
 - [ ] schema は AI の変更対象外であることを確認する (#511)
 - [ ] schema と手書き validation の severity 不一致がある場合は、意図的な差分として PR に説明する
-- [ ] AJV は実行時 UI ではなく test layer の schema 検証として使う
+- [ ] AJV を runtime UI に組み込むか、test layer のみに留めるかを §7.2 hybrid 方針に基づき判断する (schema で判定できる項目 → runtime AJV / UI 固有 severity → 手書き validator)
 
 > **kind-discriminated 定義カタログ** (GenericDefinition 系) を追加する場合は本 checklist の `MaturityBadge` 項目を skip し、別途 `generic-definition-layer.md` の checklist に従う。
 
