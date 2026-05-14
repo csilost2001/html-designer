@@ -16,6 +16,7 @@ import { checkSqlColumns, type TableDefinition } from "../schemas/sqlColumnValid
 import { checkConventionReferences, type ConventionsCatalog } from "../schemas/conventionsValidator";
 import { isBuiltinStep } from "../schemas/stepGuards";
 import type { LoadedExtensions } from "../schemas/loadExtensions";
+import type { ProjectCatalogs } from "../schemas/projectCatalogs";
 
 export interface AggregatedValidationOptions {
   /** テーブル定義。渡された場合は DbAccessStep.sql の列参照を検査 */
@@ -29,6 +30,8 @@ export interface AggregatedValidationOptions {
    * undefined の場合は silent pass (catalog ロード失敗時の互換性維持)。
    */
   genericDefinitionNames?: GenericDefinitionNames;
+  /** project-level external catalog。flow-level catalog と merge して参照検査する */
+  projectCatalogs?: ProjectCatalogs | null;
 }
 
 /**
@@ -47,7 +50,12 @@ export function aggregateValidation(
 
   // 2. 参照整合性 (responseId / errorCode / systemRef / typeRef / secretRef
   //    + componentRef / exceptionTypeRef #1090)
-  for (const issue of checkReferentialIntegrity(group, options.extensions, undefined, options.genericDefinitionNames)) {
+  for (const issue of checkReferentialIntegrity(
+    group,
+    options.extensions,
+    options.projectCatalogs ?? undefined,
+    options.genericDefinitionNames,
+  )) {
     errors.push({
       stepId: stepIdFromPath(issue.path, group) ?? "",
       severity: "warning",
@@ -58,7 +66,7 @@ export function aggregateValidation(
   }
 
   // 3. 識別子スコープ (@identifier)
-  for (const issue of checkIdentifierScopes(group)) {
+  for (const issue of checkIdentifierScopes(group, options.projectCatalogs ?? undefined)) {
     errors.push({
       stepId: stepIdFromPath(issue.path, group) ?? "",
       severity: "warning",

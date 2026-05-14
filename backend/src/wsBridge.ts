@@ -83,6 +83,7 @@ import {
   deleteProcessFlow as deleteProcessFlowFile,
   listProcessFlows as listProcessFlowFiles,
   readConventions,
+  readExternalCatalogs,
   writeConventions,
   readScreenItems,
   writeScreenItems,
@@ -1367,6 +1368,11 @@ class WsBridge extends EventEmitter {
         }
         case "loadConventions": {
           const catalog = await readConventions(root());
+          respond(catalog);
+          break;
+        }
+        case "loadProjectCatalogs": {
+          const catalog = await readExternalCatalogs(root());
           respond(catalog);
           break;
         }

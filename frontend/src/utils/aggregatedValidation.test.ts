@@ -280,4 +280,31 @@ describe("aggregateValidation — 統合テスト", () => {
     expect(errors.every((e) => e.code !== "UNKNOWN_COMPONENT_REF")).toBe(true);
     expect(errors.every((e) => e.code !== "UNKNOWN_EXCEPTION_TYPE_REF")).toBe(true);
   });
+
+  it("project-level modelEndpoints を参照整合性検査に渡す", () => {
+    const group = makeGroup({
+      actions: [{
+        id: "a1", name: "f", trigger: "click",
+        steps: [{
+          id: "s1",
+          kind: "aiCall",
+          description: "",
+          modelRef: "summarizeModel",
+          messages: [{ role: "user", content: "@body" }],
+        }],
+      }],
+    } as Partial<ProcessFlow>);
+
+    const withoutCatalog = aggregateValidation(group);
+    expect(withoutCatalog.some((e) => e.code === "UNKNOWN_MODEL_REF")).toBe(true);
+
+    const withCatalog = aggregateValidation(group, {
+      projectCatalogs: {
+        modelEndpoints: {
+          summarizeModel: { provider: "anthropic", model: "claude-opus-4-7" },
+        },
+      },
+    });
+    expect(withCatalog.some((e) => e.code === "UNKNOWN_MODEL_REF")).toBe(false);
+  });
 });

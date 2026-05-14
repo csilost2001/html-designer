@@ -38,9 +38,10 @@ interface SortableStepCardProps {
   editLevel?: "rough" | "detail" | "implementation";
   /** #1076 AI 依頼ボタン押下時のコールバック */
   onAskAi?: () => void;
+  readOnly?: boolean;
 }
 
-export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
+export function SortableStepCard({ step, readOnly = false, ...props }: SortableStepCardProps) {
   const {
     attributes,
     listeners,
@@ -48,7 +49,7 @@ export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: step.id });
+  } = useSortable({ id: step.id, disabled: readOnly });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -61,8 +62,9 @@ export function SortableStepCard({ step, ...props }: SortableStepCardProps) {
       <StepCard
         step={step}
         {...props}
-        dragHandleListeners={listeners}
-        dragHandleAttributes={attributes}
+        dragHandleListeners={readOnly ? undefined : listeners}
+        dragHandleAttributes={readOnly ? undefined : attributes}
+        readOnly={readOnly}
         depth={0}
       />
     </div>
