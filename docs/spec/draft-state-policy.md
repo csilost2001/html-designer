@@ -46,7 +46,7 @@ store は一覧読み込みと同じ責務範囲で `load<Resource>ValidationMap
 
 ### 2.5 成熟度表示は必須
 
-すべての業務リソース UI は `MaturityBadge` を表示する。成熟度未指定の既存データは `draft` として扱う。
+すべての業務リソース**実体** (instance) UI は `MaturityBadge` を表示する。GenericDefinition のような **kind-discriminated 定義カタログ** (≒ 参照語彙、永続化を伴わない設計定義) は本項の対象外とする (詳細は `generic-definition-layer.md` §4.5 参照)。成熟度未指定の既存データは `draft` として扱う。
 
 一覧画面の `MaturityBadge` は view-only とし、編集画面の `MaturityBadge` は `onChange` を受け取って成熟度を変更できる。`committed` は「下流工程へ渡せる確定状態」を示すため、validation の可視化と併用する。
 
@@ -134,6 +134,8 @@ ProcessFlow は既存の `aggregateValidation` を直接利用する。ProcessFl
 - [ ] schema は AI の変更対象外であることを確認する (#511)
 - [ ] schema と手書き validation の severity 不一致がある場合は、意図的な差分として PR に説明する
 - [ ] AJV は実行時 UI ではなく test layer の schema 検証として使う
+
+> **kind-discriminated 定義カタログ** (GenericDefinition 系) を追加する場合は本 checklist の `MaturityBadge` 項目を skip し、別途 `generic-definition-layer.md` の checklist に従う。
 
 ### 6.1 適用状況
 
