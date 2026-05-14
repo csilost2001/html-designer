@@ -1,5 +1,5 @@
 // @ts-nocheck -- large legacy editor migration remains open; tracked by #1016.
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
@@ -465,6 +465,8 @@ export function ProcessFlowEditor() {
     left: number;
     top: number;
     placement: "below" | "above";
+    anchorTop: number;
+    anchorBottom: number;
   } | null>(null);
   const actionHelpCloseTimerRef = useRef<number | null>(null);
   // SQL 列検査 / 規約参照検査のため (#261)
@@ -858,6 +860,8 @@ export function ProcessFlowEditor() {
       left,
       top: canOpenBelow ? belowTop : Math.max(12, rect.top - estimatedHeight - 10),
       placement: canOpenBelow ? "below" : "above",
+      anchorTop: rect.top,
+      anchorBottom: rect.bottom,
     });
   }, [clearActionHelpCloseTimer]);
 
@@ -873,11 +877,27 @@ export function ProcessFlowEditor() {
     if (!actionHelp) return undefined;
     const close = () => setActionHelp(null);
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close);
     return () => {
       window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close);
     };
+  }, [actionHelp]);
+
+  useLayoutEffect(() => {
+    if (!actionHelp) return;
+    const popover = document.getElementById(`action-help-${actionHelp.actionId}`);
+    if (!popover) return;
+    const actualHeight = Math.min(popover.getBoundingClientRect().height, window.innerHeight - 24);
+    const belowTop = actionHelp.anchorBottom + 10;
+    const canOpenBelow = belowTop + actualHeight <= window.innerHeight - 12;
+    const nextTop = canOpenBelow
+      ? belowTop
+      : Math.max(12, actionHelp.anchorTop - actualHeight - 10);
+    const nextPlacement = canOpenBelow ? "below" : "above";
+    if (Math.abs(nextTop - actionHelp.top) > 1 || nextPlacement !== actionHelp.placement) {
+      setActionHelp((cur) => cur && cur.actionId === actionHelp.actionId
+        ? { ...cur, top: nextTop, placement: nextPlacement }
+        : cur);
+    }
   }, [actionHelp]);
 
   useEffect(() => () => clearActionHelpCloseTimer(), [clearActionHelpCloseTimer]);
