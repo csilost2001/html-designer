@@ -9,6 +9,10 @@ import { resolveEditorKind } from "../utils/resolveEditorKind";
 import { resolveCssFramework } from "../utils/resolveCssFramework";
 import { validatePuckScreen } from "../utils/puckScreenValidation";
 import type { PuckScreenValidationError } from "../utils/puckScreenValidation";
+import {
+  validateScreenRefs,
+  type ScreenGenericDefinitionNames,
+} from "../utils/screenRefValidation";
 
 export interface ScreenStorageBackend {
   loadScreenEntity(screenId: string): Promise<unknown>;
@@ -101,11 +105,19 @@ export async function loadScreenEntity(screenId: string): Promise<Screen> {
 }
 
 /**
- * 全 Puck 画面の validation エラーマップを返す。
- * loadTableValidationMap / loadViewValidationMap と同パターン (#806 S-1 / 仕様 §8)。
- * editorKind=puck の画面のみを対象とし、puckDataPayload は省略 (ファイル load 省略)。
+ * 全画面の validation エラーマップを返す (puck 検証 + cross-resource ref 整合性検証)。
+ *
+ * - **Puck 検証** (`validatePuckScreen`): editorKind=puck の画面のみ
+ * - **Cross-resource ref 検証** (`validateScreenRefs`, #1090 Phase 2): editorKind 不問
+ *   - fragments[].fragmentRef → generic-definitions/ui-fragment catalog の実在検証
+ *   - genericDefinitionNames が未指定の場合は ref 検査は silent pass
+ *
+ * 関数名は loadPuckScreenValidationMap のままだが、Phase 2 で screen 全体の validation
+ * orchestrator に責務拡張済み (loadTableValidationMap / loadViewValidationMap と同階層)。
  */
-export async function loadPuckScreenValidationMap(): Promise<Map<ScreenId, PuckScreenValidationError[]>> {
+export async function loadPuckScreenValidationMap(options?: {
+  genericDefinitionNames?: ScreenGenericDefinitionNames;
+}): Promise<Map<ScreenId, PuckScreenValidationError[]>> {
   const project = await loadProject();
   const validationMap = new Map<ScreenId, PuckScreenValidationError[]>();
   const backend = requireBackend();
@@ -125,15 +137,33 @@ export async function loadPuckScreenValidationMap(): Promise<Map<ScreenId, PuckS
       } as unknown as Screen;
     }),
   );
-  const puckEntities = rawEntities.filter(
-    (entity): entity is Screen => entity !== null && entity.design?.editorKind === "puck",
+  const allEntities = rawEntities.filter((entity): entity is Screen => entity !== null);
+  const puckEntities = allEntities.filter(
+    (entity) => entity.design?.editorKind === "puck",
   );
 
+  // Puck data 検証 (editorKind=puck のみ)
   for (const entity of puckEntities) {
     validationMap.set(
       entity.id as ScreenId,
       validatePuckScreen(entity, puckEntities, /* customComponents */ []),
     );
+  }
+
+  // Cross-resource ref 検証 (#1090 Phase 2、editorKind 不問)。
+  // ScreenRefIssue は { severity, message, field, code } を持つが、
+  // PuckScreenValidationError との互換のため code を捨てて merge する。
+  for (const entity of allEntities) {
+    const refIssues = validateScreenRefs(entity, options);
+    if (refIssues.length === 0) continue;
+    const id = entity.id as ScreenId;
+    const existing = validationMap.get(id) ?? [];
+    const converted: PuckScreenValidationError[] = refIssues.map((iss) => ({
+      severity: iss.severity,
+      message: iss.message,
+      field: iss.field,
+    }));
+    validationMap.set(id, [...existing, ...converted]);
   }
 
   return validationMap;

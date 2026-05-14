@@ -184,7 +184,7 @@ PageLayout "admin-layout"  ←  ページ全体の枠
 
 `exceptionTypeRef` pattern (#1066) と同様、kind-specific schema (`schemas/v3/generic-definitions/ui-fragment.v3.schema.json`) は親 schema (`generic-definition.v3.schema.json`) を `allOf` 継承し `kind` を const に固定する最小構造。slot binding / region 等の fragment 固有 field は将来 RFC で追加予定。
 
-`fragmentRef` pattern は `^generic-definitions/ui-fragment/[A-Za-z][A-Za-z0-9_]*$` で AJV gate 対象化済 (= **形式 pattern のみ**)。`<Name>` 部の **実在検証** は #1090 Phase 2 で Screen 側 validator integration (`puckScreenValidation.ts` 拡張または新 validator) によって追加予定。現状は形式 OK なら silent pass (= 無検出)。Phase 2 完了時には `UNKNOWN_FRAGMENT_REF` として ScreenListView / Editor のバッジに表示される設計。
+`fragmentRef` pattern は `^generic-definitions/ui-fragment/[A-Za-z][A-Za-z0-9_]*$` で AJV gate 対象化済 (= **形式 pattern のみ**)。`<Name>` 部の **実在検証** は `frontend/src/utils/screenRefValidation.ts` の `validateScreenRefs` で `UNKNOWN_FRAGMENT_REF` として検出する (#1090 Phase 2、severity=warning)。`screenStore.loadPuckScreenValidationMap` がオーケストレータとなり、Puck data 検証 (`validatePuckScreen`) と cross-resource ref 検証 (`validateScreenRefs`) を統合して ScreenListView のバッジに表示する。検証は editor-agnostic (Puck / GrapesJS の双方の screen で動作)。
 
 ---
 
