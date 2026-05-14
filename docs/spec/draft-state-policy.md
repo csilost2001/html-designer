@@ -36,7 +36,7 @@ schema 変更は schema ガバナンス (#511) の対象であり、AI エージ
 
 各リソースは読み込み時に `validate<Resource>(item, allItems)` で検証する。単体項目だけで判定できない重複・参照整合性・リソース間関係は、必要な一覧を `allItems` として渡して判定する。
 
-store は一覧読み込みと同じ責務範囲で `load<Resource>ValidationMap()` を提供する。戻り値は `Map<Id, ValidationError[]>` とし、UI はこれを参照してバッジ・枠線・ヘッダー警告を描画する。
+各 store / UI は §5 のパターン A (`load<Resource>ValidationMap()` を提供) または パターン B (UI 側 inline 構築) のいずれかで validation 結果を UI に届ける。戻り値は `Map<Id, ValidationError[]>` 形式で統一し、UI はこれを参照してバッジ・枠線・ヘッダー警告を描画する。
 
 ### 2.4 違反は一覧と編集画面で示す
 
@@ -46,7 +46,7 @@ store は一覧読み込みと同じ責務範囲で `load<Resource>ValidationMap
 
 ### 2.5 成熟度表示は必須
 
-すべての業務リソース UI は `MaturityBadge` を表示する。成熟度未指定の既存データは `draft` として扱う。
+すべての業務リソース**実体** (instance) UI は `MaturityBadge` を表示する。GenericDefinition のような **kind-discriminated 定義カタログ** (≒ 参照語彙、永続化を伴わない設計定義) は本項の対象外とする (詳細は `generic-definition-layer.md` §4.5 参照)。成熟度未指定の既存データは `draft` として扱う。
 
 一覧画面の `MaturityBadge` は view-only とし、編集画面の `MaturityBadge` は `onChange` を受け取って成熟度を変更できる。`committed` は「下流工程へ渡せる確定状態」を示すため、validation の可視化と併用する。
 
@@ -105,19 +105,34 @@ validation 表示の共通スタイルは `validation.css` に集約する。カ
 
 ## 5. Store responsibilities
 
-各 store は、一覧取得と同じ粒度で validation map を提供する。
+各 store は、validation 表示に必要な情報を UI に提供する。表示パターンは 2 つあり、リソース構造に応じて
+**いずれを採用してもよい**:
+
+### パターン A: store 関数化 (`load<Resource>ValidationMap()`)
 
 ```ts
 load<Resource>ValidationMap(): Promise<Map<Id, ValidationError[]>>
 ```
 
-validation map は、リソース ID を key、`ValidationError[]` を value とする。UI はリソース一覧と validation map を突き合わせ、バッジ・CSS クラス・編集画面ヘッダーの状態を描画する。
+- 適する: validation 結果を複数画面で再利用したい / 計算コストが高くキャッシュしたい / 1 RPC で bulk 取得できる場合
+- 例: `loadTableValidationMap()` / `loadViewValidationMap()` (#587 / PR #589)
 
 > **注**: `loadTableValidationMap()` / `loadViewValidationMap()` は backend が `listAllTables()` / `listAllViews()` を提供する場合 1 RPC で全件取得し、未提供時 (localStorage 等) は per-id にフォールバックする (#587 / PR #589 で実装)。bulk fetch 結果は harmony.json entries の ID で filter して orphan 互換性を維持する。
 
-ProcessFlow は既存の `aggregateValidation` を直接利用する。ProcessFlow 専用の validation 集約が既に存在するため、同じ判定を重複実装しない。
+### パターン B: UI 側 inline 構築
 
-> **運用差分**: ProcessFlow は構造が多階層 (action / step / nested branch / loop / transactionScope) なため、`load<Resource>ValidationMap()` 形式の単純 Map を store からは提供せず、UI 側 (例: `ProcessFlowListView.tsx`) で `aggregateValidation` を直接呼び出して action 単位や step 単位に集約する。新規リソース型が flat (View / Table) なら `loadValidationMap()` 形式、ネスト構造なら `aggregateValidation` 直接呼出形式を選ぶ。
+ListView / Editor 内で `validate<Resource>(item, allItems)` を直接呼び、Map を局所的に構築する。
+
+- 適する: ProcessFlow のような nested 構造で `aggregateValidation` を再利用する場合 / GenericDefinition のように
+  kind 別 instantiate されて store cache 効率が薄い場合 / validator が singleton 軽量で per-render 計算可能な場合
+- 例: `ProcessFlowListView.tsx` (`aggregateValidation` 直接呼び出し) / `GenericDefinitionListView.tsx` (kind 別 inline 構築)
+
+### 選択指針
+
+- **デフォルトは inline (パターン B)** — シンプル、新規 UI が即座に動く
+- **キャッシュ要件が顕在化したら store 関数化 (パターン A) へ移行** — 計算コスト or N+1 RPC が体感問題化したタイミングで切替
+
+両パターンとも `<ValidationBadge>` / `has-error` / `has-warning` の描画契約は同じ。
 
 ## 6. New resource addition checklist
 
@@ -126,14 +141,16 @@ ProcessFlow は既存の `aggregateValidation` を直接利用する。ProcessFl
 - [ ] `<Resource>Validation.ts` を追加し、`validate<Resource>(item, allItems)` を提供する
 - [ ] 4 軸 severity 判定基準に照らして error / warning を分類する
 - [ ] validation の単体テストを追加し、error / warning の代表例を含める
-- [ ] store に `load<Resource>ValidationMap()` を追加する
+- [ ] §5 パターン A (store 関数化) を選んだ場合、store に `load<Resource>ValidationMap()` を追加する。パターン B (UI 側 inline 構築) を選んだ場合は省略する
 - [ ] ListView に `ValidationBadge` を表示する
 - [ ] カード表示または行表示に `has-error` / `has-warning` CSS クラスを付与する
 - [ ] Editor ヘッダーに `MaturityBadge` を表示し、`onChange` を接続する
 - [ ] Editor の該当セクションに `ValidationBadge` または同等の警告表示を配置する
 - [ ] schema は AI の変更対象外であることを確認する (#511)
 - [ ] schema と手書き validation の severity 不一致がある場合は、意図的な差分として PR に説明する
-- [ ] AJV は実行時 UI ではなく test layer の schema 検証として使う
+- [ ] AJV を runtime UI に組み込むか、test layer のみに留めるかを §7.2 hybrid 方針に基づき判断する (schema で判定できる項目 → runtime AJV / UI 固有 severity → 手書き validator)
+
+> **kind-discriminated 定義カタログ** (GenericDefinition 系) を追加する場合は本 checklist の `MaturityBadge` 項目を skip し、別途 `generic-definition-layer.md` の checklist に従う。
 
 ### 6.1 適用状況
 
@@ -162,23 +179,32 @@ AJV 導入方針は次の 3 案を比較した。
 
 ### 7.2 採用方針
 
-本仕様では **B: 現状維持** を採用する。
+本仕様では **C: hybrid** を採用する (#1079 PR #1082 / #1084 で改訂)。
+
+- schema で判定できる項目 (必須欠落 / 型違反 / pattern 違反 / enum 違反 等) は AJV を runtime で使う
+- 設計途中の draft-state を許容するための severity 分け (4 軸 severity) や UI 固有 warning は手書き validator が担う
+
+precedent (実装):
+
+- `frontend/src/utils/validateProject.ts` — Project schema を runtime AJV で検証
+- `frontend/src/schemas/genericDefinitionValidator.ts` — GenericDefinition 8 kind を runtime AJV で検証 + kind 別 semantic warning
 
 理由:
 
-1. UI は draft-state を許容するため、schema 違反を即 invalid とする AJV の標準用途と相性が悪い
-2. error / warning の粒度は 4 軸 severity 判定に基づくため、schema violation の種類だけでは十分に表現できない
-3. 実行時 UI に AJV を入れると bundle size (AJV 本体 ~30KB gzip + ajv-formats 追加分) と依存関係が増える。draft-state UX を維持するなら導入メリットが小さい
-4. AJV は既に test layer で schema 検証に使われており、最終形品質ゲートとしての役割は満たしている
-5. schema は最終形、手書き validator は設計途中の可視化という目的の違いが明確である
+1. schema 違反は本質的に「型として不正」のシグナルであり、UI で正確かつ統一的に表示すべき → AJV が適任
+2. 一方、severity 4 軸判定 (動作可能性 / 物理同一性 / 表示完成度 / 業務妥当性) や draft-state 寛容性は schema では表現しづらい → 手書き validator
+3. AJV bundle size (本体 ~30KB gzip) は許容範囲。validateProject / genericDefinition の precedent で動作確認済
+4. test layer の AJV (samples-v3.schema.test.ts 等) はそのまま継続。runtime と test の two-layer 体制
 
-### 7.3 将来の再検討条件
+### 7.3 hybrid 採用 (§7.2) の根拠となった事象
 
-以下のいずれかを満たした場合は、AJV の runtime / hybrid 導入を再検討する。
+旧 §7.3 の「将来再検討条件」のうち以下が #1079 (Generic Definition Catalog) で satisfy され、
+hybrid 採用に至った:
 
-- validation 対象のリソース種別が 5 種以上になり、手書き validator の重複が保守負荷になった
-- schema と手書き validator の実際の divergence が発生し、ユーザー影響のある誤判定が確認された
-- 業務要件として、UI 実行時に schema 準拠性そのものを表示・証跡化する必要が出た
+- **validation 対象が 5 種以上**: GenericDefinition は 8 kind を持ち、kind 別の重複手書き validator を避けるため
+  AJV dispatch (`KIND_SCHEMAS` lookup + 親 schema fallback) が保守上有意になった
+
+その他の旧条件 (実際の divergence / 業務要件証跡化) は本判断時点では発生していないが、hybrid 体制下で継続監視する。
 
 ### 7.4 適用範囲の明確化 (Conventions / Extensions は対象外)
 

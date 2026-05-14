@@ -13,7 +13,6 @@ import addFormats from "ajv-formats";
 import type { GenericDefinition, GenericDefinitionKind } from "../types/v3";
 
 import parentSchema from "../../../schemas/v3/generic-definition.v3.schema.json";
-import commonSchema from "../../../schemas/v3/common.v3.schema.json";
 import dataContractSchema from "../../../schemas/v3/generic-definitions/data-contract.v3.schema.json";
 import exceptionTypeSchema from "../../../schemas/v3/generic-definitions/exception-type.v3.schema.json";
 import domainTypeSchema from "../../../schemas/v3/generic-definitions/domain-type.v3.schema.json";
@@ -53,8 +52,7 @@ function getValidators(): ValidatorMap {
   const ajv = new Ajv2020({ strict: false, allErrors: true });
   addFormats(ajv);
 
-  // common schema と 親 schema を先に登録して $ref 解決できるようにする
-  ajv.addSchema(commonSchema as object);
+  // 親 schema を先に登録して $ref 解決できるようにする
   ajv.addSchema(parentSchema as object);
 
   const validators = new Map<string, ValidateFn>();
