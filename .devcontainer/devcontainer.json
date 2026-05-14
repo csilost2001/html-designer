@@ -20,9 +20,11 @@
 
   "onCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.codex /home/node/.harmony",
 
-  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && (cd frontend && npx playwright install --with-deps chromium) && npm install -g @anthropic-ai/claude-code @openai/codex && ([ -x ~/dotfiles/install.sh ] && bash ~/dotfiles/install.sh || true)",
+  "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && (cd frontend && npx playwright install --with-deps chromium) && npm install -g @anthropic-ai/claude-code@2.1.141 @openai/codex@0.130.0",
 
   "postStartCommand": "if [ -f ~/.claude/.claude.json ] && [ ! -L ~/.claude.json ]; then rm -f ~/.claude.json; ln -s ~/.claude/.claude.json ~/.claude.json; elif [ -f ~/.claude.json ] && [ ! -L ~/.claude.json ]; then mv ~/.claude.json ~/.claude/.claude.json && ln -s ~/.claude/.claude.json ~/.claude.json; fi",
+
+  "postAttachCommand": "[ -x ~/dotfiles/install.sh ] && bash ~/dotfiles/install.sh || true",
 
   "customizations": {
     "vscode": {
