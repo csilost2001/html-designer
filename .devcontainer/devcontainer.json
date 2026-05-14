@@ -14,9 +14,9 @@
   },
 
   "mounts": [
-    "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume",
-    "source=codex-config-${devcontainerId},target=/home/node/.codex,type=volume",
-    "source=harmony-state-${devcontainerId},target=/home/node/.harmony,type=volume"
+    "source=harmony-claude,target=/home/node/.claude,type=volume",
+    "source=harmony-codex,target=/home/node/.codex,type=volume",
+    "source=harmony-state,target=/home/node/.harmony,type=volume"
   ],
 
   "onCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.codex /home/node/.harmony",
