@@ -194,18 +194,6 @@ const ACTION_TRIGGER_ICONS: Record<string, string> = {
   other: "bi-lightning-charge",
 };
 
-const ACTION_TRIGGER_HINTS: Record<string, string> = {
-  click: "ボタンやリンクのクリック時に実行する画面操作です。例: 登録ボタン、削除ボタン。",
-  submit: "フォーム送信時に実行する入力確定処理です。例: 入力検証、DB 保存、完了応答。",
-  select: "行や候補の選択時に実行する参照・反映処理です。例: 一覧行選択、候補選択。",
-  change: "入力値の変更時に実行する再計算・連動更新です。例: 金額再計算、項目表示切替。",
-  load: "画面やデータの読み込み時に実行する初期表示処理です。例: 初期検索、選択肢取得。",
-  unload: "画面離脱や終了時に実行する後始末です。例: 一時保存、ロック解放。",
-  timer: "一定時刻や周期で実行する処理です。例: 自動更新、期限チェック。",
-  manual: "ユーザーや運用者が明示的に起動する処理です。例: 手動再実行、管理操作。",
-  other: "上記に当てはまらない独自契機の処理です。trigger の意図を description に補足してください。",
-};
-
 const ACTION_TRIGGER_CATEGORIES: Record<string, string> = {
   click: "画面操作",
   submit: "入力確定",
@@ -292,7 +280,6 @@ const ACTION_TRIGGER_RICH_HELP: Record<string, {
 
 const getActionTriggerLabel = (trigger: string) => ACTION_TRIGGER_LABELS[trigger] ?? trigger;
 const getActionTriggerIcon = (trigger: string) => ACTION_TRIGGER_ICONS[trigger] ?? ACTION_TRIGGER_ICONS.other;
-const getActionTriggerHint = (trigger: string) => ACTION_TRIGGER_HINTS[trigger] ?? ACTION_TRIGGER_HINTS.other;
 const getActionTriggerCategory = (trigger: string) => ACTION_TRIGGER_CATEGORIES[trigger] ?? ACTION_TRIGGER_CATEGORIES.other;
 const getActionTriggerRichHelp = (trigger: string) => ACTION_TRIGGER_RICH_HELP[trigger] ?? ACTION_TRIGGER_RICH_HELP.other;
 
@@ -308,7 +295,7 @@ function summarizeActionFields(fields: unknown, fallback: string): string {
       .slice(0, 3)
       .map((field) => {
         if (typeof field === "string") return field;
-        return field?.name ?? field?.id ?? field?.field ?? "名称未設定";
+        return field?.name ?? field?.id ?? "名称未設定";
       })
       .join("、") + (fields.length > 3 ? ` ほか ${fields.length - 3} 件` : "");
   }
@@ -329,14 +316,18 @@ function summarizeActionStepTypes(action: ActionDefinition): string {
     .join(" / ");
 }
 
-function getActionOpenMarkers(action: ActionDefinition, markers: Marker[]): Marker[] {
+function getActionOpenMarkers(action: ActionDefinition, actionIndex: number, markers: Marker[]): Marker[] {
   const stepIds = new Set((action.steps ?? []).map((step) => step.id));
+  const actionPathById = `actions[${action.id}]`;
+  const actionPathByIndex = actionIndex >= 0 ? `actions[${actionIndex}]` : null;
   return markers.filter((marker) => {
     if (marker.resolvedAt) return false;
+    if (marker.actionId === action.id) return true;
     const markerStepId = marker.stepId ?? marker.anchor?.stepId;
     if (markerStepId && stepIds.has(markerStepId)) return true;
     const markerPath = marker.path ?? marker.validatorPath ?? marker.anchor?.fieldPath ?? "";
-    return typeof markerPath === "string" && markerPath.includes(action.id);
+    return typeof markerPath === "string"
+      && (markerPath.includes(actionPathById) || (!!actionPathByIndex && markerPath.includes(actionPathByIndex)));
   });
 }
 
@@ -352,19 +343,21 @@ function summarizeActionMarkers(markers: Marker[]): string {
 
 function ActionHelpPopover({
   action,
+  actionIndex,
   markers,
   position,
   onPointerEnter,
   onPointerLeave,
 }: {
   action: ActionDefinition;
+  actionIndex: number;
   markers: Marker[];
   position: { left: number; top: number; placement: "below" | "above" };
   onPointerEnter: () => void;
   onPointerLeave: () => void;
 }) {
   const help = getActionTriggerRichHelp(action.trigger);
-  const openMarkers = getActionOpenMarkers(action, markers);
+  const openMarkers = getActionOpenMarkers(action, actionIndex, markers);
   const stepCount = action.steps?.length ?? 0;
   const inputCount = countActionFields(action.inputs);
   const outputCount = countActionFields(action.outputs);
@@ -427,19 +420,6 @@ function ActionHelpPopover({
       </div>
     </div>
   );
-}
-
-function buildActionTabTitle(action: ActionDefinition): string {
-  const triggerLabel = getActionTriggerLabel(action.trigger);
-  const inputs = action.inputs?.length ?? 0;
-  const outputs = action.outputs?.length ?? 0;
-  const responses = action.responses?.length ?? 0;
-  return [
-    `${action.name} (${triggerLabel})`,
-    `カテゴリ: ${getActionTriggerCategory(action.trigger)}`,
-    getActionTriggerHint(action.trigger),
-    `定義: steps ${action.steps.length}件 / inputs ${inputs}件 / outputs ${outputs}件 / responses ${responses}件`,
-  ].join("\n");
 }
 
 function CustomStepButton({ id, label, icon, description }: { id: string; label: string; icon: string; description: string }) {
@@ -829,6 +809,9 @@ export function ProcessFlowEditor() {
   const actionHelpTarget = actionHelp && group
     ? group.actions.find((act) => act.id === actionHelp.actionId) ?? null
     : null;
+  const actionHelpTargetIndex = actionHelpTarget && group
+    ? group.actions.findIndex((act) => act.id === actionHelpTarget.id)
+    : -1;
 
   const handleAddAction = () => {
     const name = newActionName.trim();
@@ -890,10 +873,10 @@ export function ProcessFlowEditor() {
     if (!actionHelp) return undefined;
     const close = () => setActionHelp(null);
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", close);
     return () => {
       window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", close);
     };
   }, [actionHelp]);
 
@@ -1534,7 +1517,7 @@ export function ProcessFlowEditor() {
                   onFocus={(e) => openActionHelp(act.id, e.currentTarget)}
                   onBlur={scheduleCloseActionHelp}
                   aria-describedby={actionHelp?.actionId === act.id ? `action-help-${act.id}` : undefined}
-                  aria-label={buildActionTabTitle(act).replace(/\n/g, " / ")}
+                  aria-label={`${act.name} (${getActionTriggerLabel(act.trigger)})`}
                 >
                   <span className="process-flow-tab-trigger-icon" aria-hidden="true">
                     <i className={`bi ${getActionTriggerIcon(act.trigger)}`} />
@@ -1578,6 +1561,7 @@ export function ProcessFlowEditor() {
           {actionHelpTarget && actionHelp && (
             <ActionHelpPopover
               action={actionHelpTarget}
+              actionIndex={actionHelpTargetIndex}
               markers={group?.authoring?.markers ?? []}
               position={actionHelp}
               onPointerEnter={clearActionHelpCloseTimer}
