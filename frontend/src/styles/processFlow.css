@@ -215,6 +215,25 @@
   transition: color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
+.process-flow-tab-trigger-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+}
+
+.process-flow-tab-trigger-label {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .process-flow-tab:hover {
   color: #334155;
 }
@@ -223,6 +242,11 @@
   color: #17202c;
   background: transparent;
   box-shadow: none;
+}
+
+.process-flow-tab.active .process-flow-tab-trigger-icon {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .process-flow-tab-remove {

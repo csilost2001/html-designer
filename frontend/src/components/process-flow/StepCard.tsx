@@ -91,6 +91,7 @@ interface InlineStepListProps {
   validationErrors?: ValidationError[];
   conventions?: import("../../schemas/conventionsValidator").ConventionsCatalog | null;
   group?: ProcessFlow | null;
+  readOnly?: boolean;
 }
 
 function InlineStepList({
@@ -106,6 +107,7 @@ function InlineStepList({
   validationErrors,
   conventions,
   group,
+  readOnly = false,
 }: InlineStepListProps) {
   const [showTypePicker, setShowTypePicker] = useState(false);
 
@@ -171,10 +173,11 @@ function InlineStepList({
             validationErrors={validationErrors}
             conventions={conventions}
             group={group}
+            readOnly={readOnly}
           />
         </div>
       ))}
-      <div className="inline-step-add">
+      {!readOnly && <div className="inline-step-add">
         <button className="inline-add-btn" onClick={() => setShowTypePicker(!showTypePicker)}>
           <i className="bi bi-plus" /> ステップを追加
         </button>
@@ -188,7 +191,7 @@ function InlineStepList({
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -237,6 +240,7 @@ interface StepCardProps {
   editLevel?: "rough" | "detail" | "implementation";
   /** #1076 AI 依頼ボタン押下時のコールバック */
   onAskAi?: () => void;
+  readOnly?: boolean;
 }
 
 const DB_OPS: DbOperation[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -280,6 +284,7 @@ export function StepCard({
   markerKinds,
   editLevel = "implementation",
   onAskAi,
+  readOnly = false,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
@@ -453,7 +458,7 @@ export function StepCard({
             }
           }}
         >
-          {(dragHandleListeners || dragHandleAttributes) && (
+          {!readOnly && (dragHandleListeners || dragHandleAttributes) && (
             <span
               className="step-card-drag-handle"
               title="ドラッグで移動"
@@ -631,7 +636,7 @@ export function StepCard({
               <i className="bi bi-robot" />
             </button>
           )}
-          <div className="d-flex gap-1 ms-auto" style={{ flexShrink: 0 }}>
+          {!readOnly && <div className="d-flex gap-1 ms-auto" style={{ flexShrink: 0 }}>
             {onOutdent && (
               <button className="step-card-menu-btn" onClick={(e) => { e.stopPropagation(); onOutdent(); }} title="上位レベルに移動（アウトデント）">
                 <i className="bi bi-chevron-left" />
@@ -711,7 +716,7 @@ export function StepCard({
                 </div>
               )}
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* バリデーションメッセージ */}
@@ -1475,7 +1480,7 @@ export function StepCard({
                             </button>
                           </div>
                         )}
-                        {bi > 0 && (
+                        {!readOnly && bi > 0 && (
                           <button
                             className="step-card-menu-btn"
                             title="上に移動"
@@ -1484,7 +1489,7 @@ export function StepCard({
                             <i className="bi bi-chevron-up" />
                           </button>
                         )}
-                        {bi < step.branches.length - 1 && (
+                        {!readOnly && bi < step.branches.length - 1 && (
                           <button
                             className="step-card-menu-btn"
                             title="下に移動"
@@ -1493,7 +1498,7 @@ export function StepCard({
                             <i className="bi bi-chevron-down" />
                           </button>
                         )}
-                        {step.branches.length > 1 && (
+                        {!readOnly && step.branches.length > 1 && (
                           <button
                             className="step-card-menu-btn danger"
                             title="分岐を削除"
@@ -1522,6 +1527,7 @@ export function StepCard({
                             validationErrors={validationErrors}
                             conventions={conventions}
                             group={group}
+                            readOnly={readOnly}
                           />
                         </div>
                       )}
@@ -1543,7 +1549,7 @@ export function StepCard({
                         <span style={{ flex: 1, fontSize: "0.78rem", color: "#64748b" }}>
                           その他の場合
                         </span>
-                        <button
+                        {!readOnly && <button
                           className="step-card-menu-btn danger"
                           title="ELSE分岐を削除"
                           onClick={(e) => {
@@ -1553,7 +1559,7 @@ export function StepCard({
                           }}
                         >
                           <i className="bi bi-trash" />
-                        </button>
+                        </button>}
                         <i
                           className={`bi bi-chevron-${isCollapsed ? "right" : "down"}`}
                           style={{ color: "#94a3b8", flexShrink: 0 }}
@@ -1576,6 +1582,7 @@ export function StepCard({
                             validationErrors={validationErrors}
                             conventions={conventions}
                             group={group}
+                            readOnly={readOnly}
                           />
                         </div>
                       )}
@@ -1583,7 +1590,7 @@ export function StepCard({
                   );
                 })()}
 
-                <div className="branch-add-row">
+                {!readOnly && <div className="branch-add-row">
                   <button className="branch-add-btn" onClick={addBranch}>
                     <i className="bi bi-plus" /> 分岐を追加
                   </button>
@@ -1592,7 +1599,7 @@ export function StepCard({
                       <i className="bi bi-plus" /> ELSE分岐
                     </button>
                   )}
-                </div>
+                </div>}
               </div>
             )}
 
@@ -1711,6 +1718,7 @@ export function StepCard({
                         validationErrors={validationErrors}
                         conventions={conventions}
                         group={group}
+                        readOnly={readOnly}
                       />
                     </div>
                   )}
@@ -1791,6 +1799,7 @@ export function StepCard({
                     onNavigateCommon={onNavigateCommon}
                     validationErrors={validationErrors}
                     conventions={conventions}
+                    readOnly={readOnly}
                   />
                 )}
               />
@@ -1870,6 +1879,7 @@ export function StepCard({
                 group={group}
                 editLevel={editLevel}
                 onAskAi={onAskAi}
+                readOnly={readOnly}
               />
             </div>
           ))}

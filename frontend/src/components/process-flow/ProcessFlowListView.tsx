@@ -16,6 +16,7 @@ import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 import type { GenericDefinitionNames } from "../../schemas/referentialIntegrity";
+import type { ProjectCatalogs } from "../../schemas/projectCatalogs";
 import { loadConventions } from "../../store/conventionsStore";
 import { listTables, loadTable } from "../../store/tableStore";
 import { listGenericDefinitions } from "../../store/genericDefinitionStore";
@@ -88,6 +89,7 @@ export function ProcessFlowListView() {
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
   // #1090: Generic Definition Catalog の name set (componentRef / exceptionTypeRef 検証用)
   const [genericDefNames, setGenericDefNames] = useState<GenericDefinitionNames>({});
+  const [projectCatalogs, setProjectCatalogs] = useState<ProjectCatalogs | null>(null);
   const [viewMode, setViewMode] = usePersistentState<ViewMode>(STORAGE_KEY, "card");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   // #893: draft history modal
@@ -168,6 +170,9 @@ export function ProcessFlowListView() {
         "exception-type": new Set(exceptions.map((e) => e.name)),
       });
     });
+    mcpBridge.request("loadProjectCatalogs")
+      .then((c) => { if (!cancelled) setProjectCatalogs(c as ProjectCatalogs | null); })
+      .catch(() => setProjectCatalogs(null));
     return () => { cancelled = true; };
   }, []);
 
@@ -186,6 +191,7 @@ export function ProcessFlowListView() {
           tables: tableDefs,
           conventions,
           genericDefinitionNames: genericDefNames,
+          projectCatalogs,
         });
         setValidationMap((prev) => {
           const next = new Map(prev);
@@ -211,7 +217,7 @@ export function ProcessFlowListView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [groups, tableDefs, conventions, genericDefNames]);
+  }, [groups, tableDefs, conventions, genericDefNames, projectCatalogs]);
 
   const getErrorPriority = useCallback((id: string): number => {
     const v = validationMap.get(id);

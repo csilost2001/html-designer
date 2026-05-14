@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
   ProcessFlow,
+  ActionDefinition,
   ActionTrigger,
   Step,
   StepType,
@@ -32,6 +33,7 @@ import { aggregateValidation } from "../../utils/aggregatedValidation";
 import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
 import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
 import type { GenericDefinitionNames } from "../../schemas/referentialIntegrity";
+import type { ProjectCatalogs } from "../../schemas/projectCatalogs";
 import { loadExtensionsFromBundle, type LoadedExtensions } from "../../schemas/loadExtensions";
 import { loadConventions } from "../../store/conventionsStore";
 import { listGenericDefinitions } from "../../store/genericDefinitionStore";
@@ -89,19 +91,21 @@ import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/processFlow.css";
 
 /** ツールバーのドラッグ可能なステップ種別ボタン */
-function ToolbarStepButton({ type, onClick }: { type: StepType; onClick: () => void }) {
+function ToolbarStepButton({ type, onClick, disabled = false }: { type: StepType; onClick: () => void; disabled?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `toolbar-${type}`,
     data: { kind: "toolbar-step", stepType: type },
+    disabled,
   });
   return (
     <button
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
+      {...(disabled ? {} : listeners)}
+      {...(disabled ? {} : attributes)}
       className={`step-toolbar-btn${isDragging ? " dragging" : ""}`}
       onClick={onClick}
       title={`${STEP_TYPE_LABELS[type]}（ドラッグで挿入）`}
+      disabled={disabled}
       style={isDragging ? { opacity: 0.5, borderColor: STEP_TYPE_COLORS[type] } : undefined}
     >
       <i className={STEP_TYPE_ICONS[type]} />
@@ -116,16 +120,20 @@ function StepInsertZone({
   onClick,
   onPaste,
   dragVisible,
+  disabled = false,
 }: {
   index: number;
   onClick: () => void;
   onPaste?: () => void;
   dragVisible?: boolean;
+  disabled?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `insert-${index}`,
     data: { kind: "insert-zone", insertIndex: index },
+    disabled,
   });
+  if (disabled) return null;
   return (
     <div
       ref={setNodeRef}
@@ -143,10 +151,11 @@ function StepInsertZone({
   );
 }
 
-function EmptyFlowDropZone({ children }: { children: ReactNode }) {
+function EmptyFlowDropZone({ children, disabled = false }: { children: ReactNode; disabled?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "empty-flow-drop",
     data: { kind: "insert-zone", insertIndex: 0 },
+    disabled,
   });
   return (
     <div ref={setNodeRef} className={`step-empty process-flow-empty-drop${isOver ? " drop-active" : ""}`}>
@@ -172,6 +181,60 @@ const ALL_SUB_STEP_TYPES: StepType[] = [
 ];
 
 const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];
+
+const ACTION_TRIGGER_ICONS: Record<string, string> = {
+  click: "bi-cursor",
+  submit: "bi-send",
+  select: "bi-list-check",
+  change: "bi-pencil-square",
+  load: "bi-box-arrow-in-down",
+  unload: "bi-box-arrow-right",
+  timer: "bi-clock",
+  manual: "bi-person-check",
+  other: "bi-lightning-charge",
+};
+
+const ACTION_TRIGGER_HINTS: Record<string, string> = {
+  click: "ボタンやリンクのクリック時に実行する画面操作です。例: 登録ボタン、削除ボタン。",
+  submit: "フォーム送信時に実行する入力確定処理です。例: 入力検証、DB 保存、完了応答。",
+  select: "行や候補の選択時に実行する参照・反映処理です。例: 一覧行選択、候補選択。",
+  change: "入力値の変更時に実行する再計算・連動更新です。例: 金額再計算、項目表示切替。",
+  load: "画面やデータの読み込み時に実行する初期表示処理です。例: 初期検索、選択肢取得。",
+  unload: "画面離脱や終了時に実行する後始末です。例: 一時保存、ロック解放。",
+  timer: "一定時刻や周期で実行する処理です。例: 自動更新、期限チェック。",
+  manual: "ユーザーや運用者が明示的に起動する処理です。例: 手動再実行、管理操作。",
+  other: "上記に当てはまらない独自契機の処理です。trigger の意図を description に補足してください。",
+};
+
+const ACTION_TRIGGER_CATEGORIES: Record<string, string> = {
+  click: "画面操作",
+  submit: "入力確定",
+  select: "選択連動",
+  change: "値変更",
+  load: "初期表示",
+  unload: "終了処理",
+  timer: "時刻・周期",
+  manual: "手動実行",
+  other: "その他",
+};
+
+const getActionTriggerLabel = (trigger: string) => ACTION_TRIGGER_LABELS[trigger] ?? trigger;
+const getActionTriggerIcon = (trigger: string) => ACTION_TRIGGER_ICONS[trigger] ?? ACTION_TRIGGER_ICONS.other;
+const getActionTriggerHint = (trigger: string) => ACTION_TRIGGER_HINTS[trigger] ?? ACTION_TRIGGER_HINTS.other;
+const getActionTriggerCategory = (trigger: string) => ACTION_TRIGGER_CATEGORIES[trigger] ?? ACTION_TRIGGER_CATEGORIES.other;
+
+function buildActionTabTitle(action: ActionDefinition): string {
+  const triggerLabel = getActionTriggerLabel(action.trigger);
+  const inputs = action.inputs?.length ?? 0;
+  const outputs = action.outputs?.length ?? 0;
+  const responses = action.responses?.length ?? 0;
+  return [
+    `${action.name} (${triggerLabel})`,
+    `カテゴリ: ${getActionTriggerCategory(action.trigger)}`,
+    getActionTriggerHint(action.trigger),
+    `定義: steps ${action.steps.length}件 / inputs ${inputs}件 / outputs ${outputs}件 / responses ${responses}件`,
+  ].join("\n");
+}
 
 function CustomStepButton({ id, label, icon, description }: { id: string; label: string; icon: string; description: string }) {
   return (
@@ -217,6 +280,7 @@ export function ProcessFlowEditor() {
   const [extensions, setExtensions] = useState<LoadedExtensions | undefined>(undefined);
   // #1090: Generic Definition Catalog の name set (componentRef / exceptionTypeRef 検証用)
   const [genericDefNames, setGenericDefNames] = useState<GenericDefinitionNames>({});
+  const [projectCatalogs, setProjectCatalogs] = useState<ProjectCatalogs | null>(null);
   const [newStepIds, setNewStepIds] = useState<Set<string>>(new Set());
 
   // 選択・クリップボード state
@@ -277,6 +341,9 @@ export function ProcessFlowEditor() {
     loadConventions()
       .then((c) => setConventions(c as ConventionsCatalog | null))
       .catch(() => setConventions(null));
+    mcpBridge.request("loadProjectCatalogs")
+      .then((c) => setProjectCatalogs(c as ProjectCatalogs | null))
+      .catch(() => setProjectCatalogs(null));
     mcpBridge.getExtensions()
       .then((bundle) => setExtensions(loadExtensionsFromBundle(bundle).extensions))
       .catch(() => setExtensions(undefined));
@@ -428,7 +495,13 @@ export function ProcessFlowEditor() {
 
   // 保存時にバリデーションをチェック（blocking なエラーがあれば中断）
   const handleSave = useCallback(async () => {
-    if (!group || isReadonly || hasBlockingErrors(aggregateValidation(group, { tables: tableDefs, conventions, extensions, genericDefinitionNames: genericDefNames }))) return;
+    if (!group || isReadonly || hasBlockingErrors(aggregateValidation(group, {
+      tables: tableDefs,
+      conventions,
+      extensions,
+      genericDefinitionNames: genericDefNames,
+      projectCatalogs,
+    }))) return;
     // P1 fix (#908 round-5): debounce 中の draft を flush して即送信、その後 conflict check
     if (draftUpdateTimer.current) {
       clearTimeout(draftUpdateTimer.current);
@@ -441,7 +514,7 @@ export function ProcessFlowEditor() {
     const { conflicted, failed } = await editActions.save();
     if (conflicted || failed) return;
     await hookPostSave();
-  }, [group, isReadonly, hookPostSave, tableDefs, conventions, extensions, genericDefNames, editActions, editSession]);
+  }, [group, isReadonly, hookPostSave, tableDefs, conventions, extensions, genericDefNames, projectCatalogs, editActions, editSession]);
 
   // D&D: PointerSensor に移動距離閾値を設定（クリックとドラッグを区別）
   const sensors = useSensors(
@@ -505,8 +578,14 @@ export function ProcessFlowEditor() {
   }, [processFlowId, sessionLoading, mode.kind]);
 
   const validationErrors = useMemo(
-    () => group ? aggregateValidation(group, { tables: tableDefs, conventions, extensions, genericDefinitionNames: genericDefNames }) : [],
-    [group, tableDefs, conventions, extensions, genericDefNames],
+    () => group ? aggregateValidation(group, {
+      tables: tableDefs,
+      conventions,
+      extensions,
+      genericDefinitionNames: genericDefNames,
+      projectCatalogs,
+    }) : [],
+    [group, tableDefs, conventions, extensions, genericDefNames, projectCatalogs],
   );
 
   useEffect(() => {
@@ -531,7 +610,7 @@ export function ProcessFlowEditor() {
   const visibleActions = group?.actions.filter((act) => {
     if (!normalizedCommandQuery) return true;
     return act.name.toLowerCase().includes(normalizedCommandQuery)
-      || ACTION_TRIGGER_LABELS[act.trigger].toLowerCase().includes(normalizedCommandQuery)
+      || getActionTriggerLabel(act.trigger).toLowerCase().includes(normalizedCommandQuery)
       || act.trigger.toLowerCase().includes(normalizedCommandQuery);
   }) ?? [];
 
@@ -643,6 +722,7 @@ export function ProcessFlowEditor() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     setIsDraggingToolbarStep(false);
+    if (isReadonly) return;
     const { active, over } = event;
     if (!over || !activeAction) return;
 
@@ -832,7 +912,7 @@ export function ProcessFlowEditor() {
     onMoveUp: () => handleMoveSelectedByKeyboard(-1),
     onMoveDown: () => handleMoveSelectedByKeyboard(1),
     onEscape: handleEscapeSelection,
-    enabled: selectedIds.size > 0 || clipboard !== null,
+    enabled: !isReadonly && (selectedIds.size > 0 || clipboard !== null),
   });
 
   // 画面項目ピッカーのコールバック (#321) — hooks は early return より前で定義
@@ -1169,7 +1249,7 @@ export function ProcessFlowEditor() {
           <div className="process-flow-command-title">
             <span className="process-flow-command-eyebrow">Action</span>
             <strong>{activeAction?.name ?? "アクション未選択"}</strong>
-            {activeAction && <span className="text-muted small">{ACTION_TRIGGER_LABELS[activeAction.trigger]}</span>}
+            {activeAction && <span className="text-muted small">{getActionTriggerLabel(activeAction.trigger)}</span>}
           </div>
           <div className="process-flow-command-search">
             <i className="bi bi-search" />
@@ -1186,7 +1266,11 @@ export function ProcessFlowEditor() {
                 <button
                   className={`process-flow-tab ${activeActionId === act.id ? "active" : ""}`}
                   onClick={() => setActiveActionId(act.id)}
+                  title={buildActionTabTitle(act)}
                 >
+                  <span className="process-flow-tab-trigger-icon" aria-hidden="true">
+                    <i className={`bi ${getActionTriggerIcon(act.trigger)}`} />
+                  </span>
                   <MaturityBadge
                     maturity={act.maturity}
                     onChange={(next) => {
@@ -1197,32 +1281,40 @@ export function ProcessFlowEditor() {
                     }}
                   />
                   {act.name}
-                  <span className="ms-1 text-muted small">({ACTION_TRIGGER_LABELS[act.trigger]})</span>
+                  <span className="process-flow-tab-trigger-label">{getActionTriggerLabel(act.trigger)}</span>
                 </button>
-                <button
-                  className="process-flow-tab-remove"
-                  onClick={() => handleDeleteAction(act.id)}
-                  title="アクション削除"
-                >
-                  <i className="bi bi-x" />
-                </button>
+                {!isReadonly && (
+                  <button
+                    className="process-flow-tab-remove"
+                    onClick={() => handleDeleteAction(act.id)}
+                    title="アクション削除"
+                  >
+                    <i className="bi bi-x" />
+                  </button>
+                )}
               </div>
             ))}
             {visibleActions.length === 0 && (
               <span className="process-flow-tab-empty">一致するアクションがありません</span>
             )}
-            <button
-              className="process-flow-tab-add"
-              onClick={() => setShowAddAction(true)}
-              title="アクション追加"
-            >
-              <i className="bi bi-plus-lg" />
-            </button>
+            {!isReadonly && (
+              <button
+                className="process-flow-tab-add"
+                onClick={() => setShowAddAction(true)}
+                title="アクション追加"
+              >
+                <i className="bi bi-plus-lg" />
+              </button>
+            )}
           </div>
           <div className="process-flow-command-hints">
-            <span><kbd>Ctrl</kbd>+<kbd>C</kbd> コピー</span>
-            <span><kbd>Ctrl</kbd>+<kbd>V</kbd> 貼付</span>
-            <span><kbd>右クリック</kbd> 操作</span>
+            {!isReadonly && (
+              <>
+                <span><kbd>Ctrl</kbd>+<kbd>C</kbd> コピー</span>
+                <span><kbd>Ctrl</kbd>+<kbd>V</kbd> 貼付</span>
+                <span><kbd>右クリック</kbd> 操作</span>
+              </>
+            )}
           </div>
           <EditLevelToggle
             value={editLevel}
@@ -1245,7 +1337,7 @@ export function ProcessFlowEditor() {
                   <span className="process-flow-pane-kicker">Blocks</span>
                   <h6>ブロック</h6>
                 </div>
-                <span className="process-flow-pane-badge">D&D</span>
+                {!isReadonly && <span className="process-flow-pane-badge">D&D</span>}
               </div>
               <div className="process-flow-palette-search">
                 <i className="bi bi-search" />
@@ -1259,7 +1351,7 @@ export function ProcessFlowEditor() {
               <div className="step-toolbar">
                 <div className="process-flow-palette-section">基本ステップ</div>
                 {filteredStepTypes.map((type) => (
-                  <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} />
+                  <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} disabled={isReadonly} />
                 ))}
                 {filteredStepTypes.length === 0 && (
                   <div className="process-flow-palette-empty">該当するブロックがありません</div>
@@ -1284,6 +1376,7 @@ export function ProcessFlowEditor() {
                   <button
                     className="step-template-btn"
                     onClick={() => setShowTemplates(!showTemplates)}
+                    disabled={isReadonly}
                   >
                     <i className="bi bi-collection" />
                     テンプレート
@@ -1324,15 +1417,16 @@ export function ProcessFlowEditor() {
                 {activeAction ? (
                   <div className="step-editor">
                     {activeAction.steps.length === 0 ? (
-                      <EmptyFlowDropZone>
+                      <EmptyFlowDropZone disabled={isReadonly}>
                         <i className="bi bi-plus-circle" />
                         <strong>ステップがありません</strong>
-                        <span>左のブロックをドラッグするか、ブロックをクリックして追加してください。</span>
+                        <span>{isReadonly ? "編集開始後にステップを追加できます。" : "左のブロックをドラッグするか、ブロックをクリックして追加してください。"}</span>
                         <StepInsertZone
                           index={0}
                           onClick={() => handleAddStep("other")}
-                          onPaste={clipboard ? () => handlePaste(0) : undefined}
+                          onPaste={clipboard && !isReadonly ? () => handlePaste(0) : undefined}
                           dragVisible={isDraggingToolbarStep}
+                          disabled={isReadonly}
                         />
                       </EmptyFlowDropZone>
                     ) : (
@@ -1358,8 +1452,9 @@ export function ProcessFlowEditor() {
                         <StepInsertZone
                           index={index}
                           onClick={() => handleAddStep("other", index)}
-                          onPaste={clipboard ? () => handlePaste(index) : undefined}
+                          onPaste={clipboard && !isReadonly ? () => handlePaste(index) : undefined}
                           dragVisible={isDraggingToolbarStep}
+                          disabled={isReadonly}
                         />
                         <SortableStepCard
                           step={step}
@@ -1378,6 +1473,7 @@ export function ProcessFlowEditor() {
                           onAddSubStep={(type) => handleAddSubStep(step.id, type)}
                           onContextMenu={(e) => {
                             e.preventDefault();
+                            if (isReadonly) return;
                             setSelectedIds(new Set([step.id]));
                             lastSelectedIdRef.current = step.id;
                             setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
@@ -1408,6 +1504,7 @@ export function ProcessFlowEditor() {
                           conventions={conventions}
                           group={group}
                           editLevel={editLevel}
+                          readOnly={isReadonly}
                           onAskAi={() => {
                             const label = `S${index + 1}: ${step.description ?? step.kind ?? step.id}`;
                             aiChips.addStepChip(String(step.id), label, step);
@@ -1420,8 +1517,9 @@ export function ProcessFlowEditor() {
                           <StepInsertZone
                             index={activeAction.steps.length}
                             onClick={() => handleAddStep("other")}
-                            onPaste={clipboard ? () => handlePaste(activeAction.steps.length) : undefined}
+                            onPaste={clipboard && !isReadonly ? () => handlePaste(activeAction.steps.length) : undefined}
                             dragVisible={isDraggingToolbarStep}
+                            disabled={isReadonly}
                           />
                         </div>
                       </SortableContext>
@@ -1467,12 +1565,20 @@ export function ProcessFlowEditor() {
                     } : undefined}
                   />
                 </div>
-                <ActionMetaTabBar
-                  group={group}
-                  updateGroup={updateGroup}
-                  updateGroupSilent={updateGroupSilent}
-                />
-                {activeAction && (
+                {isReadonly ? (
+                  <div className="process-flow-inspector-section">
+                    <div className="text-muted small">
+                      詳細項目の編集は「編集開始」後に利用できます。
+                    </div>
+                  </div>
+                ) : (
+                  <ActionMetaTabBar
+                    group={group}
+                    updateGroup={updateGroup}
+                    updateGroupSilent={updateGroupSilent}
+                  />
+                )}
+                {!isReadonly && activeAction && (
                   <>
                     <div className="process-flow-inspector-section">
                       <ActionHttpContractPanel
@@ -1540,7 +1646,7 @@ export function ProcessFlowEditor() {
       </div>
 
       {/* コンテキストメニュー */}
-      {contextMenu && (
+      {!isReadonly && contextMenu && (
         <div
           className="step-context-menu"
           style={{ top: contextMenu.y, left: contextMenu.x }}
@@ -1650,7 +1756,7 @@ export function ProcessFlowEditor() {
       )}
 
       {/* アクション追加モーダル */}
-      {showAddAction && (
+      {showAddAction && !isReadonly && (
         <div className="process-flow-modal-overlay" onClick={() => setShowAddAction(false)}>
           <div className="process-flow-modal" onClick={(e) => e.stopPropagation()}>
             <h6>アクション追加</h6>
@@ -1672,7 +1778,7 @@ export function ProcessFlowEditor() {
                 onChange={(e) => setNewActionTrigger(e.target.value as ActionTrigger)}
               >
                 {ALL_TRIGGERS.map((t) => (
-                  <option key={t} value={t}>{ACTION_TRIGGER_LABELS[t]}</option>
+                  <option key={t} value={t}>{getActionTriggerLabel(t)}</option>
                 ))}
               </select>
             </div>

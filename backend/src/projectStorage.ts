@@ -89,6 +89,7 @@ const screensDir       = (dataRoot: string) => path.join(dataRoot, "screens");
 const tablesDir        = (dataRoot: string) => path.join(dataRoot, "tables");
 const actionsDir       = (dataRoot: string) => path.join(dataRoot, "actions");
 const processFlowsDir  = (dataRoot: string) => path.join(dataRoot, "process-flows");
+const catalogsDir      = (dataRoot: string) => path.join(dataRoot, "catalogs");
 const conventionsDir   = (dataRoot: string) => path.join(dataRoot, "conventions");
 const screenItemsDir   = (dataRoot: string) => path.join(dataRoot, "screen-items");
 const sequencesDir     = (dataRoot: string) => path.join(dataRoot, "sequences");
@@ -101,6 +102,7 @@ export const customBlocksFile   = (dataRoot: string) => path.join(dataRoot, "cus
 export const puckComponentsFile = (dataRoot: string) => path.join(dataRoot, "puck-components.json");
 export const erLayoutFile       = (dataRoot: string) => path.join(dataRoot, "er-layout.json");
 export const screenFlowPositionsFile = (dataRoot: string) => path.join(dataRoot, "screen-flow-positions.json");
+export const externalCatalogsFile = (dataRoot: string) => path.join(catalogsDir(dataRoot), "external.json");
 export const conventionsFile    = (dataRoot: string) => path.join(conventionsDir(dataRoot), "catalog.json");
 
 const EXTENSION_FILE_NAMES = {
@@ -758,6 +760,13 @@ export async function readConventions(root: string): Promise<unknown | null> {
   const r = root;
   const dataRoot = await resolveDataRoot(r);
   return readJSON<unknown>(conventionsFile(dataRoot));
+}
+
+/** catalogs/external.json を読み込み (#939 project-level external catalogs) */
+export async function readExternalCatalogs(root: string): Promise<unknown | null> {
+  const r = root;
+  const dataRoot = await resolveDataRoot(r);
+  return readJSON<unknown>(externalCatalogsFile(dataRoot));
 }
 
 /** conventions/catalog.json を書き込み (#317) */
