@@ -1,5 +1,5 @@
 // @ts-nocheck -- large legacy editor migration remains open; tracked by #1016.
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
@@ -194,18 +194,6 @@ const ACTION_TRIGGER_ICONS: Record<string, string> = {
   other: "bi-lightning-charge",
 };
 
-const ACTION_TRIGGER_HINTS: Record<string, string> = {
-  click: "ボタンやリンクのクリック時に実行する画面操作です。例: 登録ボタン、削除ボタン。",
-  submit: "フォーム送信時に実行する入力確定処理です。例: 入力検証、DB 保存、完了応答。",
-  select: "行や候補の選択時に実行する参照・反映処理です。例: 一覧行選択、候補選択。",
-  change: "入力値の変更時に実行する再計算・連動更新です。例: 金額再計算、項目表示切替。",
-  load: "画面やデータの読み込み時に実行する初期表示処理です。例: 初期検索、選択肢取得。",
-  unload: "画面離脱や終了時に実行する後始末です。例: 一時保存、ロック解放。",
-  timer: "一定時刻や周期で実行する処理です。例: 自動更新、期限チェック。",
-  manual: "ユーザーや運用者が明示的に起動する処理です。例: 手動再実行、管理操作。",
-  other: "上記に当てはまらない独自契機の処理です。trigger の意図を description に補足してください。",
-};
-
 const ACTION_TRIGGER_CATEGORIES: Record<string, string> = {
   click: "画面操作",
   submit: "入力確定",
@@ -218,22 +206,220 @@ const ACTION_TRIGGER_CATEGORIES: Record<string, string> = {
   other: "その他",
 };
 
+const ACTION_TRIGGER_RICH_HELP: Record<string, {
+  occasion: string;
+  useCases: string[];
+  definitionExample: string;
+  stepExample: string[];
+  notes: string[];
+}> = {
+  click: {
+    occasion: "ボタンやリンクなど、利用者が明示的に押した UI 操作を契機に動きます。",
+    useCases: ["詳細表示", "削除確認", "検索条件クリア", "別画面への遷移"],
+    definitionExample: "trigger: click / inputs: 選択行ID・画面入力値 / responses: 完了メッセージ",
+    stepExample: ["入力・選択状態を確認", "必要な DB 更新または参照", "画面更新または画面遷移"],
+    notes: ["連打や二重送信を避ける制御が必要な場合は validation や workflow に明記します。"],
+  },
+  submit: {
+    occasion: "フォーム送信や確定操作で、入力内容を業務データとして確定するときに動きます。",
+    useCases: ["登録", "更新", "申請", "承認依頼"],
+    definitionExample: "trigger: submit / inputs: フォーム全項目 / outputs: 登録ID / responses: 成功・入力エラー",
+    stepExample: ["必須・形式チェック", "業務ルール検証", "DB 保存", "レスポンス返却"],
+    notes: ["入力エラーとシステムエラーの responses を分けると、AI 実装時の分岐が明確になります。"],
+  },
+  select: {
+    occasion: "一覧行、候補、タブなどの選択状態が変わったタイミングで動きます。",
+    useCases: ["一覧行の詳細表示", "候補選択による関連情報取得", "親子リストの絞り込み"],
+    definitionExample: "trigger: select / inputs: selectedId / outputs: detailModel",
+    stepExample: ["選択IDの存在確認", "関連データ取得", "表示モデルへ反映"],
+    notes: ["選択解除時の扱いが必要なら other response または branch に明記します。"],
+  },
+  change: {
+    occasion: "入力値やフィルタ条件が変わった直後に、画面内の連動処理として動きます。",
+    useCases: ["金額再計算", "項目の表示切替", "候補リスト更新", "入力補助"],
+    definitionExample: "trigger: change / inputs: changedField・currentForm / outputs: derivedValues",
+    stepExample: ["変更項目を判定", "派生値を計算", "表示状態を更新"],
+    notes: ["高頻度に動くため、重い外部呼び出しは debounce や submit 側への移動を検討します。"],
+  },
+  load: {
+    occasion: "画面表示、初期データ取得、リソース読み込みの開始時に動きます。",
+    useCases: ["初期検索", "選択肢取得", "初期値設定", "権限に応じた表示制御"],
+    definitionExample: "trigger: load / inputs: routeParams・sessionUser / outputs: initialViewModel",
+    stepExample: ["起動条件を確認", "初期データを取得", "画面モデルを構築"],
+    notes: ["表示前に必要なデータと、表示後に遅延取得できるデータを分けると実装しやすくなります。"],
+  },
+  unload: {
+    occasion: "画面離脱、タブ終了、編集終了など、利用者が作業文脈を閉じるときに動きます。",
+    useCases: ["一時保存", "ロック解放", "離脱確認", "監査ログ記録"],
+    definitionExample: "trigger: unload / inputs: dirtyState・lockId / responses: 保存済み・破棄確認",
+    stepExample: ["未保存状態を確認", "必要なら保存または確認", "ロックや一時資源を解放"],
+    notes: ["ブラウザ終了時は非同期処理が完了しない可能性があるため、重要処理は明示保存側に寄せます。"],
+  },
+  timer: {
+    occasion: "一定間隔、指定時刻、期限到来など時間条件を契機に動きます。",
+    useCases: ["自動更新", "期限チェック", "バッチ起動", "再試行"],
+    definitionExample: "trigger: timer / inputs: schedule・lastRunAt / outputs: runSummary",
+    stepExample: ["実行条件を確認", "対象データを抽出", "処理を実行", "結果を記録"],
+    notes: ["重複起動、タイムアウト、リトライ方針を steps または SLA に記述します。"],
+  },
+  manual: {
+    occasion: "運用者や管理者が、通常 UI フローとは別に明示起動するときに動きます。",
+    useCases: ["手動再実行", "補正処理", "管理操作", "障害復旧"],
+    definitionExample: "trigger: manual / inputs: operatorId・targetId / responses: 実行結果・権限エラー",
+    stepExample: ["権限を確認", "対象を検証", "処理を実行", "監査ログを残す"],
+    notes: ["誰が何を起動できるかを inputs と validation に明記します。"],
+  },
+  other: {
+    occasion: "標準 trigger に当てはまらない、プロジェクト固有の契機で動きます。",
+    useCases: ["外部通知", "組み込み拡張", "特殊な業務イベント"],
+    definitionExample: "trigger: other / description: 契機の発生元と実行条件を明記",
+    stepExample: ["契機を説明", "入力契約を検証", "業務処理を実行", "結果を返す"],
+    notes: ["比較・保守しやすいように、description で契機名と発生条件を補足します。"],
+  },
+};
+
 const getActionTriggerLabel = (trigger: string) => ACTION_TRIGGER_LABELS[trigger] ?? trigger;
 const getActionTriggerIcon = (trigger: string) => ACTION_TRIGGER_ICONS[trigger] ?? ACTION_TRIGGER_ICONS.other;
-const getActionTriggerHint = (trigger: string) => ACTION_TRIGGER_HINTS[trigger] ?? ACTION_TRIGGER_HINTS.other;
 const getActionTriggerCategory = (trigger: string) => ACTION_TRIGGER_CATEGORIES[trigger] ?? ACTION_TRIGGER_CATEGORIES.other;
+const getActionTriggerRichHelp = (trigger: string) => ACTION_TRIGGER_RICH_HELP[trigger] ?? ACTION_TRIGGER_RICH_HELP.other;
 
-function buildActionTabTitle(action: ActionDefinition): string {
-  const triggerLabel = getActionTriggerLabel(action.trigger);
-  const inputs = action.inputs?.length ?? 0;
-  const outputs = action.outputs?.length ?? 0;
-  const responses = action.responses?.length ?? 0;
-  return [
-    `${action.name} (${triggerLabel})`,
-    `カテゴリ: ${getActionTriggerCategory(action.trigger)}`,
-    getActionTriggerHint(action.trigger),
-    `定義: steps ${action.steps.length}件 / inputs ${inputs}件 / outputs ${outputs}件 / responses ${responses}件`,
-  ].join("\n");
+function countActionFields(fields: unknown): number {
+  if (Array.isArray(fields)) return fields.length;
+  if (typeof fields === "string" && fields.trim()) return 1;
+  return 0;
+}
+
+function summarizeActionFields(fields: unknown, fallback: string): string {
+  if (Array.isArray(fields) && fields.length > 0) {
+    return fields
+      .slice(0, 3)
+      .map((field) => {
+        if (typeof field === "string") return field;
+        return field?.name ?? field?.id ?? "名称未設定";
+      })
+      .join("、") + (fields.length > 3 ? ` ほか ${fields.length - 3} 件` : "");
+  }
+  if (typeof fields === "string" && fields.trim()) return fields.trim().slice(0, 80);
+  return fallback;
+}
+
+function summarizeActionStepTypes(action: ActionDefinition): string {
+  const counts = new Map<string, number>();
+  for (const step of action.steps ?? []) {
+    const key = step.kind ?? step.type ?? "other";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  if (counts.size === 0) return "ステップ未定義";
+  return [...counts.entries()]
+    .slice(0, 4)
+    .map(([type, count]) => `${STEP_TYPE_LABELS[type] ?? type} ${count}`)
+    .join(" / ");
+}
+
+function getActionOpenMarkers(action: ActionDefinition, actionIndex: number, markers: Marker[]): Marker[] {
+  const stepIds = new Set((action.steps ?? []).map((step) => step.id));
+  const actionPathById = `actions[${action.id}]`;
+  const actionPathByIndex = actionIndex >= 0 ? `actions[${actionIndex}]` : null;
+  return markers.filter((marker) => {
+    if (marker.resolvedAt) return false;
+    if (marker.actionId === action.id) return true;
+    const markerStepId = marker.stepId ?? marker.anchor?.stepId;
+    if (markerStepId && stepIds.has(markerStepId)) return true;
+    const markerPath = marker.path ?? marker.validatorPath ?? marker.anchor?.fieldPath ?? "";
+    return typeof markerPath === "string"
+      && (markerPath.includes(actionPathById) || (!!actionPathByIndex && markerPath.includes(actionPathByIndex)));
+  });
+}
+
+function summarizeActionMarkers(markers: Marker[]): string {
+  if (markers.length === 0) return "なし";
+  const counts = new Map<string, number>();
+  for (const marker of markers) {
+    const kind = marker.kind ?? "marker";
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([kind, count]) => `${kind} ${count}`).join(" / ");
+}
+
+function ActionHelpPopover({
+  action,
+  actionIndex,
+  markers,
+  position,
+  onPointerEnter,
+  onPointerLeave,
+}: {
+  action: ActionDefinition;
+  actionIndex: number;
+  markers: Marker[];
+  position: { left: number; top: number; placement: "below" | "above" };
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+}) {
+  const help = getActionTriggerRichHelp(action.trigger);
+  const openMarkers = getActionOpenMarkers(action, actionIndex, markers);
+  const stepCount = action.steps?.length ?? 0;
+  const inputCount = countActionFields(action.inputs);
+  const outputCount = countActionFields(action.outputs);
+  const responseCount = countActionFields(action.responses);
+
+  return (
+    <div
+      id={`action-help-${action.id}`}
+      className={`process-flow-action-help ${position.placement}`}
+      style={{ left: position.left, top: position.top }}
+      role="tooltip"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+    >
+      <div className="process-flow-action-help-head">
+        <span className="process-flow-action-help-icon" aria-hidden="true">
+          <i className={`bi ${getActionTriggerIcon(action.trigger)}`} />
+        </span>
+        <div>
+          <div className="process-flow-action-help-title">{action.name}</div>
+          <div className="process-flow-action-help-subtitle">
+            {getActionTriggerLabel(action.trigger)} / {getActionTriggerCategory(action.trigger)}
+          </div>
+        </div>
+      </div>
+
+      <div className="process-flow-action-help-grid">
+        <section>
+          <h6>契機</h6>
+          <p>{help.occasion}</p>
+        </section>
+        <section>
+          <h6>代表用途</h6>
+          <ul>{help.useCases.map((item) => <li key={item}>{item}</li>)}</ul>
+        </section>
+        <section>
+          <h6>定義例</h6>
+          <p>{help.definitionExample}</p>
+        </section>
+        <section>
+          <h6>ステップ例</h6>
+          <ol>{help.stepExample.map((item) => <li key={item}>{item}</li>)}</ol>
+        </section>
+        <section>
+          <h6>このアクション</h6>
+          <dl>
+            <div><dt>入出力</dt><dd>inputs {inputCount} / outputs {outputCount} / responses {responseCount}</dd></div>
+            <div><dt>入力</dt><dd>{summarizeActionFields(action.inputs, "未定義")}</dd></div>
+            <div><dt>出力</dt><dd>{summarizeActionFields(action.outputs, "未定義")}</dd></div>
+            <div><dt>応答</dt><dd>{summarizeActionFields(action.responses, "未定義")}</dd></div>
+            <div><dt>ステップ</dt><dd>{stepCount} 件 / {summarizeActionStepTypes(action)}</dd></div>
+            <div><dt>成熟度</dt><dd>{action.maturity ?? "未設定"}</dd></div>
+            <div><dt>未解決マーカー</dt><dd>{openMarkers.length} 件 / {summarizeActionMarkers(openMarkers)}</dd></div>
+          </dl>
+        </section>
+        <section>
+          <h6>注意点</h6>
+          <ul>{help.notes.map((item) => <li key={item}>{item}</li>)}</ul>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function CustomStepButton({ id, label, icon, description }: { id: string; label: string; icon: string; description: string }) {
@@ -274,6 +460,15 @@ export function ProcessFlowEditor() {
   const [isDraggingToolbarStep, setIsDraggingToolbarStep] = useState(false);
   const [stepFilter, setStepFilter] = useState("");
   const [commandQuery, setCommandQuery] = useState("");
+  const [actionHelp, setActionHelp] = useState<{
+    actionId: string;
+    left: number;
+    top: number;
+    placement: "below" | "above";
+    anchorTop: number;
+    anchorBottom: number;
+  } | null>(null);
+  const actionHelpCloseTimerRef = useRef<number | null>(null);
   // SQL 列検査 / 規約参照検査のため (#261)
   const [tableDefs, setTableDefs] = useState<ValidatorTableDef[]>([]);
   const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
@@ -613,6 +808,12 @@ export function ProcessFlowEditor() {
       || getActionTriggerLabel(act.trigger).toLowerCase().includes(normalizedCommandQuery)
       || act.trigger.toLowerCase().includes(normalizedCommandQuery);
   }) ?? [];
+  const actionHelpTarget = actionHelp && group
+    ? group.actions.find((act) => act.id === actionHelp.actionId) ?? null
+    : null;
+  const actionHelpTargetIndex = actionHelpTarget && group
+    ? group.actions.findIndex((act) => act.id === actionHelpTarget.id)
+    : -1;
 
   const handleAddAction = () => {
     const name = newActionName.trim();
@@ -635,6 +836,71 @@ export function ProcessFlowEditor() {
       }
     });
   };
+
+  const clearActionHelpCloseTimer = useCallback(() => {
+    if (actionHelpCloseTimerRef.current !== null) {
+      window.clearTimeout(actionHelpCloseTimerRef.current);
+      actionHelpCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const openActionHelp = useCallback((actionId: string, anchor: HTMLElement) => {
+    clearActionHelpCloseTimer();
+    const rect = anchor.getBoundingClientRect();
+    const popoverWidth = Math.min(420, Math.max(280, window.innerWidth - 24));
+    const left = Math.min(
+      Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2),
+      window.innerWidth - popoverWidth - 12,
+    );
+    const belowTop = rect.bottom + 10;
+    const estimatedHeight = 430;
+    const canOpenBelow = belowTop + estimatedHeight <= window.innerHeight - 12;
+    setActionHelp({
+      actionId,
+      left,
+      top: canOpenBelow ? belowTop : Math.max(12, rect.top - estimatedHeight - 10),
+      placement: canOpenBelow ? "below" : "above",
+      anchorTop: rect.top,
+      anchorBottom: rect.bottom,
+    });
+  }, [clearActionHelpCloseTimer]);
+
+  const scheduleCloseActionHelp = useCallback(() => {
+    clearActionHelpCloseTimer();
+    actionHelpCloseTimerRef.current = window.setTimeout(() => {
+      setActionHelp(null);
+      actionHelpCloseTimerRef.current = null;
+    }, 120);
+  }, [clearActionHelpCloseTimer]);
+
+  useEffect(() => {
+    if (!actionHelp) return undefined;
+    const close = () => setActionHelp(null);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("resize", close);
+    };
+  }, [actionHelp]);
+
+  useLayoutEffect(() => {
+    if (!actionHelp) return;
+    const popover = document.getElementById(`action-help-${actionHelp.actionId}`);
+    if (!popover) return;
+    const actualHeight = Math.min(popover.getBoundingClientRect().height, window.innerHeight - 24);
+    const belowTop = actionHelp.anchorBottom + 10;
+    const canOpenBelow = belowTop + actualHeight <= window.innerHeight - 12;
+    const nextTop = canOpenBelow
+      ? belowTop
+      : Math.max(12, actionHelp.anchorTop - actualHeight - 10);
+    const nextPlacement = canOpenBelow ? "below" : "above";
+    if (Math.abs(nextTop - actionHelp.top) > 1 || nextPlacement !== actionHelp.placement) {
+      setActionHelp((cur) => cur && cur.actionId === actionHelp.actionId
+        ? { ...cur, top: nextTop, placement: nextPlacement }
+        : cur);
+    }
+  }, [actionHelp]);
+
+  useEffect(() => () => clearActionHelpCloseTimer(), [clearActionHelpCloseTimer]);
 
   const handleAddStep = (type: StepType, insertIndex?: number) => {
     if (!activeAction) return;
@@ -1266,7 +1532,12 @@ export function ProcessFlowEditor() {
                 <button
                   className={`process-flow-tab ${activeActionId === act.id ? "active" : ""}`}
                   onClick={() => setActiveActionId(act.id)}
-                  title={buildActionTabTitle(act)}
+                  onPointerEnter={(e) => openActionHelp(act.id, e.currentTarget)}
+                  onPointerLeave={scheduleCloseActionHelp}
+                  onFocus={(e) => openActionHelp(act.id, e.currentTarget)}
+                  onBlur={scheduleCloseActionHelp}
+                  aria-describedby={actionHelp?.actionId === act.id ? `action-help-${act.id}` : undefined}
+                  aria-label={`${act.name} (${getActionTriggerLabel(act.trigger)})`}
                 >
                   <span className="process-flow-tab-trigger-icon" aria-hidden="true">
                     <i className={`bi ${getActionTriggerIcon(act.trigger)}`} />
@@ -1307,6 +1578,16 @@ export function ProcessFlowEditor() {
               </button>
             )}
           </div>
+          {actionHelpTarget && actionHelp && (
+            <ActionHelpPopover
+              action={actionHelpTarget}
+              actionIndex={actionHelpTargetIndex}
+              markers={group?.authoring?.markers ?? []}
+              position={actionHelp}
+              onPointerEnter={clearActionHelpCloseTimer}
+              onPointerLeave={scheduleCloseActionHelp}
+            />
+          )}
           <div className="process-flow-command-hints">
             {!isReadonly && (
               <>
