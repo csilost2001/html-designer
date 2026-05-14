@@ -248,9 +248,11 @@ export function GenericDefinitionListView() {
       header: "名前",
       sortable: true,
       sortAccessor: (item) => item.name,
+      // #1088 提案 B (案 A): name 列の single-click ショートカットを削除し、他 3 ListView
+      // (Screen / Table / ProcessFlow) と同じ dblclick / Enter で開く挙動に統一。
+      // navigation 経路: row dblclick (DataList 共通) または Enter キー (useListKeyboard)。
       render: (item) => (
-        <span style={{ fontWeight: 600, fontFamily: "monospace", color: "#0d6efd", cursor: "pointer" }}
-          onClick={() => handleActivate(item)}>
+        <span style={{ fontWeight: 600, fontFamily: "monospace", color: "#0d6efd" }}>
           {item.name}
         </span>
       ),
@@ -303,7 +305,7 @@ export function GenericDefinitionListView() {
         );
       },
     },
-  ], [handleActivate, validationMap]);
+  ], [validationMap]);
 
   const renderCard = useCallback((item: GenericDefinitionSummary) => {
     const v = validationMap.get(item.name);
@@ -314,8 +316,9 @@ export function GenericDefinitionListView() {
         className={hasError ? "has-error" : hasWarning ? "has-warning" : ""}
         style={{ padding: "12px" }}
       >
-        <div style={{ fontWeight: 600, fontFamily: "monospace", color: "#0d6efd", marginBottom: "4px", fontSize: "0.95rem" }}
-          onClick={() => handleActivate(item)}>
+        {/* #1088 提案 B (案 A): name の single-click ショートカット削除。card 全体の
+            dblclick (DataList 共通) または Enter キーで開く挙動に統一。 */}
+        <div style={{ fontWeight: 600, fontFamily: "monospace", color: "#0d6efd", marginBottom: "4px", fontSize: "0.95rem" }}>
           {item.name}
         </div>
         <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "8px" }}>{item.purpose}</div>
@@ -340,7 +343,7 @@ export function GenericDefinitionListView() {
         </div>
       </div>
     );
-  }, [handleActivate, validationMap]);
+  }, [validationMap]);
 
   if (!kind) {
     return <div style={{ padding: "24px", color: "#c00" }}>不正な kind です</div>;
