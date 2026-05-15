@@ -49,17 +49,23 @@ Reopen in Container すると以下が WSL2 host 側に自動作成されます 
 ~/.agent-containers/harmony/
 ├── .claude/    ← Claude Code: sessions / settings / memory / .credentials.json
 ├── .codex/    ← Codex CLI: auth.json / config.toml / sessions
+├── .copilot/  ← Copilot CLI: session-state / command-history-state.json / memory
 └── .harmony/  ← Harmony 本体: recent-workspaces.json
 ```
+
+加えて、host の `~/.config/gh/` (= `gh` CLI auth) を container 内 `/home/node/.config/gh/` に bind mount します。Copilot CLI は `gh auth` を認証元として使うため必須、`gh` 単体使用にも有効です (host で `gh auth login` 済みならそのまま継承)。
 
 これらは bind mount で container と双方向同期され、**rebuild しても消えません**。
 
 ### 初回 1 回だけ必要な手作業
 
 ```bash
-# container 内ターミナルで
-claude /login    # Claude Code OAuth (ブラウザ完遂)
-codex login      # Codex CLI OAuth
+# container 内ターミナルで、利用したい AI CLI だけ login (全部入れる必要なし)
+claude /login    # Claude Pro/Max 利用時
+codex login      # ChatGPT Plus 利用時
+# Copilot CLI 利用時:
+#   host で `gh auth login` 済みなら追加 login 不要
+#   未済なら container 内で 1 度 `gh auth login` を実行
 ```
 
 `refreshToken` で 60〜90 日は自動更新されるため、日々の rebuild で再認証は不要です。
