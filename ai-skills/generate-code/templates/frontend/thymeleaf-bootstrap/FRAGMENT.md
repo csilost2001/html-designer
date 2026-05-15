@@ -369,4 +369,4 @@ Gadget Controller が `@Value` で参照する設定値や、Gadget が表示す
 - **代替**: `application.yml` (UTF-8 default) を採用
 - **必須**: `server.servlet.encoding.charset=UTF-8` / `force=true` / `spring.thymeleaf.encoding=UTF-8` の 3 行
 
-詳細: `.claude/skills/generate-code/SKILL.md` の「Spring Boot 設定ファイル — 日本語値の取り扱い」セクションを参照。
+詳細: `ai-skills/generate-code/SKILL.md` の「Spring Boot 設定ファイル — 日本語値の取り扱い」セクションを参照。

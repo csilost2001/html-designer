@@ -27,18 +27,19 @@ Claude Code 向けの補足ガイダンス。
 
 ### Slash Commands / Skills
 
-本プロジェクトで利用する Claude Code 固有スキル (`.claude/skills/`):
+本プロジェクトで利用する AI スキル (`ai-skills/<name>/SKILL.md` canonical、Claude Code / Codex / Copilot CLI から symlink 経由で共有、Agent Skills 標準準拠、#1118 Phase 3-4 で確立):
 
-- **`/issues <N>`** — ISSUE を 12 ルール Opus オーケストレーターワークフローで完遂 (`.claude/skills/issues/SKILL.md`)
-- **`/review-pr <N>`** — PR 独立レビュー (一般品質: spec / 命名 / テスト) (`.claude/skills/review-pr/SKILL.md`)
-- **`/create-flow <flowId> <業務概要> [namespace]`** — ProcessFlow JSON を品質ガード付きで作成 (`/review-flow` の 10 観点を作成前 self-check として組み込み、18 ルールの既知パターン回避 self-check を含む)。`/review-flow` と併用前提 (`.claude/skills/create-flow/SKILL.md`)
-- **`/review-flow <flowId>`** — ProcessFlow JSON 実行セマンティクス専門レビュー (変数ライフサイクル / TX / runIf / 補償 / event 双方向)。設計フェーズから使える (`.claude/skills/review-flow/SKILL.md`)
-- **`/review-issue <N>`** — ISSUE 単位の実装網羅性監査 (`.claude/skills/review-issue/SKILL.md`)
-- **`/test-strategy`** — テスト実装時の自動起動スキル (`.claude/skills/test-strategy/SKILL.md`)
-- **`/rename-screen-ids`** — AI 推論による画面項目 ID 再命名 (`.claude/skills/rename-screen-ids/SKILL.md`)
-- **`/generate-code <flowId|screenId> [出力先]`** — project.techStack に基づき ProcessFlow → backend code / Screen → frontend code を生成。Spring Boot/Thymeleaf 系と NestJS/Next.js 系の 2 種類の techStack 組合せをカバー (`.claude/skills/generate-code/SKILL.md`)
-- **`/generate-tests <flowId|screenId> [出力先]`** — ProcessFlow → backend e2e test (jest+supertest) / Screen → component test (vitest+testing-library) / multi-screen → playwright E2E / AI flow → mock+実 API 切替テストを spec から機械導出。`/generate-code` の対 (`.claude/skills/generate-tests/SKILL.md`)
-- **`/import-md <project ディレクトリ>`** — Project の Markdown 設計書を Harmony JSON (screen / processFlow / table / generic-definitions/*) に変換。少数 MD は 1 回限り変換、継続更新ある場合は `<project>/scripts/import/*.ts` を生成。実体は [`docs/spec/conversion-guideline-for-ai.md`](docs/spec/conversion-guideline-for-ai.md) (#1060) (`.claude/skills/import-md/SKILL.md`)
+- **`/issues <N>`** — ISSUE を 12 ルール Opus オーケストレーターワークフローで完遂 (`ai-skills/issues/SKILL.md`)
+- **`/review-pr <N>`** — PR 独立レビュー (一般品質: spec / 命名 / テスト) (`ai-skills/review-pr/SKILL.md`)
+- **`/create-flow <flowId> <業務概要> [namespace]`** — ProcessFlow JSON を品質ガード付きで作成 (`/review-flow` の 10 観点を作成前 self-check として組み込み、18 ルールの既知パターン回避 self-check を含む)。`/review-flow` と併用前提 (`ai-skills/create-flow/SKILL.md`)
+- **`/review-flow <flowId>`** — ProcessFlow JSON 実行セマンティクス専門レビュー (変数ライフサイクル / TX / runIf / 補償 / event 双方向)。設計フェーズから使える (`ai-skills/review-flow/SKILL.md`)
+- **`/review-issue <N>`** — ISSUE 単位の実装網羅性監査 (`ai-skills/review-issue/SKILL.md`)
+- **`/test-strategy`** — テスト実装時の自動起動スキル (`ai-skills/test-strategy/SKILL.md`)
+- **`/rename-screen-ids`** — AI 推論による画面項目 ID 再命名 (`ai-skills/rename-screen-ids/SKILL.md`)
+- **`/generate-code <flowId|screenId> [出力先]`** — project.techStack に基づき ProcessFlow → backend code / Screen → frontend code を生成。Spring Boot/Thymeleaf 系と NestJS/Next.js 系の 2 種類の techStack 組合せをカバー (`ai-skills/generate-code/SKILL.md`)
+- **`/generate-tests <flowId|screenId> [出力先]`** — ProcessFlow → backend e2e test (jest+supertest) / Screen → component test (vitest+testing-library) / multi-screen → playwright E2E / AI flow → mock+実 API 切替テストを spec から機械導出。`/generate-code` の対 (`ai-skills/generate-tests/SKILL.md`)
+- **`/import-md <project ディレクトリ>`** — Project の Markdown 設計書を Harmony JSON (screen / processFlow / table / generic-definitions/*) に変換。少数 MD は 1 回限り変換、継続更新ある場合は `<project>/scripts/import/*.ts` を生成。実体は [`docs/spec/conversion-guideline-for-ai.md`](docs/spec/conversion-guideline-for-ai.md) (#1060) (`ai-skills/import-md/SKILL.md`)
+- **`/publish-dev-image <version>`** — Harmony Dev Container 用 base image を ghcr.io に build + push する (maintainer 専用) (`ai-skills/publish-dev-image/SKILL.md`、#1118 Phase 3 で新設)
 
 Codex CLI 利用時はこれらのスキルは直接呼び出せません。等価機能は Codex plugin の `/codex:review` 等で代替するか、Opus が briefing で代替指示を出します。
 

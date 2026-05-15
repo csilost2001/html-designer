@@ -45,7 +45,7 @@
  *  - `esd-history-btn` (履歴)
  *
  * これらの click は **必ず本 helper の関数を経由** すること。直接 `locator.click()` を
- * 書くと再発する。.claude/skills/test-strategy/SKILL.md と stop hook で機械検知される
+ * 書くと再発する。ai-skills/test-strategy/SKILL.md と stop hook で機械検知される
  * 仕組みも合わせて入れている。
  *
  * 参考 commit: e7ad810 / 8054836 / 8ae5305 (#980-A シリーズ)

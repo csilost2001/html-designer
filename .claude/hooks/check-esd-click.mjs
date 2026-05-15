@@ -52,7 +52,7 @@ const msg = [
   ``,
   `  理由: Playwright actionability check が \`.esd-root\` 親 div を拾うため、locator.click() は 180s timeout します。`,
   `  helper は \`page.evaluate(() => btn.click())\` で actionability を bypass しています。`,
-  `  詳細: .claude/skills/test-strategy/SKILL.md の "EditSessionDropdown / 多重 context 系テストの注意" 節`,
+  `  詳細: ai-skills/test-strategy/SKILL.md の "EditSessionDropdown / 多重 context 系テストの注意" 節`,
 ].join("\n");
 
 console.error(msg);

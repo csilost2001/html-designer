@@ -525,9 +525,9 @@ Dev Containers の image を CI でも使うと、ローカル / CI 完全一致
 
 本 doc は **Harmony 本体** (Harnize Harmony 自身の開発環境) の Dev Containers 設定について解説する。
 
-`/generate-code` skill が出力する**業務アプリ**には、同じ思想 (pre-build しない、MS 公式 base image + features 構成) で `.devcontainer/devcontainer.json` + `Dockerfile` + `docker-compose.yml` を同梱する (#1048)。techStack 4 組合せ (spring-boot × thymeleaf / nextjs、nestjs × thymeleaf / nextjs) のテンプレが `.claude/skills/generate-code/templates/devcontainer/` 配下に配置されており、`/generate-code` 実行時に techStack を判定して該当テンプレをコピー出力する。詳細は [`SKILL.md` Step 5.5](../../.claude/skills/generate-code/SKILL.md) を参照。
+`/generate-code` skill が出力する**業務アプリ**には、同じ思想 (pre-build しない、MS 公式 base image + features 構成) で `.devcontainer/devcontainer.json` + `Dockerfile` + `docker-compose.yml` を同梱する (#1048)。techStack 4 組合せ (spring-boot × thymeleaf / nextjs、nestjs × thymeleaf / nextjs) のテンプレが `ai-skills/generate-code/templates/devcontainer/` 配下に配置されており、`/generate-code` 実行時に techStack を判定して該当テンプレをコピー出力する。詳細は [`SKILL.md` Step 5.5](../../ai-skills/generate-code/SKILL.md) を参照。
 
-**`<出力先>` の運用想定**: `/generate-code <id> <出力先>` の `<出力先>` は **業務アプリ project root** を指す (project-root model)。Harmony 利用者は意味のある folder 名 (例: `~/projects/retail-app/`) を独立した project root として作り、それを `<出力先>` に指定して VS Code / Dev Container で開く。`examples/<id>/generated/<techStack>/` は Harmony 同梱サンプル / dogfood 参照物であり、常用の project root として開く運用は想定しない (`${localWorkspaceFolderBasename}` が `generated` で衝突するため)。詳細は [`SKILL.md` Step 5.5](../../.claude/skills/generate-code/SKILL.md) の「出力先の運用想定 (project-root model)」を参照。設定駆動 (`harmony.json` の `outputDir` 等) は [#1116](https://github.com/csilost2001/harmony/issues/1116) で検討中。
+**`<出力先>` の運用想定**: `/generate-code <id> <出力先>` の `<出力先>` は **業務アプリ project root** を指す (project-root model)。Harmony 利用者は意味のある folder 名 (例: `~/projects/retail-app/`) を独立した project root として作り、それを `<出力先>` に指定して VS Code / Dev Container で開く。`examples/<id>/generated/<techStack>/` は Harmony 同梱サンプル / dogfood 参照物であり、常用の project root として開く運用は想定しない (`${localWorkspaceFolderBasename}` が `generated` で衝突するため)。詳細は [`SKILL.md` Step 5.5](../../ai-skills/generate-code/SKILL.md) の「出力先の運用想定 (project-root model)」を参照。設定駆動 (`harmony.json` の `outputDir` 等) は [#1116](https://github.com/csilost2001/harmony/issues/1116) で検討中。
 
 ## 関連ドキュメント
 

@@ -398,4 +398,4 @@ Page 生成と一緒に Spring Boot の `application.properties` や Controller 
 - **必須**: `server.servlet.encoding.charset=UTF-8` / `force=true` / `spring.thymeleaf.encoding=UTF-8` の 3 行 (これらが無いと response body も化ける)
 - **i18n**: `messages_ja.properties` は UTF-8 保存 + `spring.messages.encoding=UTF-8` 明示
 
-詳細: `.claude/skills/generate-code/SKILL.md` の「Spring Boot 設定ファイル — 日本語値の取り扱い」セクションを参照。
+詳細: `ai-skills/generate-code/SKILL.md` の「Spring Boot 設定ファイル — 日本語値の取り扱い」セクションを参照。

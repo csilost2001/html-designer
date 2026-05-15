@@ -17,7 +17,7 @@ import { wsBridge } from "./wsBridge.js";
 
 // projectStorage.ts と同一パターン: src/aiRename.ts → src/ → backend/ → harmony/
 const PROJECT_ROOT = path.resolve(import.meta.dirname, "../..");
-const SKILL_PATH = path.join(PROJECT_ROOT, ".claude/skills/rename-screen-ids/SKILL.md");
+const SKILL_PATH = path.join(PROJECT_ROOT, "ai-skills/rename-screen-ids/SKILL.md");
 const MCP_CONFIG = path.join(PROJECT_ROOT, ".mcp.json");
 const TIMEOUT_MS = 60_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
