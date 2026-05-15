@@ -18,7 +18,7 @@ Claude Code 向けの補足ガイダンス。
 
 ### 開発環境 (推奨: Dev Containers / 代替: WSL2 native)
 
-本プロジェクトの推奨開発環境は **Dev Containers** (`.devcontainer/devcontainer.json` 同梱、git tracked、#847)。WSL2 native セットアップも引き続きサポート対象。Quick Start は [`README.md`](README.md) を参照。
+本プロジェクトの推奨開発環境は **Dev Containers** (`.devcontainer/devcontainer.json` 同梱、git tracked、#847)。WSL2 native セットアップも引き続きサポート対象 — 利用者の選好で選んでよい。Quick Start は [`README.md`](README.md) を参照。
 
 - Claude Code (CLI 版) は **container 内でも** `.mcp.json` の `http://localhost:5179/mcp` で backend に繋がる (`localhost` = container 自身)
 - 起動前提は両環境とも同じ: ターミナルで `cd backend && npm run dev` 常駐

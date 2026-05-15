@@ -7,7 +7,9 @@ Harmony 本体 (frontend + backend) を Docker image として配布し、利用
 > - 着手は #1055 の L2 / L3 で本格化予定 (近日着手予定、本書を起点に書き直す前提)
 > - 関連: [#1055 L1 production Dockerfile 雛形](https://github.com/csilost2001/harmony/issues/1055) (closed、本書記載の前段 path 規約と L2/L3 方針あり)
 >
-> ⚠️ **本書記載の 2-container 案は #1055 L2 方針 (backend-static-serve で 1 container 統合) と矛盾しています**。L2 着手時には **1-container 案** (backend が `express.static()` で `frontend/dist/` を配信、5179 ポートで HTTP MCP / WebSocket / SPA 全部) で書き直す前提で、本書の compose 構成 (frontend + backend 2 サービス) は**そのまま採用しないでください**。本書の構造 (Step 2-1 〜 2-8) と方針は historical reference として保持しています。
+> ⚠️ **本書記載の 2-container 案は #1055 L2 方針 (backend-static-serve で 1 container 統合) と矛盾しています**。L2 着手時には **1-container 案** (backend が `express.static()` で `frontend/dist/` を配信、5179 ポートで HTTP MCP / WebSocket / SPA 全部) で書き直す前提で、本書の compose 構成 (frontend + backend 2 サービス) は**そのまま採用しないでください**。
+>
+> ✅ ただし **本書の構造 (Step 2-1 〜 2-8) と方針は historical reference として保持しています**。ghcr.io への push 手順 / GitHub Actions / volume mount 設計 / トラブルシューティング等は 1-container 案でもそのまま使えるため、L2/L3 着手者の出発点として読む価値があります。
 
 開発環境セットアップ手順は本書の対象外です。Harmony 本体を開発したい場合は [`dev-containers.md`](./dev-containers.md) (推奨) または [`wsl2-native.md`](./wsl2-native.md) (代替) を参照してください。
 

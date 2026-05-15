@@ -27,12 +27,14 @@ WSL2 + Ubuntu + Node 等の基本セットアップが未完了の場合は [`ws
 ```bash
 # WSL2 シェルで
 cd ~/projects
-git clone git@github.com:<org>/harmony.git
+git clone git@github.com:csilost2001/harmony.git
 cd harmony
 
 # VSCode 起動 (Remote-WSL で開く)
 code .
 ```
+
+`csilost2001/harmony` は本リポジトリの canonical 出典。fork して作業する場合は自分の fork URL に置き換えてください。
 
 VSCode 起動後:
 
