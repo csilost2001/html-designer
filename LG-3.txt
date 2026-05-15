@@ -1,11 +1,12 @@
+### Dockerのデータをすべて削除してからPhase0
 Running the onCreateCommand from devcontainer.json...
 
-[207802 ms] Start: Run in container: /bin/sh -c sudo chown -R node:node /home/node/.claude /home/node/.codex /home/node/.copilot /home/node/.harmony /home/node/.config/gh
+[294392 ms] Start: Run in container: /bin/sh -c sudo chown -R node:node /home/node/.claude /home/node/.codex /home/node/.copilot /home/node/.harmony /home/node/.config/gh /home/node/.gitconfig
 Running the postCreateCommand from devcontainer.json...
 
-[209490 ms] Start: Run in container: /bin/sh -c npm install --prefix frontend && npm install --prefix backend && ([ -f ~/.claude/.config.json ] || echo '{}' > ~/.claude/.config.json)
+[296339 ms] Start: Run in container: /bin/sh -c npm install --prefix frontend && npm install --prefix backend && ([ -f ~/.claude/.config.json ] || echo '{}' > ~/.claude/.config.json)
 
-up to date, audited 429 packages in 9s
+up to date, audited 429 packages in 10s
 
 97 packages are looking for funding
   run `npm fund` for details
@@ -22,7 +23,7 @@ npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.14.1
 npm notice To update run: npm install -g npm@11.14.1
 npm notice
 
-up to date, audited 156 packages in 7s
+up to date, audited 156 packages in 5s
 
 54 packages are looking for funding
   run `npm fund` for details
@@ -35,7 +36,7 @@ To address all issues, run:
 Run `npm audit` for details.
 Running the postStartCommand from Feature 'ghcr.io/devcontainers/features/copilot-cli:1.1.2'...
 
-[229752 ms] Start: Run in container: /bin/sh -c [ -f /etc/devcontainer-copilot-cli/auto-update ] && copilot update || true
+[315726 ms] Start: Run in container: /bin/sh -c [ -f /etc/devcontainer-copilot-cli/auto-update ] && copilot update || true
 Checking for updates...
 Checking GitHub for the latest release...
 No update needed, current version is 1.0.48, fetched latest release is v1.0.48
