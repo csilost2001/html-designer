@@ -1886,6 +1886,23 @@ docker compose up --build
    - `<出力先>/README.md` 無し → `README.snippet.md` をベースに `# <appName>\n\n` ヘッダを付けて新規 `README.md` 作成
 6. **最終レポート反映**: Step 5 の per-entity ファイル列挙とは別カテゴリで `### プロジェクト scaffold` セクションを追加、生成 4 ファイルを列挙
 
+### 出力先の運用想定 (project-root model)
+
+`<出力先>` は **業務アプリ project root** を指す設計。生成ファイルは canonical layout で project root 直下に配置される (例: Spring Boot なら `<出力先>/pom.xml`, `<出力先>/src/main/java/...`、Next.js なら `<出力先>/package.json`, `<出力先>/app/...`)。
+
+scaffold (`.devcontainer/` / `Dockerfile` / `docker-compose.yml` / `README.md`) も project root 直下。
+
+| パターン | `<出力先>` | 想定用途 |
+|---|---|---|
+| **実運用** (Harmony 利用者) | 独立した project root (例: `~/projects/retail-app/`) | 業務アプリ開発の本番経路。利用者が project root を VS Code / Dev Container で開く |
+| **dogfood** (Harmony 開発) | `examples/<id>/generated/<techStack>/` 等の repo 内 path | Harmony 同梱サンプルとして、複数 techStack を side-by-side に並べて比較するため |
+
+`examples/<id>/generated/` は **Harmony 同梱サンプル / dogfood 参照物** であり、常用・実開発の project root として開く運用は想定しない (`${localWorkspaceFolderBasename}` が `generated` で衝突し AI CLI state 分離が崩れる)。一時 smoke で開くことはあり得るが、業務アプリ開発の本番経路ではない。
+
+Harmony 利用者は **意味のある folder 名** (例: `retail-app/`、`inventory-admin/`) で project root を作り、その folder を `<出力先>` に指定する。VS Code でその root を開いた時の `${localWorkspaceFolderBasename}` が AI CLI state (`~/.agent-containers/<project-name>/`) の分離キーになる。
+
+> 設定駆動の出力先指定 (`harmony.json` の `outputDir` field 等) は **将来 ISSUE [#1116](https://github.com/csilost2001/harmony/issues/1116) で実装検討中**。現状は `<出力先>` を毎回明示指定する運用。
+
 ### 検証 (Step 6 拡張 / B-4)
 
 - `.devcontainer/devcontainer.json` が JSON valid (構文チェック)

@@ -1,5 +1,7 @@
 ## 開発環境 (Dev Containers)
 
+> 本 README は、生成された業務アプリを独立した project root として開く前提です。`examples/<id>/generated/` は Harmony 同梱サンプル / dogfood 参照物であり、実開発・別配布では `retail-app/` など意味のある folder 名の project root に配置して開いてください (`${localWorkspaceFolderBasename}` が AI CLI state の分離キーになります)。
+
 VSCode + Dev Containers 拡張があれば、`git clone` 後に `Reopen in Container` で即環境完成。
 
 1. 前提: Docker Desktop + VSCode + Dev Containers 拡張 (`ms-vscode-remote.remote-containers`)
