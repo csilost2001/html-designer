@@ -1,32 +1,27 @@
-# Harmony Dev Container — Phase 0 (#1118)
+# Harmony Dev Container OVERLAY (#1118 Phase 1)
 #
-# 目的: rebuild 高速化のため、Playwright + codex の重い install を Docker layer に
-#       焼く。postCreateCommand に残すのは source 依存 / mount 依存のもののみ
-#       (npm install --prefix / .claude/.config.json 初期化)。
+# 目的: 頻繁更新ツールを base image に焼かず、薄い overlay 層に閉じ込めて
+#       rebuild 時のコストを最小化。
 #
-# 計測 (Ryzen 5950X, 10Gbps wired): warm rebuild 56 秒 → ~13-17 秒目標
-#       (Note PC + Wi-Fi): warm rebuild 94 秒 → ~25-30 秒目標
+# 階層構造:
+#   .devcontainer/base/Dockerfile  ← Playwright + Chromium + apt (稀更新)
+#   .devcontainer/Dockerfile       ← codex 等の頻繁更新ツール (本ファイル)
 #
-# 階層構造 (Phase 1 で分離予定):
-#   FROM mcr.microsoft.com/devcontainers/typescript-node:20-trixie
-#   ├── Playwright + Chromium + apt deps (Phase 1 で .devcontainer/base/Dockerfile に移動)
-#   └── @openai/codex global install (Phase 1 で本 Dockerfile を overlay 層として残す、頻繁更新枠)
+# 更新タイミング (頻繁、月単位):
+#   - @openai/codex version bump (このファイルを編集 → Rebuild Container)
+#   - 将来追加の頻繁更新 CLI も本ファイルに追記
+#
+# Phase 1 計測 (Ryzen): warm rebuild 15 秒、codex 更新時の rebuild ~5 秒目標。
+#
+# FROM は Phase 1 では local tag、Phase 2 で ghcr URL に切替予定:
+#   Phase 1: FROM harmony-devcontainer-base:local
+#   Phase 2: FROM ghcr.io/csilost2001/harmony-devcontainer-base:<version>
 
-FROM mcr.microsoft.com/devcontainers/typescript-node:20-trixie
-
-# Playwright cache path (devcontainer.json の containerEnv と一致させる)
-ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
+FROM harmony-devcontainer-base:local
 
 USER root
 
-# Playwright system libs (apt-get で ~87 MB DL, ~328 MB disk, 66+ packages)
-# + Chromium binary (~285 MiB) を 1 layer に焼く。chown は親 ~/.cache 全体に
-# 効かせる (root 実行で作られた親 dir を node 所有に戻す。
-# 他 tool — 例: Copilot CLI の ~/.cache/copilot — も書けるようにするため)。
-RUN npx -y playwright@1.59.1 install --with-deps chromium \
-  && chown -R node:node /home/node/.cache
-
-# global npm tool (Phase 1 で overlay 層に分離予定、codex は頻繁更新前提)
+# @openai/codex (頻繁更新ツール、本 overlay 層に閉じ込め)
 RUN npm install -g @openai/codex@0.130.0
 
 USER node
