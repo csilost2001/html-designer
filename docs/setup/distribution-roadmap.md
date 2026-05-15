@@ -15,6 +15,99 @@ Harmony 本体 (frontend + backend) を Docker image として配布し、利用
 
 ---
 
+## L2 着手前の必須設計判断 (バトン情報)
+
+#1055 L2 着手者はまず本節を読んでから書き直しに入ること。Step 2-1〜2-8 (後述) はこの設計判断に従って再構成する必要がある。
+
+### 1. AI mount は optional + Codex は optional
+
+Harmony backend は **Codex App Server を lazy 接続** (`wsBridge.ts:247` `_codexConn: CodexConnection | null = null`)。backend 起動時に codex は spawn されず、利用者が「処理フローの `kind: "ai"` step 実行」または「UI の Codex 統合タブ操作」をして初めて接続を試みる。
+
+つまり **Codex 未インストール / 未認証でも Harmony 設計ツールは動作する**:
+
+| 機能 | Codex 依存 |
+|---|---|
+| 画面 / テーブル / 処理フロー / ER 図 / Page Layout 設計 (GUI) | ❌ 依存しない |
+| `/generate-code` / `/generate-tests` (Claude Code 等別 MCP クライアント経由) | ❌ 依存しない |
+| 処理フロー `kind: "ai"` step の実行 | ✅ 必要 |
+| UI 内 Codex タブ (login / chat / rate limit 表示) | ✅ 必要 |
+
+**結論**: 配布利用者向け `docker-compose.yml` では:
+
+- **`.codex` mount は default で comment-out**、「Codex 機能を使う場合は uncomment」と注釈
+- backend image に codex CLI を install するかは選択 (推奨: install しておく + mount で auth 渡す。L2 着手時に image サイズ実測して判断)
+- Codex 機能を使わない利用者層は `.codex` mount 無しで完全に Harmony を使える
+
+### 2. 利用者層を 3 区分で想定する
+
+| 利用者層 | サブスク状況 | 必要な構成 |
+|---|---|---|
+| **(2a) 設計のみ利用** | Codex / Claude サブスクなし | `.codex` mount 不要、AI 機能未利用、GUI で JSON 出力まで完結 |
+| **(2b) Codex 利用** | ChatGPT Plus 契約あり | `.codex` mount + container 内 codex CLI で AI step / Codex タブ動作 |
+| **(2c) Claude 利用** | Anthropic Pro/Max 契約あり | Harmony image 内では使わない。Harmony 外 (Desktop の Claude Code 等) から MCP 経由で port 5179 に接続 |
+
+(2a) を排除しない compose 設計が重要 (= mount は default で **無し**、欲しい人だけ追加)。
+
+### 3. Codex 通信は stdio 一択 (WebSocket は公式 unsupported)
+
+Codex App Server の公式 transport ([OpenAI Developers](https://developers.openai.com/codex/app-server) / [GitHub openai/codex codex-rs/app-server/README.md](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md)):
+
+| Transport | フラグ | 状態 | 配布利用 |
+|---|---|---|---|
+| **stdio** (default) | `--listen stdio://` | ✅ supported | **採用** |
+| **WebSocket** | `--listen ws://IP:PORT` | ⚠️ experimental and unsupported | **採用しない** |
+| **unix socket** | `--listen unix://` | local control-plane only | 非該当 |
+| **off** | `--listen off` | (disable) | 非該当 |
+
+公式 README 明記: *"Websocket transport is currently experimental and unsupported. Do not rely on it for production workloads."*
+
+Harmony backend は両方を実装済 (`backend/src/codex/config.ts` の `HARMONY_CODEX_TRANSPORT` env)。L2 では **default = stdio (container 内 spawn)** で進める。`HARMONY_CODEX_TRANSPORT=websocket` 経路は上級ユーザ向け escape hatch として残すが、配布 compose のサンプルでは推奨しない。
+
+### 4. Codex 統合の compose スニペット (推奨形、L2 着手者が起点に使う)
+
+1-container 統合案 + Codex optional mount のサンプル:
+
+```yaml
+services:
+  harmony:
+    image: ghcr.io/csilost2001/harmony:1.0.0
+    ports:
+      - "5179:5179"               # HTTP MCP + WebSocket + SPA (express.static で statically serve)
+    volumes:
+      - ./workspaces:/data/workspaces                      # 利用者の作業データ (必須)
+      - harmony-state:/home/node/.harmony                  # recent-workspaces.json (必須、named volume)
+      # ↓ Codex 機能を使う場合のみ uncomment (= 利用者層 (2b))
+      # - ${HOME}/.codex:/home/node/.codex:ro              # ChatGPT Plus OAuth credential (host で `codex login` 必要)
+    environment:
+      NODE_ENV: production
+      # HARMONY_CODEX_TRANSPORT: spawn                     # default
+    restart: unless-stopped
+
+volumes:
+  harmony-state:
+```
+
+- `.codex` は **read-only mount** (container 内で書き換えない、host の credential を読むだけ)
+- `:ro` を付けることで container 内の AI step が誤って credential を上書きするリスクを排除
+- 利用者層 (2a) はこの mount をコメントアウトのままで OK
+- 利用者層 (2b) は uncomment + host で 1 度 `codex login` 完了させる
+- 利用者層 (2c) は Harmony image を使わず、自分の手元の Claude Code Desktop 等から MCP 接続のみ
+
+### 5. Step 2-1 〜 2-8 の書き直し方針 (要約)
+
+| Step | 旧案 (本書) | L2 で書き直す方向 |
+|---|---|---|
+| 2-1 | frontend/Dockerfile | **削除** (1-container 案では不要、backend Dockerfile に統合) |
+| 2-2 | backend/Dockerfile | **frontend を multi-stage で同梱**、backend が `express.static()` で `frontend/dist/` を配信 |
+| 2-3 | docker-compose.yml (2 services) | **1 service** (上記スニペット参照)、Codex mount は optional |
+| 2-4 | docker-compose.dev.yml | L2 では不要 (開発は `.devcontainer/` で完結)。最低限必要なら別ファイルで |
+| 2-5 | ローカルビルド + 統合テスト | 1 image / 1 container のテストフローに置き換え |
+| 2-6 | ghcr.io push | そのまま使える (tag 付け / login / push 手順は変わらず) |
+| 2-7 | README に手順追加 | top-level README.md (#1109 で新設済) に「`docker compose up` で起動」セクションを追記する形に修正 |
+| 2-8 | GitHub Actions release | そのまま使える (1 image build に簡略化される分むしろ簡単) |
+
+---
+
 ## 目的
 
 Harmony 本体の利用者 (= 業務アプリ設計者、AGENTS.md の (2)) のうち、コードを触らず GUI と `/generate-code` だけ使いたい層向けに「**`docker compose up` だけで起動**」の経路を用意する。
