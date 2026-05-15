@@ -1,6 +1,6 @@
 {
   "name": "Harmony Dev",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20-bullseye",
 
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
