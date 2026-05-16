@@ -84,9 +84,10 @@ RUN set -eux; \
   rm /tmp/copilot.tar.gz; \
   chmod +x /usr/local/bin/copilot
 
-# 4. docker-outside-of-docker は本 P5b 構成では inline しない (host 側 publish 運用)。
-#    publish-dev-image.sh は host bash で実行する (memory
-#    feedback_devcontainer_inline_scope_cost_evaluation.md)。container 内に docker CLI
-#    が無いことで image size -~220 MB、GID 動的調整 / docker.sock bind / SELinux 緩和も不要。
+# 4. docker-outside-of-docker は本 P5b 構成では inline しない (host 側 publish 運用、#1122)。
+#    publish-dev-image.sh は host bash で実行する (script 先頭で /.dockerenv 検出して reject)。
+#    container 内に docker CLI が無いことで image size -~220 MB (uncompressed) /
+#    -~115 MB (ghcr 圧縮 = registry 転送量)、GID 動的調整 / docker.sock bind /
+#    SELinux 緩和も不要。
 
 USER node
