@@ -19,7 +19,9 @@
 
 ### backend が多重起動
 
-`.mcp.json` に登録済みのため、Claude Code 起動ごとに新インスタンスが spawn される可能性あり。`wsBridge.start()` で古いプロセスの終了を待つロジックがあるが、うまくいかなければ手動 kill:
+URL mode (#302 以降) では `.mcp.json` の自動 spawn は行わないため、この問題は発生しません。以前 (command mode 時代) のトラブルシューティング記録として保持。
+
+もし何らかの理由で 5179 が占有されている場合は手動 kill:
 
 ```bash
 netstat -ano | grep :5179  # PID 特定
@@ -33,7 +35,7 @@ taskkill /F /PID <PID>     # Windows
 
 - ProcessFlow の保存 (Ctrl+S / 保存ボタン) を実行したか
 - wsBridge 接続が切れていると localStorage にしか残らない
-- 保存したのに次回表示で消える → data/ フォルダの書込み権限を確認
+- 保存したのに次回表示で消える → active workspace の `<dataDir>/actions/<id>.json` (process-flow) / `<dataDir>/screens/<id>.json` (画面) への書込み権限を確認 (`workspaces/<wsId>/<dataDir>/` 配下)
 
 ### /designer-work 実行で「designer__list_markers is not a function」
 

@@ -96,14 +96,14 @@ Claude Code は内部で以下を順次実行:
 
 ### `.mcp.json` を確認
 
-本プロジェクトには `.mcp.json` に `backend` が登録済み。Claude Code を本ディレクトリで起動すると自動 spawn される。
+本プロジェクトには `.mcp.json` に `harmony-mcp` が登録済み (URL mode、自動 spawn しない)。Claude Code を本ディレクトリで起動する前に backend を常駐起動しておくこと。
 
 ```json
 {
   "mcpServers": {
-    "backend": {
-      "command": "npx",
-      "args": ["tsx", "backend/src/index.ts"]
+    "harmony-mcp": {
+      "type": "http",
+      "url": "http://localhost:5179/mcp"
     }
   }
 }
