@@ -7,11 +7,14 @@
   // cold start 短縮目的 — Dev Containers の features は image build 後に apply されるため
   // ghcr publish には含まれず、毎回 install されていた (~50-60 秒 on Note PC)。
   //
-  // 環境制約 (#1120 review S-3): 本構成は WSL2 + Docker Desktop 前提。
-  // - host docker socket GID == container node の docker group GID (999) 一致を想定
-  // - GitHub Actions runner / Linux native rootless / Mac の特殊 setup 等では
-  //   docker コマンドが動かない可能性あり (memory `feedback_devcontainer_features_not_in_image.md`)
-  // - 動かない場合は元 features 構成に戻すか socat forwarder 再導入を検討
+  // 環境対応 (#1120 実機検証で判明): host docker.sock の owner GID は環境依存。
+  // - WSL2 + Docker Desktop: 実測 1001 (Docker Desktop が distro 内で auto-assign、
+  //   他 package の install 順で変動の可能性あり)
+  // - Linux native: distro / install 順次第。Fedora/RHEL は 992、Ubuntu は 999 等
+  // - Mac Docker Desktop: linuxkit VM 経由で別挙動
+  // container 内 docker group GID と一致しないと node user から socket アクセス不可。
+  // postStartCommand で起動時に動的に GID を合わせることで任意の host 環境に対応する
+  // (元 feature の docker-init.sh / socat forwarder と同目的の軽量版)。
 
   // SELinux 環境 (Fedora/RHEL) で docker.sock bind が拒否されないよう label を緩和
   // (元 docker-outside-of-docker feature の securityOpt 相当、#1120 review S-1)。
@@ -37,6 +40,10 @@
   ],
 
   "onCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.codex /home/node/.copilot /home/node/.harmony /home/node/.config/gh /home/node/.gitconfig",
+
+  // host docker.sock GID と container docker group GID を一致させる (#1120 実機検証修正)。
+  // 失敗しても (|| true) container 起動は継続 — docker.sock が未 bind の環境 (将来 CI 等) でも壊さない。
+  "postStartCommand": "sudo groupmod -g $(stat -c %g /var/run/docker.sock) docker || true",
 
   "postCreateCommand": "npm install --prefix frontend && npm install --prefix backend && ([ -f ~/.claude/.config.json ] || echo '{}' > ~/.claude/.config.json)",
 

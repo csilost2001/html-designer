@@ -88,12 +88,13 @@ RUN set -eux; \
 #    元 feature install.sh L249-251 (apt repo) + L321/331 (CLI + buildx + compose plugin)
 #    + L388-399 (standalone docker-compose) + L438 (usermod) と同等。
 #
-#    socat socket forwarder (/usr/local/share/docker-init.sh) は省略 — WSL2 +
-#    Docker Desktop で host docker socket GID == node の docker group GID (999)
-#    が一致する想定。一致しない環境 (CI / Linux native rootless Docker / SELinux 有効
-#    の Fedora-RHEL / Mac Docker Desktop の特殊 setup 等) では node から docker.sock
-#    アクセスが拒否される可能性があり、その場合は feature install.sh L470-528 の
-#    socat fallback を再導入する。
+#    socat socket forwarder (/usr/local/share/docker-init.sh) は省略。host docker.sock
+#    の owner GID は環境依存 (WSL2 + Docker Desktop で実測 1001、Linux native は distro
+#    と install 順次第) で build 時に確定できないため、container 内 docker group の
+#    GID は devcontainer.json の postStartCommand で起動毎に host に動的に合わせる
+#    (元 feature の docker-init.sh と同目的の軽量版、#1120 実機検証で再導入)。
+#    本 RUN では groupadd で docker group を作成し node を所属させるところまで担当
+#    (initial GID は postStartCommand が上書きするので何でもよい)。
 #
 #    standalone /usr/local/bin/docker-compose は元 feature と同様 symlink で提供
 #    (#1120 review S-2)。docker-compose-plugin の実体を直接 link、`docker compose`
