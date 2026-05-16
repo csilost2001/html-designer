@@ -90,20 +90,20 @@ Claude Code は内部で以下を順次実行:
 
 ### 試用サンプル
 
-`docs/sample-project/process-flows/cccccccc-0099-4000-8000-cccccccccccc.json` に「詳細化途中」の ProcessFlow サンプルを同梱。6 種マーカー (3 todo + 1 question + 1 attention + 1 chat) 入り。`node docs/sample-project/seed.mjs` で data/ に展開、ブラウザで `/process-flow/edit/cccccccc-0099-4000-8000-cccccccccccc` を開いて `/designer-work` を試せる。
+`examples/<project-id>/harmony/process-flows/` 配下に「詳細化途中」の ProcessFlow サンプルが含まれる場合がある (6 種マーカー入りなど)。`workspaces/` 配下に作業 copy してブラウザで開き、`/designer-work` を試せる (`docs/sample-project/` は #774 で廃止済、`examples/<project-id>/` に統合)。
 
 ## 事前準備 (初回のみ)
 
 ### `.mcp.json` を確認
 
-本プロジェクトには `.mcp.json` に `backend` が登録済み。Claude Code を本ディレクトリで起動すると自動 spawn される。
+本プロジェクトには `.mcp.json` に `harmony-mcp` が登録済み (URL mode、自動 spawn しない)。Claude Code を本ディレクトリで起動する前に backend を常駐起動しておくこと。
 
 ```json
 {
   "mcpServers": {
-    "backend": {
-      "command": "npx",
-      "args": ["tsx", "backend/src/index.ts"]
+    "harmony-mcp": {
+      "type": "http",
+      "url": "http://localhost:5179/mcp"
     }
   }
 }

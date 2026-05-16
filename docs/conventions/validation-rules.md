@@ -1,6 +1,6 @@
 # バリデーション規約
 
-**ステータス**: JSON 正本 (`data/conventions/catalog.json`)。本書は人間向け参考資料。
+**ステータス**: JSON 正本 (active workspace の `<dataDir>/conventions/catalog.json`)。本書は人間向け参考資料。
 **策定日**: 2026-04-20 (#151-A) / 更新 2026-04-22 (#317 で JSON 正本化・編集 UI 搭載)
 **関連 issue**: #151 (A: 設計書種別の追加) / #261 残 / #317 (UI 編集化)
 
@@ -8,8 +8,8 @@
 
 ## 正本の場所 (#317 で改訂)
 
-- **ランタイム正本**: `data/conventions/catalog.json` (gitignored)
-- **サンプル (seed 元)**: [`docs/sample-project/conventions/conventions-catalog.json`](../sample-project/conventions/conventions-catalog.json) — `node docs/sample-project/seed.mjs` で `data/conventions/catalog.json` にコピーされる
+- **ランタイム正本**: active workspace の `<dataDir>/conventions/catalog.json` (例: `workspaces/<wsId>/<dataDir>/conventions/catalog.json`)
+- **サンプル**: `examples/<project-id>/harmony/conventions/catalog.json` (例: `examples/retail/harmony/conventions/catalog.json`)
 - **JSON Schema**: [`schemas/conventions.schema.json`](../../schemas/conventions.schema.json)
 - **参照整合性検証**: `frontend/src/schemas/conventionsValidator.ts` が処理フロー内の `@conv.*` 参照を検査
 - **編集 UI**: 業務システムデザイナーの「規約カタログ」タブから閲覧・編集可 (#317)
