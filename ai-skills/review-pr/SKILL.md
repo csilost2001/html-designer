@@ -76,7 +76,7 @@ grep ベースで経路を列挙し、各経路で期待処理の有無を表に
 
 Vitest / Playwright のテストが「**ガードが効いたから通った**」のか「**前提が揃わず通った**」のかを判定:
 
-- `.claude/skills/test-strategy/SKILL.md` の「抑制系修正のフィクスチャ選定」章が参考になる
+- `ai-skills/test-strategy/SKILL.md` の「抑制系修正のフィクスチャ選定」章が参考になる
 - 「何もしない」テストが通った時、ガードが効いたからか前提が揃わなかったからか区別できるかを確認
 - 可能なら `cd frontend && npx vitest run` を実行して claim された pass 数を実測確認
 - Playwright は時間がかかるので実行は任意。コードレベルで偽陽性パターンを指摘

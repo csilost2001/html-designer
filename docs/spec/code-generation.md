@@ -3,7 +3,7 @@
 `project.techStack` に基づく AI コード生成の指針を定義する。
 
 実装状況: `project.techStack` スキーマは #826 で導入済み。
-`/generate-code <flowId|screenId>` スキル本体は #832 で実装済 (`.claude/skills/generate-code/`)。
+`/generate-code <flowId|screenId>` スキル本体は #832 で実装済 (`ai-skills/generate-code/`)。
 
 PageLayout + Gadget の code generation 対応 (RFC #1021 pl-7、Phase 2) は #1028 で完了。
 両 techStack (Spring Boot/Thymeleaf + NestJS/Next.js) で examples/retail 実機ビルド + 起動 pass 達成
@@ -208,7 +208,7 @@ Step 3: 入力種別別 dispatch
        pageLayoutId 指定時は Layout Decorate / Wrap モードで生成
   3-C Screen (purpose=gadget) → fragment + Controller / client component + Route Handler 生成 (pl-7)
   3-D PageLayout → Thymeleaf passive layout / Next.js AppLayout component 生成 (pl-7)
-Step 4: テンプレート参照 (.claude/skills/generate-code/templates/)
+Step 4: テンプレート参照 (ai-skills/generate-code/templates/)
   - thymeleaf-bootstrap/: PAGE.md + LAYOUT.md (pl-7) + FRAGMENT.md (pl-7)
   - react-tailwind-next/: PAGE.md + LAYOUT.md (pl-7) + COMPONENT.md (pl-7)
 Step 5: コード生成 + 出力先への書き出し
@@ -216,7 +216,7 @@ Step 6: smoke 検証 (Java 構文目視 / Thymeleaf XML パース / tsc dry)
 最終レポート出力
 ```
 
-詳細は `.claude/skills/generate-code/SKILL.md` を参照すること。
+詳細は `ai-skills/generate-code/SKILL.md` を参照すること。
 
 ---
 
@@ -237,7 +237,7 @@ Step 6: smoke 検証 (Java 構文目視 / Thymeleaf XML パース / tsc dry)
 
 ## 7. ProcessFlow → backend mapping ルール
 
-ProcessFlow JSON の step kind ごとのコード生成方針。詳細は `.claude/skills/generate-code/SKILL.md` Step 3-A を参照。
+ProcessFlow JSON の step kind ごとのコード生成方針。詳細は `ai-skills/generate-code/SKILL.md` Step 3-A を参照。
 
 | step.kind | Java Spring Boot | TypeScript NestJS |
 |---|---|---|
@@ -278,7 +278,7 @@ action.httpRoute.auth: "required" → Spring Security 設定 / @UseGuards(Sessio
 
 ## 8. Screen → frontend mapping ルール
 
-Screen JSON の `kind` フィールドとテンプレート分岐。詳細は `.claude/skills/generate-code/SKILL.md` Step 3-B を参照。
+Screen JSON の `kind` フィールドとテンプレート分岐。詳細は `ai-skills/generate-code/SKILL.md` Step 3-B を参照。
 
 | screen.kind | Thymeleaf テンプレートパターン | React/Next.js テンプレートパターン |
 |---|---|---|
@@ -364,6 +364,6 @@ Screen JSON の `kind` フィールドとテンプレート分岐。詳細は `.
 理由:
 1. 生成コードはプロジェクト固有のパッケージ名・依存関係を必要とし、汎用 CI では build 不可
 2. スキル実行は `/generate-code <id>` の明示的な呼び出しで行われ、コミット対象でない
-3. golden-examples の回帰テストは `.claude/skills/generate-code/golden-examples/` を手動 diff で確認する
+3. golden-examples の回帰テストは `ai-skills/generate-code/golden-examples/` を手動 diff で確認する
 
 ゴールデン出力改善時は同ディレクトリのファイルを更新し、PR diff レビューで品質を担保する。

@@ -1,7 +1,7 @@
 # Dogfood Report — /generate-tests NestJS/Next.js 系実機検証 (pl-7 対応)
 
 **日付**: 2026-05-12
-**対象**: `.claude/skills/generate-tests/SKILL.md` Step 3 / P3 / P4 / P5
+**対象**: `ai-skills/generate-tests/SKILL.md` Step 3 / P3 / P4 / P5
 **入力**: `examples/english-learning-tailwind` から 4 entity
 **実施者**: Sonnet sub-agent (ISSUE #1038)
 **ブランチ**: `fix/issue-1038-nestjs-dogfood`

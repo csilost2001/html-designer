@@ -89,7 +89,7 @@ briefing には以下を含める:
 - **`schemas/*.json` (グローバル定義スキーマ) 変更は AI の権限外。Codex/Sonnet/Opus は変更してはならない (#511、最重要)**:
   > 「`schemas/process-flow.schema.json` 等のグローバル定義スキーマは変更禁止。表現できない場合は ISSUE 起票して作業停止、設計者承認待ち。テスト pass を理由に勝手に拡張するのは絶対禁止 (memory `feedback_schema_governance_strict.md` 参照)。」
 - **ProcessFlow JSON 作成を含む ISSUE では `/create-flow` の 15 ルール self-check を遵守する旨を明示**:
-  > 「フロー作成にあたり `.claude/skills/create-flow/SKILL.md` の Step 3 既知パターン回避 self-check 15 ルールを遵守すること:
+  > 「フロー作成にあたり `ai-skills/create-flow/SKILL.md` の Step 3 既知パターン回避 self-check 15 ルールを遵守すること:
   > **基本 8 ルール**: 1) TX 内 step が TX 外設定変数を前方参照しない、2) 外部呼び出しは TX 外、3) UPSERT 後の step すべてに同条件 runIf + no-op return、
   > 4) branch return 後の共通 step に fallthrough しない、5) compensatesFor 対象 step が実在、6) eventsCatalog ⇄ eventPublish 双方向整合、
   > 7) 外部呼び出しは TransactionScope inner にいない、8) rollbackOn は TX inner で発生するエラーコードのみ列挙 (死コード禁止)、

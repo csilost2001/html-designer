@@ -155,7 +155,7 @@ PageLayout + Gadget の code generation 対応を pl-7 (#1028) で実装。`/gen
 - Thymeleaf 系: maven build pass + Spring Boot 起動 1.4 秒 + curl / HTTP 200 + 4 region + 日本語表示 + Layout Decorate slot 注入 全 OK
 - Next.js 系: npm install + next build pass (4 routes) + npm start + curl /dashboard HTTP 200 + 4 region + 日本語表示 + 307 redirect from / 全 OK
 
-詳細テンプレ規約: `.claude/skills/generate-code/templates/frontend/<framework>/{LAYOUT,FRAGMENT,COMPONENT,PAGE}.md`。
+詳細テンプレ規約: `ai-skills/generate-code/templates/frontend/<framework>/{LAYOUT,FRAGMENT,COMPONENT,PAGE}.md`。
 region → CSS class マッピング: [`css-framework-switching.md § 8`](css-framework-switching.md)。
 生成物例: `examples/retail/generated/{thymeleaf,nextjs}/`。
 

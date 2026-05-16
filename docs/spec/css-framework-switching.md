@@ -422,7 +422,7 @@ MVP では tailwind framework は standard variant のみ実装、card / compact
 
 ## 8. PageLayout region 規約 (code generation 時、pl-7 #1028)
 
-PageLayout の region (`header` / `sidebar` / `footer` / `main`) を code generation で出力する際の CSS class 規約を cssFramework 別に定める。詳細テンプレは `.claude/skills/generate-code/templates/frontend/<framework>/LAYOUT.md` 参照。
+PageLayout の region (`header` / `sidebar` / `footer` / `main`) を code generation で出力する際の CSS class 規約を cssFramework 別に定める。詳細テンプレは `ai-skills/generate-code/templates/frontend/<framework>/LAYOUT.md` 参照。
 
 | region | Bootstrap (Thymeleaf 系) | Tailwind (Next.js 系) |
 |---|---|---|
