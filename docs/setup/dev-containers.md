@@ -437,7 +437,7 @@ Phase 0 (postCreate やめて Dockerfile 化) で warm rebuild 56→15 秒 (Ryze
 
 base image (`ghcr.io/csilost2001/harmony-devcontainer-base:<version>`) を更新するのは maintainer のみ。**頻度は数ヶ月に 1 回程度** (Playwright メジャー / マイナー更新、Node メジャー更新、Debian release 切替時)。
 
-> **本セクションは maintainer 限定**。通常の Harmony 開発者・利用者は読まなくて良い。Phase 3 完了後は `/publish-dev-image` AI skill 経由で本手順を実行できる予定。
+> **本セクションは maintainer 限定**。通常の Harmony 開発者・利用者は読まなくて良い。Dev Container 内から `/publish-dev-image <version>` AI skill 経由でも本手順を実行可能 (Phase 3 で導入済)。
 
 ### 初回セットアップ (1 回だけ)
 
