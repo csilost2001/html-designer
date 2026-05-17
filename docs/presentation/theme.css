@@ -1,0 +1,646 @@
+/* @theme harmony-pitch */
+/*
+ * Marp custom theme for "開発生産性の抜本的見直し" pitch deck.
+ *
+ * Design language: tech-company minimal (Vercel / Linear inspired)
+ *   - Monochrome + 1 accent
+ *   - Hairlines, generous whitespace
+ *   - Typography hierarchy by weight, not by ornament
+ *   - Lead / chapter dividers in dark mode for contrast
+ */
+
+@import 'default';
+
+:root {
+  /* Neutral scale (zinc) */
+  --c-ink:      #09090b;
+  --c-text:     #18181b;
+  --c-muted:    #71717a;
+  --c-subtle:   #a1a1aa;
+  --c-line:     #e4e4e7;
+  --c-soft:     #f4f4f5;
+  --c-bg:       #ffffff;
+  --c-bg-dark:  #09090b;
+
+  /* Single accent — used sparingly */
+  --c-accent:   #ea580c;   /* warm terracotta, not the cliche blue */
+  --c-good:     #15803d;
+  --c-warn:     #b91c1c;
+
+  /* Typography */
+  --font-sans: 'Inter', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Noto Sans JP', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+}
+
+section {
+  font-family: var(--font-sans);
+  background: var(--c-bg);
+  color: var(--c-text);
+  padding: 72px 80px 70px 80px;
+  font-size: 22px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+}
+
+/* --- Typography ------------------------------------------------------------ */
+
+section h1 {
+  color: var(--c-ink);
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 24px 0;
+  padding: 0;
+  border: none;
+  line-height: 1.25;
+}
+
+/* 章番号 / 小見出しラベル (h1 直前に span.eyebrow を入れる代わりに ::before で表示) */
+section h1::before {
+  content: attr(data-eyebrow);
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+
+section h2 {
+  color: var(--c-ink);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 28px 0 12px 0;
+}
+
+section h3 {
+  color: var(--c-text);
+  font-size: 19px;
+  font-weight: 600;
+  margin: 20px 0 8px 0;
+}
+
+section p,
+section li {
+  color: var(--c-text);
+}
+
+section strong {
+  color: var(--c-ink);
+  font-weight: 600;
+}
+
+section ul,
+section ol {
+  padding-left: 1.3em;
+  margin: 8px 0;
+}
+
+section li {
+  margin: 6px 0;
+}
+
+section ul li::marker {
+  color: var(--c-subtle);
+}
+
+section a {
+  color: var(--c-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--c-line);
+  text-underline-offset: 3px;
+}
+
+/* --- Code ---------------------------------------------------------------- */
+
+section code {
+  font-family: var(--font-mono);
+  background: var(--c-soft);
+  color: var(--c-ink);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+  font-weight: 500;
+}
+
+section pre {
+  background: var(--c-soft);
+  color: var(--c-ink);
+  padding: 18px 22px;
+  border-radius: 6px;
+  font-size: 17px;
+  line-height: 1.55;
+  border: 1px solid var(--c-line);
+}
+
+section pre code {
+  background: transparent;
+  padding: 0;
+  font-weight: 400;
+}
+
+/* --- Tables (no heavy borders, hairlines only) ---------------------------- */
+
+section table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 18px;
+  margin: 12px 0;
+}
+
+section th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--c-ink);
+  background: transparent;
+  padding: 10px 14px 10px 0;
+  border-bottom: 1.5px solid var(--c-ink);
+  letter-spacing: 0.02em;
+  font-size: 16px;
+  text-transform: none;
+}
+
+section td {
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-text);
+  vertical-align: top;
+}
+
+section tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- Blockquote (used for "結論先出し" lines) ------------------------------ */
+
+section blockquote {
+  border: none;
+  border-left: 2px solid var(--c-ink);
+  margin: 16px 0;
+  padding: 4px 0 4px 18px;
+  color: var(--c-text);
+  font-style: normal;
+  font-size: 20px;
+}
+
+section blockquote strong {
+  color: var(--c-ink);
+}
+
+/* --- Header / Footer (Marp standard) -------------------------------------- */
+
+header {
+  position: absolute;
+  top: 28px;
+  left: 80px;
+  right: 80px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-subtle);
+  border: none;
+  padding: 0;
+  text-align: left;
+}
+
+footer {
+  position: absolute;
+  bottom: 28px;
+  left: 80px;
+  right: 140px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-subtle);
+  text-align: left;
+  letter-spacing: 0.04em;
+}
+
+/* Pagination — minimal */
+section::after {
+  color: var(--c-subtle);
+  font-size: 11px;
+  font-weight: 500;
+  bottom: 28px;
+  right: 80px;
+  letter-spacing: 0.04em;
+}
+
+/* --- Lead slide (title) --------------------------------------------------- */
+
+section.lead {
+  background: var(--c-bg-dark);
+  color: #fafafa;
+  padding: 80px;
+  justify-content: flex-end;
+}
+section.lead h1 {
+  color: #fafafa;
+  font-size: 68px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 24px;
+}
+section.lead h1::before { display: none; }
+section.lead h2 {
+  color: rgba(250, 250, 250, 0.65);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  margin: 0 0 56px 0;
+}
+section.lead p {
+  color: rgba(250, 250, 250, 0.6);
+  font-size: 14px;
+  margin: 4px 0;
+  letter-spacing: 0.04em;
+}
+section.lead header,
+section.lead footer,
+section.lead::after {
+  color: rgba(250, 250, 250, 0.45);
+}
+
+/* --- Chapter divider ------------------------------------------------------ */
+
+section.chapter {
+  background: var(--c-bg-dark);
+  color: #fafafa;
+  justify-content: center;
+  padding: 80px;
+}
+section.chapter h1 {
+  color: #fafafa;
+  font-size: 56px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  border: none;
+  margin: 0;
+}
+section.chapter h1::before {
+  color: rgba(250, 250, 250, 0.5);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  margin-bottom: 16px;
+}
+section.chapter h2 {
+  color: rgba(250, 250, 250, 0.65);
+  font-size: 20px;
+  font-weight: 400;
+  margin-top: 24px;
+}
+section.chapter header,
+section.chapter footer,
+section.chapter::after {
+  color: rgba(250, 250, 250, 0.45);
+}
+
+/* --- Footnote (出典脚注、スライド下部) ------------------------------------- */
+
+.footnote {
+  position: absolute;
+  bottom: 58px;
+  left: 80px;
+  right: 80px;
+  font-size: 13px;
+  color: var(--c-muted);
+  border-top: 1px solid var(--c-line);
+  padding-top: 10px;
+  line-height: 1.4;
+}
+.footnote ol {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.footnote a { color: var(--c-muted); }
+
+/* --- Two/three column layout helpers --------------------------------------- */
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-top: 12px;
+}
+.cols.three {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 32px;
+}
+.cols > div { min-width: 0; }
+
+/* --- Status pills --------------------------------------------------------- */
+
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-muted);
+  letter-spacing: 0.04em;
+}
+.pill.now    { color: var(--c-warn); border-color: #fecaca; background: #fef2f2; }
+.pill.after  { color: var(--c-good); border-color: #bbf7d0; background: #f0fdf4; }
+.pill.accent { color: var(--c-accent); border-color: #fed7aa; background: #fff7ed; }
+
+/* --- Loop diagram (Chapter 4) --------------------------------------------- */
+
+.loop {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin: 22px 0 16px 0;
+}
+
+.loop-row {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: nowrap;
+}
+
+.loop-node {
+  flex: 1 1 0;
+  background: var(--c-bg);
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  padding: 14px 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-ink);
+  text-align: center;
+  line-height: 1.3;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.loop-node small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--c-muted);
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+.loop-node.spec  { border-left: 3px solid var(--c-good); }
+.loop-node.bug   { border-left: 3px solid var(--c-warn); }
+.loop-node.accent { border-left: 3px solid var(--c-accent); }
+
+.loop-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-subtle);
+  font-size: 16px;
+  font-weight: 300;
+  padding: 0 8px;
+  min-width: 28px;
+}
+
+.loop-caption {
+  font-size: 13px;
+  color: var(--c-muted);
+  text-align: left;
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+.loop-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+.loop-label.spec  { color: var(--c-good); }
+.loop-label.bug   { color: var(--c-warn); }
+
+/* --- Single-source fanout diagram (Chapter 5-1) --------------------------- */
+
+.fanout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 24px;
+  align-items: center;
+  margin: 24px 0;
+}
+.fanout-source {
+  border: 1.5px solid var(--c-ink);
+  border-radius: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  font-weight: 600;
+  background: var(--c-soft);
+}
+.fanout-source small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--c-muted);
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+.fanout-targets {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.fanout-target {
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  padding: 14px 8px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+}
+.fanout-target small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--c-muted);
+  margin-top: 4px;
+}
+
+/* --- KPI / Number callout ------------------------------------------------- */
+
+.kpi {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin: 24px 0;
+}
+.kpi-cell {
+  border-top: 1.5px solid var(--c-ink);
+  padding-top: 14px;
+}
+.kpi-num {
+  font-size: 40px;
+  font-weight: 600;
+  color: var(--c-ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.kpi-label {
+  font-size: 13px;
+  color: var(--c-muted);
+  margin-top: 8px;
+  letter-spacing: 0.02em;
+}
+
+/* --- Small notes / asides -------------------------------------------------- */
+
+.note {
+  font-size: 14px;
+  color: var(--c-muted);
+  margin-top: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* --- "Quote" highlight box ------------------------------------------------- */
+
+.callout {
+  border: 1px solid var(--c-ink);
+  padding: 18px 22px;
+  margin: 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+.callout small {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--c-muted);
+  margin-top: 6px;
+}
+
+/* --- Risk / Warning callout --------------------------------------------- */
+
+.risk {
+  border: 1px solid var(--c-warn);
+  border-left: 4px solid var(--c-warn);
+  background: #fef2f2;
+  padding: 14px 18px;
+  margin: 14px 0;
+  font-size: 17px;
+  color: var(--c-text);
+  border-radius: 4px;
+}
+.risk strong { color: var(--c-warn); }
+.risk small {
+  display: block;
+  font-size: 13px;
+  color: var(--c-muted);
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+/* --- Pro / Con honest comparison ---------------------------------------- */
+
+.procon {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 14px 0;
+}
+.procon-cell {
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  padding: 16px 18px;
+}
+.procon-cell.pro { border-top: 3px solid var(--c-good); }
+.procon-cell.con { border-top: 3px solid var(--c-warn); }
+.procon-cell h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.procon-cell.pro h4 { color: var(--c-good); }
+.procon-cell.con h4 { color: var(--c-warn); }
+.procon-cell ul { margin: 0; padding-left: 1.2em; font-size: 16px; }
+.procon-cell li { margin: 4px 0; }
+
+/* --- Q&A style for 反対意見への回答 ------------------------------------- */
+
+.qa {
+  border-top: 1px solid var(--c-line);
+  padding: 12px 0;
+}
+.qa:last-child { border-bottom: 1px solid var(--c-line); }
+.qa-q {
+  font-weight: 600;
+  color: var(--c-ink);
+  margin: 0 0 6px 0;
+  font-size: 17px;
+}
+.qa-q::before {
+  content: "Q. ";
+  color: var(--c-accent);
+  font-weight: 600;
+}
+.qa-a {
+  font-size: 15px;
+  color: var(--c-text);
+  margin: 0 0 4px 0;
+  padding-left: 1.4em;
+}
+.qa-a::before {
+  content: "A. ";
+  color: var(--c-good);
+  font-weight: 600;
+  margin-left: -1.4em;
+  margin-right: 0.4em;
+}
+
+/* --- Spec table (hardware / detail comparisons) ------------------------- */
+
+.spec-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr 1fr;
+  gap: 0;
+  margin: 14px 0;
+  font-size: 16px;
+}
+.spec-grid > div {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-line);
+}
+.spec-grid > div:nth-child(3n+1) {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+.spec-grid .header {
+  border-bottom: 1.5px solid var(--c-ink);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+/* --- Honest stat note (when admitting limitations) ---------------------- */
+
+.honest-note {
+  font-size: 14px;
+  color: var(--c-muted);
+  background: var(--c-soft);
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin: 12px 0;
+  border-left: 3px solid var(--c-subtle);
+}
+.honest-note strong { color: var(--c-ink);
+}
