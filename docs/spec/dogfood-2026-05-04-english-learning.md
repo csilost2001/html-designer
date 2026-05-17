@@ -1,5 +1,7 @@
 # dogfood レポート — english-learning サンプル (2026-05-04)
 
+> **📝 ステータス**: 完了済 **historical record** (英語学習サンプル dogfood、2026-05-04 実施)。本書は当時の検証結果記録として保持、削除不可 (他 spec から参照ある場合あり)。最新の状況・運用は現行 spec を参照。
+
 ## 概要
 
 - **対象サンプル**: `examples/english-learning/` (英会話学習アプリ、B2C + 外部 AI 連携)

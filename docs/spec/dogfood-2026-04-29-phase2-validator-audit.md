@@ -1,5 +1,7 @@
 # Phase 2 子 1 — バリデータ活用度監査 (2026-04-29)
 
+> **📝 ステータス**: 完了済 **historical record** (Phase 2 validator 活用度監査、#493 子 1)。本書は当時の検証結果記録として保持、削除不可 (他 spec から参照ある場合あり)。最新の状況・運用は現行 spec を参照。
+
 ## Executive Summary
 
 4 バリデータ (`sqlColumnValidator` / `conventionsValidator` / `referentialIntegrity` / `identifierScope`) は production UI と `validate:dogfood` CLI の両方で呼ばれており、**集約層 `aggregateValidation` 経由でまとめて動く設計は機能している**。ただし (1) SQL カラム整合と `@conv.*` 参照整合は「テーブル/規約データを渡した場合のみ」オプション実行という構造上の制約があり、(2) 全バリデータが **v1 形式 (`ProcessFlow` 型 `../types/action`) を前提**としており v3 移行が明示的に「TS 型同期後の次着手」として後回しになっている。(3) Skill 統合は **AI 判断ベースのチェックリスト** になっており、バリデータを実際に呼び出す手順が存在しない。Phase 1 ドッグフードの Must-fix 原因を逆引きすると、SQL カラム整合と `@conv.*` catalog 整合の 2 点は「validator が実装されていたが AI が呼んでいなかった」ケースであり、Skill に組み込むことで再発を防げる。
