@@ -16,3 +16,7 @@ export { AuditStepCardBody } from "./AuditStepCardBody";
 export { TransactionScopeStepCardBody } from "./TransactionScopeStepCardBody";
 export { JumpStepCardBody } from "./JumpStepCardBody";
 export { WorkflowStepCardBody } from "./WorkflowStepCardBody";
+// Phase-3 (#1145、#1163 review Phase-2 補足): 元 StepCard.tsx で dispatch 未実装だった 3 kind を追加。
+export { ComponentCallStepCardBody } from "./ComponentCallStepCardBody";
+export { AiCallStepCardBody } from "./AiCallStepCardBody";
+export { AiAgentStepCardBody } from "./AiAgentStepCardBody";

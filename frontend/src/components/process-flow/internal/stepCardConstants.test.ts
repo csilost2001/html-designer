@@ -1,14 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALL_STEP_TYPES,
   ALL_SUB_STEP_TYPES,
   DB_OPS,
   trimToUndefined,
 } from "./stepCardConstants";
 
 /**
- * StepCard.tsx から抽出した定数とヘルパー (#1145) の回帰防止テスト。
+ * StepCard.tsx / ProcessFlowEditor.tsx から抽出した定数とヘルパー (#1145) の
+ * 回帰防止テスト。
  */
 describe("stepCardConstants", () => {
+  describe("ALL_STEP_TYPES (Phase-3 #1145 で追加)", () => {
+    it("22 種類の step kind を持つ (パレット側 toolbar 用)", () => {
+      expect(ALL_STEP_TYPES).toHaveLength(22);
+    });
+
+    it("代表的な kind を含む", () => {
+      expect(ALL_STEP_TYPES).toContain("validation");
+      expect(ALL_STEP_TYPES).toContain("workflow");
+      expect(ALL_STEP_TYPES).toContain("transactionScope");
+    });
+
+    it("重複が無い", () => {
+      expect(new Set(ALL_STEP_TYPES).size).toBe(ALL_STEP_TYPES.length);
+    });
+  });
+
   describe("ALL_SUB_STEP_TYPES", () => {
     it("22 種類の step kind を持つ (現行 spec)", () => {
       expect(ALL_SUB_STEP_TYPES).toHaveLength(22);
