@@ -7,7 +7,7 @@
 // - update / remove / move 各 mutation が UUID 形式の stepId を引けること
 // - description / detail を step に merge できること
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { applyProcessFlowMutation } from "./processFlowMutation";
 import { setProcessFlowStorageBackend } from "../../store/processFlowStore";
 import type { ProcessFlow, ActionDefinition } from "../../types/action";
@@ -192,6 +192,70 @@ describe("applyProcessFlowMutation (browser-first v3, #1149)", () => {
       applyProcessFlowMutation(g, "designer__unknown_mutation", { actionId: act.id });
 
       expect(g.actions[0].steps).toHaveLength(0);
+    });
+  });
+
+  // ── #1145 Phase-3 N-3: mismatch 時 console.warn で痕跡を残す ─────────
+  describe("N-3: silent no-op → console.warn 化", () => {
+    it("actionId 不一致時に console.warn が呼ばれる", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const act = makeAction("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        const g = makeProcessFlow([act]);
+        applyProcessFlowMutation(g, "designer__add_step", {
+          actionId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+          kind: "log",
+        });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0][0]).toContain("actionId not found");
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("kind 欠落時に console.warn が呼ばれる", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const act = makeAction("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        const g = makeProcessFlow([act]);
+        applyProcessFlowMutation(g, "designer__add_step", {
+          actionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          type: "log", // 旧 field、v3 では拒否
+        });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0][0]).toContain("kind is missing");
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("stepId 不一致 (update) で console.warn が呼ばれる", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const act = makeAction("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        const g = makeProcessFlow([act]);
+        applyProcessFlowMutation(g, "designer__update_step", {
+          stepId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+          patch: { description: "新" },
+        });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0][0]).toContain("stepId not found");
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("未知の mutation type で console.warn が呼ばれる", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const act = makeAction("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        const g = makeProcessFlow([act]);
+        applyProcessFlowMutation(g, "designer__unknown_mutation", { actionId: act.id });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0][0]).toContain("unknown mutation type");
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 });

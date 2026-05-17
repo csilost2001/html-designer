@@ -124,8 +124,10 @@ export function removeAction(group: ProcessFlow, actionId: string): void {
   if (idx >= 0) group.actions.splice(idx, 1);
 }
 
-export function addStep(action: ActionDefinition, type: StepType, insertIndex?: number): Step {
-  const step = createDefaultStep(type);
+// #1145 Phase-3 N-4: 引数名を v3 統一規範 (`kind` discriminator) に合わせて
+// legacy `type` から `kind` にリネーム。createDefaultStep / addSubStep も同様。
+export function addStep(action: ActionDefinition, kind: StepType, insertIndex?: number): Step {
+  const step = createDefaultStep(kind);
   if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= action.steps.length) {
     action.steps.splice(insertIndex, 0, step);
   } else {
@@ -146,8 +148,8 @@ export function moveStep(action: ActionDefinition, fromIndex: number, toIndex: n
   action.steps.splice(toIndex, 0, step);
 }
 
-export function addSubStep(parentStep: Step, type: StepType): Step {
-  const step = createDefaultStep(type);
+export function addSubStep(parentStep: Step, kind: StepType): Step {
+  const step = createDefaultStep(kind);
   const parent = parentStep as Step & { steps?: Step[] };
   if (!Array.isArray(parent.steps)) parent.steps = [];
   parent.steps.push(step);
@@ -161,10 +163,10 @@ export function removeSubStep(parentStep: Step, subStepId: string): void {
   if (idx >= 0) parent.steps.splice(idx, 1);
 }
 
-export function createDefaultStep(type: StepType): Step {
-  const base = { id: generateUUID() as never, kind: type, description: "" };
+export function createDefaultStep(kind: StepType): Step {
+  const base = { id: generateUUID() as never, kind, description: "" };
   let step: Step;
-  switch (type) {
+  switch (kind) {
     case "validation":
       step = { ...base, kind: "validation", conditions: "", inlineBranch: { ok: [], ng: [] } }; break;
     case "dbAccess":

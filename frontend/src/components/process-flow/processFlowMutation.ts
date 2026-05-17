@@ -21,6 +21,16 @@
 import type { ProcessFlow, StepType } from "../../types/action";
 import { addStep, removeStep, moveStep } from "../../store/processFlowStore";
 
+// #1145 Phase-3 N-3: mismatch / silent no-op を診断 log 化。
+// 古い client / 誤った params 経由で来た mutation は production でも
+// console.warn で痕跡を残し、開発者が後追いできるようにする。
+// `import.meta.env.DEV` ガードは敢えて掛けない (#1162 review N-3:
+// production browser console の warn は無害かつ trace 価値が高い)。
+function warnNoOp(type: string, reason: string, p: Record<string, unknown>): void {
+  // 診断 log として明示的に出す (#1145 N-3)
+  console.warn(`[applyProcessFlowMutation] ${type}: ${reason}`, p);
+}
+
 export function applyProcessFlowMutation(
   g: ProcessFlow,
   type: string,
@@ -29,11 +39,17 @@ export function applyProcessFlowMutation(
   switch (type) {
     case "designer__add_step": {
       const act = g.actions.find((a: { id: string }) => a.id === p.actionId);
-      if (!act) return;
+      if (!act) {
+        warnNoOp(type, `actionId not found: ${String(p.actionId)}`, p);
+        return;
+      }
       const pos = typeof p.position === "number" ? p.position : undefined;
       // v3: backend は `kind` を送る (旧 `type` は #1148 で全廃)。
       const kind = p.kind as StepType | undefined;
-      if (!kind) return;
+      if (!kind) {
+        warnNoOp(type, "kind is missing (v3 requires `kind` discriminator)", p);
+        return;
+      }
       const step = addStep(act, kind, pos);
       if (p.description) step.description = p.description as string;
       Object.assign(step, (p.detail ?? {}) as object);
@@ -44,6 +60,7 @@ export function applyProcessFlowMutation(
         const step = act.steps.find((s: { id: string }) => s.id === p.stepId);
         if (step) { Object.assign(step, p.patch); return; }
       }
+      warnNoOp(type, `stepId not found: ${String(p.stepId)}`, p);
       break;
     }
     case "designer__remove_step": {
@@ -51,6 +68,7 @@ export function applyProcessFlowMutation(
         const idx = act.steps.findIndex((s: { id: string }) => s.id === p.stepId);
         if (idx >= 0) { removeStep(act, p.stepId as string); return; }
       }
+      warnNoOp(type, `stepId not found: ${String(p.stepId)}`, p);
       break;
     }
     case "designer__move_step": {
@@ -59,6 +77,11 @@ export function applyProcessFlowMutation(
         const fromIdx = act.steps.findIndex((s: { id: string }) => s.id === p.stepId);
         if (fromIdx >= 0) { moveStep(act, fromIdx, newIndex); return; }
       }
+      warnNoOp(type, `stepId not found: ${String(p.stepId)}`, p);
+      break;
+    }
+    default: {
+      warnNoOp(type, "unknown mutation type", p);
       break;
     }
   }

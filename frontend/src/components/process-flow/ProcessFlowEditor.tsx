@@ -1,20 +1,24 @@
 // @ts-nocheck -- large legacy editor migration remains open; tracked by #1016.
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+//
+// Phase-3 (#1145): 94KB → 30KB 目標で以下を抽出:
+//   - internal/PaletteButtons.tsx (ToolbarStepButton / StepInsertZone / EmptyFlowDropZone / CustomStepButton)
+//   - internal/ActionHelpPopover.tsx
+//   - internal/actionTriggerConstants.ts (trigger 定数 + ヘルパー)
+//   - internal/AddActionModal.tsx
+//   - internal/StepContextMenu.tsx
+//   - internal/WarningsPanel.tsx
+//   - internal/stepCardConstants.ts に ALL_STEP_TYPES を追加
+// 残置: ProcessFlowEditor 本体 (state 統合 / D&D / edit-session 連携 / 主 JSX)。
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspacePath } from "../../hooks/useWorkspacePath";
 import type {
   ProcessFlow,
-  ActionDefinition,
   ActionTrigger,
   Step,
   StepType,
 } from "../../types/action";
-import {
-  ACTION_TRIGGER_LABELS,
-  STEP_TYPE_LABELS,
-  STEP_TYPE_ICONS,
-  STEP_TEMPLATES,
-} from "../../types/action";
+import { STEP_TEMPLATES, STEP_TYPE_LABELS } from "../../types/action";
 import {
   loadProcessFlow,
   saveProcessFlow,
@@ -26,55 +30,29 @@ import {
   addSubStep,
 } from "../../store/processFlowStore";
 import { applyProcessFlowMutation } from "./processFlowMutation";
-import { listTables, loadTable } from "../../store/tableStore";
-import { loadProject } from "../../store/flowStore";
-import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
+import { clearJumpReferences } from "../../utils/actionUtils";
 import { hasBlockingErrors } from "../../utils/actionValidation";
 import { aggregateValidation } from "../../utils/aggregatedValidation";
-import type { TableDefinition as ValidatorTableDef } from "../../schemas/sqlColumnValidator";
-import type { ConventionsCatalog } from "../../schemas/conventionsValidator";
-import type { GenericDefinitionNames } from "../../schemas/referentialIntegrity";
-import type { ProjectCatalogs } from "../../schemas/projectCatalogs";
-import { loadExtensionsFromBundle, type LoadedExtensions } from "../../schemas/loadExtensions";
-import { loadConventions } from "../../store/conventionsStore";
-import { listGenericDefinitions } from "../../store/genericDefinitionStore";
 import { generateUUID } from "../../utils/uuid";
 import {
   DndContext,
   closestCenter,
-  useDraggable,
-  useDroppable,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
 import { useResourceEditor } from "../../hooks/useResourceEditor";
 import { useEditSession } from "../../hooks/useEditSession";
 import { useSaveShortcut } from "../../hooks/useSaveShortcut";
 import { useSessionUrlSync } from "../../hooks/useSessionUrlSync";
 import { mcpBridge } from "../../mcp/mcpBridge";
 import { useSelectionKeyboard } from "../../hooks/useSelectionKeyboard";
-import { STEP_TYPE_COLORS } from "../../types/action";
 import { TableSubToolbar } from "../table/TableSubToolbar";
-import { SortableStepCard } from "./SortableStepCard";
-import { MaturityBadge } from "./MaturityBadge";
-import { ActionHttpContractPanel } from "./ActionHttpContractPanel";
-import { ActionMetaTabBar } from "./ActionMetaTabBar";
-import { SlaPanel } from "./SlaPanel";
 import { DrawingOverlay } from "./DrawingOverlay";
-import { StructuredFieldsEditor, type ScreenItemPickResult } from "./StructuredFieldsEditor";
+import { type ScreenItemPickResult } from "./StructuredFieldsEditor";
 import { ScreenItemPickerModal } from "./ScreenItemPickerModal";
-import { ProcessFlowAiGenerateDialog } from "./ProcessFlowAiGenerateDialog";
-import { ProcessFlowAiReviewDialog } from "./ProcessFlowAiReviewDialog";
-import { EditLevelToggle } from "./EditLevelToggle";
-import { AiRequestPanel } from "./AiRequestPanel";
-import { AiDiffPreviewDialog } from "./AiDiffPreviewDialog";
 import { applyProcessFlowDiffSelection, replaceProcessFlowContents } from "./AiDiffPreviewDialogUtils";
 import { useEditLevel } from "../../hooks/useEditLevel";
 import { useAiContextChips } from "../../hooks/useAiContextChips";
@@ -82,362 +60,22 @@ import { useCodexStatus } from "../../codex/useCodexStatus";
 import { requestProcessFlowPartial, AiUnavailableError } from "../../codex/processFlowPartialRequest";
 import { EditorHeader } from "../common/EditorHeader";
 import { EditModeToolbar } from "../editing/EditModeToolbar";
-import { DiscardConfirmDialog, ForceReleaseConfirmDialog, ForcedOutChoiceDialog, AfterForceUnlockChoiceDialog } from "../editing/ConfirmDialogs";
-import { SaveConflictDialog } from "../editing/SaveConflictDialog";
-import { ResumeOrDiscardDialog } from "../editing/ResumeOrDiscardDialog";
-import { EditSessionDropdown } from "../editing/EditSessionDropdown";
 import { setDirty as setTabDirty, makeTabId } from "../../store/tabStore";
 import "../../styles/editMode.css";
-import { ServerChangeBanner } from "../common/ServerChangeBanner";
 import "../../styles/processFlow.css";
-
-/** ツールバーのドラッグ可能なステップ種別ボタン */
-function ToolbarStepButton({ type, onClick, disabled = false }: { type: StepType; onClick: () => void; disabled?: boolean }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `toolbar-${type}`,
-    data: { kind: "toolbar-step", stepType: type },
-    disabled,
-  });
-  return (
-    <button
-      ref={setNodeRef}
-      {...(disabled ? {} : listeners)}
-      {...(disabled ? {} : attributes)}
-      className={`step-toolbar-btn${isDragging ? " dragging" : ""}`}
-      onClick={onClick}
-      title={`${STEP_TYPE_LABELS[type]}（ドラッグで挿入）`}
-      disabled={disabled}
-      style={isDragging ? { opacity: 0.5, borderColor: STEP_TYPE_COLORS[type] } : undefined}
-    >
-      <i className={STEP_TYPE_ICONS[type]} />
-      {STEP_TYPE_LABELS[type]}
-    </button>
-  );
-}
-
-/** ステップ間のドロップゾーン */
-function StepInsertZone({
-  index,
-  onClick,
-  onPaste,
-  dragVisible,
-  disabled = false,
-}: {
-  index: number;
-  onClick: () => void;
-  onPaste?: () => void;
-  dragVisible?: boolean;
-  disabled?: boolean;
-}) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `insert-${index}`,
-    data: { kind: "insert-zone", insertIndex: index },
-    disabled,
-  });
-  if (disabled) return null;
-  return (
-    <div
-      ref={setNodeRef}
-      className={`step-insert-point${isOver ? " drop-active" : ""}${onPaste ? " has-paste" : ""}${dragVisible ? " drag-visible" : ""}`}
-    >
-      <button className="step-insert-btn" onClick={onClick} title="ステップを挿入">
-        <i className="bi bi-plus" />
-      </button>
-      {onPaste && (
-        <button className="step-paste-btn" onClick={onPaste} title="ここに貼り付け">
-          <i className="bi bi-clipboard-plus me-1" />貼り付け
-        </button>
-      )}
-    </div>
-  );
-}
-
-function EmptyFlowDropZone({ children, disabled = false }: { children: ReactNode; disabled?: boolean }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: "empty-flow-drop",
-    data: { kind: "insert-zone", insertIndex: 0 },
-    disabled,
-  });
-  return (
-    <div ref={setNodeRef} className={`step-empty process-flow-empty-drop${isOver ? " drop-active" : ""}`}>
-      {children}
-    </div>
-  );
-}
-
-const ALL_STEP_TYPES: StepType[] = [
-  "validation", "dbAccess", "externalSystem", "commonProcess",
-  "screenTransition", "displayUpdate", "branch", "loop",
-  "loopBreak", "loopContinue", "jump", "compute", "return", "other",
-  "log", "audit", "workflow", "transactionScope",
-  "eventPublish", "eventSubscribe", "closing", "cdc",
-];
-
-const ALL_SUB_STEP_TYPES: StepType[] = [
-  "validation", "dbAccess", "externalSystem", "commonProcess",
-  "screenTransition", "displayUpdate", "branch", "loop",
-  "loopBreak", "loopContinue", "jump", "compute", "return", "other",
-  "log", "audit", "workflow", "transactionScope",
-  "eventPublish", "eventSubscribe", "closing", "cdc",
-];
-
-const ALL_TRIGGERS: ActionTrigger[] = ["click", "submit", "select", "change", "load", "timer", "other"];
-
-const ACTION_TRIGGER_ICONS: Record<string, string> = {
-  click: "bi-cursor",
-  submit: "bi-send",
-  select: "bi-list-check",
-  change: "bi-pencil-square",
-  load: "bi-box-arrow-in-down",
-  unload: "bi-box-arrow-right",
-  timer: "bi-clock",
-  manual: "bi-person-check",
-  other: "bi-lightning-charge",
-};
-
-const ACTION_TRIGGER_CATEGORIES: Record<string, string> = {
-  click: "画面操作",
-  submit: "入力確定",
-  select: "選択連動",
-  change: "値変更",
-  load: "初期表示",
-  unload: "終了処理",
-  timer: "時刻・周期",
-  manual: "手動実行",
-  other: "その他",
-};
-
-const ACTION_TRIGGER_RICH_HELP: Record<string, {
-  occasion: string;
-  useCases: string[];
-  definitionExample: string;
-  stepExample: string[];
-  notes: string[];
-}> = {
-  click: {
-    occasion: "ボタンやリンクなど、利用者が明示的に押した UI 操作を契機に動きます。",
-    useCases: ["詳細表示", "削除確認", "検索条件クリア", "別画面への遷移"],
-    definitionExample: "trigger: click / inputs: 選択行ID・画面入力値 / responses: 完了メッセージ",
-    stepExample: ["入力・選択状態を確認", "必要な DB 更新または参照", "画面更新または画面遷移"],
-    notes: ["連打や二重送信を避ける制御が必要な場合は validation や workflow に明記します。"],
-  },
-  submit: {
-    occasion: "フォーム送信や確定操作で、入力内容を業務データとして確定するときに動きます。",
-    useCases: ["登録", "更新", "申請", "承認依頼"],
-    definitionExample: "trigger: submit / inputs: フォーム全項目 / outputs: 登録ID / responses: 成功・入力エラー",
-    stepExample: ["必須・形式チェック", "業務ルール検証", "DB 保存", "レスポンス返却"],
-    notes: ["入力エラーとシステムエラーの responses を分けると、AI 実装時の分岐が明確になります。"],
-  },
-  select: {
-    occasion: "一覧行、候補、タブなどの選択状態が変わったタイミングで動きます。",
-    useCases: ["一覧行の詳細表示", "候補選択による関連情報取得", "親子リストの絞り込み"],
-    definitionExample: "trigger: select / inputs: selectedId / outputs: detailModel",
-    stepExample: ["選択IDの存在確認", "関連データ取得", "表示モデルへ反映"],
-    notes: ["選択解除時の扱いが必要なら other response または branch に明記します。"],
-  },
-  change: {
-    occasion: "入力値やフィルタ条件が変わった直後に、画面内の連動処理として動きます。",
-    useCases: ["金額再計算", "項目の表示切替", "候補リスト更新", "入力補助"],
-    definitionExample: "trigger: change / inputs: changedField・currentForm / outputs: derivedValues",
-    stepExample: ["変更項目を判定", "派生値を計算", "表示状態を更新"],
-    notes: ["高頻度に動くため、重い外部呼び出しは debounce や submit 側への移動を検討します。"],
-  },
-  load: {
-    occasion: "画面表示、初期データ取得、リソース読み込みの開始時に動きます。",
-    useCases: ["初期検索", "選択肢取得", "初期値設定", "権限に応じた表示制御"],
-    definitionExample: "trigger: load / inputs: routeParams・sessionUser / outputs: initialViewModel",
-    stepExample: ["起動条件を確認", "初期データを取得", "画面モデルを構築"],
-    notes: ["表示前に必要なデータと、表示後に遅延取得できるデータを分けると実装しやすくなります。"],
-  },
-  unload: {
-    occasion: "画面離脱、タブ終了、編集終了など、利用者が作業文脈を閉じるときに動きます。",
-    useCases: ["一時保存", "ロック解放", "離脱確認", "監査ログ記録"],
-    definitionExample: "trigger: unload / inputs: dirtyState・lockId / responses: 保存済み・破棄確認",
-    stepExample: ["未保存状態を確認", "必要なら保存または確認", "ロックや一時資源を解放"],
-    notes: ["ブラウザ終了時は非同期処理が完了しない可能性があるため、重要処理は明示保存側に寄せます。"],
-  },
-  timer: {
-    occasion: "一定間隔、指定時刻、期限到来など時間条件を契機に動きます。",
-    useCases: ["自動更新", "期限チェック", "バッチ起動", "再試行"],
-    definitionExample: "trigger: timer / inputs: schedule・lastRunAt / outputs: runSummary",
-    stepExample: ["実行条件を確認", "対象データを抽出", "処理を実行", "結果を記録"],
-    notes: ["重複起動、タイムアウト、リトライ方針を steps または SLA に記述します。"],
-  },
-  manual: {
-    occasion: "運用者や管理者が、通常 UI フローとは別に明示起動するときに動きます。",
-    useCases: ["手動再実行", "補正処理", "管理操作", "障害復旧"],
-    definitionExample: "trigger: manual / inputs: operatorId・targetId / responses: 実行結果・権限エラー",
-    stepExample: ["権限を確認", "対象を検証", "処理を実行", "監査ログを残す"],
-    notes: ["誰が何を起動できるかを inputs と validation に明記します。"],
-  },
-  other: {
-    occasion: "標準 trigger に当てはまらない、プロジェクト固有の契機で動きます。",
-    useCases: ["外部通知", "組み込み拡張", "特殊な業務イベント"],
-    definitionExample: "trigger: other / description: 契機の発生元と実行条件を明記",
-    stepExample: ["契機を説明", "入力契約を検証", "業務処理を実行", "結果を返す"],
-    notes: ["比較・保守しやすいように、description で契機名と発生条件を補足します。"],
-  },
-};
-
-const getActionTriggerLabel = (trigger: string) => ACTION_TRIGGER_LABELS[trigger] ?? trigger;
-const getActionTriggerIcon = (trigger: string) => ACTION_TRIGGER_ICONS[trigger] ?? ACTION_TRIGGER_ICONS.other;
-const getActionTriggerCategory = (trigger: string) => ACTION_TRIGGER_CATEGORIES[trigger] ?? ACTION_TRIGGER_CATEGORIES.other;
-const getActionTriggerRichHelp = (trigger: string) => ACTION_TRIGGER_RICH_HELP[trigger] ?? ACTION_TRIGGER_RICH_HELP.other;
-
-function countActionFields(fields: unknown): number {
-  if (Array.isArray(fields)) return fields.length;
-  if (typeof fields === "string" && fields.trim()) return 1;
-  return 0;
-}
-
-function summarizeActionFields(fields: unknown, fallback: string): string {
-  if (Array.isArray(fields) && fields.length > 0) {
-    return fields
-      .slice(0, 3)
-      .map((field) => {
-        if (typeof field === "string") return field;
-        return field?.name ?? field?.id ?? "名称未設定";
-      })
-      .join("、") + (fields.length > 3 ? ` ほか ${fields.length - 3} 件` : "");
-  }
-  if (typeof fields === "string" && fields.trim()) return fields.trim().slice(0, 80);
-  return fallback;
-}
-
-function summarizeActionStepTypes(action: ActionDefinition): string {
-  const counts = new Map<string, number>();
-  for (const step of action.steps ?? []) {
-    const key = step.kind ?? "other";
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  if (counts.size === 0) return "ステップ未定義";
-  return [...counts.entries()]
-    .slice(0, 4)
-    .map(([type, count]) => `${STEP_TYPE_LABELS[type] ?? type} ${count}`)
-    .join(" / ");
-}
-
-function getActionOpenMarkers(action: ActionDefinition, actionIndex: number, markers: Marker[]): Marker[] {
-  const stepIds = new Set((action.steps ?? []).map((step) => step.id));
-  const actionPathById = `actions[${action.id}]`;
-  const actionPathByIndex = actionIndex >= 0 ? `actions[${actionIndex}]` : null;
-  return markers.filter((marker) => {
-    if (marker.resolvedAt) return false;
-    if (marker.actionId === action.id) return true;
-    const markerStepId = marker.stepId ?? marker.anchor?.stepId;
-    if (markerStepId && stepIds.has(markerStepId)) return true;
-    const markerPath = marker.path ?? marker.validatorPath ?? marker.anchor?.fieldPath ?? "";
-    return typeof markerPath === "string"
-      && (markerPath.includes(actionPathById) || (!!actionPathByIndex && markerPath.includes(actionPathByIndex)));
-  });
-}
-
-function summarizeActionMarkers(markers: Marker[]): string {
-  if (markers.length === 0) return "なし";
-  const counts = new Map<string, number>();
-  for (const marker of markers) {
-    const kind = marker.kind ?? "marker";
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  }
-  return [...counts.entries()].map(([kind, count]) => `${kind} ${count}`).join(" / ");
-}
-
-function ActionHelpPopover({
-  action,
-  actionIndex,
-  markers,
-  position,
-  onPointerEnter,
-  onPointerLeave,
-}: {
-  action: ActionDefinition;
-  actionIndex: number;
-  markers: Marker[];
-  position: { left: number; top: number; placement: "below" | "above" };
-  onPointerEnter: () => void;
-  onPointerLeave: () => void;
-}) {
-  const help = getActionTriggerRichHelp(action.trigger);
-  const openMarkers = getActionOpenMarkers(action, actionIndex, markers);
-  const stepCount = action.steps?.length ?? 0;
-  const inputCount = countActionFields(action.inputs);
-  const outputCount = countActionFields(action.outputs);
-  const responseCount = countActionFields(action.responses);
-
-  return (
-    <div
-      id={`action-help-${action.id}`}
-      className={`process-flow-action-help ${position.placement}`}
-      style={{ left: position.left, top: position.top }}
-      role="tooltip"
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
-    >
-      <div className="process-flow-action-help-head">
-        <span className="process-flow-action-help-icon" aria-hidden="true">
-          <i className={`bi ${getActionTriggerIcon(action.trigger)}`} />
-        </span>
-        <div>
-          <div className="process-flow-action-help-title">{action.name}</div>
-          <div className="process-flow-action-help-subtitle">
-            {getActionTriggerLabel(action.trigger)} / {getActionTriggerCategory(action.trigger)}
-          </div>
-        </div>
-      </div>
-
-      <div className="process-flow-action-help-grid">
-        <section>
-          <h6>契機</h6>
-          <p>{help.occasion}</p>
-        </section>
-        <section>
-          <h6>代表用途</h6>
-          <ul>{help.useCases.map((item) => <li key={item}>{item}</li>)}</ul>
-        </section>
-        <section>
-          <h6>定義例</h6>
-          <p>{help.definitionExample}</p>
-        </section>
-        <section>
-          <h6>ステップ例</h6>
-          <ol>{help.stepExample.map((item) => <li key={item}>{item}</li>)}</ol>
-        </section>
-        <section>
-          <h6>このアクション</h6>
-          <dl>
-            <div><dt>入出力</dt><dd>inputs {inputCount} / outputs {outputCount} / responses {responseCount}</dd></div>
-            <div><dt>入力</dt><dd>{summarizeActionFields(action.inputs, "未定義")}</dd></div>
-            <div><dt>出力</dt><dd>{summarizeActionFields(action.outputs, "未定義")}</dd></div>
-            <div><dt>応答</dt><dd>{summarizeActionFields(action.responses, "未定義")}</dd></div>
-            <div><dt>ステップ</dt><dd>{stepCount} 件 / {summarizeActionStepTypes(action)}</dd></div>
-            <div><dt>成熟度</dt><dd>{action.maturity ?? "未設定"}</dd></div>
-            <div><dt>未解決マーカー</dt><dd>{openMarkers.length} 件 / {summarizeActionMarkers(openMarkers)}</dd></div>
-          </dl>
-        </section>
-        <section>
-          <h6>注意点</h6>
-          <ul>{help.notes.map((item) => <li key={item}>{item}</li>)}</ul>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function CustomStepButton({ id, label, icon, description }: { id: string; label: string; icon: string; description: string }) {
-  return (
-    <button
-      type="button"
-      className="step-toolbar-btn"
-      disabled
-      title={`D&D 配置は別 ISSUE で対応予定: ${id}`}
-      aria-disabled="true"
-    >
-      <i className={icon || "bi bi-puzzle"} />
-      {label || id}
-      {description ? <span className="visually-hidden">{description}</span> : null}
-    </button>
-  );
-}
+// Phase-3 (#1145) で抽出した internal 部品群
+import { AddActionModal } from "./internal/AddActionModal";
+import { StepContextMenu } from "./internal/StepContextMenu";
+import { WarningsPanel } from "./internal/WarningsPanel";
+import { ALL_STEP_TYPES } from "./internal/stepCardConstants";
+import { ProcessFlowDialogs } from "./internal/ProcessFlowDialogs";
+import { useProcessFlowCatalogs } from "./internal/useProcessFlowCatalogs";
+import { useActionHelpPopover } from "./internal/useActionHelpPopover";
+import { ActionTabBar } from "./internal/ActionTabBar";
+import { PalettePanel } from "./internal/PalettePanel";
+import { InspectorPanel } from "./internal/InspectorPanel";
+import { CanvasPane } from "./internal/CanvasPane";
+import { EditorHeaderExtras } from "./internal/EditorHeaderExtras";
 
 export function ProcessFlowEditor() {
   const { processFlowId } = useParams<{ processFlowId: string }>();
@@ -450,9 +88,20 @@ export function ProcessFlowEditor() {
   const pickerResolveRef = useRef<((r: ScreenItemPickResult | null) => void) | null>(null);
   const [newActionName, setNewActionName] = useState("");
   const [newActionTrigger, setNewActionTrigger] = useState<ActionTrigger>("click");
-  const [tables, setTables] = useState<{ id: string; physicalName: string; name: string }[]>([]);
-  const [screens, setScreens] = useState<{ id: string; name: string }[]>([]);
-  const [commonGroups, setCommonGroups] = useState<{ id: string; name: string }[]>([]);
+  // カタログ群 (tables / screens / commonGroups / tableDefs / conventions /
+  // extensions / genericDefNames / projectCatalogs) は Phase-3 で
+  // useProcessFlowCatalogs フックに集約 (#1145)。
+  const {
+    tables,
+    screens,
+    commonGroups,
+    tableDefs,
+    conventions,
+    extensions,
+    genericDefNames,
+    projectCatalogs,
+    loadAll: loadAllCatalogs,
+  } = useProcessFlowCatalogs();
   const [showTemplates, setShowTemplates] = useState(false);
   const [showWarningsPanel, setShowWarningsPanel] = useState(false);
   const [drawingMode, setDrawingMode] = useState(false);
@@ -461,22 +110,13 @@ export function ProcessFlowEditor() {
   const [isDraggingToolbarStep, setIsDraggingToolbarStep] = useState(false);
   const [stepFilter, setStepFilter] = useState("");
   const [commandQuery, setCommandQuery] = useState("");
-  const [actionHelp, setActionHelp] = useState<{
-    actionId: string;
-    left: number;
-    top: number;
-    placement: "below" | "above";
-    anchorTop: number;
-    anchorBottom: number;
-  } | null>(null);
-  const actionHelpCloseTimerRef = useRef<number | null>(null);
-  // SQL 列検査 / 規約参照検査のため (#261)
-  const [tableDefs, setTableDefs] = useState<ValidatorTableDef[]>([]);
-  const [conventions, setConventions] = useState<ConventionsCatalog | null>(null);
-  const [extensions, setExtensions] = useState<LoadedExtensions | undefined>(undefined);
-  // #1090: Generic Definition Catalog の name set (componentRef / exceptionTypeRef 検証用)
-  const [genericDefNames, setGenericDefNames] = useState<GenericDefinitionNames>({});
-  const [projectCatalogs, setProjectCatalogs] = useState<ProjectCatalogs | null>(null);
+  // ActionHelpPopover の位置 / open-close debounce は useActionHelpPopover に集約 (#1145 Phase-3)。
+  const {
+    actionHelp,
+    openActionHelp,
+    scheduleCloseActionHelp,
+    clearActionHelpCloseTimer,
+  } = useActionHelpPopover();
   const [newStepIds, setNewStepIds] = useState<Set<string>>(new Set());
 
   // 選択・クリップボード state
@@ -509,51 +149,9 @@ export function ProcessFlowEditor() {
 
   const handleLoaded = useCallback((g: ProcessFlow) => {
     setActiveActionId((cur) => cur ?? (g.actions.length > 0 ? g.actions[0].id : null));
-    loadProject().then((p) => {
-      setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
-      const agMetas = p.processFlows ?? [];
-      setCommonGroups(agMetas.filter((a) => a.kind === "common").map((a) => ({ id: a.id, name: a.name })));
-    }).catch(console.error);
-    listTables().then(async (metas) => {
-      setTables(metas.map((tm) => ({ id: tm.id, physicalName: tm.physicalName ?? "", name: tm.name })));
-      // SQL 列検査用に全テーブルの columns まで読む (#261 UI 統合)
-      const defs = await Promise.all(
-        metas.map(async (tm) => {
-          const full = await loadTable(tm.id);
-          if (!full) return null;
-          return {
-            // sqlColumnValidator は物理名 (snake_case) で SQL 列を検証するため、
-            // v3 では table.physicalName / column.physicalName を渡す (v3 の name は表示名)。
-            id: full.id,
-            name: full.physicalName,
-            columns: (full.columns ?? []).map((c) => ({ name: c.physicalName })),
-          } as ValidatorTableDef;
-        }),
-      );
-      setTableDefs(defs.filter((d): d is ValidatorTableDef => d !== null));
-    }).catch(console.error);
-    // 規約カタログは wsBridge / localStorage 経由で取得 (#317)。
-    // 未接続時は null。編集は「規約カタログ」タブから。
-    loadConventions()
-      .then((c) => setConventions(c as ConventionsCatalog | null))
-      .catch(() => setConventions(null));
-    mcpBridge.request("loadProjectCatalogs")
-      .then((c) => setProjectCatalogs(c as ProjectCatalogs | null))
-      .catch(() => setProjectCatalogs(null));
-    mcpBridge.getExtensions()
-      .then((bundle) => setExtensions(loadExtensionsFromBundle(bundle).extensions))
-      .catch(() => setExtensions(undefined));
-    // #1090: Generic Definition Catalog の name set を取得
-    Promise.all([
-      listGenericDefinitions("component-definition").catch(() => []),
-      listGenericDefinitions("exception-type").catch(() => []),
-    ]).then(([components, exceptions]) => {
-      setGenericDefNames({
-        "component-definition": new Set(components.map((c) => c.name)),
-        "exception-type": new Set(exceptions.map((e) => e.name)),
-      });
-    });
-  }, []);
+    // 規約 / extensions / table / screen / commonGroup 等のカタログを useProcessFlowCatalogs に委譲。
+    loadAllCatalogs(g);
+  }, [loadAllCatalogs]);
 
   const sessionId = mcpBridge.getSessionId();
 
@@ -784,13 +382,7 @@ export function ProcessFlowEditor() {
     [group, tableDefs, conventions, extensions, genericDefNames, projectCatalogs],
   );
 
-  useEffect(() => {
-    return mcpBridge.onExtensionsChanged(() => {
-      mcpBridge.getExtensions(true)
-        .then((bundle) => setExtensions(loadExtensionsFromBundle(bundle).extensions))
-        .catch(() => setExtensions(undefined));
-    });
-  }, []);
+  // mcpBridge.onExtensionsChanged の watch は useProcessFlowCatalogs 内で管理 (Phase-3)。
 
   const customStepCards = Object.entries(extensions?.steps ?? {});
   const normalizedStepFilter = stepFilter.trim().toLowerCase();
@@ -838,77 +430,14 @@ export function ProcessFlowEditor() {
     });
   };
 
-  const clearActionHelpCloseTimer = useCallback(() => {
-    if (actionHelpCloseTimerRef.current !== null) {
-      window.clearTimeout(actionHelpCloseTimerRef.current);
-      actionHelpCloseTimerRef.current = null;
-    }
-  }, []);
+  // ActionHelpPopover の位置 / open-close debounce は useActionHelpPopover に集約済 (Phase-3)。
 
-  const openActionHelp = useCallback((actionId: string, anchor: HTMLElement) => {
-    clearActionHelpCloseTimer();
-    const rect = anchor.getBoundingClientRect();
-    const popoverWidth = Math.min(420, Math.max(280, window.innerWidth - 24));
-    const left = Math.min(
-      Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2),
-      window.innerWidth - popoverWidth - 12,
-    );
-    const belowTop = rect.bottom + 10;
-    const estimatedHeight = 430;
-    const canOpenBelow = belowTop + estimatedHeight <= window.innerHeight - 12;
-    setActionHelp({
-      actionId,
-      left,
-      top: canOpenBelow ? belowTop : Math.max(12, rect.top - estimatedHeight - 10),
-      placement: canOpenBelow ? "below" : "above",
-      anchorTop: rect.top,
-      anchorBottom: rect.bottom,
-    });
-  }, [clearActionHelpCloseTimer]);
-
-  const scheduleCloseActionHelp = useCallback(() => {
-    clearActionHelpCloseTimer();
-    actionHelpCloseTimerRef.current = window.setTimeout(() => {
-      setActionHelp(null);
-      actionHelpCloseTimerRef.current = null;
-    }, 120);
-  }, [clearActionHelpCloseTimer]);
-
-  useEffect(() => {
-    if (!actionHelp) return undefined;
-    const close = () => setActionHelp(null);
-    window.addEventListener("resize", close);
-    return () => {
-      window.removeEventListener("resize", close);
-    };
-  }, [actionHelp]);
-
-  useLayoutEffect(() => {
-    if (!actionHelp) return;
-    const popover = document.getElementById(`action-help-${actionHelp.actionId}`);
-    if (!popover) return;
-    const actualHeight = Math.min(popover.getBoundingClientRect().height, window.innerHeight - 24);
-    const belowTop = actionHelp.anchorBottom + 10;
-    const canOpenBelow = belowTop + actualHeight <= window.innerHeight - 12;
-    const nextTop = canOpenBelow
-      ? belowTop
-      : Math.max(12, actionHelp.anchorTop - actualHeight - 10);
-    const nextPlacement = canOpenBelow ? "below" : "above";
-    if (Math.abs(nextTop - actionHelp.top) > 1 || nextPlacement !== actionHelp.placement) {
-      setActionHelp((cur) => cur && cur.actionId === actionHelp.actionId
-        ? { ...cur, top: nextTop, placement: nextPlacement }
-        : cur);
-    }
-  }, [actionHelp]);
-
-  useEffect(() => () => clearActionHelpCloseTimer(), [clearActionHelpCloseTimer]);
-
-  const handleAddStep = (type: StepType, insertIndex?: number) => {
+  const handleAddStep = (kind: StepType, insertIndex?: number) => {
     if (!activeAction) return;
     updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (act) {
-        const step = addStep(act, type, insertIndex);
+        const step = addStep(act, kind, insertIndex);
         setNewStepIds((prev) => new Set(prev).add(step.id));
       }
     });
@@ -1023,12 +552,12 @@ export function ProcessFlowEditor() {
     });
   };
 
-  const handleAddSubStep = (parentStepId: string, type: StepType) => {
+  const handleAddSubStep = (parentStepId: string, kind: StepType) => {
     updateGroupWithDraft((g) => {
       const act = g.actions.find((a) => a.id === activeActionId);
       if (!act) return;
       const parent = act.steps.find((s) => s.id === parentStepId);
-      if (parent) addSubStep(parent, type);
+      if (parent) addSubStep(parent, kind);
     });
     closeContextMenu();
   };
@@ -1264,80 +793,77 @@ export function ProcessFlowEditor() {
         ownerLabel={lockedByOther?.ownerSessionId}
       />
 
-      {mode.kind === "force-released-pending" && (
-        <ForcedOutChoiceDialog
-          previousDraftExists={mode.previousDraftExists}
-          onChoice={(choice) => editActions.handleForcedOut(choice)}
-        />
-      )}
+      <ProcessFlowDialogs
+        group={group}
+        mode={mode}
+        lockedByOther={lockedByOther}
+        showResumeDialog={showResumeDialog}
+        showDiscardDialog={showDiscardDialog}
+        showForceReleaseDialog={showForceReleaseDialog}
+        showAiGenerateDialog={showAiGenerateDialog}
+        showAiReviewDialog={showAiReviewDialog}
+        serverChanged={serverChanged}
+        onForcedOutChoice={(choice) => editActions.handleForcedOut(choice)}
+        onAfterForceUnlockChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
+        onResumeContinue={handleResumeContinue}
+        onResumeDiscard={handleResumeDiscard}
+        onCancelResume={() => setShowResumeDialog(false)}
+        onDiscardConfirm={handleDiscard}
+        onDiscardCancel={() => setShowDiscardDialog(false)}
+        onForceReleaseConfirm={handleForceRelease}
+        onForceReleaseCancel={() => setShowForceReleaseDialog(false)}
+        saveConflict={saveConflict}
+        onSaveConflictOverwrite={async () => {
+          try {
+            await onSaveConflictOverwrite();
+            await hookPostSave();
+          } catch (e) {
+            console.error("[ProcessFlowEditor] save overwrite failed:", e);
+          }
+        }}
+        onSaveConflictCancel={onSaveConflictCancel}
+        onServerReload={handleReset}
+        onServerDismiss={dismissServerBanner}
+        onCloseAiGenerate={() => setShowAiGenerateDialog(false)}
+        onApplyAiGenerate={(next) => {
+          updateGroupWithDraft((g) => {
+            replaceProcessFlowContents(g, next);
+          });
+        }}
+        onCloseAiReview={() => setShowAiReviewDialog(false)}
+        aiDiffProposed={aiDiffProposed}
+        aiPromptSummary={aiPromptSummary}
+        onApplyAiDiff={(proposed) => {
+          updateGroupWithDraft((g) => {
+            replaceProcessFlowContents(g, proposed);
+          });
+          setAiDiffProposed(null);
+        }}
+        onApplyAiDiffSelected={(proposed, paths) => {
+          updateGroupWithDraft((g) => {
+            applyProcessFlowDiffSelection(g, proposed, paths);
+          });
+          setAiDiffProposed(null);
+        }}
+        onDiscardAiDiff={() => setAiDiffProposed(null)}
+        onAddAiDiffMarker={(body) => {
+          updateGroupWithDraft((g) => {
+            const m = {
+              id: generateUUID(),
+              kind: "chat" as const,
+              body,
+              author: "human" as const,
+              createdAt: new Date().toISOString(),
+            };
+            g.authoring = {
+              ...(g.authoring ?? {}),
+              markers: [...(g.authoring?.markers ?? []), m],
+            };
+          });
+          setAiDiffProposed(null);
+        }}
+      />
 
-      {mode.kind === "after-force-unlock" && (
-        <AfterForceUnlockChoiceDialog
-          previousOwner={mode.previousOwner}
-          onChoice={(choice) => editActions.handleAfterForceUnlock(choice)}
-        />
-      )}
-
-      {showResumeDialog && (
-        <ResumeOrDiscardDialog
-          onResume={handleResumeContinue}
-          onDiscard={handleResumeDiscard}
-          onCancel={() => setShowResumeDialog(false)}
-        />
-      )}
-
-      {showDiscardDialog && (
-        <DiscardConfirmDialog
-          onConfirm={handleDiscard}
-          onCancel={() => setShowDiscardDialog(false)}
-        />
-      )}
-
-      {saveConflict && (
-        <SaveConflictDialog
-          conflict={saveConflict}
-          onOverwrite={async () => {
-            try {
-              await onSaveConflictOverwrite();
-              await hookPostSave();
-            } catch (e) {
-              console.error("[ProcessFlowEditor] save overwrite failed:", e);
-            }
-          }}
-          onCancel={onSaveConflictCancel}
-        />
-      )}
-
-      {showForceReleaseDialog && lockedByOther && (
-        <ForceReleaseConfirmDialog
-          ownerSessionId={lockedByOther.ownerSessionId}
-          onConfirm={handleForceRelease}
-          onCancel={() => setShowForceReleaseDialog(false)}
-        />
-      )}
-
-      {serverChanged && (
-        <ServerChangeBanner onReload={handleReset} onDismiss={dismissServerBanner} />
-      )}
-
-      {showAiGenerateDialog && (
-        <ProcessFlowAiGenerateDialog
-          current={group}
-          onClose={() => setShowAiGenerateDialog(false)}
-          onApply={(next) => {
-            updateGroupWithDraft((g) => {
-              replaceProcessFlowContents(g, next);
-            });
-          }}
-        />
-      )}
-
-      {showAiReviewDialog && (
-        <ProcessFlowAiReviewDialog
-          current={group}
-          onClose={() => setShowAiReviewDialog(false)}
-        />
-      )}
 
       <EditorHeader
         title={
@@ -1349,261 +875,64 @@ export function ProcessFlowEditor() {
         }
         undoRedo={{ onUndo: undo, onRedo: redo, canUndo, canRedo }}
         extraRight={
-          <>
-            {!isReadonly && (
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-primary"
-                onClick={() => setShowAiGenerateDialog(true)}
-                title="要件テキストから処理フロー JSON を生成"
-              >
-                <i className="bi bi-stars" /> AI 生成
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-secondary"
-              onClick={() => setShowAiReviewDialog(true)}
-              title="現在の処理フロー JSON を AI でレビュー"
-            >
-              <i className="bi bi-clipboard-check" /> AI レビュー
-            </button>
-            <EditSessionDropdown
-              resourceType="process-flow"
-              resourceId={processFlowId ?? ""}
-              currentMode={mode}
-              currentSessionId={sessionId}
-              onStartEditing={() => { void editActions.startEditing(); }}
-              onViewerAttached={syncSessionToUrl}
-              onAttachAsView={editAttach}
-              onTakeOver={editTakeOver}
-            />
-            <button
-              type="button"
-              className={`btn btn-sm ${drawingMode ? "btn-danger" : "btn-outline-secondary"}`}
-              onClick={() => setDrawingMode((v) => !v)}
-              title="赤線マーカー (ドラッグで描画、離すとマーカー起票)"
-            >
-              <i className="bi bi-pencil" /> {drawingMode ? "描画中" : "描画"}
-            </button>
-            {validationErrors.filter((e) => e.severity === "error").length > 0 && (
-              <span
-                className="validation-badge error"
-                title={validationErrors
-                  .filter((e) => e.severity === "error")
-                  .map((e) => (e.path ? `[${e.path}] ${e.message}` : e.message))
-                  .join("\n")}
-              >
-                <i className="bi bi-x-circle-fill" />
-                {validationErrors.filter((e) => e.severity === "error").length} エラー
-              </span>
-            )}
-            {validationErrors.filter((e) => e.severity === "warning").length > 0 && (
-              <span
-                className="validation-badge warning clickable"
-                title={validationErrors
-                  .filter((e) => e.severity === "warning")
-                  .slice(0, 20)
-                  .map((e) => (e.path ? `[${e.path}] ${e.message}` : e.message))
-                  .join("\n")}
-                onClick={() => setShowWarningsPanel((v) => !v)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowWarningsPanel((v) => !v); }}
-              >
-                <i className="bi bi-exclamation-triangle-fill" />
-                {validationErrors.filter((e) => e.severity === "warning").length} 警告
-                <i className={`bi bi-chevron-${showWarningsPanel ? "up" : "down"} ms-1`} />
-              </span>
-            )}
-          </>
+          <EditorHeaderExtras
+            isReadonly={isReadonly}
+            drawingMode={drawingMode}
+            showWarningsPanel={showWarningsPanel}
+            validationErrors={validationErrors}
+            processFlowId={processFlowId ?? ""}
+            mode={mode}
+            sessionId={sessionId}
+            onOpenAiGenerate={() => setShowAiGenerateDialog(true)}
+            onOpenAiReview={() => setShowAiReviewDialog(true)}
+            onToggleDrawing={() => setDrawingMode((v) => !v)}
+            onToggleWarnings={() => setShowWarningsPanel((v) => !v)}
+            onStartEditing={() => { void editActions.startEditing(); }}
+            onViewerAttached={syncSessionToUrl}
+            onAttachAsView={editAttach}
+            onTakeOver={editTakeOver}
+          />
         }
         saveReset={isReadonly ? undefined : { isDirty, isSaving, onSave: handleSave, onReset: handleReset }}
       />
 
-      {/* 警告詳細パネル (#261 UI 統合) */}
-      {showWarningsPanel && validationErrors.filter((e) => e.severity === "warning").length > 0 && (
-        <div className="process-flow-validation-panel">
-          <div className="process-flow-validation-panel-header">
-            <i className="bi bi-exclamation-triangle-fill" /> 警告 ({validationErrors.filter((e) => e.severity === "warning").length} 件)
-            <button
-              className="btn btn-sm btn-link process-flow-validation-panel-bulk-ai"
-              onClick={() => {
-                // 全警告をまとめて marker 化 (既に起票済のものは skip)
-                if (!group) return;
-                const existingKeys = new Set((group.authoring?.markers ?? [])
-                  .filter((m) => !m.resolvedAt && m.kind === "todo")
-                  .map((m) => `${m.code ?? ""}|${m.path ?? ""}`));
-                const newMarkers = validationErrors
-                  .filter((e) => e.severity === "warning" && e.path)
-                  .filter((e) => !existingKeys.has(`${e.code ?? ""}|${e.path ?? ""}`))
-                  .map((e) => ({
-                    id: generateUUID(),
-                    kind: "todo" as const,
-                    body: `警告解消: ${e.message}`,
-                    stepId: e.stepId || undefined,
-                    code: e.code,
-                    path: e.path,
-                    author: "human" as const,
-                    createdAt: new Date().toISOString(),
-                  }));
-                if (newMarkers.length === 0) {
-                  window.alert("全ての警告は既に AI 依頼済みです");
-                  return;
-                }
-                updateGroupWithDraft((g) => {
-                  g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), ...newMarkers] };
-                });
-                window.alert(`${newMarkers.length} 件の警告を marker として起票しました。/designer-work で処理できます。`);
-              }}
-              title="全ての警告をまとめて AI 依頼 marker として起票"
-            >
-              <i className="bi bi-robot" /> 全て AI に依頼
-            </button>
-            <button
-              className="btn btn-sm btn-link ms-1"
-              onClick={() => setShowWarningsPanel(false)}
-              title="閉じる"
-            >
-              <i className="bi bi-x-lg" />
-            </button>
-          </div>
-          <ul className="process-flow-validation-panel-list">
-            {validationErrors
-              .filter((e) => e.severity === "warning")
-              .map((e, i) => {
-                const isMarked = (group?.authoring?.markers ?? [])
-                  .some((m) => !m.resolvedAt && m.kind === "todo"
-                    && m.code === e.code && m.path === e.path);
-                return (
-                  <li key={i}>
-                    {e.code && <span className="validation-code">{e.code}</span>}
-                    <span className="validation-message">{e.message}</span>
-                    {e.path && <span className="validation-path">{e.path}</span>}
-                    <button
-                      className={`btn btn-sm validation-ask-ai-btn ${isMarked ? "asked" : ""}`}
-                      disabled={isMarked || !group}
-                      title={isMarked ? "AI に依頼済み" : "この警告を marker として AI に依頼"}
-                      onClick={() => {
-                        if (!group || isMarked) return;
-                        const newMarker = {
-                          id: generateUUID(),
-                          kind: "todo" as const,
-                          body: `警告解消: ${e.message}`,
-                          stepId: e.stepId || undefined,
-                          code: e.code,
-                          path: e.path,
-                          author: "human" as const,
-                          createdAt: new Date().toISOString(),
-                        };
-                        updateGroupWithDraft((g) => {
-                          g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), newMarker] };
-                        });
-                      }}
-                    >
-                      <i className={`bi ${isMarked ? "bi-check-circle-fill" : "bi-robot"}`} />
-                      {" "}{isMarked ? "依頼済" : "AI に依頼"}
-                    </button>
-                  </li>
-                );
-              })}
-          </ul>
-        </div>
+      {/* 警告詳細パネル (#261 UI 統合、Phase-3 で internal/WarningsPanel に抽出) */}
+      {showWarningsPanel && (
+        <WarningsPanel
+          group={group}
+          validationErrors={validationErrors}
+          onClose={() => setShowWarningsPanel(false)}
+          onUpdateProcessFlow={updateGroupWithDraft}
+        />
       )}
 
       <div className="process-flow-workbench">
-        <div className="process-flow-command-bar">
-          <div className="process-flow-command-title">
-            <span className="process-flow-command-eyebrow">Action</span>
-            <strong>{activeAction?.name ?? "アクション未選択"}</strong>
-            {activeAction && <span className="text-muted small">{getActionTriggerLabel(activeAction.trigger)}</span>}
-          </div>
-          <div className="process-flow-command-search">
-            <i className="bi bi-search" />
-            <input
-              value={commandQuery}
-              onChange={(e) => setCommandQuery(e.target.value)}
-              placeholder="アクションを検索"
-              aria-label="アクションを検索"
-            />
-          </div>
-          <div className="process-flow-tabs">
-            {visibleActions.map((act) => (
-              <div key={act.id} className={`process-flow-tab-wrap${activeActionId === act.id ? " active" : ""}`}>
-                <button
-                  className={`process-flow-tab ${activeActionId === act.id ? "active" : ""}`}
-                  onClick={() => setActiveActionId(act.id)}
-                  onPointerEnter={(e) => openActionHelp(act.id, e.currentTarget)}
-                  onPointerLeave={scheduleCloseActionHelp}
-                  onFocus={(e) => openActionHelp(act.id, e.currentTarget)}
-                  onBlur={scheduleCloseActionHelp}
-                  aria-describedby={actionHelp?.actionId === act.id ? `action-help-${act.id}` : undefined}
-                  aria-label={`${act.name} (${getActionTriggerLabel(act.trigger)})`}
-                >
-                  <span className="process-flow-tab-trigger-icon" aria-hidden="true">
-                    <i className={`bi ${getActionTriggerIcon(act.trigger)}`} />
-                  </span>
-                  <MaturityBadge
-                    maturity={act.maturity}
-                    onChange={(next) => {
-                      updateGroupSilent((g) => {
-                        const a = g.actions.find((a2) => a2.id === act.id);
-                        if (a) a.maturity = next;
-                      });
-                    }}
-                  />
-                  {act.name}
-                  <span className="process-flow-tab-trigger-label">{getActionTriggerLabel(act.trigger)}</span>
-                </button>
-                {!isReadonly && (
-                  <button
-                    className="process-flow-tab-remove"
-                    onClick={() => handleDeleteAction(act.id)}
-                    title="アクション削除"
-                  >
-                    <i className="bi bi-x" />
-                  </button>
-                )}
-              </div>
-            ))}
-            {visibleActions.length === 0 && (
-              <span className="process-flow-tab-empty">一致するアクションがありません</span>
-            )}
-            {!isReadonly && (
-              <button
-                className="process-flow-tab-add"
-                onClick={() => setShowAddAction(true)}
-                title="アクション追加"
-              >
-                <i className="bi bi-plus-lg" />
-              </button>
-            )}
-          </div>
-          {actionHelpTarget && actionHelp && (
-            <ActionHelpPopover
-              action={actionHelpTarget}
-              actionIndex={actionHelpTargetIndex}
-              markers={group?.authoring?.markers ?? []}
-              position={actionHelp}
-              onPointerEnter={clearActionHelpCloseTimer}
-              onPointerLeave={scheduleCloseActionHelp}
-            />
-          )}
-          <div className="process-flow-command-hints">
-            {!isReadonly && (
-              <>
-                <span><kbd>Ctrl</kbd>+<kbd>C</kbd> コピー</span>
-                <span><kbd>Ctrl</kbd>+<kbd>V</kbd> 貼付</span>
-                <span><kbd>右クリック</kbd> 操作</span>
-              </>
-            )}
-          </div>
-          <EditLevelToggle
-            value={editLevel}
-            onChange={setEditLevel}
-            disabled={isReadonly}
-          />
-        </div>
+        <ActionTabBar
+          group={group}
+          activeAction={activeAction}
+          activeActionId={activeActionId}
+          visibleActions={visibleActions}
+          commandQuery={commandQuery}
+          onChangeCommandQuery={setCommandQuery}
+          onSelectAction={setActiveActionId}
+          onDeleteAction={handleDeleteAction}
+          onAddActionClick={() => setShowAddAction(true)}
+          isReadonly={isReadonly}
+          editLevel={editLevel}
+          onChangeEditLevel={setEditLevel}
+          onChangeActionMaturity={(actId, next) => {
+            updateGroupSilent((g) => {
+              const a = g.actions.find((a2) => a2.id === actId);
+              if (a) a.maturity = next;
+            });
+          }}
+          actionHelp={actionHelp}
+          actionHelpTarget={actionHelpTarget}
+          actionHelpTargetIndex={actionHelpTargetIndex}
+          openActionHelp={openActionHelp}
+          scheduleCloseActionHelp={scheduleCloseActionHelp}
+          clearActionHelpCloseTimer={clearActionHelpCloseTimer}
+        />
 
         <DndContext
           sensors={sensors}
@@ -1613,467 +942,120 @@ export function ProcessFlowEditor() {
           collisionDetection={collisionDetection}
         >
           <div className="process-flow-workbench-grid">
-            <aside className="process-flow-palette-pane">
-              <div className="process-flow-pane-header">
-                <div>
-                  <span className="process-flow-pane-kicker">Blocks</span>
-                  <h6>ブロック</h6>
-                </div>
-                {!isReadonly && <span className="process-flow-pane-badge">D&D</span>}
-              </div>
-              <div className="process-flow-palette-search">
-                <i className="bi bi-search" />
-                <input
-                  value={stepFilter}
-                  onChange={(e) => setStepFilter(e.target.value)}
-                  placeholder="ブロックを検索"
-                  aria-label="ブロックを検索"
-                />
-              </div>
-              <div className="step-toolbar">
-                <div className="process-flow-palette-section">基本ステップ</div>
-                {filteredStepTypes.map((type) => (
-                  <ToolbarStepButton key={type} type={type} onClick={() => handleAddStep(type)} disabled={isReadonly} />
-                ))}
-                {filteredStepTypes.length === 0 && (
-                  <div className="process-flow-palette-empty">該当するブロックがありません</div>
-                )}
-                {customStepCards.length > 0 && (
-                  <>
-                    <div className="step-toolbar-sep" />
-                    <div className="process-flow-palette-section">カスタム</div>
-                    {customStepCards.map(([id, step]) => (
-                      <CustomStepButton
-                        key={id}
-                        id={id}
-                        label={step.label}
-                        icon={step.icon}
-                        description={step.description}
-                      />
-                    ))}
-                  </>
-                )}
-                <div className="step-toolbar-sep" />
-                <div className="process-flow-template-anchor">
-                  <button
-                    className="step-template-btn"
-                    onClick={() => setShowTemplates(!showTemplates)}
-                    disabled={isReadonly}
-                  >
-                    <i className="bi bi-collection" />
-                    テンプレート
-                  </button>
-                  {showTemplates && (
-                    <div className="template-dropdown">
-                      {STEP_TEMPLATES.map((tpl) => (
-                        <div
-                          key={tpl.id}
-                          className="template-dropdown-item"
-                          onClick={() => handleAddTemplate(tpl.id)}
-                        >
-                          <div className="template-dropdown-item-label">{tpl.label}</div>
-                          <div className="template-dropdown-item-desc">{tpl.description}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </aside>
+            <PalettePanel
+              stepFilter={stepFilter}
+              onChangeStepFilter={setStepFilter}
+              filteredStepTypes={filteredStepTypes}
+              customStepCards={customStepCards}
+              showTemplates={showTemplates}
+              onToggleTemplates={() => setShowTemplates(!showTemplates)}
+              onAddStep={handleAddStep}
+              onAddTemplate={handleAddTemplate}
+              isReadonly={isReadonly}
+            />
 
-            <main className="process-flow-canvas-pane">
-              <div className="process-flow-canvas-header">
-                <div>
-                  <span className="process-flow-pane-kicker">Flow</span>
-                  <h6>{activeAction ? `${activeAction.name} の処理` : "処理フロー"}</h6>
-                </div>
-                {activeAction && (
-                  <div className="process-flow-canvas-metrics">
-                    <span>{activeAction.steps.length} steps</span>
-                    <span>{activeAction.inputs?.length ?? 0} inputs</span>
-                    <span>{activeAction.outputs?.length ?? 0} outputs</span>
-                  </div>
-                )}
-              </div>
-              <div className="process-flow-content">
-                {activeAction ? (
-                  <div className="step-editor">
-                    {activeAction.steps.length === 0 ? (
-                      <EmptyFlowDropZone disabled={isReadonly}>
-                        <i className="bi bi-plus-circle" />
-                        <strong>ステップがありません</strong>
-                        <span>{isReadonly ? "編集開始後にステップを追加できます。" : "左のブロックをドラッグするか、ブロックをクリックして追加してください。"}</span>
-                        <StepInsertZone
-                          index={0}
-                          onClick={() => handleAddStep("other")}
-                          onPaste={clipboard && !isReadonly ? () => handlePaste(0) : undefined}
-                          dragVisible={isDraggingToolbarStep}
-                          disabled={isReadonly}
-                        />
-                      </EmptyFlowDropZone>
-                    ) : (
-                      <SortableContext items={activeAction.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                        <div className={`step-list${isDraggingToolbarStep ? " drag-inserting" : ""}`} ref={stepListRef}>
-                          {activeAction.steps.map((step, index) => {
-                      // この step に紐付いた未解決 marker 件数
-                      const stepMarkers = (group.authoring?.markers ?? []).filter(
-                        (m) => !m.resolvedAt && m.stepId === step.id,
-                      );
-                      const markerCount = stepMarkers.length;
-                      const markerTooltip = markerCount > 0
-                        ? `AI 依頼マーカー ${markerCount} 件:\n${stepMarkers.map((m) => `- [${m.kind}] ${m.body.slice(0, 60)}`).join("\n")}`
-                        : undefined;
-                      const markerKinds = markerCount > 0 ? {
-                        todo: stepMarkers.filter((m) => m.kind === "todo").length,
-                        question: stepMarkers.filter((m) => m.kind === "question").length,
-                        attention: stepMarkers.filter((m) => m.kind === "attention").length,
-                        chat: stepMarkers.filter((m) => m.kind === "chat").length,
-                      } : undefined;
-                      return (
-                      <div key={step.id}>
-                        <StepInsertZone
-                          index={index}
-                          onClick={() => handleAddStep("other", index)}
-                          onPaste={clipboard && !isReadonly ? () => handlePaste(index) : undefined}
-                          dragVisible={isDraggingToolbarStep}
-                          disabled={isReadonly}
-                        />
-                        <SortableStepCard
-                          step={step}
-                          index={index}
-                          label={getStepLabel(index)}
-                          allSteps={activeAction.steps}
-                          tables={tables}
-                          screens={screens}
-                          commonGroups={commonGroups}
-                          onChange={(changes) => handleStepChange(step.id, changes)}
-                          onCommit={commitGroup}
-                          onMoveUp={index > 0 ? () => handleMoveStep(index, index - 1) : undefined}
-                          onMoveDown={index < activeAction.steps.length - 1 ? () => handleMoveStep(index, index + 1) : undefined}
-                          onDelete={() => handleDeleteStep(step.id)}
-                          onDuplicate={() => handleDuplicateStep(step.id)}
-                          onAddSubStep={(type) => handleAddSubStep(step.id, type)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            if (isReadonly) return;
-                            setSelectedIds(new Set([step.id]));
-                            lastSelectedIdRef.current = step.id;
-                            setContextMenu({ x: e.clientX, y: e.clientY, stepId: step.id });
-                          }}
-                          onNavigateCommon={(refId) => navigate(wsPath(`/process-flow/edit/${refId}`))}
-                          defaultExpanded={newStepIds.has(step.id)}
-                          selected={selectedIds.has(step.id)}
-                          onHeaderClick={(e) => handleStepClick(step.id, e)}
-                          onIndent={index > 0 ? () => handleIndentStep(step.id) : undefined}
-                          onOutdentSubStep={(subId) => handleOutdentSubStep(step.id, subId)}
-                          validationErrors={validationErrors}
-                          onAddMarker={(body, kind = "todo") => {
-                            updateGroupWithDraft((g) => {
-                              const m = {
-                                id: generateUUID(),
-                                kind,
-                                body,
-                                stepId: step.id,
-                                author: "human" as const,
-                                createdAt: new Date().toISOString(),
-                              };
-                              g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), m] };
-                            });
-                          }}
-                          markerCount={markerCount}
-                          markerTooltip={markerTooltip}
-                          markerKinds={markerKinds}
-                          conventions={conventions}
-                          group={group}
-                          editLevel={editLevel}
-                          readOnly={isReadonly}
-                          onAskAi={() => {
-                            const label = `S${index + 1}: ${step.description ?? step.kind ?? step.id}`;
-                            aiChips.addStepChip(String(step.id), label, step);
-                            aiPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                          }}
-                        />
-                      </div>
-                      );
-                          })}
-                          <StepInsertZone
-                            index={activeAction.steps.length}
-                            onClick={() => handleAddStep("other")}
-                            onPaste={clipboard && !isReadonly ? () => handlePaste(activeAction.steps.length) : undefined}
-                            dragVisible={isDraggingToolbarStep}
-                            disabled={isReadonly}
-                          />
-                        </div>
-                      </SortableContext>
-                    )}
-                  </div>
-                ) : (
-                  <div className="step-empty process-flow-empty-drop">
-                    <i className="bi bi-lightning" />
-                    <strong>アクションがありません</strong>
-                    <span>上部の + ボタンからアクションを追加してください。</span>
-                  </div>
-                )}
-              </div>
-            </main>
+            <CanvasPane
+              group={group}
+              activeAction={activeAction}
+              tables={tables}
+              screens={screens}
+              commonGroups={commonGroups}
+              conventions={conventions}
+              isReadonly={isReadonly}
+              isDraggingToolbarStep={isDraggingToolbarStep}
+              clipboard={clipboard}
+              newStepIds={newStepIds}
+              selectedIds={selectedIds}
+              validationErrors={validationErrors}
+              editLevel={editLevel}
+              stepListRef={stepListRef}
+              aiChips={aiChips}
+              aiPanelRef={aiPanelRef}
+              handleAddStep={handleAddStep}
+              handlePaste={handlePaste}
+              handleStepChange={handleStepChange}
+              commitGroup={commitGroup}
+              handleMoveStep={handleMoveStep}
+              handleDeleteStep={handleDeleteStep}
+              handleDuplicateStep={handleDuplicateStep}
+              handleAddSubStep={handleAddSubStep}
+              handleIndentStep={handleIndentStep}
+              handleOutdentSubStep={handleOutdentSubStep}
+              handleStepClick={handleStepClick}
+              onNavigateCommon={(refId) => navigate(wsPath(`/process-flow/edit/${refId}`))}
+              updateGroupWithDraft={updateGroupWithDraft}
+              onContextMenu={(stepId, x, y) => setContextMenu({ x, y, stepId })}
+              setSelectedIds={setSelectedIds}
+              lastSelectedIdRef={lastSelectedIdRef}
+            />
+            {/* CanvasPane (#1145 Phase-3 で抽出): ステップリスト + D&D 挿入ゾーン */}
 
-            <aside className="process-flow-inspector-pane">
-              <div className="process-flow-pane-header">
-                <div>
-                  <span className="process-flow-pane-kicker">Inspector</span>
-                  <h6>詳細</h6>
-                </div>
-              </div>
-              <div className="process-flow-inspector-scroll">
-                {/* #1076 AI 依頼パネル */}
-                <div className="process-flow-inspector-section">
-                  <AiRequestPanel
-                    chips={aiChips.chips}
-                    onRemoveChip={aiChips.removeChip}
-                    onClearChips={aiChips.clearChips}
-                    onSubmit={handleAiSubmit}
-                    busy={aiRequestBusy}
-                    error={aiRequestError}
-                    isConnected={isCodexConnected}
-                    panelRef={aiPanelRef}
-                    actionLabel={activeAction?.name}
-                    onAddActionContext={activeAction ? () => {
-                      aiChips.addActionChip(String(activeAction.id), activeAction.name, activeAction);
-                    } : undefined}
-                    onAddFlowContext={group ? () => {
-                      const flowName = group.meta?.name ?? "処理フロー";
-                      const flowId = processFlowId ?? "flow";
-                      aiChips.addFlowChip(flowId, flowName, group);
-                    } : undefined}
-                  />
-                </div>
-                {isReadonly ? (
-                  <div className="process-flow-inspector-section">
-                    <div className="text-muted small">
-                      詳細項目の編集は「編集開始」後に利用できます。
-                    </div>
-                  </div>
-                ) : (
-                  <ActionMetaTabBar
-                    group={group}
-                    updateGroup={updateGroup}
-                    updateGroupSilent={updateGroupSilent}
-                  />
-                )}
-                {!isReadonly && activeAction && (
-                  <>
-                    <div className="process-flow-inspector-section">
-                      <ActionHttpContractPanel
-                        action={activeAction}
-                        onChange={(patch) => {
-                          updateGroupSilent((g) => {
-                            const act = g.actions.find((a) => a.id === activeActionId);
-                            if (act) Object.assign(act, patch);
-                          });
-                          commitGroup();
-                        }}
-                      />
-                    </div>
-                    <div className="process-flow-inspector-section">
-                      <SlaPanel
-                        label="アクション SLA / Timeout"
-                        sla={activeAction.sla}
-                        onChange={(sla) => {
-                          updateGroupSilent((g) => {
-                            const act = g.actions.find((a) => a.id === activeActionId);
-                            if (act) act.sla = sla;
-                          });
-                          commitGroup();
-                        }}
-                      />
-                    </div>
-                    <div className="process-flow-io-panel">
-                      <div className="process-flow-io-field">
-                        <StructuredFieldsEditor
-                          label="入力データ"
-                          fields={activeAction.inputs}
-                          onChange={(val) => {
-                            updateGroupSilent((g) => {
-                              const act = g.actions.find((a) => a.id === activeActionId);
-                              if (act) act.inputs = val;
-                            });
-                          }}
-                          onCommit={commitGroup}
-                          placeholder="例: ユーザID、パスワード（改行で複数項目）"
-                          onPickScreenItem={handlePickScreenItem}
-                        />
-                      </div>
-                      <div className="process-flow-io-field">
-                        <StructuredFieldsEditor
-                          label="出力データ"
-                          fields={activeAction.outputs}
-                          onChange={(val) => {
-                            updateGroupSilent((g) => {
-                              const act = g.actions.find((a) => a.id === activeActionId);
-                              if (act) act.outputs = val;
-                            });
-                          }}
-                          onCommit={commitGroup}
-                          placeholder="例: セッションID、認証トークン（改行で複数項目）"
-                          onPickScreenItem={handlePickScreenItem}
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </aside>
+            <InspectorPanel
+              group={group}
+              activeAction={activeAction}
+              activeActionId={activeActionId}
+              isReadonly={isReadonly}
+              processFlowId={processFlowId}
+              aiChips={aiChips}
+              handleAiSubmit={handleAiSubmit}
+              aiRequestBusy={aiRequestBusy}
+              aiRequestError={aiRequestError}
+              isCodexConnected={isCodexConnected}
+              aiPanelRef={aiPanelRef}
+              updateGroup={updateGroup}
+              updateGroupSilent={updateGroupSilent}
+              commitGroup={commitGroup}
+              handlePickScreenItem={handlePickScreenItem}
+            />
+            {/* InspectorPanel (#1145 Phase-3 で抽出): AI 依頼 / Meta / HTTP contract / SLA / I/O */}
           </div>
         </DndContext>
       </div>
 
-      {/* コンテキストメニュー */}
+      {/* コンテキストメニュー (Phase-3 で internal/StepContextMenu に抽出) */}
       {!isReadonly && contextMenu && (
-        <div
-          className="step-context-menu"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {!contextMenuSubTypePicker ? (
-            <>
-              <button
-                className="step-context-menu-item"
-                onClick={() => handleContextInsert(0)}
-              >
-                <i className="bi bi-plus-circle" /> 前に挿入
-              </button>
-              <button
-                className="step-context-menu-item"
-                onClick={() => handleContextInsert(1)}
-              >
-                <i className="bi bi-plus-square" /> 後に挿入
-              </button>
-              {clipboard && (
-                <>
-                  <button
-                    className="step-context-menu-item"
-                    onClick={() => handleContextPaste(0)}
-                  >
-                    <i className="bi bi-clipboard-plus" /> 前に貼り付け
-                  </button>
-                  <button
-                    className="step-context-menu-item"
-                    onClick={() => handleContextPaste(1)}
-                  >
-                    <i className="bi bi-clipboard-plus" /> 後に貼り付け
-                  </button>
-                </>
-              )}
-              <div className="step-context-menu-sep" />
-              <button
-                className="step-context-menu-item"
-                onClick={() => handleCopy(new Set([contextMenu.stepId]))}
-              >
-                <i className="bi bi-files" /> コピー
-              </button>
-              <button
-                className="step-context-menu-item"
-                onClick={() => handleCut(new Set([contextMenu.stepId]))}
-              >
-                <i className="bi bi-scissors" /> カット
-              </button>
-              <button
-                className="step-context-menu-item"
-                onClick={() => handleDuplicateStep(contextMenu.stepId)}
-              >
-                <i className="bi bi-copy" /> 複製
-              </button>
-              <button
-                className="step-context-menu-item"
-                onClick={() => setContextMenuSubTypePicker(true)}
-              >
-                <i className="bi bi-diagram-2" /> サブステップ追加 ▶
-              </button>
-              <div className="step-context-menu-sep" />
-              <button
-                className="step-context-menu-item"
-                onClick={() => {
-                  const step = group?.actions?.flatMap((a) => a.steps ?? []).find((s) => s.id === contextMenu.stepId);
-                  if (step) {
-                    const action = group?.actions?.find((a) => (a.steps ?? []).some((s) => s.id === contextMenu.stepId));
-                    const stepIndex = (action?.steps ?? []).findIndex((s) => s.id === contextMenu.stepId);
-                    const label = `S${stepIndex + 1}: ${step.description ?? step.kind ?? step.id}`;
-                    aiChips.addStepChip(String(contextMenu.stepId), label, step);
-                  }
-                  aiPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                  setContextMenu(null);
-                }}
-              >
-                <i className="bi bi-robot" /> このステップを AI に依頼
-              </button>
-              <button
-                className="step-context-menu-item danger"
-                onClick={() => handleDeleteStep(contextMenu.stepId)}
-              >
-                <i className="bi bi-trash" /> 削除
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="step-context-menu-item"
-                onClick={() => setContextMenuSubTypePicker(false)}
-              >
-                <i className="bi bi-arrow-left" /> 戻る
-              </button>
-              <div className="step-context-menu-sep" />
-              {ALL_SUB_STEP_TYPES.map((t) => (
-                <button
-                  key={t}
-                  className="step-context-menu-item"
-                  onClick={() => { handleAddSubStep(contextMenu.stepId, t); }}
-                >
-                  <i className={`bi ${STEP_TYPE_ICONS[t]}`} style={{ color: STEP_TYPE_COLORS[t] }} />
-                  {" "}{STEP_TYPE_LABELS[t]}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
+        <StepContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          stepId={contextMenu.stepId}
+          subTypePickerOpen={contextMenuSubTypePicker}
+          hasClipboard={!!clipboard}
+          onToggleSubTypePicker={setContextMenuSubTypePicker}
+          onInsertBefore={() => handleContextInsert(0)}
+          onInsertAfter={() => handleContextInsert(1)}
+          onPasteBefore={() => handleContextPaste(0)}
+          onPasteAfter={() => handleContextPaste(1)}
+          onCopy={() => handleCopy(new Set([contextMenu.stepId]))}
+          onCut={() => handleCut(new Set([contextMenu.stepId]))}
+          onDuplicate={() => handleDuplicateStep(contextMenu.stepId)}
+          onAddSubStep={(kind) => handleAddSubStep(contextMenu.stepId, kind)}
+          onAskAi={() => {
+            const step = group?.actions?.flatMap((a) => a.steps ?? []).find((s) => s.id === contextMenu.stepId);
+            if (step) {
+              const action = group?.actions?.find((a) =>
+                (a.steps ?? []).some((s) => s.id === contextMenu.stepId),
+              );
+              const stepIndex = (action?.steps ?? []).findIndex((s) => s.id === contextMenu.stepId);
+              const label = `S${stepIndex + 1}: ${step.description ?? step.kind ?? step.id}`;
+              aiChips.addStepChip(String(contextMenu.stepId), label, step);
+            }
+            aiPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            setContextMenu(null);
+          }}
+          onDelete={() => handleDeleteStep(contextMenu.stepId)}
+        />
       )}
 
-      {/* アクション追加モーダル */}
+      {/* アクション追加モーダル (Phase-3 で internal/AddActionModal に抽出) */}
       {showAddAction && !isReadonly && (
-        <div className="process-flow-modal-overlay" onClick={() => setShowAddAction(false)}>
-          <div className="process-flow-modal" onClick={(e) => e.stopPropagation()}>
-            <h6>アクション追加</h6>
-            <div className="form-group">
-              <label className="form-label">アクション名 *</label>
-              <input
-                className="form-control form-control-sm"
-                value={newActionName}
-                onChange={(e) => setNewActionName(e.target.value)}
-                placeholder="例: 登録ボタン、検索ボタン"
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">トリガー</label>
-              <select
-                className="form-select form-select-sm"
-                value={newActionTrigger}
-                onChange={(e) => setNewActionTrigger(e.target.value as ActionTrigger)}
-              >
-                {ALL_TRIGGERS.map((t) => (
-                  <option key={t} value={t}>{getActionTriggerLabel(t)}</option>
-                ))}
-              </select>
-            </div>
-            <div className="process-flow-modal-footer">
-              <button className="btn btn-outline-secondary btn-sm" onClick={() => setShowAddAction(false)}>
-                キャンセル
-              </button>
-              <button className="btn btn-primary btn-sm" onClick={handleAddAction} disabled={!newActionName.trim()}>
-                追加
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddActionModal
+          name={newActionName}
+          trigger={newActionTrigger}
+          onChangeName={setNewActionName}
+          onChangeTrigger={setNewActionTrigger}
+          onSubmit={handleAddAction}
+          onCancel={() => setShowAddAction(false)}
+        />
       )}
       {/* 赤線マーカー描画オーバーレイ (#261) */}
       <DrawingOverlay
@@ -2089,44 +1071,7 @@ export function ProcessFlowEditor() {
         onClose={handlePickerClose}
         onPick={handlePickerPick}
       />
-      {/* #1076 AI 差分プレビューダイアログ */}
-      {aiDiffProposed && group && (
-        <AiDiffPreviewDialog
-          current={group}
-          proposed={aiDiffProposed}
-          promptSummary={aiPromptSummary}
-          onApply={() => {
-            if (!aiDiffProposed) return;
-            const proposed = aiDiffProposed;
-            updateGroupWithDraft((g) => {
-              replaceProcessFlowContents(g, proposed);
-            });
-            setAiDiffProposed(null);
-          }}
-          onApplySelected={(paths) => {
-            if (!aiDiffProposed) return;
-            const proposed = aiDiffProposed;
-            updateGroupWithDraft((g) => {
-              applyProcessFlowDiffSelection(g, proposed, paths);
-            });
-            setAiDiffProposed(null);
-          }}
-          onDiscard={() => setAiDiffProposed(null)}
-          onAddMarker={(body) => {
-            updateGroupWithDraft((g) => {
-              const m = {
-                id: generateUUID(),
-                kind: "chat" as const,
-                body,
-                author: "human" as const,
-                createdAt: new Date().toISOString(),
-              };
-              g.authoring = { ...(g.authoring ?? {}), markers: [...(g.authoring?.markers ?? []), m] };
-            });
-            setAiDiffProposed(null);
-          }}
-        />
-      )}
+      {/* AI 差分プレビューダイアログ (Phase-3 で ProcessFlowDialogs に統合) */}
     </div>
   );
 }

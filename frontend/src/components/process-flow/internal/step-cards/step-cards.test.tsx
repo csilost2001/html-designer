@@ -8,9 +8,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import {
+  AiAgentStepCardBody,
+  AiCallStepCardBody,
   AuditStepCardBody,
   BranchStepCardBody,
   CommonProcessStepCardBody,
+  ComponentCallStepCardBody,
   ComputeStepCardBody,
   DbAccessStepCardBody,
   DisplayUpdateStepCardBody,
@@ -423,5 +426,102 @@ describe("WorkflowStepCardBody", () => {
       />,
     );
     expect(container.firstChild).not.toBeNull();
+  });
+});
+
+// ── ComponentCallStepCardBody (Phase-3 #1145、#1163 review Phase-2 補足) ──
+describe("ComponentCallStepCardBody", () => {
+  it("componentRef / operation input が描画される", () => {
+    const step = baseStep({
+      kind: "componentCall",
+      componentRef: "generic-definitions/component-definition/OrderValidator",
+      operation: "validate",
+    });
+    const { container } = render(
+      <ComponentCallStepCardBody step={step} allSteps={[]} onChange={noop} />,
+    );
+    expect(container.textContent).toContain("componentRef");
+    expect(container.textContent).toContain("operation");
+    const inputs = container.querySelectorAll("input");
+    expect(inputs[0].value).toBe("generic-definitions/component-definition/OrderValidator");
+    expect(inputs[1].value).toBe("validate");
+  });
+
+  it("componentRef 変更で onChange が呼ばれる", () => {
+    const onChange = vi.fn();
+    const step = baseStep({ kind: "componentCall", componentRef: "", operation: "" });
+    const { container } = render(
+      <ComponentCallStepCardBody step={step} allSteps={[]} onChange={onChange} />,
+    );
+    const input = container.querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "newRef" } });
+    expect(onChange).toHaveBeenCalledWith({ componentRef: "newRef" });
+  });
+});
+
+// ── AiCallStepCardBody (Phase-3 #1145、#1163 review Phase-2 補足) ────────
+describe("AiCallStepCardBody", () => {
+  it("modelRef input と messages textarea が描画される", () => {
+    const step = baseStep({
+      kind: "aiCall",
+      modelRef: "summarizeModel",
+      messages: [{ role: "system", content: "you are helpful" }],
+    });
+    const { container } = render(
+      <AiCallStepCardBody step={step} allSteps={[]} onChange={noop} />,
+    );
+    expect(container.textContent).toContain("modelRef");
+    expect(container.textContent).toContain("messages");
+    const input = container.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("summarizeModel");
+  });
+
+  it("modelRef 変更で onChange が呼ばれる", () => {
+    const onChange = vi.fn();
+    const step = baseStep({ kind: "aiCall", modelRef: "", messages: [] });
+    const { container } = render(
+      <AiCallStepCardBody step={step} allSteps={[]} onChange={onChange} />,
+    );
+    const input = container.querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "claude-opus" } });
+    expect(onChange).toHaveBeenCalledWith({ modelRef: "claude-opus" });
+  });
+});
+
+// ── AiAgentStepCardBody (Phase-3 #1145、#1163 review Phase-2 補足) ───────
+describe("AiAgentStepCardBody", () => {
+  it("modelRef / maxIterations / tools が描画される", () => {
+    const step = baseStep({
+      kind: "aiAgent",
+      modelRef: "agentModel",
+      messages: [],
+      tools: [{ functionRef: "catalogs.functions.search" }],
+      maxIterations: 5,
+    });
+    const { container } = render(
+      <AiAgentStepCardBody step={step} allSteps={[]} onChange={noop} />,
+    );
+    expect(container.textContent).toContain("modelRef");
+    expect(container.textContent).toContain("maxIterations");
+    expect(container.textContent).toContain("tools");
+    const numberInput = container.querySelector('input[type="number"]') as HTMLInputElement;
+    expect(numberInput.value).toBe("5");
+  });
+
+  it("maxIterations 変更で onChange が呼ばれる", () => {
+    const onChange = vi.fn();
+    const step = baseStep({
+      kind: "aiAgent",
+      modelRef: "x",
+      messages: [],
+      tools: [],
+      maxIterations: 10,
+    });
+    const { container } = render(
+      <AiAgentStepCardBody step={step} allSteps={[]} onChange={onChange} />,
+    );
+    const numberInput = container.querySelector('input[type="number"]') as HTMLInputElement;
+    fireEvent.change(numberInput, { target: { value: "7" } });
+    expect(onChange).toHaveBeenCalledWith({ maxIterations: 7 });
   });
 });

@@ -23,9 +23,12 @@ import { AutoResizeTextarea } from "./internal/AutoResizeTextarea";
 import { ALL_SUB_STEP_TYPES } from "./internal/stepCardConstants";
 import { stepSummaryText } from "./internal/stepSummaryText";
 import {
+  AiAgentStepCardBody,
+  AiCallStepCardBody,
   AuditStepCardBody,
   BranchStepCardBody,
   CommonProcessStepCardBody,
+  ComponentCallStepCardBody,
   ComputeStepCardBody,
   DbAccessStepCardBody,
   DisplayUpdateStepCardBody,
@@ -749,6 +752,37 @@ export function StepCard({
                   onChange={onChange}
                   onCommit={onCommit}
                   onNavigateCommon={onNavigateCommon}
+                  readOnly={readOnly}
+                />
+              )}
+
+              {/* Phase-3 (#1145、#1163 review Phase-2 補足) 追加 3 dispatch */}
+              {step.kind === "componentCall" && (
+                <ComponentCallStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
+
+              {step.kind === "aiCall" && (
+                <AiCallStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
+
+              {step.kind === "aiAgent" && (
+                <AiAgentStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
                   readOnly={readOnly}
                 />
               )}
