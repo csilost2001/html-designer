@@ -211,27 +211,61 @@ build 後の HTML を browser で開く方法:
 
 #### AI による browser smoke test (Playwright / chrome-devtools MCP)
 
-AI セッション内で `docs/html/` を実機 browser で smoke test する手順 (2026-05-17 設定済、`.mcp.json` で bundled chromium 利用):
+AI セッション内で `docs/html/` を実機 browser で smoke test する手順 (2026-05-17 設定済、`.mcp.json` で bundled chromium 利用)。
+
+##### 起動モード 3 種類
+
+| モード | MCP server entry | 用途 | デフォルト |
+|---|---|---|---|
+| **headless** | `playwright` / `chrome-devtools` | AI 完全自動 smoke、CI 用 | ✅ 原則これ |
+| **headed (on-demand)** | `playwright-headed` / `chrome-devtools-headed` | ユーザーが動作を **目視確認したい時のみ** | ユーザー要望時 |
+| **trace 再生** | (将来) | 事後 review | 未実装 |
+
+##### AI 判断基準 (重要)
+
+- **デフォルト = headless**: ユーザーから明示要望がない限り `mcp__playwright__*` (headless) を使う
+- **headed 切替条件**: ユーザーが以下のような発話をした時 **のみ** `mcp__playwright-headed__*` / `mcp__chrome-devtools-headed__*` を使う:
+  - 「動作を見たい」「画面を見せて」「目視確認したい」「headed で」「window で開いて」等
+- headed mode 中もユーザーが操作・観察できる (Windows desktop に window が立ち上がる、WSLg 経由)
+- headed task 完了後は **次の自動 smoke から headless に戻す** (永続切替しない)
+
+##### 基本手順
 
 1. **preview server を立てる** (background or 別ターミナル):
    ```bash
    cd docs-site && npm run preview
    # → http://127.0.0.1:4321/
    ```
-2. **Playwright MCP で navigate + screenshot + console 確認** (推奨、軽量):
-   - `mcp__playwright__browser_navigate` → `http://127.0.0.1:4321/`
+2. **Playwright MCP で navigate + screenshot + console 確認** (軽量、推奨):
+   - headless: `mcp__playwright__browser_navigate` → `http://127.0.0.1:4321/`
+   - headed: `mcp__playwright-headed__browser_navigate` → ユーザー目視可
    - `mcp__playwright__browser_take_screenshot` → `.tmp/screenshots/` に保存
-   - `mcp__playwright__browser_console_messages` (level: error) で JS エラー有無確認
+   - `mcp__playwright__browser_console_messages` (level: error) で JS エラー確認
    - `mcp__playwright__browser_snapshot` で a11y tree から click 対象特定
-3. **chrome-devtools MCP** (DevTools features 必要時):
-   - `--executable-path` で Chrome for Testing 指定 (`.mcp.json` 設定済)
-   - Lighthouse audit / network request inspection 等高度な機能
+3. **chrome-devtools MCP** (Lighthouse / network 等の DevTools features 必要時):
+   - 同様に headless / headed 切替可
 
-**注意**: `.mcp.json` の MCP server 設定変更後は **claude code 再起動** が必要 (本セッション内では旧設定 server が動き続ける)。詳細 pitfall は memory `feedback_browser_smoke_headless_chrome_devtools.md` 参照。
+##### 環境前提
 
-事前準備済 bundled browser:
+| OS / 環境 | headed 動作 |
+|---|---|
+| Windows 11 + WSL2 + Docker Desktop (Dev Container) | ✅ WSLg 経由で Windows desktop に自動表示 (推奨環境) |
+| Windows 11 + WSL2 native (Dev Container なし) | ✅ WSLg 直接利用 |
+| Windows 10 + WSL2 + Docker Desktop | ⚠️ VcXsrv / X410 等の X server 別途必要 (未対応) |
+| macOS | ⚠️ XQuartz install + `xhost +localhost` + `DISPLAY=host.docker.internal:0` (未対応) |
+| Linux native | ⚠️ X11 forwarding 手動 setup (未対応) |
+
+未対応環境では `.devcontainer/devcontainer.json` の WSLg 関連 mount (`/tmp/.X11-unix`, `/mnt/wslg`) を comment out + headed mode 利用断念。
+
+##### 注意事項
+
+- `.mcp.json` / devcontainer.json の MCP / browser 設定変更後は **claude code 再起動 + (devcontainer の場合) container rebuild** が必要
+- 詳細 pitfall は memory `feedback_browser_smoke_headless_chrome_devtools.md` 参照
+
+##### 事前準備済 bundled browser
+
 - Playwright chromium: `~/.cache/ms-playwright/chromium-1217/`, `chromium-1223/`
-- Chrome for Testing: `~/.cache/puppeteer/chrome/` (chrome-devtools MCP 用)
+- Chrome for Testing: `~/.cache/puppeteer/chrome/linux-150.0.7843.0/chrome-linux64/chrome` (chrome-devtools MCP 用)
 
 #### 注意事項
 

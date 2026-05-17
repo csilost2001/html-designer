@@ -4,6 +4,10 @@
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium", "--no-sandbox"]
     },
+    "playwright-headed": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--no-sandbox"]
+    },
     "harmony-mcp": {
       "type": "http",
       "url": "http://localhost:5179/mcp"
@@ -22,6 +26,16 @@
         "-y",
         "chrome-devtools-mcp@latest",
         "--headless=true",
+        "--isolated=true",
+        "--executable-path=/home/hidekatsu/.cache/puppeteer/chrome/linux-150.0.7843.0/chrome-linux64/chrome"
+      ]
+    },
+    "chrome-devtools-headed": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless=false",
         "--isolated=true",
         "--executable-path=/home/hidekatsu/.cache/puppeteer/chrome/linux-150.0.7843.0/chrome-linux64/chrome"
       ]
