@@ -13,6 +13,7 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import path from "node:path";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import AdmZip from "adm-zip";
 import {
   readProcessFlow,
@@ -52,6 +53,116 @@ type ResponseTypesFile = {
 };
 
 const EXTENSION_PACKAGE_TYPES: ExtensionFileKind[] = ["steps", "fieldTypes", "triggers", "dbOperations", "responseTypes"];
+
+// ── v3 schema 規範ヘルパー (#1141 F-4 / S-9) ───────────────────────────────────
+
+/**
+ * RFC 4122 v4 UUID を生成する (#1141 S-9)。
+ * `crypto.randomUUID()` は Node.js 14.17+ で常用可能、Web Crypto も v19+ で global 化済み。
+ * 旧 `ag-/act-/step- + Date.now()` (Uuid 規範違反) を全廃する。
+ */
+function newId(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * v3 ProcessFlow entity の初期構造を生成する (#1141 F-4)。
+ * schemas/v3/process-flow.v3.schema.json 規範:
+ *   - root: { $schema, meta, context?, actions, authoring? }
+ *   - meta: { id (Uuid), name, description?, kind, maturity?, createdAt, updatedAt, screenId?, ... }
+ *   - actions: ActionDefinition[] (0 件許容)
+ */
+function buildV3ProcessFlow(opts: {
+  id: string;
+  name: string;
+  kind: string;
+  screenId?: string;
+  description?: string;
+  now: string;
+}): Record<string, unknown> {
+  const { id, name, kind, screenId, description, now } = opts;
+  const meta: Record<string, unknown> = {
+    id,
+    name,
+    kind,
+    maturity: "draft",
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (description && description.length > 0) meta.description = description;
+  if (screenId) meta.screenId = screenId;
+  // $schema は v3 規範 path への相対参照 (sample data と同形式)。
+  // backend は actual file path を解決して書くため、ここでは sample と同様に
+  // process-flows/<id>.json から見た schema 相対パスを記述する。
+  return {
+    $schema: "../../../../schemas/v3/process-flow.v3.schema.json",
+    meta,
+    context: {},
+    actions: [],
+    authoring: {},
+  };
+}
+
+/** 安全な isRecord 判定 */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * harmony.json の entities.processFlows[] 一覧を upsert する (#1141 F-4)。
+ * schemas/v3/harmony.v3.schema.json#ProcessFlowEntry に従う:
+ *   - 必須: id (Uuid), no (1..N), name, updatedAt
+ *   - 任意: kind, screenId, actionCount, notesCount, maturity
+ *
+ * `no` は重複しない最大値 + 1 を採番する (sample harmony.json の運用に倣う)。
+ */
+function upsertProcessFlowEntry(
+  project: Record<string, unknown>,
+  entry: { id: string; name: string; kind: string; screenId?: string; actionCount: number; updatedAt: string; maturity?: string },
+): void {
+  const entities = isRecord(project.entities) ? project.entities : {};
+  const list = Array.isArray(entities.processFlows) ? entities.processFlows as Array<Record<string, unknown>> : [];
+  const idx = list.findIndex((m) => isRecord(m) && m.id === entry.id);
+  if (idx >= 0) {
+    // 既存 entry: name/kind/screenId/actionCount/updatedAt/maturity を更新、no は維持
+    const prev = list[idx];
+    list[idx] = {
+      ...prev,
+      name: entry.name,
+      kind: entry.kind,
+      ...(entry.screenId !== undefined ? { screenId: entry.screenId } : {}),
+      actionCount: entry.actionCount,
+      updatedAt: entry.updatedAt,
+      ...(entry.maturity ? { maturity: entry.maturity } : {}),
+    };
+  } else {
+    const maxNo = list.reduce((m, e) => {
+      const n = isRecord(e) && typeof e.no === "number" ? e.no : 0;
+      return Math.max(m, n);
+    }, 0);
+    const next: Record<string, unknown> = {
+      id: entry.id,
+      no: maxNo + 1,
+      name: entry.name,
+      kind: entry.kind,
+      actionCount: entry.actionCount,
+      updatedAt: entry.updatedAt,
+    };
+    if (entry.screenId) next.screenId = entry.screenId;
+    if (entry.maturity) next.maturity = entry.maturity;
+    list.push(next);
+  }
+  entities.processFlows = list;
+  project.entities = entities;
+}
+
+/** harmony.json から processFlow entry を削除 (id 一致行を抜く) */
+function removeProcessFlowEntry(project: Record<string, unknown>, id: string): void {
+  const entities = isRecord(project.entities) ? project.entities : {};
+  const list = Array.isArray(entities.processFlows) ? entities.processFlows as Array<Record<string, unknown>> : [];
+  entities.processFlows = list.filter((m) => !(isRecord(m) && m.id === id));
+  project.entities = entities;
+}
 
 function normalizeResponseTypesFile(raw: unknown): ResponseTypesFile {
   const file = raw && typeof raw === "object" ? raw as Partial<ResponseTypesFile> : {};
@@ -106,14 +217,21 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
 
   switch (name) {
     case "designer__list_process_flows": {
-      const agList = await listProcessFlowFiles(root) as Array<{ id: string; name: string; type: string; screenId?: string; actions?: unknown[]; updatedAt: string }>;
-      if (agList.length === 0) {
+      // #1141 F-4: v3 entity は meta.{name,kind} に格納される。レガシー (flat) も移行猶予で表示。
+      const pfList = await listProcessFlowFiles(root) as Array<Record<string, unknown>>;
+      if (pfList.length === 0) {
         return { content: [{ type: "text", text: "処理フロー定義はまだありません。" }] };
       }
-      const lines = agList.map(
-        (ag) => `- ${ag.id}  ${ag.name}（${ag.type}）アクション:${ag.actions?.length ?? 0}件`
-      );
-      return { content: [{ type: "text", text: `処理フロー一覧 (${agList.length}件):\n${lines.join("\n")}` }] };
+      const lines = pfList.map((pf) => {
+        const meta = isRecord(pf.meta) ? pf.meta : {};
+        const id = (meta.id as string | undefined) ?? (pf.id as string | undefined) ?? "(no-id)";
+        const name = (meta.name as string | undefined) ?? (pf.name as string | undefined) ?? "(no-name)";
+        // v3: meta.kind / legacy: type
+        const kind = (meta.kind as string | undefined) ?? (pf.type as string | undefined) ?? "(no-kind)";
+        const actions = Array.isArray(pf.actions) ? pf.actions : [];
+        return `- ${id}  ${name}（${kind}）アクション:${actions.length}件`;
+      });
+      return { content: [{ type: "text", text: `処理フロー一覧 (${pfList.length}件):\n${lines.join("\n")}` }] };
     }
 
     case "designer__get_process_flow": {
@@ -122,57 +240,82 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       }
       // browser-first: ProcessFlowEditor が開いていれば live 状態を取得
       const liveData = await wsBridge.tryCommand("getProcessFlow", { id: a.processFlowId });
-      const agData = liveData ?? await readProcessFlow(a.processFlowId, root);
-      if (!agData) {
+      const pfData = liveData ?? await readProcessFlow(a.processFlowId, root);
+      if (!pfData) {
         throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       }
       const source = liveData ? "browser live (unsaved 変更を含む)" : "file";
-      const enriched = { _mcpSource: source, ...(agData as Record<string, unknown>) };
+      const enriched = { _mcpSource: source, ...(pfData as Record<string, unknown>) };
       return { content: [{ type: "text", text: JSON.stringify(enriched, null, 2) }] };
     }
 
     case "designer__add_process_flow": {
-      if (typeof a.name !== "string" || typeof a.type !== "string") {
-        throw new McpError(ErrorCode.InvalidParams, "name, type は必須です");
+      // #1141 F-4: v3 構造で書き出す。kind は ProcessFlowKind (旧 type) に rename (#8 discriminator)。
+      if (typeof a.name !== "string" || typeof a.kind !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "name, kind は必須です");
       }
-      const agId = `ag-${Date.now()}`;
-      const agNow = new Date().toISOString();
-      const agDef = {
-        id: agId,
+      const pfId = newId(); // #1141 S-9: RFC 4122 v4 UUID (旧 `ag-${Date.now()}` を全廃)
+      const pfNow = new Date().toISOString();
+      const pfDef = buildV3ProcessFlow({
+        id: pfId,
         name: a.name,
-        type: a.type,
+        kind: a.kind,
         screenId: typeof a.screenId === "string" ? a.screenId : undefined,
-        description: typeof a.description === "string" ? a.description : "",
-        actions: [],
-        createdAt: agNow,
-        updatedAt: agNow,
-      };
-      await writeProcessFlow(agId, agDef, root);
-      const agProject = (await readProject(root) ?? {}) as Record<string, unknown>;
-      const agMetas = (agProject.processFlows ?? []) as Array<Record<string, unknown>>;
-      agMetas.push({ id: agId, name: a.name, type: a.type, screenId: a.screenId, actionCount: 0, updatedAt: agNow });
-      agProject.processFlows = agMetas;
-      agProject.updatedAt = agNow;
-      await writeProject(agProject, root);
-      return { content: [{ type: "text", text: `処理フロー「${a.name}」(${a.type}) を追加しました（ID: ${agId}）` }] };
+        description: typeof a.description === "string" ? a.description : undefined,
+        now: pfNow,
+      });
+      await writeProcessFlow(pfId, pfDef, root);
+
+      // harmony.json entities.processFlows[] の upsert (#1141 F-4)
+      const pfProject = (await readProject(root) ?? {}) as Record<string, unknown>;
+      upsertProcessFlowEntry(pfProject, {
+        id: pfId,
+        name: a.name,
+        kind: a.kind,
+        screenId: typeof a.screenId === "string" ? a.screenId : undefined,
+        actionCount: 0,
+        updatedAt: pfNow,
+        maturity: "draft",
+      });
+      // meta.updatedAt も更新 (v3 root は meta 配下)
+      const projMeta = isRecord(pfProject.meta) ? pfProject.meta : {};
+      projMeta.updatedAt = pfNow;
+      pfProject.meta = projMeta;
+      await writeProject(pfProject, root);
+      return { content: [{ type: "text", text: `処理フロー「${a.name}」(${a.kind}) を追加しました（ID: ${pfId}）` }] };
     }
 
     case "designer__update_process_flow": {
       if (typeof a.processFlowId !== "string" || !a.definition) {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, definition は必須です");
       }
-      const agDef = a.definition as Record<string, unknown>;
-      agDef.updatedAt = new Date().toISOString();
-      await writeProcessFlow(a.processFlowId, agDef, root);
-      const agProject = (await readProject(root) ?? {}) as Record<string, unknown>;
-      const agMetas = (agProject.processFlows ?? []) as Array<Record<string, unknown>>;
-      const agIdx = agMetas.findIndex((m) => m.id === a.processFlowId);
-      const agActions = (agDef.actions ?? []) as unknown[];
-      const agMeta = { id: a.processFlowId, name: agDef.name, type: agDef.type, screenId: agDef.screenId, actionCount: agActions.length, updatedAt: agDef.updatedAt };
-      if (agIdx >= 0) agMetas[agIdx] = agMeta; else agMetas.push(agMeta);
-      agProject.processFlows = agMetas;
-      agProject.updatedAt = agDef.updatedAt as string;
-      await writeProject(agProject, root);
+      const pfDef = a.definition as Record<string, unknown>;
+      const pfNow = new Date().toISOString();
+      // v3: meta.updatedAt を更新 (legacy 互換のため root.updatedAt も touch)
+      const pfMeta = isRecord(pfDef.meta) ? pfDef.meta : {};
+      pfMeta.updatedAt = pfNow;
+      pfDef.meta = pfMeta;
+      await writeProcessFlow(a.processFlowId, pfDef, root);
+
+      const pfProject = (await readProject(root) ?? {}) as Record<string, unknown>;
+      const actions = Array.isArray(pfDef.actions) ? pfDef.actions : [];
+      const name = (pfMeta.name as string | undefined) ?? (pfDef.name as string | undefined) ?? "(no-name)";
+      const kind = (pfMeta.kind as string | undefined) ?? (pfDef.type as string | undefined) ?? "other";
+      const screenId = (pfMeta.screenId as string | undefined) ?? (pfDef.screenId as string | undefined);
+      const maturity = (pfMeta.maturity as string | undefined) ?? (pfDef.maturity as string | undefined);
+      upsertProcessFlowEntry(pfProject, {
+        id: a.processFlowId,
+        name,
+        kind,
+        screenId,
+        actionCount: actions.length,
+        updatedAt: pfNow,
+        maturity,
+      });
+      const projMeta = isRecord(pfProject.meta) ? pfProject.meta : {};
+      projMeta.updatedAt = pfNow;
+      pfProject.meta = projMeta;
+      await writeProject(pfProject, root);
       return { content: [{ type: "text", text: `処理フロー ${a.processFlowId} を更新しました。` }] };
     }
 
@@ -181,11 +324,12 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId は必須です");
       }
       await deleteProcessFlowFile(a.processFlowId, root);
-      const agProject = (await readProject(root) ?? {}) as Record<string, unknown>;
-      const agMetas = ((agProject.processFlows ?? []) as Array<Record<string, unknown>>).filter((m) => m.id !== a.processFlowId);
-      agProject.processFlows = agMetas;
-      agProject.updatedAt = new Date().toISOString();
-      await writeProject(agProject, root);
+      const pfProject = (await readProject(root) ?? {}) as Record<string, unknown>;
+      removeProcessFlowEntry(pfProject, a.processFlowId);
+      const projMeta = isRecord(pfProject.meta) ? pfProject.meta : {};
+      projMeta.updatedAt = new Date().toISOString();
+      pfProject.meta = projMeta;
+      await writeProject(pfProject, root);
       return { content: [{ type: "text", text: `処理フロー ${a.processFlowId} を削除しました。` }] };
     }
 
@@ -193,37 +337,57 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       if (typeof a.processFlowId !== "string" || typeof a.name !== "string" || typeof a.trigger !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, name, trigger は必須です");
       }
-      const ag = await readProcessFlow(a.processFlowId, root) as Record<string, unknown> | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
-      const actions = (ag.actions ?? []) as Array<Record<string, unknown>>;
-      const actionId = `act-${Date.now()}`;
-      actions.push({ id: actionId, name: a.name, trigger: a.trigger, steps: [] });
-      ag.actions = actions;
-      ag.updatedAt = new Date().toISOString();
-      await writeProcessFlow(a.processFlowId, ag, root);
+      const pf = await readProcessFlow(a.processFlowId, root) as Record<string, unknown> | null;
+      if (!pf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const actions = Array.isArray(pf.actions) ? pf.actions as Array<Record<string, unknown>> : [];
+      const actionId = newId(); // #1141 S-9: UUID v4 (旧 `act-${Date.now()}` 全廃)
+      // v3 ActionDefinition の最小形 (description 必須 + maturity 推奨)
+      actions.push({
+        id: actionId,
+        name: a.name,
+        description: typeof a.description === "string" ? a.description : "",
+        trigger: a.trigger,
+        maturity: "draft",
+        steps: [],
+      });
+      pf.actions = actions;
+      // v3: meta.updatedAt を更新
+      const pfMeta = isRecord(pf.meta) ? pf.meta : {};
+      pfMeta.updatedAt = new Date().toISOString();
+      pf.meta = pfMeta;
+      await writeProcessFlow(a.processFlowId, pf, root);
       return { content: [{ type: "text", text: `アクション「${a.name}」を追加しました（ID: ${actionId}）` }] };
     }
 
     case "designer__add_step": {
-      if (typeof a.processFlowId !== "string" || typeof a.actionId !== "string" || typeof a.type !== "string") {
-        throw new McpError(ErrorCode.InvalidParams, "processFlowId, actionId, type は必須です");
+      // #1141 F-4: kind discriminator (旧 type) に統一 + RFC 4122 v4 UUID
+      if (typeof a.processFlowId !== "string" || typeof a.actionId !== "string" || typeof a.kind !== "string") {
+        throw new McpError(ErrorCode.InvalidParams, "processFlowId, actionId, kind は必須です");
       }
       // browser-first: ProcessFlowEditor が開いていれば in-memory に適用
+      // NOTE: browser 側 mutation handler は引き続き内部 `type` field を受ける旧 API のため、
+      // params に kind 追加。browser 側を v3 化する作業は別 ISSUE で追従 (UI 互換維持)。
       const addApplied = await wsBridge.tryCommand("applyProcessFlowMutation", {
         id: a.processFlowId, type: "designer__add_step", params: a,
       });
       if (addApplied) {
-        return { content: [{ type: "text", text: `ステップ（${a.type}）をブラウザで追加しました（保存で確定）` }] };
+        return { content: [{ type: "text", text: `ステップ（${a.kind}）をブラウザで追加しました（保存で確定）` }] };
       }
       // fallback: ファイル書き
-      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
-      const stepId = `step-${Date.now()}`;
+      const pf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!pf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const stepId = newId(); // #1141 S-9: UUID v4 (旧 `step-${Date.now()}` 全廃)
       const detail = (a.detail ?? {}) as Record<string, unknown>;
-      const step = { id: stepId, type: a.type as string, description: (a.description as string) ?? "", ...detail };
-      editInsertStepAt(ag, a.actionId as string, step, typeof a.position === "number" ? a.position : undefined);
-      await saveAndBroadcast(a.processFlowId, ag, root);
-      return { content: [{ type: "text", text: `ステップ（${a.type}）を追加しました（ID: ${stepId}）` }] };
+      // v3: discriminator は `kind`。description は schema 上 required の variant が多いので必ず提供。
+      const step = {
+        id: stepId,
+        kind: a.kind as string,
+        description: typeof a.description === "string" ? a.description : "",
+        ...detail,
+      };
+      editInsertStepAt(pf, a.actionId as string, step, typeof a.position === "number" ? a.position : undefined);
+      await saveAndBroadcast(a.processFlowId, pf, root);
+      return { content: [{ type: "text", text: `ステップ（${a.kind}）を追加しました（ID: ${stepId}）` }] };
     }
 
     case "designer__update_step": {
@@ -237,14 +401,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで更新しました（保存で確定）` }] };
       }
       // fallback
-      const updAg = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!updAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const updPf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!updPf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
-        editUpdateStep(updAg, a.stepId, a.patch as Record<string, unknown>);
+        editUpdateStep(updPf, a.stepId, a.patch as Record<string, unknown>);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, updAg, root);
+      await saveAndBroadcast(a.processFlowId, updPf, root);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を更新しました。` }] };
     }
 
@@ -259,14 +423,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで削除しました（保存で確定）` }] };
       }
       // fallback
-      const rmAg = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!rmAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const rmPf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!rmPf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
-        editRemoveStep(rmAg, a.stepId);
+        editRemoveStep(rmPf, a.stepId);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, rmAg, root);
+      await saveAndBroadcast(a.processFlowId, rmPf, root);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を削除しました。` }] };
     }
 
@@ -281,14 +445,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         return { content: [{ type: "text", text: `ステップ ${a.stepId} をブラウザで位置 ${a.newIndex} に移動しました（保存で確定）` }] };
       }
       // fallback
-      const mvAg = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!mvAg) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const mvPf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!mvPf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
-        editMoveStep(mvAg, a.stepId, a.newIndex);
+        editMoveStep(mvPf, a.stepId, a.newIndex);
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, mvAg, root);
+      await saveAndBroadcast(a.processFlowId, mvPf, root);
       return { content: [{ type: "text", text: `ステップ ${a.stepId} を位置 ${a.newIndex} に移動しました。` }] };
     }
 
@@ -296,14 +460,14 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       if (typeof a.processFlowId !== "string" || typeof a.target !== "string" || typeof a.maturity !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, target, maturity は必須です");
       }
-      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const pf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!pf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
-        editSetMaturity(ag, a.target as "group" | "action" | "step", a.targetId as string | undefined, a.maturity as "draft" | "provisional" | "committed");
+        editSetMaturity(pf, a.target as "group" | "action" | "step", a.targetId as string | undefined, a.maturity as "draft" | "provisional" | "committed");
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
       }
-      await saveAndBroadcast(a.processFlowId, ag, root);
+      await saveAndBroadcast(a.processFlowId, pf, root);
       return { content: [{ type: "text", text: `maturity を ${a.maturity} に更新しました。` }] };
     }
 
@@ -311,11 +475,11 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
       if (typeof a.processFlowId !== "string" || typeof a.stepId !== "string" || typeof a.type !== "string" || typeof a.body !== "string") {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, stepId, type, body は必須です");
       }
-      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      const pf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!pf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
       try {
-        const res = editAddStepNote(ag, a.stepId, a.type as string, a.body as string);
-        await saveAndBroadcast(a.processFlowId, ag, root);
+        const res = editAddStepNote(pf, a.stepId, a.type as string, a.body as string);
+        await saveAndBroadcast(a.processFlowId, pf, root);
         return { content: [{ type: "text", text: `付箋を追加しました (ID: ${res.id})` }] };
       } catch (e) {
         throw new McpError(ErrorCode.InvalidParams, (e as Error).message);
@@ -404,10 +568,10 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
           description: value.description,
         }, root);
       }
-      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
-      editAddCatalogEntry(ag, a.catalog as CatalogName, a.key as string, a.value as Record<string, unknown>);
-      await saveAndBroadcast(a.processFlowId, ag, root);
+      const pf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!pf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      editAddCatalogEntry(pf, a.catalog as CatalogName, a.key as string, a.value as Record<string, unknown>);
+      await saveAndBroadcast(a.processFlowId, pf, root);
       return { content: [{ type: "text", text: `${a.catalog}.${a.key} を追加/更新しました。` }] };
     }
 
@@ -426,10 +590,10 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         }
         return { content: [{ type: "text", text: `responseTypes.${a.key} を削除しました。` }] };
       }
-      const ag = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
-      if (!ag) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
-      editRemoveCatalogEntry(ag, a.catalog as CatalogName, a.key as string);
-      await saveAndBroadcast(a.processFlowId, ag, root);
+      const pf = await readProcessFlow(a.processFlowId, root) as ProcessFlowDoc | null;
+      if (!pf) throw new McpError(ErrorCode.InvalidParams, `処理フロー ${a.processFlowId} が見つかりません`);
+      editRemoveCatalogEntry(pf, a.catalog as CatalogName, a.key as string);
+      await saveAndBroadcast(a.processFlowId, pf, root);
       return { content: [{ type: "text", text: `${a.catalog}.${a.key} を削除しました。` }] };
     }
 
@@ -786,7 +950,9 @@ function collectExternalSteps(steps: unknown[]): Array<Record<string, unknown>> 
   const result: Array<Record<string, unknown>> = [];
   for (const step of steps) {
     const s = step as Record<string, unknown>;
-    if (s.type === "externalSystem") result.push(s);
+    // v3 schema: discriminator は `kind`。レガシー `type` も移行猶予のため対応 (#1141)。
+    const stepKind = (s.kind ?? s.type) as string | undefined;
+    if (stepKind === "externalSystem") result.push(s);
     for (const nested of collectNestedStepLists(s)) {
       result.push(...collectExternalSteps(nested));
     }

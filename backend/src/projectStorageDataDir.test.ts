@@ -140,12 +140,24 @@ describe("dataDir = 'harmony' (デフォルト)", () => {
     await fs.access(path.join(root, "harmony", "tables", "tbl-001.json"));
   });
 
-  it("writeProcessFlow → readProcessFlow で <dataDir>/actions/ に書き込まれる", async () => {
+  it("writeProcessFlow → readProcessFlow で <dataDir>/process-flows/ に書き込まれる (#1141 v3 規範 path)", async () => {
     await writeProcessFlow("flow-001", { id: "flow-001", steps: [] }, root);
     const data = await readProcessFlow("flow-001", root);
     expect(data).toMatchObject({ id: "flow-001" });
-    // 物理ファイルの位置を確認
-    await fs.access(path.join(root, "harmony", "actions", "flow-001.json"));
+    // #1141 F-4: 新規は v3 規範 path (process-flows/) に書き込まれる
+    await fs.access(path.join(root, "harmony", "process-flows", "flow-001.json"));
+  });
+
+  it("writeProcessFlow → 既存 actions/<id>.json があれば legacy path を維持する (#1141 後方互換)", async () => {
+    // 事前に legacy 配置 (actions/) にファイルを置いておく
+    const legacyPath = path.join(root, "harmony", "actions", "legacy-flow.json");
+    await fs.mkdir(path.dirname(legacyPath), { recursive: true });
+    await fs.writeFile(legacyPath, JSON.stringify({ id: "legacy-flow" }), "utf-8");
+    await writeProcessFlow("legacy-flow", { id: "legacy-flow", steps: [] }, root);
+    // 既存 actions/ 配置が維持されている
+    await fs.access(legacyPath);
+    // process-flows/ には新規ファイルが作成されない
+    await expect(fs.access(path.join(root, "harmony", "process-flows", "legacy-flow.json"))).rejects.toThrow();
   });
 
   it("writeScreen / readScreen で <dataDir>/screens/ に書き込まれる", async () => {
@@ -188,11 +200,11 @@ describe("dataDir = 'design/spec' (multi-segment path)", () => {
     await expect(fs.access(path.join(root, "tables", "tbl-spec.json"))).rejects.toThrow();
   });
 
-  it("writeProcessFlow → 物理ファイルが <root>/design/spec/actions/ に作成される", async () => {
+  it("writeProcessFlow → 物理ファイルが <root>/design/spec/process-flows/ に作成される (#1141 v3 規範)", async () => {
     await writeProcessFlow("flow-spec", { id: "flow-spec", steps: [] }, root);
-    await fs.access(path.join(root, "design", "spec", "actions", "flow-spec.json"));
-    // root/actions/ には作成されないこと
-    await expect(fs.access(path.join(root, "actions", "flow-spec.json"))).rejects.toThrow();
+    await fs.access(path.join(root, "design", "spec", "process-flows", "flow-spec.json"));
+    // root/process-flows/ には作成されないこと
+    await expect(fs.access(path.join(root, "process-flows", "flow-spec.json"))).rejects.toThrow();
   });
 
   it("writeView → 物理ファイルが <root>/design/spec/views/ に作成される", async () => {

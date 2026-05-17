@@ -856,7 +856,7 @@ export const tools = [
   {
     name: "designer__add_process_flow",
     description:
-      "新しい処理フロー定義（処理フロー）を作成します。",
+      "新しい処理フロー定義（処理フロー）を作成します。生成される ID は RFC 4122 v4 UUID (例: f81dd9e0-794c-4539-a2a5-9cbcc0a75899)。v3 schema (#1141) に従って meta/context/actions/authoring の 4 並列構造で保存されます。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -864,21 +864,21 @@ export const tools = [
           type: "string",
           description: "処理フロー名（例: ログイン画面、月次集計バッチ）",
         },
-        type: {
+        kind: {
           type: "string",
           enum: ["screen", "batch", "scheduled", "system", "common", "other"],
-          description: "種別（screen=画面, batch=バッチ, common=共通処理 等）",
+          description: "ProcessFlowKind 種別。v3 discriminator (#8 / #1141): screen=画面、batch=バッチ、scheduled=スケジュール起動、system=システム間、common=共通処理、other=その他。",
         },
         screenId: {
           type: "string",
-          description: "画面ID（type=screen の場合）。省略可。",
+          description: "紐付く Screen の UUID (RFC 4122 v4 形式)。kind='screen' の場合に推奨。省略可。",
         },
         description: {
           type: "string",
           description: "処理フローの説明。省略可。",
         },
       },
-      required: ["name", "type"],
+      required: ["name", "kind"],
     },
   },
   {
@@ -942,37 +942,37 @@ export const tools = [
   {
     name: "designer__add_step",
     description:
-      "アクションにステップ（処理手順）を追加します。",
+      "アクションにステップ（処理手順）を追加します。生成される step ID は RFC 4122 v4 UUID (例: f81dd9e0-794c-4539-a2a5-9cbcc0a75899)。v3 schema (#1141) では discriminator は `kind` (旧 `type`) に統一されました。",
     inputSchema: {
       type: "object" as const,
       properties: {
         processFlowId: {
           type: "string",
-          description: "対象の処理フローID",
+          description: "対象の処理フローの UUID (RFC 4122 v4 形式)",
         },
         actionId: {
           type: "string",
-          description: "対象のアクションID",
+          description: "対象のアクションの UUID (RFC 4122 v4 形式)",
         },
-        type: {
+        kind: {
           type: "string",
-          enum: ["validation", "dbAccess", "externalSystem", "commonProcess", "screenTransition", "displayUpdate", "branch", "loop", "loopBreak", "loopContinue", "jump", "compute", "return", "other"],
-          description: "ステップ種別",
+          enum: ["validation", "dbAccess", "externalSystem", "commonProcess", "componentCall", "screenTransition", "displayUpdate", "branch", "loop", "loopBreak", "loopContinue", "jump", "compute", "return", "aiCall", "aiAgent", "transactionScope", "workflow", "publishEvent", "subscribeEvent", "other"],
+          description: "v3 ステップ discriminator (#8 / #1141)。組み込み 24 variant + 拡張参照 (`namespace:StepName`)。",
         },
         description: {
           type: "string",
-          description: "ステップの処理概要",
+          description: "ステップの処理概要 (v3 schema 上多くの variant で必須)",
         },
         detail: {
           type: "object",
-          description: "ステップ種別固有の詳細（tableName, operation, refId 等）。省略可。",
+          description: "ステップ種別固有の詳細（tableId, operation, sql 等）。省略可。",
         },
         position: {
           type: "number",
           description: "挿入位置 (0-based index)。省略時は末尾。",
         },
       },
-      required: ["processFlowId", "actionId", "type", "description"],
+      required: ["processFlowId", "actionId", "kind", "description"],
     },
   },
   {

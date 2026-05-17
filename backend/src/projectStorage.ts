@@ -17,6 +17,7 @@
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
+import crypto from "node:crypto";
 import type { ValidateFunction } from "ajv";
 import Ajv2020 from "ajv/dist/2020.js";
 import { workspaceContextManager } from "./workspaceState.js";
@@ -162,39 +163,134 @@ function kindToFileKey(kind: ExtensionFileKind): string {
   }
 }
 
-/** Ajv インスタンスとバリデーター関数のモジュールレベルキャッシュ (#455 / #955)。
+/** Ajv インスタンスとバリデーター関数のモジュールレベルキャッシュ (#455 / #955 / #1141)。
  * v3 統合 schema (#955) は draft 2020-12 のため Ajv2020 を使用。
  * strict: false は schema 内 description 等の警告を抑制 (workspaceInit.ts:51 と同方針) */
 const _ajv = new Ajv2020({ allErrors: true, strict: false });
 let _v3SchemasRegistered = false;
 const _validatorCache = new Map<ExtensionFileKind, ValidateFunction>();
 
+/** Entity (ProcessFlow / Screen / Table) AJV validator のキャッシュ (#1141 F-2) */
+export type EntityKind = "processFlow" | "screen" | "table";
+const _entityValidatorCache = new Map<EntityKind, ValidateFunction>();
+
 /**
- * v3 統合 schema (extensions.v3 / common.v3) を ajv に登録する (#955)。
+ * v3 統合 schema (extensions.v3 / common.v3 + entity schemas) を ajv に登録する (#955 / #1141)。
  * extensions.v3 → common.v3 への外部 $ref を解決可能にするため、 両方を addSchema する。
+ * #1141 F-2: process-flow.v3 / screen.v3 / table.v3 も同 ajv インスタンスに登録し、
+ * `writeProcessFlow` / `writeScreen` / `writeTable` 経路から AJV 検証可能にする。
  *
  * 同 $id の重複登録を回避するため、 ajv.getSchema で既存確認してから追加する。
  * (他 validator や別呼び出し経路で既に登録済みの場合がある)
  */
 async function ensureV3SchemasRegistered(): Promise<void> {
   if (_v3SchemasRegistered) return;
-  const commonSchemaText = await fs.readFile(
-    path.join(SCHEMAS_DIR, "v3", "common.v3.schema.json"),
-    "utf-8",
-  );
-  const extensionsSchemaText = await fs.readFile(
-    path.join(SCHEMAS_DIR, "v3", "extensions.v3.schema.json"),
-    "utf-8",
-  );
-  const commonSchema = JSON.parse(commonSchemaText) as { $id?: string };
-  const extensionsSchema = JSON.parse(extensionsSchemaText) as { $id?: string };
-  if (commonSchema.$id && !_ajv.getSchema(commonSchema.$id)) {
-    _ajv.addSchema(commonSchema);
-  }
-  if (extensionsSchema.$id && !_ajv.getSchema(extensionsSchema.$id)) {
-    _ajv.addSchema(extensionsSchema);
+  const filesToRegister = [
+    "common.v3.schema.json",
+    "extensions.v3.schema.json",
+    "screen-item.v3.schema.json", // screen.v3 から参照される (#1141)
+    "process-flow.v3.schema.json",
+    "screen.v3.schema.json",
+    "table.v3.schema.json",
+  ];
+  for (const fileName of filesToRegister) {
+    const text = await fs.readFile(path.join(SCHEMAS_DIR, "v3", fileName), "utf-8");
+    const schema = JSON.parse(text) as { $id?: string };
+    if (schema.$id && !_ajv.getSchema(schema.$id)) {
+      _ajv.addSchema(schema);
+    }
   }
   _v3SchemasRegistered = true;
+}
+
+/** Entity 種別 → v3 schema $id 対応 (#1141 F-2) */
+function entityKindToSchemaId(kind: EntityKind): string {
+  switch (kind) {
+    case "processFlow":
+      return "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/process-flow.v3.schema.json";
+    case "screen":
+      return "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/screen.v3.schema.json";
+    case "table":
+      return "https://raw.githubusercontent.com/csilost2001/harmony/main/schemas/v3/table.v3.schema.json";
+  }
+}
+
+/**
+ * Entity (ProcessFlow / Screen / Table) AJV validator を取得 (#1141 F-2)。
+ * 同 ajv インスタンスに addSchema 済みの v3 schema を $id 経由で取り出す。
+ */
+async function getEntityValidator(kind: EntityKind): Promise<ValidateFunction> {
+  const cached = _entityValidatorCache.get(kind);
+  if (cached) return cached;
+  await ensureV3SchemasRegistered();
+  const validator = _ajv.getSchema(entityKindToSchemaId(kind));
+  if (!validator) {
+    throw new Error(`v3 schema for entity ${kind} not registered`);
+  }
+  _entityValidatorCache.set(kind, validator);
+  return validator;
+}
+
+/**
+ * Entity を AJV 検証し、違反があれば draft-state policy に従って warning marker を data.authoring.markers
+ * に append する (#1141 F-2 / docs/spec/draft-state-policy.md)。
+ *
+ * - 違反があっても throw しない (draft-state policy: 保存可 + 警告可視化)
+ * - marker.kind='validator' + validatorCode + validatorPath を必須付与 (common.v3.schema Marker 規約)
+ * - 同 validatorCode + validatorPath の marker が既に未解決で存在する場合は重複追加しない
+ * - 戻り値: 新規追加した marker 件数 (0 = schema valid または重複既存)
+ *
+ * NOTE: marker id は RFC 4122 v4 UUID (common.v3 Marker.id は Uuid)。
+ */
+async function annotateValidationWarnings(
+  kind: EntityKind,
+  data: unknown,
+): Promise<number> {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return 0;
+  const validate = await getEntityValidator(kind);
+  if (validate(data)) return 0;
+  const errors = validate.errors ?? [];
+  if (errors.length === 0) return 0;
+
+  const obj = data as Record<string, unknown>;
+  const authoring = (typeof obj.authoring === "object" && obj.authoring !== null && !Array.isArray(obj.authoring))
+    ? obj.authoring as Record<string, unknown>
+    : {};
+  const markers = Array.isArray(authoring.markers) ? authoring.markers as Array<Record<string, unknown>> : [];
+  const now = new Date().toISOString();
+  let added = 0;
+
+  for (const err of errors) {
+    const validatorPath = typeof err.instancePath === "string" && err.instancePath.length > 0
+      ? err.instancePath
+      : "/";
+    const validatorCode = `AJV_${(err.keyword ?? "ERROR").toUpperCase()}`;
+    const body = `${err.message ?? "schema violation"} (${validatorPath})`;
+    const dup = markers.find((m) => (
+      m && typeof m === "object" &&
+      m.kind === "validator" &&
+      m.validatorCode === validatorCode &&
+      m.validatorPath === validatorPath &&
+      !m.resolvedAt
+    ));
+    if (dup) continue;
+    markers.push({
+      id: crypto.randomUUID(),
+      kind: "validator",
+      body,
+      author: "ai",
+      createdAt: now,
+      validatorCode,
+      validatorPath,
+    });
+    added++;
+  }
+
+  if (added > 0) {
+    authoring.markers = markers;
+    obj.authoring = authoring;
+  }
+  return added;
 }
 
 /**
@@ -527,7 +623,11 @@ export async function readScreen(screenId: string, root: string): Promise<unknow
   return readJSON<unknown>(path.join(screensDir(dataRoot), `${screenId}.design.json`));
 }
 
-/** screens/{screenId}.json を書き込み */
+/** screens/{screenId}.json を書き込み
+ *
+ * #1141 F-2: schema 違反は draft-state policy に従い `authoring.markers` (kind='validator')
+ * として entity 側に記録した上で書き込みを許可する (throw しない)。
+ */
 export async function writeScreen(screenId: string, data: unknown, root: string): Promise<void> {
   const r = root;
   const dataRoot = await ensureDataDirFromRoot(r);
@@ -545,6 +645,7 @@ export async function writeScreen(screenId: string, data: unknown, root: string)
       designFileRef: `${screenId}.design.json`,
     },
   };
+  await annotateValidationWarnings("screen", entity);
   const sDir = screensDir(dataRoot);
   await writeJSON(path.join(sDir, `${screenId}.json`), entity);
   await writeJSON(path.join(sDir, `${screenId}.design.json`), data);
@@ -682,10 +783,15 @@ export async function readTable(tableId: string, root: string): Promise<unknown 
   return readJSON<unknown>(path.join(tablesDir(dataRoot), `${tableId}.json`));
 }
 
-/** tables/{tableId}.json を書き込み */
+/** tables/{tableId}.json を書き込み
+ *
+ * #1141 F-2: schema 違反は draft-state policy に従い `authoring.markers` (kind='validator')
+ * として entity 側に記録した上で書き込みを許可する (throw しない)。
+ */
 export async function writeTable(tableId: string, data: unknown, root: string): Promise<void> {
   const r = root;
   const dataRoot = await ensureDataDirFromRoot(r);
+  await annotateValidationWarnings("table", data);
   await writeJSON(path.join(tablesDir(dataRoot), `${tableId}.json`), data);
 }
 
@@ -735,12 +841,28 @@ export async function readProcessFlow(processFlowId: string, root: string): Prom
   return null;
 }
 
-/** 既存配置を優先して処理フローを書き込み */
+/** 既存配置を優先して処理フローを書き込み
+ *
+ * #1141: 新規作成時 (両 path に未存在) は v3 規範の `process-flows/<id>.json` に書く。
+ * 既存があれば既存配置を維持 (legacy `actions/<id>.json` も互換のため対応)。
+ *
+ * #1141 F-2: schema 違反は draft-state policy に従い `authoring.markers` (kind='validator')
+ * として entity 側に記録した上で書き込みを許可する (throw しない)。
+ */
 export async function writeProcessFlow(processFlowId: string, data: unknown, root: string): Promise<void> {
   const r = root;
   const dataRoot = await ensureDataDirFromRoot(r);
   const [legacyPath, currentPath] = processFlowFileCandidates(dataRoot, processFlowId);
-  const targetPath = await fileExists(currentPath) ? currentPath : legacyPath;
+  let targetPath: string;
+  if (await fileExists(currentPath)) {
+    targetPath = currentPath;
+  } else if (await fileExists(legacyPath)) {
+    targetPath = legacyPath;
+  } else {
+    // 新規: v3 規範 path (`process-flows/`) を使う (#1141)
+    targetPath = currentPath;
+  }
+  await annotateValidationWarnings("processFlow", data);
   await writeJSON(targetPath, data);
 }
 
