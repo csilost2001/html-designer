@@ -1,13 +1,13 @@
-<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>distribution roadmap</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="/_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
+<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="../../favicon.svg" type="image/svg+xml"><title>distribution roadmap</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="../../_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
       // FOUC 回避: テーマ復元を <head> 内で実行 (paint 前)
       if (localStorage.getItem('theme') === 'light') {
         document.documentElement.classList.remove('dark');
       }
-    </script><link rel="stylesheet" href="/_astro/_slug_.D9Jf1cs-.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="/" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="/spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="/user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="/conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="/setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="/presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+    </script><link rel="stylesheet" href="../../_astro/_slug_.DpmzT9nP.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="../../" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="../../spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="../../user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="../../conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="../../setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="../../presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
 🔍 検索
 </button> </pagefind-modal-trigger> <button type="button" id="theme-toggle" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle theme">
 🌓
-</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> セットアップ </div> <ul class="space-y-0.5"> <li> <a href="/setup/dev-containers/" class="sidebar-link"> Dev Containers (推奨) </a> </li><li> <a href="/setup/wsl2-native/" class="sidebar-link"> WSL2 native (代替) </a> </li><li> <a href="/setup/distribution-roadmap/" class="sidebar-link active"> 配布構想 (将来) </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="harmony-配布形態ロードマップ--docker-image-化構想">Harmony 配布形態ロードマップ — Docker image 化構想</h1>
+</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> セットアップ </div> <ul class="space-y-0.5"> <li> <a href="../../setup/dev-containers/" class="sidebar-link"> Dev Containers (推奨) </a> </li><li> <a href="../../setup/wsl2-native/" class="sidebar-link"> WSL2 native (代替) </a> </li><li> <a href="../../setup/distribution-roadmap/" class="sidebar-link active"> 配布構想 (将来) </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="harmony-配布形態ロードマップ--docker-image-化構想">Harmony 配布形態ロードマップ — Docker image 化構想</h1>
 <p>Harmony 本体 (frontend + backend) を Docker image として配布し、利用者が <code>git clone</code> せずに <code>docker compose up</code> だけで起動できるようにする構想。</p>
 <blockquote>
 <p>⚠️ <strong>本書は構想 / ロードマップであり、現状未実装です</strong> (2026-05-15 時点)。</p>
@@ -18,7 +18,7 @@
 <p>⚠️ <strong>本書記載の 2-container 案は #1055 L2 方針 (backend-static-serve で 1 container 統合) と矛盾しています</strong>。L2 着手時には <strong>1-container 案</strong> (backend が <code>express.static()</code> で <code>frontend/dist/</code> を配信、5179 ポートで HTTP MCP / WebSocket / SPA 全部) で書き直す前提で、本書の compose 構成 (frontend + backend 2 サービス) は<strong>そのまま採用しないでください</strong>。</p>
 <p>✅ ただし <strong>本書の構造 (Step 2-1 〜 2-8) と方針は historical reference として保持しています</strong>。ghcr.io への push 手順 / GitHub Actions / volume mount 設計 / トラブルシューティング等は 1-container 案でもそのまま使えるため、L2/L3 着手者の出発点として読む価値があります。</p>
 </blockquote>
-<p>開発環境セットアップ手順は本書の対象外です。Harmony 本体を開発したい場合は <a href="/setup/dev-containers/"><code>dev-containers.md</code></a> (推奨) または <a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a> (代替) を参照してください。</p>
+<p>開発環境セットアップ手順は本書の対象外です。Harmony 本体を開発したい場合は <a href="../../setup/dev-containers/"><code>dev-containers.md</code></a> (推奨) または <a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a> (代替) を参照してください。</p>
 <hr>
 <h2 id="l2-着手前の必須設計判断-バトン情報">L2 着手前の必須設計判断 (バトン情報)</h2>
 <p>#1055 L2 着手者はまず本節を読んでから書き直しに入ること。Step 2-1〜2-8 (後述) はこの設計判断に従って再構成する必要がある。</p>
@@ -459,10 +459,10 @@
 <hr>
 <h2 id="関連ドキュメント">関連ドキュメント</h2>
 <ul>
-<li><a href="/setup/AGENTS/"><code>AGENTS.md</code></a> — プロジェクト全般のガイダンス</li>
-<li><a href="/setup/CLAUDE/"><code>CLAUDE.md</code></a> — Claude Code 固有の設定</li>
-<li><a href="/setup/dev-containers/"><code>dev-containers.md</code></a> — 開発環境 (推奨)</li>
-<li><a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a> — 開発環境 (代替)</li>
+<li><a href="../../setup/AGENTS/"><code>AGENTS.md</code></a> — プロジェクト全般のガイダンス</li>
+<li><a href="../../setup/CLAUDE/"><code>CLAUDE.md</code></a> — Claude Code 固有の設定</li>
+<li><a href="../../setup/dev-containers/"><code>dev-containers.md</code></a> — 開発環境 (推奨)</li>
+<li><a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a> — 開発環境 (代替)</li>
 <li>ISSUE <a href="https://github.com/csilost2001/harmony/issues/1055">#1055</a> — L1 Dockerfile + L2/L3 方針記載</li>
 <li>ISSUE <a href="https://github.com/csilost2001/harmony/issues/847">#847</a> — Dev Containers 移行 roadmap (closed)</li>
 </ul>

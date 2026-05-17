@@ -24,6 +24,8 @@ cd docs-site
 npm run build
 # → ../docs/html/ に出力
 # → ../docs/html/pagefind/ に検索 index 生成
+# → post-process (scripts/relativize-html-paths.mjs) で全 HTML/CSS/JS の
+#   絶対パスを相対パスに rewrite (file:// 直開き対応、HTTP server でも互換)
 ```
 
 ## dev (live reload)

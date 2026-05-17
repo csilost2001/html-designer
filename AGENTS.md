@@ -196,18 +196,21 @@ npx playwright install chromium  # rehype-mermaid 用、初回のみ
 
 #### ローカル閲覧
 
-build 後の HTML を browser で開く方法:
+build 後の HTML を browser で開く方法。**`npm run build` の post-process で全 HTML/CSS/JS の絶対パス (`/foo/`) を相対パス (`./foo/` or `../../foo/`) に書き換え済** (`docs-site/scripts/relativize-html-paths.mjs`)、両方対応:
 
-1. **静的に開く** (file:// プロトコル、検索機能含む大半の動作確認可):
+1. **静的に開く** (file:// プロトコル、リンク + asset + 検索 UI 全動作):
    - Linux: `xdg-open docs/html/index.html`
    - macOS: `open docs/html/index.html`
    - Windows: `start docs\html\index.html`
-2. **preview server で開く** (HTTP server、検索/SW 等の制約解消):
+   - Windows + WSL2: explorer から `\\wsl.localhost\<distro>\home\<user>\projects\harmony\docs\html\index.html` を double click
+2. **preview server で開く** (HTTP server、開発時の live reload 等):
    ```bash
    cd docs-site
    npm run preview
    # → http://127.0.0.1:4321/
    ```
+
+注意: post-process script は `npm run build` で自動実行されるため、build artifact を直接 push する前提で機能する。手動で `astro build` のみ実行した場合は別途 `node scripts/relativize-html-paths.mjs` が必要。
 
 #### AI による browser smoke test (Playwright / chrome-devtools MCP)
 

@@ -71,6 +71,7 @@ export const navigation: Record<string, NavGroup[]> = {
       items: [
         { id: 'code-generation', title: 'コード生成' },
         { id: 'conversion-guideline-for-ai', title: 'AI 変換ガイドライン' },
+        { id: 'react-exporter', title: 'React Exporter (designer__export_screen)' },
         { id: 'e2e-vite-stability', title: 'E2E Vite 安定性' },
       ],
     },
