@@ -158,8 +158,8 @@ export function generateSpecJson(
 ): SpecJson {
   const relations = getAllRelations(tables, erLayout);
 
-  const commonGroups = (processFlows ?? []).filter((g) => g.type === "common");
-  const nonCommonGroups = (processFlows ?? []).filter((g) => g.type !== "common");
+  const commonGroups = (processFlows ?? []).filter((g) => g.kind === "common");
+  const nonCommonGroups = (processFlows ?? []).filter((g) => g.kind !== "common");
 
   const result: SpecJson = {
     projectName: project.name,

@@ -307,7 +307,7 @@ function summarizeActionFields(fields: unknown, fallback: string): string {
 function summarizeActionStepTypes(action: ActionDefinition): string {
   const counts = new Map<string, number>();
   for (const step of action.steps ?? []) {
-    const key = step.kind ?? step.type ?? "other";
+    const key = step.kind ?? "other";
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   if (counts.size === 0) return "ステップ未定義";
@@ -512,7 +512,7 @@ export function ProcessFlowEditor() {
     loadProject().then((p) => {
       setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
       const agMetas = p.processFlows ?? [];
-      setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
+      setCommonGroups(agMetas.filter((a) => a.kind === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
     listTables().then(async (metas) => {
       setTables(metas.map((tm) => ({ id: tm.id, physicalName: tm.physicalName ?? "", name: tm.name })));
