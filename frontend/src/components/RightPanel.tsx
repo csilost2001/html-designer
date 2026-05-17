@@ -148,7 +148,9 @@ export function RightPanel({ screenId }: RightPanelProps) {
         });
       }
     } catch {
-      // MCP 未接続: GrapesJS インメモリと screen-items localStorage を直接更新
+      // MCP renameScreenItem 失敗時のフォールバック:
+      // GrapesJS インメモリ更新 + screen-items file (backend screenStore 経由) を直接更新。
+      // localStorage fallback は #923 シリーズで廃止済 (spec D-8)、現状は backend save に統一。
       sel.addAttributes({ name: newId, id: newId });
       setSelectedItemName(newId);
       try {
@@ -159,7 +161,7 @@ export function RightPanel({ screenId }: RightPanelProps) {
           await saveScreenItems(siFile);
         }
       } catch {
-        // localStorage 更新失敗は無視 (GrapesJS 更新だけで続行)
+        // screen-items 更新失敗は無視 (GrapesJS 更新だけで続行)
       }
     }
   }, [editor, screenId, selectedItemName]);
