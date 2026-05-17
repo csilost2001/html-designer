@@ -209,6 +209,30 @@ build 後の HTML を browser で開く方法:
    # → http://127.0.0.1:4321/
    ```
 
+#### AI による browser smoke test (Playwright / chrome-devtools MCP)
+
+AI セッション内で `docs/html/` を実機 browser で smoke test する手順 (2026-05-17 設定済、`.mcp.json` で bundled chromium 利用):
+
+1. **preview server を立てる** (background or 別ターミナル):
+   ```bash
+   cd docs-site && npm run preview
+   # → http://127.0.0.1:4321/
+   ```
+2. **Playwright MCP で navigate + screenshot + console 確認** (推奨、軽量):
+   - `mcp__playwright__browser_navigate` → `http://127.0.0.1:4321/`
+   - `mcp__playwright__browser_take_screenshot` → `.tmp/screenshots/` に保存
+   - `mcp__playwright__browser_console_messages` (level: error) で JS エラー有無確認
+   - `mcp__playwright__browser_snapshot` で a11y tree から click 対象特定
+3. **chrome-devtools MCP** (DevTools features 必要時):
+   - `--executable-path` で Chrome for Testing 指定 (`.mcp.json` 設定済)
+   - Lighthouse audit / network request inspection 等高度な機能
+
+**注意**: `.mcp.json` の MCP server 設定変更後は **claude code 再起動** が必要 (本セッション内では旧設定 server が動き続ける)。詳細 pitfall は memory `feedback_browser_smoke_headless_chrome_devtools.md` 参照。
+
+事前準備済 bundled browser:
+- Playwright chromium: `~/.cache/ms-playwright/chromium-1217/`, `chromium-1223/`
+- Chrome for Testing: `~/.cache/puppeteer/chrome/` (chrome-devtools MCP 用)
+
 #### 注意事項
 
 - **`docs/html/` 配下の手編集は禁止** (build artifact、次回 build で上書きされる)
