@@ -2,19 +2,14 @@
 import { useState } from "react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import type {
-  Branch,
   ProcessFlow,
   Step,
   StepType,
-  DbOperation,
-  LoopKind,
-  LoopConditionMode,
 } from "../../types/action";
 import {
   STEP_TYPE_LABELS,
   STEP_TYPE_ICONS,
   STEP_TYPE_COLORS,
-  DB_OPERATION_LABELS,
   WORKFLOW_PATTERN_LABELS,
 } from "../../types/action";
 import type { ValidationError } from "../../utils/actionValidation";
@@ -24,22 +19,26 @@ import { createDefaultStep } from "../../store/processFlowStore";
 import { MaturityBadge } from "./MaturityBadge";
 import { NotesPanel } from "./NotesPanel";
 import { StepAdvancedMetadataPanel } from "./StepAdvancedMetadataPanel";
-import { ValidationRulesPanel } from "./ValidationRulesPanel";
-import { ConvCompletionInput } from "../common/ConvCompletionInput";
-import { ExternalOutcomesPanel } from "./ExternalOutcomesPanel";
-import { JumpTargetSelector } from "./JumpTargetSelector";
-import { WorkflowStepPanel } from "./WorkflowStepPanel";
-import { LogStepPanel } from "./LogStepPanel";
-import { AuditStepPanel } from "./AuditStepPanel";
-import { TransactionScopeStepPanel } from "./TransactionScopeStepPanel";
 import { AutoResizeTextarea } from "./internal/AutoResizeTextarea";
-import { InlineStepList } from "./internal/InlineStepList";
-import {
-  ALL_SUB_STEP_TYPES,
-  DB_OPS,
-  trimToUndefined,
-} from "./internal/stepCardConstants";
+import { ALL_SUB_STEP_TYPES } from "./internal/stepCardConstants";
 import { stepSummaryText } from "./internal/stepSummaryText";
+import {
+  AuditStepCardBody,
+  BranchStepCardBody,
+  CommonProcessStepCardBody,
+  ComputeStepCardBody,
+  DbAccessStepCardBody,
+  DisplayUpdateStepCardBody,
+  ExternalSystemStepCardBody,
+  JumpStepCardBody,
+  LogStepCardBody,
+  LoopStepCardBody,
+  ReturnStepCardBody,
+  ScreenTransitionStepCardBody,
+  TransactionScopeStepCardBody,
+  ValidationStepCardBody,
+  WorkflowStepCardBody,
+} from "./internal/step-cards";
 
 // ─── StepCard ────────────────────────────────────────────────────────────────
 
@@ -128,8 +127,8 @@ export function StepCard({
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [showMenu, setShowMenu] = useState(false);
   const [showSubTypePicker, setShowSubTypePicker] = useState(false);
-  const [collapsedBranchIds, setCollapsedBranchIds] = useState<Set<string>>(new Set());
-  const [loopBodyCollapsed, setLoopBodyCollapsed] = useState(false);
+  // 旧 collapsedBranchIds / loopBodyCollapsed は branch / loop body sub-component 内に
+  // 内部化済 (Phase-2 #1145)。state lift する必要がある場合は本 component に戻す。
 
   const color = STEP_TYPE_COLORS[step.kind];
   const subSteps = step.subSteps ?? [];
@@ -165,67 +164,8 @@ export function StepCard({
     onCommit?.();
   };
 
-  // ── 分岐管理 (Phase 3) ──────────────────────────────────────────────────────
-
-  const toggleBranchCollapse = (branchId: string) => {
-    setCollapsedBranchIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(branchId)) next.delete(branchId);
-      else next.add(branchId);
-      return next;
-    });
-  };
-
-  const setBranchAt = (idx: number, next: Branch) => {
-    if (step.kind !== "branch") return;
-    const branches = step.branches.slice();
-    branches[idx] = next;
-    onChange({ branches } as Partial<Step>);
-  };
-
-  const moveBranchUp = (idx: number) => {
-    if (step.kind !== "branch" || idx <= 0) return;
-    const branches = step.branches.map((b) => ({ ...b }));
-    [branches[idx - 1], branches[idx]] = [branches[idx], branches[idx - 1]];
-    branches.forEach((b, i) => { b.code = String.fromCharCode(65 + i); });
-    onChange({ branches } as Partial<Step>);
-    onCommit?.();
-  };
-
-  const moveBranchDown = (idx: number) => {
-    if (step.kind !== "branch") return;
-    const branches = step.branches.map((b) => ({ ...b }));
-    if (idx >= branches.length - 1) return;
-    [branches[idx], branches[idx + 1]] = [branches[idx + 1], branches[idx]];
-    branches.forEach((b, i) => { b.code = String.fromCharCode(65 + i); });
-    onChange({ branches } as Partial<Step>);
-    onCommit?.();
-  };
-
-  const deleteBranch = (idx: number) => {
-    if (step.kind !== "branch" || step.branches.length <= 1) return;
-    const branches = step.branches.filter((_, i) => i !== idx).map((b, i) => ({
-      ...b,
-      code: String.fromCharCode(65 + i),
-    }));
-    onChange({ branches } as Partial<Step>);
-    onCommit?.();
-  };
-
-  const addBranch = () => {
-    if (step.kind !== "branch") return;
-    const code = String.fromCharCode(65 + step.branches.length);
-    const newBranch: Branch = { id: generateUUID(), code, condition: { kind: "expression", expression: "" }, steps: [] };
-    onChange({ branches: [...step.branches, newBranch] } as Partial<Step>);
-    onCommit?.();
-  };
-
-  const addElseBranch = () => {
-    if (step.kind !== "branch") return;
-    const elseBranch: Branch = { id: generateUUID(), code: "ELSE", condition: { kind: "expression", expression: "" }, steps: [] };
-    onChange({ elseBranch } as Partial<Step>);
-    onCommit?.();
-  };
+  // 旧 toggleBranchCollapse / setBranchAt / moveBranchUp/Down / deleteBranch /
+  // addBranch / addElseBranch は BranchStepCardBody (Phase-2 #1145) に移管済。
 
   // ────────────────────────────────────────────────────────────────────────────
 
@@ -622,988 +562,196 @@ export function StepCard({
             />
 
             {/* ── ステップ種別別詳細 (detail 以上で表示) ─────── */}
+            {/*
+             * Phase-2 (#1145) で 15 種の kind body を sub-component に分離。
+             * dispatch 順は元の StepCard.tsx と同一。
+             */}
             <div className="step-card-section" data-level-min="detail">
-            {/* ── バリデーション ───────────────────────────────── */}
-            {step.kind === "validation" && (
-              <>
-                <div className="row g-2 mb-2" data-field-path="conditions">
-                  <div className="col-12">
-                    <label className="form-label">バリデーション条件 (自由記述)</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={step.conditions}
-                      onChange={(e) => onChange({ conditions: e.target.value } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="必須チェック、形式チェック等 (rules[] で構造化済なら補足用)"
-                    />
-                  </div>
-                </div>
-                <ValidationRulesPanel
-                  rules={step.rules}
-                  onChange={(rules) => onChange({ rules } as Partial<Step>)}
-                  conventions={conventions ?? null}
-                />
-                {step.inlineBranch && (
-                  <div className="step-inline-branch">
-                    <div className="step-branch-box ok">
-                      <div className="step-branch-label">A: OK</div>
-                      {typeof step.inlineBranch.ok === "string" ? (
-                        <input
-                          className="form-control form-control-sm"
-                          value={step.inlineBranch.ok}
-                          onChange={(e) =>
-                            onChange({ inlineBranch: { ...step.inlineBranch!, ok: e.target.value } } as Partial<Step>)
-                          }
-                          placeholder="OK時の処理"
-                          onBlur={onCommit}
-                        />
-                      ) : (
-                        <span className="form-control form-control-sm text-muted" style={{ cursor: "default" }}>
-                          ステップ {step.inlineBranch.ok.length} 件 (JSON編集)
-                        </span>
-                      )}
-                    </div>
-                    <div className="step-branch-box ng">
-                      <div className="step-branch-label">B: NG</div>
-                      {typeof step.inlineBranch.ng === "string" ? (
-                        <input
-                          className="form-control form-control-sm"
-                          value={step.inlineBranch.ng}
-                          onChange={(e) =>
-                            onChange({ inlineBranch: { ...step.inlineBranch!, ng: e.target.value } } as Partial<Step>)
-                          }
-                          placeholder="NG時の処理"
-                          onBlur={onCommit}
-                        />
-                      ) : (
-                        <span className="form-control form-control-sm text-muted" style={{ cursor: "default" }}>
-                          ステップ {step.inlineBranch.ng.length} 件 (JSON編集)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {step.inlineBranch && (
-                  <div className="row g-2 mb-2 mt-1" style={{ fontSize: "0.8rem" }}>
-                    <div className="col-5">
-                      <label className="form-label small mb-0">
-                        NG → responseRef
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        value={step.inlineBranch.ngResponseRef ?? ""}
-                        onChange={(e) =>
-                          onChange({
-                            inlineBranch: {
-                              ...step.inlineBranch!,
-                              ngResponseRef: e.target.value || undefined,
-                            },
-                          } as Partial<Step>)
-                        }
-                        onBlur={onCommit}
-                        placeholder="例: 400-validation"
-                        style={{ fontSize: "0.8rem" }}
-                      />
-                    </div>
-                    <div className="col-7">
-                      <label className="form-label small mb-0">
-                        NG bodyExpression
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        value={step.inlineBranch.ngBodyExpression ?? ""}
-                        onChange={(e) =>
-                          onChange({
-                            inlineBranch: {
-                              ...step.inlineBranch!,
-                              ngBodyExpression: e.target.value || undefined,
-                            },
-                          } as Partial<Step>)
-                        }
-                        onBlur={onCommit}
-                        placeholder="例: { code: 'VALIDATION', fieldErrors: @fieldErrors }"
-                        style={{ fontSize: "0.8rem", fontFamily: "monospace" }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* ── DB操作 ──────────────────────────────────────── */}
-            {step.kind === "dbAccess" && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">テーブル</label>
-                  <select
-                    className="form-select form-select-sm"
-                    value={step.tableId ?? ""}
-                    onChange={(e) => {
-                      onChange({ tableId: e.target.value || undefined } as Partial<Step>);
-                    }}
-                  >
-                    <option value="">（選択）</option>
-                    {tables.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}（{t.physicalName}）</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-row-pair">
-                  <div className="form-group">
-                    <label className="form-label">操作</label>
-                    <select
-                      className="form-select form-select-sm"
-                      value={step.operation}
-                      onChange={(e) => onChange({ operation: e.target.value as DbOperation } as Partial<Step>)}
-                    >
-                      {DB_OPS.map((op) => (
-                        <option key={op} value={op}>{DB_OPERATION_LABELS[op]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">対象フィールド</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={step.fields ?? ""}
-                      onChange={(e) => onChange({ fields: e.target.value } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="概要"
-                    />
-                  </div>
-                </div>
-                <div className="form-group" data-field-path="sql">
-                  <label className="form-label">完全 SQL (sql、fields より優先)</label>
-                  <textarea
-                    className="form-control form-control-sm"
-                    rows={2}
-                    value={step.sql ?? ""}
-                    onChange={(e) => onChange({ sql: e.target.value || undefined } as Partial<Step>)}
-                    onBlur={onCommit}
-                    placeholder="例: SELECT ... JOIN ... WHERE ... / INSERT ... RETURNING ..."
-                    style={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                  />
-                </div>
-                {(step.operation === "UPDATE" || step.operation === "DELETE") && (
-                  <div className="form-group">
-                    <label className="form-label">
-                      <i className="bi bi-shield-check me-1" />
-                      影響行数チェック (affectedRowsCheck)
-                    </label>
-                    <div className="d-flex align-items-center gap-1" style={{ fontSize: "0.8rem" }}>
-                      <select
-                        className="form-select form-select-sm"
-                        value={step.affectedRowsCheck?.operator ?? ""}
-                        onChange={(e) => {
-                          if (!e.target.value) {
-                            onChange({ affectedRowsCheck: undefined } as Partial<Step>);
-                          } else {
-                            onChange({
-                              affectedRowsCheck: {
-                                operator: e.target.value as ">" | ">=" | "=" | "<" | "<=",
-                                expected: step.affectedRowsCheck?.expected ?? 0,
-                                onViolation: step.affectedRowsCheck?.onViolation ?? "throw",
-                                errorCode: step.affectedRowsCheck?.errorCode,
-                              },
-                            } as Partial<Step>);
-                          }
-                        }}
-                        style={{ width: "auto" }}
-                      >
-                        <option value="">—</option>
-                        <option value=">">&gt;</option>
-                        <option value=">=">&gt;=</option>
-                        <option value="=">=</option>
-                        <option value="<">&lt;</option>
-                        <option value="<=">&lt;=</option>
-                      </select>
-                      {step.affectedRowsCheck && (
-                        <>
-                          <input
-                            type="number"
-                            className="form-control form-control-sm"
-                            value={step.affectedRowsCheck.expected}
-                            onChange={(e) => onChange({
-                              affectedRowsCheck: {
-                                ...step.affectedRowsCheck!,
-                                expected: Number(e.target.value),
-                              },
-                            } as Partial<Step>)}
-                            onBlur={onCommit}
-                            style={{ width: 70 }}
-                          />
-                          <span className="text-muted">行→</span>
-                          <select
-                            className="form-select form-select-sm"
-                            value={step.affectedRowsCheck.onViolation}
-                            onChange={(e) => onChange({
-                              affectedRowsCheck: {
-                                ...step.affectedRowsCheck!,
-                                onViolation: e.target.value as "throw" | "abort" | "log" | "continue",
-                              },
-                            } as Partial<Step>)}
-                            style={{ width: "auto" }}
-                          >
-                            <option value="throw">throw</option>
-                            <option value="abort">abort</option>
-                            <option value="log">log</option>
-                            <option value="continue">continue</option>
-                          </select>
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={step.affectedRowsCheck.errorCode ?? ""}
-                            onChange={(e) => onChange({
-                              affectedRowsCheck: {
-                                ...step.affectedRowsCheck!,
-                                errorCode: e.target.value || undefined,
-                              },
-                            } as Partial<Step>)}
-                            onBlur={onCommit}
-                            placeholder="errorCode (例: STOCK_SHORTAGE)"
-                            style={{ width: 200 }}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* ── 外部システム ─────────────────────────────────── */}
-            {step.kind === "externalSystem" && (
-              <>
-                <div className="form-row-pair">
-                  <div className="form-group">
-                    <label className="form-label">接続先</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={step.systemRef ?? ""}
-                      onChange={(e) => onChange({ systemRef: e.target.value } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="システム名 (context.catalogs.externalSystems のキー)"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">プロトコル</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={step.protocol ?? ""}
-                      onChange={(e) => onChange({ protocol: e.target.value } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="REST / SOAP / gRPC"
-                    />
-                  </div>
-                </div>
-                <div className="row g-2 mb-2">
-                  <div className="col-6" data-field-path="operationRef">
-                    <label className="form-label">operationRef</label>
-                    <input
-                      className="form-control form-control-sm"
-                      data-field-path="operationRef"
-                      value={step.operationRef ?? ""}
-                      onChange={(e) => onChange({ operationRef: trimToUndefined(e.target.value) } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="/v1/payment_intents POST"
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </div>
-                  <div className="col-6" data-field-path="operationId">
-                    <label className="form-label">operationId</label>
-                    <input
-                      className="form-control form-control-sm"
-                      data-field-path="operationId"
-                      value={step.operationId ?? ""}
-                      onChange={(e) => onChange({ operationId: trimToUndefined(e.target.value) } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="PostPaymentIntents"
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </div>
-                </div>
-                <div className="row g-2 mb-2">
-                  <div className="col-6" data-field-path="requestBodyRef">
-                    <label className="form-label">requestBodyRef</label>
-                    <input
-                      className="form-control form-control-sm"
-                      data-field-path="requestBodyRef"
-                      value={step.requestBodyRef ?? ""}
-                      onChange={(e) => onChange({ requestBodyRef: trimToUndefined(e.target.value) } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="#/components/schemas/PaymentIntentCreateParams"
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </div>
-                  <div className="col-6" data-field-path="responseRef">
-                    <label className="form-label">responseRef</label>
-                    <input
-                      className="form-control form-control-sm"
-                      data-field-path="responseRef"
-                      value={step.responseRef ?? ""}
-                      onChange={(e) => onChange({ responseRef: trimToUndefined(e.target.value) } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="#/components/responses/200/content/application~1json/schema"
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </div>
-                </div>
-                <div className="row g-2 mb-2 align-items-center" style={{ fontSize: "0.85rem" }}>
-                  <div className="col-auto">
-                    <label className="form-label small mb-0">タイムアウト</label>
-                  </div>
-                  <div className="col-auto">
-                    <input
-                      type="number"
-                      className="form-control form-control-sm"
-                      value={step.timeoutMs ?? ""}
-                      onChange={(e) => onChange({ timeoutMs: e.target.value ? Number(e.target.value) : undefined } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="ms"
-                      style={{ width: 90 }}
-                    />
-                  </div>
-                  <div className="col-auto text-muted">ms</div>
-                  <div className="col-auto">
-                    <label className="form-check-label small">
-                      <input
-                        type="checkbox"
-                        className="form-check-input me-1"
-                        checked={!!step.fireAndForget}
-                        onChange={(e) => onChange({ fireAndForget: e.target.checked || undefined } as Partial<Step>)}
-                      />
-                      fire-and-forget (同期レスポンス待たない)
-                    </label>
-                  </div>
-                </div>
-                <div className="row g-2 mb-2 align-items-center" style={{ fontSize: "0.8rem" }}>
-                  <div className="col-auto">
-                    <label className="form-label small mb-0">リトライ</label>
-                  </div>
-                  <div className="col-auto">
-                    <input
-                      type="number"
-                      className="form-control form-control-sm"
-                      value={step.retryPolicy?.maxAttempts ?? ""}
-                      onChange={(e) => {
-                        const n = e.target.value ? Number(e.target.value) : 0;
-                        if (n <= 0) {
-                          onChange({ retryPolicy: undefined } as Partial<Step>);
-                        } else {
-                          onChange({
-                            retryPolicy: {
-                              maxAttempts: n,
-                              backoff: step.retryPolicy?.backoff,
-                              initialDelayMs: step.retryPolicy?.initialDelayMs,
-                            },
-                          } as Partial<Step>);
-                        }
-                      }}
-                      onBlur={onCommit}
-                      placeholder="maxAttempts"
-                      style={{ width: 90, fontSize: "0.8rem" }}
-                    />
-                  </div>
-                  {step.retryPolicy && (
-                    <>
-                      <div className="col-auto">
-                        <select
-                          className="form-select form-select-sm"
-                          value={step.retryPolicy.backoff ?? ""}
-                          onChange={(e) => onChange({
-                            retryPolicy: {
-                              ...step.retryPolicy!,
-                              backoff: e.target.value as "fixed" | "exponential" || undefined,
-                            },
-                          } as Partial<Step>)}
-                          style={{ width: "auto", fontSize: "0.8rem" }}
-                        >
-                          <option value="">backoff: —</option>
-                          <option value="fixed">fixed</option>
-                          <option value="exponential">exponential</option>
-                        </select>
-                      </div>
-                      <div className="col-auto">
-                        <input
-                          type="number"
-                          className="form-control form-control-sm"
-                          value={step.retryPolicy.initialDelayMs ?? ""}
-                          onChange={(e) => onChange({
-                            retryPolicy: {
-                              ...step.retryPolicy!,
-                              initialDelayMs: e.target.value ? Number(e.target.value) : undefined,
-                            },
-                          } as Partial<Step>)}
-                          onBlur={onCommit}
-                          placeholder="initialDelayMs"
-                          style={{ width: 120, fontSize: "0.8rem" }}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-                <ExternalOutcomesPanel
+              {step.kind === "validation" && (
+                <ValidationStepCardBody
                   step={step}
-                  onChange={(patch) => onChange(patch as Partial<Step>)}
+                  allSteps={allSteps}
+                  onChange={onChange}
                   onCommit={onCommit}
+                  conventions={conventions}
+                  readOnly={readOnly}
                 />
-              </>
-            )}
+              )}
 
-            {/* ── 共通処理 ─────────────────────────────────────── */}
-            {step.kind === "commonProcess" && (
-              <>
-                <div className="row g-2 mb-2">
-                  <div className="col-12">
-                    <label className="form-label">共通処理</label>
-                    <select
-                      className="form-select form-select-sm"
-                      value={step.refId}
-                      onChange={(e) => {
-                        const cg = commonGroups.find((g) => g.id === e.target.value);
-                        onChange({ refId: e.target.value, refName: cg?.name ?? "" } as Partial<Step>);
-                      }}
-                    >
-                      <option value="">（選択）</option>
-                      {commonGroups.map((g) => (
-                        <option key={g.id} value={g.id}>{g.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label small">
-                    <i className="bi bi-arrow-left-right me-1" />
-                    引数マッピング (argumentMapping、key=value、改行区切り)
-                  </label>
-                  <textarea
-                    className="form-control form-control-sm"
-                    rows={2}
-                    value={Object.entries(step.argumentMapping ?? {}).map(([k, v]) => `${k}=${v}`).join("\n")}
-                    onChange={(e) => {
-                      const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
-                      const map: Record<string, string> = {};
-                      for (const line of lines) {
-                        const eq = line.indexOf("=");
-                        if (eq > 0) {
-                          map[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
-                        }
-                      }
-                      onChange({
-                        argumentMapping: Object.keys(map).length > 0 ? map : undefined,
-                      } as Partial<Step>);
-                    }}
-                    onBlur={onCommit}
-                    placeholder={"sessionId=@session.id\ntrustedLevel='high'"}
-                    style={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                  />
-                </div>
-              </>
-            )}
+              {step.kind === "dbAccess" && (
+                <DbAccessStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  tables={tables}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── 計算ステップ (ComputeStep) ───────────────────── */}
-            {step.kind === "compute" && (
-              <div className="row g-2 mb-2" data-field-path="expression">
-                <div className="col-12">
-                  <label className="form-label">
-                    <i className="bi bi-calculator me-1" />
-                    代入式 (expression)
-                  </label>
-                  <ConvCompletionInput
-                    className="form-control form-control-sm"
-                    value={step.expression}
-                    onValueChange={(v) => onChange({ expression: v } as Partial<Step>)}
-                    onCommit={onCommit}
-                    conventions={conventions ?? null}
-                    placeholder="例: Math.floor(@subtotal * 0.10) / @subtotal + @taxAmount"
-                    style={{ fontFamily: "monospace" }}
-                  />
-                </div>
-              </div>
-            )}
+              {step.kind === "externalSystem" && (
+                <ExternalSystemStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── 返却ステップ (ReturnStep) ────────────────────── */}
-            {step.kind === "return" && (
-              <>
-                <div className="row g-2 mb-2">
-                  <div className="col-6">
-                    <label className="form-label">
-                      <i className="bi bi-reply me-1" />
-                      responseRef (action.responses[].id)
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      value={step.responseRef ?? ""}
-                      onChange={(e) => onChange({ responseRef: e.target.value || undefined } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="例: 409-stock-shortage"
-                    />
-                  </div>
-                  <div className="col-6" data-field-path="bodyExpression">
-                    <label className="form-label">bodyExpression</label>
-                    <ConvCompletionInput
-                      className="form-control form-control-sm"
-                      value={step.bodyExpression ?? ""}
-                      onValueChange={(v) => onChange({ bodyExpression: v || undefined } as Partial<Step>)}
-                      onCommit={onCommit}
-                      conventions={conventions ?? null}
-                      placeholder="例: { code: 'STOCK_SHORTAGE', detail: @shortageList }"
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+              {step.kind === "commonProcess" && (
+                <CommonProcessStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  commonGroups={commonGroups}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── 画面遷移 ─────────────────────────────────────── */}
-            {step.kind === "screenTransition" && (
-              <div className="row g-2 mb-2">
-                <div className="col-12">
-                  <label className="form-label">遷移先画面</label>
-                  <select
-                    className="form-select form-select-sm"
-                    value={step.targetScreenId ?? ""}
-                    onChange={(e) => {
-                      const s = screens.find((s) => s.id === e.target.value);
-                      onChange({ targetScreenId: e.target.value, targetScreenName: s?.name ?? e.target.value } as Partial<Step>);
-                    }}
-                  >
-                    <option value="">（選択または手入力）</option>
-                    {screens.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                  <input
-                    className="form-control form-control-sm mt-1"
-                    value={step.targetScreenName}
-                    onChange={(e) => onChange({ targetScreenName: e.target.value } as Partial<Step>)}
-                    onBlur={onCommit}
-                    placeholder="画面名を直接入力"
-                  />
-                </div>
-              </div>
-            )}
+              {step.kind === "compute" && (
+                <ComputeStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  conventions={conventions}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── 表示更新 ─────────────────────────────────────── */}
-            {step.kind === "displayUpdate" && (
-              <div className="row g-2 mb-2">
-                <div className="col-12">
-                  <label className="form-label">更新対象</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={step.target}
-                    onChange={(e) => onChange({ target: e.target.value } as Partial<Step>)}
-                    onBlur={onCommit}
-                    placeholder="メッセージ表示、一覧テーブル更新 等"
-                  />
-                </div>
-              </div>
-            )}
+              {step.kind === "return" && (
+                <ReturnStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  conventions={conventions}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── 条件分岐 (Phase 3) ───────────────────────────── */}
-            {step.kind === "branch" && (
-              <div className="branch-sections">
-                {step.branches.map((br, bi) => {
-                  const isCollapsed = collapsedBranchIds.has(br.id);
-                  return (
-                    <div key={br.id} className={`branch-section${isCollapsed ? " collapsed" : ""}`}>
-                      <div
-                        className="branch-section-header"
-                        onClick={() => toggleBranchCollapse(br.id)}
-                      >
-                        <span className="branch-code-badge">{br.code}</span>
-                        {br.condition?.kind === "tryCatch" ? (
-                          <div className="d-flex align-items-center gap-1 flex-grow-1" onClick={(e) => e.stopPropagation()}>
-                            <span className="badge bg-info text-dark" style={{ fontSize: "0.7rem" }}>tryCatch</span>
-                            <input
-                              className="form-control form-control-sm"
-                              value={br.condition.errorCode}
-                              placeholder="errorCode (例: STOCK_SHORTAGE)"
-                              onChange={(e) => setBranchAt(bi, {
-                                ...br,
-                                condition: { ...br.condition, errorCode: e.target.value },
-                              })}
-                              onBlur={onCommit}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-link text-muted p-0"
-                              title="自由記述に戻す"
-                              onClick={() => setBranchAt(bi, { ...br, condition: { kind: "expression", expression: "" } })}
-                            >
-                              <i className="bi bi-arrow-counterclockwise" />
-                            </button>
-                          </div>
-                        ) : br.condition?.kind === "expression" ? (
-                          <>
-                            <input
-                              className="form-control form-control-sm branch-condition-input"
-                              value={br.condition.expression}
-                              placeholder="分岐条件 (自由記述)"
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => setBranchAt(bi, { ...br, condition: { kind: "expression", expression: e.target.value } })}
-                              onBlur={onCommit}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-link text-muted p-0"
-                              title="tryCatch variant に切替"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setBranchAt(bi, {
-                                  ...br,
-                                  condition: { kind: "tryCatch", errorCode: "" },
-                                });
-                              }}
-                              style={{ flexShrink: 0 }}
-                            >
-                              <i className="bi bi-shield-exclamation" />
-                            </button>
-                          </>
-                        ) : (
-                          // affectedRowsZero / externalOutcome 等の専用 UI 未対応 kind
-                          // 現状は kind 名 + 「expression に戻す」ボタンのみ提供 (#954)
-                          <div className="d-flex align-items-center gap-1 flex-grow-1" onClick={(e) => e.stopPropagation()}>
-                            <span className="badge bg-secondary text-white" style={{ fontSize: "0.7rem" }}>{br.condition?.kind ?? "(unknown)"}</span>
-                            <span className="text-muted small">専用 UI 未対応 — JSON で編集してください</span>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-link text-muted p-0"
-                              title="expression に戻す"
-                              onClick={() => setBranchAt(bi, { ...br, condition: { kind: "expression", expression: "" } })}
-                            >
-                              <i className="bi bi-arrow-counterclockwise" />
-                            </button>
-                          </div>
-                        )}
-                        {!readOnly && bi > 0 && (
-                          <button
-                            className="step-card-menu-btn"
-                            title="上に移動"
-                            onClick={(e) => { e.stopPropagation(); moveBranchUp(bi); }}
-                          >
-                            <i className="bi bi-chevron-up" />
-                          </button>
-                        )}
-                        {!readOnly && bi < step.branches.length - 1 && (
-                          <button
-                            className="step-card-menu-btn"
-                            title="下に移動"
-                            onClick={(e) => { e.stopPropagation(); moveBranchDown(bi); }}
-                          >
-                            <i className="bi bi-chevron-down" />
-                          </button>
-                        )}
-                        {!readOnly && step.branches.length > 1 && (
-                          <button
-                            className="step-card-menu-btn danger"
-                            title="分岐を削除"
-                            onClick={(e) => { e.stopPropagation(); deleteBranch(bi); }}
-                          >
-                            <i className="bi bi-trash" />
-                          </button>
-                        )}
-                        <i
-                          className={`bi bi-chevron-${isCollapsed ? "right" : "down"}`}
-                          style={{ color: "#94a3b8", flexShrink: 0 }}
-                        />
-                      </div>
-                      {!isCollapsed && (
-                        <div className="branch-section-body">
-                          <InlineStepList
-                            steps={br.steps}
-                            parentLabel={br.code}
-                            allSteps={allSteps}
-                            tables={tables}
-                            screens={screens}
-                            commonGroups={commonGroups}
-                            onChange={(newSteps) => setBranchAt(bi, { ...br, steps: newSteps })}
-                            onCommit={onCommit}
-                            onNavigateCommon={onNavigateCommon}
-                            validationErrors={validationErrors}
-                            conventions={conventions}
-                            group={group}
-                            readOnly={readOnly}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {step.kind === "screenTransition" && (
+                <ScreenTransitionStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  screens={screens}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
 
-                {/* ELSE分岐 */}
-                {step.elseBranch && (() => {
-                  const el = step.elseBranch;
-                  const isCollapsed = collapsedBranchIds.has(el.id);
-                  return (
-                    <div className={`branch-section else${isCollapsed ? " collapsed" : ""}`}>
-                      <div
-                        className="branch-section-header"
-                        onClick={() => toggleBranchCollapse(el.id)}
-                      >
-                        <span className="branch-code-badge">ELSE</span>
-                        <span style={{ flex: 1, fontSize: "0.78rem", color: "#64748b" }}>
-                          その他の場合
-                        </span>
-                        {!readOnly && <button
-                          className="step-card-menu-btn danger"
-                          title="ELSE分岐を削除"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onChange({ elseBranch: undefined } as Partial<Step>);
-                            onCommit?.();
-                          }}
-                        >
-                          <i className="bi bi-trash" />
-                        </button>}
-                        <i
-                          className={`bi bi-chevron-${isCollapsed ? "right" : "down"}`}
-                          style={{ color: "#94a3b8", flexShrink: 0 }}
-                        />
-                      </div>
-                      {!isCollapsed && (
-                        <div className="branch-section-body">
-                          <InlineStepList
-                            steps={el.steps}
-                            parentLabel="ELSE"
-                            allSteps={allSteps}
-                            tables={tables}
-                            screens={screens}
-                            commonGroups={commonGroups}
-                            onChange={(newSteps) =>
-                              onChange({ elseBranch: { ...el, steps: newSteps } } as Partial<Step>)
-                            }
-                            onCommit={onCommit}
-                            onNavigateCommon={onNavigateCommon}
-                            validationErrors={validationErrors}
-                            conventions={conventions}
-                            group={group}
-                            readOnly={readOnly}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+              {step.kind === "displayUpdate" && (
+                <DisplayUpdateStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
 
-                {!readOnly && <div className="branch-add-row">
-                  <button className="branch-add-btn" onClick={addBranch}>
-                    <i className="bi bi-plus" /> 分岐を追加
-                  </button>
-                  {!step.elseBranch && (
-                    <button className="branch-add-btn" onClick={addElseBranch} style={{ flex: "0 0 auto" }}>
-                      <i className="bi bi-plus" /> ELSE分岐
-                    </button>
-                  )}
-                </div>}
-              </div>
-            )}
+              {step.kind === "branch" && (
+                <BranchStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  tables={tables}
+                  screens={screens}
+                  commonGroups={commonGroups}
+                  validationErrors={validationErrors}
+                  conventions={conventions}
+                  group={group}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  onNavigateCommon={onNavigateCommon}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── ループ (Phase 4) ─────────────────────────────── */}
-            {step.kind === "loop" && (
-              <div>
-                <div className="loop-kind-radios">
-                  {(["count", "condition", "collection"] as LoopKind[]).map((k) => (
-                    <label key={k}>
-                      <input
-                        type="radio"
-                        name={`loopkind-${step.id}`}
-                        value={k}
-                        checked={step.loopKind === k}
-                        onChange={() => onChange({ loopKind: k } as Partial<Step>)}
-                      />
-                      {k === "count" ? "回数" : k === "condition" ? "条件" : "コレクション"}
-                    </label>
-                  ))}
-                </div>
+              {step.kind === "loop" && (
+                <LoopStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  tables={tables}
+                  screens={screens}
+                  commonGroups={commonGroups}
+                  validationErrors={validationErrors}
+                  conventions={conventions}
+                  group={group}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  onNavigateCommon={onNavigateCommon}
+                  readOnly={readOnly}
+                />
+              )}
 
-                {step.loopKind === "count" && (
-                  <div className="form-group">
-                    <label className="form-label">回数 / 範囲</label>
-                    <input
-                      className="form-control form-control-sm"
-                      value={step.countExpression ?? ""}
-                      onChange={(e) => onChange({ countExpression: e.target.value } as Partial<Step>)}
-                      onBlur={onCommit}
-                      placeholder="例: 3回, 検索結果の件数分"
-                    />
-                  </div>
-                )}
+              {step.kind === "log" && (
+                <LogStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  conventions={conventions}
+                  readOnly={readOnly}
+                />
+              )}
 
-                {step.loopKind === "condition" && (
-                  <>
-                    <div className="form-group mb-2">
-                      <label className="form-label">条件モード</label>
-                      <div className="d-flex gap-3 flex-wrap">
-                        {(["continue", "exit"] as LoopConditionMode[]).map((m) => (
-                          <label key={m} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.82rem", cursor: "pointer" }}>
-                            <input
-                              type="radio"
-                              name={`condmode-${step.id}`}
-                              value={m}
-                              checked={(step.conditionMode ?? "exit") === m}
-                              onChange={() => onChange({ conditionMode: m } as Partial<Step>)}
-                            />
-                            {m === "continue" ? "条件の間繰り返す (while)" : "条件になるまで繰り返す (until)"}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">条件式</label>
-                      <input
-                        className="form-control form-control-sm"
-                        value={step.conditionExpression ?? ""}
-                        onChange={(e) => onChange({ conditionExpression: e.target.value } as Partial<Step>)}
-                        onBlur={onCommit}
-                        placeholder="例: 残件数 > 0"
-                      />
-                    </div>
-                  </>
-                )}
+              {step.kind === "audit" && (
+                <AuditStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  conventions={conventions}
+                  readOnly={readOnly}
+                />
+              )}
 
-                {step.loopKind === "collection" && (
-                  <div className="form-row-pair">
-                    <div className="form-group">
-                      <label className="form-label">コレクション</label>
-                      <input
-                        className="form-control form-control-sm"
-                        value={step.collectionSource ?? ""}
-                        onChange={(e) => onChange({ collectionSource: e.target.value } as Partial<Step>)}
-                        onBlur={onCommit}
-                        placeholder="例: 検索結果"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">要素変数名</label>
-                      <input
-                        className="form-control form-control-sm"
-                        value={step.collectionItemName ?? ""}
-                        onChange={(e) => onChange({ collectionItemName: e.target.value } as Partial<Step>)}
-                        onBlur={onCommit}
-                        placeholder="例: ユーザー"
-                      />
-                    </div>
-                  </div>
-                )}
+              {step.kind === "transactionScope" && (
+                <TransactionScopeStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  tables={tables}
+                  screens={screens}
+                  commonGroups={commonGroups}
+                  validationErrors={validationErrors}
+                  conventions={conventions}
+                  group={group}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  onNavigateCommon={onNavigateCommon}
+                  readOnly={readOnly}
+                />
+              )}
 
-                <div className={`loop-body${loopBodyCollapsed ? " collapsed" : ""}`}>
-                  <div
-                    className="loop-body-header"
-                    onClick={() => setLoopBodyCollapsed(!loopBodyCollapsed)}
-                  >
-                    <i className="bi bi-arrow-repeat" />
-                    ループ本体
-                    <i
-                      className={`bi bi-chevron-${loopBodyCollapsed ? "right" : "down"} ms-auto`}
-                      style={{ color: "#94a3b8" }}
-                    />
-                  </div>
-                  {!loopBodyCollapsed && (
-                    <div className="loop-body-content">
-                      <InlineStepList
-                        steps={step.steps}
-                        parentLabel="L"
-                        allSteps={allSteps}
-                        tables={tables}
-                        screens={screens}
-                        commonGroups={commonGroups}
-                        onChange={(newSteps) => onChange({ steps: newSteps } as Partial<Step>)}
-                        onCommit={onCommit}
-                        onNavigateCommon={onNavigateCommon}
-                        validationErrors={validationErrors}
-                        conventions={conventions}
-                        group={group}
-                        readOnly={readOnly}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+              {step.kind === "jump" && (
+                <JumpStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  readOnly={readOnly}
+                />
+              )}
 
-            {/* ── ログ出力 (#402) ──────────────────────────────── */}
-            {step.kind === "log" && (
-              <LogStepPanel
-                step={step}
-                onChange={(patch) => onChange(patch as Partial<Step>)}
-                onCommit={onCommit}
-                conventions={conventions ?? null}
-              />
-            )}
-
-            {/* ── 監査ログ (#402) ──────────────────────────────── */}
-            {step.kind === "audit" && (
-              <AuditStepPanel
-                step={step}
-                onChange={(patch) => onChange(patch as Partial<Step>)}
-                onCommit={onCommit}
-                conventions={conventions ?? null}
-              />
-            )}
-
-            {/* ── TX スコープ (#415) ────────────────────────────── */}
-            {step.kind === "transactionScope" && (
-              <TransactionScopeStepPanel
-                step={step}
-                onChange={(patch) => onChange(patch as Partial<Step>)}
-                onCommit={onCommit}
-                group={group}
-                allSteps={allSteps}
-                tables={tables}
-                screens={screens}
-                commonGroups={commonGroups}
-                validationErrors={validationErrors}
-                conventions={conventions ?? null}
-                onNavigateCommon={onNavigateCommon}
-              />
-            )}
-
-            {/* ── ジャンプ (Phase 5) ───────────────────────────── */}
-            {step.kind === "jump" && (
-              <div className="row g-2 mb-2">
-                <div className="col-12">
-                  <label className="form-label">ジャンプ先</label>
-                  <JumpTargetSelector
-                    value={step.jumpTo}
-                    allSteps={allSteps}
-                    excludeStepId={step.id}
-                    onChange={(val) => onChange({ jumpTo: val } as Partial<Step>)}
-                    onBlur={onCommit}
-                  />
-                </div>
-              </div>
-            )}
-
-            {step.kind === "workflow" && (
-              <WorkflowStepPanel
-                step={step}
-                allSteps={allSteps}
-                conventions={conventions ?? null}
-                onChange={(patch) => onChange(patch as Partial<Step>)}
-                onCommit={onCommit}
-                renderInlineStepList={({ steps, parentLabel, onChange: onStepsChange }) => (
-                  <InlineStepList
-                    steps={steps}
-                    parentLabel={parentLabel}
-                    allSteps={allSteps}
-                    tables={tables}
-                    screens={screens}
-                    commonGroups={commonGroups}
-                    onChange={onStepsChange}
-                    onCommit={onCommit}
-                    onNavigateCommon={onNavigateCommon}
-                    validationErrors={validationErrors}
-                    conventions={conventions}
-                    readOnly={readOnly}
-                  />
-                )}
-              />
-            )}
-
+              {step.kind === "workflow" && (
+                <WorkflowStepCardBody
+                  step={step}
+                  allSteps={allSteps}
+                  tables={tables}
+                  screens={screens}
+                  commonGroups={commonGroups}
+                  validationErrors={validationErrors}
+                  conventions={conventions}
+                  group={group}
+                  onChange={onChange}
+                  onCommit={onCommit}
+                  onNavigateCommon={onNavigateCommon}
+                  readOnly={readOnly}
+                />
+              )}
             </div>{/* end step-card-section data-level-min="detail" */}
 
             <div className="row g-2">
