@@ -1,5 +1,7 @@
 # dogfood レポート — マルチエディタ / Puck × cssFramework 検証 (2026-05-05)
 
+> **📝 ステータス**: 完了済 **historical record** (マルチエディタ / Puck × cssFramework 検証 dogfood、#806 関連、2026-05-05 実施)。本書は当時の検証結果記録として保持、削除不可 (他 spec から参照ある場合あり)。最新の状況・運用は現行 spec を参照。
+
 ## 概要
 
 - **対象**: #806 マルチエディタ対応 (Puck 併設) シリーズ — 子 6 dogfood
