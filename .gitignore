@@ -76,3 +76,6 @@ data/.drafts/
 frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
+
+# Marp presentation build artifacts
+docs/presentation/out/
