@@ -1,16 +1,16 @@
-<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>wsl2 native</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="/_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
+<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="../../favicon.svg" type="image/svg+xml"><title>wsl2 native</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="../../_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
       // FOUC 回避: テーマ復元を <head> 内で実行 (paint 前)
       if (localStorage.getItem('theme') === 'light') {
         document.documentElement.classList.remove('dark');
       }
-    </script><link rel="stylesheet" href="/_astro/_slug_.D9Jf1cs-.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="/" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="/spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="/user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="/conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="/setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="/presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+    </script><link rel="stylesheet" href="../../_astro/_slug_.DpmzT9nP.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="../../" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="../../spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="../../user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="../../conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="../../setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="../../presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
 🔍 検索
 </button> </pagefind-modal-trigger> <button type="button" id="theme-toggle" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle theme">
 🌓
-</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> セットアップ </div> <ul class="space-y-0.5"> <li> <a href="/setup/dev-containers/" class="sidebar-link"> Dev Containers (推奨) </a> </li><li> <a href="/setup/wsl2-native/" class="sidebar-link active"> WSL2 native (代替) </a> </li><li> <a href="/setup/distribution-roadmap/" class="sidebar-link"> 配布構想 (将来) </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="wsl2-native-セットアップ手順-代替パターン">WSL2 native セットアップ手順 (代替パターン)</h1>
+</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> セットアップ </div> <ul class="space-y-0.5"> <li> <a href="../../setup/dev-containers/" class="sidebar-link"> Dev Containers (推奨) </a> </li><li> <a href="../../setup/wsl2-native/" class="sidebar-link active"> WSL2 native (代替) </a> </li><li> <a href="../../setup/distribution-roadmap/" class="sidebar-link"> 配布構想 (将来) </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="wsl2-native-セットアップ手順-代替パターン">WSL2 native セットアップ手順 (代替パターン)</h1>
 <p>Harmony 本体を <strong>WSL2 native</strong> で開発する手順書。Windows native から WSL2 へソースを移し、I/O / file watcher / AI エージェントを native 速度で動かす構成。</p>
 <blockquote>
-<p>💡 <strong>推奨は Dev Containers です</strong> (<a href="/setup/dev-containers/"><code>dev-containers.md</code></a>)。本書は以下の場合の代替セットアップ手順です:</p>
+<p>💡 <strong>推奨は Dev Containers です</strong> (<a href="../../setup/dev-containers/"><code>dev-containers.md</code></a>)。本書は以下の場合の代替セットアップ手順です:</p>
 <ul>
 <li>Docker Desktop を使えない / 使いたくない環境</li>
 <li>既に WSL2 native で動かしており Dev Containers に移行する必要がない場合</li>
@@ -18,7 +18,7 @@
 </ul>
 <p>Harmony 本体は WSL2 native でも <strong>実質サポート</strong> されており、<code>.mcp.json</code> の URL モード経由で AI エージェントから接続できる構成は両環境で共通です。新規 onboarding には Dev Containers の方が短時間で完成しますが、本書のセットアップ経路も valid です。</p>
 </blockquote>
-<p>Docker image としての Harmony 配布 (将来構想) は本書ではなく <a href="/setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> を参照してください。</p>
+<p>Docker image としての Harmony 配布 (将来構想) は本書ではなく <a href="../../setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> を参照してください。</p>
 <hr>
 <h2 id="ai-エージェント-claude-code-等-への指示">AI エージェント (Claude Code 等) への指示</h2>
 <p>このドキュメントを参照して step-by-step で実行する場合、必ず以下を守ること。</p>
@@ -296,7 +296,7 @@
 <li>新規開発者の onboarding を短縮したい</li>
 <li>WSL2 distro の汚れ (~/.npm / ~/.cache / 各種 SDK) を整理したい</li>
 </ul>
-<p>切替手順は <a href="/setup/dev-containers/"><code>dev-containers.md</code></a> §「WSL2 native ユーザー向け移行手順」を参照。後戻りも <code>Dev Containers: Reopen Folder Locally</code> で即可能、両モード併用も可。</p>
+<p>切替手順は <a href="../../setup/dev-containers/"><code>dev-containers.md</code></a> §「WSL2 native ユーザー向け移行手順」を参照。後戻りも <code>Dev Containers: Reopen Folder Locally</code> で即可能、両モード併用も可。</p>
 <p>該当しないなら WSL2 native のままで問題なし。</p>
 <hr>
 <h2 id="トラブルシューティング">トラブルシューティング</h2>
@@ -337,12 +337,12 @@
 <hr>
 <h2 id="関連ドキュメント">関連ドキュメント</h2>
 <ul>
-<li><a href="/setup/AGENTS/"><code>AGENTS.md</code></a> — プロジェクト全般のガイダンス</li>
-<li><a href="/setup/CLAUDE/"><code>CLAUDE.md</code></a> — Claude Code 固有の設定</li>
-<li><a href="/setup/dev-containers/"><code>dev-containers.md</code></a> — 開発環境 (推奨)</li>
-<li><a href="/setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> — Harmony 本体の Docker image 配布構想</li>
-<li><a href="/spec/workspace/"><code>docs/spec/workspace.md</code></a> — ワークスペース仕様</li>
-<li><a href="/spec/edit-session-draft/"><code>docs/spec/edit-session-draft.md</code></a> — サーバ側 draft 管理モデル</li>
+<li><a href="../../setup/AGENTS/"><code>AGENTS.md</code></a> — プロジェクト全般のガイダンス</li>
+<li><a href="../../setup/CLAUDE/"><code>CLAUDE.md</code></a> — Claude Code 固有の設定</li>
+<li><a href="../../setup/dev-containers/"><code>dev-containers.md</code></a> — 開発環境 (推奨)</li>
+<li><a href="../../setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> — Harmony 本体の Docker image 配布構想</li>
+<li><a href="../../spec/workspace/"><code>docs/spec/workspace.md</code></a> — ワークスペース仕様</li>
+<li><a href="../../spec/edit-session-draft/"><code>docs/spec/edit-session-draft.md</code></a> — サーバ側 draft 管理モデル</li>
 </ul>
 <hr>
 <h2 id="改訂履歴">改訂履歴</h2>
@@ -363,7 +363,7 @@
 
 
 
-<table><thead><tr><th>日付</th><th>改訂内容</th></tr></thead><tbody><tr><td>2026-05-06</td><td>初版 (旧 <code>wsl2-docker-migration.md</code>)</td></tr><tr><td>2026-05-15</td><td><code>wsl2-native.md</code> にリネーム + 「Phase」用語廃止 + Phase 1.5 セクション削除 + Phase 2 部分を <a href="/setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> に分離 + 「Dev Containers が推奨、本書は代替」の navigation banner 追加 (#1109)</td></tr></tbody></table>  </article> </main> </div> <pagefind-modal reset-on-close="true"></pagefind-modal> <script>
+<table><thead><tr><th>日付</th><th>改訂内容</th></tr></thead><tbody><tr><td>2026-05-06</td><td>初版 (旧 <code>wsl2-docker-migration.md</code>)</td></tr><tr><td>2026-05-15</td><td><code>wsl2-native.md</code> にリネーム + 「Phase」用語廃止 + Phase 1.5 セクション削除 + Phase 2 部分を <a href="../../setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> に分離 + 「Dev Containers が推奨、本書は代替」の navigation banner 追加 (#1109)</td></tr></tbody></table>  </article> </main> </div> <pagefind-modal reset-on-close="true"></pagefind-modal> <script>
       // Theme toggle (restore は <head> で先行実行済、FOUC 回避)
       document.getElementById('theme-toggle')?.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');

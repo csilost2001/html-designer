@@ -1,15 +1,15 @@
-<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><title>dev containers</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="/_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
+<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="../../favicon.svg" type="image/svg+xml"><title>dev containers</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="../../_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
       // FOUC 回避: テーマ復元を <head> 内で実行 (paint 前)
       if (localStorage.getItem('theme') === 'light') {
         document.documentElement.classList.remove('dark');
       }
-    </script><link rel="stylesheet" href="/_astro/_slug_.D9Jf1cs-.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="/" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="/spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="/user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="/conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="/setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="/presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+    </script><link rel="stylesheet" href="../../_astro/_slug_.DpmzT9nP.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="../../" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="../../spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="../../user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="../../conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="../../setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="../../presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
 🔍 検索
 </button> </pagefind-modal-trigger> <button type="button" id="theme-toggle" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle theme">
 🌓
-</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> セットアップ </div> <ul class="space-y-0.5"> <li> <a href="/setup/dev-containers/" class="sidebar-link active"> Dev Containers (推奨) </a> </li><li> <a href="/setup/wsl2-native/" class="sidebar-link"> WSL2 native (代替) </a> </li><li> <a href="/setup/distribution-roadmap/" class="sidebar-link"> 配布構想 (将来) </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="dev-containers-セットアップ-推奨">Dev Containers セットアップ (推奨)</h1>
+</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> セットアップ </div> <ul class="space-y-0.5"> <li> <a href="../../setup/dev-containers/" class="sidebar-link active"> Dev Containers (推奨) </a> </li><li> <a href="../../setup/wsl2-native/" class="sidebar-link"> WSL2 native (代替) </a> </li><li> <a href="../../setup/distribution-roadmap/" class="sidebar-link"> 配布構想 (将来) </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="dev-containers-セットアップ-推奨">Dev Containers セットアップ (推奨)</h1>
 <p>VSCode Dev Containers 拡張で Harmony を開発する手順書。<strong>本プロジェクトの推奨開発環境</strong>。</p>
-<p>WSL2 native のみのセットアップも引き続きサポート対象です (<a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a>)。Harmony 本体を Docker image として配布する将来構想は <a href="/setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> を参照。</p>
+<p>WSL2 native のみのセットアップも引き続きサポート対象です (<a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a>)。Harmony 本体を Docker image として配布する将来構想は <a href="../../setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> を参照。</p>
 <h2 id="なぜ-dev-containers-が推奨か">なぜ Dev Containers が推奨か</h2>
 <ul>
 <li><strong>複数プロジェクト共存</strong>: 1 つの WSL2 に Node / Java / Python が混在しても、プロジェクト間で完全 isolation</li>
@@ -17,7 +17,7 @@
 <li><strong>onboarding コスト</strong>: 新規開発者 / 他チーム / OSS contributor は <code>git clone &#x26;&#x26; Reopen in Container</code> だけで dev 環境完成</li>
 <li><strong>WSL2 distro を汚さない</strong>: Node / npm / playwright browsers / 各種 CLI はすべて container 内、ホスト WSL2 は git + docker クライアントだけで足りる</li>
 </ul>
-<p>すでに WSL2 native で安定運用していて移行する必要がない場合は、そのまま使い続けて問題ありません (<a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a> 経路もサポート対象)。</p>
+<p>すでに WSL2 native で安定運用していて移行する必要がない場合は、そのまま使い続けて問題ありません (<a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a> 経路もサポート対象)。</p>
 <h2 id="前提条件">前提条件</h2>
 <ul>
 <li><strong>Windows 11 + WSL2</strong> (Ubuntu 推奨)</li>
@@ -28,7 +28,7 @@
 </li>
 <li><strong>VSCode</strong> + <strong>Dev Containers 拡張</strong> (<code>ms-vscode-remote.remote-containers</code>)</li>
 </ul>
-<p>WSL2 + Ubuntu + Node 等の基本セットアップが未完了の場合は <a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a> Step 1-0〜1-1 を共通の前提セットアップとして参照してください (本書の手順は Docker Desktop と VSCode Dev Containers 拡張が入っていることのみを前提とします)。</p>
+<p>WSL2 + Ubuntu + Node 等の基本セットアップが未完了の場合は <a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a> Step 1-0〜1-1 を共通の前提セットアップとして参照してください (本書の手順は Docker Desktop と VSCode Dev Containers 拡張が入っていることのみを前提とします)。</p>
 <h2 id="quick-start-新規--fresh-clone">Quick Start (新規 / fresh clone)</h2>
 <pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#6A737D;--shiki-dark:#768390"># WSL2 シェルで</span></span>
 <span class="line"><span style="color:#005CC5;--shiki-dark:#6CB6FF">cd</span><span style="color:#032F62;--shiki-dark:#96D0FF"> ~/projects</span></span>
@@ -82,7 +82,7 @@
 </ol>
 <p>OAuth が必要なのは初回 + refreshToken expire 後 (60〜90 日) のみ。日々の rebuild では認証は維持されます。</p>
 <h2 id="過去-wsl2-native-だった人向け移行手順">過去 WSL2 native だった人向け移行手順</h2>
-<p>すでに <a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a> の手順で WSL2 native 開発をしている場合の移行ステップ。<strong>WSL2 native のままでも問題ない</strong>ため、以下の利点を求める場合のみ移行を検討してください:</p>
+<p>すでに <a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a> の手順で WSL2 native 開発をしている場合の移行ステップ。<strong>WSL2 native のままでも問題ない</strong>ため、以下の利点を求める場合のみ移行を検討してください:</p>
 <ul>
 <li>複数プロジェクトを WSL2 上で開発し、Node / JDK / Python のバージョン衝突が発生</li>
 <li>B チーム / OSS contributor に dev 環境を配布する必要が出てきた</li>
@@ -450,7 +450,7 @@ Phase 4 以前は公式 feature <code>ghcr.io/anthropics/devcontainer-features/c
 <table><thead><tr><th>要素</th><th>役割</th><th>Harmony での設定</th></tr></thead><tbody><tr><td><code>build</code></td><td>overlay Dockerfile を build</td><td><code>.devcontainer/Dockerfile</code> (FROM = ghcr.io の base image)</td></tr><tr><td>base image</td><td>稀更新の重い install を内包</td><td><code>ghcr.io/csilost2001/harmony-devcontainer-base:&#x3C;version></code> (#1118 Phase 2、#1120 Phase 5 で features inline 追加)</td></tr><tr><td><code>features</code></td><td>(Phase 5 で廃止) ツール後付け (宣言的)。Dev Containers の features は image build 後に apply されるため ghcr に含まれず cold start オーバーヘッド (~50-60 秒 on Note PC) を発生させていたため base image inline に移行。さらに features は user RUN の下流に置かれる仕様のため overlay 変更 (codex 月 bump 等) で全 feature が再 install される構造的不利あり (#1122 で計測確認、rebuild +35-40 秒)</td><td>(使用しない)</td></tr><tr><td><code>postCreateCommand</code></td><td>プロジェクト固有 setup</td><td><code>npm install</code> (frontend + backend) + <code>.claude/.config.json</code> 初期化のみ (軽量)</td></tr></tbody></table>
 <p>「重い + 共通」→ base image (ghcr、Phase 5 以降は CLI 系も含む) / 「source 依存」→ postCreateCommand、という指針。Phase 4 まで使用していた features 機構は ghcr publish に含まれない制約で廃止 (Phase 5)。docker CLI は #1122 で構成比較した結果、Maintainer 専用機能 (publish-dev-image、年数回) のためだけに常時コストを払う設計を見直し、host 実行運用に切替て base image から除外 (P5b 採用)。</p>
 <p>Phase 0 (postCreate やめて Dockerfile 化) で warm rebuild 56→15 秒 (Ryzen) / 94→21 秒 (Note PC)、Phase 1 (base + overlay 階層化) で codex 更新時の base 再 build 回避、Phase 2 (ghcr 配布) で新規開発者の cold start を大幅短縮 (Playwright DL 不要)。</p>
-<p>詳細: ISSUE <a href="https://github.com/csilost2001/harmony/issues/1118">#1118</a> / <a href="/setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a>。</p>
+<p>詳細: ISSUE <a href="https://github.com/csilost2001/harmony/issues/1118">#1118</a> / <a href="../../setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a>。</p>
 <h2 id="maintainer-base-image-の更新と-publish-1118-phase-2">Maintainer: base image の更新と publish (#1118 Phase 2)</h2>
 <p>base image (<code>ghcr.io/csilost2001/harmony-devcontainer-base:&#x3C;version></code>) を更新するのは maintainer のみ。<strong>頻度は数ヶ月に 1 回程度</strong> (Playwright メジャー / マイナー更新、Node メジャー更新、Debian release 切替時)。</p>
 <blockquote>
@@ -583,14 +583,14 @@ Phase 4 以前は公式 feature <code>ghcr.io/anthropics/devcontainer-features/c
 <p>Dev Containers の image を CI でも使うと、ローカル / CI 完全一致が達成できる。本リポジトリは現状 CI 未導入だが、将来的に検討する場合は <a href="https://github.com/devcontainers/cli"><code>@devcontainers/cli</code></a> を CI で使い、image build + 内部コマンド実行をスクリプト化できる。</p>
 <h2 id="generate-code-出力アプリへの同梱-1048"><code>/generate-code</code> 出力アプリへの同梱 (#1048)</h2>
 <p>本 doc は <strong>Harmony 本体</strong> (Harnize Harmony 自身の開発環境) の Dev Containers 設定について解説する。</p>
-<p><code>/generate-code</code> skill が出力する<strong>業務アプリ</strong>には、同じ思想 (pre-build しない、MS 公式 base image + features 構成) で <code>.devcontainer/devcontainer.json</code> + <code>Dockerfile</code> + <code>docker-compose.yml</code> を同梱する (#1048)。techStack 4 組合せ (spring-boot × thymeleaf / nextjs、nestjs × thymeleaf / nextjs) のテンプレが <code>ai-skills/generate-code/templates/devcontainer/</code> 配下に配置されており、<code>/generate-code</code> 実行時に techStack を判定して該当テンプレをコピー出力する。詳細は <a href="/setup/SKILL/"><code>SKILL.md</code> Step 5.5</a> を参照。</p>
-<p><strong><code>&#x3C;出力先></code> の運用想定</strong>: <code>/generate-code &#x3C;id> &#x3C;出力先></code> の <code>&#x3C;出力先></code> は <strong>業務アプリ project root</strong> を指す (project-root model)。Harmony 利用者は意味のある folder 名 (例: <code>~/projects/retail-app/</code>) を独立した project root として作り、それを <code>&#x3C;出力先></code> に指定して VS Code / Dev Container で開く。<code>examples/&#x3C;id>/generated/&#x3C;techStack>/</code> は Harmony 同梱サンプル / dogfood 参照物であり、常用の project root として開く運用は想定しない (<code>${localWorkspaceFolderBasename}</code> が <code>generated</code> で衝突するため)。詳細は <a href="/setup/SKILL/"><code>SKILL.md</code> Step 5.5</a> の「出力先の運用想定 (project-root model)」を参照。設定駆動 (<code>harmony.json</code> の <code>outputDir</code> 等) は <a href="https://github.com/csilost2001/harmony/issues/1116">#1116</a> で検討中。</p>
+<p><code>/generate-code</code> skill が出力する<strong>業務アプリ</strong>には、同じ思想 (pre-build しない、MS 公式 base image + features 構成) で <code>.devcontainer/devcontainer.json</code> + <code>Dockerfile</code> + <code>docker-compose.yml</code> を同梱する (#1048)。techStack 4 組合せ (spring-boot × thymeleaf / nextjs、nestjs × thymeleaf / nextjs) のテンプレが <code>ai-skills/generate-code/templates/devcontainer/</code> 配下に配置されており、<code>/generate-code</code> 実行時に techStack を判定して該当テンプレをコピー出力する。詳細は <a href="../../setup/SKILL/"><code>SKILL.md</code> Step 5.5</a> を参照。</p>
+<p><strong><code>&#x3C;出力先></code> の運用想定</strong>: <code>/generate-code &#x3C;id> &#x3C;出力先></code> の <code>&#x3C;出力先></code> は <strong>業務アプリ project root</strong> を指す (project-root model)。Harmony 利用者は意味のある folder 名 (例: <code>~/projects/retail-app/</code>) を独立した project root として作り、それを <code>&#x3C;出力先></code> に指定して VS Code / Dev Container で開く。<code>examples/&#x3C;id>/generated/&#x3C;techStack>/</code> は Harmony 同梱サンプル / dogfood 参照物であり、常用の project root として開く運用は想定しない (<code>${localWorkspaceFolderBasename}</code> が <code>generated</code> で衝突するため)。詳細は <a href="../../setup/SKILL/"><code>SKILL.md</code> Step 5.5</a> の「出力先の運用想定 (project-root model)」を参照。設定駆動 (<code>harmony.json</code> の <code>outputDir</code> 等) は <a href="https://github.com/csilost2001/harmony/issues/1116">#1116</a> で検討中。</p>
 <h2 id="関連ドキュメント">関連ドキュメント</h2>
 <ul>
-<li><a href="/setup/AGENTS/"><code>AGENTS.md</code></a> — プロジェクト全般のガイダンス</li>
-<li><a href="/setup/CLAUDE/"><code>CLAUDE.md</code></a> — Claude Code 固有</li>
-<li><a href="/setup/wsl2-native/"><code>wsl2-native.md</code></a> — WSL2 native セットアップ手順 (代替パターン)</li>
-<li><a href="/setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> — Harmony 本体の Docker image 配布構想 (#1055 L2/L3)</li>
+<li><a href="../../setup/AGENTS/"><code>AGENTS.md</code></a> — プロジェクト全般のガイダンス</li>
+<li><a href="../../setup/CLAUDE/"><code>CLAUDE.md</code></a> — Claude Code 固有</li>
+<li><a href="../../setup/wsl2-native/"><code>wsl2-native.md</code></a> — WSL2 native セットアップ手順 (代替パターン)</li>
+<li><a href="../../setup/distribution-roadmap/"><code>distribution-roadmap.md</code></a> — Harmony 本体の Docker image 配布構想 (#1055 L2/L3)</li>
 <li>ISSUE <a href="https://github.com/csilost2001/harmony/issues/847">#847</a> — Dev Containers 移行 roadmap</li>
 <li>ISSUE <a href="https://github.com/csilost2001/harmony/issues/1048">#1048</a> — <code>/generate-code</code> 出力アプリへの Dev Containers 同梱 (#847 B セクション)</li>
 </ul>
