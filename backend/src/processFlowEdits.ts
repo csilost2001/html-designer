@@ -7,7 +7,11 @@
 
 type Step = {
   id: string;
-  type: string;
+  /** v3 discriminator (#1141 / #8)。schema 上は `kind` のみが正規。
+   * 旧 v1/v2 データの `type` は移行猶予で保持するが、新規書込は `kind` のみ。 */
+  kind?: string;
+  /** @deprecated v1/v2 legacy。v3 では `kind` を参照する。 */
+  type?: string;
   description?: string;
   subSteps?: Step[];
   branches?: Array<{ id: string; steps: Step[] }>;
@@ -19,6 +23,11 @@ type Step = {
   notes?: Array<{ id: string; type: string; body: string; createdAt: string }>;
   [k: string]: unknown;
 };
+
+/** Step discriminator を抽出 (#1141)。v3 では `kind`、レガシーは `type` を参照。 */
+function stepKindOf(s: Step): string | undefined {
+  return s.kind ?? s.type;
+}
 
 type Action = {
   id: string;
@@ -65,8 +74,9 @@ function walkSteps(
       }
     }
     if (s.elseBranch && walkSteps(s.elseBranch.steps, visit)) return true;
-    if (s.type === "loop" && s.steps && walkSteps(s.steps, visit)) return true;
-    if (s.type === "transactionScope") {
+    const k = stepKindOf(s);
+    if (k === "loop" && s.steps && walkSteps(s.steps, visit)) return true;
+    if (k === "transactionScope") {
       if (s.steps && walkSteps(s.steps, visit)) return true;
       if (s.onCommit && walkSteps(s.onCommit, visit)) return true;
       if (s.onRollback && walkSteps(s.onRollback, visit)) return true;
