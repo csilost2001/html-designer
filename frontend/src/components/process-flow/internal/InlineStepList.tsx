@@ -33,6 +33,11 @@ export interface InlineStepListProps {
  * StepCard との相互参照あり (StepCard の循環 import を避けるため別ファイル化、#1145)。
  *
  * 元: components/process-flow/StepCard.tsx の InlineStepList (#1145 で分離)
+ *
+ * ⚠️ 循環 import 注意 (#1158 review S-2): `StepCard` ⇔ `InlineStepList` の ESM 循環。
+ * 両方とも `export function` (hoisted) のため module 評価順に依存せず TDZ 安全。
+ * **将来 `let`/`const` declaration や lazy initialization へ変更する場合は TDZ で
+ * 実行時 ReferenceError になる**ため、両ファイルとも function declaration を維持すること。
  */
 export function InlineStepList({
   steps,
