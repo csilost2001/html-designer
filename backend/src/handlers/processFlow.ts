@@ -365,8 +365,7 @@ export const handleProcessFlowTool: ToolHandler = async (name, args, root) => {
         throw new McpError(ErrorCode.InvalidParams, "processFlowId, actionId, kind は必須です");
       }
       // browser-first: ProcessFlowEditor が開いていれば in-memory に適用
-      // NOTE: browser 側 mutation handler は引き続き内部 `type` field を受ける旧 API のため、
-      // params に kind 追加。browser 側を v3 化する作業は別 ISSUE で追従 (UI 互換維持)。
+      // browser 側 mutation handler (applyProcessFlowMutation) は #1149 で v3 化済 (kind を直接受容)。
       const addApplied = await wsBridge.tryCommand("applyProcessFlowMutation", {
         id: a.processFlowId, type: "designer__add_step", params: a,
       });

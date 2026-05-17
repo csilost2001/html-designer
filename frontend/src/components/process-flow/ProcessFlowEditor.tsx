@@ -25,6 +25,7 @@ import {
   moveStep,
   addSubStep,
 } from "../../store/processFlowStore";
+import { applyProcessFlowMutation } from "./processFlowMutation";
 import { listTables, loadTable } from "../../store/tableStore";
 import { loadProject } from "../../store/flowStore";
 import { getStepLabel, clearJumpReferences } from "../../utils/actionUtils";
@@ -306,7 +307,7 @@ function summarizeActionFields(fields: unknown, fallback: string): string {
 function summarizeActionStepTypes(action: ActionDefinition): string {
   const counts = new Map<string, number>();
   for (const step of action.steps ?? []) {
-    const key = step.kind ?? step.type ?? "other";
+    const key = step.kind ?? "other";
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   if (counts.size === 0) return "ステップ未定義";
@@ -511,7 +512,7 @@ export function ProcessFlowEditor() {
     loadProject().then((p) => {
       setScreens(p.screens.map((s) => ({ id: s.id, name: s.name })));
       const agMetas = p.processFlows ?? [];
-      setCommonGroups(agMetas.filter((a) => a.type === "common").map((a) => ({ id: a.id, name: a.name })));
+      setCommonGroups(agMetas.filter((a) => a.kind === "common").map((a) => ({ id: a.id, name: a.name })));
     }).catch(console.error);
     listTables().then(async (metas) => {
       setTables(metas.map((tm) => ({ id: tm.id, physicalName: tm.physicalName ?? "", name: tm.name })));
@@ -2130,46 +2131,8 @@ export function ProcessFlowEditor() {
   );
 }
 
-// ── browser-first 処理フロー変異ヘルパー (#361) ──────────────────────────────
-// add_step / remove_step / moveStep は processFlowStore の関数を再利用し、
-// ファイルベース (processFlowEdits.ts) と実装が乖離しないようにする。
-
-function applyProcessFlowMutation(
-  g: ProcessFlow,
-  type: string,
-  p: Record<string, unknown>,
-): void {
-  switch (type) {
-    case "designer__add_step": {
-      const act = g.actions.find((a) => a.id === p.actionId);
-      if (!act) return;
-      const pos = typeof p.position === "number" ? p.position : undefined;
-      const step = addStep(act, p.type as StepType, pos);
-      if (p.description) step.description = p.description as string;
-      Object.assign(step, (p.detail ?? {}) as object);
-      break;
-    }
-    case "designer__update_step": {
-      for (const act of g.actions) {
-        const step = act.steps.find((s) => s.id === p.stepId);
-        if (step) { Object.assign(step, p.patch); return; }
-      }
-      break;
-    }
-    case "designer__remove_step": {
-      for (const act of g.actions) {
-        const idx = act.steps.findIndex((s) => s.id === p.stepId);
-        if (idx >= 0) { removeStep(act, p.stepId as string); return; }
-      }
-      break;
-    }
-    case "designer__move_step": {
-      const newIndex = p.newIndex as number;
-      for (const act of g.actions) {
-        const fromIdx = act.steps.findIndex((s) => s.id === p.stepId);
-        if (fromIdx >= 0) { moveStep(act, fromIdx, newIndex); return; }
-      }
-      break;
-    }
-  }
-}
+// ── browser-first 処理フロー変異ヘルパー ───────────────────────────────────
+// #1149 (PR #1148 follow-up) で `./processFlowMutation.ts` に切り出し済。
+// 切り出し理由: vitest unit test で巨大エディタ全体を巻き込まずに mutation
+// ロジックを単体検証するため。v3 構造 (`kind` discriminator / RFC 4122 v4
+// UUID) は同モジュール内で受容する。
