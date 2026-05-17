@@ -418,7 +418,7 @@ export function Designer({
     if (isDirtyRef.current) {
       setServerChanged(true);
     } else {
-      console.log("[Designer] screenChanged broadcast, reloading...");
+      if (import.meta.env.DEV) console.log("[Designer] screenChanged broadcast, reloading...");
       editorApiRef.current?.reload().catch(console.error);
     }
   }, []);
@@ -721,7 +721,7 @@ export function Designer({
       if (isDirtyRef.current) {
         setServerChanged(true);
       } else {
-        console.log("[Designer] puckDataChanged broadcast, marking server changed...");
+        if (import.meta.env.DEV) console.log("[Designer] puckDataChanged broadcast, marking server changed...");
         setServerChanged(true);
       }
     });

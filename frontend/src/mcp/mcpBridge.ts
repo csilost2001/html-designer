@@ -507,7 +507,9 @@ class McpBridgeImpl {
     if (msg.type === "broadcast") {
       const event = msg.event as string;
       const broadcastData = msg.data;
-      console.log("[mcpBridge] broadcast:", event, broadcastData);
+      // S-18 (#1147): production console 煩雑化回避のため DEV のみ出力。
+      // migration 通知 / 接続 lifecycle は production 保持。
+      if (import.meta.env.DEV) console.log("[mcpBridge] broadcast:", event, broadcastData);
       if (event === "extensionsChanged") {
         this.extensionsCache = null;
         this.extensionsChangedHandlers.forEach((handler) => handler());
