@@ -463,7 +463,11 @@ Claude Code 利用時は `/test-strategy` スキルが自動起動 (詳細は `C
   Closes #B
   Closes #C
   ```
-  **NG**: `Closes #A, #B, #C` は**先頭しか自動 close されない** (PR #340 で実例あり)。コミットは ISSUE 単位で分ける。独立レビューは**統合 PR 単位で 1 回**。Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
+  **NG**: `Closes #A, #B, #C` は**先頭しか自動 close されない** (PR #340 で実例あり)。コミットは ISSUE 単位で分ける。独立レビューは**統合 PR 単位で 1 回**。
+
+  **重要 (シリーズ PR 親 ISSUE 誤 close 防止、2026-05-17 PR #1163 で実証)**: シリーズ PR の **Phase 途中段階で親 ISSUE を open 維持したい場合は必ず `Refs #N` を使う**。`Closes` キーワードは inline backtick (`` `Closes #N` ``) で囲っても GitHub parser が context-aware で auto-close trigger として処理する場合あり (parser ヒューリスティクス不安定)。詳細は memory `feedback_pr_closes_code_block_invalidates.md`。
+
+  Never commit directly to `main`. Branch naming: `feat/issue-<N>-<slug>` (単独 PR) / `feat/<topic-slug>` (統合 PR) for features, `fix/issue-<N>` or `fix/<slug>` for bug fixes, `docs/<slug>` for documentation-only changes. Create the branch from `origin/main` before starting work.
 - PRs are squash-merged into `main`. The PR title should include the issue number (e.g., `feat(ui): ... (#83)`) so the merge commit references it.
 - `data/` は本体専用 (`data/extensions/` のみ git tracked) + `workspaces/` がユーザー作業領域 (両方 gitignored)
 - Themes: standard (default Bootstrap), card, compact, dark — CSS injected into GrapesJS canvas iframe
