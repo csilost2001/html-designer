@@ -14,6 +14,8 @@ screenshots/
 *.png
 # 仕様書に紐づく UI スクリーンショットは追跡する
 !docs/ui-screenshots/*.png
+# プレゼン資料に埋め込む確定・ドラフト画像は追跡する
+!docs/presentation/images/*.png
 # Playwright visual regression baselines は追跡する (#814)
 !frontend/e2e/**/*-snapshots/**/*.png
 

@@ -3,9 +3,10 @@
 社内ミーティングで使用する Marp ベースのプレゼン資料。
 
 - **対象聴衆**: 現場エンジニア
-- **時間**: 30 分 (25-28 スライド想定)
+- **時間**: 40-50 分想定 (複数テーマを 1 つの開発環境改善計画として扱う)
 - **作成日**: 2026-05-17 〜
 - **記述時点情報**: スライド内の AI ツール比較は 2026-05 時点の公開情報に基づく。本番前に最新化を再確認すること
+- **現行ドラフト**: 20260518
 
 ## ファイル構成
 
@@ -29,13 +30,18 @@ docs/presentation/
 npm install -g @marp-team/marp-cli
 
 # HTML (レビュー・ブラウザ確認用)
-marp docs/presentation/slides.md --theme docs/presentation/theme.css -o docs/presentation/out/slides.html
+marp docs/presentation/slides.md --theme docs/presentation/theme.css -o docs/presentation/out/slides-20260518.html
+mkdir -p docs/presentation/out/images
+cp docs/presentation/images/draft-20260518-*.svg docs/presentation/out/images/
+cp docs/presentation/images/gpt-20260518-*.png docs/presentation/out/images/
 
 # PDF (社内共有・印刷用)
-marp docs/presentation/slides.md --theme docs/presentation/theme.css --pdf -o docs/presentation/out/slides.pdf
+CHROME_PATH=$HOME/.cache/ms-playwright/chromium-1224/chrome-linux64/chrome \
+  marp docs/presentation/slides.md --theme docs/presentation/theme.css --pdf --allow-local-files -o docs/presentation/out/slides-20260518.pdf
 
 # PowerPoint (本番)
-marp docs/presentation/slides.md --theme docs/presentation/theme.css --pptx -o docs/presentation/out/slides.pptx
+CHROME_PATH=$HOME/.cache/ms-playwright/chromium-1224/chrome-linux64/chrome \
+  marp docs/presentation/slides.md --theme docs/presentation/theme.css --pptx --allow-local-files -o docs/presentation/out/slides-20260518.pptx
 
 # プレビューサーバ (編集中の連続確認)
 marp docs/presentation/slides.md --theme docs/presentation/theme.css --server
@@ -68,6 +74,8 @@ footer: '{{FOOTER_TEXT}}'
 ## 画像配置ルール
 
 - 本番資料に埋め込む画像 → `docs/presentation/images/` に置き、`![alt](images/xxx.png)` で参照 (git tracked、配布物の一部)
+- ドラフト画像 → `docs/presentation/images/draft-YYYYMMDD-*.svg` として置き、採用後にリネームまたは PNG 化を検討
+- GPT-Image 生成画像 → `docs/presentation/images/gpt-YYYYMMDD-*.png` として置き、差し戻し可能なよう元 SVG も残す
 - AI 作業中の試し撮りスクショ → プロジェクトルール通り `.tmp/screenshots/` に置き、確定後 `images/` に移動
 
 ## 編集フロー
