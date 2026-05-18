@@ -2,11 +2,11 @@
  * serverLog の単体テスト (#750 follow-up)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { initServerLog, log, ingestClientLog, shutdownServerLog } from "./serverLog.js";
+import { initServerLog, log, logError, ingestClientLog, shutdownServerLog } from "./serverLog.js";
 
 let tmpRoot = "";
 
@@ -25,6 +25,7 @@ describe("serverLog", () => {
     initServerLog(tmpRoot);
   });
   afterEach(() => {
+    vi.restoreAllMocks();
     shutdownServerLog();
     try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }
   });
@@ -71,5 +72,33 @@ describe("serverLog", () => {
       { ts: Date.now(), level: "warn", category: "b", msg: "2" },
     ]);
     expect(r.count).toBe(2);
+  });
+
+  it("console.error が EPIPE を sync throw しても log() が throw しない", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {
+      const e: NodeJS.ErrnoException = new Error("write EPIPE");
+      e.code = "EPIPE";
+      throw e;
+    });
+    expect(() => logError("test", "test error msg", { foo: "bar" })).not.toThrow();
+  });
+
+  it("連続 logError 2 回でも両方 file に書き込まれる (再入 guard が false positive しない)", () => {
+    logError("test", "msg1");
+    logError("test", "msg2");
+    const logsDir = path.join(tmpRoot, "logs");
+    const searchDir = fs.existsSync(logsDir) ? logsDir : tmpRoot;
+    const logFiles = fs.readdirSync(searchDir).filter((f) => f.startsWith("harmony-mcp-"));
+    expect(logFiles.length).toBeGreaterThanOrEqual(1);
+    const content = fs.readFileSync(path.join(searchDir, logFiles[0]), "utf-8");
+    expect(content).toContain("msg1");
+    expect(content).toContain("msg2");
+  });
+
+  it("file 書き込み失敗時にも throw しない", () => {
+    const logsDir = path.join(tmpRoot, "logs");
+    if (fs.existsSync(logsDir)) fs.rmSync(logsDir, { recursive: true, force: true });
+    else fs.rmSync(tmpRoot, { recursive: true, force: true });
+    expect(() => logError("test", "msg after rm")).not.toThrow();
   });
 });
