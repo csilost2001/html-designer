@@ -35,6 +35,7 @@ const RETENTION_DAYS = 7;
 
 let _logDir: string | null = null;
 let _minLevel: LogLevel = "info";
+let _inLog = false;
 
 /** logger 初期化。projectRoot は data/ の親ディレクトリ。 */
 export function initServerLog(projectRoot: string): void {
@@ -86,28 +87,36 @@ export function log(
   ctx?: Record<string, unknown>,
 ): void {
   if (LEVEL_ORDER[level] < LEVEL_ORDER[_minLevel]) return;
-  const entry: LogEntry = {
-    ts: new Date().toISOString(),
-    level,
-    category,
-    msg,
-    ctx,
-  };
-  // ファイル出力 — appendFileSync で確実に flush (テスト容易性 + クラッシュ時の log 保全)。
-  // 高頻度ログでもボトルネックにならない (server-side は秒間 100 件もない想定)。
-  // 日付ロールオーバーは _todayFileName() が UTC 日付ベースで毎回算出するので自動切替。
-  if (_logDir) {
-    try {
-      fs.appendFileSync(path.join(_logDir, _todayFileName()), JSON.stringify(entry) + "\n", "utf-8");
-    } catch (e) {
-      console.error("[serverLog] write failed:", e);
+  if (_inLog) return;
+  _inLog = true;
+  try {
+    const entry: LogEntry = {
+      ts: new Date().toISOString(),
+      level,
+      category,
+      msg,
+      ctx,
+    };
+    // ファイル出力 — appendFileSync で確実に flush (テスト容易性 + クラッシュ時の log 保全)。
+    // 高頻度ログでもボトルネックにならない (server-side は秒間 100 件もない想定)。
+    // 日付ロールオーバーは _todayFileName() が UTC 日付ベースで毎回算出するので自動切替。
+    if (_logDir) {
+      try {
+        fs.appendFileSync(path.join(_logDir, _todayFileName()), JSON.stringify(entry) + "\n", "utf-8");
+      } catch (e) {
+        try { console.error("[serverLog] write failed:", e); } catch { /* swallow */ }
+      }
     }
-  }
-  // 重要度高は console にも出す (既存挙動互換 + 開発時の視認性)
-  if (level === "warn" || level === "error") {
-    const prefix = `[${entry.ts}][${category}]`;
-    if (level === "error") console.error(prefix, msg, ctx ?? "");
-    else console.warn(prefix, msg, ctx ?? "");
+    // 重要度高は console にも出す (既存挙動互換 + 開発時の視認性)
+    if (level === "warn" || level === "error") {
+      const prefix = `[${entry.ts}][${category}]`;
+      try {
+        if (level === "error") console.error(prefix, msg, ctx ?? "");
+        else console.warn(prefix, msg, ctx ?? "");
+      } catch { /* swallow EPIPE */ }
+    }
+  } finally {
+    _inLog = false;
   }
 }
 
