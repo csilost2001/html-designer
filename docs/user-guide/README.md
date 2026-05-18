@@ -8,6 +8,7 @@
 - [AI マーカーと `/designer-work`](marker-workflow.md) — 画面に指示を書いて Claude Code に処理させる使い方
 - [画面項目 ID の AI 自動命名 `/rename-screen-ids`](rename-screen-ids-workflow.md) — 自動採番 ID を業務名に一括リネームする
 - [マルチエディタ / Puck デザイナ](multi-editor-puck-guide.md) — 画面単位で GrapesJS と Puck を選択、cssFramework 混在、動的コンポーネント登録の使い方 (#806)
+- [`/generate-code` ワークフロー](generate-code-workflow.md) — 設計した処理フロー / 画面を業務アプリ project root にコード生成して Dev Container で開発する流れ
 - [トラブルシューティング](troubleshooting.md) — よくある詰まりと回避策
 
 ## 前提ツール
