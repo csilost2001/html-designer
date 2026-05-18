@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Excel設計書からJSON Schemaベース設計書への転換</title>
+  <desc id="desc">Excelの暗黙ルールとJSON Schemaの機械検証可能な構造を比較する図。</desc>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="80" y="82" fill="#09090b" font-family="Inter, 'Noto Sans JP', sans-serif" font-size="42" font-weight="700">Excel 納品と Excel で開発することは別問題</text>
+  <text x="82" y="122" fill="#71717a" font-family="Inter, 'Noto Sans JP', sans-serif" font-size="20">社内の原本を機械可読にすれば、納品形式は後から生成できる</text>
+
+  <g font-family="Inter, 'Noto Sans JP', sans-serif">
+    <rect x="80" y="175" width="480" height="360" rx="18" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="120" y="230" fill="#991b1b" font-size="34" font-weight="700">Excel 原本</text>
+    <g fill="#ffffff" stroke="#fecaca">
+      <rect x="120" y="270" width="90" height="50"/><rect x="210" y="270" width="90" height="50"/><rect x="300" y="270" width="180" height="50"/>
+      <rect x="120" y="320" width="180" height="50"/><rect x="300" y="320" width="90" height="50"/><rect x="390" y="320" width="90" height="50"/>
+      <rect x="120" y="370" width="90" height="50"/><rect x="210" y="370" width="270" height="50"/>
+    </g>
+    <text x="140" y="304" fill="#7f1d1d" font-size="18">色</text>
+    <text x="232" y="304" fill="#7f1d1d" font-size="18">罫線</text>
+    <text x="320" y="304" fill="#7f1d1d" font-size="18">セル結合</text>
+    <text x="140" y="354" fill="#7f1d1d" font-size="18">暗黙の見出し</text>
+    <text x="230" y="404" fill="#7f1d1d" font-size="18">人間の読み取り前提</text>
+    <text x="120" y="475" fill="#991b1b" font-size="22" font-weight="700">AI には意味が落ちる</text>
+    <text x="120" y="508" fill="#7f1d1d" font-size="18">diff / 検証 / 自動生成に向かない</text>
+
+    <path d="M595 360 H685" stroke="#ea580c" stroke-width="5" stroke-linecap="round"/>
+    <path d="M665 338 L695 360 L665 382" fill="none" stroke="#ea580c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="720" y="175" width="480" height="360" rx="18" fill="#f0fdf4" stroke="#bbf7d0"/>
+    <text x="760" y="230" fill="#14532d" font-size="34" font-weight="700">JSON + Schema 原本</text>
+    <rect x="760" y="270" width="390" height="170" rx="10" fill="#052e16"/>
+    <text x="790" y="312" fill="#bbf7d0" font-family="'JetBrains Mono', Menlo, monospace" font-size="20">{</text>
+    <text x="820" y="342" fill="#dcfce7" font-family="'JetBrains Mono', Menlo, monospace" font-size="20">"field": "customerName",</text>
+    <text x="820" y="372" fill="#dcfce7" font-family="'JetBrains Mono', Menlo, monospace" font-size="20">"type": "string",</text>
+    <text x="820" y="402" fill="#dcfce7" font-family="'JetBrains Mono', Menlo, monospace" font-size="20">"required": true</text>
+    <text x="790" y="432" fill="#bbf7d0" font-family="'JetBrains Mono', Menlo, monospace" font-size="20">}</text>
+    <text x="760" y="475" fill="#14532d" font-size="22" font-weight="700">AI が構造として読める</text>
+    <text x="760" y="508" fill="#166534" font-size="18">Schema 検証 / diff / コード生成 / Excel 変換</text>
+
+    <rect x="225" y="590" width="830" height="54" rx="27" fill="#09090b"/>
+    <text x="640" y="625" fill="#fafafa" font-size="24" font-weight="700" text-anchor="middle">顧客には Excel、社内原本は機械可読という役割分担が可能</text>
+  </g>
+</svg>

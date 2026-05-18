@@ -644,3 +644,109 @@ section.chapter::after {
 }
 .honest-note strong { color: var(--c-ink);
 }
+
+/* --- Draft visual assets -------------------------------------------------- */
+
+.visual-full {
+  display: block;
+  width: 100%;
+  max-height: 470px;
+  object-fit: contain;
+  margin: 10px auto 0 auto;
+}
+
+.visual-mid {
+  display: block;
+  width: 92%;
+  max-height: 405px;
+  object-fit: contain;
+  margin: 8px auto 0 auto;
+}
+
+.visual-outcomes {
+  display: block;
+  width: 78%;
+  max-height: 285px;
+  object-fit: contain;
+  margin: 0 auto 6px auto;
+}
+
+.visual-loop {
+  display: block;
+  width: 94%;
+  max-height: 380px;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+.loop-summary {
+  border-left: 2px solid var(--c-ink);
+  margin: 6px 0 0 0;
+  padding: 6px 0 6px 16px;
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--c-text);
+}
+
+.loop-summary strong {
+  color: var(--c-ink);
+}
+
+.caption-note {
+  font-size: 13px;
+  color: var(--c-muted);
+  margin-top: 8px;
+  letter-spacing: 0.02em;
+}
+
+.decision-frame {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.decision-card {
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  min-height: 126px;
+}
+
+.decision-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+}
+
+.decision-card p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--c-muted);
+  line-height: 1.55;
+}
+
+.effect-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+.effect-item {
+  border-left: 3px solid var(--c-line);
+  padding: 5px 0 5px 10px;
+  font-size: 15px;
+  line-height: 1.32;
+  color: var(--c-text);
+}
+
+.effect-item strong {
+  color: var(--c-ink);
+}
+
+.honest-note.compact {
+  font-size: 12px;
+  line-height: 1.35;
+  padding: 7px 10px;
+  margin: 8px 0 0 0;
+}

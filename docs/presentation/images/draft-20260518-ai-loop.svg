@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">IssueからAI、PR、レビュー、知識化へ回る開発ループ</title>
+  <desc id="desc">通常開発と障害対応をIssue、AI調査実装、PR、人間レビュー、ナレッジ蓄積の同じプリミティブで回す図。</desc>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <g font-family="Inter, 'Noto Sans JP', sans-serif">
+    <defs>
+      <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+        <path d="M2,2 L10,6 L2,10 Z" fill="#ea580c"/>
+      </marker>
+    </defs>
+    <circle cx="640" cy="310" r="195" fill="none" stroke="#ea580c" stroke-width="6" stroke-dasharray="8 14"/>
+    <path d="M705 126 A195 195 0 0 1 784 258" fill="none" stroke="#ea580c" stroke-width="6" marker-end="url(#arrow)"/>
+    <path d="M812 365 A195 195 0 0 1 705 494" fill="none" stroke="#ea580c" stroke-width="6" marker-end="url(#arrow)"/>
+    <path d="M575 494 A195 195 0 0 1 496 362" fill="none" stroke="#ea580c" stroke-width="6" marker-end="url(#arrow)"/>
+    <path d="M468 255 A195 195 0 0 1 575 126" fill="none" stroke="#ea580c" stroke-width="6" marker-end="url(#arrow)"/>
+
+    <rect x="530" y="70" width="220" height="86" rx="18" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="640" y="105" fill="#09090b" font-size="28" font-weight="700" text-anchor="middle">Issue</text>
+    <text x="640" y="135" fill="#71717a" font-size="17" text-anchor="middle">作業指示 / 障害票</text>
+
+    <rect x="775" y="247" width="245" height="92" rx="18" fill="#09090b"/>
+    <text x="898" y="285" fill="#fafafa" font-size="28" font-weight="700" text-anchor="middle">AI 調査・実装</text>
+    <text x="898" y="317" fill="#a1a1aa" font-size="17" text-anchor="middle">コード / 設計 / テスト</text>
+
+    <rect x="530" y="460" width="220" height="86" rx="18" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="640" y="495" fill="#09090b" font-size="28" font-weight="700" text-anchor="middle">PR</text>
+    <text x="640" y="525" fill="#71717a" font-size="17" text-anchor="middle">差分と議論を記録</text>
+
+    <rect x="260" y="247" width="245" height="92" rx="18" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="383" y="285" fill="#09090b" font-size="28" font-weight="700" text-anchor="middle">人間レビュー</text>
+    <text x="383" y="317" fill="#71717a" font-size="17" text-anchor="middle">判断・責任・承認</text>
+
+    <rect x="500" y="260" width="280" height="100" rx="20" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="640" y="299" fill="#9a3412" font-size="28" font-weight="700" text-anchor="middle">Knowledge</text>
+    <text x="640" y="332" fill="#7c2d12" font-size="18" text-anchor="middle">経緯・判断・再発防止策</text>
+
+    <text x="270" y="612" fill="#71717a" font-size="19">通常開発: 設計書 → Issue → 実装 → PR</text>
+    <text x="735" y="612" fill="#71717a" font-size="19">障害対応: 障害Issue → 調査 → 修正PR</text>
+  </g>
+</svg>
