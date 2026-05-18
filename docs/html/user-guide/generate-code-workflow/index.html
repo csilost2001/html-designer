@@ -1,0 +1,187 @@
+<!DOCTYPE html><html lang="ja" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="../../favicon.svg" type="image/svg+xml"><title>generate code workflow</title><meta name="description" content><pagefind-config bundle-path="/pagefind/"></pagefind-config> <script type="module" src="../../_astro/PagefindConfig.astro_astro_type_script_index_0_lang.Cea9gCkK.js"></script><script>
+      // FOUC 回避: テーマ復元を <head> 内で実行 (paint 前)
+      if (localStorage.getItem('theme') === 'light') {
+        document.documentElement.classList.remove('dark');
+      }
+    </script><link rel="stylesheet" href="../../_astro/_slug_.DpmzT9nP.css"></head> <body class="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen"> <header class="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/85 dark:bg-slate-950/85 backdrop-blur z-20"> <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center gap-4"> <a href="../../" class="font-bold text-lg tracking-tight">Harmony Docs</a> <nav class="hidden md:flex gap-3 text-sm text-slate-600 dark:text-slate-400"> <a href="../../spec/" class="hover:text-slate-900 dark:hover:text-slate-100">仕様書</a> <a href="../../user-guide/" class="hover:text-slate-900 dark:hover:text-slate-100">ユーザーガイド</a> <a href="../../conventions/" class="hover:text-slate-900 dark:hover:text-slate-100">規約</a> <a href="../../setup/" class="hover:text-slate-900 dark:hover:text-slate-100">セットアップ</a> <a href="../../presentation/" class="hover:text-slate-900 dark:hover:text-slate-100">プレゼン</a> </nav> <div class="flex-1"></div> <pagefind-modal-trigger> <button type="button" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+🔍 検索
+</button> </pagefind-modal-trigger> <button type="button" id="theme-toggle" class="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle theme">
+🌓
+</button> </div> </header> <div class="max-w-screen-2xl mx-auto px-4 py-6 flex gap-6"> <aside class="w-60 shrink-0 hidden lg:block" data-pagefind-ignore> <nav class="sticky top-20 space-y-3 text-sm"> <div> <div class="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-3 mb-1.5"> ユーザーガイド </div> <ul class="space-y-0.5"> <li> <a href="../../user-guide/readme/" class="sidebar-link"> Overview </a> </li><li> <a href="../../user-guide/process-flow-workflow/" class="sidebar-link"> ProcessFlow ワークフロー </a> </li><li> <a href="../../user-guide/marker-workflow/" class="sidebar-link"> Marker ワークフロー </a> </li><li> <a href="../../user-guide/rename-screen-ids-workflow/" class="sidebar-link"> 画面 ID リネーム </a> </li><li> <a href="../../user-guide/multi-editor-puck-guide/" class="sidebar-link"> マルチエディタ利用 </a> </li><li> <a href="../../user-guide/troubleshooting/" class="sidebar-link"> トラブルシューティング </a> </li> </ul> </div> </nav> </aside> <main class="flex-1 min-w-0"> <article class="prose dark:prose-invert max-w-none">   <h1 id="generate-code-ワークフロー-業務アプリ開発者向け"><code>/generate-code</code> ワークフロー (業務アプリ開発者向け)</h1>
+<p><strong>目的</strong>: Harmony で設計した処理フロー / 画面 / ページレイアウトを、業務アプリ project root にコード生成し、Dev Container で開発を続ける。</p>
+<p>本書は <strong>Harmony の利用者</strong> (業務アプリ設計者・開発リーダー) 向け。<code>/generate-code</code> skill の内部仕様は <a href="https://github.com/csilost2001/harmony/blob/main/ai-skills/generate-code/SKILL.md"><code>ai-skills/generate-code/SKILL.md</code></a> (AI 実装者向け)、設計者承認が必要な拡張は <a href="../../spec/schema-governance/"><code>docs/spec/schema-governance.md</code></a> を参照。</p>
+<h2 id="位置づけ">位置づけ</h2>
+<p><code>/generate-code &#x3C;UUID> &#x3C;出力先></code> は <strong>業務アプリ project root を作る (または更新する) コマンド</strong> です。生成されるのは「Harmony という設計ツールから派生した独立した業務アプリ」であり、Harmony 本体 repo の一部ではありません。</p>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Harmony (設計)                          業務アプリ (実装)</span></span>
+<span class="line"><span>─────────────────                       ─────────────────────────</span></span>
+<span class="line"><span>ProcessFlow / Screen / Table   ─────▶   ~/projects/&#x3C;業務名>/</span></span>
+<span class="line"><span>PageLayout / Convention                  ├── src/</span></span>
+<span class="line"><span>(workspace 内 JSON)                      ├── .devcontainer/</span></span>
+<span class="line"><span>                                         ├── Dockerfile</span></span>
+<span class="line"><span>                                         └── docker-compose.yml</span></span></code></pre>
+<h2 id="project-root-model-とは">project-root model とは</h2>
+<p><code>&#x3C;出力先></code> は <strong>業務アプリの project root を直接指す</strong> 設計です。生成ファイルは canonical layout (Maven / Next.js 標準) で project root 直下に配置され、<code>.devcontainer/</code> / <code>Dockerfile</code> / <code>docker-compose.yml</code> / <code>README.md</code> も同じ project root に同居します。</p>
+<p>つまり生成後にやることは:</p>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#6F42C1;--shiki-dark:#F69D50">code</span><span style="color:#032F62;--shiki-dark:#96D0FF"> ~/projects/retail-app/</span><span style="color:#6A737D;--shiki-dark:#768390">      # project root を VS Code で開く</span></span>
+<span class="line"><span style="color:#6A737D;--shiki-dark:#768390"># → 右下に "Reopen in Container" のプロンプトが出る → クリック</span></span></code></pre>
+<p>これで業務アプリの dev 環境が完成します。</p>
+<h3 id="canonical-layout-の例-spring-boot-backend">canonical layout の例 (Spring Boot backend)</h3>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>~/projects/retail-app/                  ← 業務アプリ project root</span></span>
+<span class="line"><span>├── .devcontainer/</span></span>
+<span class="line"><span>│   └── devcontainer.json</span></span>
+<span class="line"><span>├── Dockerfile</span></span>
+<span class="line"><span>├── docker-compose.yml</span></span>
+<span class="line"><span>├── README.md</span></span>
+<span class="line"><span>├── pom.xml</span></span>
+<span class="line"><span>├── mvnw / mvnw.cmd                     ← `./mvnw spring-boot:run` で system Maven 不要</span></span>
+<span class="line"><span>└── src/</span></span>
+<span class="line"><span>    ├── main/</span></span>
+<span class="line"><span>    │   ├── java/com/example/retailapp/</span></span>
+<span class="line"><span>    │   │   ├── controller/</span></span>
+<span class="line"><span>    │   │   ├── service/</span></span>
+<span class="line"><span>    │   │   ├── repository/</span></span>
+<span class="line"><span>    │   │   └── entity/</span></span>
+<span class="line"><span>    │   └── resources/</span></span>
+<span class="line"><span>    │       ├── application.properties</span></span>
+<span class="line"><span>    │       ├── db/migration/           ← Flyway</span></span>
+<span class="line"><span>    │       └── templates/              ← Thymeleaf (frontend=thymeleaf の場合)</span></span>
+<span class="line"><span>    └── test/</span></span></code></pre>
+<h3 id="canonical-layout-の例-nestjs--nextjs">canonical layout の例 (NestJS + Next.js)</h3>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>~/projects/inventory-admin/             ← 業務アプリ project root</span></span>
+<span class="line"><span>├── .devcontainer/</span></span>
+<span class="line"><span>├── Dockerfile</span></span>
+<span class="line"><span>├── docker-compose.yml</span></span>
+<span class="line"><span>├── README.md</span></span>
+<span class="line"><span>├── package.json</span></span>
+<span class="line"><span>├── tsconfig.json</span></span>
+<span class="line"><span>├── nest-cli.json</span></span>
+<span class="line"><span>├── next.config.mjs</span></span>
+<span class="line"><span>├── &#x3C;processFlowName>.service.ts        ← NestJS Service (root 直下、業務ロジック)</span></span>
+<span class="line"><span>├── &#x3C;processFlowName>.controller.ts     ← NestJS Controller (root 直下、HTTP ルート)</span></span>
+<span class="line"><span>├── &#x3C;processFlowName>.module.ts         ← NestJS Module (root 直下)</span></span>
+<span class="line"><span>├── dto/                                ← Request / Response DTO</span></span>
+<span class="line"><span>├── entity/                             ← TypeORM Entity (DB スキーマ)</span></span>
+<span class="line"><span>├── src/                                ← AI / auth scaffold のみ (NestJS は src/ 強制ではない)</span></span>
+<span class="line"><span>│   ├── ai/                             ← AI step あり時のみ</span></span>
+<span class="line"><span>│   └── auth/                           ← auth.method 有効時のみ</span></span>
+<span class="line"><span>├── app/                                ← Next.js App Router (frontend)</span></span>
+<span class="line"><span>│   ├── components/layouts/</span></span>
+<span class="line"><span>│   └── components/gadgets/</span></span>
+<span class="line"><span>└── components/&#x3C;domain>/                ← 共通 UI コンポーネント</span></span></code></pre>
+<h2 id="推奨ワークフロー">推奨ワークフロー</h2>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>┌─ 1. 設計 (Harmony 内) ───────────────────────────────────────┐</span></span>
+<span class="line"><span>│   designer で ProcessFlow / Screen / Table / PageLayout を作成   │</span></span>
+<span class="line"><span>│   `/review-flow` / spec ガイドラインで品質チェック                │</span></span>
+<span class="line"><span>└──────────────────────────────────────────────────────────────┘</span></span>
+<span class="line"><span>                            ↓</span></span>
+<span class="line"><span>┌─ 2. 業務名で project root を決める ──────────────────────────┐</span></span>
+<span class="line"><span>│   例: ~/projects/retail-app/                                      │</span></span>
+<span class="line"><span>│   ※ `generated` のような汎用名は避ける (後述「落とし穴」)        │</span></span>
+<span class="line"><span>└──────────────────────────────────────────────────────────────┘</span></span>
+<span class="line"><span>                            ↓</span></span>
+<span class="line"><span>┌─ 3. /generate-code 実行 ─────────────────────────────────────┐</span></span>
+<span class="line"><span>│   /generate-code &#x3C;UUID> ~/projects/retail-app/                   │</span></span>
+<span class="line"><span>│   または bulk: /generate-code --all ~/projects/retail-app/      │</span></span>
+<span class="line"><span>└──────────────────────────────────────────────────────────────┘</span></span>
+<span class="line"><span>                            ↓</span></span>
+<span class="line"><span>┌─ 4. project root を Reopen in Container ─────────────────────┐</span></span>
+<span class="line"><span>│   VS Code で ~/projects/retail-app/ を開く                       │</span></span>
+<span class="line"><span>│   → 右下プロンプト「Reopen in Container」をクリック              │</span></span>
+<span class="line"><span>│   → Dev Container build (初回 5-10 分) → 業務アプリ起動可        │</span></span>
+<span class="line"><span>└──────────────────────────────────────────────────────────────┘</span></span>
+<span class="line"><span>                            ↓</span></span>
+<span class="line"><span>┌─ 5. 設計変更時は Harmony へ戻る ─────────────────────────────┐</span></span>
+<span class="line"><span>│   designer で修正 → 再度 /generate-code 同じ &#x3C;出力先> へ        │</span></span>
+<span class="line"><span>│   → 生成ファイルは上書きされる (手動編集分は git diff で確認)   │</span></span>
+<span class="line"><span>└──────────────────────────────────────────────────────────────┘</span></span></code></pre>
+<h2 id="出力先-の指定方針"><code>&#x3C;出力先></code> の指定方針</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>状況</th><th>推奨 <code>&#x3C;出力先></code></th></tr></thead><tbody><tr><td>業務アプリ開発の本番</td><td><code>~/projects/&#x3C;業務名>/</code> (Harmony repo の外)</td></tr><tr><td>ad-hoc な smoke 確認</td><td><code>.tmp/generated-code/&#x3C;入力 UUID 8 桁>/</code> (単発モード default) / <code>.tmp/generated-code/bulk-&#x3C;UTC タイムスタンプ>/</code> (bulk モード default)</td></tr><tr><td>Harmony 同梱サンプル更新 (Harmony 本体開発者のみ)</td><td><code>examples/&#x3C;id>/generated/&#x3C;techStack>/</code> (dogfood パターン)</td></tr></tbody></table>
+<p>業務アプリの本番開発では <strong>Harmony repo の外</strong> に project root を作るのが基本です。Harmony repo 内に出力すると以下の不利益があります:</p>
+<ul>
+<li>Harmony の git 履歴と業務アプリの git 履歴が混在する</li>
+<li>Harmony の build 系 (Vite / TypeScript) が業務アプリのファイルを巻き込む</li>
+<li>VS Code で開いた時の <code>${localWorkspaceFolderBasename}</code> が <code>harmony</code> 固定になり、AI CLI state (<code>~/.agent-containers/&#x3C;project-name>/</code>) が business app 単位に分離されない</li>
+</ul>
+<h2 id="よくある落とし穴">よくある落とし穴</h2>
+<h3 id="1-folder-名に-generated-を使わない">1. folder 名に <code>generated</code> を使わない</h3>
+<p><code>~/projects/generated/</code> のような汎用名で project root を作ると、VS Code Dev Container の <code>${localWorkspaceFolderBasename}</code> が <code>generated</code> になり、複数の業務アプリで AI CLI state (Claude Code / Codex / Copilot の OAuth・session・memory) が衝突します。<strong>業務名で意味のある folder 名</strong> (例: <code>retail-app</code>、<code>inventory-admin</code>、<code>payroll-2026</code>) を付けてください。</p>
+<h3 id="2-harmony-repo-内-workspaces--examples--data-に出力しない">2. Harmony repo 内 (<code>workspaces/</code> / <code>examples/</code> / <code>data/</code>) に出力しない</h3>
+<p>これらは Harmony 本体のディレクトリです。業務アプリの本番開発で出力すると Harmony 側 git 履歴に巻き込まれます。<strong>Harmony repo の外</strong>に出力してください。</p>
+<p><code>examples/&#x3C;id>/generated/&#x3C;techStack>/</code> は <strong>Harmony 同梱サンプル / dogfood 参照物</strong> であり、複数 techStack を side-by-side で比較するための場所です。常用開発の project root として開く運用は想定していません。</p>
+<h3 id="3-再生成時は手動修正が上書きされる">3. 再生成時は手動修正が上書きされる</h3>
+<p><code>/generate-code</code> は同じ <code>&#x3C;出力先></code> への再実行で生成ファイルを上書きします。生成後に手で加えた修正は <code>git diff</code> で確認 → 必要に応じてマージしてください。設計駆動でやり直したい変更は Harmony designer 側で行い、再生成するのが原則です。</p>
+<p>scaffold (<code>.devcontainer/</code> / <code>Dockerfile</code> / <code>docker-compose.yml</code> / <code>README.md</code>) は既存があれば上書きせずスキップされます (#1048)。</p>
+<h3 id="4-日本語値を-applicationproperties-に直書きしない-spring-boot-系のみ">4. 日本語値を <code>application.properties</code> に直書きしない (Spring Boot 系のみ)</h3>
+<p><code>application.properties</code> は ISO-8859-1 デフォルトで読まれるため、<code>app.session.storeName=東京本店</code> のような直書きは文字化けします。<code>/generate-code</code> は適切にエスケープを生成しますが、生成後に手書きで日本語値を追加する際は注意してください。</p>
+<h3 id="5-packagejson-の依存は-caret-prefix-を維持-nestjs--nextjs-等-node-系のみ">5. <code>package.json</code> の依存は caret prefix を維持 (NestJS / Next.js 等 Node 系のみ)</h3>
+<p><code>package.json</code> の <code>dependencies</code> は caret prefix (<code>^</code>) 必須です (#1035)。固定 version で hardcode すると <code>npm audit</code> 警告が残り続けます。</p>
+<h2 id="bulk-モード---all----workspace">bulk モード (<code>--all</code> / <code>--workspace</code>)</h2>
+<p>active workspace の全 entity を一括生成する場合:</p>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#6F42C1;--shiki-dark:#F69D50">/generate-code</span><span style="color:#005CC5;--shiki-dark:#6CB6FF"> --all</span><span style="color:#032F62;--shiki-dark:#96D0FF"> ~/projects/retail-app/</span></span></code></pre>
+<p>出力構造は entity 種別ごとにサブディレクトリで分離されます:</p>
+<pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>~/projects/retail-app/</span></span>
+<span class="line"><span>├── process-flows/&#x3C;flowId8桁>/</span></span>
+<span class="line"><span>├── screens/&#x3C;screenId8桁>/</span></span>
+<span class="line"><span>└── page-layouts/&#x3C;layoutId8桁>/</span></span></code></pre>
+<p>bulk モードは初期立ち上げ・一括再生成向け。日常的な部分更新は単発モード (<code>/generate-code &#x3C;UUID> &#x3C;出力先></code>) を推奨します。</p>
+<h2 id="generate-tests-との対応">/generate-tests との対応</h2>
+<p><code>/generate-tests &#x3C;UUID> &#x3C;出力先></code> は同じ <code>&#x3C;出力先></code> を指定することで、<code>src/test/</code> (Spring Boot) や <code>__tests__/</code> (NestJS / Next.js) など canonical なテスト配置に出力されます (<code>ai-skills/generate-tests/SKILL.md</code> 参照)。</p>
+<h2 id="関連ドキュメント">関連ドキュメント</h2>
+<ul>
+<li><a href="https://github.com/csilost2001/harmony/blob/main/ai-skills/generate-code/SKILL.md"><code>/generate-code</code> skill 仕様</a> — AI 実装者向け詳細</li>
+<li><a href="../../user-guide/process-flow-workflow/">処理フロー編集ワークフロー</a> — 上流 (設計) フェーズの進め方</li>
+<li><a href="../../user-guide/multi-editor-puck-guide/">マルチエディタ / Puck デザイナ</a> — 画面エディタの選択</li>
+<li><a href="../../setup/dev-containers/">Dev Containers セットアップ</a> — Harmony 本体側の dev 環境 (業務アプリ側 Dev Container は <code>/generate-code</code> が自動同梱)</li>
+</ul>  </article> </main> </div> <pagefind-modal reset-on-close="true"></pagefind-modal> <script>
+      // Theme toggle (restore は <head> で先行実行済、FOUC 回避)
+      document.getElementById('theme-toggle')?.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem(
+          'theme',
+          document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+        );
+      });
+
+      // Copy buttons on <pre>
+      (function () {
+        document.querySelectorAll('pre').forEach((pre) => {
+          if (pre.querySelector('.copy-btn')) return;
+          const btn = document.createElement('button');
+          btn.textContent = 'Copy';
+          btn.className = 'copy-btn';
+          btn.type = 'button';
+          btn.addEventListener('click', async () => {
+            const code = pre.querySelector('code')?.textContent ?? '';
+            try {
+              await navigator.clipboard.writeText(code);
+              btn.textContent = 'Copied!';
+              setTimeout(() => (btn.textContent = 'Copy'), 2000);
+            } catch {
+              btn.textContent = 'Failed';
+            }
+          });
+          pre.appendChild(btn);
+        });
+      })();
+    </script> </body> </html>

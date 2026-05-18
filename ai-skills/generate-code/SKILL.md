@@ -1888,20 +1888,96 @@ ai-skills/generate-code/templates/devcontainer/
 
 ### 出力先の運用想定 (project-root model)
 
-`<出力先>` は **業務アプリ project root** を指す設計。生成ファイルは canonical layout で project root 直下に配置される (例: Spring Boot なら `<出力先>/pom.xml`, `<出力先>/src/main/java/...`、Next.js なら `<出力先>/package.json`, `<出力先>/app/...`)。
+`<出力先>` は **業務アプリ project root** を指す設計。生成ファイルは canonical layout で project root 直下に配置され、scaffold (`.devcontainer/` / `Dockerfile` / `docker-compose.yml` / `README.md`) も同じ project root に同居する。
 
-scaffold (`.devcontainer/` / `Dockerfile` / `docker-compose.yml` / `README.md`) も project root 直下。
+業務アプリ開発者 (Harmony 利用者) 向けの利用者目線の解説は [`docs/user-guide/generate-code-workflow.md`](../../docs/user-guide/generate-code-workflow.md) を参照。本節は AI 実装者向けに design intent と生成後の物理 layout を記述する。
 
-| パターン | `<出力先>` | 想定用途 |
-|---|---|---|
-| **実運用** (Harmony 利用者) | 独立した project root (例: `~/projects/retail-app/`) | 業務アプリ開発の本番経路。利用者が project root を VS Code / Dev Container で開く |
-| **dogfood** (Harmony 開発) | `examples/<id>/generated/<techStack>/` 等の repo 内 path | Harmony 同梱サンプルとして、複数 techStack を side-by-side に並べて比較するため |
+#### canonical layout: Spring Boot backend (java)
+
+frontend は Thymeleaf (同 project root の `src/main/resources/templates/`) or Next.js (別 project root と組み合わせ可)。下例は frontend=thymeleaf の場合:
+
+```
+<出力先>/                              ← 業務アプリ project root (例: ~/projects/retail-app/)
+├── .devcontainer/
+│   └── devcontainer.json              ← VS Code Dev Container 設定
+├── Dockerfile                          ← backend container image 定義
+├── docker-compose.yml                  ← backend + DB を起動する compose 定義
+├── README.md                           ← project README + scaffold セクション
+├── pom.xml                             ← Maven build 定義
+├── mvnw / mvnw.cmd                     ← Maven Wrapper (#1050、`./mvnw spring-boot:run` で system Maven 不要)
+├── .mvn/wrapper/maven-wrapper.properties
+└── src/
+    ├── main/
+    │   ├── java/com/example/<projectName>/
+    │   │   ├── controller/             ← @RestController / @Controller
+    │   │   ├── service/                ← @Service (Transactional)
+    │   │   ├── repository/             ← Spring Data JPA Repository
+    │   │   ├── entity/                 ← @Entity (JPA)
+    │   │   ├── dto/                    ← Request / Response DTO (常時)
+    │   │   └── ai/                     ← AiRuntimeService / AiCatalogService (AI step あり時のみ、#§ AI step kind 検出時)
+    │   └── resources/
+    │       ├── application.properties  ← Spring Boot 設定 (ISO-8859-1 で日本語不可)
+    │       ├── db/migration/           ← Flyway migration SQL (V1__create_*.sql)
+    │       └── templates/              ← Thymeleaf HTML (frontend=thymeleaf の場合のみ)
+    │           ├── layouts/            ← PageLayout (Step 3-D)
+    │           ├── fragments/          ← Gadget (Step 3-C)
+    │           └── <path>/
+    └── test/
+        └── java/com/example/<projectName>/  ← JUnit テスト (/generate-tests で出力)
+```
+
+#### canonical layout: NestJS backend + Next.js frontend (typescript)
+
+業務 Service / Controller / Module / DTO / Entity は **project root 直下** (NestJS は src/ 強制ではなく、生成物は flat 配置)。`src/ai/` と `src/auth/` のみ src/ 配下に scaffold (`/generate-code` 生成ファイル一覧の規約、L915-927 参照):
+
+```
+<出力先>/                              ← 業務アプリ project root (例: ~/projects/inventory-admin/)
+├── .devcontainer/
+│   └── devcontainer.json
+├── Dockerfile
+├── docker-compose.yml
+├── README.md
+├── package.json                        ← caret prefix `^` 必須 (#1035)
+├── tsconfig.json
+├── nest-cli.json                       ← NestJS CLI 設定
+├── next.config.mjs                     ← Next.js 設定
+├── tailwind.config.ts                  ← Tailwind (cssFramework=tailwind の場合)
+├── <processFlowName>.service.ts        ← NestJS @Injectable Service (root 直下、actions → Service)
+├── <processFlowName>.controller.ts     ← NestJS @Controller (root 直下、httpRoute → Controller)
+├── <processFlowName>.module.ts         ← NestJS Module 定義 (root 直下)
+├── dto/                                ← Request / Response DTO (root 直下、inputs[] / outputs[] → DTO)
+│   ├── <actionName>-request.dto.ts
+│   └── <actionName>-response.dto.ts
+├── entity/                             ← TypeORM Entity (root 直下、lineage.writes → Entity)
+│   └── <tableName>.entity.ts
+├── src/                                ← AI / auth scaffold のみ (Phase 2-C)
+│   ├── ai/                             ← AI step あり時のみ (#§ AI step kind 検出時)
+│   │   ├── ai-runtime.service.ts
+│   │   ├── ai.module.ts
+│   │   ├── ai-catalog.service.ts
+│   │   └── providers/<provider>.ts
+│   └── auth/                           ← auth.method 有効時のみ (scaffold)
+├── app/                                ← Next.js App Router (frontend)
+│   ├── components/
+│   │   ├── layouts/<pageLayoutId>.tsx  ← default export Server Component (Step 3-D)
+│   │   └── gadgets/<gadgetId>.tsx      ← default export ('use client' if events) (Step 3-C)
+│   ├── api/gadgets/<gadgetId>/<actionId>/route.ts  ← Route Handler (processFlowId 連携時のみ)
+│   └── <path>/page.tsx
+└── components/<domain>/                ← 共通 UI コンポーネント
+```
+
+#### 実運用 vs dogfood の対比
+
+| パターン | `<出力先>` 例 | folder 命名 | 想定用途 | Reopen in Container の挙動 |
+|---|---|---|---|---|
+| **実運用** (Harmony 利用者) | `~/projects/retail-app/` | 業務名で意味のある名前 | 業務アプリ開発の本番経路 | `${localWorkspaceFolderBasename}` = `retail-app`、AI CLI state は `~/.agent-containers/retail-app/` に分離される |
+| **dogfood** (Harmony 開発) | `examples/<id>/generated/<techStack>/` | `generated` 固定 | Harmony 同梱サンプル、複数 techStack を side-by-side で比較 | `${localWorkspaceFolderBasename}` = `generated` で AI CLI state 分離が崩れる、業務開発の本番経路ではない |
 
 `examples/<id>/generated/` は **Harmony 同梱サンプル / dogfood 参照物** であり、常用・実開発の project root として開く運用は想定しない (`${localWorkspaceFolderBasename}` が `generated` で衝突し AI CLI state 分離が崩れる)。一時 smoke で開くことはあり得るが、業務アプリ開発の本番経路ではない。
 
 Harmony 利用者は **意味のある folder 名** (例: `retail-app/`、`inventory-admin/`) で project root を作り、その folder を `<出力先>` に指定する。VS Code でその root を開いた時の `${localWorkspaceFolderBasename}` が AI CLI state (`~/.agent-containers/<project-name>/`) の分離キーになる。
 
-> 設定駆動の出力先指定 (`harmony.json` の `outputDir` field 等) は **将来 ISSUE [#1116](https://github.com/csilost2001/harmony/issues/1116) で実装検討中**。現状は `<出力先>` を毎回明示指定する運用。
+> 設定駆動の出力先指定 (`harmony.json` の `outputDir` field 等) は将来検討項目。現状は `<出力先>` を毎回明示指定する運用。`#1055` (L2 image 配布) 着手時に必要性を再評価し、必要なら新規 ISSUE を起票する。
 
 ### 検証 (Step 6 拡張 / B-4)
 
