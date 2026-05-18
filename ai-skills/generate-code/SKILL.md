@@ -1892,7 +1892,9 @@ ai-skills/generate-code/templates/devcontainer/
 
 業務アプリ開発者 (Harmony 利用者) 向けの利用者目線の解説は [`docs/user-guide/generate-code-workflow.md`](../../docs/user-guide/generate-code-workflow.md) を参照。本節は AI 実装者向けに design intent と生成後の物理 layout を記述する。
 
-#### canonical layout: Spring Boot backend + Thymeleaf or Next.js frontend (java)
+#### canonical layout: Spring Boot backend (java)
+
+frontend は Thymeleaf (同 project root の `src/main/resources/templates/`) or Next.js (別 project root と組み合わせ可)。下例は frontend=thymeleaf の場合:
 
 ```
 <出力先>/                              ← 業務アプリ project root (例: ~/projects/retail-app/)
@@ -1911,19 +1913,22 @@ ai-skills/generate-code/templates/devcontainer/
     │   │   ├── service/                ← @Service (Transactional)
     │   │   ├── repository/             ← Spring Data JPA Repository
     │   │   ├── entity/                 ← @Entity (JPA)
-    │   │   └── ai/                     ← AiRuntimeService / AiCatalogService (provider 中立)
+    │   │   ├── dto/                    ← Request / Response DTO (常時)
+    │   │   └── ai/                     ← AiRuntimeService / AiCatalogService (AI step あり時のみ、#§ AI step kind 検出時)
     │   └── resources/
     │       ├── application.properties  ← Spring Boot 設定 (ISO-8859-1 で日本語不可)
     │       ├── db/migration/           ← Flyway migration SQL (V1__create_*.sql)
-    │       └── templates/              ← Thymeleaf HTML (frontend=thymeleaf の場合)
-    │           ├── layouts/
-    │           ├── fragments/
+    │       └── templates/              ← Thymeleaf HTML (frontend=thymeleaf の場合のみ)
+    │           ├── layouts/            ← PageLayout (Step 3-D)
+    │           ├── fragments/          ← Gadget (Step 3-C)
     │           └── <path>/
     └── test/
         └── java/com/example/<projectName>/  ← JUnit テスト (/generate-tests で出力)
 ```
 
 #### canonical layout: NestJS backend + Next.js frontend (typescript)
+
+業務 Service / Controller / Module / DTO / Entity は **project root 直下** (NestJS は src/ 強制ではなく、生成物は flat 配置)。`src/ai/` と `src/auth/` のみ src/ 配下に scaffold (`/generate-code` 生成ファイル一覧の規約、L915-927 参照):
 
 ```
 <出力先>/                              ← 業務アプリ project root (例: ~/projects/inventory-admin/)
@@ -1934,18 +1939,29 @@ ai-skills/generate-code/templates/devcontainer/
 ├── README.md
 ├── package.json                        ← caret prefix `^` 必須 (#1035)
 ├── tsconfig.json
+├── nest-cli.json                       ← NestJS CLI 設定
 ├── next.config.mjs                     ← Next.js 設定
 ├── tailwind.config.ts                  ← Tailwind (cssFramework=tailwind の場合)
-├── src/
-│   ├── controllers/                    ← NestJS @Controller (backend=nestjs の場合)
-│   ├── services/                       ← NestJS @Injectable Service
-│   ├── ai/                             ← AiRuntimeService / providers/<provider>.ts
-│   ├── entities/                       ← TypeORM Entity
-│   └── modules/                        ← NestJS Module
-├── app/                                ← Next.js App Router (page / layout / route handler)
+├── <processFlowName>.service.ts        ← NestJS @Injectable Service (root 直下、actions → Service)
+├── <processFlowName>.controller.ts     ← NestJS @Controller (root 直下、httpRoute → Controller)
+├── <processFlowName>.module.ts         ← NestJS Module 定義 (root 直下)
+├── dto/                                ← Request / Response DTO (root 直下、inputs[] / outputs[] → DTO)
+│   ├── <actionName>-request.dto.ts
+│   └── <actionName>-response.dto.ts
+├── entity/                             ← TypeORM Entity (root 直下、lineage.writes → Entity)
+│   └── <tableName>.entity.ts
+├── src/                                ← AI / auth scaffold のみ (Phase 2-C)
+│   ├── ai/                             ← AI step あり時のみ (#§ AI step kind 検出時)
+│   │   ├── ai-runtime.service.ts
+│   │   ├── ai.module.ts
+│   │   ├── ai-catalog.service.ts
+│   │   └── providers/<provider>.ts
+│   └── auth/                           ← auth.method 有効時のみ (scaffold)
+├── app/                                ← Next.js App Router (frontend)
 │   ├── components/
-│   │   ├── layouts/<pageLayoutId>.tsx  ← default export Server Component
-│   │   └── gadgets/<gadgetId>.tsx      ← default export ('use client' if events)
+│   │   ├── layouts/<pageLayoutId>.tsx  ← default export Server Component (Step 3-D)
+│   │   └── gadgets/<gadgetId>.tsx      ← default export ('use client' if events) (Step 3-C)
+│   ├── api/gadgets/<gadgetId>/<actionId>/route.ts  ← Route Handler (processFlowId 連携時のみ)
 │   └── <path>/page.tsx
 └── components/<domain>/                ← 共通 UI コンポーネント
 ```

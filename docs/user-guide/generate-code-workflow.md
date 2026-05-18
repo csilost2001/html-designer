@@ -66,15 +66,20 @@ code ~/projects/retail-app/      # project root を VS Code で開く
 ├── README.md
 ├── package.json
 ├── tsconfig.json
+├── nest-cli.json
 ├── next.config.mjs
-├── src/                                ← NestJS backend
-│   ├── controllers/
-│   ├── services/
-│   └── entities/
+├── <processFlowName>.service.ts        ← NestJS Service (root 直下、業務ロジック)
+├── <processFlowName>.controller.ts     ← NestJS Controller (root 直下、HTTP ルート)
+├── <processFlowName>.module.ts         ← NestJS Module (root 直下)
+├── dto/                                ← Request / Response DTO
+├── entity/                             ← TypeORM Entity (DB スキーマ)
+├── src/                                ← AI / auth scaffold のみ (NestJS は src/ 強制ではない)
+│   ├── ai/                             ← AI step あり時のみ
+│   └── auth/                           ← auth.method 有効時のみ
 ├── app/                                ← Next.js App Router (frontend)
 │   ├── components/layouts/
 │   └── components/gadgets/
-└── components/<domain>/
+└── components/<domain>/                ← 共通 UI コンポーネント
 ```
 
 ## 推奨ワークフロー
@@ -112,7 +117,7 @@ code ~/projects/retail-app/      # project root を VS Code で開く
 | 状況 | 推奨 `<出力先>` |
 |---|---|
 | 業務アプリ開発の本番 | `~/projects/<業務名>/` (Harmony repo の外) |
-| ad-hoc な smoke 確認 | `.tmp/generated-code/<任意名>/` (default) |
+| ad-hoc な smoke 確認 | `.tmp/generated-code/<入力 UUID 8 桁>/` (単発モード default) / `.tmp/generated-code/bulk-<UTC タイムスタンプ>/` (bulk モード default) |
 | Harmony 同梱サンプル更新 (Harmony 本体開発者のみ) | `examples/<id>/generated/<techStack>/` (dogfood パターン) |
 
 業務アプリの本番開発では **Harmony repo の外** に project root を作るのが基本です。Harmony repo 内に出力すると以下の不利益があります:
@@ -139,11 +144,11 @@ code ~/projects/retail-app/      # project root を VS Code で開く
 
 scaffold (`.devcontainer/` / `Dockerfile` / `docker-compose.yml` / `README.md`) は既存があれば上書きせずスキップされます (#1048)。
 
-### 4. 日本語値を `application.properties` に直書きしない (Spring Boot)
+### 4. 日本語値を `application.properties` に直書きしない (Spring Boot 系のみ)
 
 `application.properties` は ISO-8859-1 デフォルトで読まれるため、`app.session.storeName=東京本店` のような直書きは文字化けします。`/generate-code` は適切にエスケープを生成しますが、生成後に手書きで日本語値を追加する際は注意してください。
 
-### 5. `package.json` の依存は caret prefix を維持
+### 5. `package.json` の依存は caret prefix を維持 (NestJS / Next.js 等 Node 系のみ)
 
 `package.json` の `dependencies` は caret prefix (`^`) 必須です (#1035)。固定 version で hardcode すると `npm audit` 警告が残り続けます。
 

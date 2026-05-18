@@ -54,15 +54,20 @@
 <span class="line"><span>├── README.md</span></span>
 <span class="line"><span>├── package.json</span></span>
 <span class="line"><span>├── tsconfig.json</span></span>
+<span class="line"><span>├── nest-cli.json</span></span>
 <span class="line"><span>├── next.config.mjs</span></span>
-<span class="line"><span>├── src/                                ← NestJS backend</span></span>
-<span class="line"><span>│   ├── controllers/</span></span>
-<span class="line"><span>│   ├── services/</span></span>
-<span class="line"><span>│   └── entities/</span></span>
+<span class="line"><span>├── &#x3C;processFlowName>.service.ts        ← NestJS Service (root 直下、業務ロジック)</span></span>
+<span class="line"><span>├── &#x3C;processFlowName>.controller.ts     ← NestJS Controller (root 直下、HTTP ルート)</span></span>
+<span class="line"><span>├── &#x3C;processFlowName>.module.ts         ← NestJS Module (root 直下)</span></span>
+<span class="line"><span>├── dto/                                ← Request / Response DTO</span></span>
+<span class="line"><span>├── entity/                             ← TypeORM Entity (DB スキーマ)</span></span>
+<span class="line"><span>├── src/                                ← AI / auth scaffold のみ (NestJS は src/ 強制ではない)</span></span>
+<span class="line"><span>│   ├── ai/                             ← AI step あり時のみ</span></span>
+<span class="line"><span>│   └── auth/                           ← auth.method 有効時のみ</span></span>
 <span class="line"><span>├── app/                                ← Next.js App Router (frontend)</span></span>
 <span class="line"><span>│   ├── components/layouts/</span></span>
 <span class="line"><span>│   └── components/gadgets/</span></span>
-<span class="line"><span>└── components/&#x3C;domain>/</span></span></code></pre>
+<span class="line"><span>└── components/&#x3C;domain>/                ← 共通 UI コンポーネント</span></span></code></pre>
 <h2 id="推奨ワークフロー">推奨ワークフロー</h2>
 <pre class="astro-code astro-code-themes github-light github-dark-dimmed" style="background-color:#fff;--shiki-dark-bg:#22272e;color:#24292e;--shiki-dark:#adbac7; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>┌─ 1. 設計 (Harmony 内) ───────────────────────────────────────┐</span></span>
 <span class="line"><span>│   designer で ProcessFlow / Screen / Table / PageLayout を作成   │</span></span>
@@ -111,7 +116,7 @@
 
 
 
-<table><thead><tr><th>状況</th><th>推奨 <code>&#x3C;出力先></code></th></tr></thead><tbody><tr><td>業務アプリ開発の本番</td><td><code>~/projects/&#x3C;業務名>/</code> (Harmony repo の外)</td></tr><tr><td>ad-hoc な smoke 確認</td><td><code>.tmp/generated-code/&#x3C;任意名>/</code> (default)</td></tr><tr><td>Harmony 同梱サンプル更新 (Harmony 本体開発者のみ)</td><td><code>examples/&#x3C;id>/generated/&#x3C;techStack>/</code> (dogfood パターン)</td></tr></tbody></table>
+<table><thead><tr><th>状況</th><th>推奨 <code>&#x3C;出力先></code></th></tr></thead><tbody><tr><td>業務アプリ開発の本番</td><td><code>~/projects/&#x3C;業務名>/</code> (Harmony repo の外)</td></tr><tr><td>ad-hoc な smoke 確認</td><td><code>.tmp/generated-code/&#x3C;入力 UUID 8 桁>/</code> (単発モード default) / <code>.tmp/generated-code/bulk-&#x3C;UTC タイムスタンプ>/</code> (bulk モード default)</td></tr><tr><td>Harmony 同梱サンプル更新 (Harmony 本体開発者のみ)</td><td><code>examples/&#x3C;id>/generated/&#x3C;techStack>/</code> (dogfood パターン)</td></tr></tbody></table>
 <p>業務アプリの本番開発では <strong>Harmony repo の外</strong> に project root を作るのが基本です。Harmony repo 内に出力すると以下の不利益があります:</p>
 <ul>
 <li>Harmony の git 履歴と業務アプリの git 履歴が混在する</li>
@@ -127,9 +132,9 @@
 <h3 id="3-再生成時は手動修正が上書きされる">3. 再生成時は手動修正が上書きされる</h3>
 <p><code>/generate-code</code> は同じ <code>&#x3C;出力先></code> への再実行で生成ファイルを上書きします。生成後に手で加えた修正は <code>git diff</code> で確認 → 必要に応じてマージしてください。設計駆動でやり直したい変更は Harmony designer 側で行い、再生成するのが原則です。</p>
 <p>scaffold (<code>.devcontainer/</code> / <code>Dockerfile</code> / <code>docker-compose.yml</code> / <code>README.md</code>) は既存があれば上書きせずスキップされます (#1048)。</p>
-<h3 id="4-日本語値を-applicationproperties-に直書きしない-spring-boot">4. 日本語値を <code>application.properties</code> に直書きしない (Spring Boot)</h3>
+<h3 id="4-日本語値を-applicationproperties-に直書きしない-spring-boot-系のみ">4. 日本語値を <code>application.properties</code> に直書きしない (Spring Boot 系のみ)</h3>
 <p><code>application.properties</code> は ISO-8859-1 デフォルトで読まれるため、<code>app.session.storeName=東京本店</code> のような直書きは文字化けします。<code>/generate-code</code> は適切にエスケープを生成しますが、生成後に手書きで日本語値を追加する際は注意してください。</p>
-<h3 id="5-packagejson-の依存は-caret-prefix-を維持">5. <code>package.json</code> の依存は caret prefix を維持</h3>
+<h3 id="5-packagejson-の依存は-caret-prefix-を維持-nestjs--nextjs-等-node-系のみ">5. <code>package.json</code> の依存は caret prefix を維持 (NestJS / Next.js 等 Node 系のみ)</h3>
 <p><code>package.json</code> の <code>dependencies</code> は caret prefix (<code>^</code>) 必須です (#1035)。固定 version で hardcode すると <code>npm audit</code> 警告が残り続けます。</p>
 <h2 id="bulk-モード---all----workspace">bulk モード (<code>--all</code> / <code>--workspace</code>)</h2>
 <p>active workspace の全 entity を一括生成する場合:</p>
