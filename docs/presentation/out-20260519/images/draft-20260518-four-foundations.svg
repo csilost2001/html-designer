@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">AIエージェント時代に必要な4つの土台</title>
+  <desc id="desc">コード、タスク、環境、設計書を機械可読で追跡可能にする4条件を示す図。</desc>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="80" y="82" fill="#09090b" font-family="Inter, 'Noto Sans JP', sans-serif" font-size="42" font-weight="700">AI エージェント導入は、ツール単体ではなく「土台」の整備</text>
+  <text x="82" y="122" fill="#71717a" font-family="Inter, 'Noto Sans JP', sans-serif" font-size="20">Web チャット利用から、業務開発の作業主体へ進めるための前提条件</text>
+
+  <g font-family="Inter, 'Noto Sans JP', sans-serif">
+    <rect x="155" y="170" width="430" height="185" rx="18" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="190" y="220" fill="#09090b" font-size="30" font-weight="700">1. コードが構造化</text>
+    <text x="190" y="260" fill="#52525b" font-size="20">Git / GitHub</text>
+    <text x="190" y="294" fill="#71717a" font-size="18">diff・履歴・ブランチを標準化</text>
+    <text x="190" y="324" fill="#71717a" font-size="18">AI が変更理由を追える</text>
+
+    <rect x="695" y="170" width="430" height="185" rx="18" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="730" y="220" fill="#09090b" font-size="30" font-weight="700">2. タスクが trace 可能</text>
+    <text x="730" y="260" fill="#52525b" font-size="20">Issue / PR / Kanban</text>
+    <text x="730" y="294" fill="#71717a" font-size="18">誰が・なぜ・何をしたかを記録</text>
+    <text x="730" y="324" fill="#71717a" font-size="18">AI への作業指示にもなる</text>
+
+    <rect x="155" y="430" width="430" height="185" rx="18" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="190" y="480" fill="#09090b" font-size="30" font-weight="700">3. 環境が再現可能</text>
+    <text x="190" y="520" fill="#52525b" font-size="20">Docker / Podman / Dev Containers</text>
+    <text x="190" y="554" fill="#71717a" font-size="18">誰でも同じ環境で動く</text>
+    <text x="190" y="584" fill="#71717a" font-size="18">AI が壊しても戻せる</text>
+
+    <rect x="695" y="430" width="430" height="185" rx="18" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="730" y="480" fill="#9a3412" font-size="30" font-weight="700">4. 設計書が機械可読</text>
+    <text x="730" y="520" fill="#9a3412" font-size="20">JSON / Markdown / Schema</text>
+    <text x="730" y="554" fill="#7c2d12" font-size="18">仕様からコード・テストへつながる</text>
+    <text x="730" y="584" fill="#7c2d12" font-size="18">今回の中核テーマ</text>
+
+    <circle cx="640" cy="392" r="66" fill="#09090b"/>
+    <text x="640" y="382" fill="#fafafa" font-size="26" font-weight="700" text-anchor="middle">AI</text>
+    <text x="640" y="413" fill="#fafafa" font-size="26" font-weight="700" text-anchor="middle">Agent</text>
+  </g>
+</svg>

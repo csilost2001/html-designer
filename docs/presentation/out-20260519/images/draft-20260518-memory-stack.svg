@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">16GB環境でのメモリ圧迫</title>
+  <desc id="desc">Windows、Eclipse、Oracle VM、ブラウザ、Excelの合計メモリ使用量が16GBを超える可能性を示す積み上げ棒グラフ。</desc>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="80" y="82" fill="#09090b" font-family="Inter, 'Noto Sans JP', sans-serif" font-size="42" font-weight="700">16 GB は、現状構成でもすでに余裕が少ない</text>
+  <text x="82" y="122" fill="#71717a" font-family="Inter, 'Noto Sans JP', sans-serif" font-size="20">AI 導入だけが重いのではなく、VM・IDE・ブラウザ・Excel の同時利用で圧迫している</text>
+
+  <g font-family="Inter, 'Noto Sans JP', sans-serif">
+    <line x1="155" y1="575" x2="1095" y2="575" stroke="#d4d4d8" stroke-width="2"/>
+    <line x1="155" y1="205" x2="155" y2="575" stroke="#d4d4d8" stroke-width="2"/>
+    <line x1="155" y1="279" x2="790" y2="279" stroke="#b91c1c" stroke-width="3" stroke-dasharray="10 8"/>
+    <text x="805" y="286" fill="#b91c1c" font-size="21" font-weight="700">16 GB</text>
+
+    <rect x="260" y="501" width="120" height="74" fill="#a1a1aa"/>
+    <rect x="260" y="427" width="120" height="74" fill="#71717a"/>
+    <rect x="260" y="316" width="120" height="111" fill="#b91c1c"/>
+    <rect x="260" y="242" width="120" height="74" fill="#ea580c"/>
+    <rect x="260" y="205" width="120" height="37" fill="#f59e0b"/>
+    <text x="320" y="620" fill="#09090b" font-size="22" font-weight="700" text-anchor="middle">高め推定</text>
+    <text x="320" y="650" fill="#71717a" font-size="18" text-anchor="middle">約20 GB</text>
+
+    <rect x="560" y="501" width="120" height="74" fill="#a1a1aa"/>
+    <rect x="560" y="445" width="120" height="56" fill="#71717a"/>
+    <rect x="560" y="371" width="120" height="74" fill="#b91c1c"/>
+    <rect x="560" y="315" width="120" height="56" fill="#ea580c"/>
+    <rect x="560" y="279" width="120" height="36" fill="#f59e0b"/>
+    <text x="620" y="620" fill="#09090b" font-size="22" font-weight="700" text-anchor="middle">低め推定</text>
+    <text x="620" y="650" fill="#71717a" font-size="18" text-anchor="middle">約13 GB</text>
+
+    <rect x="825" y="230" width="310" height="275" rx="16" fill="#f4f4f5" stroke="#d4d4d8"/>
+    <text x="860" y="275" fill="#09090b" font-size="24" font-weight="700">内訳</text>
+    <rect x="860" y="310" width="18" height="18" fill="#a1a1aa"/><text x="892" y="326" fill="#52525b" font-size="18">Windows 11 ホスト</text>
+    <rect x="860" y="345" width="18" height="18" fill="#71717a"/><text x="892" y="361" fill="#52525b" font-size="18">Eclipse + Java</text>
+    <rect x="860" y="380" width="18" height="18" fill="#b91c1c"/><text x="892" y="396" fill="#52525b" font-size="18">Oracle VM</text>
+    <rect x="860" y="415" width="18" height="18" fill="#ea580c"/><text x="892" y="431" fill="#52525b" font-size="18">ブラウザ多タブ</text>
+    <rect x="860" y="450" width="18" height="18" fill="#f59e0b"/><text x="892" y="466" fill="#52525b" font-size="18">Excel 複数同時</text>
+
+    <text x="155" y="190" fill="#71717a" font-size="17">20GB</text>
+    <text x="155" y="292" fill="#71717a" font-size="17">16GB</text>
+    <text x="155" y="428" fill="#71717a" font-size="17">8GB</text>
+  </g>
+</svg>
